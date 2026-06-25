@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+}
+
+@layer utilities {
+  /* Stagger animation for lists/grids */
+  .animate-stagger > * {
+    animation: slideUpFade 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  }
+  .animate-stagger > *:nth-child(1) { animation-delay: 50ms; }
+  .animate-stagger > *:nth-child(2) { animation-delay: 150ms; }
+  .animate-stagger > *:nth-child(3) { animation-delay: 250ms; }
+  .animate-stagger > *:nth-child(4) { animation-delay: 350ms; }
+  .animate-stagger > *:nth-child(5) { animation-delay: 450ms; }
+  .animate-stagger > *:nth-child(6) { animation-delay: 550ms; }
+  .animate-stagger > *:nth-child(7) { animation-delay: 650ms; }
+  .animate-stagger > *:nth-child(8) { animation-delay: 750ms; }
+  .animate-stagger > *:nth-child(9) { animation-delay: 850ms; }
+  .animate-stagger > *:nth-child(10) { animation-delay: 950ms; }
+
+  /* Dialog entrance animation */
+  .animate-dialog-enter {
+    animation: dialogEntrance 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Backdrop fade animation */
+  .animate-backdrop-in {
+    animation: backdropFadeIn 0.3s ease-out forwards;
+  }
+
+  /* Button press effect */
+  .btn-interactive {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  .btn-interactive:active {
+    transform: scale(0.95);
+  }
+  .btn-interactive:active:not(:disabled) {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Focus glow for inputs */
+  .focus-glow:focus {
+    animation: focusGlow 0.6s ease-in-out;
+  }
+
+  /* Badge hover glow */
+  .badge-hover:hover {
+    animation: badgeGlow 0.6s ease-in-out;
+  }
+
+  /* Icon animation */
+  .icon-pulse {
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  .group:hover .icon-pulse {
+    animation: iconPulse 0.4s ease-in-out;
+  }
+
+  /* Smooth tab transition */
+  .tab-content-transition {
+    animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Loading pulse */
+  @keyframes pulse-loading {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .animate-pulse-loading {
+    animation: pulse-loading 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dialogEntrance {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes focusGlow {
+  0%, 100% {
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.3), 0 0 0 0 rgba(37, 99, 235, 0.1);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.5), 0 0 0 6px rgba(37, 99, 235, 0.05);
+  }
+}
+
+@keyframes badgeGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px 0 rgba(37, 99, 235, 0.1);
+  }
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 0.01px;
+  height: 0.01px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e100;
+  border-radius: 0.01px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b800;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e100 transparent;
+}

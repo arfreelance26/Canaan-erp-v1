@@ -1,0 +1,57 @@
+# ============================================================================
+# Canaan ERP - Backend Requirements
+# Python 3.8+
+# ============================================================================
+
+# Core Framework
+# ============================================================================
+fastapi==0.104.1              # Modern web framework with async support
+uvicorn[standard]==0.24.0     # ASGI server for running FastAPI
+python-multipart==0.0.6       # Support for file uploads and form data
+
+# Database
+# ============================================================================
+sqlalchemy==2.0.23            # SQL toolkit and ORM
+pymysql==1.1.0                # Pure Python MySQL client driver
+cryptography==41.0.7          # Required for secure MySQL connections
+
+# Data Validation & Serialization
+# ============================================================================
+pydantic==2.5.0               # Data validation using Python type annotations
+pydantic-core==2.14.1         # Core validation engine
+
+# Security & Authentication
+# ============================================================================
+passlib==1.7.4                # Password hashing library
+python-jose[cryptography]==3.3.0  # JWT and cryptographic operations
+bcrypt==4.1.1                 # Password hashing with bcrypt
+
+# Utilities
+# ============================================================================
+python-dotenv==1.0.0          # Load environment variables from .env
+email-validator==2.1.0        # Email validation
+
+# Development & Optional
+# ============================================================================
+# Uncomment for production deployment
+# gunicorn==21.2.0            # Production WSGI server
+# python-logging-loki==0.3.2  # Loki logging integration (optional)
+
+# Testing (Optional)
+# ============================================================================
+# Uncomment to install testing dependencies
+# pytest==7.4.3               # Testing framework
+# pytest-asyncio==0.21.1      # Async test support
+# httpx==0.25.1               # Async HTTP client for testing
+
+# Database Tools (Optional)
+# ============================================================================
+# Uncomment for database migrations
+# alembic==1.12.1             # Database migration tool
+
+# Notes:
+# - FastAPI v0.104.1+ requires Python 3.8+
+# - SQLAlchemy 2.0+ provides better async support
+# - PyMySQL is a pure Python implementation (no C extensions needed)
+# - Passlib is used for password hashing in seed.py
+# - Cryptography module provides SSL/TLS support for MySQL connections
