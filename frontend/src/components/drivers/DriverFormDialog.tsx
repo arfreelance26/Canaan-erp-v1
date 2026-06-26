@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FileText } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { Avatar } from "@/components/ui/Avatar";
 import { generateDriverId } from "@/lib/driver-data";
@@ -234,18 +235,15 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="Form 11" required>
-            <select
-              required
+            <GlassSelect
               value={form.form11}
-              onChange={(e) => update("form11", e.target.value as Driver["form11"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select
-              </option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>
+              onChange={(val) => update("form11", val as Driver["form11"])}
+              options={[
+                { value: "", label: "Select" },
+                { value: "Yes", label: "Yes" },
+                { value: "No", label: "No" }
+              ]}
+            />
           </Field>
 
           <Field label="ESI Number" required>
@@ -271,18 +269,15 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="Agreement Signed" required>
-            <select
-              required
+            <GlassSelect
               value={form.agreementSigned}
-              onChange={(e) => update("agreementSigned", e.target.value as Driver["agreementSigned"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select
-              </option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>
+              onChange={(val) => update("agreementSigned", val as Driver["agreementSigned"])}
+              options={[
+                { value: "", label: "Select" },
+                { value: "Yes", label: "Yes" },
+                { value: "No", label: "No" }
+              ]}
+            />
           </Field>
         </div>
 

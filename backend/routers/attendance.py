@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -52,6 +53,7 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
         raise HTTPException(404, "Attendance record not found")
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(record, field, value)
+    record.marked_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(record)
     return record
@@ -101,6 +103,7 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
         raise HTTPException(404, "Attendance record not found")
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(record, field, value)
+    record.marked_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(record)
     return record
@@ -109,6 +112,29 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
 # ---------------------------------------------------------------------------
 # Leave Requests
 # ---------------------------------------------------------------------------
+
+@router.get("/lookup-applicant", response_model=schemas.ApplicantLookupOut)
+def lookup_applicant(code: str, db: Session = Depends(get_db)):
+    code_upper = code.strip().upper()
+    # Check Driver
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == code_upper).first()
+    if driver:
+        return schemas.ApplicantLookupOut(
+            category="Driver",
+            applicant_id=driver.id,
+            applicant_name=driver.name,
+            applicant_code=driver.driver_id
+        )
+    # Check Staff
+    staff = db.query(models.Staff).filter(models.Staff.staff_id == code_upper).first()
+    if staff:
+        return schemas.ApplicantLookupOut(
+            category=staff.software_designation if staff.software_designation in ["Fleet Manager", "Tyre Manager", "Staff"] else "Staff",
+            applicant_id=staff.id,
+            applicant_name=staff.name,
+            applicant_code=staff.staff_id
+        )
+    raise HTTPException(404, "Applicant not found with the provided code")
 
 @router.get("/leave-requests", response_model=list[schemas.LeaveRequestOut])
 def list_leave_requests(

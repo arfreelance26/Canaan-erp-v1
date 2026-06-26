@@ -7,6 +7,7 @@ import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
 import { attendanceApi } from "@/lib/api";
 import { LEAVE_CATEGORIES } from "@/lib/leave-request-data";
 import type { LeaveApplicantCategory, LeaveRequest } from "@/types/leave-request";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
@@ -24,8 +25,12 @@ export default function LeaveApprovalsPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+        attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const summary = useMemo(() => {
     const counts = { Pending: 0, Approved: 0, Rejected: 0 };

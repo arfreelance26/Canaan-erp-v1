@@ -7,6 +7,7 @@ import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 const CURRENT_STATUSES: Trip["status"][] = ["Started", "Loaded", "On-Transit", "Reached", "Unloaded"];
 
@@ -18,15 +19,26 @@ export default function CurrentTripsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+        Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
+          .then(([t, d, tr, c]) => {
+            setAllTrips(t);
+            setDrivers(d);
+            setTrucks(tr);
+            setCustomers(c);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
-      .then(([t, d, tr, c]) => {
-        setAllTrips(t);
-        setDrivers(d);
-        setTrucks(tr);
-        setCustomers(c);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    .then(([t, d, tr, c]) => {
+    setAllTrips(t);
+    setDrivers(d);
+    setTrucks(tr);
+    setCustomers(c);
+    })
+    .finally(() => setLoading(false));
+      }, 5000);
+
 
   const trips = allTrips.filter((trip) => CURRENT_STATUSES.includes(trip.status));
 

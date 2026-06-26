@@ -11,6 +11,7 @@ import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 type SheetDialogMode = "view" | "edit";
 
@@ -31,59 +32,114 @@ export default function TripVerificationPage() {
   const [sheetMode, setSheetMode] = useState<SheetDialogMode>("view");
 
   useEffect(() => {
+        Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
+          .then(([allTrips, d, tr, c]) => {
+            setDrivers(d);
+            setTrucks(tr);
+            setCustomers(c);
+
+            // Trips that have a sheet
+            const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true);
+            setTrips(sheettedTrips);
+
+            // Pre-populate verified/flagged from server state
+            const verified = new Set<string>(
+              allTrips
+                .filter((t) => (t as any).verificationStatus === "verified")
+                .map((t) => t.id)
+            );
+            const flagged = new Set<string>(
+              allTrips
+                .filter((t) => (t as any).verificationStatus === "flagged")
+                .map((t) => t.id)
+            );
+            setVerifiedIds(verified);
+            setFlaggedIds(flagged);
+
+            // Fetch closures and sheets for all sheeted trips
+            return Promise.all([
+              Promise.all(
+                sheettedTrips.map((trip) =>
+                  tripsApi.getClosure(trip.id).then((closure) => ({ tripId: trip.id, closure })).catch(() => null)
+                )
+              ),
+              Promise.all(
+                sheettedTrips.map((trip) =>
+                  tripsApi.getSheet(trip.id).then((sheet) => ({ tripId: trip.id, sheet })).catch(() => null)
+                )
+              ),
+            ]);
+          })
+          .then(([closureResults, sheetResults]) => {
+            const closureMap = new Map<string, TripClosureData>();
+            for (const result of closureResults) {
+              if (result) closureMap.set(result.tripId, result.closure);
+            }
+            setClosures(closureMap);
+
+            const sheetMap = new Map<string, TripSheetData>();
+            for (const result of sheetResults) {
+              if (result) sheetMap.set(result.tripId, result.sheet);
+            }
+            setSheets(sheetMap);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
-      .then(([allTrips, d, tr, c]) => {
-        setDrivers(d);
-        setTrucks(tr);
-        setCustomers(c);
+    .then(([allTrips, d, tr, c]) => {
+    setDrivers(d);
+    setTrucks(tr);
+    setCustomers(c);
 
-        // Trips that have a sheet
-        const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true);
-        setTrips(sheettedTrips);
+    // Trips that have a sheet
+    const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true);
+    setTrips(sheettedTrips);
 
-        // Pre-populate verified/flagged from server state
-        const verified = new Set<string>(
-          allTrips
-            .filter((t) => (t as any).verificationStatus === "verified")
-            .map((t) => t.id)
-        );
-        const flagged = new Set<string>(
-          allTrips
-            .filter((t) => (t as any).verificationStatus === "flagged")
-            .map((t) => t.id)
-        );
-        setVerifiedIds(verified);
-        setFlaggedIds(flagged);
+    // Pre-populate verified/flagged from server state
+    const verified = new Set<string>(
+      allTrips
+        .filter((t) => (t as any).verificationStatus === "verified")
+        .map((t) => t.id)
+    );
+    const flagged = new Set<string>(
+      allTrips
+        .filter((t) => (t as any).verificationStatus === "flagged")
+        .map((t) => t.id)
+    );
+    setVerifiedIds(verified);
+    setFlaggedIds(flagged);
 
-        // Fetch closures and sheets for all sheeted trips
-        return Promise.all([
-          Promise.all(
-            sheettedTrips.map((trip) =>
-              tripsApi.getClosure(trip.id).then((closure) => ({ tripId: trip.id, closure })).catch(() => null)
-            )
-          ),
-          Promise.all(
-            sheettedTrips.map((trip) =>
-              tripsApi.getSheet(trip.id).then((sheet) => ({ tripId: trip.id, sheet })).catch(() => null)
-            )
-          ),
-        ]);
-      })
-      .then(([closureResults, sheetResults]) => {
-        const closureMap = new Map<string, TripClosureData>();
-        for (const result of closureResults) {
-          if (result) closureMap.set(result.tripId, result.closure);
-        }
-        setClosures(closureMap);
+    // Fetch closures and sheets for all sheeted trips
+    return Promise.all([
+      Promise.all(
+        sheettedTrips.map((trip) =>
+          tripsApi.getClosure(trip.id).then((closure) => ({ tripId: trip.id, closure })).catch(() => null)
+        )
+      ),
+      Promise.all(
+        sheettedTrips.map((trip) =>
+          tripsApi.getSheet(trip.id).then((sheet) => ({ tripId: trip.id, sheet })).catch(() => null)
+        )
+      ),
+    ]);
+    })
+    .then(([closureResults, sheetResults]) => {
+    const closureMap = new Map<string, TripClosureData>();
+    for (const result of closureResults) {
+      if (result) closureMap.set(result.tripId, result.closure);
+    }
+    setClosures(closureMap);
 
-        const sheetMap = new Map<string, TripSheetData>();
-        for (const result of sheetResults) {
-          if (result) sheetMap.set(result.tripId, result.sheet);
-        }
-        setSheets(sheetMap);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    const sheetMap = new Map<string, TripSheetData>();
+    for (const result of sheetResults) {
+      if (result) sheetMap.set(result.tripId, result.sheet);
+    }
+    setSheets(sheetMap);
+    })
+    .finally(() => setLoading(false));
+      }, 5000);
+
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));

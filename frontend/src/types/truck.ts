@@ -12,6 +12,7 @@ export type Truck = {
   chassisNumber: string;
   yearOfManufacture: string;
   tyreLayout: string;
+  fuelCapacity: string;
   odometerDuringPurchase: string;
   odometer: string;
   rcDate: string;

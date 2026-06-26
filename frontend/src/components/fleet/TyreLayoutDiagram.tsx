@@ -33,6 +33,11 @@ function Wheel({
   height,
   rx,
   filled,
+  position,
+  onClick,
+  interactive,
+  isSelected,
+  isAnimating,
 }: {
   x: number;
   y: number;
@@ -40,12 +45,39 @@ function Wheel({
   height: number;
   rx: number;
   filled: boolean;
+  position?: string;
+  onClick?: (position: string) => void;
+  interactive?: boolean;
+  isSelected?: boolean;
+  isAnimating?: boolean;
 }) {
   const cx = x + width / 2;
   const cy = y + height / 2;
 
   return (
-    <g>
+    <g
+      onClick={() => {
+        if (interactive && position && onClick) onClick(position);
+      }}
+      className={cn(
+        "transition-all duration-300",
+        interactive && "cursor-pointer hover:-translate-y-0.5 hover:drop-shadow-md origin-center"
+      )}
+      style={{ transformOrigin: `${cx}px ${cy}px` }}
+    >
+      {isSelected && (
+        <rect
+          x={x - 4}
+          y={y - 4}
+          width={width + 8}
+          height={height + 8}
+          rx={rx + 2}
+          fill="none"
+          stroke="#1b2b5e"
+          strokeWidth={3}
+          className="animate-pulse"
+        />
+      )}
       <rect
         x={x}
         y={y}
@@ -53,10 +85,13 @@ function Wheel({
         height={height}
         rx={rx}
         className={cn(
-          "transition-[fill,stroke] duration-500 ease-out",
-          filled ? "fill-slate-800" : "fill-gray-200"
+          "transition-all duration-500 ease-out",
+          isAnimating 
+            ? "fill-green-400 scale-[1.3] drop-shadow-[0_0_15px_rgba(74,222,128,0.8)]" 
+            : filled ? "fill-slate-800 scale-100" : "fill-gray-200 scale-100"
         )}
-        stroke={filled ? "#0f172a" : "#94a3b8"}
+        style={{ transformOrigin: `${cx}px ${cy}px` }}
+        stroke={isAnimating ? "#22c55e" : filled ? "#0f172a" : "#94a3b8"}
         strokeWidth={filled ? 1 : 1.5}
         strokeDasharray={filled ? "0" : "4 3"}
       />
@@ -87,11 +122,17 @@ function TruckUnitDiagram({
   unitLabel,
   isHead,
   filledPositions,
+  onPositionClick,
+  selectedPosition,
+  animatingPosition,
 }: {
   unit: TruckUnit;
   unitLabel: string;
   isHead: boolean;
   filledPositions: Set<string>;
+  onPositionClick?: (position: string) => void;
+  selectedPosition?: string | null;
+  animatingPosition?: string | null;
 }) {
   const steerAxles = unit.axles
     .map((axle, index) => ({ axle, index }))
@@ -131,8 +172,8 @@ function TruckUnitDiagram({
           <g key={`steer-${index}`}>
             <line x1={100} x2={300} y1={centerY} y2={centerY} stroke="#78909c" strokeWidth={12} strokeLinecap="round" />
             <circle cx={CENTER_X} cy={centerY} r={10} fill="#cbd5e1" stroke="#94a3b8" strokeWidth={1} />
-            <Wheel x={STEER_LEFT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(leftPos)} />
-            <Wheel x={STEER_RIGHT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(rightPos)} />
+            <Wheel x={STEER_LEFT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(leftPos)} position={leftPos} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === leftPos} isAnimating={animatingPosition === leftPos} />
+            <Wheel x={STEER_RIGHT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(rightPos)} position={rightPos} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === rightPos} isAnimating={animatingPosition === rightPos} />
           </g>
         );
       })}
@@ -197,7 +238,7 @@ function TruckUnitDiagram({
           />
           <rect x={115} y={base + 180} width={30} height={25} rx={5} fill="#769a82" />
           {/* spare tyre */}
-          <Wheel x={235} y={base + 170} width={85} height={40} rx={15} filled={filledPositions.has("Spare")} />
+          <Wheel x={235} y={base + 170} width={85} height={40} rx={15} filled={filledPositions.has("Spare")} position="Spare" onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === "Spare"} isAnimating={animatingPosition === "Spare"} />
         </g>
       )}
 
@@ -267,11 +308,11 @@ function TruckUnitDiagram({
             <circle cx={CENTER_X} cy={centerY} r={20} fill="#618972" stroke="#455a64" strokeWidth={2} />
             {DRIVE_LEFT_X.slice(0, axle.wheelsPerSide).map((x, w) => {
               const position = getTyrePositionLabel(unitLabel, index, "Left", w + 1, axle.wheelsPerSide);
-              return <Wheel key={`l-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} />;
+              return <Wheel key={`l-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} position={position} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === position} isAnimating={animatingPosition === position} />;
             })}
             {DRIVE_RIGHT_X.slice(0, axle.wheelsPerSide).map((x, w) => {
               const position = getTyrePositionLabel(unitLabel, index, "Right", w + 1, axle.wheelsPerSide);
-              return <Wheel key={`r-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} />;
+              return <Wheel key={`r-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} position={position} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === position} isAnimating={animatingPosition === position} />;
             })}
           </g>
         );
@@ -287,6 +328,11 @@ function TruckUnitDiagram({
             height={STEER_WHEEL_H}
             rx={8}
             filled={filledPositions.has(getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1))}
+            position={getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1)}
+            onClick={onPositionClick}
+            interactive={!!onPositionClick}
+            isSelected={selectedPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1)}
+            isAnimating={animatingPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1)}
           />
           <Wheel
             x={STEER_RIGHT_X}
@@ -295,6 +341,11 @@ function TruckUnitDiagram({
             height={STEER_WHEEL_H}
             rx={8}
             filled={filledPositions.has(getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1))}
+            position={getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1)}
+            onClick={onPositionClick}
+            interactive={!!onPositionClick}
+            isSelected={selectedPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1)}
+            isAnimating={animatingPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1)}
           />
         </g>
       )}
@@ -305,9 +356,15 @@ function TruckUnitDiagram({
 export function TyreLayoutDiagram({
   layout,
   filledPositions = new Set<string>(),
+  onPositionClick,
+  selectedPosition,
+  animatingPosition,
 }: {
   layout: TyreLayout;
   filledPositions?: Set<string>;
+  onPositionClick?: (position: string) => void;
+  selectedPosition?: string | null;
+  animatingPosition?: string | null;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -331,7 +388,15 @@ export function TyreLayoutDiagram({
           const isHead = layout.units.length === 1 || unit.label?.toLowerCase().includes("head") === true;
           return (
             <div key={index} className="flex flex-col items-center gap-2">
-              <TruckUnitDiagram unit={unit} unitLabel={unitLabel} isHead={isHead} filledPositions={filledPositions} />
+              <TruckUnitDiagram
+                unit={unit}
+                unitLabel={unitLabel}
+                isHead={isHead}
+                filledPositions={filledPositions}
+                onPositionClick={onPositionClick}
+                selectedPosition={selectedPosition}
+                animatingPosition={animatingPosition}
+              />
               {unit.label && <span className="text-xs font-medium text-gray-500">{unit.label}</span>}
             </div>
           );

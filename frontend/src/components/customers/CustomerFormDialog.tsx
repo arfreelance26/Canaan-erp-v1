@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { Avatar } from "@/components/ui/Avatar";
 import { CUSTOMER_STATUS_OPTIONS, CUSTOMER_TYPE_OPTIONS } from "@/lib/customer-data";
@@ -131,39 +132,25 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
           </Field>
 
           <Field label="Customer Type" required>
-            <select
-              required
+            <GlassSelect
               value={form.customerType}
-              onChange={(e) => update("customerType", e.target.value as Customer["customerType"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select customer type
-              </option>
-              {CUSTOMER_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("customerType", val as Customer["customerType"])}
+              options={[
+                { value: "", label: "Select customer type" },
+                ...CUSTOMER_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
 
           <Field label="Status" required>
-            <select
-              required
+            <GlassSelect
               value={form.status}
-              onChange={(e) => update("status", e.target.value as Customer["status"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select status
-              </option>
-              {CUSTOMER_STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("status", val as Customer["status"])}
+              options={[
+                { value: "", label: "Select status" },
+                ...CUSTOMER_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
         </div>
 
@@ -182,78 +169,63 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
           <h3 className="mb-4 text-sm font-semibold text-gray-900">Additional Fields</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Is GTA (Goods Transport Agent)?" required>
-              <select
-                required
+              <GlassSelect
                 value={form.isGta}
-                onChange={(e) => update("isGta", e.target.value as Customer["isGta"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Please Select
-                </option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
+                onChange={(val) => update("isGta", val as Customer["isGta"])}
+                options={[
+                  { value: "", label: "Please Select" },
+                  { value: "Yes", label: "Yes" },
+                  { value: "No", label: "No" }
+                ]}
+              />
             </Field>
 
             <Field label="Applicable for E-Invoice?" required>
-              <select
-                required
+              <GlassSelect
                 value={form.applicableForEInvoice}
-                onChange={(e) => update("applicableForEInvoice", e.target.value as Customer["applicableForEInvoice"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Please Select
-                </option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
+                onChange={(val) => update("applicableForEInvoice", val as Customer["applicableForEInvoice"])}
+                options={[
+                  { value: "", label: "Please Select" },
+                  { value: "Yes", label: "Yes" },
+                  { value: "No", label: "No" }
+                ]}
+              />
             </Field>
 
             <Field label="TDS Exemption Applicable?" required>
-              <select
-                required
+              <GlassSelect
                 value={form.tdsExemptionApplicable}
-                onChange={(e) => update("tdsExemptionApplicable", e.target.value as Customer["tdsExemptionApplicable"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Please Select
-                </option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
+                onChange={(val) => update("tdsExemptionApplicable", val as Customer["tdsExemptionApplicable"])}
+                options={[
+                  { value: "", label: "Please Select" },
+                  { value: "Yes", label: "Yes" },
+                  { value: "No", label: "No" }
+                ]}
+              />
             </Field>
 
             <Field label="MSME Declaration Submitted?" required>
-              <select
-                required
+              <GlassSelect
                 value={form.msmeDeclarationSubmitted}
-                onChange={(e) => update("msmeDeclarationSubmitted", e.target.value as Customer["msmeDeclarationSubmitted"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Please Select
-                </option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
+                onChange={(val) => update("msmeDeclarationSubmitted", val as Customer["msmeDeclarationSubmitted"])}
+                options={[
+                  { value: "", label: "Please Select" },
+                  { value: "Yes", label: "Yes" },
+                  { value: "No", label: "No" }
+                ]}
+              />
             </Field>
 
             <Field label="GST Exempted Customer?" required>
-              <select
-                required
+              <GlassSelect
                 value={form.gstExemptedCustomer}
-                onChange={(e) => update("gstExemptedCustomer", e.target.value as Customer["gstExemptedCustomer"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Please Select
-                </option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
+                onChange={(val) => update("gstExemptedCustomer", val as Customer["gstExemptedCustomer"])}
+                options={[
+                  { value: "", label: "Please Select" },
+                  { value: "Yes", label: "Yes" },
+                  { value: "No", label: "No" }
+                ]}
+              />
             </Field>
           </div>
         </div>

@@ -20,11 +20,9 @@ export const initialTyreInventory: TyreInventoryItem[] = [
   {
     id: "1",
     brand: "MRF",
-    pattern: "MRF Steeline TT13",
     tyreType: "Radial",
     tyreNumber: "MRF-2026-0001",
     size: "295/95 R22.5",
-    range: "80000",
     cost: "18500",
     condition: "New",
     purchaseDate: "",

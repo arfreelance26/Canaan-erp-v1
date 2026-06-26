@@ -2,6 +2,7 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import type { EmiRecord } from "@/types/finance";
+import { formatDate } from "@/lib/format-date";
 
 type EmiTrackingTableProps = {
   records: EmiRecord[];
@@ -33,14 +34,6 @@ function formatCurrency(amount: string): string {
   }).format(value);
 }
 
-function formatDate(date: string): string {
-  if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 export function EmiTrackingTable({ records, onEdit, onDelete }: EmiTrackingTableProps) {
   if (records.length === 0) {
@@ -52,7 +45,7 @@ export function EmiTrackingTable({ records, onEdit, onDelete }: EmiTrackingTable
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[1200px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">

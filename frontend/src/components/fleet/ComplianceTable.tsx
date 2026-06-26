@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { getComplianceStatus } from "@/lib/compliance";
+import { formatDate } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
 
 type ComplianceTableProps = {
@@ -23,14 +24,6 @@ const statusStyles: Record<string, string> = {
   Expired: "bg-red-50 text-red-700",
 };
 
-function formatDate(date: string): string {
-  if (!date) return "—";
-  return new Date(date).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function ComplianceCell({ date }: { date: string }) {
   const status = getComplianceStatus(date);
@@ -59,7 +52,7 @@ export function ComplianceTable({ trucks }: ComplianceTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[1100px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">

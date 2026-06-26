@@ -18,6 +18,7 @@ import {
   Repeat,
   Wallet,
   Banknote,
+  Fuel,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,6 +43,7 @@ export const sidebarSections: NavSection[] = [
     items: [
       { label: "Driver Attendance", href: "/attendance/drivers", icon: ClipboardCheck },
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
+      { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
     ],
   },
@@ -73,6 +75,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Truck Maintenance", href: "/maintenance/trucks", icon: Wrench },
       { label: "Tyre Management", href: "/maintenance/tyre-management", icon: CircleDot },
       { label: "Tyre Inventory", href: "/maintenance/tyre-inventory", icon: Boxes },
+      { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
       { label: "Compliance & Renewals", href: "/maintenance/compliance", icon: ShieldCheck },
     ],
   },

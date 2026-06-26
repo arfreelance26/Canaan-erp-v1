@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { initialTrucks } from "@/lib/truck-data";
 import type { EmiRecord } from "@/types/finance";
@@ -64,21 +65,14 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="Truck Registration" required>
-            <select
-              required
+            <GlassSelect
               value={form.truckRegistration}
-              onChange={(e) => update("truckRegistration", e.target.value)}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select truck registration
-              </option>
-              {initialTrucks.map((truck) => (
-                <option key={truck.id} value={truck.registrationNumber}>
-                  {truck.registrationNumber}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("truckRegistration", val)}
+              options={[
+                { value: "", label: "Select truck registration" },
+                ...initialTrucks.map(truck => ({ value: truck.registrationNumber, label: truck.registrationNumber }))
+              ]}
+            />
           </Field>
 
           <Field label="Loan Number" required>

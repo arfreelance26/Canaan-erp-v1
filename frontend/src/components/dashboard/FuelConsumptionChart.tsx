@@ -41,7 +41,7 @@ export function FuelConsumptionChart() {
           iconType="square"
           formatter={(value) => <span className="text-sm text-gray-600">{value}</span>}
         />
-        <Bar dataKey="Litres" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="Litres" fill="#1b2b5e" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

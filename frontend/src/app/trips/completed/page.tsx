@@ -9,6 +9,7 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function CompletedTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -20,6 +21,26 @@ export default function CompletedTripsPage() {
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
+        Promise.all([
+          tripsApi.list("Completed"),
+          driversApi.list(),
+          trucksApi.list(),
+          customersApi.list(),
+        ])
+          .then(([t, d, tr, c]) => {
+            setTrips(t);
+            setDrivers(d);
+            setTrucks(tr);
+            setCustomers(c);
+            // Pre-populate closed IDs from trips that already have a closure
+            const closed = new Set<string>(
+              t.filter((trip) => (trip as any).hasClosure === true).map((trip) => trip.id)
+            );
+            setClosedTripIds(closed);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([
       tripsApi.list("Completed"),
       driversApi.list(),
@@ -38,7 +59,8 @@ export default function CompletedTripsPage() {
         setClosedTripIds(closed);
       })
       .finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));

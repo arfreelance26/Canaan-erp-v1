@@ -47,12 +47,7 @@ import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 
-const TABS = ["Overview", "Fleet & Trips", "Attendance & HR", "Maintenance", "Finance"] as const;
-type Tab = (typeof TABS)[number];
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayIst } from "@/lib/format-date";
 
 function formatCurrency(value: number): string {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
@@ -91,7 +86,6 @@ const COMPLIANCE_BADGE: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("Overview");
   const [loading, setLoading] = useState(true);
 
   const [trucks, setTrucks] = useState<TruckType[]>([]);
@@ -110,7 +104,7 @@ export default function DashboardPage() {
   const [driverTransactions, setDriverTransactions] = useState<CompensationTransaction[]>([]);
   const [staffTransactions, setStaffTransactions] = useState<CompensationTransaction[]>([]);
 
-  const today = todayIso();
+  const today = todayIst();
 
   useEffect(() => {
     Promise.all([
@@ -287,26 +281,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "rounded-full px-4 py-2 text-sm font-medium shadow-sm transition-all",
-              activeTab === tab
-                ? "bg-blue-600 text-white shadow-blue-200"
-                : "border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-            )}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "Overview" && (
-        <div className="animate-stagger flex flex-col gap-6">
+      <div className="animate-stagger flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <StatCard
@@ -417,10 +392,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {activeTab === "Fleet & Trips" && (
-        <div className="animate-stagger flex flex-col gap-6">
+      <div className="animate-stagger flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Total Vehicles"
@@ -494,10 +466,7 @@ export default function DashboardPage() {
             </table>
           </div>
         </div>
-      )}
-
-      {activeTab === "Attendance & HR" && (
-        <div className="animate-stagger flex flex-col gap-6">
+      <div className="animate-stagger flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Total Drivers"
@@ -610,10 +579,7 @@ export default function DashboardPage() {
             </table>
           </div>
         </div>
-      )}
-
-      {activeTab === "Maintenance" && (
-        <div className="animate-stagger flex flex-col gap-6">
+      <div className="animate-stagger flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
             <StatCard
@@ -699,10 +665,7 @@ export default function DashboardPage() {
             </table>
           </div>
         </div>
-      )}
-
-      {activeTab === "Finance" && (
-        <div className="animate-stagger flex flex-col gap-6">
+      <div className="animate-stagger flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Monthly EMI"
@@ -821,7 +784,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      )}
     </div>
   );
 }

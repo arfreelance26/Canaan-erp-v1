@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { FileText, ImageIcon } from "lucide-react";
+import { Upload, X, FileText, Image as ImageIcon } from "lucide-react";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { addYearsToDate, generateTruckId, TRUCK_TYPE_OPTIONS, BRANCH_OPTIONS } from "@/lib/truck-data";
@@ -41,6 +43,7 @@ const emptyForm: Omit<Truck, "id" | "truckId"> = {
   chassisNumber: "",
   yearOfManufacture: "",
   tyreLayout: "",
+  fuelCapacity: "",
   odometerDuringPurchase: "",
   odometer: "",
   rcDate: "",
@@ -132,21 +135,14 @@ export function TruckFormDialog({
         </Field>
 
         <Field label="Branch the Truck To be Registered" required>
-          <select
-            required
+          <GlassSelect
             value={form.branchRegisteredTo}
-            onChange={(e) => update("branchRegisteredTo", e.target.value as Truck["branchRegisteredTo"])}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              Select a branch
-            </option>
-            {BRANCH_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => update("branchRegisteredTo", val as Truck["branchRegisteredTo"])}
+            options={[
+              { value: "", label: "Select a branch" },
+              ...BRANCH_OPTIONS.map(o => ({ value: o, label: o }))
+            ]}
+          />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -207,20 +203,13 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Truck Type" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
-              list="truck-type-options"
               value={form.truckType}
-              onChange={(e) => update("truckType", e.target.value)}
-              className={inputClass}
+              onChange={(val) => update("truckType", val)}
               placeholder="Select or type a truck type"
+              options={TRUCK_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
             />
-            <datalist id="truck-type-options">
-              {TRUCK_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label="Truck Photos (PDF/Image)" required>
@@ -254,26 +243,31 @@ export function TruckFormDialog({
               placeholder="e.g. 84500"
             />
           </Field>
+
+          <Field label="Fuel Capacity of the Truck(Fuel Tank Size in Liters)" required>
+            <input
+              type="number"
+              required
+              min="0"
+              value={form.fuelCapacity || ""}
+              onChange={(e) => update("fuelCapacity", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 400"
+            />
+          </Field>
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
           <h3 className="mb-3 text-sm font-semibold text-gray-900">Choose the Tyre Layout</h3>
           <Field label="Tyre Layout" required>
-            <select
-              required
+            <GlassSelect
               value={form.tyreLayout}
-              onChange={(e) => update("tyreLayout", e.target.value)}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select a tyre layout
-              </option>
-              {TYRE_LAYOUT_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("tyreLayout", val)}
+              options={[
+                { value: "", label: "Select a tyre layout" },
+                ...TYRE_LAYOUT_OPTIONS.map(opt => ({ value: opt.id, label: opt.label }))
+              ]}
+            />
           </Field>
 
           {form.tyreLayout && (

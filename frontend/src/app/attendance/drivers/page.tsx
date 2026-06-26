@@ -1,15 +1,13 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DriverAttendanceTable } from "@/components/attendance/DriverAttendanceTable";
 import { driversApi, attendanceApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { DriverAttendanceRecord } from "@/types/attendance";
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { todayIst } from "@/lib/format-date";
 
 function getAttendanceForDate(
   records: DriverAttendanceRecord[],
@@ -20,7 +18,7 @@ function getAttendanceForDate(
 }
 
 export default function DriverAttendancePage() {
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(todayIst());
   const [search, setSearch] = useState("");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [records, setRecords] = useState<DriverAttendanceRecord[]>([]);
@@ -35,15 +33,40 @@ export default function DriverAttendancePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useAutoRefresh(() => {
+    Promise.all([driversApi.list(), attendanceApi.listDrivers()])
+      .then(([d, r]) => {
+        setDrivers(d);
+        setRecords(r);
+      })
+      .finally(() => setLoading(false));
+  }, 5000);
+
   // Reload records when date changes
   useEffect(() => {
     attendanceApi.listDrivers(date).then(setRecords);
   }, [date]);
 
+  const handleMark = useCallback(
+    async (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => {
+      let updated: DriverAttendanceRecord;
+      if (currentRecord) {
+        updated = await attendanceApi.updateDriver(currentRecord.id, status);
+      } else {
+        updated = await attendanceApi.markDriver(driverId, date, status);
+      }
+      setRecords((prev) => {
+        const without = prev.filter((r) => r.id !== updated.id);
+        return [...without, updated];
+      });
+    },
+    [date]
+  );
+
   const summary = useMemo(() => {
     const counts = { Present: 0, Absent: 0, "On Leave": 0, "Not Marked": 0 };
     for (const driver of drivers) {
-      const record = getAttendanceForDate(records, driver.id, date);
+      const record = getAttendanceForDate(records, driver.driverId, date);
       const status = record?.status ?? "Not Marked";
       counts[status as keyof typeof counts] += 1;
     }
@@ -64,7 +87,7 @@ export default function DriverAttendancePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Driver Attendance</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Attendance marked by drivers from the driver app
+            Track and mark attendance for all drivers
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -111,7 +134,12 @@ export default function DriverAttendancePage() {
         />
       </div>
 
-      <DriverAttendanceTable drivers={filteredDrivers} records={records} date={date} />
+      <DriverAttendanceTable
+        drivers={filteredDrivers}
+        records={records}
+        date={date}
+        onMark={handleMark}
+      />
     </div>
   );
 }

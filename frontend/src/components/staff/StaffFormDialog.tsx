@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FileText } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { X, FileText } from "lucide-react";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Avatar } from "@/components/ui/Avatar";
 import { DEPARTMENT_OPTIONS, SOFTWARE_DESIGNATION_OPTIONS } from "@/lib/staff-data";
 import type { Staff } from "@/types/staff";
@@ -28,6 +30,7 @@ const emptyForm: Omit<Staff, "id"> = {
   email: "",
   contactNumber: "",
   address: "",
+  aadharNumber: null,
   aadharFileName: null,
   branch: "",
   softwareDesignation: "",
@@ -38,14 +41,12 @@ const emptyForm: Omit<Staff, "id"> = {
 export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFormDialogProps) {
   const [form, setForm] = useState<Omit<Staff, "id">>(emptyForm);
   const [files, setFiles] = useState<StaffFiles>({});
-  const lastAutoUsername = useRef<string>("");
 
   useEffect(() => {
     if (open) {
       const { id: _id, ...rest } = initialData ?? { id: "", ...emptyForm };
       setForm(rest);
       setFiles({});
-      lastAutoUsername.current = rest.username;
     }
   }, [open, initialData]);
 
@@ -54,23 +55,12 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   }
 
   function handleEmailChange(value: string) {
-    setForm((prev) => {
-      const shouldSyncUsername = prev.username === lastAutoUsername.current;
-      lastAutoUsername.current = shouldSyncUsername ? value : lastAutoUsername.current;
-      return {
-        ...prev,
-        email: value,
-        username: shouldSyncUsername ? value : prev.username,
-      };
-    });
+    setForm((prev) => ({
+      ...prev,
+      email: value,
+      username: value,
+    }));
   }
-
-  function resetUsernameToEmail() {
-    lastAutoUsername.current = form.email;
-    update("username", form.email);
-  }
-
-  const usernameIsSynced = form.username === form.email && form.email !== "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -127,20 +117,13 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
 
           <Field label="Department" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
-              list="department-options"
               value={form.department}
-              onChange={(e) => update("department", e.target.value)}
-              className={inputClass}
+              onChange={(val) => update("department", val)}
               placeholder="Select or type a department"
+              options={DEPARTMENT_OPTIONS.map(opt => ({ value: opt, label: opt }))}
             />
-            <datalist id="department-options">
-              {DEPARTMENT_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label="Designation" required>
@@ -208,21 +191,14 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
 
           <Field label="Software Designation" required>
-            <select
-              required
+            <GlassSelect
               value={form.softwareDesignation}
-              onChange={(e) => update("softwareDesignation", e.target.value)}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select a role
-              </option>
-              {SOFTWARE_DESIGNATION_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("softwareDesignation", val)}
+              options={[
+                { value: "", label: "Select a role" },
+                ...SOFTWARE_DESIGNATION_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
         </div>
 
@@ -233,25 +209,11 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               <input
                 type="text"
                 required
+                readOnly
                 value={form.username}
-                onChange={(e) => {
-                  lastAutoUsername.current = "";
-                  update("username", e.target.value);
-                }}
-                className={inputClass}
+                className={`${inputClass} bg-gray-50 text-gray-500 cursor-not-allowed`}
                 placeholder="Auto-filled from email"
               />
-              {usernameIsSynced ? (
-                <p className="mt-1 text-xs text-green-600">&#10003; Synced with email</p>
-              ) : form.email ? (
-                <button
-                  type="button"
-                  onClick={resetUsernameToEmail}
-                  className="mt-1 text-xs text-blue-600 underline hover:text-blue-800"
-                >
-                  Reset to email
-                </button>
-              ) : null}
             </Field>
 
             <Field label="Password" required>
@@ -274,6 +236,17 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
             onChange={(e) => update("address", e.target.value)}
             className={inputClass}
             rows={3}
+          />
+        </Field>
+
+        <Field label="Aadhar Number">
+          <input
+            type="text"
+            maxLength={12}
+            value={form.aadharNumber ?? ""}
+            onChange={(e) => update("aadharNumber", e.target.value || null)}
+            className={inputClass}
+            placeholder="12-digit Aadhar number"
           />
         </Field>
 

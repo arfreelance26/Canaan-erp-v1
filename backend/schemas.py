@@ -30,6 +30,7 @@ class TruckBase(OrmBase):
     chassis_number: Optional[str] = None
     year_of_manufacture: Optional[str] = None
     tyre_layout: str
+    fuel_capacity: Optional[Decimal] = None
     odometer_during_purchase: Optional[Decimal] = None
     odometer: Optional[Decimal] = None
     rc_date: Optional[date] = None
@@ -114,6 +115,7 @@ class DriverCreate(DriverBase):
 class DriverUpdate(OrmBase):
     name: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    aadhaar_file_name: Optional[str] = None
     date_of_birth: Optional[date] = None
     date_of_joining: Optional[date] = None
     email: Optional[str] = None
@@ -122,6 +124,17 @@ class DriverUpdate(OrmBase):
     branch: Optional[str] = None
     license_number: Optional[str] = None
     license_expiry_date: Optional[date] = None
+    license_file_name: Optional[str] = None
+    form_11: Optional[str] = None
+    esi_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    agreement_signed: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_branch_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    photo_url: Optional[str] = None
+    username: Optional[str] = None
     password: Optional[str] = None
 
 
@@ -150,6 +163,7 @@ class StaffBase(OrmBase):
     contact_number: Optional[str] = None
     address: Optional[str] = None
     branch: Optional[str] = None
+    aadhar_number: Optional[str] = None
     aadhar_file_name: Optional[str] = None
     photo_url: Optional[str] = None
     username: Optional[str] = None
@@ -170,6 +184,7 @@ class StaffUpdate(OrmBase):
     contact_number: Optional[str] = None
     address: Optional[str] = None
     branch: Optional[str] = None
+    aadhar_number: Optional[str] = None
     password: Optional[str] = None
 
 
@@ -320,7 +335,7 @@ class TripBase(OrmBase):
     status: TripStatus = "Assigned"
     assigned_date: Optional[date] = None
     booking_reference_no: str
-    booking_created_date: date
+    booking_created_date: Optional[date] = None
     trip_category: Optional[TripCategory] = None
     movement_category: Optional[MovementCategory] = None
     customer_id: Optional[int] = None
@@ -486,20 +501,6 @@ class TripClosureOut(TripClosureCreate):
 # Trip Sheet
 # ---------------------------------------------------------------------------
 
-class DieselEntryCreate(OrmBase):
-    bunk_name: Optional[str] = None
-    quantity: Optional[Decimal] = None
-    price: Optional[Decimal] = None
-    amount: Optional[Decimal] = None
-    km: Optional[Decimal] = None
-    bill_no: Optional[str] = None
-
-
-class DieselEntryOut(DieselEntryCreate):
-    id: int
-    trip_sheet_id: int
-
-
 class TripSheetCreate(OrmBase):
     trip_sheet_no: Optional[str] = None
     serial_no: Optional[str] = None
@@ -523,10 +524,6 @@ class TripSheetCreate(OrmBase):
     gross_weight: Optional[Decimal] = None
     tare_weight: Optional[Decimal] = None
     net_weight: Optional[Decimal] = None
-    total_diesel: Optional[Decimal] = None
-    diesel_rate: Optional[Decimal] = None
-    diesel_expense: Optional[Decimal] = None
-    diesel_mileage: Optional[Decimal] = None
     driver_pay: Optional[Decimal] = None
     driver_settlement_advance: Optional[Decimal] = None
     driver_settlement_advance_additional: Optional[Decimal] = None
@@ -551,13 +548,11 @@ class TripSheetCreate(OrmBase):
     toll_charges: Optional[Decimal] = None
     toll_count: Optional[int] = 0
     remarks: Optional[str] = None
-    diesel_entries: list[DieselEntryCreate] = []
 
 
 class TripSheetOut(TripSheetCreate):
     id: int
     trip_id: int
-    diesel_entries: list[DieselEntryOut] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -615,7 +610,7 @@ class StaffAttendanceOut(OrmBase):
     status: AttendanceStatus
     check_in_time: Optional[str] = None
     marked_at: Optional[datetime] = None
-    source: Literal["Web", "App"]
+    source: Literal["Web", "App"] = "Web"
 
 
 # ---------------------------------------------------------------------------
@@ -624,6 +619,12 @@ class StaffAttendanceOut(OrmBase):
 
 LeaveCategory = Literal["Driver", "Fleet Manager", "Tyre Manager", "Staff"]
 LeaveStatus = Literal["Pending", "Approved", "Rejected"]
+
+class ApplicantLookupOut(OrmBase):
+    category: LeaveCategory
+    applicant_id: int
+    applicant_name: str
+    applicant_code: str
 
 
 class LeaveRequestCreate(OrmBase):
@@ -716,11 +717,21 @@ class FuelLogOut(OrmBase):
     litres: Decimal
     price_per_litre: Decimal
     total_cost: Decimal
+    distance: Decimal
+    mileage: Decimal
     fuel_station: Optional[str] = None
     logged_by: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
+class FuelStats(OrmBase):
+    total_distance: Decimal
+    total_fuel: Decimal
+    average_mileage: Decimal
+    last_mileage: Decimal
+    best_mileage: Decimal
+    worst_mileage: Decimal
+    trend_percentage: Decimal
 # ---------------------------------------------------------------------------
 # Tyre Inventory
 # ---------------------------------------------------------------------------
@@ -730,11 +741,9 @@ TyreCondition = Literal["New", "Rethreaded"]
 
 class TyreInventoryBase(OrmBase):
     brand: str
-    pattern: Optional[str] = None
     tyre_type: Optional[str] = None
     tyre_number: str
     size: Optional[str] = None
-    range_km: Optional[int] = None
     cost: Optional[Decimal] = None
     condition: Optional[TyreCondition] = "New"
     purchase_date: Optional[date] = None
@@ -749,10 +758,8 @@ class TyreInventoryCreate(TyreInventoryBase):
 
 class TyreInventoryUpdate(OrmBase):
     brand: Optional[str] = None
-    pattern: Optional[str] = None
     tyre_type: Optional[str] = None
     size: Optional[str] = None
-    range_km: Optional[int] = None
     cost: Optional[Decimal] = None
     condition: Optional[TyreCondition] = None
     purchase_date: Optional[date] = None

@@ -20,8 +20,9 @@ import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
+import type { FuelLog, FuelStats } from "@/types/fuel-log";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 // ---------------------------------------------------------------------------
 // Core fetch utility
@@ -92,6 +93,7 @@ function toTruck(b: B): Truck {
     chassisNumber: b.chassis_number ?? "",
     yearOfManufacture: b.year_of_manufacture ?? "",
     tyreLayout: b.tyre_layout ?? "",
+    fuelCapacity: String(b.fuel_capacity ?? "0"),
     odometerDuringPurchase: String(b.odometer_during_purchase ?? "0"),
     odometer: String(b.odometer ?? "0"),
     rcDate: b.rc_date ?? "",
@@ -133,6 +135,7 @@ function fromTruck(f: Truck) {
     chassis_number: f.chassisNumber || null,
     year_of_manufacture: f.yearOfManufacture || null,
     tyre_layout: f.tyreLayout,
+    fuel_capacity: f.fuelCapacity ? parseFloat(f.fuelCapacity) : 0,
     odometer_during_purchase: f.odometerDuringPurchase ? parseFloat(f.odometerDuringPurchase) : 0,
     odometer: f.odometer ? parseFloat(f.odometer) : 0,
     rc_date: f.rcDate || null,
@@ -236,6 +239,7 @@ function toStaff(b: B): Staff {
     contactNumber: b.contact_number ?? "",
     address: b.address ?? "",
     branch: b.branch ?? "",
+    aadharNumber: b.aadhar_number ?? null,
     aadharFileName: b.aadhar_file_name ?? null,
     username: b.username ?? "",
     password: "",
@@ -255,6 +259,7 @@ function fromStaff(f: Staff, password?: string) {
     contact_number: f.contactNumber || null,
     address: f.address || null,
     branch: f.branch || null,
+    aadhar_number: f.aadharNumber ?? null,
     aadhar_file_name: f.aadharFileName ?? null,
     photo_url: f.photoUrl ?? null,
     username: f.username || null,
@@ -646,18 +651,6 @@ function toSheet(b: B): TripSheetData {
     grossWeight: String(b.gross_weight ?? ""),
     tareWeight: String(b.tare_weight ?? ""),
     netWeight: String(b.net_weight ?? ""),
-    dieselEntries: (b.diesel_entries ?? []).map((e: B) => ({
-      id: String(e.id),
-      bunkName: e.bunk_name ?? "",
-      quantity: String(e.quantity ?? ""),
-      price: String(e.price ?? ""),
-      amount: String(e.amount ?? ""),
-      km: String(e.km ?? ""),
-      billNo: e.bill_no ?? "",
-    })),
-    totalDiesel: String(b.total_diesel ?? ""),
-    dieselRate: String(b.diesel_rate ?? ""),
-    dieselExpense: String(b.diesel_expense ?? ""),
     driverPay: String(b.driver_pay ?? ""),
     driverSettlementAdvance: String(b.driver_settlement_advance ?? ""),
     driverSettlementAdvanceAdditional: String(b.driver_settlement_advance_additional ?? ""),
@@ -709,9 +702,6 @@ function fromSheet(f: TripSheetData) {
     gross_weight: n(f.grossWeight),
     tare_weight: n(f.tareWeight),
     net_weight: n(f.netWeight),
-    total_diesel: n(f.totalDiesel),
-    diesel_rate: n(f.dieselRate),
-    diesel_expense: n(f.dieselExpense),
     driver_pay: n(f.driverPay),
     driver_settlement_advance: n(f.driverSettlementAdvance),
     driver_settlement_advance_additional: n(f.driverSettlementAdvanceAdditional),
@@ -736,14 +726,6 @@ function fromSheet(f: TripSheetData) {
     toll_charges: n(f.tollCharges),
     toll_count: parseInt(f.tollCount) || 0,
     remarks: f.remarks || null,
-    diesel_entries: (f.dieselEntries ?? []).map((e) => ({
-      bunk_name: e.bunkName || null,
-      quantity: n(e.quantity),
-      price: n(e.price),
-      amount: n(e.amount),
-      km: n(e.km),
-      bill_no: e.billNo || null,
-    })),
   };
 }
 
@@ -788,12 +770,42 @@ function toLeaveRequest(b: B): LeaveRequest {
 function toMaintenanceRecord(b: B): MaintenanceRecord {
   return {
     id: String(b.id),
-    truckId: String(b.truck_id ?? ""),
+    truckId: String(b.truck_id),
     date: b.date ?? "",
     odometer: String(b.odometer ?? ""),
     maintenanceType: b.maintenance_type ?? "",
     description: b.description ?? "",
     cost: String(b.cost ?? ""),
+    createdAt: b.created_at ?? "",
+  };
+}
+
+function toFuelLog(b: B): FuelLog {
+  return {
+    id: String(b.id),
+    truckId: String(b.truck_id),
+    date: b.date ?? "",
+    odometer: String(b.odometer ?? ""),
+    litres: String(b.litres ?? ""),
+    pricePerLitre: String(b.price_per_litre ?? ""),
+    totalCost: String(b.total_cost ?? ""),
+    distance: String(b.distance ?? ""),
+    mileage: String(b.mileage ?? ""),
+    fuelStation: b.fuel_station ?? null,
+    loggedBy: b.logged_by ?? null,
+    createdAt: b.created_at ?? null,
+  };
+}
+
+function toFuelStats(b: B): FuelStats {
+  return {
+    totalDistance: String(b.total_distance ?? ""),
+    totalFuel: String(b.total_fuel ?? ""),
+    averageMileage: String(b.average_mileage ?? ""),
+    lastMileage: String(b.last_mileage ?? ""),
+    bestMileage: String(b.best_mileage ?? ""),
+    worstMileage: String(b.worst_mileage ?? ""),
+    trendPercentage: String(b.trend_percentage ?? ""),
   };
 }
 
@@ -801,11 +813,9 @@ function toTyreInventory(b: B): TyreInventoryItem {
   return {
     id: String(b.id),
     brand: b.brand ?? "",
-    pattern: b.pattern ?? "",
     tyreType: b.tyre_type ?? "",
     tyreNumber: b.tyre_number ?? "",
     size: b.size ?? "",
-    range: String(b.range_km ?? ""),
     cost: String(b.cost ?? ""),
     condition: b.condition ?? "",
     purchaseDate: b.purchase_date ?? "",
@@ -818,11 +828,9 @@ function toTyreInventory(b: B): TyreInventoryItem {
 function fromTyreInventory(f: TyreInventoryItem) {
   return {
     brand: f.brand,
-    pattern: f.pattern || null,
     tyre_type: f.tyreType || null,
     tyre_number: f.tyreNumber,
     size: f.size || null,
-    range_km: parseInt(f.range) || 0,
     cost: parseFloat(f.cost) || 0,
     condition: f.condition || "New",
     purchase_date: f.purchaseDate || null,
@@ -1108,6 +1116,9 @@ export const attendanceApi = {
       body: JSON.stringify({ status, check_in_time: checkInTime ?? null }),
     }).then(toStaffAttendance),
 
+  lookupApplicant: (code: string) =>
+    req<B>(`/attendance/lookup-applicant?code=${encodeURIComponent(code)}`),
+
   listLeaveRequests: (status?: string) =>
     req<B[]>(`/attendance/leave-requests${status ? `?status=${status}` : ""}`).then((d) => d.map(toLeaveRequest)),
   createLeaveRequest: (payload: Omit<LeaveRequest, "id" | "status" | "appliedAt">) =>
@@ -1162,9 +1173,27 @@ export const maintenanceApi = {
   deleteRecord: (id: string) => req<void>(`/maintenance/records/${id}`, { method: "DELETE" }),
   getStatus: () => req<B[]>("/maintenance/status"),
   getCompliance: () => req<B[]>("/maintenance/compliance"),
+};
 
+export const fuelLogsApi = {
   listFuelLogs: (truckId?: string) =>
-    req<B[]>(`/fuel-logs${truckId ? `?truck_id=${truckId}` : ""}`),
+    req<B[]>(`/maintenance/fuel-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toFuelLog)),
+  createFuelLog: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre">) =>
+    req<B>("/maintenance/fuel-logs", {
+      method: "POST",
+      body: JSON.stringify({
+        truck_id: parseInt(log.truckId),
+        date: log.date,
+        odometer: parseInt(log.odometer),
+        litres: parseFloat(log.litres),
+        price_per_litre: parseFloat(log.totalCost) / parseFloat(log.litres),
+        total_cost: parseFloat(log.totalCost),
+        fuel_station: log.fuelStation,
+        logged_by: log.loggedBy,
+      }),
+    }).then(toFuelLog),
+  getFuelStats: (truckId: string) =>
+    req<B>(`/maintenance/trucks/${truckId}/fuel-stats`).then(toFuelStats),
 };
 
 // ---------------------------------------------------------------------------

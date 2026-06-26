@@ -7,6 +7,7 @@ import { TransactionHistoryDialog } from "@/components/compensation/TransactionH
 import { staffApi, financeApi } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { CompensationTransaction } from "@/types/compensation";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function StaffCompensationPage() {
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -16,13 +17,22 @@ export default function StaffCompensationPage() {
   const [historyTarget, setHistoryTarget] = useState<CompensationPerson | null>(null);
 
   useEffect(() => {
+        Promise.all([staffApi.list(), financeApi.listStaffCompensation()])
+          .then(([s, tx]) => {
+            setStaffList(s);
+            setTransactions(tx);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([staffApi.list(), financeApi.listStaffCompensation()])
-      .then(([s, tx]) => {
-        setStaffList(s);
-        setTransactions(tx);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    .then(([s, tx]) => {
+    setStaffList(s);
+    setTransactions(tx);
+    })
+    .finally(() => setLoading(false));
+      }, 5000);
+
 
   const people: CompensationPerson[] = useMemo(
     () =>

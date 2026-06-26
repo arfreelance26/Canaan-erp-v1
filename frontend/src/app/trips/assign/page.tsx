@@ -8,8 +8,10 @@ import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
+import { confirmAction } from "@/lib/swal";
 import type { Customer } from "@/types/customer";
 import type { DriverAssignment } from "@/types/driver-assignment";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function AssignTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -22,6 +24,23 @@ export default function AssignTripsPage() {
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
+        Promise.all([
+          tripsApi.list(),
+          driversApi.list(),
+          trucksApi.list(),
+          customersApi.list(),
+          assignmentsApi.list(),
+        ])
+          .then(([t, d, tr, c, a]) => {
+            setTrips(t);
+            setDrivers(d);
+            setTrucks(tr);
+            setCustomers(c);
+            setAssignments(a);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([
       tripsApi.list(),
       driversApi.list(),
@@ -37,7 +56,8 @@ export default function AssignTripsPage() {
         setAssignments(a);
       })
       .finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const truckById = useMemo(() => new Map(trucks.map((truck) => [truck.truckId, truck])), [trucks]);
 
@@ -82,10 +102,11 @@ export default function AssignTripsPage() {
     setTrips((prev) => prev.map((trip) => (trip.id === id ? updated : trip)));
   }
 
-  async function handleCancel(id: string) {
-    if (!confirm("Cancel this trip?")) return;
-    const updated = await tripsApi.cancel(id);
-    setTrips((prev) => prev.map((trip) => (trip.id === id ? updated : trip)));
+  async function handleCancel(tripId: string) {
+    const result = await confirmAction("Cancel this trip?", "The status will be changed to Cancelled.", "Yes, cancel trip");
+    if (!result.isConfirmed) return;
+    const updated = await tripsApi.cancel(tripId);
+    setTrips((prev) => prev.map((trip) => (trip.id === tripId ? updated : trip)));
   }
 
   // Show only Assigned trips in Assign Trips page

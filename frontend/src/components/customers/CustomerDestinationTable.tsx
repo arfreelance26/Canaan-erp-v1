@@ -30,7 +30,7 @@ export function CustomerDestinationTable({ destinations, customers, onEdit, onDe
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[800px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">

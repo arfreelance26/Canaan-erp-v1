@@ -5,7 +5,9 @@ import { Plus } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog } from "@/components/vendors/VendorFormDialog";
 import { vendorsApi } from "@/lib/api";
+import { confirmDelete } from "@/lib/swal";
 import type { Vendor } from "@/types/vendor";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -14,8 +16,12 @@ export default function VendorsPage() {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
 
   useEffect(() => {
+        vendorsApi.list().then(setVendors).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     vendorsApi.list().then(setVendors).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   function handleAdd() {
     setEditingVendor(null);
@@ -28,7 +34,8 @@ export default function VendorsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this vendor?")) return;
+    const result = await confirmDelete("vendor");
+    if (!result.isConfirmed) return;
     await vendorsApi.delete(id);
     setVendors((prev) => prev.filter((vendor) => vendor.id !== id));
   }

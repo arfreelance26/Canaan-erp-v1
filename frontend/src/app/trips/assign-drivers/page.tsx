@@ -7,6 +7,7 @@ import { driversApi, trucksApi, assignmentsApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { DriverAssignment } from "@/types/driver-assignment";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function AssignDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -17,14 +18,24 @@ export default function AssignDriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
 
   useEffect(() => {
+        Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
+          .then(([d, t, a]) => {
+            setDrivers(d);
+            setTrucks(t);
+            setAssignments(a);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
-      .then(([d, t, a]) => {
-        setDrivers(d);
-        setTrucks(t);
-        setAssignments(a);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    .then(([d, t, a]) => {
+    setDrivers(d);
+    setTrucks(t);
+    setAssignments(a);
+    })
+    .finally(() => setLoading(false));
+      }, 5000);
+
 
   const vehicleByDriverId = Object.fromEntries(
     assignments.map((assignment) => [assignment.driverId, assignment.vehicleId])

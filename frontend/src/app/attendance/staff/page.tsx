@@ -1,15 +1,13 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StaffAttendanceTable } from "@/components/attendance/StaffAttendanceTable";
 import { staffApi, attendanceApi } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { todayIst } from "@/lib/format-date";
 
 function getStaffAttendanceForDate(
   records: StaffAttendanceRecord[],
@@ -20,7 +18,7 @@ function getStaffAttendanceForDate(
 }
 
 export default function StaffAttendancePage() {
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(todayIst());
   const [search, setSearch] = useState("");
   const [staff, setStaff] = useState<Staff[]>([]);
   const [records, setRecords] = useState<StaffAttendanceRecord[]>([]);
@@ -35,10 +33,35 @@ export default function StaffAttendancePage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useAutoRefresh(() => {
+    Promise.all([staffApi.list(), attendanceApi.listStaff()])
+      .then(([s, r]) => {
+        setStaff(s);
+        setRecords(r);
+      })
+      .finally(() => setLoading(false));
+  }, 5000);
+
   // Reload records when date changes
   useEffect(() => {
     attendanceApi.listStaff(date).then(setRecords);
   }, [date]);
+
+  const handleMark = useCallback(
+    async (staffId: string, currentRecord: StaffAttendanceRecord | undefined, status: string) => {
+      let updated: StaffAttendanceRecord;
+      if (currentRecord) {
+        updated = await attendanceApi.updateStaff(currentRecord.id, status);
+      } else {
+        updated = await attendanceApi.markStaff(parseInt(staffId), date, status, undefined, "Web");
+      }
+      setRecords((prev) => {
+        const without = prev.filter((r) => r.id !== updated.id);
+        return [...without, updated];
+      });
+    },
+    [date]
+  );
 
   const summary = useMemo(() => {
     const counts = { Present: 0, Absent: 0, "On Leave": 0, "Not Marked": 0 };
@@ -64,7 +87,7 @@ export default function StaffAttendancePage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Attendance</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Attendance marked by staff from the website and by tyre managers from the app
+            Track and mark attendance for all staff members
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -111,7 +134,12 @@ export default function StaffAttendancePage() {
         />
       </div>
 
-      <StaffAttendanceTable staff={filteredStaff} records={records} date={date} />
+      <StaffAttendanceTable
+        staff={filteredStaff}
+        records={records}
+        date={date}
+        onMark={handleMark}
+      />
     </div>
   );
 }

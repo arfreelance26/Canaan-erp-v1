@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { CUSTOMER_STATUS_OPTIONS } from "@/lib/customer-data";
 import { CONTAINER_TYPE_OPTIONS, LOAD_TYPE_OPTIONS, WEIGHT_IN_TONS_OPTIONS } from "@/lib/customer-pricing-data";
@@ -83,21 +84,14 @@ export function CustomerPricingFormDialog({
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Customer Pricing" : "Add Customer Pricing"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Customer Name" required>
-          <select
-            required
+          <GlassSelect
             value={form.customerId}
-            onChange={(e) => handleCustomerChange(e.target.value)}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              Select a customer
-            </option>
-            {availableCustomers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => handleCustomerChange(val)}
+            options={[
+              { value: "", label: "Select a customer" },
+              ...availableCustomers.map(customer => ({ value: customer.id, label: customer.name }))
+            ]}
+          />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -113,57 +107,36 @@ export function CustomerPricingFormDialog({
           </Field>
 
           <Field label="Load Type" required>
-            <select
-              required
+            <GlassSelect
               value={form.loadType}
-              onChange={(e) => update("loadType", e.target.value as CustomerPricing["loadType"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select load type
-              </option>
-              {LOAD_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("loadType", val as CustomerPricing["loadType"])}
+              options={[
+                { value: "", label: "Select load type" },
+                ...LOAD_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
 
           <Field label="Container Type" required>
-            <select
-              required
+            <GlassSelect
               value={form.containerType}
-              onChange={(e) => update("containerType", e.target.value as CustomerPricing["containerType"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select container type
-              </option>
-              {CONTAINER_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("containerType", val as CustomerPricing["containerType"])}
+              options={[
+                { value: "", label: "Select container type" },
+                ...CONTAINER_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
 
           <Field label="Weight (In tons)" required>
-            <select
-              required
+            <GlassSelect
               value={form.weightInTons}
-              onChange={(e) => update("weightInTons", e.target.value as CustomerPricing["weightInTons"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select weight range
-              </option>
-              {WEIGHT_IN_TONS_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("weightInTons", val as CustomerPricing["weightInTons"])}
+              options={[
+                { value: "", label: "Select weight range" },
+                ...WEIGHT_IN_TONS_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
 
           <Field label="Rate" required>
@@ -198,22 +171,15 @@ export function CustomerPricingFormDialog({
           </Field>
 
           <Field label="Status" required>
-            <select
-              required
+            <GlassSelect
               value={isBlacklisted ? "BLACKLISTED" : form.status}
-              onChange={(e) => update("status", e.target.value as CustomerPricing["status"])}
-              className={inputClass}
+              onChange={(val) => update("status", val as CustomerPricing["status"])}
               disabled={isBlacklisted}
-            >
-              <option value="" disabled>
-                Select status
-              </option>
-              {CUSTOMER_STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Select status" },
+                ...CUSTOMER_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
             {isBlacklisted && (
               <span className="text-xs text-red-600">
                 This customer is blacklisted, so this pricing entry is automatically blacklisted.

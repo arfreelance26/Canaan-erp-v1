@@ -5,9 +5,11 @@ import { Plus } from "lucide-react";
 import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog } from "@/components/drivers/DriverFormDialog";
 import { driversApi, uploadFile, fileUrl } from "@/lib/api";
+import { confirmDelete } from "@/lib/swal";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -16,8 +18,12 @@ export default function DriversPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+        driversApi.list().then(setDrivers).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     driversApi.list().then(setDrivers).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   function handleAdd() {
     setEditingDriver(null);
@@ -30,7 +36,8 @@ export default function DriversPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this driver?")) return;
+    const result = await confirmDelete("driver");
+    if (!result.isConfirmed) return;
     await driversApi.delete(id);
     setDrivers((prev) => prev.filter((d) => d.id !== id));
   }

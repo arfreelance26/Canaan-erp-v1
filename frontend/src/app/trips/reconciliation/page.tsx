@@ -10,6 +10,7 @@ import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
 import { n } from "@/types/trip-sheet";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 type DialogMode = "add" | "view" | "edit";
 
@@ -28,6 +29,49 @@ export default function TripReconciliationPage() {
   const [dialogMode, setDialogMode] = useState<DialogMode>("add");
 
   useEffect(() => {
+        Promise.all([
+          tripsApi.list("Completed"),
+          driversApi.list(),
+          trucksApi.list(),
+          customersApi.list(),
+        ])
+          .then(([t, d, tr, c]) => {
+            setDrivers(d);
+            setTrucks(tr);
+            setCustomers(c);
+            // Only trips that have a closure
+            const closedTrips = t.filter((trip) => (trip as any).hasClosure === true);
+            setTrips(closedTrips);
+            // Fetch closures for each closed trip
+            return Promise.all(
+              closedTrips.map((trip) =>
+                tripsApi.getClosure(trip.id).then((closure) => ({ tripId: trip.id, closure })).catch(() => null)
+              )
+            );
+          })
+          .then((closureResults) => {
+            const closureMap = new Map<string, TripClosureData>();
+            for (const result of closureResults) {
+              if (result) closureMap.set(result.tripId, result.closure);
+            }
+            setClosures(closureMap);
+            // Fetch sheets for trips that have a sheet
+            return Promise.all(
+              [...closureMap.keys()].map((tripId) =>
+                tripsApi.getSheet(tripId).then((sheet) => ({ tripId, sheet })).catch(() => null)
+              )
+            );
+          })
+          .then((sheetResults) => {
+            const sheetMap = new Map<string, TripSheetData>();
+            for (const result of sheetResults) {
+              if (result) sheetMap.set(result.tripId, result.sheet);
+            }
+            setSheets(sheetMap);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([
       tripsApi.list("Completed"),
       driversApi.list(),
@@ -69,7 +113,8 @@ export default function TripReconciliationPage() {
         setSheets(sheetMap);
       })
       .finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));

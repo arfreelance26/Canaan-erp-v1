@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import { inputClass } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,9 @@ import {
 } from "@/lib/tyre-fitment-data";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 import { tyreApi } from "@/lib/api";
+import { formatDate, todayIst } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
+import { Search } from "lucide-react";
 
 type ManageTyresDialogProps = {
   open: boolean;
@@ -21,46 +24,45 @@ type ManageTyresDialogProps = {
   truck: Truck | null;
 };
 
-type ActiveAction = { position: string; type: "attach" | "remove" } | null;
+
 
 
 
 export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogProps) {
   const { tyres, fitmentRecords, setFitmentRecords } = useTyreInventory();
-  const [activeAction, setActiveAction] = useState<ActiveAction>(null);
+  const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
+  const [animatingPosition, setAnimatingPosition] = useState<string | null>(null);
   const [selectedTyreId, setSelectedTyreId] = useState("");
   const [odometerInput, setOdometerInput] = useState("");
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    setOdometerInput(truck ? truck.odometer : "");
+    setError("");
+  }, [selectedPosition, truck]);
 
   if (!truck) return null;
 
   const layout = getTyreLayout(truck.tyreLayout);
   const positions = layout ? getTyrePositions(layout) : [];
   const availableTyres = getAvailableTyres(tyres, fitmentRecords);
+  const filteredTyres = availableTyres.filter(t => 
+    t.brand.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    t.tyreNumber.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (t.size && t.size.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
   const filledPositions = new Set(
     positions.filter((position) => getFitmentForPosition(truck.id, position, fitmentRecords) !== null)
   );
 
-  function startAttach(position: string) {
-    setActiveAction({ position, type: "attach" });
-    setSelectedTyreId("");
-    setOdometerInput(truck ? truck.odometer : "");
-    setError("");
-  }
-
-  function startRemove(position: string) {
-    setActiveAction({ position, type: "remove" });
-    setOdometerInput(truck ? truck.odometer : "");
-    setError("");
-  }
-
   function cancelAction() {
-    setActiveAction(null);
+    setSelectedPosition(null);
     setError("");
   }
 
-  async function confirmAttach(position: string) {
-    if (!truck) return;
+  async function confirmAttach() {
+    if (!truck || !selectedPosition) return;
     if (!selectedTyreId) {
       setError("Select a tyre to attach.");
       return;
@@ -72,18 +74,26 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     }
 
     try {
-      const fittedDate = new Date().toISOString().slice(0, 10);
-      const newFitment = await tyreApi.fitTyre(selectedTyreId, truck.id, position, odometer, fittedDate);
+      const fittedDate = todayIst();
+      const newFitment = await tyreApi.fitTyre(selectedTyreId, truck.id, selectedPosition, odometer, fittedDate);
       setFitmentRecords((prev) => [...prev, newFitment]);
-      setActiveAction(null);
+      
+      const posToAnimate = selectedPosition;
+      setSelectedPosition(null);
+      setAnimatingPosition(posToAnimate);
+      
+      setTimeout(() => {
+        setAnimatingPosition(null);
+      }, 1000);
+      
     } catch (err: any) {
       setError(err.message || "Failed to attach tyre.");
     }
   }
 
-  async function confirmRemove(position: string) {
-    if (!truck) return;
-    const fitment = getFitmentForPosition(truck.id, position, fitmentRecords);
+  async function confirmRemove() {
+    if (!truck || !selectedPosition) return;
+    const fitment = getFitmentForPosition(truck.id, selectedPosition, fitmentRecords);
     if (!fitment) return;
 
     const odometer = Number(odometerInput);
@@ -93,15 +103,11 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     }
 
     try {
-      const removedDate = new Date().toISOString().slice(0, 10);
+      const removedDate = todayIst();
       const updatedFitment = await tyreApi.removeTyre(fitment.id, odometer, removedDate);
-      setFitmentRecords((prev) =>
-        prev.map((record) =>
-          record.id === fitment.id ? updatedFitment : record
-        )
-      );
-      setActiveAction(null);
-    } catch (err: any) {
+        setFitmentRecords((prev) => (prev.map((f) => (f.id === updatedFitment.id ? updatedFitment : f))));
+        setSelectedPosition(null);
+      } catch (err: any) {
       setError(err.message || "Failed to remove tyre.");
     }
   }
@@ -110,101 +116,61 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     <Dialog open={open} onClose={onClose} title={`Manage Tyres — ${truck.registrationNumber}`} className="max-w-3xl">
       <div className="flex flex-col gap-4">
         {layout ? (
-          <TyreLayoutDiagram layout={layout} filledPositions={filledPositions} />
+          <TyreLayoutDiagram
+            layout={layout}
+            filledPositions={filledPositions}
+            onPositionClick={setSelectedPosition}
+            selectedPosition={selectedPosition}
+            animatingPosition={animatingPosition}
+          />
         ) : (
           <p className="text-sm text-gray-500">No tyre layout has been set for this truck.</p>
         )}
 
-        {positions.length > 0 && (
-          <ul className="flex flex-col gap-2">
-            {positions.map((position) => {
-              const fitment = getFitmentForPosition(truck.id, position, fitmentRecords);
-              const tyre = fitment ? tyres.find((t) => t.id === fitment.tyreId) ?? null : null;
-              const isActive = activeAction?.position === position;
+        <div className="border-t border-gray-200 pt-4">
+          {!selectedPosition ? (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+              <p className="text-sm text-gray-500">Select a tyre position on the diagram above to manage.</p>
+            </div>
+          ) : (() => {
+            const isFilled = filledPositions.has(selectedPosition);
+            const fitment = getFitmentForPosition(truck.id, selectedPosition, fitmentRecords);
+            const attachedTyre = fitment ? tyres.find((t) => t.id === fitment.tyreId) : null;
 
-              return (
-                <li key={position} className="rounded-lg border border-gray-200 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium text-gray-900">{position}</span>
-                    {tyre ? (
-                      <button
-                        type="button"
-                        onClick={() => startRemove(position)}
-                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
-                      >
-                        Remove Tyre
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => startAttach(position)}
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                      >
-                        Attach Tyre
-                      </button>
-                    )}
-                  </div>
+            return (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4 shadow-sm animate-in fade-in slide-in-from-top-4">
+                <div className="mb-4 flex items-center justify-between border-b border-blue-100 pb-3">
+                  <h3 className="font-semibold text-gray-900">{selectedPosition}</h3>
+                  <button
+                    onClick={cancelAction}
+                    className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                  >
+                    Close
+                  </button>
+                </div>
 
-                  {tyre && fitment ? (
-                    <div className="mt-2 flex flex-col gap-1 text-xs text-gray-600">
-                      <span>
-                        {tyre.brand} · {tyre.tyreNumber} ({tyre.size})
-                      </span>
-                      <span>
-                        Fitted at {fitment.fittedOdometer.toLocaleString()} km on {fitment.fittedDate}
-                      </span>
-
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-xs text-gray-500">Empty</p>
-                  )}
-
-                  {isActive && activeAction?.type === "attach" && (
-                    <div className="mt-3 flex flex-col gap-2 rounded-lg bg-gray-50 p-3">
-                      <select
-                        value={selectedTyreId}
-                        onChange={(e) => setSelectedTyreId(e.target.value)}
-                        className={inputClass}
-                      >
-                        <option value="" disabled>
-                          Select a tyre
-                        </option>
-                        {availableTyres.map((tyreOption) => (
-                          <option key={tyreOption.id} value={tyreOption.id}>
-                            {tyreOption.brand} · {tyreOption.tyreNumber} ({tyreOption.size})
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min="0"
-                        value={odometerInput}
-                        onChange={(e) => setOdometerInput(e.target.value)}
-                        placeholder="Odometer reading at fitment (km)"
-                        className={inputClass}
-                      />
-                      {error && <p className="text-xs text-red-600">{error}</p>}
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={cancelAction}
-                          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-white"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => confirmAttach(position)}
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                        >
-                          Confirm
-                        </button>
+                {attachedTyre && fitment ? (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+                      <div className="flex flex-col gap-1 text-sm text-gray-700">
+                        <span className="font-medium text-gray-900">
+                          {attachedTyre.brand} · {attachedTyre.tyreNumber}
+                        </span>
+                        <span className="text-xs text-gray-500">Size: {attachedTyre.size}</span>
+                        <span className="mt-1 text-xs text-gray-500">
+                          Fitted at {fitment.fittedOdometer.toLocaleString()} km on {formatDate(fitment.fittedDate)}
+                        </span>
                       </div>
+                      <span className={cn(
+                        "rounded-full px-2.5 py-1 text-xs font-medium",
+                        attachedTyre.condition === "New" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
+                      )}>
+                        {attachedTyre.condition || "Unknown"}
+                      </span>
                     </div>
-                  )}
 
-                  {isActive && activeAction?.type === "remove" && (
-                    <div className="mt-3 flex flex-col gap-2 rounded-lg bg-gray-50 p-3">
+                    <div className="flex flex-col gap-3 rounded-lg border border-red-100 bg-red-50/30 p-3">
+                      <h4 className="text-sm font-medium text-gray-900">Remove Tyre</h4>
                       <input
                         type="number"
                         min="0"
@@ -214,29 +180,100 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                         className={inputClass}
                       />
                       {error && <p className="text-xs text-red-600">{error}</p>}
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={cancelAction}
-                          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-white"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => confirmRemove(position)}
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                        >
-                          Confirm
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={confirmRemove}
+                        className="mt-1 w-full rounded-lg bg-red-600 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                      >
+                        Confirm Removal
+                      </button>
                     </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm flex flex-col gap-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="text-sm font-medium text-gray-900">Attach a New Tyre</h4>
+                        <div className="relative w-40">
+                          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search tyre..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full rounded-md border border-gray-300 bg-gray-50 py-1.5 pl-8 pr-3 text-xs text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-xs font-medium text-gray-700">Select Available Tyre</label>
+                          {filteredTyres.length > 0 && (
+                            <span className="text-[10px] text-gray-400 font-medium">{filteredTyres.length} available</span>
+                          )}
+                        </div>
+                        {filteredTyres.length === 0 ? (
+                          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                            <p className="text-sm text-gray-500">{availableTyres.length === 0 ? "No available tyres in inventory." : "No tyres match your search."}</p>
+                          </div>
+                        ) : (
+                          <div className="flex gap-3 overflow-x-auto pb-3 snap-x scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                            {filteredTyres.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setSelectedTyreId(t.id)}
+                                className={cn(
+                                  "flex-none w-52 text-left rounded-xl border p-3 transition-all snap-start outline-none",
+                                  selectedTyreId === t.id
+                                    ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500 shadow-sm"
+                                    : "border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm"
+                                )}
+                              >
+                                <div className="flex justify-between items-start mb-2 gap-2">
+                                  <span className="font-semibold text-sm text-gray-900 truncate">{t.brand}</span>
+                                  <span className={cn(
+                                    "text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0",
+                                    t.condition === "New" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                                  )}>
+                                    {t.condition || "Unknown"}
+                                  </span>
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="text-xs font-medium text-gray-700 truncate">{t.tyreNumber}</div>
+                                  <div className="text-[10px] text-gray-500">Size: {t.size}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <label className="text-xs font-medium text-gray-700">Odometer at Fitment (km)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={odometerInput}
+                          onChange={(e) => setOdometerInput(e.target.value)}
+                          placeholder="Current truck odometer"
+                          className={inputClass}
+                        />
+                      </div>
+                      {error && <p className="text-xs text-red-600">{error}</p>}
+                      <button
+                        type="button"
+                        onClick={confirmAttach}
+                        className="mt-2 w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                      >
+                        Attach Tyre
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </Dialog>
   );

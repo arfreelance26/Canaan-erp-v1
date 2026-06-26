@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog } from "@/components/fleet/TruckFormDialog";
-import { trucksApi, uploadFile } from "@/lib/api";
+import { trucksApi, uploadFile, fileUrl } from "@/lib/api";
+import { confirmDelete } from "@/lib/swal";
 import { generateTruckId } from "@/lib/truck-data";
 import type { Truck } from "@/types/truck";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function FleetPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -16,8 +18,12 @@ export default function FleetPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+        trucksApi.list().then(setTrucks).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     trucksApi.list().then(setTrucks).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   function handleAdd() {
     setEditingTruck(null);
@@ -30,7 +36,8 @@ export default function FleetPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this truck?")) return;
+    const result = await confirmDelete("truck");
+    if (!result.isConfirmed) return;
     await trucksApi.delete(id);
     setTrucks((prev) => prev.filter((t) => t.id !== id));
   }

@@ -33,10 +33,26 @@ FIELD_MAP: dict[str, dict[str, str]] = {
         "rc":               "rc_document_blob",
         "fc":               "fc_document_blob",
         "road_tax":         "road_tax_document_blob",
+        "insurance":        "insurance_document_proof_blob",
         "national_permit":  "national_permit_proof_blob",
         "local_permit":     "local_permit_proof_blob",
         "pollution_cert":   "pollution_certificate_blob",
     },
+}
+
+# Maps blob column name → the filename/url column that stores the original filename.
+FILENAME_COL: dict[str, str] = {
+    "photo_blob":                        "photo_url",
+    "aadhaar_blob":                      "aadhaar_file_name",
+    "aadhar_document_blob":              "aadhar_file_name",
+    "license_blob":                      "license_file_name",
+    "rc_document_blob":                  "rc_document_url",
+    "fc_document_blob":                  "fc_document_file_name",
+    "road_tax_document_blob":            "road_tax_document_file_name",
+    "insurance_document_proof_blob":     "insurance_document_proof_file_name",
+    "national_permit_proof_blob":        "national_permit_proof_file_name",
+    "local_permit_proof_blob":           "local_permit_proof_file_name",
+    "pollution_certificate_blob":        "pollution_certificate_proof_file_name",
 }
 
 MODEL_MAP: dict[str, type] = {
@@ -81,9 +97,8 @@ async def upload_file(
     col = _col_name(entity, field)
     data = await file.read()
     setattr(record, col, data)
-    # Store original filename in the corresponding _file_name column if it exists
-    name_col = col.replace("_blob", "_file_name").replace("photo_blob", "photo_url")
-    if hasattr(record, name_col) and name_col != col:
+    name_col = FILENAME_COL.get(col)
+    if name_col and hasattr(record, name_col):
         setattr(record, name_col, file.filename)
     db.commit()
 
@@ -104,9 +119,8 @@ def download_file(
     data: bytes | None = getattr(record, col, None)
     if not data:
         raise HTTPException(404, "No file stored for this field")
-    # Try to infer MIME type from stored filename
-    name_col = col.replace("_blob", "_file_name")
-    filename: str = getattr(record, name_col, None) or f"{field}.bin"
+    name_col = FILENAME_COL.get(col)
+    filename: str = (getattr(record, name_col, None) if name_col else None) or f"{field}.bin"
     mime, _ = mimetypes.guess_type(filename)
     mime = mime or "application/octet-stream"
     return Response(

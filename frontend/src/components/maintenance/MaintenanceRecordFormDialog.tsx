@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { MAINTENANCE_TYPE_OPTIONS } from "@/lib/truck-maintenance-data";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
@@ -79,20 +80,13 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           </Field>
 
           <Field label="Maintenance Type" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
-              list="maintenance-type-options"
               value={form.maintenanceType}
-              onChange={(e) => update("maintenanceType", e.target.value)}
-              className={inputClass}
+              onChange={(val) => update("maintenanceType", val)}
               placeholder="Select or type a maintenance type"
+              options={MAINTENANCE_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
             />
-            <datalist id="maintenance-type-options">
-              {MAINTENANCE_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label="Cost" required>

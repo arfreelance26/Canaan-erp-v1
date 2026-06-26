@@ -5,14 +5,19 @@ import { ComplianceTable } from "@/components/fleet/ComplianceTable";
 import { getComplianceStatus } from "@/lib/compliance";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function CompliancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+        trucksApi.list().then(setTrucks).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     trucksApi.list().then(setTrucks).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const summary = useMemo(() => {
     const counts = { Valid: 0, "Expiring Soon": 0, Expired: 0 };

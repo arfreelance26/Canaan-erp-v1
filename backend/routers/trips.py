@@ -82,7 +82,7 @@ def update_trip_status(trip_id: int, payload: schemas.TripStatusUpdate, db: Sess
     trip.status = payload.status
     db.commit()
     db.refresh(trip)
-    return trip
+    return _enrich(trip)
 
 
 @router.delete("/{trip_id}", status_code=204)
@@ -142,28 +142,15 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     if not trip.closure:
         raise HTTPException(400, "Trip must be closed before adding a trip sheet")
 
-    data = payload.model_dump(exclude={"diesel_entries"})
-    diesel_entries_data = payload.diesel_entries
+    data = payload.model_dump()
 
     if trip.sheet:
         sheet = trip.sheet
         for field, value in data.items():
             setattr(sheet, field, value)
-        # Replace diesel entries
-        for entry in sheet.diesel_entries:
-            db.delete(entry)
-        db.flush()
     else:
         sheet = models.TripSheet(trip_id=trip_id, **data)
         db.add(sheet)
-        db.flush()
-
-    for entry_data in diesel_entries_data:
-        entry = models.TripSheetDieselEntry(
-            trip_sheet_id=sheet.id,
-            **entry_data.model_dump(),
-        )
-        db.add(entry)
 
     db.commit()
     db.refresh(sheet)
@@ -173,7 +160,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
 @router.get("/{trip_id}/sheet", response_model=schemas.TripSheetOut)
 def get_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(
-        joinedload(models.Trip.sheet).joinedload(models.TripSheet.diesel_entries)
+        joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")

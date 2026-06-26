@@ -6,6 +6,9 @@ import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog } from "@/components/finance/EmiFormDialog";
 import { financeApi } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
+import { confirmDelete } from "@/lib/swal";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { todayIst } from "@/lib/format-date";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -15,10 +18,6 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function EmiTrackingPage() {
   const [records, setRecords] = useState<EmiRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,11 +25,15 @@ export default function EmiTrackingPage() {
   const [editingRecord, setEditingRecord] = useState<EmiRecord | null>(null);
 
   useEffect(() => {
+        financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const summary = useMemo(() => {
-    const today = todayIso();
+    const today = todayIst();
     let dueSoon = 0;
     let overdue = 0;
     let monthlyTotal = 0;
@@ -56,7 +59,8 @@ export default function EmiTrackingPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this EMI entry?")) return;
+    const result = await confirmDelete("EMI entry");
+    if (!result.isConfirmed) return;
     await financeApi.deleteEmi(id);
     setRecords((prev) => prev.filter((record) => record.id !== id));
   }

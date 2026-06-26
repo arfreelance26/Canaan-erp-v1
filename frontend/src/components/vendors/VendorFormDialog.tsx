@@ -3,8 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { VENDOR_CATEGORY_OPTIONS, VENDOR_STATUS_OPTIONS } from "@/lib/vendor-data";
 import type { Vendor } from "@/types/vendor";
+import { todayIst } from "@/lib/format-date";
 
 type VendorFormDialogProps = {
   open: boolean;
@@ -49,7 +52,7 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
     event.preventDefault();
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
-      createdAt: initialData?.createdAt ?? new Date().toISOString().slice(0, 10),
+      createdAt: initialData?.createdAt ?? todayIst(),
       ...form,
     });
   }
@@ -70,20 +73,13 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
           </Field>
 
           <Field label="Vendor Category" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
-              list="vendor-category-options"
               value={form.category}
-              onChange={(e) => update("category", e.target.value)}
-              className={inputClass}
+              onChange={(val) => update("category", val)}
               placeholder="Select or type a category"
+              options={VENDOR_CATEGORY_OPTIONS.map(opt => ({ value: opt, label: opt }))}
             />
-            <datalist id="vendor-category-options">
-              {VENDOR_CATEGORY_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label="Contact Number" required>
@@ -131,21 +127,14 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
           </Field>
 
           <Field label="Status" required>
-            <select
-              required
+            <GlassSelect
               value={form.status}
-              onChange={(e) => update("status", e.target.value as Vendor["status"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select status
-              </option>
-              {VENDOR_STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("status", val as Vendor["status"])}
+              options={[
+                { value: "", label: "Select status" },
+                ...VENDOR_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
         </div>
 

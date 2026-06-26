@@ -7,6 +7,7 @@ import { trucksApi, tyreApi } from "@/lib/api";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 
 import type { Truck } from "@/types/truck";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function TyreManagementPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -18,6 +19,19 @@ export default function TyreManagementPage() {
   const { setTyres, setFitmentRecords } = useTyreInventory();
 
   useEffect(() => {
+        Promise.all([
+          trucksApi.list(),
+          tyreApi.listInventory(),
+          tyreApi.listFitments()
+        ])
+          .then(([t, inv, fit]) => {
+            setTrucks(t);
+            setTyres(inv);
+            setFitmentRecords(fit);
+          })
+          .finally(() => setLoading(false));
+      }, [setTyres, setFitmentRecords]);
+      useAutoRefresh(() => {
     Promise.all([
       trucksApi.list(),
       tyreApi.listInventory(),
@@ -29,7 +43,8 @@ export default function TyreManagementPage() {
         setFitmentRecords(fit);
       })
       .finally(() => setLoading(false));
-  }, [setTyres, setFitmentRecords]);
+      }, 5000);
+
 
   function handleManageTyres(truck: Truck) {
     setSelectedTruck(truck);

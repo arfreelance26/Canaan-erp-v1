@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 import models  # noqa: F401 — ensure all models are registered before create_all
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth
 
 Base.metadata.create_all(bind=engine)
 
@@ -32,6 +32,7 @@ app.include_router(maintenance.router)
 app.include_router(finance.router)
 app.include_router(dashboard.router)
 app.include_router(files.router)
+app.include_router(auth.router)
 
 
 @app.get("/", tags=["Health"])

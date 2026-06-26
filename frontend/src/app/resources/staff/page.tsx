@@ -5,8 +5,10 @@ import { Plus } from "lucide-react";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { staffApi, uploadFile, fileUrl } from "@/lib/api";
+import { confirmDelete } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -15,8 +17,12 @@ export default function StaffPage() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
   useEffect(() => {
+        staffApi.list().then(setStaff).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     staffApi.list().then(setStaff).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   function handleAdd() {
     setEditingStaff(null);
@@ -29,7 +35,8 @@ export default function StaffPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this staff member?")) return;
+    const result = await confirmDelete("staff member");
+    if (!result.isConfirmed) return;
     await staffApi.delete(id);
     setStaff((prev) => prev.filter((member) => member.id !== id));
   }

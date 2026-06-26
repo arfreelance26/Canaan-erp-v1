@@ -10,6 +10,7 @@ export type Staff = {
   email: string;
   contactNumber: string;
   address: string;
+  aadharNumber: string | null;
   aadharFileName: string | null;
   branch: string;
   softwareDesignation: string;

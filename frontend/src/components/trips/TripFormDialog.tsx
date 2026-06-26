@@ -1,8 +1,11 @@
 "use client";
 
+import { X, Calendar as CalendarIcon, Info } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import {
   BILL_TO_OPTIONS,
   PAYMENT_TYPE_OPTIONS,
@@ -20,6 +23,7 @@ import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
+import { todayIst } from "@/lib/format-date";
 
 type AssignableDriver = {
   driver: Driver;
@@ -35,10 +39,6 @@ type TripFormDialogProps = {
   customers: Customer[];
   assignableDrivers: AssignableDriver[];
 };
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assignedDate"> = {
   bookingReferenceNo: "",
@@ -96,7 +96,7 @@ export function TripFormDialog({
         setForm(rest);
       } else {
         // Create mode: initialize with empty form
-        const initialDate = todayIso();
+        const initialDate = todayIst();
         setForm({
           ...emptyForm,
           bookingCreatedDate: initialDate,
@@ -152,7 +152,7 @@ export function TripFormDialog({
         id: crypto.randomUUID(),
         tripId: generateTripId(existingTrips),
         status: "Assigned",
-        assignedDate: todayIso(),
+        assignedDate: todayIst(),
         vehicleId: assigned.truck.truckId,
         ...form,
       });
@@ -189,39 +189,25 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Trip Category" required>
-              <select
-                required
+              <GlassSelect
                 value={form.tripCategory}
-                onChange={(e) => update("tripCategory", e.target.value as Trip["tripCategory"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select trip category
-                </option>
-                {TRIP_CATEGORY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("tripCategory", val as Trip["tripCategory"])}
+                options={[
+                  { value: "", label: "Select trip category" },
+                  ...TRIP_CATEGORY_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
 
             <Field label="Movement Category" required>
-              <select
-                required
+              <GlassSelect
                 value={form.movementCategory}
-                onChange={(e) => update("movementCategory", e.target.value as Trip["movementCategory"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select movement category
-                </option>
-                {MOVEMENT_CATEGORY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("movementCategory", val as Trip["movementCategory"])}
+                options={[
+                  { value: "", label: "Select movement category" },
+                  ...MOVEMENT_CATEGORY_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
           </div>
         </section>
@@ -231,21 +217,14 @@ export function TripFormDialog({
           <h3 className="text-sm font-semibold text-gray-900">Customer Information</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Customer Account" required>
-              <select
-                required
+              <GlassSelect
                 value={form.customerId}
-                onChange={(e) => handleCustomerChange(e.target.value)}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select a customer
-                </option>
-                {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => handleCustomerChange(val)}
+                options={[
+                  { value: "", label: "Select a customer" },
+                  ...customers.map(c => ({ value: c.id, label: c.name }))
+                ]}
+              />
             </Field>
 
             <Field label="Shipper / Consignee" required>
@@ -360,39 +339,25 @@ export function TripFormDialog({
             ) : null}
 
             <Field label="Cargo Classification" required>
-              <select
-                required
+              <GlassSelect
                 value={form.cargoClassification}
-                onChange={(e) => update("cargoClassification", e.target.value as Trip["cargoClassification"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select cargo classification
-                </option>
-                {CARGO_CLASSIFICATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("cargoClassification", val as Trip["cargoClassification"])}
+                options={[
+                  { value: "", label: "Select cargo classification" },
+                  ...CARGO_CLASSIFICATION_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
 
             <Field label="Container Specification" required>
-              <select
-                required
+              <GlassSelect
                 value={form.containerSpecification}
-                onChange={(e) => update("containerSpecification", e.target.value as Trip["containerSpecification"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select container specification
-                </option>
-                {CONTAINER_SPECIFICATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("containerSpecification", val as Trip["containerSpecification"])}
+                options={[
+                  { value: "", label: "Select container specification" },
+                  ...CONTAINER_SPECIFICATION_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
 
             <Field label="Release Order Reference" required>
@@ -480,21 +445,14 @@ export function TripFormDialog({
           <h3 className="text-sm font-semibold text-gray-900">Vehicle &amp; Trip Assignment</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Transport Method" required>
-              <select
-                required
+              <GlassSelect
                 value={form.transportMethod}
-                onChange={(e) => update("transportMethod", e.target.value as Trip["transportMethod"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select transport method
-                </option>
-                {TRANSPORT_METHOD_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("transportMethod", val as Trip["transportMethod"])}
+                options={[
+                  { value: "", label: "Select transport method" },
+                  ...TRANSPORT_METHOD_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
 
             <Field label="Scheduled Trip Date" required>
@@ -508,21 +466,17 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Assigned Vehicle" className="sm:col-span-2">
-              <select
-                required
+              <GlassSelect
                 value={form.driverId}
-                onChange={(e) => update("driverId", e.target.value)}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  {assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle"}
-                </option>
-                {assignableDrivers.map(({ driver, truck }) => (
-                  <option key={driver.id} value={driver.driverId}>
-                    {driver.name} — {truck.registrationNumber}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("driverId", val)}
+                options={[
+                  { value: "", label: assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle" },
+                  ...assignableDrivers.map(({ driver, truck }) => ({
+                    value: driver.driverId,
+                    label: `${driver.name} — ${truck.registrationNumber}`
+                  }))
+                ]}
+              />
               {selectedAssignment && (
                 <span className="text-xs text-gray-500">
                   Vehicle: {selectedAssignment.truck.truckId} — {selectedAssignment.truck.registrationNumber}
@@ -537,39 +491,25 @@ export function TripFormDialog({
           <h3 className="text-sm font-semibold text-gray-900">Payment &amp; Advances</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Bill To" required>
-              <select
-                required
+              <GlassSelect
                 value={form.billTo}
-                onChange={(e) => update("billTo", e.target.value as Trip["billTo"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select bill to
-                </option>
-                {BILL_TO_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("billTo", val as Trip["billTo"])}
+                options={[
+                  { value: "", label: "Select bill to" },
+                  ...BILL_TO_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
 
             <Field label="Payment Type" required>
-              <select
-                required
+              <GlassSelect
                 value={form.paymentType}
-                onChange={(e) => update("paymentType", e.target.value as Trip["paymentType"])}
-                className={inputClass}
-              >
-                <option value="" disabled>
-                  Select payment type
-                </option>
-                {PAYMENT_TYPE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => update("paymentType", val as Trip["paymentType"])}
+                options={[
+                  { value: "", label: "Select payment type" },
+                  ...PAYMENT_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
+              />
             </Field>
 
             <Field label="Customer Cash Advance (₹)" required>
@@ -623,37 +563,23 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Driver Advance Payment Method" required>
-              <input
-                type="text"
+              <GlassCombobox
                 required
-                list="driver-advance-payment-method-options"
                 value={form.driverAdvancePaymentMethod}
-                onChange={(e) => update("driverAdvancePaymentMethod", e.target.value as Trip["driverAdvancePaymentMethod"])}
-                className={inputClass}
+                onChange={(val) => update("driverAdvancePaymentMethod", val as Trip["driverAdvancePaymentMethod"])}
                 placeholder="Select or type payment method"
+                options={DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS.map(opt => ({ value: opt, label: opt }))}
               />
-              <datalist id="driver-advance-payment-method-options">
-                {DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
             </Field>
 
             <Field label="Driver Compensation Type" required>
-              <input
-                type="text"
+              <GlassCombobox
                 required
-                list="driver-compensation-type-options"
                 value={form.driverCompensationType}
-                onChange={(e) => update("driverCompensationType", e.target.value as Trip["driverCompensationType"])}
-                className={inputClass}
+                onChange={(val) => update("driverCompensationType", val as Trip["driverCompensationType"])}
                 placeholder="Select or type compensation type"
+                options={DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
               />
-              <datalist id="driver-compensation-type-options">
-                {DRIVER_COMPENSATION_TYPE_OPTIONS.map((option) => (
-                  <option key={option} value={option} />
-                ))}
-              </datalist>
             </Field>
           </div>
         </section>

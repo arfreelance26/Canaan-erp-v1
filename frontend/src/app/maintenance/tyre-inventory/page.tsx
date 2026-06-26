@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTable";
 import { TyreInventoryFormDialog } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
 import { tyreApi } from "@/lib/api";
+import { confirmDelete } from "@/lib/swal";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
+import type { Truck } from "@/types/truck";
+import { trucksApi } from "@/lib/api";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function TyreInventoryPage() {
   const [tyres, setTyres] = useState<TyreInventoryItem[]>([]);
   const [fitmentRecords, setFitmentRecords] = useState<TyreFitmentRecord[]>([]);
+  const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTyre, setEditingTyre] = useState<TyreInventoryItem | null>(null);
@@ -19,13 +24,24 @@ export default function TyreInventoryPage() {
   const [historyTyre, setHistoryTyre] = useState<TyreInventoryItem | null>(null);
 
   useEffect(() => {
-    Promise.all([tyreApi.listInventory(), tyreApi.listFitments()])
-      .then(([t, f]) => {
+    Promise.all([tyreApi.listInventory(), tyreApi.listFitments(), trucksApi.list()])
+      .then(([t, f, tr]) => {
         setTyres(t);
         setFitmentRecords(f);
+        setTrucks(tr);
       })
       .finally(() => setLoading(false));
-  }, []);
+      }, []);
+      useAutoRefresh(() => {
+    Promise.all([tyreApi.listInventory(), tyreApi.listFitments(), trucksApi.list()])
+      .then(([t, f, tr]) => {
+        setTyres(t);
+        setFitmentRecords(f);
+        setTrucks(tr);
+      })
+      .finally(() => setLoading(false));
+  }, 5000);
+
 
   function handleAdd() {
     setEditingTyre(null);
@@ -38,7 +54,8 @@ export default function TyreInventoryPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this tyre?")) return;
+    const result = await confirmDelete("tyre");
+    if (!result.isConfirmed) return;
     await tyreApi.deleteTyre(id);
     setTyres((prev) => prev.filter((tyre) => tyre.id !== id));
   }
@@ -60,6 +77,18 @@ export default function TyreInventoryPage() {
     setHistoryDialogOpen(true);
   }
 
+  const [filterCondition, setFilterCondition] = useState<"All" | "New" | "Rethreaded">("All");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredTyres = tyres.filter((t) => {
+    const matchesCondition = filterCondition === "All" || t.condition === filterCondition;
+    const matchesSearch =
+      !searchQuery ||
+      t.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.tyreNumber.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCondition && matchesSearch;
+  });
+
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
   return (
@@ -72,18 +101,65 @@ export default function TyreInventoryPage() {
         <button
           type="button"
           onClick={handleAdd}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-         
-         
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
         >
           <Plus className="h-4 w-4" />
           Add Tyre
         </button>
       </div>
 
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-500 mr-2">Filter by Condition:</span>
+          <button
+            onClick={() => setFilterCondition("All")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              filterCondition === "All"
+                ? "bg-blue-100 text-blue-700 shadow-sm"
+                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilterCondition("New")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              filterCondition === "New"
+                ? "bg-emerald-100 text-emerald-700 shadow-sm"
+                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+            }`}
+          >
+            New
+          </button>
+          <button
+            onClick={() => setFilterCondition("Rethreaded")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              filterCondition === "Rethreaded"
+                ? "bg-amber-100 text-amber-700 shadow-sm"
+                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+            }`}
+          >
+            Retreaded
+          </button>
+        </div>
+
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search tyres..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-4 py-1.5 rounded-full border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full sm:w-64 transition-all bg-white/50 backdrop-blur-sm"
+          />
+        </div>
+      </div>
+
       <div>
         <TyreInventoryTable
-          tyres={tyres}
+          tyres={filteredTyres}
+          fitments={fitmentRecords}
+          trucks={trucks}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onViewHistory={handleViewHistory}

@@ -2,12 +2,13 @@
 
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import type { LeaveRequest } from "@/types/leave-request";
 
 type LeaveApprovalTableProps = {
   requests: LeaveRequest[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
 };
 
 const columns = ["Applicant", "Category", "From", "To", "Reason", "Applied On", "Status", "Actions"];
@@ -18,23 +19,6 @@ const statusStyles: Record<string, string> = {
   Rejected: "bg-red-50 text-red-700",
 };
 
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(date: string): string {
-  return new Date(date).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
 
 export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveApprovalTableProps) {
   if (requests.length === 0) {
@@ -46,11 +30,11 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[900px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
-            {columns.map((column) => (
+            {columns.filter(c => c !== "Actions" || (onApprove && onReject)).map((column) => (
               <th
                 key={column}
                 className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase"
@@ -82,30 +66,32 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
                   {request.status}
                 </span>
               </td>
-              <td className="px-4 py-3">
-                {request.status === "Pending" ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onApprove(request.id)}
-                      className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onReject(request.id)}
-                      className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      Reject
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
-              </td>
+              {(onApprove && onReject) && (
+                <td className="px-4 py-3">
+                  {request.status === "Pending" ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onApprove(request.id)}
+                        className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onReject(request.id)}
+                        className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Reject
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

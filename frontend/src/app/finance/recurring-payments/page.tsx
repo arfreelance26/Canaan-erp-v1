@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RecurringPaymentsTable } from "@/components/finance/RecurringPaymentsTable";
 import { financeApi } from "@/lib/api";
 import type { RecurringPayment } from "@/types/finance";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -18,8 +19,12 @@ export default function RecurringPaymentsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+        financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   const summary = useMemo(() => {
     let active = 0;

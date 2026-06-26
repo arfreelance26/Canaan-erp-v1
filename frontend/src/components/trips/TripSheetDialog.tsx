@@ -5,8 +5,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
-import { type TripSheetData, type DieselEntry, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
+import { type TripSheetData, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
 import { initialDrivers } from "@/lib/driver-data";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { initialTrucks } from "@/lib/truck-data";
 
 const sh = "text-xs font-semibold uppercase tracking-wider text-gray-500 pt-4 pb-1 border-b border-gray-100 mb-3";
@@ -16,18 +17,12 @@ const LINE_OPTIONS = ["COSCO", "MSC", "Maersk", "Evergreen", "ONE", "CMA CGM", "
 const TRIP_TYPE_OPTIONS = ["Import", "Export", "Empty", "Local Shifting", "CFS", "Coastal"];
 const CONTAINER_TYPE_OPTIONS = ["20 FT", "40 FT", "2X20", "OPEN LOAD CARGO"];
 
-function emptyDieselEntry(): DieselEntry {
-  return { id: crypto.randomUUID(), bunkName: "", quantity: "", price: "", amount: "", km: "", billNo: "" };
-}
-
 const emptySheet = (tripId: string): TripSheetData => ({
   tripId,
   tripSheetNo: "", serialNo: "", containerNo: "", containerType: "", line: "", tripType: "", vehicleId: "", date: "", driverId: "",
   from: "", to: "",
   hireAmount: "", driverAdvance: "", driverAdvanceAdditional: "",
   startKm: "", endKm: "", totalKm: "", cargoWeight: "", grossWeight: "", tareWeight: "", netWeight: "",
-  dieselEntries: [emptyDieselEntry()],
-  totalDiesel: "", dieselRate: "", dieselExpense: "",
   driverPay: "", driverSettlementAdvance: "", driverSettlementAdvanceAdditional: "", driverBalance: "",
   totalHaltDays: "", haltRemarks: "", haltPay: "",
   portPassExpense: "", weightSheetExpense: "", mamolExpense: "", claimableMamolExpense: "",
@@ -68,10 +63,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       const endKm   = n(key === "endKm"   ? (value as string) : next.endKm);
       next.totalKm  = endKm > startKm ? String(endKm - startKm) : next.totalKm;
 
-      const totalD  = n(key === "totalDiesel" ? (value as string) : next.totalDiesel);
-      const dRate   = n(key === "dieselRate"  ? (value as string) : next.dieselRate);
-      next.dieselExpense = totalD && dRate ? String((totalD * dRate).toFixed(2)) : next.dieselExpense;
-
       const dPay  = n(key === "driverPay"  ? (value as string) : next.driverPay);
       const dAdv  = n(key === "driverSettlementAdvance" ? (value as string) : next.driverSettlementAdvance);
       const dAddl = n(key === "driverSettlementAdvanceAdditional" ? (value as string) : next.driverSettlementAdvanceAdditional);
@@ -85,23 +76,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
       return next;
     });
-  }
-
-  function updateDiesel(id: string, field: keyof DieselEntry, value: string) {
-    setForm((prev) => ({
-      ...prev,
-      dieselEntries: prev.dieselEntries.map((e) =>
-        e.id === id ? { ...e, [field]: value } : e
-      ),
-    }));
-  }
-
-  function addDieselEntry() {
-    setForm((prev) => ({ ...prev, dieselEntries: [...prev.dieselEntries, emptyDieselEntry()] }));
-  }
-
-  function removeDieselEntry(id: string) {
-    setForm((prev) => ({ ...prev, dieselEntries: prev.dieselEntries.filter((e) => e.id !== id) }));
   }
 
   function handleSubmit(e: FormEvent) {
@@ -134,37 +108,62 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={fc} value={form.containerNo} readOnly={ro} onChange={(e) => set("containerNo", e.target.value)} placeholder="e.g. MSCU1234567" />
           </Field>
           <Field label="Select Container Type *">
-            <select className={selectClass} value={form.containerType} disabled={ro} onChange={(e) => set("containerType", e.target.value)}>
-              <option value="">— Select —</option>
-              {CONTAINER_TYPE_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
+            <GlassSelect
+              value={form.containerType}
+              onChange={(val) => set("containerType", val)}
+              disabled={ro}
+              options={[
+                { value: "", label: "— Select —" },
+                ...CONTAINER_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
           <Field label="Select Line *">
-            <select className={selectClass} value={form.line} disabled={ro} onChange={(e) => set("line", e.target.value)}>
-              <option value="">— Select —</option>
-              {LINE_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
+            <GlassSelect
+              value={form.line}
+              onChange={(val) => set("line", val)}
+              disabled={ro}
+              options={[
+                { value: "", label: "— Select —" },
+                ...LINE_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
           <Field label="Trip Type *">
-            <select className={selectClass} value={form.tripType} disabled={ro} onChange={(e) => set("tripType", e.target.value)}>
-              <option value="">— Select —</option>
-              {TRIP_TYPE_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-            </select>
+            <GlassSelect
+              value={form.tripType}
+              onChange={(val) => set("tripType", val)}
+              disabled={ro}
+              options={[
+                { value: "", label: "— Select —" },
+                ...TRIP_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
           <Field label="Select Vehicle *">
-            <select className={selectClass} value={form.vehicleId} disabled={ro} onChange={(e) => set("vehicleId", e.target.value)}>
-              <option value="">— Select —</option>
-              {initialTrucks.map((t) => <option key={t.id} value={t.id}>{t.registrationNumber}</option>)}
-            </select>
+            <GlassSelect
+              value={form.vehicleId}
+              onChange={(val) => set("vehicleId", val)}
+              disabled={ro}
+              options={[
+                { value: "", label: "— Select —" },
+                ...initialTrucks.map(t => ({ value: t.id, label: t.registrationNumber }))
+              ]}
+            />
           </Field>
           <Field label="Date *">
             <input type="date" className={fc} value={form.date} readOnly={ro} onChange={(e) => set("date", e.target.value)} />
           </Field>
           <Field label="Driver *" className="sm:col-span-2">
-            <select className={selectClass} value={form.driverId} disabled={ro} onChange={(e) => set("driverId", e.target.value)}>
-              <option value="">— Select —</option>
-              {initialDrivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            <GlassSelect
+              value={form.driverId}
+              onChange={(val) => set("driverId", val)}
+              disabled={ro}
+              options={[
+                { value: "", label: "— Select —" },
+                ...initialDrivers.map(d => ({ value: d.id, label: d.name }))
+              ]}
+            />
           </Field>
         </div>
 
@@ -216,62 +215,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </Field>
           <Field label="Net Weight (kg)">
             <input type="number" min="0" className={fc} value={form.netWeight} readOnly={ro} onChange={(e) => set("netWeight", e.target.value)} placeholder="e.g. 22000" />
-          </Field>
-        </div>
-
-        {/* ── 5. Diesel Refill Details ── */}
-        <p className={sh}>Diesel Refill Details</p>
-        <div className="flex flex-col gap-3">
-          {form.dieselEntries.map((entry, idx) => (
-            <div key={entry.id} className="relative rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <p className="mb-2 text-xs font-semibold text-gray-500">Entry {idx + 1}</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <Field label="Bunk Name">
-                  <input className={fc} value={entry.bunkName} readOnly={ro} onChange={(e) => updateDiesel(entry.id, "bunkName", e.target.value)} placeholder="e.g. BPCL Kochi" />
-                </Field>
-                <Field label="Diesel Quantity (L)">
-                  <input type="number" min="0" className={fc} value={entry.quantity} readOnly={ro} onChange={(e) => updateDiesel(entry.id, "quantity", e.target.value)} placeholder="e.g. 50" />
-                </Field>
-                <Field label="Price (₹/L)">
-                  <input type="number" min="0" className={fc} value={entry.price} readOnly={ro} onChange={(e) => updateDiesel(entry.id, "price", e.target.value)} placeholder="e.g. 92.5" />
-                </Field>
-                <Field label="Amount (₹)">
-                  <input type="number" min="0" className={fc} value={entry.amount} readOnly={ro} onChange={(e) => updateDiesel(entry.id, "amount", e.target.value)} placeholder="e.g. 4625" />
-                </Field>
-                <Field label="km">
-                  <input type="number" min="0" className={fc} value={entry.km} readOnly={ro} onChange={(e) => updateDiesel(entry.id, "km", e.target.value)} placeholder="e.g. 84200" />
-                </Field>
-                <Field label="Bill No">
-                  <input className={fc} value={entry.billNo} readOnly={ro} onChange={(e) => updateDiesel(entry.id, "billNo", e.target.value)} placeholder="e.g. BL-001" />
-                </Field>
-              </div>
-              {!ro && form.dieselEntries.length > 1 && (
-                <button type="button" onClick={() => removeDieselEntry(entry.id)}
-                  className="absolute right-2 top-2 rounded px-2 py-0.5 text-xs text-red-500 hover:bg-red-50">
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-          {!ro && (
-            <button type="button" onClick={addDieselEntry}
-              className="w-fit rounded-lg border border-dashed border-blue-300 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50">
-              + Add Entry
-            </button>
-          )}
-        </div>
-
-        {/* Diesel Summary */}
-        <p className={subsh}>Diesel Summary</p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Total Diesel (L) *">
-            <input type="number" min="0" className={fc} value={form.totalDiesel} readOnly={ro} onChange={(e) => set("totalDiesel", e.target.value)} placeholder="e.g. 110" />
-          </Field>
-          <Field label="Diesel Rate (₹/L) *">
-            <input type="number" min="0" className={fc} value={form.dieselRate} readOnly={ro} onChange={(e) => set("dieselRate", e.target.value)} placeholder="e.g. 92.5" />
-          </Field>
-          <Field label="Diesel Expense *">
-            <input type="number" className={`${fc} bg-gray-50`} value={form.dieselExpense} readOnly placeholder="Auto-calculated" />
           </Field>
         </div>
 

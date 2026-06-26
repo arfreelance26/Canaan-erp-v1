@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Printer } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { inputClass } from "@/components/ui/Field";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
+import { todayIst } from "@/lib/format-date";
 
 type MaintenanceRecordHistoryDialogProps = {
   open: boolean;
@@ -123,7 +125,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
         </head>
         <body>
           <h1>Maintenance Record &mdash; ${truck.registrationNumber}</h1>
-          <p>Generated on ${new Date().toLocaleDateString()}</p>
+          <p>Generated on ${todayIst()}</p>
           <table>
             <thead><tr>${columns.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
             <tbody>${rows}</tbody>
@@ -147,17 +149,11 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-gray-700">Filter by date</span>
-            <select
+            <GlassSelect
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-              className={inputClass}
-            >
-              {DATE_FILTER_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setDateFilter(val as DateFilter)}
+              options={DATE_FILTER_OPTIONS.map(opt => ({ value: opt.id, label: opt.label }))}
+            />
           </label>
 
           {dateFilter === "custom" && (

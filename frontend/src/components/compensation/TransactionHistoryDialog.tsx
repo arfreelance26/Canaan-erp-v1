@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import type { CompensationTransaction, CompensationTransactionType } from "@/types/compensation";
+import { formatDate } from "@/lib/format-date";
 
 type TransactionHistoryDialogProps = {
   open: boolean;
@@ -23,13 +24,6 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 export function TransactionHistoryDialog({
   open,

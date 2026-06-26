@@ -8,6 +8,7 @@ import { driversApi, tripsApi, financeApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
 import type { CompensationTransaction, CompensationTransactionType } from "@/types/compensation";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function DriverCompensationPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -19,14 +20,24 @@ export default function DriverCompensationPage() {
   const [historyTarget, setHistoryTarget] = useState<CompensationPerson | null>(null);
 
   useEffect(() => {
+        Promise.all([driversApi.list(), tripsApi.list(), financeApi.listDriverCompensation()])
+          .then(([d, t, tx]) => {
+            setDrivers(d);
+            setTrips(t);
+            setTransactions(tx);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([driversApi.list(), tripsApi.list(), financeApi.listDriverCompensation()])
-      .then(([d, t, tx]) => {
-        setDrivers(d);
-        setTrips(t);
-        setTransactions(tx);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    .then(([d, t, tx]) => {
+    setDrivers(d);
+    setTrips(t);
+    setTransactions(tx);
+    })
+    .finally(() => setLoading(false));
+      }, 5000);
+
 
   const people: CompensationPerson[] = useMemo(
     () =>

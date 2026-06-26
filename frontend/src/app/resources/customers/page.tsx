@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { CustomerDestination } from "@/types/customer-destination";
+import { confirmDelete } from "@/lib/swal";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 const TABS = [
   { id: "list", label: "Customer List" },
@@ -39,8 +41,12 @@ export default function CustomersPage() {
   const [editingDestination, setEditingDestination] = useState<CustomerDestination | null>(null);
 
   useEffect(() => {
+        customersApi.list().then(setCustomers).finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     customersApi.list().then(setCustomers).finally(() => setLoading(false));
-  }, []);
+      }, 5000);
+
 
   // Load pricing and destinations lazily when tab is opened
   useEffect(() => {
@@ -67,7 +73,8 @@ export default function CustomersPage() {
   }
 
   async function handleDeleteCustomer(id: string) {
-    if (!confirm("Delete this customer?")) return;
+    const result = await confirmDelete("customer");
+    if (!result.isConfirmed) return;
     await customersApi.delete(id);
     setCustomers((prev) => prev.filter((customer) => customer.id !== id));
   }
@@ -94,12 +101,13 @@ export default function CustomersPage() {
     setPricingDialogOpen(true);
   }
 
-  async function handleDeletePricing(id: string) {
-    if (!confirm("Delete this pricing entry?")) return;
-    const entry = pricing.find((p) => p.id === id);
+  async function handleDeletePricing(pricingId: string) {
+    const result = await confirmDelete("pricing entry");
+    if (!result.isConfirmed) return;
+    const entry = pricing.find((p) => p.id === pricingId);
     if (!entry) return;
-    await customersApi.deletePricing(entry.customerId, id);
-    setPricing((prev) => prev.filter((p) => p.id !== id));
+    await customersApi.deletePricing(entry.customerId, pricingId);
+    setPricing((prev) => prev.filter((p) => p.id !== pricingId));
   }
 
   async function handleSavePricing(entry: CustomerPricing) {
@@ -124,12 +132,13 @@ export default function CustomersPage() {
     setDestinationDialogOpen(true);
   }
 
-  async function handleDeleteDestination(id: string) {
-    if (!confirm("Delete this destination?")) return;
-    const entry = destinations.find((d) => d.id === id);
+  async function handleDeleteDestination(destId: string) {
+    const result = await confirmDelete("destination");
+    if (!result.isConfirmed) return;
+    const entry = destinations.find((d) => d.id === destId);
     if (!entry) return;
-    await customersApi.deleteDestination(entry.customerId, id);
-    setDestinations((prev) => prev.filter((d) => d.id !== id));
+    await customersApi.deleteDestination(entry.customerId, destId);
+    setDestinations((prev) => prev.filter((d) => d.id !== destId));
   }
 
   async function handleSaveDestination(entry: CustomerDestination) {

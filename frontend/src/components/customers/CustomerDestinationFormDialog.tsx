@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { CUSTOMER_STATUS_OPTIONS } from "@/lib/customer-data";
 import type { Customer } from "@/types/customer";
@@ -71,21 +72,14 @@ export function CustomerDestinationFormDialog({
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Customer Name" required>
-          <select
-            required
+          <GlassSelect
             value={form.customerId}
-            onChange={(e) => handleCustomerChange(e.target.value)}
-            className={inputClass}
-          >
-            <option value="" disabled>
-              Select a customer
-            </option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => handleCustomerChange(val)}
+            options={[
+              { value: "", label: "Select a customer" },
+              ...customers.map(customer => ({ value: customer.id, label: customer.name }))
+            ]}
+          />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -112,22 +106,15 @@ export function CustomerDestinationFormDialog({
           </Field>
 
           <Field label="Destination Status" required>
-            <select
-              required
+            <GlassSelect
               value={isBlacklisted ? "BLACKLISTED" : form.status}
-              onChange={(e) => update("status", e.target.value as CustomerDestination["status"])}
-              className={inputClass}
+              onChange={(val) => update("status", val as CustomerDestination["status"])}
               disabled={isBlacklisted}
-            >
-              <option value="" disabled>
-                Select status
-              </option>
-              {CUSTOMER_STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "Select status" },
+                ...CUSTOMER_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
             {isBlacklisted && (
               <span className="text-xs text-red-600">
                 This customer is blacklisted, so this destination is automatically blacklisted.

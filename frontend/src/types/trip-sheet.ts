@@ -1,13 +1,3 @@
-export type DieselEntry = {
-  id: string;
-  bunkName: string;
-  quantity: string;
-  price: string;
-  amount: string;
-  km: string;
-  billNo: string;
-};
-
 export type TripSheetData = {
   tripId: string;
 
@@ -39,12 +29,6 @@ export type TripSheetData = {
   grossWeight: string;
   tareWeight: string;
   netWeight: string;
-
-  // Diesel Refill Details
-  dieselEntries: DieselEntry[];
-  totalDiesel: string;
-  dieselRate: string;
-  dieselExpense: string;
 
   // Driver Settlement
   driverPay: string;
@@ -104,8 +88,7 @@ export function calcTripExpenses(form: TripSheetData): number {
     n(form.punctureExpense) +
     n(form.sparePartsExpense) +
     n(form.otherExpenses) +
-    n(form.tollCharges) +
-    n(form.dieselExpense)
+    n(form.tollCharges)
   );
 }
 

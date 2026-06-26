@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -40,22 +41,20 @@ export function AssignDriverDialog({
     <Dialog open={open} onClose={onClose} title={`Assign Vehicle — ${driver?.name ?? ""}`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Vehicle">
-          <select
+          <GlassSelect
             value={vehicleId}
-            onChange={(e) => setVehicleId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Unassigned</option>
-            {trucks.map((truck) => {
-              const taken = takenVehicleIds.includes(truck.truckId) && truck.truckId !== currentVehicleId;
-              return (
-                <option key={truck.id} value={truck.truckId} disabled={taken}>
-                  {truck.truckId} — {truck.registrationNumber}
-                  {taken ? " (already assigned)" : ""}
-                </option>
-              );
-            })}
-          </select>
+            onChange={(val) => setVehicleId(val)}
+            options={[
+              { value: "", label: "Unassigned" },
+              ...trucks.map(truck => {
+                const taken = takenVehicleIds.includes(truck.truckId) && truck.truckId !== currentVehicleId;
+                return {
+                  value: taken ? "" : truck.truckId,
+                  label: `${truck.truckId} — ${truck.registrationNumber}${taken ? " (already assigned)" : ""}`
+                };
+              })
+            ]}
+          />
         </Field>
 
         <div className="mt-2 flex justify-end gap-3">

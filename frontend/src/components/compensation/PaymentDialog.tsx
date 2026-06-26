@@ -3,7 +3,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import type { CompensationTransactionType } from "@/types/compensation";
+import { todayIst } from "@/lib/format-date";
 
 type PaymentDialogProps = {
   open: boolean;
@@ -14,13 +16,9 @@ type PaymentDialogProps = {
   tripNumbers?: string[];
 };
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function PaymentDialog({ open, onClose, onSave, type, personName, tripNumbers }: PaymentDialogProps) {
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(todayIst());
   const [note, setNote] = useState("");
   const [tripNumber, setTripNumber] = useState("");
 
@@ -70,20 +68,13 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
 
         {tripNumbers && (
           <Field label="Trip Number">
-            <input
-              type="text"
-              list="trip-number-options"
+            <GlassCombobox
               required
               value={tripNumber}
-              onChange={(e) => setTripNumber(e.target.value)}
-              className={inputClass}
+              onChange={(val) => setTripNumber(val)}
               placeholder="e.g. TRP-1050"
+              options={tripNumbers.map(trip => ({ value: trip, label: trip }))}
             />
-            <datalist id="trip-number-options">
-              {tripNumbers.map((trip) => (
-                <option key={trip} value={trip} />
-              ))}
-            </datalist>
           </Field>
         )}
 

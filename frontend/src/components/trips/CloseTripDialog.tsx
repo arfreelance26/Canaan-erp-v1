@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -453,17 +454,14 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Payment Mode" className="sm:col-span-2">
-              <select
-                required
+              <GlassSelect
                 value={form.paymentMode}
-                onChange={(e) => update("paymentMode", e.target.value as PaymentMode)}
-                className={inputClass}
-              >
-                <option value="" disabled>Select payment mode</option>
-                {PAYMENT_MODE_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
+                onChange={(val) => update("paymentMode", val as PaymentMode)}
+                options={[
+                  { value: "", label: "Select payment mode" },
+                  ...PAYMENT_MODE_OPTIONS.map(opt => ({ value: opt, label: opt }))
+                ]}
+              />
             </Field>
           </div>
         </section>

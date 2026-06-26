@@ -3,8 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { TYRE_BRAND_OPTIONS, TYRE_CONDITION_OPTIONS, TYRE_TYPE_OPTIONS } from "@/lib/tyre-inventory-data";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
+import { todayIst } from "@/lib/format-date";
 
 type TyreInventoryFormDialogProps = {
   open: boolean;
@@ -16,14 +19,12 @@ type TyreInventoryFormDialogProps = {
 
 const emptyForm: Omit<TyreInventoryItem, "id"> = {
   brand: "",
-  pattern: "",
-  tyreType: "",
+  tyreType: "Radial",
   tyreNumber: "",
   size: "",
-  range: "",
   cost: "",
   condition: "",
-  purchaseDate: "",
+  purchaseDate: todayIst(),
   repairCost: "0",
   retreadCost: "0",
   retreadCount: "0",
@@ -78,48 +79,23 @@ export function TyreInventoryFormDialog({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Brand" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
-              list="tyre-brand-options"
               value={form.brand}
-              onChange={(e) => update("brand", e.target.value)}
-              className={inputClass}
+              onChange={(val) => update("brand", val)}
               placeholder="Select or type a brand"
-            />
-            <datalist id="tyre-brand-options">
-              {TYRE_BRAND_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
-          </Field>
-
-          <Field label="Tyre Pattern" required>
-            <input
-              type="text"
-              required
-              value={form.pattern}
-              onChange={(e) => update("pattern", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. MRF Steeline TT13"
+              options={TYRE_BRAND_OPTIONS.map(opt => ({ value: opt, label: opt }))}
             />
           </Field>
 
           <Field label="Tyre Type" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
-              list="tyre-type-options"
               value={form.tyreType}
-              onChange={(e) => update("tyreType", e.target.value)}
-              className={inputClass}
+              onChange={(val) => update("tyreType", val)}
               placeholder="Select or type a type"
+              options={TYRE_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
             />
-            <datalist id="tyre-type-options">
-              {TYRE_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
           </Field>
 
           <Field label="Tyre Number" required>
@@ -147,19 +123,7 @@ export function TyreInventoryFormDialog({
             />
           </Field>
 
-          <Field label="Range (km)" required>
-            <input
-              type="number"
-              required
-              min="0"
-              value={form.range}
-              onChange={(e) => update("range", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. 80000"
-            />
-          </Field>
-
-          <Field label="Cost" required>
+          <Field label="Purchase Cost (₹)" required>
             <input
               type="number"
               required
@@ -172,21 +136,14 @@ export function TyreInventoryFormDialog({
           </Field>
 
           <Field label="Status" required>
-            <select
-              required
+            <GlassSelect
               value={form.condition}
-              onChange={(e) => update("condition", e.target.value as TyreInventoryItem["condition"])}
-              className={inputClass}
-            >
-              <option value="" disabled>
-                Select status
-              </option>
-              {TYRE_CONDITION_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => update("condition", val as TyreInventoryItem["condition"])}
+              options={[
+                { value: "", label: "Select status" },
+                ...TYRE_CONDITION_OPTIONS.map(o => ({ value: o, label: o }))
+              ]}
+            />
           </Field>
 
           <Field label="Purchase Date" required>

@@ -156,7 +156,7 @@ def get_compliance(db: Session = Depends(get_db)):
 # Fuel Logs
 # ---------------------------------------------------------------------------
 
-@router.get("/fuel-logs", response_model=list[schemas.FuelLogOut], tags=["Fuel Logs"])
+@router.get("/maintenance/fuel-logs", response_model=list[schemas.FuelLogOut], tags=["Fuel Logs"])
 def list_fuel_logs(truck_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
     q = db.query(models.FuelLog)
     if truck_id:
@@ -164,30 +164,86 @@ def list_fuel_logs(truck_id: Optional[int] = Query(None), db: Session = Depends(
     return q.order_by(models.FuelLog.date.desc()).all()
 
 
-@router.post("/fuel-logs", response_model=schemas.FuelLogOut, status_code=201, tags=["Fuel Logs"])
+@router.post("/maintenance/fuel-logs", response_model=schemas.FuelLogOut, status_code=201, tags=["Fuel Logs"])
 def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db)):
     if not db.get(models.Truck, payload.truck_id):
         raise HTTPException(404, "Truck not found")
-    log = models.FuelLog(**payload.model_dump())
+        
+    prev_log = db.query(models.FuelLog)\
+        .filter(models.FuelLog.truck_id == payload.truck_id, models.FuelLog.odometer <= payload.odometer)\
+        .order_by(models.FuelLog.odometer.desc())\
+        .first()
+        
+    distance = 0
+    mileage = 0
+    if prev_log:
+        distance = payload.odometer - prev_log.odometer
+        if float(payload.litres) > 0:
+            mileage = float(distance) / float(payload.litres)
+            
+    log = models.FuelLog(**payload.model_dump(), distance=distance, mileage=mileage)
     db.add(log)
     db.commit()
     db.refresh(log)
     return log
 
 
-@router.put("/fuel-logs/{log_id}", response_model=schemas.FuelLogOut, tags=["Fuel Logs"])
+@router.get("/maintenance/trucks/{truck_id}/fuel-stats", response_model=schemas.FuelStats, tags=["Fuel Logs"])
+def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
+    if not db.get(models.Truck, truck_id):
+        raise HTTPException(404, "Truck not found")
+        
+    logs = db.query(models.FuelLog)\
+        .filter(models.FuelLog.truck_id == truck_id)\
+        .order_by(models.FuelLog.odometer.asc())\
+        .all()
+        
+    total_distance = sum(float(log.distance) for log in logs)
+    # Only sum fuel if distance > 0 (meaning it's an interval, not the baseline)
+    total_fuel = sum(float(log.litres) for log in logs if float(log.distance) > 0)
+    
+    average_mileage = (total_distance / total_fuel) if total_fuel > 0 else 0
+    
+    mileages = [float(log.mileage) for log in logs if float(log.distance) > 0 and float(log.mileage) > 0]
+    last_mileage = mileages[-1] if mileages else 0
+    best_mileage = max(mileages) if mileages else 0
+    worst_mileage = min(mileages) if mileages else 0
+    
+    trend_percentage = 0
+    if average_mileage > 0 and last_mileage > 0:
+        trend_percentage = ((last_mileage - average_mileage) / average_mileage) * 100
+        
+    return schemas.FuelStats(
+        total_distance=total_distance,
+        total_fuel=total_fuel,
+        average_mileage=average_mileage,
+        last_mileage=last_mileage,
+        best_mileage=best_mileage,
+        worst_mileage=worst_mileage,
+        trend_percentage=trend_percentage
+    )
+
+@router.put("/maintenance/fuel-logs/{log_id}", response_model=schemas.FuelLogOut, tags=["Fuel Logs"])
 def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = Depends(get_db)):
     log = db.get(models.FuelLog, log_id)
     if not log:
         raise HTTPException(404, "Fuel log not found")
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(log, field, value)
+    prev_log = db.query(models.FuelLog)\
+        .filter(models.FuelLog.truck_id == log.truck_id, models.FuelLog.odometer < log.odometer)\
+        .order_by(models.FuelLog.odometer.desc())\
+        .first()
+    distance = float(log.odometer - prev_log.odometer) if prev_log else 0
+    mileage = (distance / float(log.litres)) if (float(log.litres) > 0 and distance > 0) else 0
+    log.distance = distance
+    log.mileage = mileage
     db.commit()
     db.refresh(log)
     return log
 
 
-@router.delete("/fuel-logs/{log_id}", status_code=204, tags=["Fuel Logs"])
+@router.delete("/maintenance/fuel-logs/{log_id}", status_code=204, tags=["Fuel Logs"])
 def delete_fuel_log(log_id: int, db: Session = Depends(get_db)):
     log = db.get(models.FuelLog, log_id)
     if not log:

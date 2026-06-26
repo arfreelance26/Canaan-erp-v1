@@ -9,6 +9,7 @@ import { trucksApi, maintenanceApi } from "@/lib/api";
 
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function TruckMaintenancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -21,13 +22,22 @@ export default function TruckMaintenancePage() {
 
 
   useEffect(() => {
+        Promise.all([trucksApi.list(), maintenanceApi.listRecords()])
+          .then(([t, r]) => {
+            setTrucks(t);
+            setRecords(r);
+          })
+          .finally(() => setLoading(false));
+      }, []);
+      useAutoRefresh(() => {
     Promise.all([trucksApi.list(), maintenanceApi.listRecords()])
-      .then(([t, r]) => {
-        setTrucks(t);
-        setRecords(r);
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    .then(([t, r]) => {
+    setTrucks(t);
+    setRecords(r);
+    })
+    .finally(() => setLoading(false));
+      }, 5000);
+
 
   function handleUpdateRecord(truck: Truck) {
     setSelectedTruck(truck);

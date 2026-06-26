@@ -41,7 +41,7 @@ export function FleetUtilizationChart() {
           iconType="circle"
           formatter={(value) => <span className="text-sm text-gray-600">{value}</span>}
         />
-        <Line type="monotone" dataKey="On Trip" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+        <Line type="monotone" dataKey="On Trip" stroke="#1b2b5e" strokeWidth={2} dot={{ r: 3 }} />
         <Line type="monotone" dataKey="Idle" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
         <Line type="monotone" dataKey="Maintenance" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
       </LineChart>

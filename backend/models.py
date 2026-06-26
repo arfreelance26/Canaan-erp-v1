@@ -28,6 +28,7 @@ class Truck(Base):
     chassis_number = Column(String(50))
     year_of_manufacture = Column(String(4))
     tyre_layout = Column(String(20), nullable=False)                    # "6+1", "10+1", etc.
+    fuel_capacity = Column(Numeric(10, 2), default=0)
     odometer_during_purchase = Column(Numeric(10, 2), default=0)
     odometer = Column(Numeric(10, 2), default=0)
     rc_date = Column(Date)
@@ -133,6 +134,7 @@ class Staff(Base):
     contact_number = Column(String(20))
     address = Column(Text)
     branch = Column(String(100))
+    aadhar_number = Column(String(20))
     aadhar_file_name = Column(String(255))
     photo_url = Column(Text(length=16777215))
     photo_blob = Column(LargeBinary(length=16777215))
@@ -434,11 +436,6 @@ class TripSheet(Base):
     gross_weight = Column(Numeric(10, 2), default=0)
     tare_weight = Column(Numeric(10, 2), default=0)
     net_weight = Column(Numeric(10, 2), default=0)
-    # Diesel
-    total_diesel = Column(Numeric(10, 2), default=0)
-    diesel_rate = Column(Numeric(10, 2), default=0)
-    diesel_expense = Column(Numeric(10, 2), default=0)
-    diesel_mileage = Column(Numeric(10, 2), default=0)
     # Driver Settlement
     driver_pay = Column(Numeric(10, 2), default=0)
     driver_settlement_advance = Column(Numeric(10, 2), default=0)
@@ -471,22 +468,6 @@ class TripSheet(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     trip = relationship("Trip", back_populates="sheet")
-    diesel_entries = relationship("TripSheetDieselEntry", back_populates="trip_sheet", cascade="all, delete-orphan")
-
-
-class TripSheetDieselEntry(Base):
-    __tablename__ = "trip_sheet_diesel_entries"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    trip_sheet_id = Column(Integer, ForeignKey("trip_sheets.id", ondelete="CASCADE"), nullable=False)
-    bunk_name = Column(String(200))
-    quantity = Column(Numeric(10, 2), default=0)
-    price = Column(Numeric(10, 2), default=0)
-    amount = Column(Numeric(10, 2), default=0)
-    km = Column(Numeric(10, 2), default=0)
-    bill_no = Column(String(50))
-
-    trip_sheet = relationship("TripSheet", back_populates="diesel_entries")
 
 
 # ---------------------------------------------------------------------------
@@ -568,6 +549,8 @@ class FuelLog(Base):
     litres = Column(Numeric(10, 2), nullable=False)
     price_per_litre = Column(Numeric(10, 2), nullable=False)
     total_cost = Column(Numeric(10, 2), nullable=False)
+    distance = Column(Numeric(10, 2), default=0)
+    mileage = Column(Numeric(10, 2), default=0)
     fuel_station = Column(String(200))
     logged_by = Column(String(100))
     created_at = Column(DateTime, default=func.now())
@@ -580,7 +563,6 @@ class TyreInventory(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     brand = Column(String(100), nullable=False)
-    pattern = Column(String(200))
     tyre_type = Column(String(50))
     tyre_number = Column(String(100), unique=True, nullable=False)
     size = Column(String(50))
