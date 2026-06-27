@@ -3,23 +3,26 @@ export type TripSheetData = {
 
   // Trip Information
   tripSheetNo: string;
-  serialNo: string;
-  containerNo: string;
-  containerType: string;
-  line: string;
-  tripType: string;
-  vehicleId: string;
-  date: string;
-  driverId: string;
+  bookingReferenceNo: string;   // auto-fetched from trip (replaces serialNo)
+  containerNumber: string;      // auto-fetched from trip (was containerNo)
+  containerType: string;        // label: "Container Specification" — auto-fetched
+  line: string;                 // label: "Shipping Line" — auto-fetched
+  tripType: string;             // label: "Trip Category" — auto-fetched
+  vehicleId: string;            // label: "Assigned Vehicle" — auto-fetched
+  driverId: string;             // label: "Assigned Driver" — auto-fetched
+  bookingDate: string;          // auto-fetched from trip.bookingCreatedDate
+  tripScheduledDate: string;    // auto-fetched from trip.scheduledDate
+  tripCompletedDate: string;    // auto-fetched from closure.tripCompletedDate
+  tripClosedDate: string;       // user enters
+  tripSheetDate: string;        // user enters (replaces 'date')
 
   // Route Information
   from: string;
   to: string;
+  clearingAgent: string;        // typeable
 
-  // Hire & Driver Advance
+  // Hire
   hireAmount: string;
-  driverAdvance: string;
-  driverAdvanceAdditional: string;
 
   // Trip Distance & Cargo
   startKm: string;
@@ -32,9 +35,8 @@ export type TripSheetData = {
 
   // Driver Settlement
   driverPay: string;
-  driverSettlementAdvance: string;
-  driverSettlementAdvanceAdditional: string;
-  driverBalance: string;
+  driverAdvanceAmount: string;  // auto-fetched from trip.driverAdvanceAmount
+  driverBalance: string;        // auto-calculated: driverPay - driverAdvanceAmount
 
   // Trip Expenses — Stay & Driver
   totalHaltDays: string;
@@ -54,6 +56,7 @@ export type TripSheetData = {
   parkingExpense: string;
   punctureExpense: string;
   sparePartsExpense: string;
+  majorRepairs: Array<{ name: string; cost: string }>;
   // Miscellaneous
   otherExpenses: string;
 
@@ -74,9 +77,28 @@ export function n(v: string): number {
   return parseFloat(v) || 0;
 }
 
+// Trip expenses = all costs the company bears for the trip
+// (driver batta + halt pay + operational expenses + toll)
+// NOTE: haltPay comes from closure data, not form state — add it at the call site
 export function calcTripExpenses(form: TripSheetData): number {
   return (
-    n(form.haltPay) +
+    n(form.driverPay) +
+    n(form.portPassExpense) +
+    n(form.weightSheetExpense) +
+    n(form.mamolExpense) +
+    n(form.claimableMamolExpense) +
+    n(form.trafficRtoExpense) +
+    n(form.liftOnOffExpense) +
+    n(form.craneOperatorExpense) +
+    n(form.parkingExpense) +
+    n(form.otherExpenses) +
+    n(form.tollCharges)
+  );
+}
+
+// Driver expenses = only what the driver physically paid out of pocket
+export function calcDriverExpenses(form: TripSheetData): number {
+  return (
     n(form.portPassExpense) +
     n(form.weightSheetExpense) +
     n(form.mamolExpense) +
@@ -87,16 +109,10 @@ export function calcTripExpenses(form: TripSheetData): number {
     n(form.parkingExpense) +
     n(form.punctureExpense) +
     n(form.sparePartsExpense) +
-    n(form.otherExpenses) +
-    n(form.tollCharges)
+    n(form.otherExpenses)
   );
 }
 
-export function calcDriverExpenses(form: TripSheetData): number {
-  return n(form.driverPay) + n(form.haltPay);
-}
-
-// kept for backward compat with any pages using sumCharges
 export function sumCharges(...values: string[]): number {
   return values.reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
 }

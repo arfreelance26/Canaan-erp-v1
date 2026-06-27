@@ -21,7 +21,8 @@ export type AuthUser = {
 type AuthContextType = {
   user: AuthUser | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, preventRedirect?: boolean) => Promise<AuthUser | void>;
+  completeLogin: (user: AuthUser) => void;
   logout: () => void;
 };
 
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, ready, pathname, router]);
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, preventRedirect: boolean = false) {
     const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -75,6 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       staffId: data.staff_id ?? null,
       photoUrl: data.photo_url ?? null,
     };
+    
+    if (preventRedirect) {
+      return authUser;
+    }
+    
+    completeLogin(authUser);
+  }
+
+  function completeLogin(authUser: AuthUser) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
     router.replace("/");
@@ -87,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, ready, login, logout }}>
+    <AuthContext.Provider value={{ user, ready, login, completeLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

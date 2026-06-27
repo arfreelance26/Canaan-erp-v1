@@ -65,11 +65,11 @@ export function GlassSelect({
 
       {isOpen && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-[100] max-h-60 w-full overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar">
-          {options.map((option) => {
+          {options.map((option, index) => {
             const isSelected = String(option.value) === String(value);
             return (
               <button
-                key={option.value}
+                key={`${option.value}-${index}`}
                 type="button"
                 className={cn(
                   "flex w-full items-center rounded-lg px-3 py-2 text-left transition-all duration-200",

@@ -142,7 +142,7 @@ export function DriverAttendanceTable({ drivers, records, date, onMark }: Driver
                 </td>
                 <td className="px-4 py-3 text-gray-600">{formatDateTime(record?.markedAt)}</td>
                 <td className="px-4 py-3">
-                  <MarkButton driverId={driver.driverId} record={record} onMark={onMark} />
+                  <MarkButton driverId={driver.driverId} record={record || undefined} onMark={onMark} />
                 </td>
               </tr>
             );

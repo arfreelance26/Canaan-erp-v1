@@ -21,6 +21,7 @@ import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
+import type { Branch } from "@/types/branch";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -77,7 +78,7 @@ export async function uploadFile(
 // Transformers  (backend → frontend type)
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type B = Record<string, any>;
 
 function toTruck(b: B): Truck {
@@ -220,7 +221,7 @@ function fromDriver(f: Driver, password?: string) {
     ifsc_code: f.ifscCode || null,
     photo_url: f.photoUrl ?? null,
     username: f.username || null,
-    password: password ?? f.password,
+    password: (password || f.password) || undefined,
   };
 }
 
@@ -263,7 +264,7 @@ function fromStaff(f: Staff, password?: string) {
     aadhar_file_name: f.aadharFileName ?? null,
     photo_url: f.photoUrl ?? null,
     username: f.username || null,
-    password: password ?? f.password,
+    password: (password || f.password) || undefined,
   };
 }
 
@@ -360,7 +361,7 @@ function fromVendor(f: Vendor) {
 }
 
 // Trip: backend trip_id is the internal int PK; the business "tripId" is trip_id string
-function toTrip(b: B): Trip & { _dbId: number; hasClosure: boolean; hasSheet: boolean } {
+function toTrip(b: B): Trip & { _dbId: number } {
   return {
     _dbId: b.id,
     id: String(b.id),
@@ -396,17 +397,17 @@ function toTrip(b: B): Trip & { _dbId: number; hasClosure: boolean; hasSheet: bo
     customerFuelAdvanceLitres: String(b.customer_fuel_advance_litres ?? ""),
     driverAdvanceAmount: String(b.driver_advance_amount ?? ""),
     driverAdvancePaymentMethod: b.driver_advance_payment_method ?? "",
+    driverAdvance: String(b.driver_advance ?? ""),
     driverCompensationType: b.driver_compensation_type ?? "",
     transportHireAmount: String(b.transport_hire_amount ?? ""),
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
-    finalSettlementAmount: String(b.final_settlement_amount ?? ""),
     internalRemarks: b.internal_remarks ?? "",
     bookingInstructions: b.booking_instructions ?? "",
     hasClosure: b.has_closure ?? false,
     hasSheet: b.has_sheet ?? false,
     verificationStatus: b.verification_status ?? "pending",
     isInvoiced: b.is_invoiced ?? false,
-  } as Trip & { _dbId: number; hasClosure: boolean; hasSheet: boolean };
+  };
 }
 
 function fromTrip(f: Trip) {
@@ -443,10 +444,10 @@ function fromTrip(f: Trip) {
     customer_fuel_advance_litres: f.customerFuelAdvanceLitres ? parseFloat(f.customerFuelAdvanceLitres) : null,
     driver_advance_amount: f.driverAdvanceAmount ? parseFloat(f.driverAdvanceAmount) : null,
     driver_advance_payment_method: f.driverAdvancePaymentMethod || null,
+    driver_advance: f.driverAdvance ? parseFloat(f.driverAdvance) : null,
     driver_compensation_type: f.driverCompensationType || null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
-    final_settlement_amount: f.finalSettlementAmount ? parseFloat(f.finalSettlementAmount) : null,
     internal_remarks: f.internalRemarks || null,
     booking_instructions: f.bookingInstructions || null,
   };
@@ -454,176 +455,75 @@ function fromTrip(f: Trip) {
 
 function toClosure(b: B): TripClosureData {
   return {
-    tripId: String(b.trip_id),
-    // Edit Booking
-    bookingReferenceNo: b.booking_reference_no ?? "",
-    tripCategory: b.trip_category ?? "",
+    tripId: String(b.trip_id ?? ""),
+    // 1. Shipment Information
+    bookingNo: b.booking_no ?? "",
+    containerNo: b.container_no ?? "",
+    releaseOrderNo: b.release_order_no ?? "",
+    containerType: b.container_type ?? "",
+    line: b.line ?? "",
+    loadType: b.load_type ?? "",
     movementCategory: b.movement_category ?? "",
-    customerName: b.customer_name ?? "",
-    containerSpecification: b.container_specification ?? "",
-    cargoClassification: b.cargo_classification ?? "",
-    containerNumber: b.container_number ?? "",
-    containerNumber1: b.container_number_1 ?? "",
-    containerNumber2: b.container_number_2 ?? "",
-    cargoReference: b.cargo_reference ?? "",
-    bookingDate: b.booking_date ?? "",
-    originLocation: b.origin_location ?? "",
-    destinationLocation: b.destination_location ?? "",
-    rateType: b.rate_type ?? "",
-    releaseOrderReference: b.release_order_reference ?? "",
-    shippingLine: b.shipping_line ?? "",
-    vesselName: b.vessel_name ?? "",
-    shipperConsigneeName: b.shipper_consignee_name ?? "",
-    // Transporter Details
-    transportMethod: b.transport_method ?? "",
-    transporter: b.transporter ?? "",
-    tripDate: b.trip_date ?? "",
-    assignedTruckDetails: b.assigned_truck_details ?? "",
-    paymentType: b.payment_type ?? "",
-    customerAdvance: String(b.customer_advance ?? ""),
-    dieselAdvance: String(b.diesel_advance ?? ""),
-    driverAdvanceAmount: String(b.driver_advance_amount ?? ""),
-    driverAdvancePaymentMethod: b.driver_advance_payment_method ?? "",
-    billTo: b.bill_to ?? "",
-    // Transporter Price Details
-    transportHireAmount: String(b.transport_hire_amount ?? ""),
-    transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
-    transportHalt: String(b.transport_halt ?? ""),
-    transportUnloading: String(b.transport_unloading ?? ""),
-    transportLiftingCharges: String(b.transport_lifting_charges ?? ""),
-    transportWeighment: String(b.transport_weighment ?? ""),
-    totalTransportAmount: String(b.total_transport_amount ?? ""),
-    // Billing Price Details
-    billingHireAmount: String(b.billing_hire_amount ?? ""),
-    billingHalt: String(b.billing_halt ?? ""),
-    billingUnloading: String(b.billing_unloading ?? ""),
-    billingLiftingCharges: String(b.billing_lifting_charges ?? ""),
-    billingWeighment: String(b.billing_weighment ?? ""),
-    totalBillingAmount: String(b.total_billing_amount ?? ""),
-    // Trip Completion
+    // 2. Assignment
+    vehicleId: b.vehicle_id ?? "",
+    driverId: b.driver_id ?? "",
+    assignmentDate: b.assignment_date ?? "",
+    // 3. Route
+    fromLocation: b.from_location ?? "",
+    toLocation: b.to_location ?? "",
     tripCompletedDate: b.trip_completed_date ?? "",
-    tripClosingDate: b.trip_closing_date ?? "",
+    // 4. Billing
+    hireAmount: String(b.hire_amount ?? ""),
+    transportAmount: String(b.transport_amount ?? ""),
+    billingAmount: String(b.billing_amount ?? ""),
+    advanceAmount: String(b.advance_amount ?? ""),
+    driverAdvance: String(b.driver_advance ?? ""),
+    additionalDriverAdvance: String(b.additional_driver_advance ?? ""),
     paymentMode: b.payment_mode ?? "",
-    // Trip Distance Details
-    startingOdometer: String(b.starting_odometer ?? ""),
-    endingOdometer: String(b.ending_odometer ?? ""),
-    totalDistance: String(b.total_distance ?? ""),
-    // Cargo Weight Details
-    grossWeight: String(b.gross_weight ?? ""),
-    tareWeight: String(b.tare_weight ?? ""),
-    netWeight: String(b.net_weight ?? ""),
-    // Trip Fuel Details
-    bunkName: b.bunk_name ?? "",
-    dieselQuantity: String(b.diesel_quantity ?? ""),
-    fuelTotalCost: String(b.fuel_total_cost ?? ""),
-    // Trip Expenses
-    totalHaltDays: String(b.total_halt_days ?? ""),
-    haltRemarks: b.halt_remarks ?? "",
-    driversCompensation: String(b.drivers_compensation ?? ""),
-    haltCompensation: String(b.halt_compensation ?? ""),
-    portPassExpense: String(b.port_pass_expense ?? ""),
-    weightSheetExpense: String(b.weight_sheet_expense ?? ""),
-    mamolExpense: String(b.mamol_expense ?? ""),
-    claimableMamolExpense: String(b.claimable_mamol_expense ?? ""),
-    trafficRtoPoliceExpense: String(b.traffic_rto_police_expense ?? ""),
-    liftOnOffExpense: String(b.lift_on_off_expense ?? ""),
-    craneOperatorExpense: String(b.crane_operator_expense ?? ""),
-    parkingExpenses: String(b.parking_expenses ?? ""),
-    punctureExpense: String(b.puncture_expense ?? ""),
-    sparePartsExpense: String(b.spare_parts_expense ?? ""),
-    otherExpenses: String(b.other_expenses ?? ""),
-    tollExpenses: String(b.toll_expenses ?? ""),
-    // Halt Information
-    additionalDriverAdvanceAmount: String(b.additional_driver_advance_amount ?? ""),
+    billTo: b.bill_to ?? "",
+    // 5. Halt Information
     companyHaltDays: String(b.company_halt_days ?? "0"),
     partyHaltDays: String(b.party_halt_days ?? "0"),
+    haltRemarks: b.halt_remarks ?? "",
+    driverHaltCompensation: String(b.driver_halt_compensation ?? "0"),
+    // Meta
+    closedAt: b.created_at ? String(b.created_at).split("T")[0] : "",
   };
 }
 
 function fromClosure(f: TripClosureData) {
+  const n = (v: string) => parseFloat(v) || 0;
   return {
-    // Edit Booking
-    booking_reference_no: f.bookingReferenceNo || null,
-    trip_category: f.tripCategory || null,
+    // 1. Shipment Information
+    booking_no: f.bookingNo || null,
+    container_no: f.containerNo || null,
+    release_order_no: f.releaseOrderNo || null,
+    container_type: f.containerType || null,
+    line: f.line || null,
+    load_type: f.loadType || null,
     movement_category: f.movementCategory || null,
-    customer_name: f.customerName || null,
-    container_specification: f.containerSpecification || null,
-    cargo_classification: f.cargoClassification || null,
-    container_number: f.containerNumber || null,
-    container_number_1: f.containerNumber1 || null,
-    container_number_2: f.containerNumber2 || null,
-    cargo_reference: f.cargoReference || null,
-    booking_date: f.bookingDate || null,
-    origin_location: f.originLocation || null,
-    destination_location: f.destinationLocation || null,
-    rate_type: f.rateType || null,
-    release_order_reference: f.releaseOrderReference || null,
-    shipping_line: f.shippingLine || null,
-    vessel_name: f.vesselName || null,
-    shipper_consignee_name: f.shipperConsigneeName || null,
-    // Transporter Details
-    transport_method: f.transportMethod || null,
-    transporter: f.transporter || null,
-    trip_date: f.tripDate || null,
-    assigned_truck_details: f.assignedTruckDetails || null,
-    payment_type: f.paymentType || null,
-    customer_advance: parseFloat(f.customerAdvance) || 0,
-    diesel_advance: parseFloat(f.dieselAdvance) || 0,
-    driver_advance_amount: parseFloat(f.driverAdvanceAmount) || 0,
-    driver_advance_payment_method: f.driverAdvancePaymentMethod || null,
-    bill_to: f.billTo || null,
-    // Transporter Price Details
-    transport_hire_amount: parseFloat(f.transportHireAmount) || 0,
-    transport_crossing_amount: parseFloat(f.transportCrossingAmount) || 0,
-    transport_halt: parseFloat(f.transportHalt) || 0,
-    transport_unloading: parseFloat(f.transportUnloading) || 0,
-    transport_lifting_charges: parseFloat(f.transportLiftingCharges) || 0,
-    transport_weighment: parseFloat(f.transportWeighment) || 0,
-    total_transport_amount: parseFloat(f.totalTransportAmount) || 0,
-    // Billing Price Details
-    billing_hire_amount: parseFloat(f.billingHireAmount) || 0,
-    billing_halt: parseFloat(f.billingHalt) || 0,
-    billing_unloading: parseFloat(f.billingUnloading) || 0,
-    billing_lifting_charges: parseFloat(f.billingLiftingCharges) || 0,
-    billing_weighment: parseFloat(f.billingWeighment) || 0,
-    total_billing_amount: parseFloat(f.totalBillingAmount) || 0,
-    // Trip Completion
+    // 2. Assignment
+    vehicle_id: f.vehicleId || null,
+    driver_id: f.driverId || null,
+    assignment_date: f.assignmentDate || null,
+    // 3. Route
+    from_location: f.fromLocation || null,
+    to_location: f.toLocation || null,
     trip_completed_date: f.tripCompletedDate || null,
-    trip_closing_date: f.tripClosingDate || null,
+    // 4. Billing
+    hire_amount: n(f.hireAmount),
+    transport_amount: n(f.transportAmount),
+    billing_amount: n(f.billingAmount),
+    advance_amount: n(f.advanceAmount),
+    driver_advance: n(f.driverAdvance),
+    additional_driver_advance: n(f.additionalDriverAdvance),
     payment_mode: f.paymentMode || null,
-    // Trip Distance Details
-    starting_odometer: parseFloat(f.startingOdometer) || 0,
-    ending_odometer: parseFloat(f.endingOdometer) || 0,
-    total_distance: parseFloat(f.totalDistance) || 0,
-    // Cargo Weight Details
-    gross_weight: parseFloat(f.grossWeight) || 0,
-    tare_weight: parseFloat(f.tareWeight) || 0,
-    net_weight: parseFloat(f.netWeight) || 0,
-    // Trip Fuel Details
-    bunk_name: f.bunkName || null,
-    diesel_quantity: parseFloat(f.dieselQuantity) || 0,
-    fuel_total_cost: parseFloat(f.fuelTotalCost) || 0,
-    // Trip Expenses
-    total_halt_days: parseInt(f.totalHaltDays) || 0,
-    halt_remarks: f.haltRemarks || null,
-    drivers_compensation: parseFloat(f.driversCompensation) || 0,
-    halt_compensation: parseFloat(f.haltCompensation) || 0,
-    port_pass_expense: parseFloat(f.portPassExpense) || 0,
-    weight_sheet_expense: parseFloat(f.weightSheetExpense) || 0,
-    mamol_expense: parseFloat(f.mamolExpense) || 0,
-    claimable_mamol_expense: parseFloat(f.claimableMamolExpense) || 0,
-    traffic_rto_police_expense: parseFloat(f.trafficRtoPoliceExpense) || 0,
-    lift_on_off_expense: parseFloat(f.liftOnOffExpense) || 0,
-    crane_operator_expense: parseFloat(f.craneOperatorExpense) || 0,
-    parking_expenses: parseFloat(f.parkingExpenses) || 0,
-    puncture_expense: parseFloat(f.punctureExpense) || 0,
-    spare_parts_expense: parseFloat(f.sparePartsExpense) || 0,
-    other_expenses: parseFloat(f.otherExpenses) || 0,
-    toll_expenses: parseFloat(f.tollExpenses) || 0,
-    // Halt Information
-    additional_driver_advance_amount: parseFloat(f.additionalDriverAdvanceAmount) || 0,
+    bill_to: f.billTo || null,
+    // 5. Halt Information
     company_halt_days: parseInt(f.companyHaltDays) || 0,
     party_halt_days: parseInt(f.partyHaltDays) || 0,
+    halt_remarks: f.haltRemarks || null,
+    driver_halt_compensation: n(f.driverHaltCompensation),
   };
 }
 
@@ -631,19 +531,22 @@ function toSheet(b: B): TripSheetData {
   return {
     tripId: String(b.trip_id),
     tripSheetNo: b.trip_sheet_no ?? "",
-    serialNo: b.serial_no ?? "",
-    containerNo: b.container_no ?? "",
+    bookingReferenceNo: b.booking_reference_no ?? "",
+    containerNumber: b.container_number ?? "",
     containerType: b.container_type ?? "",
     line: b.line ?? "",
     tripType: b.trip_type ?? "",
     vehicleId: b.vehicle_id ?? "",
-    date: b.date ?? "",
     driverId: b.driver_id ?? "",
+    bookingDate: b.booking_date ?? "",
+    tripScheduledDate: b.trip_scheduled_date ?? "",
+    tripCompletedDate: b.trip_completed_date ?? "",
+    tripClosedDate: b.trip_closed_date ?? "",
+    tripSheetDate: b.trip_sheet_date ?? "",
     from: b.from_location ?? "",
     to: b.to_location ?? "",
+    clearingAgent: b.clearing_agent ?? "",
     hireAmount: String(b.hire_amount ?? ""),
-    driverAdvance: String(b.driver_advance ?? ""),
-    driverAdvanceAdditional: String(b.driver_advance_additional ?? ""),
     startKm: String(b.start_km ?? ""),
     endKm: String(b.end_km ?? ""),
     totalKm: String(b.total_km ?? ""),
@@ -652,8 +555,7 @@ function toSheet(b: B): TripSheetData {
     tareWeight: String(b.tare_weight ?? ""),
     netWeight: String(b.net_weight ?? ""),
     driverPay: String(b.driver_pay ?? ""),
-    driverSettlementAdvance: String(b.driver_settlement_advance ?? ""),
-    driverSettlementAdvanceAdditional: String(b.driver_settlement_advance_additional ?? ""),
+    driverAdvanceAmount: String(b.driver_advance_amount ?? ""),
     driverBalance: String(b.driver_balance ?? ""),
     totalHaltDays: String(b.total_halt_days ?? ""),
     haltRemarks: b.halt_remarks ?? "",
@@ -668,6 +570,9 @@ function toSheet(b: B): TripSheetData {
     parkingExpense: String(b.parking_expense ?? ""),
     punctureExpense: String(b.puncture_expense ?? ""),
     sparePartsExpense: String(b.spare_parts_expense ?? ""),
+    majorRepairs: Array.isArray(b.major_repairs)
+      ? b.major_repairs.map((r: { name?: string; cost?: number }) => ({ name: r.name ?? "", cost: String(r.cost ?? "") }))
+      : [],
     otherExpenses: String(b.other_expenses ?? ""),
     tripExpensesTotal: String(b.trip_expenses_total ?? ""),
     driverExpensesTotal: String(b.driver_expenses_total ?? ""),
@@ -682,19 +587,22 @@ function fromSheet(f: TripSheetData) {
   const n = (v: string) => parseFloat(v) || 0;
   return {
     trip_sheet_no: f.tripSheetNo || null,
-    serial_no: f.serialNo || null,
-    container_no: f.containerNo || null,
+    booking_reference_no: f.bookingReferenceNo || null,
+    container_number: f.containerNumber || null,
     container_type: f.containerType || null,
     line: f.line || null,
     trip_type: f.tripType || null,
     vehicle_id: f.vehicleId || null,
-    date: f.date || null,
     driver_id: f.driverId || null,
+    booking_date: f.bookingDate || null,
+    trip_scheduled_date: f.tripScheduledDate || null,
+    trip_completed_date: f.tripCompletedDate || null,
+    trip_closed_date: f.tripClosedDate || null,
+    trip_sheet_date: f.tripSheetDate || null,
     from_location: f.from || null,
     to_location: f.to || null,
+    clearing_agent: f.clearingAgent || null,
     hire_amount: n(f.hireAmount),
-    driver_advance: n(f.driverAdvance),
-    driver_advance_additional: n(f.driverAdvanceAdditional),
     start_km: n(f.startKm),
     end_km: n(f.endKm),
     total_km: n(f.totalKm),
@@ -703,8 +611,7 @@ function fromSheet(f: TripSheetData) {
     tare_weight: n(f.tareWeight),
     net_weight: n(f.netWeight),
     driver_pay: n(f.driverPay),
-    driver_settlement_advance: n(f.driverSettlementAdvance),
-    driver_settlement_advance_additional: n(f.driverSettlementAdvanceAdditional),
+    driver_advance_amount: n(f.driverAdvanceAmount),
     driver_balance: n(f.driverBalance),
     total_halt_days: parseInt(f.totalHaltDays) || 0,
     halt_remarks: f.haltRemarks || null,
@@ -719,6 +626,7 @@ function fromSheet(f: TripSheetData) {
     parking_expense: n(f.parkingExpense),
     puncture_expense: n(f.punctureExpense),
     spare_parts_expense: n(f.sparePartsExpense),
+    major_repairs: (f.majorRepairs || []).map(r => ({ name: r.name, cost: parseFloat(r.cost) || 0 })),
     other_expenses: n(f.otherExpenses),
     trip_expenses_total: n(f.tripExpensesTotal),
     driver_expenses_total: n(f.driverExpensesTotal),
@@ -776,7 +684,6 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     maintenanceType: b.maintenance_type ?? "",
     description: b.description ?? "",
     cost: String(b.cost ?? ""),
-    createdAt: b.created_at ?? "",
   };
 }
 
@@ -816,6 +723,7 @@ function toTyreInventory(b: B): TyreInventoryItem {
     tyreType: b.tyre_type ?? "",
     tyreNumber: b.tyre_number ?? "",
     size: b.size ?? "",
+    rangeKm: String(b.range_km ?? "0"),
     cost: String(b.cost ?? ""),
     condition: b.condition ?? "",
     purchaseDate: b.purchase_date ?? "",
@@ -831,6 +739,7 @@ function fromTyreInventory(f: TyreInventoryItem) {
     tyre_type: f.tyreType || null,
     tyre_number: f.tyreNumber,
     size: f.size || null,
+    range_km: parseInt(f.rangeKm) || 0,
     cost: parseFloat(f.cost) || 0,
     condition: f.condition || "New",
     purchase_date: f.purchaseDate || null,
@@ -1069,7 +978,7 @@ export const tripsApi = {
   upsertSheet: (dbId: string, data: TripSheetData) =>
     req<B>(`/trips/${dbId}/sheet`, { method: "POST", body: JSON.stringify(fromSheet(data)) }).then(toSheet),
   getSheet: (dbId: string) =>
-    req<B>(`/trips/${dbId}/sheet`).then(toSheet),
+    req<B | null>(`/trips/${dbId}/sheet`).then((b) => (b ? toSheet(b) : null)),
 
   // Workflow
   verify: (dbId: string) => req<B>(`/trips/${dbId}/verify`, { method: "POST" }).then(toTrip),
@@ -1194,6 +1103,20 @@ export const fuelLogsApi = {
     }).then(toFuelLog),
   getFuelStats: (truckId: string) =>
     req<B>(`/maintenance/trucks/${truckId}/fuel-stats`).then(toFuelStats),
+  updateFuelLog: (id: string, log: Partial<Pick<FuelLog, "date" | "odometer" | "litres" | "totalCost" | "fuelStation" | "loggedBy">>) =>
+    req<B>(`/maintenance/fuel-logs/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        date: log.date,
+        odometer: log.odometer ? parseInt(log.odometer) : undefined,
+        litres: log.litres ? parseFloat(log.litres) : undefined,
+        price_per_litre: (log.totalCost && log.litres) ? parseFloat(log.totalCost) / parseFloat(log.litres) : undefined,
+        total_cost: log.totalCost ? parseFloat(log.totalCost) : undefined,
+        fuel_station: log.fuelStation,
+        logged_by: log.loggedBy,
+      }),
+    }).then(toFuelLog),
+  deleteFuelLog: (id: string) => req<void>(`/maintenance/fuel-logs/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------
@@ -1262,6 +1185,39 @@ export const financeApi = {
       method: "POST",
       body: JSON.stringify({ person_type: "staff", person_id: parseInt(personId), type, amount, date, note: note ?? null }),
     }).then(toCompensationTransaction),
+
+  deleteCompensation: (txId: string) => req<void>(`/finance/compensation/${txId}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// Branches API
+// ---------------------------------------------------------------------------
+
+function toBranch(b: B): Branch {
+  return {
+    id: String(b.id),
+    name: b.name ?? "",
+    driverHaltDayFee: String(b.driver_halt_day_fee ?? "0"),
+    driverHaltDayPercentage: String(b.driver_halt_day_percentage ?? "0"),
+  };
+}
+
+function fromBranch(f: Branch) {
+  return {
+    name: f.name,
+    driver_halt_day_fee: f.driverHaltDayFee ? parseFloat(f.driverHaltDayFee) : 0,
+    driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
+  };
+}
+
+export const branchesApi = {
+  list: () => req<B[]>("/branches").then((d) => d.map(toBranch)),
+  get: (id: string) => req<B>(`/branches/${id}`).then(toBranch),
+  create: (branch: Branch) =>
+    req<B>("/branches", { method: "POST", body: JSON.stringify(fromBranch(branch)) }).then(toBranch),
+  update: (id: string, branch: Branch) =>
+    req<B>(`/branches/${id}`, { method: "PUT", body: JSON.stringify(fromBranch(branch)) }).then(toBranch),
+  delete: (id: string) => req<void>(`/branches/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

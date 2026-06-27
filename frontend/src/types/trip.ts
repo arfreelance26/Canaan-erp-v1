@@ -10,7 +10,7 @@ export type TripStatus =
 
 export type TripCategory = "LOCAL" | "LOCAL CFS" | "OUTSTATION" | "SHIFTING";
 
-export type MovementCategory = "self" | "third party";
+export type MovementCategory = "Own Fleet" | "Third-Party Transporter";
 
 export type CargoClassification =
   | "IMPORT"
@@ -86,14 +86,20 @@ export type Trip = {
   // Driver Compensation
   driverAdvanceAmount: string;
   driverAdvancePaymentMethod: DriverAdvancePaymentMethod | "";
+  driverAdvance: string;
   driverCompensationType: DriverCompensationType | "";
 
   // Transport Cost Details
   transportHireAmount: string;
   transportCrossingAmount: string;
-  finalSettlementAmount: string;
 
   // Operational Notes
   internalRemarks: string;
   bookingInstructions: string;
+
+  // Workflow state (computed by backend)
+  hasClosure: boolean;
+  hasSheet: boolean;
+  verificationStatus: "pending" | "verified" | "flagged";
+  isInvoiced: boolean;
 };

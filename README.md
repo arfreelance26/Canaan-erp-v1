@@ -1214,3 +1214,4 @@ Use this checklist to ensure successful setup:
 **Last Updated**: June 25, 2026  
 **Version**: 1.0.0  
 **Maintainer**: Canaan Global International Dev Team
+# Canaan-erp-v1

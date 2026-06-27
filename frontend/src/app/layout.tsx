@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { TyreInventoryProvider } from "@/context/TyreInventoryContext";
 import { TripWorkflowProvider } from "@/context/TripWorkflowContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full bg-mesh-light font-sans text-gray-900">
+        <UppercaseInputs />
         <AuthProvider>
           <TripWorkflowProvider>
             <TyreInventoryProvider>

@@ -74,7 +74,7 @@ export function GlassCombobox({
           disabled={disabled}
           required={required}
           placeholder={placeholder}
-          className="w-full bg-transparent text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed"
+          className="w-full bg-transparent text-gray-900 font-medium placeholder:text-gray-400 placeholder:normal-case focus:outline-none disabled:cursor-not-allowed uppercase"
         />
         <button
           type="button"
@@ -99,11 +99,11 @@ export function GlassCombobox({
 
       {isOpen && displayOptions.length > 0 && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-[100] max-h-60 w-full overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar">
-          {displayOptions.map((option) => {
+          {displayOptions.map((option, index) => {
             const isSelected = String(option.value) === String(value);
             return (
               <button
-                key={option.value}
+                key={`${option.value}-${index}`}
                 type="button"
                 className={cn(
                   "flex w-full items-center rounded-lg px-3 py-2 text-left transition-all duration-200",

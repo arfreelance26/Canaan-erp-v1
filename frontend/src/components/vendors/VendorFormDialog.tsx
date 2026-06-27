@@ -45,7 +45,7 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
     key: K,
     value: Omit<Vendor, "id" | "createdAt">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

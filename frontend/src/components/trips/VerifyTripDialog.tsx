@@ -91,10 +91,10 @@ export function VerifyTripDialog({
           <Divider />
           <Row label="Bill To" value={closure?.billTo ?? ""} />
           <Row label="Trip Completed Date" value={closure?.tripCompletedDate ?? ""} />
-          <Row label="Trip Closing Date" value={closure?.tripClosingDate ?? ""} />
-          <Row label="Transport Hire Amount" value={closure ? `₹${closure.transportHireAmount}` : ""} />
-          <Row label="Billing Hire Amount" value={closure ? `₹${closure.billingHireAmount}` : ""} />
-          <Row label="Driver Advance" value={closure ? `₹${closure.driverAdvanceAmount}` : ""} />
+          <Row label="Hire Amount" value={closure ? `₹${closure.hireAmount}` : ""} />
+          <Row label="Transport Amount" value={closure ? `₹${closure.transportAmount}` : ""} />
+          <Row label="Billing Amount" value={closure ? `₹${closure.billingAmount}` : ""} />
+          <Row label="Advance Amount" value={closure ? `₹${closure.advanceAmount}` : ""} />
           <Row label="Payment Mode" value={closure?.paymentMode ?? ""} />
           <Row label="Company Halt Days" value={closure?.companyHaltDays ?? ""} />
           <Row label="Party Halt Days" value={closure?.partyHaltDays ?? ""} />
@@ -111,8 +111,7 @@ export function VerifyTripDialog({
           <Row label="Start km" value={sheet?.startKm ?? ""} />
           <Row label="End km" value={sheet?.endKm ?? ""} />
           <Row label="Total km" value={sheet?.totalKm ?? ""} />
-          <Row label="Total Diesel" value={sheet ? `${sheet.totalDiesel} L` : ""} />
-          <Row label="Diesel Expense" value={sheet ? `₹${sheet.dieselExpense}` : ""} />
+
           <Row label="Driver Pay" value={sheet ? `₹${sheet.driverPay}` : ""} />
           <Row label="Driver Balance" value={sheet ? `₹${sheet.driverBalance}` : ""} />
           <Row label="Toll Charges" value={sheet ? `₹${sheet.tollCharges}` : ""} />

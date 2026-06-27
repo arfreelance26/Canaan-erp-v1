@@ -37,7 +37,28 @@ export default function LeaveRequestsPage() {
     loadRequests();
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return (
+    <div className="flex flex-col gap-6 animate-pulse p-2">
+      <div className="flex justify-between">
+        <div className="space-y-3">
+          <div className="h-8 w-48 rounded-lg bg-slate-200"></div>
+          <div className="h-4 w-72 rounded bg-slate-100"></div>
+        </div>
+        <div className="h-10 w-40 rounded-lg bg-slate-200"></div>
+      </div>
+      <div className="rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm h-[400px]">
+        <div className="h-12 border-b border-white/50 bg-slate-50/50"></div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex gap-4 p-4 border-b border-slate-100/50">
+            <div className="h-5 w-32 rounded bg-slate-200/60"></div>
+            <div className="h-5 w-24 rounded bg-slate-100"></div>
+            <div className="h-5 w-24 rounded bg-slate-100"></div>
+            <div className="h-5 w-48 rounded bg-slate-100"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

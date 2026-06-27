@@ -160,7 +160,7 @@ export function StaffAttendanceTable({ staff, records, date, onMark }: StaffAtte
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <MarkButton staffId={member.id} record={record} onMark={onMark} />
+                  <MarkButton staffId={member.id} record={record || undefined} onMark={onMark} />
                 </td>
               </tr>
             );

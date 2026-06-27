@@ -1,9 +1,7 @@
-export type BranchLocation = "Chennai" | "Tuticorin";
-
 export type Truck = {
   id: string;
   truckId: string;
-  branchRegisteredTo: BranchLocation | "";
+  branchRegisteredTo: string;
   registrationNumber: string;
   manufacturer: string;
   modelName: string;

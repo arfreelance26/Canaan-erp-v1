@@ -6,10 +6,15 @@ import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { addYearsToDate, generateTruckId, TRUCK_TYPE_OPTIONS, BRANCH_OPTIONS } from "@/lib/truck-data";
+import { addYearsToDate, generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
+import type { Branch } from "@/types/branch";
+import { branchesApi } from "@/lib/api";
 import { getTyreLayout, TYRE_LAYOUT_OPTIONS } from "@/lib/tyre-layouts";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import type { Truck } from "@/types/truck";
+
+const sectionHeadingClass =
+  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 export type TruckFiles = {
   photo?: File | null;
@@ -82,6 +87,11 @@ export function TruckFormDialog({
   const [form, setForm] = useState<Omit<Truck, "id" | "truckId">>(emptyForm);
   const [files, setFiles] = useState<TruckFiles>({});
   const [fcExpiryTouched, setFcExpiryTouched] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+  useEffect(() => {
+    branchesApi.list().then(setBranches).catch(() => setBranches([]));
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -100,7 +110,7 @@ export function TruckFormDialog({
     key: K,
     value: Omit<Truck, "id" | "truckId">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
   }
 
   function handleFcDateChange(value: string) {
@@ -137,10 +147,10 @@ export function TruckFormDialog({
         <Field label="Branch the Truck To be Registered" required>
           <GlassSelect
             value={form.branchRegisteredTo}
-            onChange={(val) => update("branchRegisteredTo", val as Truck["branchRegisteredTo"])}
+            onChange={(val) => setForm((prev) => ({ ...prev, branchRegisteredTo: val }))}
             options={[
               { value: "", label: "Select a branch" },
-              ...BRANCH_OPTIONS.map(o => ({ value: o, label: o }))
+              ...branches.map((b) => ({ value: b.name, label: b.name })),
             ]}
           />
         </Field>
@@ -258,7 +268,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Choose the Tyre Layout</h3>
+          <p className={sectionHeadingClass}>Choose the Tyre Layout</p>
           <Field label="Tyre Layout" required>
             <GlassSelect
               value={form.tyreLayout}
@@ -281,7 +291,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">RC Details</h3>
+          <p className={sectionHeadingClass}>RC Details</p>
           <Field label="RC Date" required>
             <input
               type="date"
@@ -314,7 +324,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">FC Details</h3>
+          <p className={sectionHeadingClass}>FC Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="FC Date" required>
               <input
@@ -374,7 +384,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Road Tax</h3>
+          <p className={sectionHeadingClass}>Road Tax</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Road Tax Validity Date" required>
               <input
@@ -432,7 +442,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Insurance Details</h3>
+          <p className={sectionHeadingClass}>Insurance Details</p>
           <Field label="Insurance Expiry Date" required>
             <input
               type="date"
@@ -465,7 +475,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">National Permit</h3>
+          <p className={sectionHeadingClass}>National Permit</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="National Permit Number" required>
               <input
@@ -523,7 +533,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Local Permit</h3>
+          <p className={sectionHeadingClass}>Local Permit</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Local Permit Number" required>
               <input
@@ -581,7 +591,7 @@ export function TruckFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Pollution Certificate</h3>
+          <p className={sectionHeadingClass}>Pollution Certificate</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Pollution Certificate Validity Date" required>
               <input

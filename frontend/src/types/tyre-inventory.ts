@@ -6,6 +6,7 @@ export type TyreInventoryItem = {
   tyreType: string;
   tyreNumber: string;
   size: string;
+  rangeKm: string;
   cost: string;
   condition: TyreCondition | "";
   purchaseDate: string;

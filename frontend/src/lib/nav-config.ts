@@ -19,6 +19,7 @@ import {
   Wallet,
   Banknote,
   Fuel,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 
@@ -88,7 +89,12 @@ export const sidebarSections: NavSection[] = [
       { label: "Recurring Payments", href: "/finance/recurring-payments", icon: Repeat },
     ],
   },
-
+  {
+    title: "Administration",
+    items: [
+      { label: "Branch Management", href: "/admin/branches", icon: GitBranch },
+    ],
+  },
 ];
 
 export type TopNavItem = {

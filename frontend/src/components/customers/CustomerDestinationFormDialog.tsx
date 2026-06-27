@@ -43,7 +43,7 @@ export function CustomerDestinationFormDialog({
   const isBlacklisted = selectedCustomer?.status === "BLACKLISTED";
 
   function update<K extends keyof Omit<CustomerDestination, "id">>(key: K, value: Omit<CustomerDestination, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
   }
 
   function handleCustomerChange(customerId: string) {

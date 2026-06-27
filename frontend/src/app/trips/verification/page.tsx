@@ -155,9 +155,9 @@ export default function TripVerificationPage() {
     if (!sheetTrip) return;
     const saved = await tripsApi.upsertSheet(sheetTrip.id, data);
     setSheets((prev) => new Map([...prev, [sheetTrip.id, saved]]));
-    const trip = trips.find((t) => t.id === data.tripId) ?? null;
+    // Return to the verify dialog so the user can confirm or flag the updated sheet
+    setVerifyTrip(sheetTrip);
     setSheetTrip(null);
-    setVerifyTrip(trip);
   }
 
   async function handleConfirmVerification() {

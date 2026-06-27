@@ -83,7 +83,7 @@ export default function StaffAttendancePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="relative z-50 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Attendance</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -95,11 +95,10 @@ export default function StaffAttendancePage() {
             Date
           </label>
           <input
-            id="staff-attendance-date"
             type="date"
             value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
+            onChange={(e) => setDate(e.target.value)}
+            className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
           />
         </div>
       </div>

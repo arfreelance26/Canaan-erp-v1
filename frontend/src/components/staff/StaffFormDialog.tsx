@@ -9,6 +9,11 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Avatar } from "@/components/ui/Avatar";
 import { DEPARTMENT_OPTIONS, SOFTWARE_DESIGNATION_OPTIONS } from "@/lib/staff-data";
 import type { Staff } from "@/types/staff";
+import type { Branch } from "@/types/branch";
+import { branchesApi } from "@/lib/api";
+
+const sectionHeadingClass =
+  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 export type StaffFiles = { photo?: File | null; aadhar?: File | null };
 
@@ -41,6 +46,11 @@ const emptyForm: Omit<Staff, "id"> = {
 export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFormDialogProps) {
   const [form, setForm] = useState<Omit<Staff, "id">>(emptyForm);
   const [files, setFiles] = useState<StaffFiles>({});
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+  useEffect(() => {
+    branchesApi.list().then(setBranches).catch(() => setBranches([]));
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -51,7 +61,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   }, [open, initialData]);
 
   function update<K extends keyof Omit<Staff, "id">>(key: K, value: Omit<Staff, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
   }
 
   function handleEmailChange(value: string) {
@@ -138,13 +148,13 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
 
           <Field label="Branch" required>
-            <input
-              type="text"
-              required
+            <GlassSelect
               value={form.branch}
-              onChange={(e) => update("branch", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Chennai"
+              onChange={(val) => setForm((prev) => ({ ...prev, branch: val }))}
+              options={[
+                { value: "", label: "Select a branch" },
+                ...branches.map((b) => ({ value: b.name, label: b.name })),
+              ]}
             />
           </Field>
 
@@ -203,7 +213,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Software Credentials</h3>
+          <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Username" required>
               <input
@@ -216,14 +226,14 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               />
             </Field>
 
-            <Field label="Password" required>
+            <Field label="Password" required={!initialData}>
               <input
                 type="password"
-                required
+                required={!initialData}
                 value={form.password}
                 onChange={(e) => update("password", e.target.value)}
                 className={inputClass}
-                placeholder="Set a login password"
+                placeholder={initialData ? "Leave blank to keep current password" : "Set a login password"}
               />
             </Field>
           </div>

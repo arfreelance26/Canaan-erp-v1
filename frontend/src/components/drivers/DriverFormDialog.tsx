@@ -8,6 +8,11 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { Avatar } from "@/components/ui/Avatar";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
+import type { Branch } from "@/types/branch";
+import { branchesApi } from "@/lib/api";
+
+const sectionHeadingClass =
+  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 export type DriverFiles = { photo?: File | null; aadhaar?: File | null; license?: File | null };
 
@@ -54,7 +59,12 @@ export function DriverFormDialog({
 }: DriverFormDialogProps) {
   const [form, setForm] = useState<Omit<Driver, "id" | "driverId">>(emptyForm);
   const [files, setFiles] = useState<DriverFiles>({});
+  const [branches, setBranches] = useState<Branch[]>([]);
   const lastAutoUsername = useRef<string>("");
+
+  useEffect(() => {
+    branchesApi.list().then(setBranches).catch(() => setBranches([]));
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -73,7 +83,7 @@ export function DriverFormDialog({
     key: K,
     value: Omit<Driver, "id" | "driverId">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
   }
 
   function handleEmailChange(value: string) {
@@ -150,13 +160,13 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="Branch" required>
-            <input
-              type="text"
-              required
+            <GlassSelect
               value={form.branch}
-              onChange={(e) => update("branch", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Coimbatore"
+              onChange={(val) => setForm((prev) => ({ ...prev, branch: val }))}
+              options={[
+                { value: "", label: "Select a branch" },
+                ...branches.map((b) => ({ value: b.name, label: b.name })),
+              ]}
             />
           </Field>
 
@@ -282,7 +292,7 @@ export function DriverFormDialog({
         </div>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Bank Account Details</h3>
+          <p className={sectionHeadingClass}>Bank Account Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Bank Name" required>
               <input
@@ -341,7 +351,7 @@ export function DriverFormDialog({
         </Field>
 
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-gray-900">Software Credentials</h3>
+          <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Username" required>
               <input
@@ -368,14 +378,14 @@ export function DriverFormDialog({
               ) : null}
             </Field>
 
-            <Field label="Password" required>
+            <Field label="Password" required={!initialData}>
               <input
                 type="password"
-                required
+                required={!initialData}
                 value={form.password}
                 onChange={(e) => update("password", e.target.value)}
                 className={inputClass}
-                placeholder="Set a login password"
+                placeholder={initialData ? "Leave blank to keep current password" : "Set a login password"}
               />
             </Field>
           </div>

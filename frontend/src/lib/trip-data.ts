@@ -58,7 +58,14 @@ export const TRIP_STATUS_OPTIONS: Trip["status"][] = [
 
 export const TRIP_CATEGORY_OPTIONS: TripCategory[] = ["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING"];
 
-export const MOVEMENT_CATEGORY_OPTIONS: MovementCategory[] = ["self", "third party"];
+export const MOVEMENT_CATEGORY_OPTIONS: MovementCategory[] = ["Own Fleet", "Third-Party Transporter"];
+
+export const CARGO_WEIGHT_OPTIONS = [
+  "NORMAL",
+  "Between 20 - 25 Tons",
+  "Between 25-28 Tons",
+  "Between 28-30 Tons",
+];
 
 export const CARGO_CLASSIFICATION_OPTIONS: CargoClassification[] = [
   "IMPORT",
@@ -106,7 +113,7 @@ export const initialTrips: Trip[] = [
     bookingReferenceNo: "CGI/010626/001/26-27",
     bookingCreatedDate: "2026-06-01",
     tripCategory: "LOCAL",
-    movementCategory: "self",
+    movementCategory: "Own Fleet",
     customerId: "2",
     shipperConsignee: "Blue Wave Shipping Pvt Ltd",
     cargoClassification: "IMPORT",
@@ -135,7 +142,6 @@ export const initialTrips: Trip[] = [
     driverCompensationType: "Normal",
     transportHireAmount: "32000",
     transportCrossingAmount: "0",
-    finalSettlementAmount: "30000",
     internalRemarks: "Handle with care - fragile textile goods",
     bookingInstructions: "Deliver to warehouse gate B before 6 PM",
   },
@@ -147,7 +153,7 @@ export const initialTrips: Trip[] = [
     bookingReferenceNo: "CGI/310526/001/26-27",
     bookingCreatedDate: "2026-05-31",
     tripCategory: "LOCAL",
-    movementCategory: "self",
+    movementCategory: "Own Fleet",
     customerId: "1",
     shipperConsignee: "Sri Lakshmi Traders",
     cargoClassification: "IMPORT",
@@ -176,7 +182,6 @@ export const initialTrips: Trip[] = [
     driverCompensationType: "Normal",
     transportHireAmount: "28000",
     transportCrossingAmount: "0",
-    finalSettlementAmount: "26500",
     internalRemarks: "",
     bookingInstructions: "Contact consignee before arrival",
   },
@@ -188,7 +193,7 @@ export const initialTrips: Trip[] = [
     bookingReferenceNo: "CGI/280526/001/26-27",
     bookingCreatedDate: "2026-05-28",
     tripCategory: "OUTSTATION",
-    movementCategory: "third party",
+    movementCategory: "Third-Party Transporter",
     customerId: "2",
     shipperConsignee: "Blue Wave Shipping Pvt Ltd",
     cargoClassification: "EXPORT",
@@ -217,7 +222,6 @@ export const initialTrips: Trip[] = [
     driverCompensationType: "FIXED",
     transportHireAmount: "35000",
     transportCrossingAmount: "0",
-    finalSettlementAmount: "35000",
     internalRemarks: "",
     bookingInstructions: "",
   },

@@ -1,10 +1,25 @@
 from datetime import datetime, date
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Enum, ForeignKey,
-    Integer, LargeBinary, Numeric, String, Text, UniqueConstraint, func,
+    Integer, JSON, LargeBinary, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
 from database import Base
+
+
+# ---------------------------------------------------------------------------
+# Administration
+# ---------------------------------------------------------------------------
+
+class Branch(Base):
+    __tablename__ = "branches"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)
+    driver_halt_day_fee = Column(Numeric(10, 2), default=0)
+    driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 
 # ---------------------------------------------------------------------------
@@ -16,7 +31,7 @@ class Truck(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     truck_id = Column(String(20), unique=True, nullable=False)          # CGI-T001
-    branch_registered_to = Column(Enum("Chennai", "Tuticorin"))
+    branch_registered_to = Column(String(200))
     registration_number = Column(String(30), unique=True, nullable=False)
     manufacturer = Column(String(100), nullable=False)
     model_name = Column(String(100), nullable=False)
@@ -249,7 +264,7 @@ class Trip(Base):
     booking_reference_no = Column(String(50), unique=True, nullable=False)
     booking_created_date = Column(Date, nullable=False)
     trip_category = Column(Enum("LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING"))
-    movement_category = Column(Enum("self", "third party"))
+    movement_category = Column(Enum("Own Fleet", "Third-Party Transporter"))
     # Customer Information
     customer_id = Column(Integer, ForeignKey("customers.id"))
     shipper_consignee = Column(String(200))
@@ -263,7 +278,7 @@ class Trip(Base):
     container_number_2 = Column(String(100))
     cargo_reference = Column(String(100))
     release_order_reference = Column(String(100))
-    cargo_weight = Column(Numeric(10, 2))
+    cargo_weight = Column(String(100))
     # Route Information
     origin = Column(String(200))
     destination = Column(String(200))
@@ -284,11 +299,11 @@ class Trip(Base):
     # Driver Compensation
     driver_advance_amount = Column(Numeric(10, 2), default=0)
     driver_advance_payment_method = Column(Enum("None", "CASH", "NEFT/IMPS/UPI", "Both"))
+    driver_advance = Column(Numeric(10, 2), nullable=True)
     driver_compensation_type = Column(Enum("Normal", "FIXED"))
     # Transport Cost
     transport_hire_amount = Column(Numeric(10, 2), default=0)
     transport_crossing_amount = Column(Numeric(10, 2), default=0)
-    final_settlement_amount = Column(Numeric(10, 2), default=0)
     # Operational Notes
     internal_remarks = Column(Text)
     booking_instructions = Column(Text)
@@ -309,97 +324,40 @@ class TripClosure(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), unique=True, nullable=False)
 
-    # Edit Booking Section
-    booking_reference_no = Column(String(50))
-    trip_category = Column(String(50))
-    movement_category = Column(String(50))
-    customer_name = Column(String(200))
-    container_specification = Column(String(50))
-    cargo_classification = Column(String(50))
-    container_number = Column(String(50))
-    container_number_1 = Column(String(50))
-    container_number_2 = Column(String(50))
-    cargo_reference = Column(String(100))
-    booking_date = Column(Date)
-    origin_location = Column(String(200))
-    destination_location = Column(String(200))
-    rate_type = Column(String(100))
-    release_order_reference = Column(String(50))
-    shipping_line = Column(String(100))
-    vessel_name = Column(String(100))
-    shipper_consignee_name = Column(String(200))
+    # 1. Shipment Information
+    booking_no = Column(String(50))
+    container_no = Column(String(100))
+    release_order_no = Column(String(100))
+    container_type = Column(String(100))
+    line = Column(String(200))
+    load_type = Column(String(100))
+    movement_category = Column(Enum("Own Fleet", "Third-Party Transporter"))
 
-    # Transporter Details Section
-    transport_method = Column(String(50))
-    transporter = Column(String(200))
-    trip_date = Column(Date)
-    assigned_truck_details = Column(String(200))
-    payment_type = Column(String(50))
-    customer_advance = Column(Numeric(10, 2), default=0)
-    diesel_advance = Column(Numeric(10, 2), default=0)
-    driver_advance_amount = Column(Numeric(10, 2), default=0)
-    driver_advance_payment_method = Column(String(50))
-    bill_to = Column(String(200))
+    # 2. Assignment
+    vehicle_id = Column(String(20))
+    driver_id = Column(String(20))
+    assignment_date = Column(Date)
 
-    # Transporter Price Details Section
-    transport_hire_amount = Column(Numeric(10, 2), default=0)
-    transport_crossing_amount = Column(Numeric(10, 2), default=0)
-    transport_halt = Column(Numeric(10, 2), default=0)
-    transport_unloading = Column(Numeric(10, 2), default=0)
-    transport_lifting_charges = Column(Numeric(10, 2), default=0)
-    transport_weighment = Column(Numeric(10, 2), default=0)
-    total_transport_amount = Column(Numeric(10, 2), default=0)
-
-    # Billing Price Details Section
-    billing_hire_amount = Column(Numeric(10, 2), default=0)
-    billing_halt = Column(Numeric(10, 2), default=0)
-    billing_unloading = Column(Numeric(10, 2), default=0)
-    billing_lifting_charges = Column(Numeric(10, 2), default=0)
-    billing_weighment = Column(Numeric(10, 2), default=0)
-    total_billing_amount = Column(Numeric(10, 2), default=0)
-
-    # Trip Completion
+    # 3. Route
+    from_location = Column(String(200))
+    to_location = Column(String(200))
     trip_completed_date = Column(Date)
-    trip_closing_date = Column(Date)
+
+    # 4. Billing
+    hire_amount = Column(Numeric(10, 2), default=0)
+    transport_amount = Column(Numeric(10, 2), default=0)
+    billing_amount = Column(Numeric(10, 2), default=0)
+    advance_amount = Column(Numeric(10, 2), default=0)
+    driver_advance = Column(Numeric(10, 2), nullable=True)
+    additional_driver_advance = Column(Numeric(10, 2), nullable=True)
     payment_mode = Column(Enum("Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"))
+    bill_to = Column(Enum("CUSTOMER", "CONSIGNEE"))
 
-    # Trip Distance Details
-    starting_odometer = Column(Numeric(10, 2), default=0)
-    ending_odometer = Column(Numeric(10, 2), default=0)
-    total_distance = Column(Numeric(10, 2), default=0)
-
-    # Cargo Weight Details
-    gross_weight = Column(Numeric(10, 2), default=0)
-    tare_weight = Column(Numeric(10, 2), default=0)
-    net_weight = Column(Numeric(10, 2), default=0)
-
-    # Trip Fuel Details
-    bunk_name = Column(String(200))
-    diesel_quantity = Column(Numeric(10, 2), default=0)
-    fuel_total_cost = Column(Numeric(10, 2), default=0)
-
-    # Trip Expenses
-    total_halt_days = Column(Integer, default=0)
-    halt_remarks = Column(Text)
-    drivers_compensation = Column(Numeric(10, 2), default=0)
-    halt_compensation = Column(Numeric(10, 2), default=0)
-    port_pass_expense = Column(Numeric(10, 2), default=0)
-    weight_sheet_expense = Column(Numeric(10, 2), default=0)
-    mamol_expense = Column(Numeric(10, 2), default=0)
-    claimable_mamol_expense = Column(Numeric(10, 2), default=0)
-    traffic_rto_police_expense = Column(Numeric(10, 2), default=0)
-    lift_on_off_expense = Column(Numeric(10, 2), default=0)
-    crane_operator_expense = Column(Numeric(10, 2), default=0)
-    parking_expenses = Column(Numeric(10, 2), default=0)
-    puncture_expense = Column(Numeric(10, 2), default=0)
-    spare_parts_expense = Column(Numeric(10, 2), default=0)
-    other_expenses = Column(Numeric(10, 2), default=0)
-    toll_expenses = Column(Numeric(10, 2), default=0)
-
-    # Halt Information (kept for backward compatibility)
-    additional_driver_advance_amount = Column(Numeric(10, 2), default=0)
+    # 5. Halt Information
     company_halt_days = Column(Integer, default=0)
     party_halt_days = Column(Integer, default=0)
+    halt_remarks = Column(Text)
+    driver_halt_compensation = Column(Numeric(10, 2), default=0)
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -412,23 +370,27 @@ class TripSheet(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), unique=True, nullable=False)
+    # Trip Information
     trip_sheet_no = Column(String(50))
-    serial_no = Column(String(50))
-    container_no = Column(String(50))
-    container_type = Column(String(50))
-    line = Column(String(100))
-    trip_type = Column(String(50))
+    booking_reference_no = Column(String(100))
+    container_number = Column(String(100))
+    container_type = Column(String(100))
+    line = Column(String(200))
+    trip_type = Column(String(100))
     vehicle_id = Column(String(20))
-    date = Column(Date)
     driver_id = Column(String(20))
+    booking_date = Column(Date)
+    trip_scheduled_date = Column(Date)
+    trip_completed_date = Column(Date)
+    trip_closed_date = Column(Date)
+    trip_sheet_date = Column(Date)
+    # Route
     from_location = Column(String(200))
     to_location = Column(String(200))
-    # Hire & Driver Advance
+    clearing_agent = Column(String(200))
+    # Hire
     hire_amount = Column(Numeric(10, 2), default=0)
-    driver_advance = Column(Numeric(10, 2), default=0)
-    driver_advance_additional = Column(Numeric(10, 2), default=0)
     # Distance & Cargo
-    mileage = Column(Numeric(10, 2), default=0)
     start_km = Column(Numeric(10, 2), default=0)
     end_km = Column(Numeric(10, 2), default=0)
     total_km = Column(Numeric(10, 2), default=0)
@@ -438,8 +400,7 @@ class TripSheet(Base):
     net_weight = Column(Numeric(10, 2), default=0)
     # Driver Settlement
     driver_pay = Column(Numeric(10, 2), default=0)
-    driver_settlement_advance = Column(Numeric(10, 2), default=0)
-    driver_settlement_advance_additional = Column(Numeric(10, 2), default=0)
+    driver_advance_amount = Column(Numeric(10, 2), default=0)
     driver_balance = Column(Numeric(10, 2), default=0)
     # Expenses
     total_halt_days = Column(Integer, default=0)
@@ -455,6 +416,7 @@ class TripSheet(Base):
     parking_expense = Column(Numeric(10, 2), default=0)
     puncture_expense = Column(Numeric(10, 2), default=0)
     spare_parts_expense = Column(Numeric(10, 2), default=0)
+    major_repairs = Column(JSON, nullable=True)
     other_expenses = Column(Numeric(10, 2), default=0)
     # Totals
     trip_expenses_total = Column(Numeric(10, 2), default=0)

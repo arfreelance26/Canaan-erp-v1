@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Calendar as CalendarIcon, Info } from "lucide-react";
+import { X, Calendar as CalendarIcon, Info, Sparkles } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -16,6 +16,7 @@ import {
   MOVEMENT_CATEGORY_OPTIONS,
   TRANSPORT_METHOD_OPTIONS,
   TRIP_CATEGORY_OPTIONS,
+  CARGO_WEIGHT_OPTIONS,
   generateBookingReferenceNo,
   generateTripId,
 } from "@/lib/trip-data";
@@ -23,7 +24,12 @@ import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
+import type { Branch } from "@/types/branch";
+import { branchesApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
+
+const sectionHeadingClass =
+  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 type AssignableDriver = {
   driver: Driver;
@@ -69,10 +75,10 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   customerFuelAdvanceLitres: "",
   driverAdvanceAmount: "",
   driverAdvancePaymentMethod: "",
+  driverAdvance: "",
   driverCompensationType: "",
   transportHireAmount: "",
   transportCrossingAmount: "",
-  finalSettlementAmount: "",
   internalRemarks: "",
   bookingInstructions: "",
 };
@@ -87,15 +93,18 @@ export function TripFormDialog({
   assignableDrivers,
 }: TripFormDialogProps) {
   const [form, setForm] = useState(emptyForm);
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+  useEffect(() => {
+    branchesApi.list().then(setBranches).catch(() => setBranches([]));
+  }, []);
 
   useEffect(() => {
     if (open) {
       if (initialData) {
-        // Edit mode: populate form with existing trip data
         const { id: _id, tripId: _tripId, status: _status, vehicleId: _vehicleId, ...rest } = initialData;
         setForm(rest);
       } else {
-        // Create mode: initialize with empty form
         const initialDate = todayIst();
         setForm({
           ...emptyForm,
@@ -104,7 +113,21 @@ export function TripFormDialog({
         });
       }
     }
-  }, [open, initialData, existingTrips]);
+  }, [open, initialData]);
+
+  // Derive the branch percentage for the currently selected truck
+  const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
+  const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
+  const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
+  const compensationPct = selectedBranch ? parseFloat(selectedBranch.driverHaltDayPercentage || "0") : null;
+  const isNormalComp = form.driverCompensationType === "Normal";
+
+  function calcCompensation(hireAmount: string, pct: number | null): string {
+    if (pct === null || !hireAmount) return "";
+    const hire = parseFloat(hireAmount);
+    if (isNaN(hire) || hire <= 0) return "";
+    return String(Math.round(hire * (pct / 100)));
+  }
 
   function update<K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -131,13 +154,54 @@ export function TripFormDialog({
     }
   }
 
+  // When the assigned vehicle/driver changes, re-derive branch and auto-calculate if Normal
+  function handleDriverChange(driverId: string) {
+    setForm((prev) => {
+      const assignment = assignableDrivers.find((a) => a.driver.driverId === driverId);
+      const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+      const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+      const driverAdvanceAmount =
+        prev.driverCompensationType === "Normal"
+          ? calcCompensation(prev.transportHireAmount, pct)
+          : prev.driverAdvanceAmount;
+      return { ...prev, driverId, driverAdvanceAmount };
+    });
+  }
+
+  // When hire amount changes, auto-calculate if Normal comp type is active
+  function handleHireAmountChange(value: string) {
+    setForm((prev) => {
+      const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
+      const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+      const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+      const driverAdvanceAmount =
+        prev.driverCompensationType === "Normal"
+          ? calcCompensation(value, pct)
+          : prev.driverAdvanceAmount;
+      return { ...prev, transportHireAmount: value, driverAdvanceAmount };
+    });
+  }
+
+  // When compensation type changes, auto-calculate for Normal or clear for Fixed (user enters manually)
+  function handleCompensationTypeChange(val: string) {
+    setForm((prev) => {
+      const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
+      const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+      const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+      const driverAdvanceAmount =
+        val === "Normal"
+          ? calcCompensation(prev.transportHireAmount, pct)
+          : "";
+      return { ...prev, driverCompensationType: val as Trip["driverCompensationType"], driverAdvanceAmount };
+    });
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const assigned = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
     if (!assigned) return;
 
     if (initialData) {
-      // Edit mode: keep existing id, tripId, status, vehicleId, assignedDate
       onSave({
         id: initialData.id,
         tripId: initialData.tripId,
@@ -147,7 +211,6 @@ export function TripFormDialog({
         ...form,
       });
     } else {
-      // Create mode: generate new id, tripId, set assignedDate to today, and use assigned truck
       onSave({
         id: crypto.randomUUID(),
         tripId: generateTripId(existingTrips),
@@ -159,14 +222,12 @@ export function TripFormDialog({
     }
   }
 
-  const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
-
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-3xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Booking Information */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Booking Information</h3>
+          <p className={sectionHeadingClass}>Booking Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Booking Reference No" required>
               <input
@@ -214,7 +275,7 @@ export function TripFormDialog({
 
         {/* Customer Information */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Customer Information</h3>
+          <p className={sectionHeadingClass}>Customer Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Customer Account" required>
               <GlassSelect
@@ -289,7 +350,7 @@ export function TripFormDialog({
 
         {/* Cargo Information */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Cargo Information</h3>
+          <p className={sectionHeadingClass}>Cargo Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {form.containerSpecification === "2 X 20 FEET CONTAINERS" ? (
               <>
@@ -372,15 +433,13 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Cargo Weight (tons)" required>
-              <input
-                type="number"
-                required
-                min="0"
-                step="0.1"
+              <GlassSelect
                 value={form.cargoWeight}
-                onChange={(e) => update("cargoWeight", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. 14"
+                onChange={(val) => update("cargoWeight", val)}
+                options={[
+                  { value: "", label: "Select cargo weight" },
+                  ...CARGO_WEIGHT_OPTIONS.map(o => ({ value: o, label: o }))
+                ]}
               />
             </Field>
           </div>
@@ -388,7 +447,7 @@ export function TripFormDialog({
 
         {/* Route Information */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Route Information</h3>
+          <p className={sectionHeadingClass}>Route Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Origin Location" required>
               <input
@@ -416,7 +475,7 @@ export function TripFormDialog({
 
         {/* Shipping Information */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Shipping Information</h3>
+          <p className={sectionHeadingClass}>Shipping Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Shipping Line" required>
               <input
@@ -442,7 +501,7 @@ export function TripFormDialog({
 
         {/* Vehicle & Trip Assignment */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Vehicle &amp; Trip Assignment</h3>
+          <p className={sectionHeadingClass}>Vehicle &amp; Trip Assignment</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Transport Method" required>
               <GlassSelect
@@ -468,7 +527,7 @@ export function TripFormDialog({
             <Field label="Assigned Vehicle" className="sm:col-span-2">
               <GlassSelect
                 value={form.driverId}
-                onChange={(val) => update("driverId", val)}
+                onChange={handleDriverChange}
                 options={[
                   { value: "", label: assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle" },
                   ...assignableDrivers.map(({ driver, truck }) => ({
@@ -480,6 +539,12 @@ export function TripFormDialog({
               {selectedAssignment && (
                 <span className="text-xs text-gray-500">
                   Vehicle: {selectedAssignment.truck.truckId} — {selectedAssignment.truck.registrationNumber}
+                  {selectedTruckBranch && (
+                    <> · Branch: <strong>{selectedTruckBranch}</strong></>
+                  )}
+                  {compensationPct !== null && (
+                    <> · Compensation: <strong>{compensationPct}%</strong></>
+                  )}
                 </span>
               )}
             </Field>
@@ -488,7 +553,7 @@ export function TripFormDialog({
 
         {/* Payment & Advances */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Payment &amp; Advances</h3>
+          <p className={sectionHeadingClass}>Payment &amp; Advances</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Bill To" required>
               <GlassSelect
@@ -549,16 +614,15 @@ export function TripFormDialog({
 
         {/* Driver Compensation */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Driver Compensation</h3>
+          <p className={sectionHeadingClass}>Driver Compensation</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Driver Advance Amount (₹)" required>
-              <input
-                type="number"
-                min="0"
-                value={form.driverAdvanceAmount}
-                onChange={(e) => update("driverAdvanceAmount", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. 2000"
+            <Field label="Driver Compensation Type" required>
+              <GlassCombobox
+                required
+                value={form.driverCompensationType}
+                onChange={handleCompensationTypeChange}
+                placeholder="Select or type compensation type"
+                options={DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
               />
             </Field>
 
@@ -572,28 +636,60 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Driver Compensation Type" required>
-              <GlassCombobox
-                required
-                value={form.driverCompensationType}
-                onChange={(val) => update("driverCompensationType", val as Trip["driverCompensationType"])}
-                placeholder="Select or type compensation type"
-                options={DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+            <Field label="Driver Advance (₹)">
+              <input
+                type="number"
+                min="0"
+                value={form.driverAdvance}
+                onChange={(e) => update("driverAdvance", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. 1000"
               />
+            </Field>
+
+            <Field label="Driver Batta Amount (₹)" required>
+              <input
+                type="number"
+                min="0"
+                value={form.driverAdvanceAmount}
+                onChange={(e) => update("driverAdvanceAmount", e.target.value)}
+                readOnly={isNormalComp}
+                className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+                placeholder={isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
+              />
+              {isNormalComp && form.driverAdvanceAmount && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-calculated: ₹{Number(form.driverAdvanceAmount).toLocaleString("en-IN")}
+                  {compensationPct !== null && selectedTruckBranch
+                    ? ` (${compensationPct}% of hire amount — ${selectedTruckBranch} branch)`
+                    : " — assign a vehicle with a configured branch to auto-calculate"}
+                </span>
+              )}
+              {isNormalComp && !form.driverAdvanceAmount && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                  <Info className="h-3 w-3" />
+                  {!form.driverId
+                    ? "Select a vehicle first"
+                    : !selectedTruckBranch || compensationPct === null
+                    ? `Branch "${selectedTruckBranch || "unknown"}" has no compensation % configured`
+                    : "Enter hire amount below to auto-calculate"}
+                </span>
+              )}
             </Field>
           </div>
         </section>
 
         {/* Transport Cost Details */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Transport Cost Details</h3>
+          <p className={sectionHeadingClass}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Transport Hire Amount (₹)" required>
               <input
                 type="number"
                 min="0"
                 value={form.transportHireAmount}
-                onChange={(e) => update("transportHireAmount", e.target.value)}
+                onChange={(e) => handleHireAmountChange(e.target.value)}
                 className={inputClass}
                 placeholder="e.g. 32000"
               />
@@ -609,12 +705,13 @@ export function TripFormDialog({
                 placeholder="e.g. 0"
               />
             </Field>
+
           </div>
         </section>
 
         {/* Operational Notes */}
         <section className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-900">Operational Notes</h3>
+          <p className={sectionHeadingClass}>Operational Notes</p>
           <div className="grid grid-cols-1 gap-4">
             <Field label="Internal Remarks" required>
               <textarea

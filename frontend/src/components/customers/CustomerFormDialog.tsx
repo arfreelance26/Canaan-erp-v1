@@ -8,6 +8,9 @@ import { Avatar } from "@/components/ui/Avatar";
 import { CUSTOMER_STATUS_OPTIONS, CUSTOMER_TYPE_OPTIONS } from "@/lib/customer-data";
 import type { Customer } from "@/types/customer";
 
+const sectionHeadingClass =
+  "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+
 type CustomerFormDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -43,7 +46,7 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
   }, [open, initialData]);
 
   function update<K extends keyof Omit<Customer, "id">>(key: K, value: Omit<Customer, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -166,7 +169,7 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
 
         {/* Additional Fields */}
         <div className="rounded-lg border border-gray-200 p-4">
-          <h3 className="mb-4 text-sm font-semibold text-gray-900">Additional Fields</h3>
+          <p className={sectionHeadingClass}>Additional Fields</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Is GTA (Goods Transport Agent)?" required>
               <GlassSelect

@@ -1,3 +1,4 @@
+from datetime import date as date_type
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
@@ -143,6 +144,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
         raise HTTPException(400, "Trip must be closed before adding a trip sheet")
 
     data = payload.model_dump()
+    is_new = not trip.sheet
 
     if trip.sheet:
         sheet = trip.sheet
@@ -154,19 +156,61 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
 
     db.commit()
     db.refresh(sheet)
+
+    # On first save, auto-create maintenance records for vehicle maintenance expenses
+    if is_new:
+        vehicle_id = payload.vehicle_id or trip.vehicle_id
+        truck = db.query(models.Truck).filter(models.Truck.truck_id == vehicle_id).first()
+        if truck:
+            record_date = payload.trip_sheet_date or date_type.today()
+            odometer = int(payload.end_km or 0)
+            trip_ref = f"Auto-logged from Trip Sheet — {trip.trip_id}"
+
+            auto_records = []
+            if payload.puncture_expense and payload.puncture_expense > 0:
+                auto_records.append(models.MaintenanceRecord(
+                    truck_id=truck.id,
+                    date=record_date,
+                    odometer=odometer,
+                    maintenance_type="Puncture",
+                    description=trip_ref,
+                    cost=payload.puncture_expense,
+                ))
+            if payload.spare_parts_expense and payload.spare_parts_expense > 0:
+                auto_records.append(models.MaintenanceRecord(
+                    truck_id=truck.id,
+                    date=record_date,
+                    odometer=odometer,
+                    maintenance_type="Spare Parts",
+                    description=trip_ref,
+                    cost=payload.spare_parts_expense,
+                ))
+            for repair in (payload.major_repairs or []):
+                cost = repair.get("cost", 0) or 0
+                if cost > 0:
+                    auto_records.append(models.MaintenanceRecord(
+                        truck_id=truck.id,
+                        date=record_date,
+                        odometer=odometer,
+                        maintenance_type="Major Repair",
+                        description=repair.get("name") or trip_ref,
+                        cost=cost,
+                    ))
+            if auto_records:
+                db.add_all(auto_records)
+                db.commit()
+
     return sheet
 
 
-@router.get("/{trip_id}/sheet", response_model=schemas.TripSheetOut)
+@router.get("/{trip_id}/sheet", response_model=Optional[schemas.TripSheetOut])
 def get_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
-    if not trip.sheet:
-        raise HTTPException(404, "No trip sheet for this trip")
-    return trip.sheet
+    return trip.sheet  # None → serialised as JSON null with 200
 
 
 # ---------------------------------------------------------------------------
@@ -208,8 +252,8 @@ def generate_invoice(trip_id: int, db: Session = Depends(get_db)):
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
-    if trip.verification_status != "verified":
-        raise HTTPException(400, "Trip must be verified before generating an invoice")
+    if not trip.sheet:
+        raise HTTPException(400, "Trip sheet must exist before generating an invoice")
     trip.is_invoiced = True
     db.commit()
     db.refresh(trip)

@@ -25,7 +25,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
   useEffect(() => {
     if (open) {
       setAmount("");
-      setDate(todayIso());
+      setDate(todayIst());
       setNote("");
       setTripNumber("");
     }

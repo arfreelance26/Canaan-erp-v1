@@ -49,7 +49,7 @@ export function TruckTable({ trucks, onEdit, onDelete }: TruckTableProps) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {trucks.map((truck) => (
-            <tr key={truck.id} className="hover:bg-gray-50">
+            <tr key={truck.truckId} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium text-gray-900">{truck.truckId}</td>
               <td className="px-4 py-3 text-gray-600">{truck.registrationNumber}</td>
               <td className="px-4 py-3 text-gray-600">{truck.manufacturer}</td>
