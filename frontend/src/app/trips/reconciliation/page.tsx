@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
+import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -25,8 +26,13 @@ export default function TripReconciliationPage() {
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
 
+  // Trip Sheet dialog
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [dialogMode, setDialogMode] = useState<DialogMode>("add");
+
+  // Booking Sheet dialog
+  const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
+  const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
 
   useEffect(() => {
         Promise.all([
@@ -125,11 +131,23 @@ export default function TripReconciliationPage() {
     setDialogMode(mode);
   }
 
+  function openBookingSheet(trip: Trip, readOnly: boolean) {
+    setBookingSheetTrip(trip);
+    setBookingSheetReadOnly(readOnly);
+  }
+
   async function handleSubmitSheet(data: TripSheetData) {
     if (!selectedTrip) return;
     const saved = await tripsApi.upsertSheet(selectedTrip.id, data);
     setSheets((prev) => new Map([...prev, [selectedTrip.id, saved]]));
     setSelectedTrip(null);
+  }
+
+  async function handleBookingSheetSubmit(data: TripClosureData) {
+    if (!bookingSheetTrip) return;
+    const updated = await tripsApi.close(bookingSheetTrip.id, data);
+    setClosures((prev) => new Map([...prev, [bookingSheetTrip.id, updated]]));
+    setBookingSheetTrip(null);
   }
 
   const fmt = (v: number) =>
@@ -142,7 +160,7 @@ export default function TripReconciliationPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Trip Reconciliation</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Add trip sheets for closed trips to reconcile hire and expenses
+          View and manage booking sheets and trip sheets for closed trips
         </p>
       </div>
 
@@ -153,7 +171,7 @@ export default function TripReconciliationPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle",
@@ -190,29 +208,59 @@ export default function TripReconciliationPage() {
                       {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {sheet ? (
-                        <div className="flex flex-col gap-1.5">
-                          <p className="text-xs text-gray-500">
-                            Trip Sheet Added by{" "}
-                            <span className="font-medium text-gray-700">Fleet Manager</span>
-                          </p>
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => openDialog(trip, "view")}
-                              className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100">
-                              View Trip Sheet
+                      <div className="flex flex-col gap-2">
+                        {/* Booking Sheet */}
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Booking Sheet</p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openBookingSheet(trip, true)}
+                              className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                            >
+                              View
                             </button>
-                            <button type="button" onClick={() => openDialog(trip, "edit")}
-                              className="rounded-lg border border-blue-300 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
-                              Edit Trip Sheet
+                            <button
+                              type="button"
+                              onClick={() => openBookingSheet(trip, false)}
+                              className="rounded-lg border border-purple-300 px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-50"
+                            >
+                              Edit
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        <button type="button" onClick={() => openDialog(trip, "add")}
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
-                          ADD TRIP SHEET
-                        </button>
-                      )}
+
+                        {/* Trip Sheet */}
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Trip Sheet</p>
+                          {sheet ? (
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openDialog(trip, "view")}
+                                className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDialog(trip, "edit")}
+                                className="rounded-lg border border-blue-300 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openDialog(trip, "add")}
+                              className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                            >
+                              ADD
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -228,8 +276,22 @@ export default function TripReconciliationPage() {
         closure={selectedTrip ? closures.get(selectedTrip.id) : undefined}
         existingSheet={selectedTrip ? sheets.get(selectedTrip.id) : undefined}
         readOnly={dialogMode === "view"}
+        drivers={drivers}
+        trucks={trucks}
         onClose={() => setSelectedTrip(null)}
         onSubmit={handleSubmitSheet}
+      />
+
+      <BookingSheetDialog
+        open={bookingSheetTrip !== null}
+        trip={bookingSheetTrip}
+        closure={bookingSheetTrip ? closures.get(bookingSheetTrip.id) : undefined}
+        driver={bookingSheetTrip ? driverById.get(bookingSheetTrip.driverId) : undefined}
+        truck={bookingSheetTrip ? truckById.get(bookingSheetTrip.vehicleId) : undefined}
+        customers={customers}
+        readOnly={bookingSheetReadOnly}
+        onClose={() => setBookingSheetTrip(null)}
+        onSubmit={handleBookingSheetSubmit}
       />
     </div>
   );

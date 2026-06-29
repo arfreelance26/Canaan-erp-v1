@@ -13,7 +13,6 @@ const columns = [
   "Registration",
   "Manufacturer",
   "Model",
-  "Current Odometer",
   "Actions",
 ];
 
@@ -49,7 +48,6 @@ export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: Fuel
                 <td className="px-4 py-3 text-gray-600 font-medium">{truck.registrationNumber}</td>
                 <td className="px-4 py-3 text-gray-600">{truck.manufacturer}</td>
                 <td className="px-4 py-3 text-gray-600">{truck.modelName}</td>
-                <td className="px-4 py-3 text-gray-600">{Number(truck.odometer).toLocaleString()} km</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button

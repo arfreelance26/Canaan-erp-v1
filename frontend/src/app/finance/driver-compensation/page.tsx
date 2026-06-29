@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
-import { PaymentDialog } from "@/components/compensation/PaymentDialog";
+import { AdvanceRecordDialog } from "@/components/compensation/AdvanceRecordDialog";
+import { SalaryRecordDialog } from "@/components/compensation/SalaryRecordDialog";
 import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
 import { driversApi, tripsApi, financeApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
-import type { CompensationTransaction, CompensationTransactionType } from "@/types/compensation";
+import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 export default function DriverCompensationPage() {
@@ -15,34 +16,28 @@ export default function DriverCompensationPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [transactions, setTransactions] = useState<CompensationTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [paymentTarget, setPaymentTarget] = useState<CompensationPerson | null>(null);
-  const [paymentType, setPaymentType] = useState<CompensationTransactionType>("Salary");
+
+  const [advanceRecordTarget, setAdvanceRecordTarget] = useState<CompensationPerson | null>(null);
+  const [salaryRecordTarget, setSalaryRecordTarget] = useState<CompensationPerson | null>(null);
   const [historyTarget, setHistoryTarget] = useState<CompensationPerson | null>(null);
+  const [search, setSearch] = useState("");
 
-  useEffect(() => {
-        Promise.all([driversApi.list(), tripsApi.list(), financeApi.listDriverCompensation()])
-          .then(([d, t, tx]) => {
-            setDrivers(d);
-            setTrips(t);
-            setTransactions(tx);
-          })
-          .finally(() => setLoading(false));
-      }, []);
-      useAutoRefresh(() => {
-    Promise.all([driversApi.list(), tripsApi.list(), financeApi.listDriverCompensation()])
-    .then(([d, t, tx]) => {
-    setDrivers(d);
-    setTrips(t);
-    setTransactions(tx);
-    })
-    .finally(() => setLoading(false));
-      }, 5000);
+  function loadData() {
+    return Promise.all([driversApi.list(), tripsApi.list(), financeApi.listDriverCompensation()]).then(([d, t, tx]) => {
+      setDrivers(d);
+      setTrips(t);
+      setTransactions(tx);
+    });
+  }
 
+  useEffect(() => { loadData().finally(() => setLoading(false)); }, []);
+  useAutoRefresh(() => { loadData(); }, 5000);
 
   const people: CompensationPerson[] = useMemo(
     () =>
       drivers.map((driver) => ({
         id: driver.id,
+        driverId: driver.driverId,
         photoUrl: driver.photoUrl,
         name: driver.name,
         status: "Active",
@@ -51,30 +46,33 @@ export default function DriverCompensationPage() {
   );
 
   function handlePayAdvance(person: CompensationPerson) {
-    setPaymentTarget(person);
-    setPaymentType("Advance");
+    setAdvanceRecordTarget(person);
   }
 
   function handlePaySalary(person: CompensationPerson) {
-    setPaymentTarget(person);
-    setPaymentType("Salary");
+    setSalaryRecordTarget(person);
   }
 
-  const tripNumbers = useMemo(() => trips.map((trip) => trip.tripId), [trips]);
-
-  async function handleSavePayment(payment: { amount: number; date: string; note: string; tripNumber?: string }) {
-    if (!paymentTarget) return;
-    const created = await financeApi.addDriverCompensation(
-      paymentTarget.id,
-      paymentType,
-      payment.amount,
-      payment.date,
-      payment.note,
-      payment.tripNumber
-    );
+  async function handleRecordAdvancePayment(total: number) {
+    if (!advanceRecordTarget) return;
+    const today = new Date().toISOString().split("T")[0];
+    const created = await financeApi.addDriverCompensation(advanceRecordTarget.id, "Advance", total, today, "");
     setTransactions((prev) => [...prev, created]);
-    setPaymentTarget(null);
+    setAdvanceRecordTarget(null);
   }
+
+  async function handleRecordSalaryPayment(total: number) {
+    if (!salaryRecordTarget) return;
+    const today = new Date().toISOString().split("T")[0];
+    const created = await financeApi.addDriverCompensation(salaryRecordTarget.id, "Salary", total, today, "");
+    setTransactions((prev) => [...prev, created]);
+    setSalaryRecordTarget(null);
+  }
+
+  const filteredPeople = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people;
+  }, [people, search]);
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
@@ -82,11 +80,39 @@ export default function DriverCompensationPage() {
     <div className="animate-stagger flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Driver Compensation</h1>
-        <p className="mt-1 text-sm text-gray-500">Pay advances and salaries to drivers</p>
+        <p className="mt-1 text-sm text-gray-500">View advance and salary records for drivers</p>
+      </div>
+
+      <div className="flex justify-end">
+        <div className="relative w-56">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <svg className="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            placeholder="Search drivers…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-white/80 bg-white/90 py-1.5 pl-8 pr-7 text-xs text-gray-700 shadow-[0_2px_12px_rgba(0,0,0,0.04)] backdrop-blur-xl placeholder:text-gray-400 transition-all duration-200 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 transition-colors hover:text-gray-600"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       <CompensationTable
-        people={people}
+        people={filteredPeople}
         showAdvance
         onPayAdvance={handlePayAdvance}
         onPaySalary={handlePaySalary}
@@ -95,20 +121,27 @@ export default function DriverCompensationPage() {
         nameLabel="Driver Name"
       />
 
-      <PaymentDialog
-        open={paymentTarget !== null}
-        onClose={() => setPaymentTarget(null)}
-        onSave={handleSavePayment}
-        type={paymentType}
-        personName={paymentTarget?.name ?? ""}
-        tripNumbers={tripNumbers}
+      <AdvanceRecordDialog
+        open={advanceRecordTarget !== null}
+        onClose={() => setAdvanceRecordTarget(null)}
+        driver={advanceRecordTarget}
+        trips={trips}
+        onRecordPayment={handleRecordAdvancePayment}
+      />
+
+      <SalaryRecordDialog
+        open={salaryRecordTarget !== null}
+        onClose={() => setSalaryRecordTarget(null)}
+        driver={salaryRecordTarget}
+        trips={trips}
+        onRecordPayment={handleRecordSalaryPayment}
       />
 
       <TransactionHistoryDialog
         open={historyTarget !== null}
         onClose={() => setHistoryTarget(null)}
         personName={historyTarget?.name ?? ""}
-        transactions={transactions.filter((transaction) => transaction.personId === historyTarget?.id)}
+        transactions={transactions.filter((tx) => tx.personId === historyTarget?.id)}
         showTypeFilters
       />
     </div>

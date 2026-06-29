@@ -47,6 +47,8 @@ class Truck(Base):
     odometer_during_purchase = Column(Numeric(10, 2), default=0)
     odometer = Column(Numeric(10, 2), default=0)
     rc_date = Column(Date)
+    rc_validity_date = Column(Date)
+    rc_expenses = Column(Numeric(12, 2))
     rc_document_url = Column(String(500))
     fc_date = Column(Date)
     fc_expiry_date = Column(Date)
@@ -57,6 +59,7 @@ class Truck(Base):
     road_tax_document_file_name = Column(String(255))
     road_tax_expenses = Column(Numeric(12, 2))
     insurance_expiry_date = Column(Date)
+    insurance_expenses = Column(Numeric(12, 2))
     insurance_document_proof_file_name = Column(String(255))
     national_permit_number = Column(String(50))
     national_permit_date = Column(Date)
@@ -173,15 +176,10 @@ class Customer(Base):
     email = Column(String(100))
     address = Column(Text)
     customer_type = Column(Enum("Transports", "Shipping"))
-    status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
     photo_url = Column(Text(length=16777215))
     photo_blob = Column(LargeBinary(length=16777215))
-    # Additional Fields
     is_gta = Column(Enum("Yes", "No"))
     applicable_for_e_invoice = Column(Enum("Yes", "No"))
-    tds_exemption_applicable = Column(Enum("Yes", "No"))
-    msme_declaration_submitted = Column(Enum("Yes", "No"))
-    gst_exempted_customer = Column(Enum("Yes", "No"))
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -195,8 +193,9 @@ class CustomerDestination(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
-    destination_name = Column(String(200), nullable=False)
+    destination_name = Column(String(200), nullable=True)
     destination_state = Column(String(100))
+    destination_address = Column(String(500))
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
 
     customer = relationship("Customer", back_populates="destinations")
@@ -212,8 +211,6 @@ class CustomerPricing(Base):
     container_type = Column(Enum("20 FEET", "40 FEET", "2 X 20 FEET", "OPEN LOAD"))
     weight_in_tons = Column(Enum("NORMAL", "Up to 20 Tons", "Between 20 - 25 Tons", "Between 25-28 Tons", "Between 28-30 Tons"))
     rate = Column(Numeric(10, 2))
-    valid_from = Column(Date)
-    valid_to = Column(Date)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
 
     customer = relationship("Customer", back_populates="pricing")
@@ -316,6 +313,7 @@ class Trip(Base):
     customer = relationship("Customer", back_populates="trips")
     closure = relationship("TripClosure", back_populates="trip", uselist=False, cascade="all, delete-orphan")
     sheet = relationship("TripSheet", back_populates="trip", uselist=False, cascade="all, delete-orphan")
+    invoice = relationship("TripInvoice", back_populates="trip", uselist=False, cascade="all, delete-orphan")
 
 
 class TripClosure(Base):
@@ -395,9 +393,6 @@ class TripSheet(Base):
     end_km = Column(Numeric(10, 2), default=0)
     total_km = Column(Numeric(10, 2), default=0)
     cargo_weight = Column(Numeric(10, 2), default=0)
-    gross_weight = Column(Numeric(10, 2), default=0)
-    tare_weight = Column(Numeric(10, 2), default=0)
-    net_weight = Column(Numeric(10, 2), default=0)
     # Driver Settlement
     driver_pay = Column(Numeric(10, 2), default=0)
     driver_advance_amount = Column(Numeric(10, 2), default=0)
@@ -422,6 +417,7 @@ class TripSheet(Base):
     trip_expenses_total = Column(Numeric(10, 2), default=0)
     driver_expenses_total = Column(Numeric(10, 2), default=0)
     total_expense = Column(Numeric(10, 2), default=0)
+    fuel_cost_approx = Column(Numeric(10, 2), default=0)
     # Toll
     toll_charges = Column(Numeric(10, 2), default=0)
     toll_count = Column(Integer, default=0)
@@ -430,6 +426,42 @@ class TripSheet(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     trip = relationship("Trip", back_populates="sheet")
+
+
+class TripInvoice(Base):
+    __tablename__ = "trip_invoices"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), unique=True, nullable=False)
+    invoice_no = Column(String(100))
+    invoice_date = Column(Date)
+    invoice_type = Column(String(50))
+    bill_to = Column(String(255))
+    gst_number = Column(String(50))
+    mode_of_shipment = Column(String(100))
+    container_type = Column(String(100))
+    cfs = Column(String(100))
+    shipping_line = Column(String(100))
+    vessel_name = Column(String(200))
+    origin = Column(String(255))
+    destination = Column(String(255))
+    container_no = Column(String(255))
+    consignee = Column(String(255))
+    services = Column(JSON, nullable=True)
+    bank_name = Column(String(100))
+    branch_name = Column(String(100))
+    account_number = Column(String(50))
+    ifsc_code = Column(String(20))
+    contact_person = Column(String(100))
+    email = Column(String(100))
+    contact = Column(String(50))
+    narration = Column(Text)
+    gst_applicable = Column(Enum("Yes", "No"), default="No")
+    igst_applicable = Column(Enum("Yes", "No"), default="No")
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    trip = relationship("Trip", back_populates="invoice")
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +588,20 @@ class TyreFitmentRecord(Base):
 
     tyre = relationship("TyreInventory", back_populates="fitment_records")
     truck = relationship("Truck", back_populates="tyre_fitments")
+
+
+# ---------------------------------------------------------------------------
+# Repair Types
+# ---------------------------------------------------------------------------
+
+class RepairType(Base):
+    __tablename__ = "repair_types"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)
+    default_cost = Column(Numeric(10, 2), default=0)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
 
 # ---------------------------------------------------------------------------

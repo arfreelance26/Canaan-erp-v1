@@ -19,8 +19,6 @@ const columns = [
   "Container Type",
   "Weight (In tons)",
   "Rate",
-  "Valid From",
-  "Valid To",
   "Status",
   "Actions",
 ];
@@ -42,7 +40,7 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
 
   return (
     <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-      <table className="w-full min-w-[1100px] text-left text-sm">
+      <table className="w-full min-w-[900px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
             {columns.map((column) => (
@@ -58,7 +56,6 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
         <tbody className="divide-y divide-gray-100">
           {pricing.map((entry) => {
             const customer = customers.find((c) => c.id === entry.customerId);
-            const effectiveStatus = customer?.status === "BLACKLISTED" ? "BLACKLISTED" : entry.status;
             return (
               <tr key={entry.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>
@@ -67,16 +64,14 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
                 <td className="px-4 py-3 text-gray-600">{entry.containerType}</td>
                 <td className="px-4 py-3 text-gray-600">{entry.weightInTons}</td>
                 <td className="px-4 py-3 text-gray-600">{entry.rate}</td>
-                <td className="px-4 py-3 text-gray-600">{entry.validFrom}</td>
-                <td className="px-4 py-3 text-gray-600">{entry.validTo}</td>
                 <td className="px-4 py-3">
                   <span
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs font-medium",
-                      statusStyles[effectiveStatus] ?? "bg-gray-100 text-gray-600"
+                      statusStyles[entry.status] ?? "bg-gray-100 text-gray-600"
                     )}
                   >
-                    {effectiveStatus}
+                    {entry.status}
                   </span>
                 </td>
                 <td className="px-4 py-3">

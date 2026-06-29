@@ -4,7 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { initialTrucks } from "@/lib/truck-data";
+import { trucksApi } from "@/lib/api";
+import type { Truck } from "@/types/truck";
 import type { EmiRecord } from "@/types/finance";
 
 type EmiFormDialogProps = {
@@ -29,6 +30,11 @@ const emptyForm: Omit<EmiRecord, "id"> = {
 
 export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDialogProps) {
   const [form, setForm] = useState<Omit<EmiRecord, "id">>(emptyForm);
+  const [trucks, setTrucks] = useState<Truck[]>([]);
+
+  useEffect(() => {
+    trucksApi.list().then(setTrucks).catch(() => setTrucks([]));
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -64,13 +70,13 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
             />
           </Field>
 
-          <Field label="Truck Registration" required>
+          <Field label="Truck Registration Number" required>
             <GlassSelect
               value={form.truckRegistration}
               onChange={(val) => update("truckRegistration", val)}
               options={[
-                { value: "", label: "Select truck registration" },
-                ...initialTrucks.map(truck => ({ value: truck.registrationNumber, label: truck.registrationNumber }))
+                { value: "", label: "Select truck" },
+                ...trucks.map((t) => ({ value: t.registrationNumber, label: t.registrationNumber })),
               ]}
             />
           </Field>

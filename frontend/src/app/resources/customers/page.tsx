@@ -18,8 +18,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 
 const TABS = [
   { id: "list", label: "Customer List" },
-  { id: "pricing", label: "Our Customer Pricing" },
   { id: "destinations", label: "Our Customer Destinations" },
+  { id: "pricing", label: "Our Customer Pricing" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -230,6 +230,7 @@ export default function CustomersPage() {
             onSave={handleSavePricing}
             initialData={editingPricing}
             customers={customers}
+            destinations={destinations}
             existingPricing={pricing}
           />
         </div>

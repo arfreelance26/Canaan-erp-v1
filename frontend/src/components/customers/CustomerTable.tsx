@@ -1,8 +1,6 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
-import { Avatar } from "@/components/ui/Avatar";
-import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 
 type CustomerTableProps = {
@@ -12,7 +10,6 @@ type CustomerTableProps = {
 };
 
 const columns = [
-  "Photo",
   "Customer Name",
   "GSTIN",
   "Contact Personnel",
@@ -20,15 +17,8 @@ const columns = [
   "Email",
   "Address",
   "Customer Type",
-  "Status",
   "Actions",
 ];
-
-const statusStyles: Record<string, string> = {
-  ACTIVE: "bg-green-50 text-green-700",
-  INACTIVE: "bg-gray-100 text-gray-600",
-  BLACKLISTED: "bg-red-50 text-red-700",
-};
 
 export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProps) {
   if (customers.length === 0) {
@@ -41,7 +31,7 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
 
   return (
     <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-      <table className="w-full min-w-[1100px] text-left text-sm">
+      <table className="w-full min-w-[900px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
             {columns.map((column) => (
@@ -57,9 +47,6 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
         <tbody className="divide-y divide-gray-100">
           {customers.map((customer) => (
             <tr key={customer.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3">
-                <Avatar photoUrl={customer.photoUrl} label={customer.name} size={44} />
-              </td>
               <td className="px-4 py-3 font-medium text-gray-900">{customer.name}</td>
               <td className="px-4 py-3 text-gray-600">{customer.gstin}</td>
               <td className="px-4 py-3 text-gray-600">{customer.contactPersonnelName}</td>
@@ -67,16 +54,6 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
               <td className="px-4 py-3 text-gray-600">{customer.email}</td>
               <td className="px-4 py-3 text-gray-600">{customer.address}</td>
               <td className="px-4 py-3 text-gray-600">{customer.customerType}</td>
-              <td className="px-4 py-3">
-                <span
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-xs font-medium",
-                    statusStyles[customer.status] ?? "bg-gray-100 text-gray-600"
-                  )}
-                >
-                  {customer.status}
-                </span>
-              </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   <button

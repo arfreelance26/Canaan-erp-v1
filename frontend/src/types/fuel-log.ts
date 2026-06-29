@@ -21,4 +21,5 @@ export type FuelStats = {
   bestMileage: string;
   worstMileage: string;
   trendPercentage: string;
+  costPerKm: string;
 };

@@ -157,48 +157,39 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     db.commit()
     db.refresh(sheet)
 
-    # On first save, auto-create maintenance records for vehicle maintenance expenses
-    if is_new:
-        vehicle_id = payload.vehicle_id or trip.vehicle_id
-        truck = db.query(models.Truck).filter(models.Truck.truck_id == vehicle_id).first()
-        if truck:
-            record_date = payload.trip_sheet_date or date_type.today()
-            odometer = int(payload.end_km or 0)
-            trip_ref = f"Auto-logged from Trip Sheet — {trip.trip_id}"
+    # Resolve the truck once — used for both odometer update and maintenance records
+    vehicle_id = payload.vehicle_id or trip.vehicle_id
+    truck = db.query(models.Truck).filter(models.Truck.truck_id == vehicle_id).first() if vehicle_id else None
 
-            auto_records = []
-            if payload.puncture_expense and payload.puncture_expense > 0:
+    # Always update the truck's current odometer to end_km if it advances it
+    if truck and payload.end_km:
+        end_km_val = int(payload.end_km)
+        if end_km_val > int(truck.odometer or 0):
+            truck.odometer = end_km_val
+            db.commit()
+
+    # On first save, auto-create a maintenance record for each major repair
+    if is_new and truck:
+        record_date = payload.trip_sheet_date or date_type.today()
+        odometer = int(payload.end_km or 0)
+        trip_ref = f"Trip Sheet — {trip.trip_id}"
+
+        auto_records = []
+        for repair in (payload.major_repairs or []):
+            name = (repair.get("name") or "").strip()
+            cost = repair.get("cost", 0) or 0
+            if name and cost > 0:
                 auto_records.append(models.MaintenanceRecord(
                     truck_id=truck.id,
                     date=record_date,
                     odometer=odometer,
-                    maintenance_type="Puncture",
+                    maintenance_type=name,
                     description=trip_ref,
-                    cost=payload.puncture_expense,
+                    cost=cost,
                 ))
-            if payload.spare_parts_expense and payload.spare_parts_expense > 0:
-                auto_records.append(models.MaintenanceRecord(
-                    truck_id=truck.id,
-                    date=record_date,
-                    odometer=odometer,
-                    maintenance_type="Spare Parts",
-                    description=trip_ref,
-                    cost=payload.spare_parts_expense,
-                ))
-            for repair in (payload.major_repairs or []):
-                cost = repair.get("cost", 0) or 0
-                if cost > 0:
-                    auto_records.append(models.MaintenanceRecord(
-                        truck_id=truck.id,
-                        date=record_date,
-                        odometer=odometer,
-                        maintenance_type="Major Repair",
-                        description=repair.get("name") or trip_ref,
-                        cost=cost,
-                    ))
-            if auto_records:
-                db.add_all(auto_records)
-                db.commit()
+        if auto_records:
+            db.add_all(auto_records)
+            db.commit()
 
     return sheet
 
@@ -245,8 +236,16 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     return _enrich(trip)
 
 
+@router.get("/{trip_id}/invoice", response_model=schemas.TripInvoiceOut)
+def get_invoice(trip_id: int, db: Session = Depends(get_db)):
+    invoice = db.query(models.TripInvoice).filter(models.TripInvoice.trip_id == trip_id).first()
+    if not invoice:
+        raise HTTPException(404, "No invoice for this trip")
+    return invoice
+
+
 @router.post("/{trip_id}/invoice", response_model=schemas.TripOut)
-def generate_invoice(trip_id: int, db: Session = Depends(get_db)):
+def generate_invoice(trip_id: int, payload: schemas.TripInvoiceCreate, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
@@ -255,6 +254,12 @@ def generate_invoice(trip_id: int, db: Session = Depends(get_db)):
     if not trip.sheet:
         raise HTTPException(400, "Trip sheet must exist before generating an invoice")
     trip.is_invoiced = True
+    existing = db.query(models.TripInvoice).filter(models.TripInvoice.trip_id == trip_id).first()
+    if existing:
+        for k, v in payload.model_dump(exclude_unset=True).items():
+            setattr(existing, k, v)
+    else:
+        db.add(models.TripInvoice(trip_id=trip_id, **payload.model_dump(exclude_unset=True)))
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

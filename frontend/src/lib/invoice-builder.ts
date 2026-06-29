@@ -134,6 +134,13 @@ function commonFields(
     amountInWords:    amountToWords(String(totalBilling)),
     grandTotal:       fmt(totalBilling),
     narration:        `Transport charges for ${closure.containerType || trip.containerSpecification} from ${closure.fromLocation || trip.origin} to ${closure.toLocation || trip.destination} — Ref: ${trip.bookingReferenceNo}`,
+    bankName:         "HDFC - 9181 - Shipping",
+    branchName:       "TUTICORIN",
+    accountNumber:    "50200037439181",
+    ifscCode:         "HDFC0001104",
+    contactPerson:    "S SUNDER",
+    email:            "tutfin@canaanglobal.com",
+    contact:          "9047015423",
   };
 }
 

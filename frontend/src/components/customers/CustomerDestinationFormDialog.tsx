@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { CUSTOMER_STATUS_OPTIONS } from "@/lib/customer-data";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 
@@ -18,9 +17,8 @@ type CustomerDestinationFormDialogProps = {
 
 const emptyForm: Omit<CustomerDestination, "id"> = {
   customerId: "",
-  destinationName: "",
   destinationState: "",
-  status: "",
+  destinationAddress: "",
 };
 
 export function CustomerDestinationFormDialog({
@@ -39,20 +37,8 @@ export function CustomerDestinationFormDialog({
     }
   }, [open, initialData]);
 
-  const selectedCustomer = customers.find((customer) => customer.id === form.customerId);
-  const isBlacklisted = selectedCustomer?.status === "BLACKLISTED";
-
   function update<K extends keyof Omit<CustomerDestination, "id">>(key: K, value: Omit<CustomerDestination, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
-  }
-
-  function handleCustomerChange(customerId: string) {
-    const customer = customers.find((c) => c.id === customerId);
-    setForm((prev) => ({
-      ...prev,
-      customerId,
-      status: customer?.status === "BLACKLISTED" ? "BLACKLISTED" : prev.status,
-    }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -60,7 +46,6 @@ export function CustomerDestinationFormDialog({
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,
-      status: isBlacklisted ? "BLACKLISTED" : form.status,
     });
   }
 
@@ -74,26 +59,15 @@ export function CustomerDestinationFormDialog({
         <Field label="Customer Name" required>
           <GlassSelect
             value={form.customerId}
-            onChange={(val) => handleCustomerChange(val)}
+            onChange={(val) => update("customerId", val)}
             options={[
               { value: "", label: "Select a customer" },
-              ...customers.map(customer => ({ value: customer.id, label: customer.name }))
+              ...customers.map((customer) => ({ value: customer.id, label: customer.name })),
             ]}
           />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Destination Name" required>
-            <input
-              type="text"
-              required
-              value={form.destinationName}
-              onChange={(e) => update("destinationName", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Kochi Port"
-            />
-          </Field>
-
           <Field label="Destination State" required>
             <input
               type="text"
@@ -105,25 +79,19 @@ export function CustomerDestinationFormDialog({
             />
           </Field>
 
-          <Field label="Destination Status" required>
-            <GlassSelect
-              value={isBlacklisted ? "BLACKLISTED" : form.status}
-              onChange={(val) => update("status", val as CustomerDestination["status"])}
-              disabled={isBlacklisted}
-              options={[
-                { value: "", label: "Select status" },
-                ...CUSTOMER_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
-              ]}
+          <Field label="Destination Address" required>
+            <input
+              type="text"
+              required
+              value={form.destinationAddress}
+              onChange={(e) => update("destinationAddress", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. NH 66, Kochi"
             />
-            {isBlacklisted && (
-              <span className="text-xs text-red-600">
-                This customer is blacklisted, so this destination is automatically blacklisted.
-              </span>
-            )}
           </Field>
         </div>
 
-        <div className="mt-2 flex justify-end gap-3">
+        <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
             onClick={onClose}
@@ -133,7 +101,7 @@ export function CustomerDestinationFormDialog({
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95"
           >
             {initialData ? "Save Changes" : "Add Destination"}
           </button>

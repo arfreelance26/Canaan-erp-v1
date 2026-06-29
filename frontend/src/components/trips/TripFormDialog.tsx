@@ -1,7 +1,7 @@
 "use client";
 
-import { X, Calendar as CalendarIcon, Info, Sparkles } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { X, Info, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { GlassSelect } from "@/components/ui/GlassSelect";
@@ -24,8 +24,10 @@ import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
+import type { CustomerDestination } from "@/types/customer-destination";
+import type { CustomerPricing } from "@/types/customer-pricing";
 import type { Branch } from "@/types/branch";
-import { branchesApi } from "@/lib/api";
+import { branchesApi, customersApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 
 const sectionHeadingClass =
@@ -94,18 +96,29 @@ export function TripFormDialog({
 }: TripFormDialogProps) {
   const [form, setForm] = useState(emptyForm);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
+  const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
   }, []);
 
   useEffect(() => {
-    if (open) {
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (justOpened) {
       if (initialData) {
         const { id: _id, tripId: _tripId, status: _status, vehicleId: _vehicleId, ...rest } = initialData;
         setForm(rest);
+        if (initialData.customerId) {
+          customersApi.listDestinations(initialData.customerId).then(setCustomerDestinations).catch(() => {});
+          customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
+        }
       } else {
         const initialDate = todayIst();
+        setCustomerDestinations([]);
+        setCustomerPricing([]);
         setForm({
           ...emptyForm,
           bookingCreatedDate: initialDate,
@@ -113,14 +126,17 @@ export function TripFormDialog({
         });
       }
     }
-  }, [open, initialData]);
+  }, [open, initialData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Derive the branch percentage for the currently selected truck
   const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
   const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
   const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
   const compensationPct = selectedBranch ? parseFloat(selectedBranch.driverHaltDayPercentage || "0") : null;
   const isNormalComp = form.driverCompensationType === "Normal";
+
+  const destinationOptions = customerDestinations
+    .filter((d) => d.destinationAddress)
+    .map((d) => ({ value: d.destinationAddress, label: d.destinationAddress }));
 
   function calcCompensation(hireAmount: string, pct: number | null): string {
     if (pct === null || !hireAmount) return "";
@@ -143,18 +159,30 @@ export function TripFormDialog({
 
   function handleCustomerChange(customerId: string) {
     const selectedCustomer = customers.find((c) => c.id === customerId);
-    if (selectedCustomer) {
-      setForm((prev) => ({
-        ...prev,
-        customerId,
-        shipperConsignee: selectedCustomer.name,
-      }));
-    } else {
-      update("customerId", customerId);
+    setForm((prev) => ({
+      ...prev,
+      customerId,
+      shipperConsignee: selectedCustomer?.name ?? prev.shipperConsignee,
+      destination: "",
+      transportHireAmount: "",
+    }));
+    setCustomerDestinations([]);
+    setCustomerPricing([]);
+    if (customerId) {
+      customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
+      customersApi.listPricing(customerId).then(setCustomerPricing).catch(() => {});
     }
   }
 
-  // When the assigned vehicle/driver changes, re-derive branch and auto-calculate if Normal
+  function handleDestinationChange(destination: string) {
+    const matchingPricing = customerPricing.find((p) => p.customerDestination === destination);
+    setForm((prev) => ({
+      ...prev,
+      destination,
+      transportHireAmount: matchingPricing ? matchingPricing.rate : prev.transportHireAmount,
+    }));
+  }
+
   function handleDriverChange(driverId: string) {
     setForm((prev) => {
       const assignment = assignableDrivers.find((a) => a.driver.driverId === driverId);
@@ -168,7 +196,6 @@ export function TripFormDialog({
     });
   }
 
-  // When hire amount changes, auto-calculate if Normal comp type is active
   function handleHireAmountChange(value: string) {
     setForm((prev) => {
       const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
@@ -182,7 +209,6 @@ export function TripFormDialog({
     });
   }
 
-  // When compensation type changes, auto-calculate for Normal or clear for Fixed (user enters manually)
   function handleCompensationTypeChange(val: string) {
     setForm((prev) => {
       const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
@@ -221,6 +247,8 @@ export function TripFormDialog({
       });
     }
   }
+
+  const selectedCustomer = customers.find((c) => c.id === form.customerId);
 
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-3xl">
@@ -300,49 +328,34 @@ export function TripFormDialog({
             </Field>
           </div>
 
-          {/* Customer Details Display */}
-          {form.customerId && (
+          {selectedCustomer && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <h4 className="mb-3 text-sm font-semibold text-blue-900">Customer Details</h4>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {(() => {
-                  const customer = customers.find((c) => c.id === form.customerId);
-                  if (!customer) return null;
-                  return (
-                    <>
-                      <div>
-                        <p className="text-xs font-medium text-blue-700">Contact Person</p>
-                        <p className="mt-1 text-sm text-blue-900">{customer.contactPersonnelName}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-blue-700">Phone</p>
-                        <p className="mt-1 text-sm text-blue-900">{customer.phone}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-blue-700">Email</p>
-                        <p className="mt-1 text-sm text-blue-900">{customer.email}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-blue-700">Customer Type</p>
-                        <p className="mt-1 text-sm text-blue-900">{customer.customerType}</p>
-                      </div>
-                      <div className="sm:col-span-2">
-                        <p className="text-xs font-medium text-blue-700">Address</p>
-                        <p className="mt-1 text-sm text-blue-900">{customer.address}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-blue-700">GSTIN</p>
-                        <p className="mt-1 text-sm text-blue-900">{customer.gstin}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-blue-700">Status</p>
-                        <p className="mt-1 inline-block rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                          {customer.status}
-                        </p>
-                      </div>
-                    </>
-                  );
-                })()}
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Contact Person</p>
+                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.contactPersonnelName}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Phone</p>
+                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.phone}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Email</p>
+                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Customer Type</p>
+                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.customerType}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-xs font-medium text-blue-700">Address</p>
+                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.address}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-700">GSTIN</p>
+                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.gstin}</p>
+                </div>
               </div>
             </div>
           )}
@@ -461,14 +474,19 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Destination Location" required>
-              <input
-                type="text"
+              <GlassCombobox
                 required
                 value={form.destination}
-                onChange={(e) => update("destination", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. Bengaluru"
+                onChange={handleDestinationChange}
+                placeholder={destinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
+                options={destinationOptions}
               />
+              {customerPricing.find((p) => p.customerDestination === form.destination) && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <Sparkles className="h-3 w-3" />
+                  Rate auto-filled from customer pricing
+                </span>
+              )}
             </Field>
           </div>
         </section>
@@ -583,6 +601,7 @@ export function TripFormDialog({
                 min="0"
                 value={form.customerCashAdvance}
                 onChange={(e) => update("customerCashAdvance", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 5000"
               />
@@ -594,6 +613,7 @@ export function TripFormDialog({
                 min="0"
                 value={form.customerFuelAdvanceAmount}
                 onChange={(e) => update("customerFuelAdvanceAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 8000"
               />
@@ -605,6 +625,7 @@ export function TripFormDialog({
                 min="0"
                 value={form.customerFuelAdvanceLitres}
                 onChange={(e) => update("customerFuelAdvanceLitres", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 85"
               />
@@ -617,12 +638,13 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Driver Compensation</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Driver Compensation Type" required>
-              <GlassCombobox
-                required
+              <GlassSelect
                 value={form.driverCompensationType}
                 onChange={handleCompensationTypeChange}
-                placeholder="Select or type compensation type"
-                options={DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+                options={[
+                  { value: "", label: "Select compensation type" },
+                  ...DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt })),
+                ]}
               />
             </Field>
 
@@ -642,6 +664,7 @@ export function TripFormDialog({
                 min="0"
                 value={form.driverAdvance}
                 onChange={(e) => update("driverAdvance", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 1000"
               />
@@ -653,6 +676,7 @@ export function TripFormDialog({
                 min="0"
                 value={form.driverAdvanceAmount}
                 onChange={(e) => update("driverAdvanceAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 readOnly={isNormalComp}
                 className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
                 placeholder={isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
@@ -684,28 +708,17 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Transport Hire Amount (₹)" required>
+            <Field label="Hire Amount (₹)" required>
               <input
                 type="number"
                 min="0"
                 value={form.transportHireAmount}
                 onChange={(e) => handleHireAmountChange(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 32000"
               />
             </Field>
-
-            <Field label="Transport Crossing Amount (₹)" required>
-              <input
-                type="number"
-                min="0"
-                value={form.transportCrossingAmount}
-                onChange={(e) => update("transportCrossingAmount", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. 0"
-              />
-            </Field>
-
           </div>
         </section>
 

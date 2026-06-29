@@ -15,11 +15,11 @@ import {
   Boxes,
   ShieldCheck,
   Landmark,
-  Repeat,
   Wallet,
   Banknote,
   Fuel,
   GitBranch,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +38,10 @@ export const sidebarSections: NavSection[] = [
   {
     title: "Overview",
     items: [{ label: "Dashboard", href: "/", icon: LayoutDashboard }],
+  },
+  {
+    title: "Insights",
+    items: [{ label: "P&L Summary", href: "/insights/pl-summary", icon: TrendingUp }],
   },
   {
     title: "Attendance",
@@ -77,7 +81,6 @@ export const sidebarSections: NavSection[] = [
       { label: "Tyre Management", href: "/maintenance/tyre-management", icon: CircleDot },
       { label: "Tyre Inventory", href: "/maintenance/tyre-inventory", icon: Boxes },
       { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
-      { label: "Compliance & Renewals", href: "/maintenance/compliance", icon: ShieldCheck },
     ],
   },
   {
@@ -86,13 +89,14 @@ export const sidebarSections: NavSection[] = [
       { label: "Driver Compensation", href: "/finance/driver-compensation", icon: Wallet },
       { label: "Staff Compensation", href: "/finance/staff-compensation", icon: Banknote },
       { label: "EMI Tracking", href: "/finance/emi-tracking", icon: Landmark },
-      { label: "Recurring Payments", href: "/finance/recurring-payments", icon: Repeat },
+      { label: "Compliance & Renewals", href: "/maintenance/compliance", icon: ShieldCheck },
     ],
   },
   {
     title: "Administration",
     items: [
       { label: "Branch Management", href: "/admin/branches", icon: GitBranch },
+      { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
     ],
   },
 ];

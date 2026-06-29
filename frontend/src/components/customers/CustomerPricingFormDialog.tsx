@@ -7,6 +7,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { CUSTOMER_STATUS_OPTIONS } from "@/lib/customer-data";
 import { CONTAINER_TYPE_OPTIONS, LOAD_TYPE_OPTIONS, WEIGHT_IN_TONS_OPTIONS } from "@/lib/customer-pricing-data";
 import type { Customer } from "@/types/customer";
+import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
 
 type CustomerPricingFormDialogProps = {
@@ -15,6 +16,7 @@ type CustomerPricingFormDialogProps = {
   onSave: (pricing: CustomerPricing) => void;
   initialData: CustomerPricing | null;
   customers: Customer[];
+  destinations: CustomerDestination[];
   existingPricing: CustomerPricing[];
 };
 
@@ -25,8 +27,6 @@ const emptyForm: Omit<CustomerPricing, "id"> = {
   containerType: "",
   weightInTons: "",
   rate: "",
-  validFrom: "",
-  validTo: "",
   status: "",
 };
 
@@ -36,6 +36,7 @@ export function CustomerPricingFormDialog({
   onSave,
   initialData,
   customers,
+  destinations,
   existingPricing,
 }: CustomerPricingFormDialogProps) {
   const [form, setForm] = useState<Omit<CustomerPricing, "id">>(emptyForm);
@@ -55,20 +56,18 @@ export function CustomerPricingFormDialog({
     );
   }, [customers, existingPricing, initialData]);
 
-  const selectedCustomer = customers.find((customer) => customer.id === form.customerId);
-  const isBlacklisted = selectedCustomer?.status === "BLACKLISTED";
+  const customerDestinationOptions = useMemo(() => {
+    return destinations
+      .filter((d) => d.customerId === form.customerId && d.destinationAddress)
+      .map((d) => ({ value: d.destinationAddress, label: d.destinationAddress }));
+  }, [destinations, form.customerId]);
 
   function update<K extends keyof Omit<CustomerPricing, "id">>(key: K, value: Omit<CustomerPricing, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleCustomerChange(customerId: string) {
-    const customer = customers.find((c) => c.id === customerId);
-    setForm((prev) => ({
-      ...prev,
-      customerId,
-      status: customer?.status === "BLACKLISTED" ? "BLACKLISTED" : prev.status,
-    }));
+    setForm((prev) => ({ ...prev, customerId, customerDestination: "" }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -76,7 +75,6 @@ export function CustomerPricingFormDialog({
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,
-      status: isBlacklisted ? "BLACKLISTED" : form.status,
     });
   }
 
@@ -89,20 +87,20 @@ export function CustomerPricingFormDialog({
             onChange={(val) => handleCustomerChange(val)}
             options={[
               { value: "", label: "Select a customer" },
-              ...availableCustomers.map(customer => ({ value: customer.id, label: customer.name }))
+              ...availableCustomers.map((customer) => ({ value: customer.id, label: customer.name })),
             ]}
           />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Customer Destination" required>
-            <input
-              type="text"
-              required
+            <GlassSelect
               value={form.customerDestination}
-              onChange={(e) => update("customerDestination", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Bengaluru, Karnataka"
+              onChange={(val) => update("customerDestination", val)}
+              options={[
+                { value: "", label: form.customerId ? "Select destination" : "Select a customer first" },
+                ...customerDestinationOptions,
+              ]}
             />
           </Field>
 
@@ -112,7 +110,7 @@ export function CustomerPricingFormDialog({
               onChange={(val) => update("loadType", val as CustomerPricing["loadType"])}
               options={[
                 { value: "", label: "Select load type" },
-                ...LOAD_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+                ...LOAD_TYPE_OPTIONS.map((o) => ({ value: o, label: o })),
               ]}
             />
           </Field>
@@ -123,7 +121,7 @@ export function CustomerPricingFormDialog({
               onChange={(val) => update("containerType", val as CustomerPricing["containerType"])}
               options={[
                 { value: "", label: "Select container type" },
-                ...CONTAINER_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+                ...CONTAINER_TYPE_OPTIONS.map((o) => ({ value: o, label: o })),
               ]}
             />
           </Field>
@@ -134,7 +132,7 @@ export function CustomerPricingFormDialog({
               onChange={(val) => update("weightInTons", val as CustomerPricing["weightInTons"])}
               options={[
                 { value: "", label: "Select weight range" },
-                ...WEIGHT_IN_TONS_OPTIONS.map(o => ({ value: o, label: o }))
+                ...WEIGHT_IN_TONS_OPTIONS.map((o) => ({ value: o, label: o })),
               ]}
             />
           </Field>
@@ -150,45 +148,19 @@ export function CustomerPricingFormDialog({
             />
           </Field>
 
-          <Field label="Valid From" required>
-            <input
-              type="date"
-              required
-              value={form.validFrom}
-              onChange={(e) => update("validFrom", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="Valid Till" required>
-            <input
-              type="date"
-              required
-              value={form.validTo}
-              onChange={(e) => update("validTo", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-
           <Field label="Status" required>
             <GlassSelect
-              value={isBlacklisted ? "BLACKLISTED" : form.status}
+              value={form.status}
               onChange={(val) => update("status", val as CustomerPricing["status"])}
-              disabled={isBlacklisted}
               options={[
                 { value: "", label: "Select status" },
-                ...CUSTOMER_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
+                ...CUSTOMER_STATUS_OPTIONS.map((o) => ({ value: o, label: o })),
               ]}
             />
-            {isBlacklisted && (
-              <span className="text-xs text-red-600">
-                This customer is blacklisted, so this pricing entry is automatically blacklisted.
-              </span>
-            )}
           </Field>
         </div>
 
-        <div className="mt-2 flex justify-end gap-3">
+        <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
             onClick={onClose}
@@ -198,7 +170,7 @@ export function CustomerPricingFormDialog({
           </button>
           <button
             type="submit"
-            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95"
           >
             {initialData ? "Save Changes" : "Add Pricing"}
           </button>

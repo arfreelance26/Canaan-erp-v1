@@ -14,6 +14,8 @@ type VerifyTripDialogProps = {
   onClose: () => void;
   onViewSheet: () => void;
   onEditSheet: () => void;
+  onViewBookingSheet: () => void;
+  onEditBookingSheet: () => void;
   onFlag: () => void;
   onConfirm: () => void;
 };
@@ -35,7 +37,7 @@ function Divider() {
 
 export function VerifyTripDialog({
   open, trip, closure, sheet,
-  onClose, onViewSheet, onEditSheet, onFlag, onConfirm,
+  onClose, onViewSheet, onEditSheet, onViewBookingSheet, onEditBookingSheet, onFlag, onConfirm,
 }: VerifyTripDialogProps) {
   if (!trip) return null;
 
@@ -92,10 +94,9 @@ export function VerifyTripDialog({
           <Row label="Bill To" value={closure?.billTo ?? ""} />
           <Row label="Trip Completed Date" value={closure?.tripCompletedDate ?? ""} />
           <Row label="Hire Amount" value={closure ? `₹${closure.hireAmount}` : ""} />
-          <Row label="Transport Amount" value={closure ? `₹${closure.transportAmount}` : ""} />
-          <Row label="Billing Amount" value={closure ? `₹${closure.billingAmount}` : ""} />
+          <Row label="Transport Amount" value={closure?.transportAmount ? `₹${closure.transportAmount}` : ""} />
           <Row label="Advance Amount" value={closure ? `₹${closure.advanceAmount}` : ""} />
-          <Row label="Payment Mode" value={closure?.paymentMode ?? ""} />
+          <Row label="Payment Mode" value={trip.paymentType ?? ""} />
           <Row label="Company Halt Days" value={closure?.companyHaltDays ?? ""} />
           <Row label="Party Halt Days" value={closure?.partyHaltDays ?? ""} />
           <Row label="Halt Remarks" value={closure?.haltRemarks ?? ""} />
@@ -106,7 +107,18 @@ export function VerifyTripDialog({
           <p className={sectionHeadingClass}>Trip Sheet Summary</p>
           <Divider />
           <Row label="Trip Type" value={sheet?.tripType ?? ""} />
-          <Row label="Container No" value={sheet?.containerNo ?? ""} />
+          <Row
+            label="Container Reference"
+            value={
+              trip.containerSpecification === "2 X 20 FEET CONTAINERS"
+                ? `${trip.containerNumber1} / ${trip.containerNumber2}`
+                : trip.containerSpecification === "20 FT CONTAINER" || trip.containerSpecification === "40 FT CONTAINER"
+                ? trip.containerNumber
+                : trip.containerSpecification === "OPEN LOAD CARGO"
+                ? trip.cargoReference
+                : ""
+            }
+          />
           <Row label="Route" value={sheet ? `${sheet.from} → ${sheet.to}` : ""} />
           <Row label="Start km" value={sheet?.startKm ?? ""} />
           <Row label="End km" value={sheet?.endKm ?? ""} />
@@ -126,9 +138,8 @@ export function VerifyTripDialog({
         </section>
 
         {/* Action buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
-          {/* Left: sheet actions */}
-          <div className="flex gap-2">
+        <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onViewSheet}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
               View Trip Sheet
@@ -137,16 +148,25 @@ export function VerifyTripDialog({
               className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
               Edit Trip Sheet
             </button>
+            <button type="button" onClick={onViewBookingSheet}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
+              View Booking Sheet
+            </button>
+            <button type="button" onClick={onEditBookingSheet}
+              className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
+              Edit Booking Sheet
+            </button>
+          </div>
+          <div className="flex justify-between">
             <button type="button" onClick={onFlag}
               className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
               Flag for Rechecking
             </button>
+            <button type="button" onClick={onConfirm}
+              className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+              Confirm Verification
+            </button>
           </div>
-          {/* Right: confirm */}
-          <button type="button" onClick={onConfirm}
-            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
-            Confirm Verification
-          </button>
         </div>
       </div>
     </Dialog>

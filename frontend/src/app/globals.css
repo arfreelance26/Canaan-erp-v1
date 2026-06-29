@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Remove spin buttons on number inputs globally */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -196,6 +206,88 @@
 }
 .animate-beam-sweep {
   animation: beam-sweep 15s infinite linear;
+}
+
+/* Dashboard greeting animation keyframes */
+@keyframes greeting-enter {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.97); filter: blur(4px); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.008); filter: blur(0); }
+  80%  { transform: translateY(1px) scale(0.999); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes greeting-exit {
+  0%   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  30%  { opacity: 0.8; transform: translateY(-4px) scale(1.01); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(-18px) scale(0.97); filter: blur(3px); }
+}
+.animate-greeting-enter {
+  animation: greeting-enter 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.animate-greeting-exit {
+  animation: greeting-exit 0.5s cubic-bezier(0.55, 0, 0.45, 1) forwards;
+}
+@keyframes wave-emoji {
+  0%, 100% { transform: rotate(0deg) scale(1); transform-origin: 70% 70%; }
+  15%       { transform: rotate(14deg) scale(1.1); }
+  30%       { transform: rotate(-8deg) scale(1.05); }
+  45%       { transform: rotate(14deg) scale(1.1); }
+  60%       { transform: rotate(-4deg) scale(1.05); }
+  75%       { transform: rotate(10deg) scale(1); }
+}
+.animate-wave {
+  display: inline-block;
+  animation: wave-emoji 1.8s 0.4s ease-in-out 2;
+}
+@keyframes tagline-enter {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.96); filter: blur(3px); }
+  55%  { opacity: 1; transform: translateY(-2px) scale(1.01); filter: blur(0); }
+  80%  { transform: translateY(1px) scale(0.999); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes tagline-float {
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+@keyframes tagline-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-tagline-enter {
+  animation: tagline-enter 0.9s 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+.animate-tagline-float {
+  animation: tagline-float 3.5s 1.5s ease-in-out infinite;
+}
+.tagline-text {
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+  font-style: italic;
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  background: linear-gradient(
+    90deg,
+    #4b5fbf 0%,
+    #1b2b5e 20%,
+    #c9a227 40%,
+    #e8c84a 50%,
+    #c9a227 60%,
+    #1b2b5e 80%,
+    #4b5fbf 100%
+  );
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation:
+    tagline-enter 0.9s 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    tagline-shimmer 4s 1.4s linear infinite,
+    tagline-float 3.5s 1.5s ease-in-out infinite;
+  opacity: 0;
+}
+.font-jakarta {
+  font-family: var(--font-jakarta), system-ui, sans-serif;
 }
 .animate-beam-sweep-delayed {
   animation: beam-sweep 20s infinite linear 7s;

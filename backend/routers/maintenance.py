@@ -199,20 +199,23 @@ def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
         .all()
         
     total_distance = sum(float(log.distance) for log in logs)
-    # Only sum fuel if distance > 0 (meaning it's an interval, not the baseline)
-    total_fuel = sum(float(log.litres) for log in logs if float(log.distance) > 0)
-    
+    # Only sum fuel/cost for intervals where we know the distance (not the baseline)
+    interval_logs = [log for log in logs if float(log.distance) > 0]
+    total_fuel = sum(float(log.litres) for log in interval_logs)
+    total_cost = sum(float(log.total_cost) for log in interval_logs)
+
     average_mileage = (total_distance / total_fuel) if total_fuel > 0 else 0
-    
-    mileages = [float(log.mileage) for log in logs if float(log.distance) > 0 and float(log.mileage) > 0]
+    cost_per_km = (total_cost / total_distance) if total_distance > 0 else 0
+
+    mileages = [float(log.mileage) for log in interval_logs if float(log.mileage) > 0]
     last_mileage = mileages[-1] if mileages else 0
     best_mileage = max(mileages) if mileages else 0
     worst_mileage = min(mileages) if mileages else 0
-    
+
     trend_percentage = 0
     if average_mileage > 0 and last_mileage > 0:
         trend_percentage = ((last_mileage - average_mileage) / average_mileage) * 100
-        
+
     return schemas.FuelStats(
         total_distance=total_distance,
         total_fuel=total_fuel,
@@ -220,7 +223,8 @@ def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
         last_mileage=last_mileage,
         best_mileage=best_mileage,
         worst_mileage=worst_mileage,
-        trend_percentage=trend_percentage
+        trend_percentage=trend_percentage,
+        cost_per_km=cost_per_km,
     )
 
 @router.put("/maintenance/fuel-logs/{log_id}", response_model=schemas.FuelLogOut, tags=["Fuel Logs"])

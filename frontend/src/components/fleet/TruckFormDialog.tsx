@@ -6,7 +6,7 @@ import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { addYearsToDate, generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
+import { generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
 import type { Branch } from "@/types/branch";
 import { branchesApi } from "@/lib/api";
 import { getTyreLayout, TYRE_LAYOUT_OPTIONS } from "@/lib/tyre-layouts";
@@ -51,9 +51,9 @@ const emptyForm: Omit<Truck, "id" | "truckId"> = {
   fuelCapacity: "",
   odometerDuringPurchase: "",
   odometer: "",
-  rcDate: "",
+  rcValidityDate: "",
+  rcExpenses: "",
   rcDocumentUrl: null,
-  fcDate: "",
   fcExpiryDate: "",
   fcDocumentFileName: null,
   fcExpenses: "",
@@ -62,6 +62,7 @@ const emptyForm: Omit<Truck, "id" | "truckId"> = {
   roadTaxDocumentFileName: null,
   roadTaxExpenses: "",
   insuranceExpiryDate: "",
+  insuranceExpenses: "",
   insuranceDocumentProofFileName: null,
   nationalPermitNumber: "",
   nationalPermitDate: "",
@@ -86,7 +87,6 @@ export function TruckFormDialog({
 }: TruckFormDialogProps) {
   const [form, setForm] = useState<Omit<Truck, "id" | "truckId">>(emptyForm);
   const [files, setFiles] = useState<TruckFiles>({});
-  const [fcExpiryTouched, setFcExpiryTouched] = useState(false);
   const [branches, setBranches] = useState<Branch[]>([]);
 
   useEffect(() => {
@@ -102,7 +102,6 @@ export function TruckFormDialog({
       };
       setForm(rest);
       setFiles({});
-      setFcExpiryTouched(Boolean(initialData));
     }
   }, [open, initialData]);
 
@@ -111,14 +110,6 @@ export function TruckFormDialog({
     value: Omit<Truck, "id" | "truckId">[K]
   ) {
     setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
-  }
-
-  function handleFcDateChange(value: string) {
-    setForm((prev) => ({
-      ...prev,
-      fcDate: value,
-      fcExpiryDate: fcExpiryTouched ? prev.fcExpiryDate : addYearsToDate(value, 1),
-    }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -292,13 +283,25 @@ export function TruckFormDialog({
 
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>RC Details</p>
-          <Field label="RC Date" required>
+          <Field label="RC Validity Date" required>
             <input
               type="date"
               required
-              value={form.rcDate}
-              onChange={(e) => update("rcDate", e.target.value)}
+              value={form.rcValidityDate}
+              onChange={(e) => update("rcValidityDate", e.target.value)}
               className={inputClass}
+            />
+          </Field>
+
+          <Field label="Expenses For RC" className="mt-4">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.rcExpenses}
+              onChange={(e) => update("rcExpenses", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 5000"
             />
           </Field>
 
@@ -325,30 +328,15 @@ export function TruckFormDialog({
 
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>FC Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="FC Date" required>
-              <input
-                type="date"
-                required
-                value={form.fcDate}
-                onChange={(e) => handleFcDateChange(e.target.value)}
-                className={inputClass}
-              />
-            </Field>
-
-            <Field label="FC Validity Date" required>
-              <input
-                type="date"
-                required
-                value={form.fcExpiryDate}
-                onChange={(e) => {
-                  setFcExpiryTouched(true);
-                  update("fcExpiryDate", e.target.value);
-                }}
-                className={inputClass}
-              />
-            </Field>
-          </div>
+          <Field label="FC Validity Date" required>
+            <input
+              type="date"
+              required
+              value={form.fcExpiryDate}
+              onChange={(e) => update("fcExpiryDate", e.target.value)}
+              className={inputClass}
+            />
+          </Field>
 
           <Field label="FC Document Proof (PDF)" className="mt-4">
             <input
@@ -471,6 +459,18 @@ export function TruckFormDialog({
                 {form.insuranceDocumentProofFileName}
               </span>
             )}
+          </Field>
+
+          <Field label="Expenses for Insurance" className="mt-4">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.insuranceExpenses}
+              onChange={(e) => update("insuranceExpenses", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 25000"
+            />
           </Field>
         </div>
 

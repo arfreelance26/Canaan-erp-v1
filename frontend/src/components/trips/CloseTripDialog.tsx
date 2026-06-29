@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -11,6 +11,7 @@ import type { Branch } from "@/types/branch";
 import type { TripClosureData, PaymentMode, BillTo } from "@/types/trip-closure";
 import { MOVEMENT_CATEGORY_OPTIONS } from "@/lib/trip-data";
 import { branchesApi } from "@/lib/api";
+import { todayIst } from "@/lib/format-date";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = [
   "Cash",
@@ -76,13 +77,16 @@ type CloseTripDialogProps = {
 export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }: CloseTripDialogProps) {
   const [form, setForm] = useState<TripClosureData>(emptyForm(""));
   const [branches, setBranches] = useState<Branch[]>([]);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
   }, []);
 
   useEffect(() => {
-    if (open && trip) {
+    const justOpened = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (justOpened && trip) {
       const f = emptyForm(trip.id);
 
       // 1. Shipment Information — auto-populate from trip
@@ -102,6 +106,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
       // 3. Route — auto-populate from trip
       f.fromLocation = trip.origin ?? "";
       f.toLocation = trip.destination ?? "";
+      f.tripCompletedDate = todayIst();
 
       // 4. Billing — pre-fill what we know
       f.hireAmount = trip.transportHireAmount ?? "";
@@ -228,6 +233,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 step="0.01"
                 value={form.hireAmount}
                 onChange={(e) => update("hireAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 32000"
               />
@@ -239,19 +245,9 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 step="0.01"
                 value={form.transportAmount}
                 onChange={(e) => update("transportAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 34000"
-              />
-            </Field>
-            <Field label="Billing Amount (₹)">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.billingAmount}
-                onChange={(e) => update("billingAmount", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. 36000"
               />
             </Field>
             <Field label="Customer Advance Amount (₹)">
@@ -261,6 +257,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 step="0.01"
                 value={form.advanceAmount}
                 onChange={(e) => update("advanceAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 5000"
               />
@@ -281,6 +278,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 step="0.01"
                 value={form.additionalDriverAdvance}
                 onChange={(e) => update("additionalDriverAdvance", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="e.g. 500"
               />
@@ -318,6 +316,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 min="0"
                 value={form.companyHaltDays}
                 onChange={(e) => update("companyHaltDays", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="0"
               />
@@ -328,6 +327,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 min="0"
                 value={form.partyHaltDays}
                 onChange={(e) => update("partyHaltDays", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="0"
               />

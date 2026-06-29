@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
 import { VerifyTripDialog } from "@/components/trips/VerifyTripDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
+import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -30,6 +31,8 @@ export default function TripVerificationPage() {
   const [verifyTrip, setVerifyTrip] = useState<Trip | null>(null);
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [sheetMode, setSheetMode] = useState<SheetDialogMode>("view");
+  const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
+  const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
 
   useEffect(() => {
         Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -144,6 +147,20 @@ export default function TripVerificationPage() {
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
+
+  function openBookingSheet(trip: Trip, readOnly: boolean) {
+    setVerifyTrip(null);
+    setBookingSheetTrip(trip);
+    setBookingSheetReadOnly(readOnly);
+  }
+
+  async function handleBookingSheetSubmit(data: TripClosureData) {
+    if (!bookingSheetTrip) return;
+    const updated = await tripsApi.close(bookingSheetTrip.id, data);
+    setClosures((prev) => new Map([...prev, [bookingSheetTrip.id, updated]]));
+    setVerifyTrip(bookingSheetTrip);
+    setBookingSheetTrip(null);
+  }
 
   function openSheetDialog(trip: Trip, mode: SheetDialogMode) {
     setVerifyTrip(null);
@@ -300,8 +317,22 @@ export default function TripVerificationPage() {
         onClose={() => setVerifyTrip(null)}
         onViewSheet={() => verifyTrip && openSheetDialog(verifyTrip, "view")}
         onEditSheet={() => verifyTrip && openSheetDialog(verifyTrip, "edit")}
+        onViewBookingSheet={() => verifyTrip && openBookingSheet(verifyTrip, true)}
+        onEditBookingSheet={() => verifyTrip && openBookingSheet(verifyTrip, false)}
         onFlag={handleFlag}
         onConfirm={handleConfirmVerification}
+      />
+
+      <BookingSheetDialog
+        open={bookingSheetTrip !== null}
+        trip={bookingSheetTrip}
+        closure={bookingSheetTrip ? closures.get(bookingSheetTrip.id) : undefined}
+        driver={bookingSheetTrip ? driverById.get(bookingSheetTrip.driverId) : undefined}
+        truck={bookingSheetTrip ? truckById.get(bookingSheetTrip.vehicleId) : undefined}
+        customers={customers}
+        readOnly={bookingSheetReadOnly}
+        onClose={() => { setVerifyTrip(bookingSheetTrip); setBookingSheetTrip(null); }}
+        onSubmit={handleBookingSheetSubmit}
       />
 
       <TripSheetDialog
@@ -310,6 +341,8 @@ export default function TripVerificationPage() {
         closure={sheetTrip ? closures.get(sheetTrip.id) : undefined}
         existingSheet={sheetTrip ? sheets.get(sheetTrip.id) : undefined}
         readOnly={sheetMode === "view"}
+        drivers={drivers}
+        trucks={trucks}
         onClose={() => {
           setVerifyTrip(sheetTrip);
           setSheetTrip(null);

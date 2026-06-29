@@ -1,14 +1,31 @@
 "use client";
 
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import { useState, useEffect, useRef, useMemo, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { type TripSheetData, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
+import type { Driver } from "@/types/driver";
+import type { Truck } from "@/types/truck";
+import type { RepairType } from "@/types/repair-type";
+import { repairTypesApi, fuelLogsApi } from "@/lib/api";
 
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 const subsh = "text-xs font-medium text-gray-400 uppercase tracking-wider mt-3 mb-1";
+
+function recalcDerived(s: TripSheetData, haltPay: number): TripSheetData {
+  const out = { ...s };
+  const startKm = n(out.startKm);
+  const endKm   = n(out.endKm);
+  out.totalKm           = startKm > 0 && endKm > startKm ? String(endKm - startKm) : "";
+  out.driverExpensesTotal = String(calcDriverExpenses(out).toFixed(2));
+  out.driverBalance       = String((n(out.driverExpensesTotal) - n(out.driverAdvanceAmount)).toFixed(2));
+  const tripExp           = calcTripExpenses(out) + haltPay;
+  out.tripExpensesTotal   = String(tripExp.toFixed(2));
+  out.totalExpense        = String(tripExp.toFixed(2));
+  return out;
+}
 
 const emptySheet = (tripId: string): TripSheetData => ({
   tripId,
@@ -29,18 +46,17 @@ const emptySheet = (tripId: string): TripSheetData => ({
   to: "",
   clearingAgent: "",
   hireAmount: "",
-  startKm: "", endKm: "", totalKm: "", cargoWeight: "", grossWeight: "", tareWeight: "", netWeight: "",
+  startKm: "", endKm: "", totalKm: "", cargoWeight: "",
   driverPay: "",
   driverAdvanceAmount: "",
   driverBalance: "",
   totalHaltDays: "", haltRemarks: "", haltPay: "",
   portPassExpense: "", weightSheetExpense: "", mamolExpense: "", claimableMamolExpense: "",
   trafficRtoExpense: "",
-  liftOnOffExpense: "", craneOperatorExpense: "",
-  parkingExpense: "", punctureExpense: "", sparePartsExpense: "",
+  liftOnOffExpense: "", craneOperatorExpense: "", parkingExpense: "",
   majorRepairs: [],
   otherExpenses: "",
-  tripExpensesTotal: "", driverExpensesTotal: "", totalExpense: "",
+  tripExpensesTotal: "", driverExpensesTotal: "", totalExpense: "", fuelCostApprox: "",
   tollCharges: "", tollCount: "0",
   remarks: "",
 });
@@ -51,14 +67,34 @@ type Props = {
   closure: TripClosureData | undefined;
   existingSheet?: TripSheetData;
   readOnly?: boolean;
+  drivers: Driver[];
+  trucks: Truck[];
   onClose: () => void;
   onSubmit: (data: TripSheetData) => void;
 };
 
-export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, onClose, onSubmit }: Props) {
+export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, drivers, trucks, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripSheetData>(emptySheet(""));
+  const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
+  const [costPerKm, setCostPerKm] = useState<string>("");
   // Tracks which session has been initialized to prevent auto-refresh from resetting the form
   const initKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    repairTypesApi.list().then(setRepairTypes).catch(() => setRepairTypes([]));
+  }, []);
+
+  const truckDbId = useMemo(
+    () => trucks.find((t) => t.truckId === form.vehicleId)?.id ?? "",
+    [trucks, form.vehicleId],
+  );
+
+  useEffect(() => {
+    if (!truckDbId) { setCostPerKm(""); return; }
+    fuelLogsApi.getFuelStats(truckDbId)
+      .then((stats) => setCostPerKm(stats.costPerKm ?? ""))
+      .catch(() => setCostPerKm(""));
+  }, [truckDbId]);
 
   useEffect(() => {
     if (!open || !trip) {
@@ -71,8 +107,10 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     if (initKeyRef.current === key) return;
     initKeyRef.current = key;
 
+    const hp = closure ? Number(closure.driverHaltCompensation || 0) : 0;
+
     if (existingSheet) {
-      setForm({ ...existingSheet });
+      setForm(recalcDerived({ ...existingSheet }, hp));
     } else {
       const sheet = emptySheet(trip.id);
       sheet.bookingReferenceNo  = trip.bookingReferenceNo ?? "";
@@ -86,41 +124,21 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.tripScheduledDate   = trip.scheduledDate ?? "";
       sheet.from                = trip.origin ?? "";
       sheet.to                  = trip.destination ?? "";
+      sheet.cargoWeight         = trip.cargoWeight ?? "";
       sheet.hireAmount          = trip.transportHireAmount ?? "";
       sheet.driverPay           = trip.driverAdvanceAmount ?? "";
-      sheet.driverAdvanceAmount = trip.driverAdvance ?? "";
+      sheet.driverAdvanceAmount = String(
+        (Number(closure?.driverAdvance || 0) + Number(closure?.additionalDriverAdvance || 0)).toFixed(2)
+      );
       if (closure) {
         sheet.tripCompletedDate = closure.tripCompletedDate ?? "";
       }
-      setForm(sheet);
+      setForm(recalcDerived(sheet, hp));
     }
   }, [open, trip, existingSheet, closure]);
 
   function set<K extends keyof TripSheetData>(key: K, value: TripSheetData[K]) {
-    setForm((prev) => {
-      const next = { ...prev, [key]: value };
-
-      // Auto-calc total km
-      const startKm = n(next.startKm);
-      const endKm   = n(next.endKm);
-      next.totalKm  = startKm > 0 && endKm > startKm ? String(endKm - startKm) : "";
-
-      // Auto-calc driver balance
-      next.driverBalance = String((n(next.driverPay) - n(next.driverAdvanceAmount)).toFixed(2));
-
-      // Auto-calc driver expenses (what driver paid out of pocket)
-      next.driverExpensesTotal = String(calcDriverExpenses(next).toFixed(2));
-
-      // Auto-calc trip expenses: driverPay + haltPay (from closure) + operational + toll
-      const tripExp = calcTripExpenses(next) + haltPay;
-      next.tripExpensesTotal = String(tripExp.toFixed(2));
-
-      // Total expense = trip expenses + major repairs (tracked separately from trip expenses)
-      const majorTotal = (next.majorRepairs || []).reduce((sum, r) => sum + n(r.cost), 0);
-      next.totalExpense = String((tripExp + majorTotal).toFixed(2));
-
-      return next;
-    });
+    setForm((prev) => recalcDerived({ ...prev, [key]: value }, haltPay));
   }
 
   // Halt values — read directly from stored closure (set when trip was closed)
@@ -134,10 +152,11 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     e.preventDefault();
     onSubmit({
       ...form,
-      tripClosedDate: closure?.closedAt ?? "",
-      totalHaltDays:  haltTotalDays > 0 ? String(haltTotalDays) : "",
-      haltPay:        haltPay > 0       ? String(haltPay)       : "",
+      tripClosedDate:  closure?.closedAt ?? "",
+      totalHaltDays:   haltTotalDays > 0 ? String(haltTotalDays) : "",
+      haltPay:         haltPay > 0       ? String(haltPay)       : "",
       haltRemarks,
+      fuelCostApprox,
     });
   }
 
@@ -147,6 +166,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const fc = ro ? `${inputClass} bg-gray-50 cursor-default` : inputClass;
   const roClass = `w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed`;
   const fmt = (v: string) => v ? `₹${n(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00";
+
+  const currentTruck   = trucks.find((t) => t.truckId === form.vehicleId);
+  const displayVehicle = currentTruck?.registrationNumber ?? form.vehicleId;
+  const displayDriver  = drivers.find((d) => d.driverId === form.driverId)?.name ?? form.driverId;
+  const startKmTooLow  = !ro && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
+
+  const fuelCostApprox =
+    n(form.totalKm) > 0 && Number(costPerKm) > 0
+      ? (n(form.totalKm) * Number(costPerKm)).toFixed(2)
+      : "";
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-3xl">
@@ -174,10 +203,10 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={form.tripType} readOnly disabled />
           </Field>
           <Field label="Assigned Vehicle">
-            <input className={roClass} value={form.vehicleId} readOnly disabled />
+            <input className={roClass} value={displayVehicle} readOnly disabled />
           </Field>
           <Field label="Assigned Driver">
-            <input className={roClass} value={form.driverId} readOnly disabled />
+            <input className={roClass} value={displayDriver} readOnly disabled />
           </Field>
           <Field label="Booking Date">
             <input className={roClass} value={form.bookingDate} readOnly disabled />
@@ -223,42 +252,40 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Start km *">
             <input type="number" min="0" className={fc} value={form.startKm} readOnly={ro} onChange={(e) => set("startKm", e.target.value)} placeholder="e.g. 84000" />
+            {startKmTooLow && (
+              <p className="mt-1 text-xs text-red-500">
+                Below current odometer ({Number(currentTruck!.odometer).toLocaleString()} km). Please Check the Value.
+              </p>
+            )}
           </Field>
           <Field label="End km *">
             <input type="number" min="0" className={fc} value={form.endKm} readOnly={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
+            {n(form.endKm) > 0 && n(form.startKm) > 0 && n(form.endKm) <= n(form.startKm) && (
+              <p className="mt-1 text-xs text-red-500">End Km must be greater than Start Km.</p>
+            )}
           </Field>
           <Field label="Total km *">
             <input type="number" className={`${fc} bg-gray-50`} value={form.totalKm} readOnly placeholder="Auto-calculated" />
           </Field>
+          <Field label="Fuel Cost for this Trip — approx (₹)">
+            <input
+              className={`${fc} bg-gray-50`}
+              value={fuelCostApprox ? `₹${Number(fuelCostApprox).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : ""}
+              readOnly
+              placeholder={costPerKm ? "Enter km values above" : "No fuel data for this truck"}
+            />
+            {costPerKm && Number(costPerKm) > 0 && (
+              <p className="mt-1 text-xs text-gray-400">
+                {n(form.totalKm) > 0 ? `${n(form.totalKm)} km × ₹${Number(costPerKm).toFixed(2)}/km` : `₹${Number(costPerKm).toFixed(2)}/km from fuel history`}
+              </p>
+            )}
+          </Field>
           <Field label="Cargo Weight (tons)">
-            <input type="number" min="0" className={fc} value={form.cargoWeight} readOnly={ro} onChange={(e) => set("cargoWeight", e.target.value)} placeholder="e.g. 22" />
-          </Field>
-          <Field label="Gross Weight (kg)">
-            <input type="number" min="0" className={fc} value={form.grossWeight} readOnly={ro} onChange={(e) => set("grossWeight", e.target.value)} placeholder="e.g. 38000" />
-          </Field>
-          <Field label="Tare Weight (kg)">
-            <input type="number" min="0" className={fc} value={form.tareWeight} readOnly={ro} onChange={(e) => set("tareWeight", e.target.value)} placeholder="e.g. 16000" />
-          </Field>
-          <Field label="Net Weight (kg)">
-            <input type="number" min="0" className={fc} value={form.netWeight} readOnly={ro} onChange={(e) => set("netWeight", e.target.value)} placeholder="e.g. 22000" />
+            <input className={roClass} value={form.cargoWeight} readOnly disabled placeholder="Auto-fetched from trip" />
           </Field>
         </div>
 
-        {/* ── 5. Driver Settlement ── */}
-        <p className={sh}>Driver Settlement</p>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Field label="Driver Batta Amount">
-            <input type="number" className={roClass} value={form.driverPay} readOnly disabled />
-          </Field>
-          <Field label="Advance Paid">
-            <input type="number" min="0" className={fc} value={form.driverAdvanceAmount} readOnly={ro} onChange={(e) => set("driverAdvanceAmount", e.target.value)} placeholder="e.g. 2000" />
-          </Field>
-          <Field label="Driver Balance *">
-            <input type="number" className={`${fc} bg-gray-50 font-semibold`} value={form.driverBalance} readOnly placeholder="Auto-calculated" />
-          </Field>
-        </div>
-
-        {/* ── 6. Halt Information ── */}
+        {/* ── 5. Halt Information ── */}
         <p className={sh}>Halt Information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Total Halt Days">
@@ -299,29 +326,33 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         </div>
 
         <p className={subsh}>Loading & Handling</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Lift On / Off (லிப்டான்) *">
             <input type="number" min="0" className={fc} value={form.liftOnOffExpense} readOnly={ro} onChange={(e) => set("liftOnOffExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
           <Field label="Crane Operator Expense *">
             <input type="number" min="0" className={fc} value={form.craneOperatorExpense} readOnly={ro} onChange={(e) => set("craneOperatorExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
-        </div>
-
-        <p className={subsh}>Vehicle Maintenance</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Parking Expenses *">
             <input type="number" min="0" className={fc} value={form.parkingExpense} readOnly={ro} onChange={(e) => set("parkingExpense", e.target.value)} placeholder="e.g. 0" />
-          </Field>
-          <Field label="Puncture Expense *">
-            <input type="number" min="0" className={fc} value={form.punctureExpense} readOnly={ro} onChange={(e) => set("punctureExpense", e.target.value)} placeholder="e.g. 0" />
-          </Field>
-          <Field label="Spare Parts Expense *">
-            <input type="number" min="0" className={fc} value={form.sparePartsExpense} readOnly={ro} onChange={(e) => set("sparePartsExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
         </div>
 
         <p className={subsh}>Major Repairs</p>
+        {!ro && repairTypes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {repairTypes.map((rt) => (
+              <button
+                key={rt.id}
+                type="button"
+                onClick={() => set("majorRepairs", [...form.majorRepairs, { name: rt.name, cost: rt.defaultCost !== "0" ? rt.defaultCost : "" }])}
+                className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                + {rt.name}
+              </button>
+            ))}
+          </div>
+        )}
         {form.majorRepairs.map((repair, idx) => (
           <div key={idx} className="flex gap-2 items-end">
             <div className="flex-1">
@@ -375,6 +406,19 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             + Add Repair
           </button>
         )}
+        {(form.majorRepairs || []).length > 0 && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-orange-800">Major Repairs Total</span>
+              <span className="text-sm font-bold text-orange-800">
+                {fmt(String((form.majorRepairs || []).reduce((sum, r) => sum + n(r.cost), 0)))}
+              </span>
+            </div>
+            <p className="text-xs text-orange-600 leading-relaxed">
+              Note: These maintenance charges will be recorded for this truck but will not be included in the cost of this trip.
+            </p>
+          </div>
+        )}
 
         <p className={subsh}>Miscellaneous</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -384,21 +428,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </Field>
         </div>
 
-        {/* ── 8. Expense Summary ── */}
-        <p className={sh}>Expense Summary</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Trip Expenses *">
-            <input className={`${fc} bg-gray-50 font-semibold text-blue-700`} value={fmt(form.tripExpensesTotal)} readOnly placeholder="Auto-calculated" />
-          </Field>
-          <Field label="Driver Expenses *">
-            <input className={`${fc} bg-gray-50 font-semibold text-gray-700`} value={fmt(form.driverExpensesTotal)} readOnly placeholder="Auto-calculated" />
-          </Field>
-          <Field label="Total Expense *">
-            <input className={`${fc} bg-gray-50 font-bold text-emerald-700`} value={fmt(form.totalExpense)} readOnly placeholder="Auto-calculated" />
-          </Field>
-        </div>
-
-        {/* ── 9. Toll Details ── */}
+        {/* ── 8. Toll Details ── */}
         <p className={sh}>Toll Details</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Toll Charges (டோல்) *">
@@ -407,6 +437,70 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Selected Toll Count">
             <input type="number" min="0" className={fc} value={form.tollCount} readOnly={ro} onChange={(e) => set("tollCount", e.target.value)} placeholder="e.g. 4" />
           </Field>
+        </div>
+
+        {/* ── 8. Driver Settlement ── */}
+        <p className={sh}>Driver Settlement</p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Field label="Driver Batta Amount">
+            <input type="number" className={roClass} value={form.driverPay} readOnly disabled />
+          </Field>
+          <Field label="Advance Paid">
+            <input type="number" className={roClass} value={form.driverAdvanceAmount} readOnly disabled />
+            <p className="mt-1 text-xs text-gray-400">Driver Advance + Additional Driver Advance from trip closure.</p>
+          </Field>
+          <Field label="Driver Balance">
+            <input type="number" className={`${fc} bg-gray-50 font-semibold`} value={form.driverBalance} readOnly placeholder="Auto-calculated" />
+            {(() => {
+              const bal = n(form.driverBalance);
+              const amt = `₹${Math.abs(bal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+              if (bal > 0)  return <p className="mt-1 text-xs font-medium text-emerald-600">Company owes {amt} to the driver.</p>;
+              if (bal < 0)  return <p className="mt-1 text-xs font-medium text-amber-600">Driver owes {amt} to the company.</p>;
+              if (n(form.driverAdvanceAmount) > 0) return <p className="mt-1 text-xs text-gray-400">Settled — expenses equal advance.</p>;
+              return null;
+            })()}
+          </Field>
+        </div>
+
+        {/* ── 9. Expense Summary ── */}
+        <p className={sh}>Expense Summary</p>
+        <div className="rounded-xl border border-gray-200 overflow-hidden text-sm">
+          {[
+            { label: "Driver Batta",              value: form.driverPay },
+            { label: "Halt Pay",                  value: String(haltPay) },
+            { label: "Port Pass Expense",          value: form.portPassExpense },
+            { label: "Weight Sheet Expense",       value: form.weightSheetExpense },
+            { label: "Mamol Expense",              value: form.mamolExpense },
+            { label: "Claimable Mamol Expense",    value: form.claimableMamolExpense },
+            { label: "Traffic / RTO / Police",     value: form.trafficRtoExpense },
+            { label: "Lift On / Off",              value: form.liftOnOffExpense },
+            { label: "Crane Operator",             value: form.craneOperatorExpense },
+            { label: "Parking",                    value: form.parkingExpense },
+            { label: "Toll Charges",               value: form.tollCharges },
+            { label: "Other Expenses",             value: form.otherExpenses },
+          ].map(({ label, value }) => {
+            const amt = n(value);
+            return (
+              <div key={label} className={`flex justify-between items-center px-4 py-2.5 border-b border-gray-100 ${amt === 0 ? "text-gray-400" : "text-gray-700"}`}>
+                <span>{label}</span>
+                <span className={amt > 0 ? "font-semibold" : ""}>{fmt(value)}</span>
+              </div>
+            );
+          })}
+          <div className="bg-gray-50 px-4 py-3 flex flex-col gap-2">
+            <div className="flex justify-between">
+              <span className="font-semibold text-blue-700">Trip Expenses</span>
+              <span className="font-semibold text-blue-700">{fmt(form.tripExpensesTotal)}</span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span className="font-medium">Driver Expenses <span className="text-xs font-normal text-gray-400">(out-of-pocket)</span></span>
+              <span className="font-medium">{fmt(form.driverExpensesTotal)}</span>
+            </div>
+            <div className="flex justify-between border-t border-gray-200 pt-2 mt-0.5">
+              <span className="font-bold text-emerald-700 text-base">Total Expense</span>
+              <span className="font-bold text-emerald-700 text-base">{fmt(form.totalExpense)}</span>
+            </div>
+          </div>
         </div>
 
         {/* ── 10. Remarks ── */}

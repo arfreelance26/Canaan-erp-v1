@@ -3,9 +3,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 import models  # noqa: F401 — ensure all models are registered before create_all
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types
 
 Base.metadata.create_all(bind=engine)
+
+_DEFAULT_REPAIR_TYPES = [
+    "Tyre Puncture", "Tyre Replacement", "Engine Oil Change", "Brake Repair",
+    "Battery Replacement", "Clutch Repair", "Engine Repair", "Gearbox Repair",
+    "Radiator / Cooling System Repair", "Suspension Repair",
+]
+
+def _seed_repair_types():
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        if db.query(models.RepairType).count() == 0:
+            db.add_all([models.RepairType(name=name, default_cost=0) for name in _DEFAULT_REPAIR_TYPES])
+            db.commit()
+    finally:
+        db.close()
+
+_seed_repair_types()
 
 app = FastAPI(
     title="Canaan ERP API",
@@ -34,6 +52,7 @@ app.include_router(dashboard.router)
 app.include_router(files.router)
 app.include_router(auth.router)
 app.include_router(branches.router)
+app.include_router(repair_types.router)
 
 
 @app.get("/", tags=["Health"])

@@ -33,9 +33,9 @@ class TruckBase(OrmBase):
     fuel_capacity: Optional[Decimal] = None
     odometer_during_purchase: Optional[Decimal] = None
     odometer: Optional[Decimal] = None
-    rc_date: Optional[date] = None
+    rc_validity_date: Optional[date] = None
+    rc_expenses: Optional[Decimal] = None
     rc_document_url: Optional[str] = None
-    fc_date: Optional[date] = None
     fc_expiry_date: Optional[date] = None
     fc_document_file_name: Optional[str] = None
     fc_expenses: Optional[Decimal] = None
@@ -44,6 +44,7 @@ class TruckBase(OrmBase):
     road_tax_document_file_name: Optional[str] = None
     road_tax_expenses: Optional[Decimal] = None
     insurance_expiry_date: Optional[date] = None
+    insurance_expenses: Optional[Decimal] = None
     insurance_document_proof_file_name: Optional[str] = None
     national_permit_number: Optional[str] = None
     national_permit_date: Optional[date] = None
@@ -210,14 +211,8 @@ class CustomerBase(OrmBase):
     email: Optional[str] = None
     address: Optional[str] = None
     customer_type: Optional[CustomerType] = None
-    status: Optional[EntityStatus] = "ACTIVE"
-    photo_url: Optional[str] = None
-    # Additional Fields
     is_gta: Optional[str] = None
     applicable_for_e_invoice: Optional[str] = None
-    tds_exemption_applicable: Optional[str] = None
-    msme_declaration_submitted: Optional[str] = None
-    gst_exempted_customer: Optional[str] = None
 
 
 class CustomerCreate(CustomerBase):
@@ -235,8 +230,9 @@ class CustomerOut(CustomerBase):
 
 
 class CustomerDestinationBase(OrmBase):
-    destination_name: str
+    destination_name: Optional[str] = None
     destination_state: Optional[str] = None
+    destination_address: Optional[str] = None
     status: Optional[EntityStatus] = "ACTIVE"
 
 
@@ -255,8 +251,6 @@ class CustomerPricingBase(OrmBase):
     container_type: Optional[str] = None
     weight_in_tons: Optional[str] = None
     rate: Optional[Decimal] = None
-    valid_from: Optional[date] = None
-    valid_to: Optional[date] = None
     status: Optional[EntityStatus] = "ACTIVE"
 
 
@@ -468,9 +462,6 @@ class TripSheetCreate(OrmBase):
     end_km: Optional[Decimal] = None
     total_km: Optional[Decimal] = None
     cargo_weight: Optional[Decimal] = None
-    gross_weight: Optional[Decimal] = None
-    tare_weight: Optional[Decimal] = None
-    net_weight: Optional[Decimal] = None
     driver_pay: Optional[Decimal] = None
     driver_advance_amount: Optional[Decimal] = None
     driver_balance: Optional[Decimal] = None
@@ -492,12 +483,59 @@ class TripSheetCreate(OrmBase):
     trip_expenses_total: Optional[Decimal] = None
     driver_expenses_total: Optional[Decimal] = None
     total_expense: Optional[Decimal] = None
+    fuel_cost_approx: Optional[Decimal] = None
     toll_charges: Optional[Decimal] = None
     toll_count: Optional[int] = 0
     remarks: Optional[str] = None
 
 
 class TripSheetOut(TripSheetCreate):
+    id: int
+    trip_id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Trip Invoice
+# ---------------------------------------------------------------------------
+
+class ServiceLineSchema(OrmBase):
+    descriptionOfService: Optional[str] = None
+    sacCode: Optional[str] = None
+    quantity: Optional[str] = None
+    rate: Optional[str] = None
+
+
+class TripInvoiceCreate(OrmBase):
+    invoice_no: Optional[str] = None
+    invoice_date: Optional[date] = None
+    invoice_type: Optional[str] = None
+    bill_to: Optional[str] = None
+    gst_number: Optional[str] = None
+    mode_of_shipment: Optional[str] = None
+    container_type: Optional[str] = None
+    cfs: Optional[str] = None
+    shipping_line: Optional[str] = None
+    vessel_name: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    container_no: Optional[str] = None
+    consignee: Optional[str] = None
+    services: Optional[list] = None
+    bank_name: Optional[str] = None
+    branch_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[str] = None
+    contact: Optional[str] = None
+    narration: Optional[str] = None
+    gst_applicable: Optional[str] = "No"
+    igst_applicable: Optional[str] = "No"
+
+
+class TripInvoiceOut(TripInvoiceCreate):
     id: int
     trip_id: int
     created_at: Optional[datetime] = None
@@ -679,6 +717,7 @@ class FuelStats(OrmBase):
     best_mileage: Decimal
     worst_mileage: Decimal
     trend_percentage: Decimal
+    cost_per_km: Decimal
 # ---------------------------------------------------------------------------
 # Tyre Inventory
 # ---------------------------------------------------------------------------
@@ -880,6 +919,28 @@ class BranchUpdate(OrmBase):
 
 class BranchOut(BranchBase):
     id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Repair Types
+# ---------------------------------------------------------------------------
+
+class RepairTypeCreate(OrmBase):
+    name: str
+    default_cost: Optional[Decimal] = None
+
+
+class RepairTypeUpdate(OrmBase):
+    name: Optional[str] = None
+    default_cost: Optional[Decimal] = None
+
+
+class RepairTypeOut(OrmBase):
+    id: int
+    name: str
+    default_cost: Optional[Decimal] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

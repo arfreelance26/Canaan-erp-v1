@@ -22,6 +22,7 @@ import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
 import type { Branch } from "@/types/branch";
+import type { RepairType } from "@/types/repair-type";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -97,9 +98,9 @@ function toTruck(b: B): Truck {
     fuelCapacity: String(b.fuel_capacity ?? "0"),
     odometerDuringPurchase: String(b.odometer_during_purchase ?? "0"),
     odometer: String(b.odometer ?? "0"),
-    rcDate: b.rc_date ?? "",
+    rcValidityDate: b.rc_validity_date ?? "",
+    rcExpenses: String(b.rc_expenses ?? ""),
     rcDocumentUrl: b.rc_document_url ?? null,
-    fcDate: b.fc_date ?? "",
     fcExpiryDate: b.fc_expiry_date ?? "",
     fcDocumentFileName: b.fc_document_file_name ?? null,
     fcExpenses: String(b.fc_expenses ?? ""),
@@ -108,6 +109,7 @@ function toTruck(b: B): Truck {
     roadTaxDocumentFileName: b.road_tax_document_file_name ?? null,
     roadTaxExpenses: String(b.road_tax_expenses ?? ""),
     insuranceExpiryDate: b.insurance_expiry_date ?? "",
+    insuranceExpenses: String(b.insurance_expenses ?? ""),
     insuranceDocumentProofFileName: b.insurance_document_proof_file_name ?? null,
     nationalPermitNumber: b.national_permit_number ?? "",
     nationalPermitDate: b.national_permit_date ?? "",
@@ -139,9 +141,9 @@ function fromTruck(f: Truck) {
     fuel_capacity: f.fuelCapacity ? parseFloat(f.fuelCapacity) : 0,
     odometer_during_purchase: f.odometerDuringPurchase ? parseFloat(f.odometerDuringPurchase) : 0,
     odometer: f.odometer ? parseFloat(f.odometer) : 0,
-    rc_date: f.rcDate || null,
+    rc_validity_date: f.rcValidityDate || null,
+    rc_expenses: f.rcExpenses ? parseFloat(f.rcExpenses) : null,
     rc_document_url: f.rcDocumentUrl ?? null,
-    fc_date: f.fcDate || null,
     fc_expiry_date: f.fcExpiryDate || null,
     fc_document_file_name: f.fcDocumentFileName ?? null,
     fc_expenses: f.fcExpenses ? parseFloat(f.fcExpenses) : null,
@@ -150,6 +152,7 @@ function fromTruck(f: Truck) {
     road_tax_document_file_name: f.roadTaxDocumentFileName ?? null,
     road_tax_expenses: f.roadTaxExpenses ? parseFloat(f.roadTaxExpenses) : null,
     insurance_expiry_date: f.insuranceExpiryDate || null,
+    insurance_expenses: f.insuranceExpenses ? parseFloat(f.insuranceExpenses) : null,
     insurance_document_proof_file_name: f.insuranceDocumentProofFileName ?? null,
     national_permit_number: f.nationalPermitNumber || null,
     national_permit_date: f.nationalPermitDate || null,
@@ -271,7 +274,6 @@ function fromStaff(f: Staff, password?: string) {
 function toCustomer(b: B): Customer {
   return {
     id: String(b.id),
-    photoUrl: b.photo_url ?? null,
     name: b.name ?? "",
     gstin: b.gstin ?? "",
     contactPersonnelName: b.contact_personnel_name ?? "",
@@ -279,12 +281,8 @@ function toCustomer(b: B): Customer {
     email: b.email ?? "",
     address: b.address ?? "",
     customerType: b.customer_type ?? "",
-    status: b.status ?? "",
     isGta: b.is_gta ?? "",
     applicableForEInvoice: b.applicable_for_e_invoice ?? "",
-    tdsExemptionApplicable: b.tds_exemption_applicable ?? "",
-    msmeDeclarationSubmitted: b.msme_declaration_submitted ?? "",
-    gstExemptedCustomer: b.gst_exempted_customer ?? "",
   };
 }
 
@@ -297,13 +295,8 @@ function fromCustomer(f: Customer) {
     email: f.email || null,
     address: f.address || null,
     customer_type: f.customerType || null,
-    status: f.status || "ACTIVE",
-    photo_url: f.photoUrl ?? null,
     is_gta: f.isGta || null,
     applicable_for_e_invoice: f.applicableForEInvoice || null,
-    tds_exemption_applicable: f.tdsExemptionApplicable || null,
-    msme_declaration_submitted: f.msmeDeclarationSubmitted || null,
-    gst_exempted_customer: f.gstExemptedCustomer || null,
   };
 }
 
@@ -311,9 +304,8 @@ function toCustomerDestination(b: B): CustomerDestination {
   return {
     id: String(b.id),
     customerId: String(b.customer_id),
-    destinationName: b.destination_name ?? "",
     destinationState: b.destination_state ?? "",
-    status: b.status ?? "",
+    destinationAddress: b.destination_address ?? "",
   };
 }
 
@@ -326,8 +318,6 @@ function toCustomerPricing(b: B): CustomerPricing {
     containerType: b.container_type ?? "",
     weightInTons: b.weight_in_tons ?? "",
     rate: String(b.rate ?? ""),
-    validFrom: b.valid_from ?? "",
-    validTo: b.valid_to ?? "",
     status: b.status ?? "",
   };
 }
@@ -428,7 +418,7 @@ function fromTrip(f: Trip) {
     container_number_2: f.containerNumber2 || null,
     cargo_reference: f.cargoReference || null,
     release_order_reference: f.releaseOrderReference || null,
-    cargo_weight: f.cargoWeight ? parseFloat(f.cargoWeight) : null,
+    cargo_weight: f.cargoWeight || null,
     origin: f.origin || null,
     destination: f.destination || null,
     shipping_line: f.shippingLine || null,
@@ -551,9 +541,6 @@ function toSheet(b: B): TripSheetData {
     endKm: String(b.end_km ?? ""),
     totalKm: String(b.total_km ?? ""),
     cargoWeight: String(b.cargo_weight ?? ""),
-    grossWeight: String(b.gross_weight ?? ""),
-    tareWeight: String(b.tare_weight ?? ""),
-    netWeight: String(b.net_weight ?? ""),
     driverPay: String(b.driver_pay ?? ""),
     driverAdvanceAmount: String(b.driver_advance_amount ?? ""),
     driverBalance: String(b.driver_balance ?? ""),
@@ -568,8 +555,6 @@ function toSheet(b: B): TripSheetData {
     liftOnOffExpense: String(b.lift_on_off_expense ?? ""),
     craneOperatorExpense: String(b.crane_operator_expense ?? ""),
     parkingExpense: String(b.parking_expense ?? ""),
-    punctureExpense: String(b.puncture_expense ?? ""),
-    sparePartsExpense: String(b.spare_parts_expense ?? ""),
     majorRepairs: Array.isArray(b.major_repairs)
       ? b.major_repairs.map((r: { name?: string; cost?: number }) => ({ name: r.name ?? "", cost: String(r.cost ?? "") }))
       : [],
@@ -577,6 +562,7 @@ function toSheet(b: B): TripSheetData {
     tripExpensesTotal: String(b.trip_expenses_total ?? ""),
     driverExpensesTotal: String(b.driver_expenses_total ?? ""),
     totalExpense: String(b.total_expense ?? ""),
+    fuelCostApprox: String(b.fuel_cost_approx ?? ""),
     tollCharges: String(b.toll_charges ?? ""),
     tollCount: String(b.toll_count ?? ""),
     remarks: b.remarks ?? "",
@@ -607,9 +593,6 @@ function fromSheet(f: TripSheetData) {
     end_km: n(f.endKm),
     total_km: n(f.totalKm),
     cargo_weight: n(f.cargoWeight),
-    gross_weight: n(f.grossWeight),
-    tare_weight: n(f.tareWeight),
-    net_weight: n(f.netWeight),
     driver_pay: n(f.driverPay),
     driver_advance_amount: n(f.driverAdvanceAmount),
     driver_balance: n(f.driverBalance),
@@ -624,13 +607,12 @@ function fromSheet(f: TripSheetData) {
     lift_on_off_expense: n(f.liftOnOffExpense),
     crane_operator_expense: n(f.craneOperatorExpense),
     parking_expense: n(f.parkingExpense),
-    puncture_expense: n(f.punctureExpense),
-    spare_parts_expense: n(f.sparePartsExpense),
     major_repairs: (f.majorRepairs || []).map(r => ({ name: r.name, cost: parseFloat(r.cost) || 0 })),
     other_expenses: n(f.otherExpenses),
     trip_expenses_total: n(f.tripExpensesTotal),
     driver_expenses_total: n(f.driverExpensesTotal),
     total_expense: n(f.totalExpense),
+    fuel_cost_approx: n(f.fuelCostApprox),
     toll_charges: n(f.tollCharges),
     toll_count: parseInt(f.tollCount) || 0,
     remarks: f.remarks || null,
@@ -713,6 +695,7 @@ function toFuelStats(b: B): FuelStats {
     bestMileage: String(b.best_mileage ?? ""),
     worstMileage: String(b.worst_mileage ?? ""),
     trendPercentage: String(b.trend_percentage ?? ""),
+    costPerKm: String(b.cost_per_km ?? ""),
   };
 }
 
@@ -901,12 +884,12 @@ export const customersApi = {
   createDestination: (customerId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations`, {
       method: "POST",
-      body: JSON.stringify({ destination_name: dest.destinationName, destination_state: dest.destinationState, status: dest.status }),
+      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress }),
     }).then(toCustomerDestination),
   updateDestination: (customerId: string, destId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations/${destId}`, {
       method: "PUT",
-      body: JSON.stringify({ destination_name: dest.destinationName, destination_state: dest.destinationState, status: dest.status }),
+      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress }),
     }).then(toCustomerDestination),
   deleteDestination: (customerId: string, destId: string) =>
     req<void>(`/customers/${customerId}/destinations/${destId}`, { method: "DELETE" }),
@@ -920,8 +903,7 @@ export const customersApi = {
         customer_destination: pricing.customerDestination,
         load_type: pricing.loadType, container_type: pricing.containerType,
         weight_in_tons: pricing.weightInTons,
-        rate: parseFloat(pricing.rate) || 0, valid_from: pricing.validFrom || null,
-        valid_to: pricing.validTo || null, status: pricing.status,
+        rate: parseFloat(pricing.rate) || 0, status: pricing.status,
       }),
     }).then(toCustomerPricing),
   updatePricing: (customerId: string, priceId: string, pricing: CustomerPricing) =>
@@ -931,8 +913,7 @@ export const customersApi = {
         customer_destination: pricing.customerDestination,
         load_type: pricing.loadType, container_type: pricing.containerType,
         weight_in_tons: pricing.weightInTons,
-        rate: parseFloat(pricing.rate) || 0, valid_from: pricing.validFrom || null,
-        valid_to: pricing.validTo || null, status: pricing.status,
+        rate: parseFloat(pricing.rate) || 0, status: pricing.status,
       }),
     }).then(toCustomerPricing),
   deletePricing: (customerId: string, priceId: string) =>
@@ -983,7 +964,13 @@ export const tripsApi = {
   // Workflow
   verify: (dbId: string) => req<B>(`/trips/${dbId}/verify`, { method: "POST" }).then(toTrip),
   flag: (dbId: string) => req<B>(`/trips/${dbId}/flag`, { method: "POST" }).then(toTrip),
-  invoice: (dbId: string) => req<B>(`/trips/${dbId}/invoice`, { method: "POST" }).then(toTrip),
+  invoice: (dbId: string, data: Record<string, unknown>) =>
+    req<B>(`/trips/${dbId}/invoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then(toTrip),
+  getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
 };
 
 // ---------------------------------------------------------------------------
@@ -1209,6 +1196,33 @@ function fromBranch(f: Branch) {
     driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Repair Types API
+// ---------------------------------------------------------------------------
+
+function toRepairType(b: B): RepairType {
+  return {
+    id: String(b.id ?? ""),
+    name: b.name ?? "",
+    defaultCost: String(b.default_cost ?? "0"),
+  };
+}
+
+export const repairTypesApi = {
+  list: () => req<B[]>("/repair-types").then((d) => d.map(toRepairType)),
+  create: (payload: Omit<RepairType, "id">) =>
+    req<B>("/repair-types", {
+      method: "POST",
+      body: JSON.stringify({ name: payload.name, default_cost: parseFloat(payload.defaultCost) || 0 }),
+    }).then(toRepairType),
+  update: (id: string, payload: Partial<Omit<RepairType, "id">>) =>
+    req<B>(`/repair-types/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name: payload.name, default_cost: payload.defaultCost !== undefined ? parseFloat(payload.defaultCost) || 0 : undefined }),
+    }).then(toRepairType),
+  delete: (id: string) => req<void>(`/repair-types/${id}`, { method: "DELETE" }),
+};
 
 export const branchesApi = {
   list: () => req<B[]>("/branches").then((d) => d.map(toBranch)),

@@ -6,11 +6,12 @@ import { formatDate } from "@/lib/format-date";
 
 type EmiTrackingTableProps = {
   records: EmiRecord[];
-  onEdit: (record: EmiRecord) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (record: EmiRecord) => void;
+  onDelete?: (id: string) => void;
+  readOnly?: boolean;
 };
 
-const columns = [
+const BASE_COLUMNS = [
   "EMI Name",
   "Truck Registration",
   "Loan Number",
@@ -21,7 +22,6 @@ const columns = [
   "EMI Start Date",
   "EMI End Date",
   "Date of EMI Payment",
-  "Actions",
 ];
 
 function formatCurrency(amount: string): string {
@@ -35,11 +35,13 @@ function formatCurrency(amount: string): string {
 }
 
 
-export function EmiTrackingTable({ records, onEdit, onDelete }: EmiTrackingTableProps) {
+export function EmiTrackingTable({ records, onEdit, onDelete, readOnly = false }: EmiTrackingTableProps) {
+  const columns = readOnly ? BASE_COLUMNS : [...BASE_COLUMNS, "Actions"];
+
   if (records.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        No EMI entries yet. Click &ldquo;Add EMI Entry&rdquo; to get started.
+        {readOnly ? "No completed EMI entries." : "No EMI entries yet. Click “Add EMI Entry” to get started."}
       </div>
     );
   }
@@ -61,37 +63,39 @@ export function EmiTrackingTable({ records, onEdit, onDelete }: EmiTrackingTable
         </thead>
         <tbody className="divide-y divide-gray-100">
           {records.map((record) => (
-            <tr key={record.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 font-medium text-gray-900">{record.emiName}</td>
-              <td className="px-4 py-3 text-gray-600">{record.truckRegistration}</td>
-              <td className="px-4 py-3 text-gray-600">{record.loanNumber}</td>
-              <td className="px-4 py-3 text-gray-600">{record.bankName}</td>
-              <td className="px-4 py-3 text-gray-600">{formatCurrency(record.loanAmount)}</td>
-              <td className="px-4 py-3 font-medium text-gray-900">{formatCurrency(record.emiAmount)}</td>
-              <td className="px-4 py-3 text-gray-600">{record.tenureMonths} months</td>
-              <td className="px-4 py-3 text-gray-600">{formatDate(record.emiStartDate)}</td>
-              <td className="px-4 py-3 text-gray-600">{formatDate(record.emiEndDate)}</td>
-              <td className="px-4 py-3 text-gray-600">{formatDate(record.emiPaymentDate)}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onEdit(record)}
-                    aria-label="Edit"
-                    className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(record.id)}
-                    aria-label="Delete"
-                    className="rounded-lg border border-red-200 p-1.5 text-red-500 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </td>
+            <tr key={record.id} className={readOnly ? "bg-gray-50/50 text-gray-400" : "hover:bg-gray-50"}>
+              <td className="px-4 py-3 font-medium text-gray-700">{record.emiName}</td>
+              <td className="px-4 py-3 text-gray-500">{record.truckRegistration}</td>
+              <td className="px-4 py-3 text-gray-500">{record.loanNumber}</td>
+              <td className="px-4 py-3 text-gray-500">{record.bankName}</td>
+              <td className="px-4 py-3 text-gray-500">{formatCurrency(record.loanAmount)}</td>
+              <td className="px-4 py-3 font-medium text-gray-700">{formatCurrency(record.emiAmount)}</td>
+              <td className="px-4 py-3 text-gray-500">{record.tenureMonths} months</td>
+              <td className="px-4 py-3 text-gray-500">{formatDate(record.emiStartDate)}</td>
+              <td className="px-4 py-3 text-gray-500">{formatDate(record.emiEndDate)}</td>
+              <td className="px-4 py-3 text-gray-500">{formatDate(record.emiPaymentDate)}</td>
+              {!readOnly && (
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onEdit?.(record)}
+                      aria-label="Edit"
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete?.(record.id)}
+                      aria-label="Delete"
+                      className="rounded-lg border border-red-200 p-1.5 text-red-500 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

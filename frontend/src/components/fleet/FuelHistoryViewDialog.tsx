@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { TrendingUp, Droplets, Route, ArrowRight, ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { TrendingUp, Droplets, Route, ArrowRight, ArrowDownRight, ArrowUpRight, IndianRupee } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
 import { fuelLogsApi } from "@/lib/api";
@@ -70,27 +70,33 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
           ) : (
             <>
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <StatCard 
-                  title="Current Interval" 
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <StatCard
+                  title="Current Interval"
                   value={`${Number(stats?.lastMileage).toFixed(2)} km/L`}
                   icon={Route}
                   trend={Number(stats?.trendPercentage)}
                   subtitle="Latest refill"
                 />
-                <StatCard 
-                  title="Lifetime Average" 
+                <StatCard
+                  title="Lifetime Average"
                   value={`${Number(stats?.averageMileage).toFixed(2)} km/L`}
                   icon={TrendingUp}
                   subtitle={`Total: ${Number(stats?.totalDistance).toLocaleString()} km`}
                 />
-                <StatCard 
-                  title="Best Ever" 
+                <StatCard
+                  title="Cost Per Kilometer"
+                  value={`₹${Number(stats?.costPerKm).toFixed(2)}`}
+                  icon={IndianRupee}
+                  subtitle="Across all logged intervals"
+                />
+                <StatCard
+                  title="Best Ever"
                   value={`${Number(stats?.bestMileage).toFixed(2)} km/L`}
                   icon={ArrowUpRight}
                 />
-                <StatCard 
-                  title="Worst Ever" 
+                <StatCard
+                  title="Worst Ever"
                   value={`${Number(stats?.worstMileage).toFixed(2)} km/L`}
                   icon={ArrowDownRight}
                 />

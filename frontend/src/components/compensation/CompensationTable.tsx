@@ -6,6 +6,7 @@ import type { PersonStatus } from "@/types/compensation";
 
 export type CompensationPerson = {
   id: string;
+  driverId?: string;
   photoUrl: string | null;
   name: string;
   status: PersonStatus;
@@ -75,7 +76,7 @@ export function CompensationTable({
                       onClick={() => onPayAdvance(person)}
                       className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2 text-xs font-semibold text-yellow-700 shadow-sm transition-colors hover:border-yellow-300 hover:bg-yellow-100"
                     >
-                      Pay Advance
+                      Advance Record
                     </button>
                   )}
                   <button
@@ -83,7 +84,7 @@ export function CompensationTable({
                     onClick={() => onPaySalary(person)}
                     className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 shadow-sm transition-colors hover:border-green-300 hover:bg-green-100"
                   >
-                    Pay Salary
+                    Salary Record
                   </button>
                   <button
                     type="button"

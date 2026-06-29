@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,19 +26,59 @@ export function GlassSelect({
   className,
 }: GlassSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find((opt) => String(opt.value) === String(value));
 
+  const updatePosition = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = 240; // approx max-h-60
+      
+      const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+      
+      setDropdownStyle({
+        position: 'fixed',
+        left: rect.left,
+        width: rect.width,
+        ...(openUpwards 
+             ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(spaceAbove - 20, 300) }
+             : { top: rect.bottom + 8, maxHeight: Math.min(spaceBelow - 20, 300) })
+      });
+    }
+  };
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(event.target as Node) &&
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updatePosition();
+      // Listen to scroll events on any scrollable ancestor
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [isOpen]);
 
   return (
     <div className={cn("relative w-full text-[14px]", className)} ref={containerRef}>
@@ -63,8 +104,12 @@ export function GlassSelect({
         />
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-[100] max-h-60 w-full overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar">
+      {isOpen && typeof document !== "undefined" && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="z-[9999] overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar"
+        >
           {options.map((option, index) => {
             const isSelected = String(option.value) === String(value);
             return (
@@ -86,7 +131,8 @@ export function GlassSelect({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

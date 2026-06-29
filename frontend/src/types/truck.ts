@@ -13,9 +13,9 @@ export type Truck = {
   fuelCapacity: string;
   odometerDuringPurchase: string;
   odometer: string;
-  rcDate: string;
+  rcValidityDate: string;
+  rcExpenses: string;
   rcDocumentUrl: string | null;
-  fcDate: string;
   fcExpiryDate: string;
   fcDocumentFileName: string | null;
   fcExpenses: string;
@@ -24,6 +24,7 @@ export type Truck = {
   roadTaxDocumentFileName: string | null;
   roadTaxExpenses: string;
   insuranceExpiryDate: string;
+  insuranceExpenses: string;
   insuranceDocumentProofFileName: string | null;
   nationalPermitNumber: string;
   nationalPermitDate: string;

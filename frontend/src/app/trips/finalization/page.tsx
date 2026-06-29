@@ -10,7 +10,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
-import { GenerateInvoiceDialog, type InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
+import { GenerateInvoiceDialog, type InvoiceType, type InvoiceFormData } from "@/components/trips/GenerateInvoiceDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 
 type PreviewState = {
@@ -35,7 +35,8 @@ export default function TripFinalizationPage() {
   // Tracks invoice type used per trip (for preview / download after generation)
   const [invoiceTypes, setInvoiceTypes] = useState<Map<string, InvoiceType>>(new Map());
 
-  const [dialogTrip, setDialogTrip] = useState<Trip | null>(null);
+  type DialogState = { trip: Trip; savedInvoice: Partial<InvoiceFormData> | null };
+  const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
 
   async function loadAll() {
@@ -84,31 +85,89 @@ export default function TripFinalizationPage() {
   const truckById    = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
-  async function handleDialogSubmit(data: TripClosureData, invoiceType: InvoiceType) {
-    if (!dialogTrip) return;
+  async function handleDialogSubmit(data: InvoiceFormData, invoiceType: InvoiceType) {
+    if (!dialogState) return;
+    const { trip } = dialogState;
 
-    await tripsApi.close(dialogTrip.id, data);
-    await tripsApi.invoice(dialogTrip.id);
-    setInvoicedIds((prev) => new Set([...prev, dialogTrip.id]));
-
-    const savedClosure = await tripsApi.getClosure(dialogTrip.id).catch(() => null);
-    const finalClosure = savedClosure ?? data;
-    setClosures((prev) => new Map(prev).set(dialogTrip.id, finalClosure));
-
-    // Remember which invoice type was used for this trip
-    setInvoiceTypes((prev) => new Map(prev).set(dialogTrip.id, invoiceType));
-
-    const trip = dialogTrip;
-    setDialogTrip(null);
-
-    // Open invoice preview immediately after generation
-    setPreview({
-      trip,
-      closure: finalClosure,
-      sheet: sheets.get(trip.id),
-      customer: customerById.get(trip.customerId),
-      invoiceType,
+    await tripsApi.invoice(trip.id, {
+      invoice_no: data.invoiceNo,
+      invoice_date: data.invoiceDate || null,
+      invoice_type: data.invoiceType,
+      bill_to: data.billTo,
+      gst_number: data.gstNumber,
+      mode_of_shipment: data.modeOfShipment,
+      container_type: data.containerType,
+      cfs: data.cfs,
+      shipping_line: data.shippingLine,
+      vessel_name: data.vesselName,
+      origin: data.from,
+      destination: data.to,
+      container_no: data.containerNo,
+      consignee: data.consignee,
+      services: data.services,
+      bank_name: data.bankName,
+      branch_name: data.branchName,
+      account_number: data.accountNumber,
+      ifsc_code: data.ifscCode,
+      contact_person: data.contactPerson,
+      email: data.email,
+      contact: data.contact,
+      narration: data.narration,
+      gst_applicable: data.gstApplicable,
+      igst_applicable: data.igstApplicable,
     });
+    setInvoicedIds((prev) => new Set([...prev, trip.id]));
+
+    const savedClosure = await tripsApi.getClosure(trip.id).catch(() => null);
+    if (savedClosure) setClosures((prev) => new Map(prev).set(trip.id, savedClosure));
+
+    setInvoiceTypes((prev) => new Map(prev).set(trip.id, invoiceType));
+    setDialogState(null);
+
+    if (savedClosure) {
+      setPreview({
+        trip,
+        closure: savedClosure,
+        sheet: sheets.get(trip.id),
+        customer: customerById.get(trip.customerId),
+        invoiceType,
+      });
+    }
+  }
+
+  async function handleEditInvoice(trip: Trip) {
+    const raw = await tripsApi.getInvoice(trip.id).catch(() => null);
+    if (!raw) return;
+    const savedInvoice: Partial<InvoiceFormData> = {
+      invoiceNo:      (raw.invoice_no as string)        ?? "",
+      invoiceDate:    (raw.invoice_date as string)       ?? "",
+      invoiceType:    (raw.invoice_type as InvoiceType)  ?? "Bill of Supply",
+      billTo:         (raw.bill_to as string)            ?? "",
+      gstNumber:      (raw.gst_number as string)         ?? "",
+      modeOfShipment: (raw.mode_of_shipment as string)   ?? "",
+      containerType:  (raw.container_type as string)     ?? "",
+      cfs:            (raw.cfs as string)                ?? "",
+      shippingLine:   (raw.shipping_line as string)      ?? "",
+      vesselName:     (raw.vessel_name as string)        ?? "",
+      from:           (raw.origin as string)             ?? "",
+      to:             (raw.destination as string)        ?? "",
+      containerNo:    (raw.container_no as string)       ?? "",
+      consignee:      (raw.consignee as string)          ?? "",
+      services: Array.isArray(raw.services) && raw.services.length > 0
+        ? raw.services as InvoiceFormData["services"]
+        : [{ descriptionOfService: "", sacCode: "", quantity: "", rate: "" }],
+      bankName:       (raw.bank_name as string)          ?? "",
+      branchName:     (raw.branch_name as string)        ?? "",
+      accountNumber:  (raw.account_number as string)     ?? "",
+      ifscCode:       (raw.ifsc_code as string)          ?? "",
+      contactPerson:  (raw.contact_person as string)     ?? "",
+      email:          (raw.email as string)              ?? "",
+      contact:        (raw.contact as string)            ?? "",
+      narration:      (raw.narration as string)          ?? "",
+      gstApplicable:  (raw.gst_applicable as "Yes" | "No")  ?? "No",
+      igstApplicable: (raw.igst_applicable as "Yes" | "No") ?? "No",
+    };
+    setDialogState({ trip, savedInvoice });  // single atomic update — no race
   }
 
   function openPreview(trip: Trip, autoDownload = false) {
@@ -188,6 +247,18 @@ export default function TripFinalizationPage() {
                             Invoice Generated
                           </span>
                           <div className="flex gap-1.5">
+                            {/* Edit Invoice button */}
+                            <button
+                              type="button"
+                              onClick={() => handleEditInvoice(trip)}
+                              className="flex items-center gap-1 rounded-lg border border-orange-300 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50"
+                            >
+                              <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H9v-2a2 2 0 01.586-1.414z" />
+                              </svg>
+                              Edit Invoice
+                            </button>
+
                             {/* Preview button */}
                             <button
                               type="button"
@@ -219,7 +290,7 @@ export default function TripFinalizationPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setDialogTrip(trip)}
+                          onClick={() => setDialogState({ trip, savedInvoice: null })}
                           className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
                         >
                           GENERATE INVOICE
@@ -236,13 +307,15 @@ export default function TripFinalizationPage() {
 
       {/* ── Generate Invoice Dialog ── */}
       <GenerateInvoiceDialog
-        open={dialogTrip !== null}
-        trip={dialogTrip}
-        closure={dialogTrip ? closures.get(dialogTrip.id) : undefined}
-        driver={dialogTrip ? driverById.get(dialogTrip.driverId) : undefined}
-        truck={dialogTrip ? truckById.get(dialogTrip.vehicleId) : undefined}
-        customer={dialogTrip ? customerById.get(dialogTrip.customerId) : undefined}
-        onClose={() => setDialogTrip(null)}
+        key={dialogState ? `${dialogState.trip.id}-${dialogState.savedInvoice ? "edit" : "new"}` : "closed"}
+        open={dialogState !== null}
+        trip={dialogState?.trip ?? null}
+        closure={dialogState ? closures.get(dialogState.trip.id) : undefined}
+        driver={dialogState ? driverById.get(dialogState.trip.driverId) : undefined}
+        truck={dialogState ? truckById.get(dialogState.trip.vehicleId) : undefined}
+        customer={dialogState ? customerById.get(dialogState.trip.customerId) : undefined}
+        savedInvoice={dialogState?.savedInvoice ?? undefined}
+        onClose={() => setDialogState(null)}
         onSubmit={handleDialogSubmit}
       />
 

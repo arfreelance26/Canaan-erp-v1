@@ -36,6 +36,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
   ],
   "Finance Manager": [
     "/",
+    "/insights/pl-summary",
     "/trips/reconciliation",
     "/trips/verification",
     "/trips/finalization",
@@ -44,7 +45,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/finance/driver-compensation",
     "/finance/staff-compensation",
     "/finance/emi-tracking",
-    "/finance/recurring-payments",
+    "/maintenance/compliance",
   ],
   "Tyre Manager": [
     "/",

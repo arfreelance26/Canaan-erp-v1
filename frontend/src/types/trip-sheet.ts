@@ -28,10 +28,7 @@ export type TripSheetData = {
   startKm: string;
   endKm: string;
   totalKm: string;
-  cargoWeight: string;
-  grossWeight: string;
-  tareWeight: string;
-  netWeight: string;
+  cargoWeight: string;  // auto-fetched from trip.cargoWeight
 
   // Driver Settlement
   driverPay: string;
@@ -52,10 +49,8 @@ export type TripSheetData = {
   // Loading & Handling
   liftOnOffExpense: string;
   craneOperatorExpense: string;
-  // Vehicle Maintenance
   parkingExpense: string;
-  punctureExpense: string;
-  sparePartsExpense: string;
+  // Major Repairs
   majorRepairs: Array<{ name: string; cost: string }>;
   // Miscellaneous
   otherExpenses: string;
@@ -64,6 +59,7 @@ export type TripSheetData = {
   tripExpensesTotal: string;
   driverExpensesTotal: string;
   totalExpense: string;
+  fuelCostApprox: string;
 
   // Toll Details
   tollCharges: string;
@@ -107,8 +103,6 @@ export function calcDriverExpenses(form: TripSheetData): number {
     n(form.liftOnOffExpense) +
     n(form.craneOperatorExpense) +
     n(form.parkingExpense) +
-    n(form.punctureExpense) +
-    n(form.sparePartsExpense) +
     n(form.otherExpenses)
   );
 }

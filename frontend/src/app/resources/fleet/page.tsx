@@ -53,13 +53,14 @@ export default function FleetPage() {
       setTrucks((prev) => [...prev, saved]);
     }
     const uploadMap: [File | null | undefined, string][] = [
-      [files.photo,          "photo"],
-      [files.rc,             "rc"],
-      [files.fc,             "fc"],
-      [files.road_tax,       "road_tax"],
-      [files.national_permit,"national_permit"],
-      [files.local_permit,   "local_permit"],
-      [files.pollution_cert, "pollution_cert"],
+      [files.photo,           "photo"],
+      [files.rc,              "rc"],
+      [files.fc,              "fc"],
+      [files.road_tax,        "road_tax"],
+      [files.insurance_proof, "insurance"],
+      [files.national_permit, "national_permit"],
+      [files.local_permit,    "local_permit"],
+      [files.pollution_cert,  "pollution_cert"],
     ];
     await Promise.all(
       uploadMap
