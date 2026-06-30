@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from duplicate_checks import check_customer_duplicates, check_customer_destination_duplicates
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -17,6 +18,7 @@ def list_customers(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.CustomerOut, status_code=201)
 def create_customer(payload: schemas.CustomerCreate, db: Session = Depends(get_db)):
+    check_customer_duplicates(db, payload)
     customer = models.Customer(**payload.model_dump())
     db.add(customer)
     db.commit()
@@ -34,6 +36,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{customer_id}", response_model=schemas.CustomerOut)
 def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Session = Depends(get_db)):
+    check_customer_duplicates(db, payload, exclude_id=customer_id)
     customer = db.get(models.Customer, customer_id)
     if not customer:
         raise HTTPException(404, "Customer not found")
@@ -66,6 +69,7 @@ def list_destinations(customer_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{customer_id}/destinations", response_model=schemas.CustomerDestinationOut, status_code=201)
 def create_destination(customer_id: int, payload: schemas.CustomerDestinationCreate, db: Session = Depends(get_db)):
+    check_customer_destination_duplicates(db, payload, customer_id)
     if not db.get(models.Customer, customer_id):
         raise HTTPException(404, "Customer not found")
     dest = models.CustomerDestination(customer_id=customer_id, **payload.model_dump())
@@ -77,6 +81,7 @@ def create_destination(customer_id: int, payload: schemas.CustomerDestinationCre
 
 @router.put("/{customer_id}/destinations/{dest_id}", response_model=schemas.CustomerDestinationOut)
 def update_destination(customer_id: int, dest_id: int, payload: schemas.CustomerDestinationCreate, db: Session = Depends(get_db)):
+    check_customer_destination_duplicates(db, payload, customer_id)
     dest = db.query(models.CustomerDestination).filter(
         models.CustomerDestination.id == dest_id,
         models.CustomerDestination.customer_id == customer_id,

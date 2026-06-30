@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError
 from database import engine, Base
 import models  # noqa: F401 — ensure all models are registered before create_all
 
@@ -56,6 +58,14 @@ app.include_router(repair_types.router)
 app.include_router(sac_codes.router)
 app.include_router(pl_summary.router)
 
+
+@app.exception_handler(IntegrityError)
+async def sqlalchemy_integrity_exception_handler(request: Request, exc: IntegrityError):
+    error_msg = str(exc.orig) if exc.orig else str(exc)
+    return JSONResponse(
+        status_code=400,
+        content={"detail": f"Database integrity error: {error_msg}. This usually means a duplicate entry like email or username already exists."},
+    )
 
 @app.get("/", tags=["Health"])
 def health_check():

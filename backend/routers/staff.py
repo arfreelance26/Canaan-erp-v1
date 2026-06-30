@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from database import get_db
 import models, schemas
+from duplicate_checks import check_staff_duplicates
 
 router = APIRouter(prefix="/staff", tags=["Staff"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -15,6 +16,7 @@ def list_staff(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.StaffOut, status_code=201)
 def create_staff(payload: schemas.StaffCreate, db: Session = Depends(get_db)):
+    check_staff_duplicates(db, payload)
     if db.query(models.Staff).filter(models.Staff.staff_id == payload.staff_id).first():
         raise HTTPException(400, f"Staff ID {payload.staff_id} already exists")
     data = payload.model_dump()
@@ -36,6 +38,7 @@ def get_staff(staff_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{staff_id}", response_model=schemas.StaffOut)
 def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depends(get_db)):
+    check_staff_duplicates(db, payload, exclude_id=staff_id)
     member = db.get(models.Staff, staff_id)
     if not member:
         raise HTTPException(404, "Staff member not found")

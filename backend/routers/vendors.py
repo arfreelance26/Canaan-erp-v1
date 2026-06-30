@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from duplicate_checks import check_vendor_duplicates
 
 router = APIRouter(prefix="/vendors", tags=["Vendors"])
 
@@ -13,6 +14,7 @@ def list_vendors(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.VendorOut, status_code=201)
 def create_vendor(payload: schemas.VendorCreate, db: Session = Depends(get_db)):
+    check_vendor_duplicates(db, payload)
     vendor = models.Vendor(**payload.model_dump())
     db.add(vendor)
     db.commit()
@@ -30,6 +32,7 @@ def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{vendor_id}", response_model=schemas.VendorOut)
 def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = Depends(get_db)):
+    check_vendor_duplicates(db, payload, exclude_id=vendor_id)
     vendor = db.get(models.Vendor, vendor_id)
     if not vendor:
         raise HTTPException(404, "Vendor not found")

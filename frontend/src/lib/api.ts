@@ -43,7 +43,11 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.detail ?? `HTTP ${res.status}`);
+  if (!res.ok) {
+    const errorMsg = data?.detail ?? `HTTP ${res.status}`;
+    if (typeof window !== "undefined") window.alert(errorMsg);
+    throw new Error(errorMsg);
+  }
   return data as T;
 }
 

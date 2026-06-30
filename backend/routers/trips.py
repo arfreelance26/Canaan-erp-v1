@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 import models, schemas
+from duplicate_checks import check_trip_duplicates
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
 
@@ -61,6 +62,7 @@ def list_trips(
 
 @router.post("", response_model=schemas.TripOut, status_code=201)
 def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
+    check_trip_duplicates(db, payload)
     if db.query(models.Trip).filter(models.Trip.trip_id == payload.trip_id).first():
         raise HTTPException(400, f"Trip ID {payload.trip_id} already exists")
     if db.query(models.Trip).filter(models.Trip.booking_reference_no == payload.booking_reference_no).first():

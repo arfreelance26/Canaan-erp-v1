@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from database import get_db
 import models, schemas
+from duplicate_checks import check_driver_duplicates
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -15,6 +16,7 @@ def list_drivers(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.DriverOut, status_code=201)
 def create_driver(payload: schemas.DriverCreate, db: Session = Depends(get_db)):
+    check_driver_duplicates(db, payload)
     if db.query(models.Driver).filter(models.Driver.driver_id == payload.driver_id).first():
         raise HTTPException(400, f"Driver ID {payload.driver_id} already exists")
     data = payload.model_dump()
@@ -36,6 +38,7 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{driver_id}", response_model=schemas.DriverOut)
 def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = Depends(get_db)):
+    check_driver_duplicates(db, payload, exclude_id=driver_id)
     driver = db.get(models.Driver, driver_id)
     if not driver:
         raise HTTPException(404, "Driver not found")

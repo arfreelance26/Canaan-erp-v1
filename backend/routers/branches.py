@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from duplicate_checks import check_branch_duplicates
 
 router = APIRouter(prefix="/branches", tags=["Branches"])
 
@@ -13,6 +14,7 @@ def list_branches(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.BranchOut, status_code=201)
 def create_branch(payload: schemas.BranchCreate, db: Session = Depends(get_db)):
+    check_branch_duplicates(db, payload)
     existing = db.query(models.Branch).filter(models.Branch.name == payload.name).first()
     if existing:
         raise HTTPException(400, f"Branch '{payload.name}' already exists")
@@ -33,6 +35,7 @@ def get_branch(branch_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{branch_id}", response_model=schemas.BranchOut)
 def update_branch(branch_id: int, payload: schemas.BranchUpdate, db: Session = Depends(get_db)):
+    check_branch_duplicates(db, payload, exclude_id=branch_id)
     branch = db.get(models.Branch, branch_id)
     if not branch:
         raise HTTPException(404, "Branch not found")
