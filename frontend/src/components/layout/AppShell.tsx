@@ -10,7 +10,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, ready } = useAuth();
 
   // Login page always renders without the shell
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/login/") {
     return <>{children}</>;
   }
 
