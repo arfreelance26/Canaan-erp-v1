@@ -340,13 +340,11 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Customer Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Customer Account" required>
-              <GlassSelect
+              <GlassCombobox
                 value={form.customerId}
                 onChange={(val) => handleCustomerChange(val)}
-                options={[
-                  { value: "", label: "Select a customer" },
-                  ...customers.map(c => ({ value: c.id, label: c.name }))
-                ]}
+                options={customers.map(c => ({ value: c.id, label: c.name }))}
+                placeholder="Select a customer"
               />
             </Field>
 
@@ -366,30 +364,42 @@ export function TripFormDialog({
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <h4 className="mb-3 text-sm font-semibold text-blue-900">Customer Details</h4>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-medium text-blue-700">Contact Person</p>
-                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.contactPersonnelName}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-blue-700">Phone</p>
-                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.phone}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-blue-700">Email</p>
-                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-blue-700">Customer Type</p>
-                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.customerType}</p>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs font-medium text-blue-700">Address</p>
-                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.address}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-blue-700">GSTIN</p>
-                  <p className="mt-1 text-sm text-blue-900">{selectedCustomer.gstin}</p>
-                </div>
+                {selectedCustomer.contactPersonnelName && (
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">Contact Person</p>
+                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.contactPersonnelName}</p>
+                  </div>
+                )}
+                {selectedCustomer.phone && (
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">Phone</p>
+                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.phone}</p>
+                  </div>
+                )}
+                {selectedCustomer.email && (
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">Email</p>
+                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.email}</p>
+                  </div>
+                )}
+                {selectedCustomer.customerType && (
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">Customer Type</p>
+                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.customerType}</p>
+                  </div>
+                )}
+                {selectedCustomer.address && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-medium text-blue-700">Address</p>
+                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.address}</p>
+                  </div>
+                )}
+                {selectedCustomer.gstin && (
+                  <div>
+                    <p className="text-xs font-medium text-blue-700">GSTIN</p>
+                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.gstin}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
