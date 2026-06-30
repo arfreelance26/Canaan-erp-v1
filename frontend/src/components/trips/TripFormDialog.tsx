@@ -138,6 +138,26 @@ export function TripFormDialog({
     .filter((d) => d.destinationAddress)
     .map((d) => ({ value: d.destinationAddress, label: d.destinationAddress }));
 
+  function containerTypeToSpec(ct: string): Trip["containerSpecification"] | "" {
+    const map: Record<string, Trip["containerSpecification"]> = {
+      "20 FEET": "20 FT CONTAINER",
+      "40 FEET": "40 FT CONTAINER",
+      "2 X 20 FEET": "2 X 20 FEET CONTAINERS",
+      "OPEN LOAD": "OPEN LOAD CARGO",
+    };
+    return map[ct] ?? "";
+  }
+
+  function applyPricingFields(p: CustomerPricing): Partial<typeof emptyForm> {
+    return {
+      destination: p.customerDestination,
+      cargoClassification: (p.cargoClassification as Trip["cargoClassification"]) || "",
+      containerSpecification: (containerTypeToSpec(p.containerType) as Trip["containerSpecification"]) || "",
+      cargoWeight: p.weightInTons || "",
+      transportHireAmount: p.rate || "",
+    };
+  }
+
   function calcCompensation(hireAmount: string, pct: number | null): string {
     if (pct === null || !hireAmount) return "";
     const hire = parseFloat(hireAmount);
@@ -164,13 +184,21 @@ export function TripFormDialog({
       customerId,
       shipperConsignee: selectedCustomer?.name ?? prev.shipperConsignee,
       destination: "",
+      cargoClassification: "",
+      containerSpecification: "",
+      cargoWeight: "",
       transportHireAmount: "",
     }));
     setCustomerDestinations([]);
     setCustomerPricing([]);
     if (customerId) {
       customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
-      customersApi.listPricing(customerId).then(setCustomerPricing).catch(() => {});
+      customersApi.listPricing(customerId).then((pricing) => {
+        setCustomerPricing(pricing);
+        if (pricing.length > 0) {
+          setForm((prev) => ({ ...prev, ...applyPricingFields(pricing[0]) }));
+        }
+      }).catch(() => {});
     }
   }
 
@@ -178,8 +206,7 @@ export function TripFormDialog({
     const matchingPricing = customerPricing.find((p) => p.customerDestination === destination);
     setForm((prev) => ({
       ...prev,
-      destination,
-      transportHireAmount: matchingPricing ? matchingPricing.rate : prev.transportHireAmount,
+      ...(matchingPricing ? applyPricingFields(matchingPricing) : { destination }),
     }));
   }
 
@@ -484,7 +511,7 @@ export function TripFormDialog({
               {customerPricing.find((p) => p.customerDestination === form.destination) && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />
-                  Rate auto-filled from customer pricing
+                  Cargo classification, container spec, weight &amp; hire amount auto-filled from customer pricing
                 </span>
               )}
             </Field>

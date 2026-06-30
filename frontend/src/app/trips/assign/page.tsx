@@ -8,7 +8,7 @@ import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
-import { confirmAction } from "@/lib/swal";
+import { confirmAction, showError } from "@/lib/swal";
 import type { Customer } from "@/types/customer";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -61,16 +61,30 @@ export default function AssignTripsPage() {
 
   const truckById = useMemo(() => new Map(trucks.map((truck) => [truck.truckId, truck])), [trucks]);
 
+  const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+
+  const activeDriverIds = useMemo(
+    () => new Set(trips.filter((t) => ACTIVE_STATUSES.has(t.status) && t.id !== editingTrip?.id).map((t) => t.driverId).filter(Boolean)),
+    [trips, editingTrip]
+  );
+
+  const activeVehicleIds = useMemo(
+    () => new Set(trips.filter((t) => ACTIVE_STATUSES.has(t.status) && t.id !== editingTrip?.id).map((t) => t.vehicleId).filter(Boolean)),
+    [trips, editingTrip]
+  );
+
   const assignableDrivers = useMemo(
     () =>
       assignments
         .map((assignment) => {
           const driver = drivers.find((d) => d.driverId === assignment.driverId);
           const truck = truckById.get(assignment.vehicleId);
-          return driver && truck ? { driver, truck } : null;
+          if (!driver || !truck) return null;
+          if (activeDriverIds.has(driver.driverId) || activeVehicleIds.has(truck.truckId)) return null;
+          return { driver, truck };
         })
         .filter((entry): entry is { driver: Driver; truck: Truck } => entry !== null),
-    [assignments, drivers, truckById]
+    [assignments, drivers, truckById, activeDriverIds, activeVehicleIds]
   );
 
   function handleAdd() {
@@ -84,17 +98,20 @@ export default function AssignTripsPage() {
   }
 
   async function handleSave(trip: Trip) {
-    if (editingTrip) {
-      // Update existing trip
-      const updated = await tripsApi.update(editingTrip.id, trip);
-      setTrips((prev) => prev.map((t) => (t.id === editingTrip.id ? updated : t)));
-    } else {
-      // Create new trip
-      const created = await tripsApi.create(trip);
-      setTrips((prev) => [...prev, created]);
+    try {
+      if (editingTrip) {
+        const updated = await tripsApi.update(editingTrip.id, trip);
+        setTrips((prev) => prev.map((t) => (t.id === editingTrip.id ? updated : t)));
+      } else {
+        const created = await tripsApi.create(trip);
+        setTrips((prev) => [...prev, created]);
+      }
+      setDialogOpen(false);
+      setEditingTrip(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save trip. Please try again.";
+      await showError(msg, "Cannot Assign Trip");
     }
-    setDialogOpen(false);
-    setEditingTrip(null);
   }
 
   async function handleMarkStarted(id: string) {

@@ -247,7 +247,7 @@ class CustomerDestinationOut(CustomerDestinationBase):
 
 class CustomerPricingBase(OrmBase):
     customer_destination: Optional[str] = None
-    load_type: Optional[str] = None
+    cargo_classification: Optional[str] = None
     container_type: Optional[str] = None
     weight_in_tons: Optional[str] = None
     rate: Optional[Decimal] = None
@@ -941,6 +941,32 @@ class RepairTypeOut(OrmBase):
     id: int
     name: str
     default_cost: Optional[Decimal] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# SAC Codes
+# ---------------------------------------------------------------------------
+
+class SacCodeBase(OrmBase):
+    description: str
+    code: str
+    gst_rate: Optional[Decimal] = Decimal("0")
+
+
+class SacCodeCreate(SacCodeBase):
+    pass
+
+
+class SacCodeUpdate(OrmBase):
+    description: Optional[str] = None
+    code: Optional[str] = None
+    gst_rate: Optional[Decimal] = None
+
+
+class SacCodeOut(SacCodeBase):
+    id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

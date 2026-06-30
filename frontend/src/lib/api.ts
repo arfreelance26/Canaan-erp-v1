@@ -23,6 +23,7 @@ import type { CompensationTransaction } from "@/types/compensation";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
 import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
+import type { SacCode } from "@/types/sac-code";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
@@ -314,7 +315,7 @@ function toCustomerPricing(b: B): CustomerPricing {
     id: String(b.id),
     customerId: String(b.customer_id),
     customerDestination: b.customer_destination ?? "",
-    loadType: b.load_type ?? "",
+    cargoClassification: b.cargo_classification ?? "",
     containerType: b.container_type ?? "",
     weightInTons: b.weight_in_tons ?? "",
     rate: String(b.rate ?? ""),
@@ -901,7 +902,7 @@ export const customersApi = {
       method: "POST",
       body: JSON.stringify({
         customer_destination: pricing.customerDestination,
-        load_type: pricing.loadType, container_type: pricing.containerType,
+        cargo_classification: pricing.cargoClassification, container_type: pricing.containerType,
         weight_in_tons: pricing.weightInTons,
         rate: parseFloat(pricing.rate) || 0, status: pricing.status,
       }),
@@ -911,7 +912,7 @@ export const customersApi = {
       method: "PUT",
       body: JSON.stringify({
         customer_destination: pricing.customerDestination,
-        load_type: pricing.loadType, container_type: pricing.containerType,
+        cargo_classification: pricing.cargoClassification, container_type: pricing.containerType,
         weight_in_tons: pricing.weightInTons,
         rate: parseFloat(pricing.rate) || 0, status: pricing.status,
       }),
@@ -1209,6 +1210,15 @@ function toRepairType(b: B): RepairType {
   };
 }
 
+function toSacCode(b: B): SacCode {
+  return {
+    id: String(b.id ?? ""),
+    description: b.description ?? "",
+    code: b.code ?? "",
+    gstRate: String(b.gst_rate ?? "0"),
+  };
+}
+
 export const repairTypesApi = {
   list: () => req<B[]>("/repair-types").then((d) => d.map(toRepairType)),
   create: (payload: Omit<RepairType, "id">) =>
@@ -1222,6 +1232,27 @@ export const repairTypesApi = {
       body: JSON.stringify({ name: payload.name, default_cost: payload.defaultCost !== undefined ? parseFloat(payload.defaultCost) || 0 : undefined }),
     }).then(toRepairType),
   delete: (id: string) => req<void>(`/repair-types/${id}`, { method: "DELETE" }),
+};
+
+export const sacCodesApi = {
+  list: () => req<B[]>("/sac-codes").then((d) => d.map(toSacCode)),
+  create: (payload: Omit<SacCode, "id">) =>
+    req<B>("/sac-codes", {
+      method: "POST",
+      body: JSON.stringify({
+        description: payload.description, code: payload.code,
+        gst_rate: parseFloat(payload.gstRate) || 0,
+      }),
+    }).then(toSacCode),
+  update: (id: string, payload: Partial<Omit<SacCode, "id">>) =>
+    req<B>(`/sac-codes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        description: payload.description, code: payload.code,
+        gst_rate: payload.gstRate !== undefined ? parseFloat(payload.gstRate) || 0 : undefined,
+      }),
+    }).then(toSacCode),
+  delete: (id: string) => req<void>(`/sac-codes/${id}`, { method: "DELETE" }),
 };
 
 export const branchesApi = {
@@ -1240,4 +1271,114 @@ export const branchesApi = {
 
 export const dashboardApi = {
   overview: () => req<Record<string, unknown>>("/dashboard/overview"),
+};
+
+// ---------------------------------------------------------------------------
+// P&L Summary API
+// ---------------------------------------------------------------------------
+
+export type TruckPLTripRow = {
+  tripSheetDate: string;
+  tripSheetNo: string;
+  bookingReferenceNo: string;
+  fromLocation: string;
+  toLocation: string;
+  hireAmount: number;
+  totalExpense: number;
+  totalKm: number;
+};
+
+export type TruckPLMaintenanceRow = {
+  date: string;
+  maintenanceType: string;
+  description: string;
+  cost: number;
+};
+
+export type TruckPLEntry = {
+  truckId: string;
+  registrationNumber: string;
+  tripCount: number;
+  totalHireAmount: number;
+  tripExpenses: number;
+  maintenanceExpenses: number;
+  emiShare: number;
+  documentShare: number;
+  documentBreakdown: {
+    rc: number;
+    fc: number;
+    road_tax: number;
+    insurance: number;
+    national_permit: number;
+    local_permit: number;
+    pollution_certificate: number;
+  };
+  emiDetails: Array<{
+    emiName: string;
+    bankName: string;
+    monthlyEmi: number;
+    shareForPeriod: number;
+  }>;
+  totalCost: number;
+  netPl: number;
+  totalKm: number;
+  revenuePerKm: number;
+  maintenanceCount: number;
+  tripRows: TruckPLTripRow[];
+  maintenanceRows: TruckPLMaintenanceRow[];
+};
+
+export const plSummaryApi = {
+  get: (startDate: string, endDate: string, truckId?: string): Promise<TruckPLEntry[]> => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (truckId) params.set("truck_id", truckId);
+    return req<B[]>(`/pl-summary?${params}`).then((data) =>
+      data.map((b) => ({
+        truckId: String(b.truck_id ?? ""),
+        registrationNumber: String(b.registration_number ?? ""),
+        tripCount: Number(b.trip_count ?? 0),
+        totalHireAmount: Number(b.total_hire_amount ?? 0),
+        tripExpenses: Number(b.trip_expenses ?? 0),
+        maintenanceExpenses: Number(b.maintenance_expenses ?? 0),
+        emiShare: Number(b.emi_share ?? 0),
+        documentShare: Number(b.document_share ?? 0),
+        documentBreakdown: {
+          rc: Number((b.document_breakdown as B)?.rc ?? 0),
+          fc: Number((b.document_breakdown as B)?.fc ?? 0),
+          road_tax: Number((b.document_breakdown as B)?.road_tax ?? 0),
+          insurance: Number((b.document_breakdown as B)?.insurance ?? 0),
+          national_permit: Number((b.document_breakdown as B)?.national_permit ?? 0),
+          local_permit: Number((b.document_breakdown as B)?.local_permit ?? 0),
+          pollution_certificate: Number((b.document_breakdown as B)?.pollution_certificate ?? 0),
+        },
+        emiDetails: ((b.emi_details as B[]) ?? []).map((e) => ({
+          emiName: String(e.emi_name ?? ""),
+          bankName: String(e.bank_name ?? ""),
+          monthlyEmi: Number(e.monthly_emi ?? 0),
+          shareForPeriod: Number(e.share_for_period ?? 0),
+        })),
+        totalCost: Number(b.total_cost ?? 0),
+        netPl: Number(b.net_pl ?? 0),
+        totalKm: Number(b.total_km ?? 0),
+        revenuePerKm: Number(b.revenue_per_km ?? 0),
+        maintenanceCount: Number(b.maintenance_count ?? 0),
+        tripRows: ((b.trip_rows as B[]) ?? []).map((t) => ({
+          tripSheetDate: String(t.trip_sheet_date ?? ""),
+          tripSheetNo: String(t.trip_sheet_no ?? ""),
+          bookingReferenceNo: String(t.booking_reference_no ?? ""),
+          fromLocation: String(t.from_location ?? ""),
+          toLocation: String(t.to_location ?? ""),
+          hireAmount: Number(t.hire_amount ?? 0),
+          totalExpense: Number(t.total_expense ?? 0),
+          totalKm: Number(t.total_km ?? 0),
+        })),
+        maintenanceRows: ((b.maintenance_rows as B[]) ?? []).map((m) => ({
+          date: String(m.date ?? ""),
+          maintenanceType: String(m.maintenance_type ?? ""),
+          description: String(m.description ?? ""),
+          cost: Number(m.cost ?? 0),
+        })),
+      }))
+    );
+  },
 };

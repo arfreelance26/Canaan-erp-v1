@@ -1,4 +1,4 @@
-export type LoadType = "IMPORT" | "EXPORT" | "OPEN LOAD";
+export type CargoClassification = "IMPORT" | "EXPORT" | "CFS LADEN" | "EMPTY" | "OPEN LOAD" | "COASTAL";
 
 export type ContainerType = "20 FEET" | "40 FEET" | "2 X 20 FEET" | "OPEN LOAD";
 
@@ -10,7 +10,7 @@ export type CustomerPricing = {
   id: string;
   customerId: string;
   customerDestination: string;
-  loadType: LoadType | "";
+  cargoClassification: CargoClassification | "";
   containerType: ContainerType | "";
   weightInTons: WeightInTons | "";
   rate: string;

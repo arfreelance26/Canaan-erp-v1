@@ -20,6 +20,8 @@ import {
   Fuel,
   GitBranch,
   TrendingUp,
+  Tag,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -62,6 +64,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Reconciliation", href: "/trips/reconciliation", icon: ClipboardList },
       { label: "Trip Verification", href: "/trips/verification", icon: ClipboardCheck },
       { label: "Trip Finalization", href: "/trips/finalization", icon: CalendarCheck },
+      { label: "Trip History", href: "/trips/history", icon: History },
     ],
   },
   {
@@ -97,6 +100,7 @@ export const sidebarSections: NavSection[] = [
     items: [
       { label: "Branch Management", href: "/admin/branches", icon: GitBranch },
       { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
+      { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
     ],
   },
 ];

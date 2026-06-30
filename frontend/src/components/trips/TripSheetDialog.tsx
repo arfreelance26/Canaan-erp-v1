@@ -107,7 +107,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     if (initKeyRef.current === key) return;
     initKeyRef.current = key;
 
-    const hp = closure ? Number(closure.driverHaltCompensation || 0) : 0;
+    const compHD  = closure ? Number(closure.companyHaltDays || 0) : 0;
+    const partHD  = closure ? Number(closure.partyHaltDays   || 0) : 0;
+    const totalHD = compHD + partHD;
+    const totalComp = closure ? Number(closure.driverHaltCompensation || 0) : 0;
+    // Only company-caused halt days go into trip expenses
+    const hp = totalHD > 0 ? (compHD / totalHD) * totalComp : 0;
 
     if (existingSheet) {
       setForm(recalcDerived({ ...existingSheet }, hp));
@@ -142,10 +147,15 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   }
 
   // Halt values — read directly from stored closure (set when trip was closed)
-  const haltTotalDays = closure
-    ? Number(closure.companyHaltDays || 0) + Number(closure.partyHaltDays || 0)
-    : 0;
-  const haltPay     = closure ? Number(closure.driverHaltCompensation || 0) : 0;
+  const companyHaltDays = closure ? Number(closure.companyHaltDays || 0) : 0;
+  const partyHaltDays   = closure ? Number(closure.partyHaltDays   || 0) : 0;
+  const haltTotalDays   = companyHaltDays + partyHaltDays;
+  const totalHaltComp   = closure ? Number(closure.driverHaltCompensation || 0) : 0;
+  const perDayRate      = haltTotalDays > 0 ? totalHaltComp / haltTotalDays : 0;
+  const companyHaltPay  = companyHaltDays * perDayRate;
+  const partyHaltPay    = partyHaltDays   * perDayRate;
+  // Only company-caused halt goes into trip expenses
+  const haltPay     = companyHaltPay;
   const haltRemarks = closure?.haltRemarks ?? "";
 
   function handleSubmit(e: FormEvent) {
@@ -153,8 +163,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     onSubmit({
       ...form,
       tripClosedDate:  closure?.closedAt ?? "",
-      totalHaltDays:   haltTotalDays > 0 ? String(haltTotalDays) : "",
-      haltPay:         haltPay > 0       ? String(haltPay)       : "",
+      totalHaltDays:   haltTotalDays > 0   ? String(haltTotalDays)               : "",
+      haltPay:         companyHaltPay > 0  ? companyHaltPay.toFixed(2)           : "",
       haltRemarks,
       fuelCostApprox,
     });
@@ -287,14 +297,22 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 5. Halt Information ── */}
         <p className={sh}>Halt Information</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Total Halt Days">
-            <input className={roClass} value={haltTotalDays > 0 ? String(haltTotalDays) : ""} readOnly disabled placeholder="Auto-fetched" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Company Halt Days (Driver)">
+            <input className={roClass} value={companyHaltDays > 0 ? String(companyHaltDays) : ""} readOnly disabled placeholder="Auto-fetched" />
+            <p className="mt-1 text-xs text-gray-400">Included in trip expenses</p>
           </Field>
-          <Field label="Halt Pay (₹)">
-            <input className={roClass} value={haltPay > 0 ? String(haltPay) : ""} readOnly disabled placeholder="Auto-calculated" />
+          <Field label="Company Halt Pay (₹)">
+            <input className={roClass} value={companyHaltPay > 0 ? companyHaltPay.toFixed(2) : ""} readOnly disabled placeholder="Auto-calculated" />
           </Field>
-          <Field label="Halt Remarks">
+          <Field label="Party Halt Days (Customer)">
+            <input className={`${roClass} ${partyHaltDays > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`} value={partyHaltDays > 0 ? String(partyHaltDays) : ""} readOnly disabled placeholder="Auto-fetched" />
+            <p className="mt-1 text-xs text-amber-500">Not included in trip expenses — recoverable from customer</p>
+          </Field>
+          <Field label="Party Halt Pay (₹)">
+            <input className={`${roClass} ${partyHaltPay > 0 ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`} value={partyHaltPay > 0 ? partyHaltPay.toFixed(2) : ""} readOnly disabled placeholder="Auto-calculated" />
+          </Field>
+          <Field label="Halt Remarks" className="sm:col-span-2">
             <input className={roClass} value={haltRemarks} readOnly disabled placeholder="Auto-fetched" />
           </Field>
         </div>
@@ -502,6 +520,17 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             </div>
           </div>
         </div>
+
+        {partyHaltPay > 0 && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+            <span className="mt-0.5 text-amber-500">⚠</span>
+            <p className="text-sm text-amber-800">
+              <span className="font-semibold">Party Halt has been mentioned</span> — make sure to pay{" "}
+              <span className="font-semibold">₹{partyHaltPay.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>{" "}
+              to the Driver for {partyHaltDays} party halt {partyHaltDays === 1 ? "day" : "days"} (this amount is recoverable from the customer).
+            </p>
+          </div>
+        )}
 
         {/* ── 10. Remarks ── */}
         <p className={sh}>Remarks</p>

@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { CUSTOMER_STATUS_OPTIONS } from "@/lib/customer-data";
-import { CONTAINER_TYPE_OPTIONS, LOAD_TYPE_OPTIONS, WEIGHT_IN_TONS_OPTIONS } from "@/lib/customer-pricing-data";
+import { CARGO_CLASSIFICATION_OPTIONS, CONTAINER_TYPE_OPTIONS, WEIGHT_IN_TONS_OPTIONS } from "@/lib/customer-pricing-data";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
@@ -23,11 +22,10 @@ type CustomerPricingFormDialogProps = {
 const emptyForm: Omit<CustomerPricing, "id"> = {
   customerId: "",
   customerDestination: "",
-  loadType: "",
+  cargoClassification: "",
   containerType: "",
   weightInTons: "",
   rate: "",
-  status: "",
 };
 
 export function CustomerPricingFormDialog({
@@ -104,13 +102,13 @@ export function CustomerPricingFormDialog({
             />
           </Field>
 
-          <Field label="Load Type" required>
+          <Field label="Cargo Classification" required>
             <GlassSelect
-              value={form.loadType}
-              onChange={(val) => update("loadType", val as CustomerPricing["loadType"])}
+              value={form.cargoClassification}
+              onChange={(val) => update("cargoClassification", val as CustomerPricing["cargoClassification"])}
               options={[
-                { value: "", label: "Select load type" },
-                ...LOAD_TYPE_OPTIONS.map((o) => ({ value: o, label: o })),
+                { value: "", label: "Select cargo classification" },
+                ...CARGO_CLASSIFICATION_OPTIONS.map((o) => ({ value: o, label: o })),
               ]}
             />
           </Field>
@@ -126,7 +124,7 @@ export function CustomerPricingFormDialog({
             />
           </Field>
 
-          <Field label="Weight (In tons)" required>
+          <Field label="Cargo Weight (tons)" required>
             <GlassSelect
               value={form.weightInTons}
               onChange={(val) => update("weightInTons", val as CustomerPricing["weightInTons"])}
@@ -137,7 +135,7 @@ export function CustomerPricingFormDialog({
             />
           </Field>
 
-          <Field label="Rate" required>
+          <Field label="Hire Amount" required>
             <input
               type="text"
               required
@@ -148,16 +146,6 @@ export function CustomerPricingFormDialog({
             />
           </Field>
 
-          <Field label="Status" required>
-            <GlassSelect
-              value={form.status}
-              onChange={(val) => update("status", val as CustomerPricing["status"])}
-              options={[
-                { value: "", label: "Select status" },
-                ...CUSTOMER_STATUS_OPTIONS.map((o) => ({ value: o, label: o })),
-              ]}
-            />
-          </Field>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

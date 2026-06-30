@@ -207,7 +207,7 @@ class CustomerPricing(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
     customer_destination = Column(String(200))
-    load_type = Column(Enum("IMPORT", "EXPORT", "OPEN LOAD"))
+    cargo_classification = Column(Enum("IMPORT", "EXPORT", "CFS LADEN", "EMPTY", "OPEN LOAD", "COASTAL"))
     container_type = Column(Enum("20 FEET", "40 FEET", "2 X 20 FEET", "OPEN LOAD"))
     weight_in_tons = Column(Enum("NORMAL", "Up to 20 Tons", "Between 20 - 25 Tons", "Between 25-28 Tons", "Between 28-30 Tons"))
     rate = Column(Numeric(10, 2))
@@ -593,6 +593,17 @@ class TyreFitmentRecord(Base):
 # ---------------------------------------------------------------------------
 # Repair Types
 # ---------------------------------------------------------------------------
+
+class SacCode(Base):
+    __tablename__ = "sac_codes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    description = Column(String(500), nullable=False)
+    code = Column(String(20), nullable=False, unique=True)
+    gst_rate = Column(Numeric(5, 2), default=0)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
 
 class RepairType(Base):
     __tablename__ = "repair_types"

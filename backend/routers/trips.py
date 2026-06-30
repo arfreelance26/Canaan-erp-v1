@@ -10,6 +10,29 @@ router = APIRouter(prefix="/trips", tags=["Trips"])
 ACTIVE_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
 
 
+def _check_driver_truck_conflict(db: Session, driver_id, vehicle_id, exclude_trip_id=None):
+    """Raise 400 if the driver or truck is already on an active trip."""
+    q = db.query(models.Trip).filter(models.Trip.status.in_(ACTIVE_STATUSES))
+    if exclude_trip_id is not None:
+        q = q.filter(models.Trip.id != exclude_trip_id)
+    if driver_id:
+        conflict = q.filter(models.Trip.driver_id == driver_id).first()
+        if conflict:
+            raise HTTPException(
+                400,
+                f"Driver {driver_id} is already active on trip {conflict.trip_id}. "
+                "Close that trip before assigning a new one."
+            )
+    if vehicle_id:
+        conflict = q.filter(models.Trip.vehicle_id == vehicle_id).first()
+        if conflict:
+            raise HTTPException(
+                400,
+                f"Truck {vehicle_id} is already active on trip {conflict.trip_id}. "
+                "Close that trip before assigning a new one."
+            )
+
+
 def _enrich(trip: models.Trip) -> dict:
     """Return a dict matching TripOut, including computed has_closure / has_sheet."""
     data = {c.name: getattr(trip, c.name) for c in trip.__table__.columns}
@@ -42,6 +65,7 @@ def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
         raise HTTPException(400, f"Trip ID {payload.trip_id} already exists")
     if db.query(models.Trip).filter(models.Trip.booking_reference_no == payload.booking_reference_no).first():
         raise HTTPException(400, f"Booking reference {payload.booking_reference_no} already exists")
+    _check_driver_truck_conflict(db, payload.driver_id, payload.vehicle_id)
     trip = models.Trip(**payload.model_dump())
     db.add(trip)
     db.commit()
@@ -66,7 +90,11 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    update_data = payload.model_dump(exclude_none=True)
+    effective_driver = update_data.get("driver_id", trip.driver_id)
+    effective_vehicle = update_data.get("vehicle_id", trip.vehicle_id)
+    _check_driver_truck_conflict(db, effective_driver, effective_vehicle, exclude_trip_id=trip_id)
+    for field, value in update_data.items():
         setattr(trip, field, value)
     db.commit()
     db.refresh(trip)
