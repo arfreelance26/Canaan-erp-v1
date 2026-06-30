@@ -30,6 +30,7 @@ bcrypt==4.1.1                 # Password hashing with bcrypt
 # ============================================================================
 python-dotenv==1.0.0          # Load environment variables from .env
 email-validator==2.1.0        # Email validation
+aiofiles==23.2.1              # Required by FastAPI StaticFiles for serving local assets
 
 # Development & Optional
 # ============================================================================
