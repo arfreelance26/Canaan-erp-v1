@@ -173,7 +173,7 @@ function fromTruck(f: Truck) {
 function toDriver(b: B): Driver {
   return {
     id: String(b.id),
-    photoUrl: b.photo_url ?? null,
+    photoUrl: b.photo_url ? fileUrl("drivers", String(b.id), "photo") : null,
     driverId: b.driver_id ?? "",
     name: b.name ?? "",
     aadhaarNumber: b.aadhaar_number ?? "",
@@ -232,7 +232,7 @@ function fromDriver(f: Driver, password?: string) {
 function toStaff(b: B): Staff {
   return {
     id: String(b.id),
-    photoUrl: b.photo_url ?? null,
+    photoUrl: b.photo_url ? fileUrl("staff", String(b.id), "photo") : null,
     staffId: b.staff_id ?? "",
     name: b.name ?? "",
     department: b.department ?? "",
