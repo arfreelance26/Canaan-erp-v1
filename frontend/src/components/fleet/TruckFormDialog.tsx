@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Upload, X, FileText, Image as ImageIcon } from "lucide-react";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
+import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
@@ -225,12 +226,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.truckPhotosFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.truckPhotosFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.truckPhotosFileName}
+              fileObj={files.photo}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="photo"
+            />
           </Field>
 
           <Field label="Odometer During Purchase" required>
@@ -317,12 +319,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.rcDocumentUrl && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <ImageIcon className="h-3.5 w-3.5" />
-                Image selected
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.rcDocumentUrl}
+              fileObj={files.rc}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="rc"
+            />
           </Field>
         </div>
 
@@ -350,12 +353,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.fcDocumentFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.fcDocumentFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.fcDocumentFileName}
+              fileObj={files.fc}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="fc"
+            />
           </Field>
 
           <Field label="Expenses For FC" className="mt-4">
@@ -408,12 +412,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.roadTaxDocumentFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.roadTaxDocumentFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.roadTaxDocumentFileName}
+              fileObj={files.road_tax}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="road_tax"
+            />
           </Field>
 
           <Field label="Expenses For Road Tax" className="mt-4">
@@ -453,12 +458,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.insuranceDocumentProofFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.insuranceDocumentProofFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.insuranceDocumentProofFileName}
+              fileObj={files.insurance_proof}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="insurance"
+            />
           </Field>
 
           <Field label="Expenses for Insurance" className="mt-4">
@@ -511,12 +517,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.nationalPermitProofFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.nationalPermitProofFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.nationalPermitProofFileName}
+              fileObj={files.national_permit}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="national_permit"
+            />
           </Field>
 
           <Field label="Expenses For National Permit" className="mt-4">
@@ -569,12 +576,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.localPermitProofFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.localPermitProofFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.localPermitProofFileName}
+              fileObj={files.local_permit}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="local_permit"
+            />
           </Field>
 
           <Field label="Expenses For Local Permit" className="mt-4">
@@ -627,12 +635,13 @@ export function TruckFormDialog({
               }}
               className={fileInputClass}
             />
-            {form.pollutionCertificateProofFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.pollutionCertificateProofFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.pollutionCertificateProofFileName}
+              fileObj={files.pollution_cert}
+              entity="trucks"
+              entityId={initialData?.id}
+              field="pollution_cert"
+            />
           </Field>
 
           <Field label="Expenses For Pollution Certificate" className="mt-4">

@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Avatar } from "@/components/ui/Avatar";
+import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { DEPARTMENT_OPTIONS, SOFTWARE_DESIGNATION_OPTIONS } from "@/lib/staff-data";
 import type { Staff } from "@/types/staff";
 import type { Branch } from "@/types/branch";
@@ -272,12 +273,13 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
             }}
             className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
           />
-          {form.aadharFileName && (
-            <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-              <FileText className="h-3.5 w-3.5" />
-              {form.aadharFileName}
-            </span>
-          )}
+          <FilePreviewBadge
+            fileName={form.aadharFileName}
+            fileObj={files.aadhar}
+            entity="staff"
+            entityId={initialData?.id}
+            field="aadhar"
+          />
         </Field>
 
         <div className="mt-2 flex justify-end gap-3">

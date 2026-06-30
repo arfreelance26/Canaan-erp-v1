@@ -7,6 +7,7 @@ import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { trucksApi, uploadFile } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
+import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import type { Truck } from "@/types/truck";
 
 type DocumentMeta = {
@@ -151,10 +152,15 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
               <span className="font-medium text-gray-700">{currentDate ? formatDate(currentDate) : "—"}</span>
             </p>
             {currentFile && (
-              <p>
-                Current document:{" "}
-                <span className="font-medium text-gray-700 break-all">{currentFile}</span>
-              </p>
+              <div className="mt-2">
+                <p className="mb-1 text-xs text-gray-500">Current document:</p>
+                <FilePreviewBadge
+                  fileName={currentFile}
+                  entity="trucks"
+                  entityId={selectedTruck.id}
+                  field={selectedDoc.uploadField}
+                />
+              </div>
             )}
           </div>
         )}

@@ -223,7 +223,7 @@ function fromDriver(f: Driver, password?: string) {
     bank_branch_name: f.bankBranchName || null,
     account_number: f.accountNumber || null,
     ifsc_code: f.ifscCode || null,
-    photo_url: f.photoUrl ?? null,
+    photo_url: (f.photoUrl && f.photoUrl.startsWith("data:")) ? null : (f.photoUrl || null),
     username: f.username || null,
     password: (password || f.password) || undefined,
   };
@@ -266,7 +266,7 @@ function fromStaff(f: Staff, password?: string) {
     branch: f.branch || null,
     aadhar_number: f.aadharNumber ?? null,
     aadhar_file_name: f.aadharFileName ?? null,
-    photo_url: f.photoUrl ?? null,
+    photo_url: (f.photoUrl && f.photoUrl.startsWith("data:")) ? null : (f.photoUrl || null),
     username: f.username || null,
     password: (password || f.password) || undefined,
   };

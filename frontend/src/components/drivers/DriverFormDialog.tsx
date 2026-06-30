@@ -6,6 +6,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { Avatar } from "@/components/ui/Avatar";
+import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { Branch } from "@/types/branch";
@@ -404,12 +405,13 @@ export function DriverFormDialog({
               }}
               className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
             />
-            {form.aadhaarFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.aadhaarFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.aadhaarFileName}
+              fileObj={files.aadhaar}
+              entity="drivers"
+              entityId={initialData?.id}
+              field="aadhaar"
+            />
           </Field>
 
           <Field label="License Proof (PDF)" required>
@@ -424,12 +426,13 @@ export function DriverFormDialog({
               }}
               className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
             />
-            {form.licenseFileName && (
-              <span className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-                <FileText className="h-3.5 w-3.5" />
-                {form.licenseFileName}
-              </span>
-            )}
+            <FilePreviewBadge
+              fileName={form.licenseFileName}
+              fileObj={files.license}
+              entity="drivers"
+              entityId={initialData?.id}
+              field="license"
+            />
           </Field>
         </div>
 
