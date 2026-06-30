@@ -20,8 +20,8 @@ export default function StaffPage() {
   const filteredStaff = staff.filter(s =>
     !searchQuery ||
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.employeeId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.role?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.staffId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.designation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.branch?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 

@@ -18,9 +18,9 @@ export default function VendorsPage() {
 
   const filteredVendors = vendors.filter(v =>
     !searchQuery ||
-    v.vendorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.vendorType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    v.contactPersonnel?.toLowerCase().includes(searchQuery.toLowerCase())
+    v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    v.contactNumber?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {

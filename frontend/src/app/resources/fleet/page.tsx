@@ -20,9 +20,9 @@ export default function FleetPage() {
 
   const filteredTrucks = trucks.filter(t =>
     !searchQuery ||
-    t.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.branch?.toLowerCase().includes(searchQuery.toLowerCase())
+    t.branchRegisteredTo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {
