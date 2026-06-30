@@ -62,6 +62,7 @@ function emptyForm(tripId: string): TripClosureData {
     partyHaltDays: "",
     haltRemarks: "",
     driverHaltCompensation: "",
+    closedAt: "",
   };
 }
 

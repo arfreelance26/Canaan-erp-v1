@@ -22,6 +22,7 @@ const emptyForm: Omit<TyreInventoryItem, "id"> = {
   tyreType: "Radial",
   tyreNumber: "",
   size: "",
+  rangeKm: "0",
   cost: "",
   condition: "",
   purchaseDate: todayIst(),

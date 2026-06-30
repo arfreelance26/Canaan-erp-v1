@@ -60,7 +60,7 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
               <tr key={entry.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{entry.customerDestination}</td>
-                <td className="px-4 py-3 text-gray-600">{entry.loadType}</td>
+                <td className="px-4 py-3 text-gray-600">{entry.cargoClassification}</td>
                 <td className="px-4 py-3 text-gray-600">{entry.containerType}</td>
                 <td className="px-4 py-3 text-gray-600">{entry.weightInTons}</td>
                 <td className="px-4 py-3 text-gray-600">{entry.rate}</td>

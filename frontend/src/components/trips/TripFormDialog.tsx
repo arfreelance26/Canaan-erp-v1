@@ -83,6 +83,10 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   transportCrossingAmount: "",
   internalRemarks: "",
   bookingInstructions: "",
+  hasClosure: false,
+  hasSheet: false,
+  verificationStatus: "pending",
+  isInvoiced: false,
 };
 
 export function TripFormDialog({
@@ -135,8 +139,11 @@ export function TripFormDialog({
   const isNormalComp = form.driverCompensationType === "Normal";
 
   const destinationOptions = customerDestinations
-    .filter((d) => d.destinationAddress)
-    .map((d) => ({ value: d.destinationAddress, label: d.destinationAddress }));
+    .map((d) => {
+      const label = d.destinationName ?? d.destinationAddress ?? "";
+      return { value: label, label };
+    })
+    .filter((o) => o.value !== "");
 
   function containerTypeToSpec(ct: string): Trip["containerSpecification"] | "" {
     const map: Record<string, Trip["containerSpecification"]> = {

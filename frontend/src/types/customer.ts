@@ -13,4 +13,9 @@ export type Customer = {
   customerType: CustomerType | "";
   isGta: YesNoOption | "";
   applicableForEInvoice: YesNoOption | "";
+  photoUrl?: string | null;
+  status?: string;
+  tdsExemptionApplicable?: YesNoOption | "";
+  msmeDeclarationSubmitted?: YesNoOption | "";
+  gstExemptedCustomer?: YesNoOption | "";
 };

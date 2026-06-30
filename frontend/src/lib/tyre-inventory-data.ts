@@ -23,6 +23,7 @@ export const initialTyreInventory: TyreInventoryItem[] = [
     tyreType: "Radial",
     tyreNumber: "MRF-2026-0001",
     size: "295/95 R22.5",
+    rangeKm: "80000",
     cost: "18500",
     condition: "New",
     purchaseDate: "",

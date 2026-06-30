@@ -71,7 +71,7 @@ export default function TripReconciliationPage() {
           .then((sheetResults) => {
             const sheetMap = new Map<string, TripSheetData>();
             for (const result of sheetResults) {
-              if (result) sheetMap.set(result.tripId, result.sheet);
+              if (result && result.sheet) sheetMap.set(result.tripId, result.sheet);
             }
             setSheets(sheetMap);
           })
@@ -114,7 +114,7 @@ export default function TripReconciliationPage() {
       .then((sheetResults) => {
         const sheetMap = new Map<string, TripSheetData>();
         for (const result of sheetResults) {
-          if (result) sheetMap.set(result.tripId, result.sheet);
+          if (result && result.sheet) sheetMap.set(result.tripId, result.sheet);
         }
         setSheets(sheetMap);
       })

@@ -74,7 +74,7 @@ export default function TripFinalizationPage() {
     setClosures(closureMap);
 
     const sheetMap = new Map<string, TripSheetData>();
-    for (const r of sheetResults) if (r) sheetMap.set(r.tripId, r.sheet);
+    for (const r of sheetResults) if (r && r.sheet) sheetMap.set(r.tripId, r.sheet);
     setSheets(sheetMap);
   }
 
@@ -155,7 +155,7 @@ export default function TripFinalizationPage() {
       consignee:      (raw.consignee as string)          ?? "",
       services: Array.isArray(raw.services) && raw.services.length > 0
         ? raw.services as InvoiceFormData["services"]
-        : [{ descriptionOfService: "", sacCode: "", quantity: "", rate: "" }],
+        : [{ descriptionOfService: "", sacCode: "", gstRate: "", quantity: "", rate: "" }],
       bankName:       (raw.bank_name as string)          ?? "",
       branchName:     (raw.branch_name as string)        ?? "",
       accountNumber:  (raw.account_number as string)     ?? "",

@@ -2,8 +2,9 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  devIndicators:false,
-  trailingSlash:true,
+  output: "export",
+  devIndicators: false,
+  trailingSlash: true,
   turbopack: {
     root: path.join(__dirname),
   },

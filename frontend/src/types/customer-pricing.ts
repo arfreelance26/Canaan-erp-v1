@@ -15,4 +15,6 @@ export type CustomerPricing = {
   weightInTons: WeightInTons | "";
   rate: string;
   status: CustomerPricingStatus | "";
+  validFrom?: string;
+  validTo?: string;
 };

@@ -26,6 +26,7 @@ const emptyForm: Omit<CustomerPricing, "id"> = {
   containerType: "",
   weightInTons: "",
   rate: "",
+  status: "ACTIVE",
 };
 
 export function CustomerPricingFormDialog({
@@ -56,8 +57,12 @@ export function CustomerPricingFormDialog({
 
   const customerDestinationOptions = useMemo(() => {
     return destinations
-      .filter((d) => d.customerId === form.customerId && d.destinationAddress)
-      .map((d) => ({ value: d.destinationAddress, label: d.destinationAddress }));
+      .filter((d) => d.customerId === form.customerId)
+      .map((d) => {
+        const label = d.destinationName ?? d.destinationAddress ?? "";
+        return { value: label, label };
+      })
+      .filter((o) => o.value !== "");
   }, [destinations, form.customerId]);
 
   function update<K extends keyof Omit<CustomerPricing, "id">>(key: K, value: Omit<CustomerPricing, "id">[K]) {
