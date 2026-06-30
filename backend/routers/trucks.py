@@ -37,7 +37,7 @@ def update_truck(truck_id: int, payload: schemas.TruckUpdate, db: Session = Depe
     truck = db.get(models.Truck, truck_id)
     if not truck:
         raise HTTPException(404, "Truck not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(truck, field, value)
     db.commit()
     db.refresh(truck)

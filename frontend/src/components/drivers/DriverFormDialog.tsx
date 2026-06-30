@@ -83,7 +83,7 @@ export function DriverFormDialog({
     key: K,
     value: Omit<Driver, "id" | "driverId">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleEmailChange(value: string) {

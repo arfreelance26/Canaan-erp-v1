@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, CheckCircle2, XCircle, CalendarOff, Loader2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,56 @@ function MarkButton({
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const updatePosition = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = 150;
+      
+      const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+      
+      setDropdownStyle({
+        position: 'fixed',
+        left: rect.right - 176, // w-44 = 176px. Align right side with button right side
+        width: 176,
+        ...(openUpwards 
+             ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(spaceAbove - 20, 300) }
+             : { top: rect.bottom + 8, maxHeight: Math.min(spaceBelow - 20, 300) })
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      updatePosition();
+      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("resize", updatePosition);
+      return () => {
+        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("resize", updatePosition);
+      };
+    }
+  }, [open]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(event.target as Node) &&
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   async function handleSelect(status: string) {
     setOpen(false);
@@ -56,14 +106,11 @@ function MarkButton({
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         disabled={saving}
         onClick={() => setOpen((o) => !o)}
-        onBlur={(e) => {
-          if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false);
-        }}
         className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
       >
         {saving ? (
@@ -76,13 +123,20 @@ function MarkButton({
         )}
       </button>
 
-      {open && (
-        <div className="absolute right-0 z-20 mt-1.5 w-44 rounded-xl border border-white/60 bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+      {open && typeof document !== "undefined" && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="z-[9999] rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl animate-dropdown duration-200"
+        >
           {statusOptions.map(({ value, label, icon: Icon, color }) => (
             <button
               key={value}
               type="button"
-              onMouseDown={() => handleSelect(value)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleSelect(value);
+              }}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 color,
@@ -96,7 +150,8 @@ function MarkButton({
               )}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

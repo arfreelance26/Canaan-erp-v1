@@ -39,7 +39,7 @@ def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = D
     driver = db.get(models.Driver, driver_id)
     if not driver:
         raise HTTPException(404, "Driver not found")
-    data = payload.model_dump(exclude_none=True)
+    data = payload.model_dump(exclude_unset=True)
     if "password" in data:
         data["password_hash"] = pwd_ctx.hash(data.pop("password"))
     for field, value in data.items():

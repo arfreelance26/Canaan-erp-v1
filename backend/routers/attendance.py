@@ -51,7 +51,7 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     record = db.get(models.DriverAttendance, record_id)
     if not record:
         raise HTTPException(404, "Attendance record not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
     db.commit()
@@ -101,7 +101,7 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
     record = db.get(models.StaffAttendance, record_id)
     if not record:
         raise HTTPException(404, "Attendance record not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
     db.commit()

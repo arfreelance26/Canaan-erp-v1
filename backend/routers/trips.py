@@ -90,7 +90,7 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
-    update_data = payload.model_dump(exclude_none=True)
+    update_data = payload.model_dump(exclude_unset=True)
     effective_driver = update_data.get("driver_id", trip.driver_id)
     effective_vehicle = update_data.get("vehicle_id", trip.vehicle_id)
     _check_driver_truck_conflict(db, effective_driver, effective_vehicle, exclude_trip_id=trip_id)

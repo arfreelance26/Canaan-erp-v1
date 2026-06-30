@@ -36,7 +36,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
     key: K,
     value: Omit<MaintenanceRecord, "id" | "truckId">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

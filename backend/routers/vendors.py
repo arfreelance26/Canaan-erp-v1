@@ -33,7 +33,7 @@ def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = D
     vendor = db.get(models.Vendor, vendor_id)
     if not vendor:
         raise HTTPException(404, "Vendor not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(vendor, field, value)
     db.commit()
     db.refresh(vendor)

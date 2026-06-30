@@ -36,7 +36,7 @@ def update_branch(branch_id: int, payload: schemas.BranchUpdate, db: Session = D
     branch = db.get(models.Branch, branch_id)
     if not branch:
         raise HTTPException(404, "Branch not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(branch, field, value)
     db.commit()
     db.refresh(branch)

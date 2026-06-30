@@ -39,7 +39,7 @@ def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depe
     member = db.get(models.Staff, staff_id)
     if not member:
         raise HTTPException(404, "Staff member not found")
-    data = payload.model_dump(exclude_none=True)
+    data = payload.model_dump(exclude_unset=True)
     if "password" in data:
         data["password_hash"] = pwd_ctx.hash(data.pop("password"))
     for field, value in data.items():

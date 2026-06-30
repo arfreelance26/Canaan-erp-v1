@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { staffApi, uploadFile, fileUrl } from "@/lib/api";
@@ -15,6 +15,15 @@ export default function StaffPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredStaff = staff.filter(s =>
+    !searchQuery ||
+    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.employeeId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.role?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.branch?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
         staffApi.list().then(setStaff).finally(() => setLoading(false));
@@ -67,24 +76,36 @@ export default function StaffPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Our Staff</h1>
           <p className="mt-1 text-sm text-gray-500">
             Manage staff records across all branches
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Staff
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search staff..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 whitespace-nowrap"
+          >
+            <Plus className="h-4 w-4" />
+            Add Staff
+          </button>
+        </div>
       </div>
 
-      <StaffTable staff={staff} onEdit={handleEdit} onDelete={handleDelete} />
+      <StaffTable staff={filteredStaff} onEdit={handleEdit} onDelete={handleDelete} />
 
       <StaffFormDialog
         open={dialogOpen}

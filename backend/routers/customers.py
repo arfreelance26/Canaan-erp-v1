@@ -37,7 +37,7 @@ def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Sessi
     customer = db.get(models.Customer, customer_id)
     if not customer:
         raise HTTPException(404, "Customer not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(customer, field, value)
     db.commit()
     db.refresh(customer)
@@ -83,7 +83,7 @@ def update_destination(customer_id: int, dest_id: int, payload: schemas.Customer
     ).first()
     if not dest:
         raise HTTPException(404, "Destination not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(dest, field, value)
     db.commit()
     db.refresh(dest)
@@ -132,7 +132,7 @@ def update_pricing(customer_id: int, price_id: int, payload: schemas.CustomerPri
     ).first()
     if not pricing:
         raise HTTPException(404, "Pricing not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(pricing, field, value)
     db.commit()
     db.refresh(pricing)

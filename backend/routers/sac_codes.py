@@ -27,7 +27,7 @@ def update_sac_code(sac_code_id: int, payload: schemas.SacCodeUpdate, db: Sessio
     record = db.get(models.SacCode, sac_code_id)
     if not record:
         raise HTTPException(404, "SAC code not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     db.commit()
     db.refresh(record)

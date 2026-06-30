@@ -53,7 +53,7 @@ export function TyreInventoryFormDialog({
     key: K,
     value: Omit<TyreInventoryItem, "id">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

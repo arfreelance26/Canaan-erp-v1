@@ -44,7 +44,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
   }, [open, initialData]);
 
   function update<K extends keyof Omit<EmiRecord, "id">>(key: K, value: Omit<EmiRecord, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

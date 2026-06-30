@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog } from "@/components/fleet/TruckFormDialog";
 import { trucksApi, uploadFile, fileUrl } from "@/lib/api";
@@ -16,6 +16,14 @@ export default function FleetPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTruck, setEditingTruck] = useState<Truck | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredTrucks = trucks.filter(t =>
+    !searchQuery ||
+    t.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.branch?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
         trucksApi.list().then(setTrucks).finally(() => setLoading(false));
@@ -74,25 +82,35 @@ export default function FleetPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Our Fleet</h1>
           <p className="mt-1 text-sm text-gray-500">Manage trucks across all branches</p>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-         
-         
-        >
-          <Plus className="h-4 w-4" />
-          Add Truck
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search fleet..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 whitespace-nowrap"
+          >
+            <Plus className="h-4 w-4" />
+            Add Truck
+          </button>
+        </div>
       </div>
 
       <div>
-        <TruckTable trucks={trucks} onEdit={handleEdit} onDelete={handleDelete} />
+        <TruckTable trucks={filteredTrucks} onEdit={handleEdit} onDelete={handleDelete} />
       </div>
 
       <TruckFormDialog

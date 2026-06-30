@@ -61,7 +61,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   }, [open, initialData]);
 
   function update<K extends keyof Omit<Staff, "id">>(key: K, value: Omit<Staff, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleEmailChange(value: string) {

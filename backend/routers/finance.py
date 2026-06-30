@@ -38,7 +38,7 @@ def update_emi(emi_id: int, payload: schemas.EmiRecordUpdate, db: Session = Depe
     record = db.get(models.EmiRecord, emi_id)
     if not record:
         raise HTTPException(404, "EMI record not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     db.commit()
     db.refresh(record)
@@ -85,7 +85,7 @@ def update_recurring(payment_id: int, payload: schemas.RecurringPaymentUpdate, d
     payment = db.get(models.RecurringPayment, payment_id)
     if not payment:
         raise HTTPException(404, "Recurring payment not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(payment, field, value)
     db.commit()
     db.refresh(payment)

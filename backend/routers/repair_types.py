@@ -27,7 +27,7 @@ def update_repair_type(repair_type_id: int, payload: schemas.RepairTypeUpdate, d
     record = db.get(models.RepairType, repair_type_id)
     if not record:
         raise HTTPException(404, "Repair type not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     db.commit()
     db.refresh(record)

@@ -102,7 +102,7 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
     record = db.get(models.MaintenanceRecord, record_id)
     if not record:
         raise HTTPException(404, "Maintenance record not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     db.commit()
     db.refresh(record)
@@ -232,7 +232,7 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
     log = db.get(models.FuelLog, log_id)
     if not log:
         raise HTTPException(404, "Fuel log not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(log, field, value)
     prev_log = db.query(models.FuelLog)\
         .filter(models.FuelLog.truck_id == log.truck_id, models.FuelLog.odometer < log.odometer)\
@@ -289,7 +289,7 @@ def update_tyre(tyre_id: int, payload: schemas.TyreInventoryUpdate, db: Session 
     tyre = db.get(models.TyreInventory, tyre_id)
     if not tyre:
         raise HTTPException(404, "Tyre not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(tyre, field, value)
     db.commit()
     db.refresh(tyre)

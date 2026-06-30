@@ -109,7 +109,7 @@ export function TruckFormDialog({
     key: K,
     value: Omit<Truck, "id" | "truckId">[K]
   ) {
-    setForm((prev) => ({ ...prev, [key]: typeof value === "string" ? value.toUpperCase() : value }));
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
