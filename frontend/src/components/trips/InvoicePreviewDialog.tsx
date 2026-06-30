@@ -75,6 +75,7 @@ export function InvoicePreviewDialog({
       // Build an isolated HTML document using only CSS module styles (no Tailwind oklch/lab)
       const css = safeCSS();
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<base href="${window.location.origin}/" />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>*,*::before,*::after{box-sizing:border-box}body{margin:0}${css}</style>
 </head><body>${el.outerHTML}</body></html>`;

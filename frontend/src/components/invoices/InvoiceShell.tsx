@@ -116,7 +116,7 @@ export function InvoiceShell({
           </div>
           <div style={{ flexShrink: 0, marginLeft: "16px" }}>
             <img
-              src="https://cms.canaanglobalinternational.com/companylogo.png"
+              src="/companylogo.png"
               alt="Canaan Global Logo"
               style={{ height: "62px", width: "auto", objectFit: "contain" }}
             />
