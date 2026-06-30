@@ -1,8 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from database import engine, Base
 import models  # noqa: F401 — ensure all models are registered before create_all
 
@@ -32,8 +29,6 @@ app = FastAPI(
     title="Canaan ERP API",
     description="Backend for Canaan Global International — Fleet & Logistics ERP",
     version="1.0.0",
-    docs_url=None,   # served manually below with self-hosted assets
-    redoc_url=None,
 )
 
 app.add_middleware(
@@ -43,19 +38,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui() -> HTMLResponse:
-    return get_swagger_ui_html(
-        openapi_url="/openapi.json",
-        title="Canaan ERP API - Swagger UI",
-        swagger_js_url="/static/swagger-ui-bundle.js",
-        swagger_css_url="/static/swagger-ui.css",
-    )
-
 
 app.include_router(trucks.router)
 app.include_router(drivers.router)
