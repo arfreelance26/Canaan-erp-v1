@@ -139,7 +139,7 @@ export function DriverFormDialog({
                 if (!file) return;
                 setFiles((prev) => ({ ...prev, photo: file }));
                 const reader = new FileReader();
-                reader.onload = () => update("photoUrl", reader.result as string);
+                reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
                 reader.readAsDataURL(file);
               }}
               className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
@@ -383,7 +383,7 @@ export function DriverFormDialog({
                 type="password"
                 required={!initialData}
                 value={form.password}
-                onChange={(e) => update("password", e.target.value)}
+                onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
                 className={inputClass}
                 placeholder={initialData ? "Leave blank to keep current password" : "Set a login password"}
               />

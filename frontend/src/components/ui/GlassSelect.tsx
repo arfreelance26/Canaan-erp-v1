@@ -30,7 +30,9 @@ export function GlassSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedOption = options.find((opt) => String(opt.value) === String(value));
+  const selectedOption = options.find((opt) => 
+    String(opt.value).toLowerCase() === String(value).toLowerCase()
+  );
 
   const updatePosition = () => {
     if (containerRef.current) {
@@ -122,7 +124,8 @@ export function GlassSelect({
                     ? "bg-blue-50/80 font-semibold text-blue-700 shadow-[0_2px_10px_rgba(27,43,94,0.1)]"
                     : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
                 )}
-                onClick={() => {
+                onMouseDown={(e) => {
+                  e.preventDefault();
                   onChange(option.value);
                   setIsOpen(false);
                 }}

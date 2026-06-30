@@ -95,7 +95,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                 if (!file) return;
                 setFiles((prev) => ({ ...prev, photo: file }));
                 const reader = new FileReader();
-                reader.onload = () => update("photoUrl", reader.result as string);
+                reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
                 reader.readAsDataURL(file);
               }}
               className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
@@ -28,15 +30,32 @@ export function GlassCombobox({
   className,
 }: GlassComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value || "");
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    return () => { if (blurTimerRef.current) clearTimeout(blurTimerRef.current); };
   }, []);
+
+  // Sync internal inputValue with external value prop
+  useEffect(() => {
+    if (value === undefined || value === null) {
+      setInputValue("");
+      return;
+    }
+    const matchingOption = options.find((opt) => String(opt.value).toLowerCase() === String(value).toLowerCase());
+    if (matchingOption) {
+      setInputValue(matchingOption.label);
+    } else {
+      setInputValue(value);
+    }
+  }, [value, options]);
 
   const updatePosition = () => {
     if (containerRef.current) {
@@ -45,32 +64,17 @@ export function GlassCombobox({
       const spaceAbove = rect.top;
       const dropdownHeight = 240;
       const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
-
       setDropdownStyle({
         position: "fixed",
         left: rect.left,
         width: rect.width,
+        zIndex: 9999,
         ...(openUpwards
           ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(spaceAbove - 20, 300) }
           : { top: rect.bottom + 8, maxHeight: Math.min(spaceBelow - 20, 300) }),
       });
     }
   };
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node) &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -86,11 +90,33 @@ export function GlassCombobox({
 
   const filteredOptions = options.filter(
     (opt) =>
-      opt.label.toLowerCase().includes(value.toLowerCase()) ||
-      opt.value.toLowerCase().includes(value.toLowerCase()),
+      opt.label.toLowerCase().includes((inputValue || "").toLowerCase()) ||
+      String(opt.value).toLowerCase().includes((inputValue || "").toLowerCase()),
   );
-
   const displayOptions = filteredOptions.length > 0 ? filteredOptions : options;
+
+  const handleInputBlur = () => {
+    blurTimerRef.current = setTimeout(() => setIsOpen(false), 150);
+  };
+
+  const handleOptionMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault(); 
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+  };
+
+  const handleOptionClick = (optionValue: string, optionLabel: string) => {
+    setInputValue(optionLabel);
+    onChange(optionValue);
+    setIsOpen(false);
+    inputRef.current?.blur();
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setInputValue(newVal);
+    onChange(newVal);
+    setIsOpen(true);
+  };
 
   return (
     <div className={cn("relative w-full text-[14px]", className)} ref={containerRef}>
@@ -102,22 +128,14 @@ export function GlassCombobox({
             : "hover:bg-white/80 hover:shadow-md hover:border-blue-200/80",
           isOpen ? "border-blue-400 bg-white shadow-md ring-4 ring-blue-500/10" : "border-gray-200",
         )}
-        onClick={() => {
-          if (!disabled) {
-            setIsOpen(true);
-            inputRef.current?.focus();
-          }
-        }}
       >
         <input
           ref={inputRef}
           type="text"
-          value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => { if (blurTimerRef.current) clearTimeout(blurTimerRef.current); setIsOpen(true); }}
+          onBlur={handleInputBlur}
           disabled={disabled}
           required={required}
           placeholder={placeholder}
@@ -126,11 +144,15 @@ export function GlassCombobox({
         <button
           type="button"
           disabled={disabled}
-          onClick={(e) => {
-            e.stopPropagation();
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+          }}
+          onClick={() => {
             if (!disabled) {
-              setIsOpen(!isOpen);
-              if (!isOpen) inputRef.current?.focus();
+              const next = !isOpen;
+              setIsOpen(next);
+              if (next) inputRef.current?.focus();
             }
           }}
           className="focus:outline-none"
@@ -149,7 +171,7 @@ export function GlassCombobox({
           <div
             ref={dropdownRef}
             style={dropdownStyle}
-            className="z-[9999] overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar"
+            className="overflow-y-auto rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl animate-dropdown duration-200 custom-scrollbar"
           >
             {displayOptions.map((option, index) => {
               const isSelected = String(option.value) === String(value);
@@ -164,10 +186,9 @@ export function GlassCombobox({
                       : "text-gray-700 hover:bg-gray-100/80 hover:text-gray-900",
                   )}
                   onMouseDown={(e) => {
-                    e.preventDefault();      // keep input focused
-                    e.stopPropagation();     // stop click bubbling to container onClick
-                    onChange(option.value);
-                    setIsOpen(false);
+                    e.preventDefault();
+                    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+                    handleOptionClick(option.value, option.label);
                   }}
                 >
                   <span className="block truncate">{option.label}</span>
@@ -180,3 +201,4 @@ export function GlassCombobox({
     </div>
   );
 }
+

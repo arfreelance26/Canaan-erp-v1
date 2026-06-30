@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
@@ -27,6 +27,7 @@ type TabId = (typeof TABS)[number]["id"];
 export default function CustomersPage() {
   const [activeTab, setActiveTab] = useState<TabId>("list");
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
@@ -39,6 +40,35 @@ export default function CustomersPage() {
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
   const [destinationDialogOpen, setDestinationDialogOpen] = useState(false);
   const [editingDestination, setEditingDestination] = useState<CustomerDestination | null>(null);
+
+  const filteredCustomers = customers.filter(c =>
+    !searchQuery ||
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.gstin?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredPricing = pricing.filter(p => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const c = customers.find(cust => cust.id === p.customerId);
+    return (
+      (c?.name.toLowerCase().includes(q)) ||
+      p.customerDestination?.toLowerCase().includes(q) ||
+      p.cargoClassification?.toLowerCase().includes(q) ||
+      p.containerType?.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredDestinations = destinations.filter(d => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const c = customers.find(cust => cust.id === d.customerId);
+    return (
+      (c?.name.toLowerCase().includes(q)) ||
+      d.destinationName?.toLowerCase().includes(q) ||
+      d.destinationState?.toLowerCase().includes(q)
+    );
+  });
 
   useEffect(() => {
         customersApi.list().then(setCustomers).finally(() => setLoading(false));
@@ -182,7 +212,17 @@ export default function CustomersPage() {
 
       {activeTab === "list" && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search customers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
             <button
               type="button"
               onClick={handleAddCustomer}
@@ -193,7 +233,7 @@ export default function CustomersPage() {
             </button>
           </div>
 
-          <CustomerTable customers={customers} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />
+          <CustomerTable customers={filteredCustomers} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />
 
           <CustomerFormDialog
             open={customerDialogOpen}
@@ -206,7 +246,17 @@ export default function CustomersPage() {
 
       {activeTab === "pricing" && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search pricing..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
             <button
               type="button"
               onClick={handleAddPricing}
@@ -218,7 +268,7 @@ export default function CustomersPage() {
           </div>
 
           <CustomerPricingTable
-            pricing={pricing}
+            pricing={filteredPricing}
             customers={customers}
             onEdit={handleEditPricing}
             onDelete={handleDeletePricing}
@@ -238,7 +288,17 @@ export default function CustomersPage() {
 
       {activeTab === "destinations" && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search destinations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              />
+            </div>
             <button
               type="button"
               onClick={handleAddDestination}
@@ -250,7 +310,7 @@ export default function CustomersPage() {
           </div>
 
           <CustomerDestinationTable
-            destinations={destinations}
+            destinations={filteredDestinations}
             customers={customers}
             onEdit={handleEditDestination}
             onDelete={handleDeleteDestination}
