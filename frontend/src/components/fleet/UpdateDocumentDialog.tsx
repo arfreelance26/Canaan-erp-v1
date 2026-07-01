@@ -175,13 +175,18 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
           />
         </Field>
 
-        <Field label="New Document (PDF / Image)">
+        <Field label="New Document (PDF / Image) (Max 5MB)">
           <input
             ref={fileRef}
             type="file"
             accept="application/pdf,image/*"
             className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) { setFile(null); return; }
+              if (f.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+              setFile(f);
+            }}
           />
           {file ? (
             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm">

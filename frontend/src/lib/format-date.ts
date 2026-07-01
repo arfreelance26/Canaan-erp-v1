@@ -9,44 +9,38 @@ export function todayIst(): string {
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   try {
-    return new Date(value).toLocaleDateString("en-IN", {
+    const str = new Date(value).toLocaleDateString("en-GB", {
       timeZone: IST,
       day: "2-digit",
-      month: "short",
+      month: "2-digit",
       year: "numeric",
     });
+    return str.replace(/\//g, "-");
   } catch {
     return String(value);
   }
 }
 
-/** Formats a date value as "12 June 2026" (long month) in IST. Returns "—" for empty. */
+/** Formats a date value as "DD-MM-YYYY". Returns "—" for empty. */
 export function formatDateLong(value: string | null | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString("en-IN", {
-      timeZone: IST,
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  } catch {
-    return String(value);
-  }
+  return formatDate(value);
 }
 
-/** Formats a datetime value as "12 Jun 2026, 2:30 PM" in IST. Returns "—" for empty. */
+/** Formats a datetime value as "DD-MM-YYYY, h:mm a" in IST. Returns "—" for empty. */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   try {
-    return new Date(value).toLocaleString("en-IN", {
+    const str = new Date(value).toLocaleString("en-GB", {
       timeZone: IST,
       day: "2-digit",
-      month: "short",
+      month: "2-digit",
       year: "numeric",
       hour: "numeric",
       minute: "2-digit",
+      hour12: true
     });
+    // en-GB gives DD/MM/YYYY, HH:MM
+    return str.replace(/\//g, "-").toUpperCase();
   } catch {
     return String(value);
   }

@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import type { EmiRecord } from "@/types/finance";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, todayIst } from "@/lib/format-date";
 
 type EmiTrackingTableProps = {
   records: EmiRecord[];
@@ -34,9 +35,21 @@ function formatCurrency(amount: string): string {
   }).format(value);
 }
 
+type FilterType = "ALL" | "UPCOMING" | "OVERDUE";
 
 export function EmiTrackingTable({ records, onEdit, onDelete, readOnly = false }: EmiTrackingTableProps) {
+  const [filter, setFilter] = useState<FilterType>("ALL");
   const columns = readOnly ? BASE_COLUMNS : [...BASE_COLUMNS, "Actions"];
+  
+  const today = todayIst();
+
+  const filteredRecords = records.filter((record) => {
+    if (filter === "ALL") return true;
+    if (!record.emiPaymentDate) return true; // Fallback for missing dates
+    if (filter === "OVERDUE") return record.emiPaymentDate <= today;
+    if (filter === "UPCOMING") return record.emiPaymentDate > today;
+    return true;
+  });
 
   if (records.length === 0) {
     return (
@@ -47,7 +60,44 @@ export function EmiTrackingTable({ records, onEdit, onDelete, readOnly = false }
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setFilter("ALL")}
+          className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+            filter === "ALL"
+              ? "bg-black text-white"
+              : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter("UPCOMING")}
+          className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+            filter === "UPCOMING"
+              ? "bg-emerald-600 text-white"
+              : "bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50"
+          }`}
+        >
+          Upcoming
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter("OVERDUE")}
+          className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+            filter === "OVERDUE"
+              ? "bg-red-600 text-white"
+              : "bg-white text-red-600 border border-red-200 hover:bg-red-50"
+          }`}
+        >
+          Overdue
+        </button>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[1200px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
@@ -62,7 +112,7 @@ export function EmiTrackingTable({ records, onEdit, onDelete, readOnly = false }
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {records.map((record) => (
+          {filteredRecords.map((record) => (
             <tr key={record.id} className={readOnly ? "bg-gray-50/50 text-gray-400" : "hover:bg-gray-50"}>
               <td className="px-4 py-3 font-medium text-gray-700">{record.emiName}</td>
               <td className="px-4 py-3 text-gray-500">{record.truckRegistration}</td>
@@ -100,6 +150,7 @@ export function EmiTrackingTable({ records, onEdit, onDelete, readOnly = false }
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

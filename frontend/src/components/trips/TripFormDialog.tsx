@@ -157,8 +157,12 @@ export function TripFormDialog({
   }
 
   function applyPricingFields(p: CustomerPricing): Partial<typeof emptyForm> {
+    const destinationString = typeof p.customerDestination === 'object' && p.customerDestination !== null
+      ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+      : String(p.customerDestination || "");
+
     return {
-      destination: p.customerDestination,
+      destination: destinationString,
       cargoClassification: (p.cargoClassification as Trip["cargoClassification"]) || "",
       containerSpecification: (containerTypeToSpec(p.containerType) as Trip["containerSpecification"]) || "",
       cargoWeight: p.weightInTons || "",
@@ -377,27 +381,9 @@ export function TripFormDialog({
                   </div>
                 )}
                 {selectedCustomer.email && (
-                  <div>
+                  <div className="sm:col-span-2">
                     <p className="text-xs font-medium text-blue-700">Email</p>
                     <p className="mt-1 text-sm text-blue-900">{selectedCustomer.email}</p>
-                  </div>
-                )}
-                {selectedCustomer.customerType && (
-                  <div>
-                    <p className="text-xs font-medium text-blue-700">Customer Type</p>
-                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.customerType}</p>
-                  </div>
-                )}
-                {selectedCustomer.address && (
-                  <div className="sm:col-span-2">
-                    <p className="text-xs font-medium text-blue-700">Address</p>
-                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.address}</p>
-                  </div>
-                )}
-                {selectedCustomer.gstin && (
-                  <div>
-                    <p className="text-xs font-medium text-blue-700">GSTIN</p>
-                    <p className="mt-1 text-sm text-blue-900">{selectedCustomer.gstin}</p>
                   </div>
                 )}
               </div>
@@ -586,16 +572,17 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Assigned Vehicle" className="sm:col-span-2">
-              <GlassSelect
+              <GlassCombobox
                 value={form.driverId}
-                onChange={handleDriverChange}
+                onChange={(val) => handleDriverChange(val)}
                 options={[
                   { value: "", label: assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle" },
-                  ...assignableDrivers.map(({ driver, truck }) => ({
-                    value: driver.driverId,
-                    label: `${driver.name} — ${truck.registrationNumber}`
+                  ...assignableDrivers.map(a => ({
+                    value: a.driver.driverId,
+                    label: `${a.driver.name} (Driver: ${a.driver.driverId}) — Vehicle: ${a.truck.registrationNumber} (ID: ${a.truck.truckId})`
                   }))
                 ]}
+                placeholder={assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle"}
               />
               {selectedAssignment && (
                 <span className="text-xs text-gray-500">

@@ -39,7 +39,6 @@ const emptyForm: Omit<Staff, "id"> = {
   address: "",
   aadharNumber: null,
   aadharFileName: null,
-  branch: "",
   softwareDesignation: "",
   username: "",
   password: "",
@@ -86,7 +85,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
       title={initialData ? "Edit Staff" : "Add Staff"}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field label="Staff's Photo" required>
+        <Field label="Staff's Photo (Max 5MB)" required>
           <div className="flex items-center gap-4">
             <Avatar photoUrl={form.photoUrl} label={form.name || form.staffId || "?"} size={56} />
             <input
@@ -95,6 +94,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, photo: file }));
                 const reader = new FileReader();
                 reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
@@ -149,16 +149,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
             />
           </Field>
 
-          <Field label="Branch" required>
-            <GlassSelect
-              value={form.branch}
-              onChange={(val) => setForm((prev) => ({ ...prev, branch: val }))}
-              options={[
-                { value: "", label: "Select a branch" },
-                ...branches.map((b) => ({ value: b.name, label: b.name })),
-              ]}
-            />
-          </Field>
+
 
           <Field label="Date of Birth" required>
             <DateInput
@@ -260,13 +251,14 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           />
         </Field>
 
-        <Field label="Aadhar Card (PDF)" required>
+        <Field label="Aadhar Card (PDF) (Max 5MB)" required>
           <input
             type="file"
             accept="application/pdf,image/*"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file) return;
+              if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
               setFiles((prev) => ({ ...prev, aadhar: file }));
               update("aadharFileName", file.name);
             }}

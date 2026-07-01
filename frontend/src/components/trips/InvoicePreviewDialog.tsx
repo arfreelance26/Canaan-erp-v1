@@ -20,6 +20,7 @@ type Props = {
   customer: Customer | undefined;
   autoDownload?: boolean;
   onClose: () => void;
+  savedInvoice?: Record<string, any>;
 };
 
 /** Extract stylesheets that don't use oklch/lab (i.e. CSS modules, not Tailwind). */
@@ -41,7 +42,7 @@ function safeCSS(): string {
 }
 
 export function InvoicePreviewDialog({
-  open, invoiceType, trip, closure, sheet, customer, autoDownload, onClose,
+  open, invoiceType, trip, closure, sheet, customer, autoDownload, onClose, savedInvoice
 }: Props) {
   const invoiceRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
@@ -138,11 +139,11 @@ export function InvoicePreviewDialog({
 
   const invoiceNode =
     invoiceType === "Bill of Supply" ? (
-      <BillOfSupplyInvoice {...buildBillOfSupply(trip, closure, sheet, customer)} />
+      <BillOfSupplyInvoice {...buildBillOfSupply(trip, closure, sheet, customer, savedInvoice)} />
     ) : invoiceType === "Transport Memo" ? (
-      <TransportMemoInvoice {...buildTransportMemo(trip, closure, sheet, customer)} />
+      <TransportMemoInvoice {...buildTransportMemo(trip, closure, sheet, customer, savedInvoice)} />
     ) : (
-      <TaxInvoice {...buildTaxInvoice(trip, closure, sheet, customer)} />
+      <TaxInvoice {...buildTaxInvoice(trip, closure, sheet, customer, savedInvoice)} />
     );
 
   return (

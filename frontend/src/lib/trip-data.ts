@@ -83,7 +83,7 @@ export const CONTAINER_SPECIFICATION_OPTIONS: ContainerSpecification[] = [
   "OPEN LOAD CARGO",
 ];
 
-export const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE"];
+export const BILL_TO_OPTIONS = ["CUSTOMER", "CONSIGNEE", "Self/CGI"];
 
 export const PAYMENT_TYPE_OPTIONS: PaymentType[] = ["Credit", "Cash", "Fuel"];
 

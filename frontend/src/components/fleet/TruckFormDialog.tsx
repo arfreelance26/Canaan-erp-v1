@@ -127,7 +127,7 @@ export function TruckFormDialog({
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Truck" : "Add Truck"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field label="Truck ID" required>
+        <Field label="Truck ID">
           <input
             type="text"
             value={truckId}
@@ -137,7 +137,7 @@ export function TruckFormDialog({
           />
         </Field>
 
-        <Field label="Branch the Truck To be Registered" required>
+        <Field label="Branch Assigned To" required>
           <GlassSelect
             value={form.branchRegisteredTo}
             onChange={(val) => setForm((prev) => ({ ...prev, branchRegisteredTo: val }))}
@@ -212,27 +212,6 @@ export function TruckFormDialog({
               onChange={(val) => update("truckType", val)}
               placeholder="Select or type a truck type"
               options={TRUCK_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
-            />
-          </Field>
-
-          <Field label="Truck Photos (PDF/Image)" required>
-            <input
-              type="file"
-              accept="application/pdf,image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setFiles((prev) => ({ ...prev, photo: file }));
-                update("truckPhotosFileName", file.name);
-              }}
-              className={fileInputClass}
-            />
-            <FilePreviewBadge
-              fileName={form.truckPhotosFileName}
-              fileObj={files.photo}
-              entity="trucks"
-              entityId={initialData?.id}
-              field="photo"
             />
           </Field>
 
@@ -314,6 +293,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, rc: file }));
                 update("rcDocumentUrl", file.name);
               }}
@@ -347,6 +327,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, fc: file }));
                 update("fcDocumentFileName", file.name);
               }}
@@ -405,6 +386,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, road_tax: file }));
                 update("roadTaxDocumentFileName", file.name);
               }}
@@ -450,6 +432,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, insurance_proof: file }));
                 update("insuranceDocumentProofFileName", file.name);
               }}
@@ -508,6 +491,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, national_permit: file }));
                 update("nationalPermitProofFileName", file.name);
               }}
@@ -566,6 +550,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, local_permit: file }));
                 update("localPermitProofFileName", file.name);
               }}
@@ -624,6 +609,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, pollution_cert: file }));
                 update("pollutionCertificateProofFileName", file.name);
               }}

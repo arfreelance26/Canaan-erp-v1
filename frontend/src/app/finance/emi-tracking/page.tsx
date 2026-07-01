@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, CheckCircle2 } from "lucide-react";
+import { Plus, CheckCircle2, Search } from "lucide-react";
 import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog } from "@/components/finance/EmiFormDialog";
 import { financeApi } from "@/lib/api";
@@ -20,6 +20,7 @@ function formatCurrency(amount: number): string {
 
 export default function EmiTrackingPage() {
   const [records, setRecords] = useState<EmiRecord[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EmiRecord | null>(null);
@@ -33,21 +34,36 @@ export default function EmiTrackingPage() {
 
   const today = todayIst();
 
+  const filteredBySearch = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    if (!query) return records;
+    return records.filter(
+      (r) =>
+        r.emiName?.toLowerCase().includes(query) ||
+        r.truckRegistration?.toLowerCase().includes(query) ||
+        r.bankName?.toLowerCase().includes(query) ||
+        r.loanNumber?.toLowerCase().includes(query)
+    );
+  }, [records, searchQuery]);
+
   const activeRecords = useMemo(
-    () => records.filter((r) => r.emiEndDate >= today),
-    [records, today]
+    () => filteredBySearch.filter((r) => r.emiEndDate >= today),
+    [filteredBySearch, today]
   );
 
   const completedRecords = useMemo(
-    () => records.filter((r) => r.emiEndDate < today),
-    [records, today]
+    () => filteredBySearch.filter((r) => r.emiEndDate < today),
+    [filteredBySearch, today]
   );
 
   const summary = useMemo(() => {
     let dueSoon = 0;
     let overdue = 0;
     let monthlyTotal = 0;
-    for (const record of activeRecords) {
+    
+    const unfilteredActiveRecords = records.filter((r) => r.emiEndDate >= today);
+    
+    for (const record of unfilteredActiveRecords) {
       monthlyTotal += Number(record.emiAmount) || 0;
       if (record.emiPaymentDate <= today) {
         overdue += 1;
@@ -55,8 +71,8 @@ export default function EmiTrackingPage() {
         dueSoon += 1;
       }
     }
-    return { active: activeRecords.length, dueSoon, overdue, monthlyTotal };
-  }, [activeRecords, today]);
+    return { active: unfilteredActiveRecords.length, dueSoon, overdue, monthlyTotal };
+  }, [records, today]);
 
   function handleAdd() {
     setEditingRecord(null);
@@ -98,14 +114,26 @@ export default function EmiTrackingPage() {
             Track loan EMIs for trucks and other financed assets
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add EMI Entry
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search EMIs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-64 rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" />
+            Add EMI Entry
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -130,18 +158,18 @@ export default function EmiTrackingPage() {
       <EmiTrackingTable records={activeRecords} onEdit={handleEdit} onDelete={handleDelete} />
 
       {/* Completed EMI section */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Completed EMI</h2>
-          {completedRecords.length > 0 && (
+      {completedRecords.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Completed EMI</h2>
             <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
               {completedRecords.length} loan{completedRecords.length !== 1 ? "s" : ""} repaid
             </span>
-          )}
+          </div>
+          <EmiTrackingTable records={completedRecords} readOnly />
         </div>
-        <EmiTrackingTable records={completedRecords} readOnly />
-      </div>
+      )}
 
       <EmiFormDialog
         open={dialogOpen}

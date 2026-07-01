@@ -982,6 +982,7 @@ export const tripsApi = {
       body: JSON.stringify(data),
     }).then(toTrip),
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
+  getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
 };
 
 // ---------------------------------------------------------------------------

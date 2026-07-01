@@ -170,15 +170,51 @@ export default function TripFinalizationPage() {
     setDialogState({ trip, savedInvoice });  // single atomic update — no race
   }
 
-  function openPreview(trip: Trip, autoDownload = false) {
+  async function openPreview(trip: Trip, autoDownload = false) {
     const closure  = closures.get(trip.id);
     if (!closure) return;
+    
+    let savedInvoice: Partial<InvoiceFormData> | undefined;
+    const raw = await tripsApi.getInvoice(trip.id).catch(() => null);
+    if (raw) {
+      savedInvoice = {
+        invoiceNo:      (raw.invoice_no as string)        ?? "",
+        invoiceDate:    (raw.invoice_date as string)       ?? "",
+        invoiceType:    (raw.invoice_type as InvoiceType)  ?? "Bill of Supply",
+        billTo:         (raw.bill_to as string)            ?? "",
+        gstNumber:      (raw.gst_number as string)         ?? "",
+        modeOfShipment: (raw.mode_of_shipment as string)   ?? "",
+        containerType:  (raw.container_type as string)     ?? "",
+        cfs:            (raw.cfs as string)                ?? "",
+        shippingLine:   (raw.shipping_line as string)      ?? "",
+        vesselName:     (raw.vessel_name as string)        ?? "",
+        from:           (raw.origin as string)             ?? "",
+        to:             (raw.destination as string)        ?? "",
+        containerNo:    (raw.container_no as string)       ?? "",
+        consignee:      (raw.consignee as string)          ?? "",
+        services: Array.isArray(raw.services) && raw.services.length > 0
+          ? raw.services as InvoiceFormData["services"]
+          : [{ descriptionOfService: "", sacCode: "", gstRate: "", quantity: "", rate: "" }],
+        bankName:       (raw.bank_name as string)          ?? "",
+        branchName:     (raw.branch_name as string)        ?? "",
+        accountNumber:  (raw.account_number as string)     ?? "",
+        ifscCode:       (raw.ifsc_code as string)          ?? "",
+        contactPerson:  (raw.contact_person as string)     ?? "",
+        email:          (raw.email as string)              ?? "",
+        contact:        (raw.contact as string)            ?? "",
+        narration:      (raw.narration as string)          ?? "",
+        gstApplicable:  (raw.gst_applicable as any)        ?? "No",
+        igstApplicable: (raw.igst_applicable as any)       ?? "No",
+      };
+    }
+
     setPreview({
       trip,
       closure,
       sheet:        sheets.get(trip.id),
       customer:     customerById.get(trip.customerId),
-      invoiceType:  invoiceTypes.get(trip.id) ?? "Bill of Supply",
+      invoiceType:  savedInvoice?.invoiceType ?? invoiceTypes.get(trip.id) ?? "Bill of Supply",
+      savedInvoice,
       autoDownload,
     });
   }
@@ -305,12 +341,12 @@ export default function TripFinalizationPage() {
         </div>
       )}
 
-      {/* ── Generate Invoice Dialog ── */}
       <GenerateInvoiceDialog
         key={dialogState ? `${dialogState.trip.id}-${dialogState.savedInvoice ? "edit" : "new"}` : "closed"}
         open={dialogState !== null}
         trip={dialogState?.trip ?? null}
         closure={dialogState ? closures.get(dialogState.trip.id) : undefined}
+        sheet={dialogState ? sheets.get(dialogState.trip.id) : undefined}
         driver={dialogState ? driverById.get(dialogState.trip.driverId) : undefined}
         truck={dialogState ? truckById.get(dialogState.trip.vehicleId) : undefined}
         customer={dialogState ? customerById.get(dialogState.trip.customerId) : undefined}

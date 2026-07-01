@@ -265,6 +265,24 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     db.refresh(trip)
     return _enrich(trip)
 
+@router.get("/invoices/next-seq")
+def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
+    from datetime import date
+    today = date.today()
+    start_year = today.year if today.month >= 4 else today.year - 1
+    fy = f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
+
+    count = db.query(models.TripInvoice).filter(models.TripInvoice.invoice_type == invoice_type).count()
+    next_num = str(count + 1).zfill(3)
+
+    if invoice_type == "Transport Memo":
+        invoice_no = f"TM/{fy}/{next_num}"
+    elif invoice_type == "Bill of Supply":
+        invoice_no = f"CGI/{fy}/{next_num}"
+    else:
+        invoice_no = f"CGI/{fy}/{next_num}"
+
+    return {"invoice_no": invoice_no}
 
 @router.get("/{trip_id}/invoice", response_model=schemas.TripInvoiceOut)
 def get_invoice(trip_id: int, db: Session = Depends(get_db)):

@@ -12,7 +12,6 @@ export type Driver = {
   email: string;
   contactNumber: string;
   address: string;
-  branch: string;
   licenseNumber: string;
   licenseExpiryDate: string;
   licenseFileName: string | null;

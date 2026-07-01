@@ -93,7 +93,7 @@ class DriverBase(OrmBase):
     email: Optional[str] = None
     contact_number: Optional[str] = None
     address: Optional[str] = None
-    branch: Optional[str] = None
+
     license_number: Optional[str] = None
     license_expiry_date: Optional[date] = None
     license_file_name: Optional[str] = None
@@ -122,7 +122,7 @@ class DriverUpdate(OrmBase):
     email: Optional[str] = None
     contact_number: Optional[str] = None
     address: Optional[str] = None
-    branch: Optional[str] = None
+
     license_number: Optional[str] = None
     license_expiry_date: Optional[date] = None
     license_file_name: Optional[str] = None
@@ -163,7 +163,7 @@ class StaffBase(OrmBase):
     email: Optional[str] = None
     contact_number: Optional[str] = None
     address: Optional[str] = None
-    branch: Optional[str] = None
+
     aadhar_number: Optional[str] = None
     aadhar_file_name: Optional[str] = None
     photo_url: Optional[str] = None
@@ -184,7 +184,7 @@ class StaffUpdate(OrmBase):
     email: Optional[str] = None
     contact_number: Optional[str] = None
     address: Optional[str] = None
-    branch: Optional[str] = None
+
     aadhar_number: Optional[str] = None
     password: Optional[str] = None
 
@@ -388,7 +388,7 @@ class TripOut(TripBase):
 # ---------------------------------------------------------------------------
 
 PaymentMode = Literal["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"]
-BillTo = Literal["CUSTOMER", "CONSIGNEE"]
+BillTo = Literal["CUSTOMER", "CONSIGNEE", "Self/CGI"]
 
 
 class TripClosureCreate(OrmBase):

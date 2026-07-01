@@ -75,9 +75,27 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    
+    // Synthesize the date string from the day of the month
+    let finalPaymentDate = form.emiPaymentDate;
+    const paymentDay = Number(form.emiPaymentDate);
+    if (!isNaN(paymentDay) && paymentDay > 0 && paymentDay <= 31) {
+      const today = new Date();
+      let nextPayment = new Date(today.getFullYear(), today.getMonth(), paymentDay);
+      if (nextPayment < today) {
+        nextPayment = new Date(today.getFullYear(), today.getMonth() + 1, paymentDay);
+      }
+      // Keep YYYY-MM-DD format
+      const year = nextPayment.getFullYear();
+      const month = String(nextPayment.getMonth() + 1).padStart(2, "0");
+      const day = String(nextPayment.getDate()).padStart(2, "0");
+      finalPaymentDate = `${year}-${month}-${day}`;
+    }
+
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,
+      emiPaymentDate: finalPaymentDate,
     });
   }
 
@@ -193,12 +211,17 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
             />
           </Field>
 
-          <Field label="Date of EMI Payment" required>
-            <DateInput
+          <Field label="Date of EMI Payment (Day of Month)" required>
+            <input
+              type="number"
               required
-              value={form.emiPaymentDate}
-              onChange={(v) => update("emiPaymentDate", v)}
+              min="1"
+              max="31"
+              value={form.emiPaymentDate ? (form.emiPaymentDate.includes("-") ? new Date(form.emiPaymentDate).getDate() : form.emiPaymentDate) : ""}
+              onChange={(e) => update("emiPaymentDate", e.target.value)}
               className={inputClass}
+              placeholder="e.g. 5"
+              title="Day of the month (1-31)"
             />
           </Field>
         </div>

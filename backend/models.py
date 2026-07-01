@@ -103,7 +103,6 @@ class Driver(Base):
     email = Column(String(100), unique=True)
     contact_number = Column(String(20))
     address = Column(Text)
-    branch = Column(String(100))
     license_number = Column(String(50))
     license_expiry_date = Column(Date)
     license_file_name = Column(String(255))

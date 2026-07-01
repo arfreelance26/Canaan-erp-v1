@@ -12,7 +12,6 @@ export type Staff = {
   address: string;
   aadharNumber: string | null;
   aadharFileName: string | null;
-  branch: string;
   softwareDesignation: string;
   username: string;
   password: string;

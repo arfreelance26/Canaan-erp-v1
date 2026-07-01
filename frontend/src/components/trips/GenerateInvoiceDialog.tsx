@@ -115,10 +115,14 @@ function buildNarration(regNo: string | undefined, containerNo: string, spec: st
 const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
+import type { TripSheetData } from "@/types/trip-sheet";
+import { tripsApi } from "@/lib/api";
+
 type Props = {
   open: boolean;
   trip: Trip | null;
   closure: TripClosureData | undefined;
+  sheet: TripSheetData | undefined;
   driver: Driver | undefined;
   truck: Truck | undefined;
   customer: Customer | undefined;
@@ -127,7 +131,7 @@ type Props = {
   savedInvoice?: Partial<InvoiceFormData>;
 };
 
-export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, onSubmit, savedInvoice }: Props) {
+export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, truck, onClose, onSubmit, savedInvoice }: Props) {
   const [sacCodes, setSacCodes] = useState<SacCode[]>([]);
   const [form, setForm] = useState<InvoiceFormData>(() => {
     if (!trip) return emptyForm();
@@ -139,13 +143,18 @@ export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, on
         ? trip.cargoReference ?? ""
         : trip.containerNumber ?? "";
 
+    const billToVal = customer?.name ?? trip.billTo ?? "";
+    const isSelf = trip.billTo === "Self/CGI";
+    const isGta = customer?.isGta === "Yes";
+    const invoiceType = isSelf ? "Transport Memo" : isGta ? "Bill of Supply" : "Tax Invoice";
+
     const base: InvoiceFormData = {
       ...emptyForm(),
       invoiceDate: todayIst(),
       bookingReferenceNo: trip.bookingReferenceNo ?? "",
-      tripSheetNo: trip.tripId ?? "",
-      billTo: customer?.name ?? trip.billTo ?? "",
-      gstNumber: customer?.gstin ?? "",
+      tripSheetNo: sheet?.tripSheetNo ?? "",
+      billTo: isSelf ? "Canaan Global International, Puthukottai, Tuticorin, Tamil Nadu, India." : billToVal,
+      gstNumber: isSelf ? "33AAJFC9781F1Z8" : (customer?.gstin ?? ""),
       containerType: trip.containerSpecification ?? "",
       shippingLine: trip.shippingLine ?? "",
       vesselName: trip.vesselName ?? "",
@@ -162,6 +171,16 @@ export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, on
       email: "tutfin@canaanglobal.com",
       contact: "9047015423",
       narration: buildNarration(truck?.registrationNumber, containerNo, trip.containerSpecification, trip.scheduledDate, trip.destination),
+      invoiceType,
+      services: [{
+        ...emptyService(),
+        descriptionOfService: "Container Transport Hire",
+        sacCode: "996791",
+        quantity: "1",
+        rate: trip.transportHireAmount ? String(trip.transportHireAmount) : ""
+      }],
+      gstApplicable: invoiceType === "Tax Invoice" ? "Yes" : "No",
+      igstApplicable: "No"
     };
 
     if (!savedInvoice) return base;
@@ -179,6 +198,14 @@ export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, on
   useEffect(() => {
     sacCodesApi.list().then(setSacCodes).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!savedInvoice && form.invoiceType) {
+      tripsApi.getNextInvoiceNo(form.invoiceType).then((res) => {
+        setForm((prev) => ({ ...prev, invoiceNo: res.invoice_no }));
+      }).catch(() => {});
+    }
+  }, [form.invoiceType, savedInvoice]);
 
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
 
@@ -403,41 +430,11 @@ export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, on
           </div>
         </section>
 
-        {/* Section 3: Shipment Details */}
-        <section className="flex flex-col gap-4">
-          <p className={sh}>3. Shipment Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Mode of Shipment">
-              <input value={form.modeOfShipment} onChange={(e) => update("modeOfShipment", e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="CFS">
-              <input value={form.cfs} onChange={(e) => update("cfs", e.target.value)} className={inputClass} placeholder="e.g. KPCT CFS" />
-            </Field>
-            <Field label="Shipping Line">
-              <input readOnly disabled value={form.shippingLine} className={roClass} />
-            </Field>
-            <Field label="Vessel Name">
-              <input readOnly disabled value={form.vesselName} className={roClass} />
-            </Field>
-          </div>
-        </section>
 
-        {/* Section 4: Route Details */}
-        <section className="flex flex-col gap-4">
-          <p className={sh}>4. Route Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="From">
-              <input readOnly disabled value={form.from} className={roClass} />
-            </Field>
-            <Field label="To">
-              <input readOnly disabled value={form.to} className={roClass} />
-            </Field>
-          </div>
-        </section>
 
-        {/* Section 5: Container Details */}
+        {/* Section 3: Container Details */}
         <section className="flex flex-col gap-4">
-          <p className={sh}>5. Container Details</p>
+          <p className={sh}>3. Container Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Container Type">
               <input readOnly disabled value={form.containerType} className={roClass} />
@@ -451,9 +448,9 @@ export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, on
           </div>
         </section>
 
-        {/* Section 6: Service Details */}
+        {/* Section 4: Service Details */}
         <section className="flex flex-col gap-4">
-          <p className={sh}>6. Service Details</p>
+          <p className={sh}>4. Service Details</p>
           <div className="flex flex-col gap-4">
             {form.services.map((svc, i) => {
               const calc = serviceCalcs[i];
