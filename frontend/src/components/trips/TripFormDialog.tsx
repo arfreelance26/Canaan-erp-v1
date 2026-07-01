@@ -131,7 +131,7 @@ export function TripFormDialog({
         });
       }
     }
-  }, [open, initialData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, initialData]);
 
   const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
   const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";

@@ -17,7 +17,7 @@ type DriverAttendanceTableProps = {
   onMark: (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => Promise<void>;
 };
 
-const columns = ["Photo", "Driver ID", "Driver's Name", "Branch", "Status", "Marked At", "Action"];
+const columns = ["Photo", "Driver ID", "Driver's Name", "Status", "Marked At", "Action"];
 
 const statusStyles: Record<string, string> = {
   Present: "bg-green-50 text-green-700",
@@ -189,7 +189,7 @@ export function DriverAttendanceTable({ drivers, records, date, onMark }: Driver
                 </td>
                 <td className="px-4 py-3 font-medium text-gray-900">{driver.driverId}</td>
                 <td className="px-4 py-3 text-gray-600">{driver.name}</td>
-                <td className="px-4 py-3 text-gray-600">{driver.branch}</td>
+
                 <td className="px-4 py-3">
                   <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", statusStyles[status] ?? "bg-gray-100 text-gray-600")}>
                     {status}

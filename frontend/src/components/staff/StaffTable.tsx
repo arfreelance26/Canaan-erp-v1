@@ -16,7 +16,7 @@ const columns = [
   "Staff ID",
   "Department",
   "Designation",
-  "Branch",
+
   "Contact Number",
   "Email",
   "Date of Joining",
@@ -58,7 +58,7 @@ export function StaffTable({ staff, onEdit, onDelete }: StaffTableProps) {
               <td className="px-4 py-3 text-gray-600">{member.staffId}</td>
               <td className="px-4 py-3 text-gray-600">{member.department}</td>
               <td className="px-4 py-3 text-gray-600">{member.designation}</td>
-              <td className="px-4 py-3 text-gray-600">{member.branch}</td>
+
               <td className="px-4 py-3 text-gray-600">{member.contactNumber}</td>
               <td className="px-4 py-3 text-gray-600">{member.email}</td>
               <td className="px-4 py-3 text-gray-600">{member.dateOfJoining}</td>

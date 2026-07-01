@@ -25,7 +25,7 @@ export const initialDrivers: Driver[] = [
     email: "suresh.kumar@canaanglobal.com",
     contactNumber: "+91 99887 66554",
     address: "23, Ganesh Nagar, Coimbatore, Tamil Nadu",
-    branch: "Coimbatore",
+
     licenseNumber: "TN38 20180012345",
     licenseExpiryDate: "2028-09-30",
     licenseFileName: "suresh_kumar_license.pdf",
@@ -52,7 +52,7 @@ export const initialDrivers: Driver[] = [
     email: "manoj.pillai@canaanglobal.com",
     contactNumber: "+91 98456 12378",
     address: "78, Beach Road, Kochi, Kerala",
-    branch: "Kochi",
+
     licenseNumber: "KL07 20190054321",
     licenseExpiryDate: "2027-01-19",
     licenseFileName: "manoj_pillai_license.pdf",

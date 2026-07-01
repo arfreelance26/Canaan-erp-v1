@@ -191,7 +191,7 @@ function toDriver(b: B): Driver {
     email: b.email ?? "",
     contactNumber: b.contact_number ?? "",
     address: b.address ?? "",
-    branch: b.branch ?? "",
+
     licenseNumber: b.license_number ?? "",
     licenseExpiryDate: b.license_expiry_date ?? "",
     licenseFileName: b.license_file_name ?? null,
@@ -219,7 +219,7 @@ function fromDriver(f: Driver, password?: string) {
     email: f.email || null,
     contact_number: f.contactNumber || null,
     address: f.address || null,
-    branch: f.branch || null,
+
     license_number: f.licenseNumber || null,
     license_expiry_date: f.licenseExpiryDate || null,
     license_file_name: f.licenseFileName ?? null,
@@ -251,7 +251,7 @@ function toStaff(b: B): Staff {
     email: b.email ?? "",
     contactNumber: b.contact_number ?? "",
     address: b.address ?? "",
-    branch: b.branch ?? "",
+
     aadharNumber: b.aadhar_number ?? null,
     aadharFileName: b.aadhar_file_name ?? null,
     username: b.username ?? "",
@@ -271,7 +271,7 @@ function fromStaff(f: Staff, password?: string) {
     email: f.email || null,
     contact_number: f.contactNumber || null,
     address: f.address || null,
-    branch: f.branch || null,
+
     aadhar_number: f.aadharNumber ?? null,
     aadhar_file_name: f.aadharFileName ?? null,
     photo_url: (f.photoUrl && f.photoUrl.startsWith("data:")) ? null : (f.photoUrl || null),

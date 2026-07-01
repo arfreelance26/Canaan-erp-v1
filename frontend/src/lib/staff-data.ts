@@ -30,7 +30,7 @@ export const initialStaff: Staff[] = [
     address: "12, Marina Street, Chennai, Tamil Nadu",
     aadharNumber: null,
     aadharFileName: "anita_menon_aadhar.pdf",
-    branch: "Chennai",
+
     softwareDesignation: "Staff",
     username: "anita.menon@canaanglobal.com",
     password: "Anita@1234",
@@ -49,7 +49,7 @@ export const initialStaff: Staff[] = [
     address: "45, Harbour Road, Kochi, Kerala",
     aadharNumber: null,
     aadharFileName: "rahul_verma_aadhar.pdf",
-    branch: "Kochi",
+
     softwareDesignation: "Fleet Manager",
     username: "rahul.verma@canaanglobal.com",
     password: "Rahul@1234",
@@ -68,7 +68,7 @@ export const initialStaff: Staff[] = [
     address: "8, Anna Nagar, Chennai, Tamil Nadu",
     aadharNumber: null,
     aadharFileName: "karthik_raja_aadhar.pdf",
-    branch: "Chennai",
+
     softwareDesignation: "Tyre Manager",
     username: "karthik.raja@canaanglobal.com",
     password: "Karthik@1234",

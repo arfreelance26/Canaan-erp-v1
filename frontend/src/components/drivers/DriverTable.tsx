@@ -14,7 +14,6 @@ const columns = [
   "Photo",
   "Driver ID",
   "Driver's Name",
-  "Branch",
   "Contact Number",
   "Email",
   "Aadhaar Number",
@@ -57,7 +56,7 @@ export function DriverTable({ drivers, onEdit, onDelete }: DriverTableProps) {
               </td>
               <td className="px-4 py-3 font-medium text-gray-900">{driver.driverId}</td>
               <td className="px-4 py-3 text-gray-600">{driver.name}</td>
-              <td className="px-4 py-3 text-gray-600">{driver.branch}</td>
+
               <td className="px-4 py-3 text-gray-600">{driver.contactNumber}</td>
               <td className="px-4 py-3 text-gray-600">{driver.email}</td>
               <td className="px-4 py-3 text-gray-600">{driver.aadhaarNumber}</td>

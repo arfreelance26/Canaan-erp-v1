@@ -28,7 +28,7 @@ export function AssignDriverTable({ drivers, trucks, vehicleByDriverId, onAssign
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
-            {["Driver", "Driver ID", "Branch", "Assigned Vehicle", "Actions"].map((column) => (
+            {["Driver", "Driver ID", "Assigned Vehicle", "Actions"].map((column) => (
               <th key={column} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 {column}
               </th>
@@ -49,7 +49,7 @@ export function AssignDriverTable({ drivers, trucks, vehicleByDriverId, onAssign
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{driver.driverId}</td>
-                <td className="px-4 py-3 text-gray-600">{driver.branch}</td>
+
                 <td className="px-4 py-3 text-gray-600">
                   {truck ? (
                     <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">

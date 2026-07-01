@@ -228,11 +228,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
                 label="Designation"
                 value={profile?.designation}
               />
-              <Row
-                icon={<GitBranch className="h-4 w-4" />}
-                label="Branch"
-                value={profile?.branch}
-              />
+
               <Row
                 icon={<Calendar className="h-4 w-4" />}
                 label="Date of Joining"

@@ -19,6 +19,7 @@ type PreviewState = {
   sheet: TripSheetData | undefined;
   customer: Customer | undefined;
   invoiceType: InvoiceType;
+  savedInvoice?: any;
   autoDownload?: boolean;
 };
 

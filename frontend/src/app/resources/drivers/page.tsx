@@ -21,8 +21,7 @@ export default function DriversPage() {
   const filteredDrivers = drivers.filter(d => 
     !searchQuery ||
     d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.driverId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.branch?.toLowerCase().includes(searchQuery.toLowerCase())
+    d.driverId?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   useEffect(() => {

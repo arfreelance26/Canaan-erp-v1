@@ -18,7 +18,7 @@ type StaffAttendanceTableProps = {
 };
 
 const columns = [
-  "Photo", "Staff ID", "Name", "Role", "Branch",
+  "Photo", "Staff ID", "Name", "Role",
   "Status", "Marked At", "Source", "Action",
 ];
 
@@ -198,7 +198,7 @@ export function StaffAttendanceTable({ staff, records, date, onMark }: StaffAtte
                 <td className="px-4 py-3 font-medium text-gray-900">{member.staffId}</td>
                 <td className="px-4 py-3 text-gray-600">{member.name}</td>
                 <td className="px-4 py-3 text-gray-600">{member.softwareDesignation}</td>
-                <td className="px-4 py-3 text-gray-600">{member.branch}</td>
+
                 <td className="px-4 py-3">
                   <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", statusStyles[status] ?? "bg-gray-100 text-gray-600")}>
                     {status}
