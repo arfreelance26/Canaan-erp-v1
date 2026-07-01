@@ -72,11 +72,15 @@ export async function uploadFile(
       body: form,
     });
   } catch {
-    throw new Error("Cannot reach the server. Make sure the backend is running.");
+    const msg = "Cannot reach the server. Make sure the backend is running.";
+    if (typeof window !== "undefined") window.alert(msg);
+    throw new Error(msg);
   }
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(err || `Upload failed: HTTP ${res.status}`);
+    const errorMsg = err || `Upload failed: HTTP ${res.status}`;
+    if (typeof window !== "undefined") window.alert(errorMsg);
+    throw new Error(errorMsg);
   }
 }
 
