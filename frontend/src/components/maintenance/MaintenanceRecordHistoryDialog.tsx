@@ -5,6 +5,7 @@ import { Printer } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { todayIst } from "@/lib/format-date";
@@ -160,19 +161,17 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
             <>
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium text-gray-700">From</span>
-                <input
-                  type="date"
+                <DateInput
                   value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
+                  onChange={(v) => setCustomFrom(v)}
                   className={inputClass}
                 />
               </label>
               <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium text-gray-700">To</span>
-                <input
-                  type="date"
+                <DateInput
                   value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
+                  onChange={(v) => setCustomTo(v)}
                   className={inputClass}
                 />
               </label>

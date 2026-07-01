@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import type { EmiRecord } from "@/types/finance";
@@ -26,6 +27,7 @@ const emptyForm: Omit<EmiRecord, "id"> = {
   emiAmount: "",
   tenureMonths: "",
   emiPaymentDate: "",
+  costPerMonth: "",
 };
 
 export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDialogProps) {
@@ -44,8 +46,32 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
   }, [open, initialData]);
 
   function update<K extends keyof Omit<EmiRecord, "id">>(key: K, value: Omit<EmiRecord, "id">[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      // Auto-calculate tenure whenever either date changes
+      if (key === "emiStartDate" || key === "emiEndDate") {
+        const start = key === "emiStartDate" ? String(value) : prev.emiStartDate;
+        const end   = key === "emiEndDate"   ? String(value) : prev.emiEndDate;
+        if (start && end) {
+          const s = new Date(start), e = new Date(end);
+          const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+          next.tenureMonths = months > 0 ? String(months) : "";
+        } else {
+          next.tenureMonths = "";
+        }
+      }
+      return next;
+    });
   }
+
+  const tenure = Number(form.tenureMonths) || 0;
+  const loanAmt = Number(form.loanAmount) || 0;
+  const costPerMonth = tenure > 0 && loanAmt > 0 ? (loanAmt / tenure).toFixed(2) : "";
+
+  // Keep costPerMonth in form state so it is sent to the API
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, costPerMonth }));
+  }, [costPerMonth]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -128,43 +154,50 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="EMI Start Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.emiStartDate}
-              onChange={(e) => update("emiStartDate", e.target.value)}
+              onChange={(v) => update("emiStartDate", v)}
               className={inputClass}
             />
           </Field>
 
           <Field label="EMI End Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.emiEndDate}
-              onChange={(e) => update("emiEndDate", e.target.value)}
+              onChange={(v) => update("emiEndDate", v)}
               className={inputClass}
             />
           </Field>
 
-          <Field label="Tenure (in Months)" required>
+          <Field label="Tenure (in Months)">
             <input
-              type="number"
-              required
-              min="0"
-              value={form.tenureMonths}
-              onChange={(e) => update("tenureMonths", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. 60"
+              type="text"
+              readOnly
+              disabled
+              value={form.tenureMonths ? `${form.tenureMonths} months` : ""}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder="Auto-calculated from dates"
+            />
+          </Field>
+
+          <Field label="Cost Per Month">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={costPerMonth ? `₹ ${Number(costPerMonth).toLocaleString("en-IN")}` : ""}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder="Auto-calculated"
             />
           </Field>
 
           <Field label="Date of EMI Payment" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.emiPaymentDate}
-              onChange={(e) => update("emiPaymentDate", e.target.value)}
+              onChange={(v) => update("emiPaymentDate", v)}
               className={inputClass}
             />
           </Field>

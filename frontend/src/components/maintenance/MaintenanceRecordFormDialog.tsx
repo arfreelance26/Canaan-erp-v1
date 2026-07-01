@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { MAINTENANCE_TYPE_OPTIONS } from "@/lib/truck-maintenance-data";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
@@ -58,11 +59,10 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.date}
-              onChange={(e) => update("date", e.target.value)}
+              onChange={(v) => update("date", v)}
               className={inputClass}
             />
           </Field>

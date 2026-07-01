@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -212,11 +213,10 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               <input readOnly disabled value={form.toLocation} className={readonlyClass} />
             </Field>
             <Field label="Trip Completed Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.tripCompletedDate}
-                onChange={(e) => update("tripCompletedDate", e.target.value)}
+                onChange={(v) => update("tripCompletedDate", v)}
                 className={inputClass}
               />
             </Field>

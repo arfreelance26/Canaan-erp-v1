@@ -6,6 +6,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import type { CompensationTransactionType } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
+import { DateInput } from "@/components/ui/DateInput";
 
 type PaymentDialogProps = {
   open: boolean;
@@ -57,11 +58,10 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
         </Field>
 
         <Field label="Date">
-          <input
-            type="date"
+          <DateInput
             required
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(v) => setDate(v)}
             className={inputClass}
           />
         </Field>

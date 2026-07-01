@@ -763,6 +763,7 @@ function toEmiRecord(b: B): EmiRecord {
     emiAmount: String(b.emi_amount ?? ""),
     tenureMonths: String(b.tenure_months ?? ""),
     emiPaymentDate: b.emi_payment_date ?? "",
+    costPerMonth: String(b.cost_per_month ?? ""),
   };
 }
 
@@ -778,6 +779,7 @@ function fromEmiRecord(f: EmiRecord) {
     emi_amount: parseFloat(f.emiAmount) || 0,
     tenure_months: parseInt(f.tenureMonths) || null,
     emi_payment_date: f.emiPaymentDate || null,
+    cost_per_month: parseFloat(f.costPerMonth) || 0,
   };
 }
 

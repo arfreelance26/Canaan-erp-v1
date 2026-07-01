@@ -5,6 +5,7 @@ import type { Truck } from "@/types/truck";
 import type { FuelLog } from "@/types/fuel-log";
 import { showError } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
+import { DateInput } from "@/components/ui/DateInput";
 
 type FuelLogFormDialogProps = {
   open: boolean;
@@ -85,11 +86,10 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.date}
-              onChange={(e) => update("date", e.target.value)}
+              onChange={(v) => update("date", v)}
               className={inputClass}
             />
           </Field>

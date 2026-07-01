@@ -5,12 +5,11 @@ import { FileText } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { Avatar } from "@/components/ui/Avatar";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
-import type { Branch } from "@/types/branch";
-import { branchesApi } from "@/lib/api";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -60,12 +59,7 @@ export function DriverFormDialog({
 }: DriverFormDialogProps) {
   const [form, setForm] = useState<Omit<Driver, "id" | "driverId">>(emptyForm);
   const [files, setFiles] = useState<DriverFiles>({});
-  const [branches, setBranches] = useState<Branch[]>([]);
   const lastAutoUsername = useRef<string>("");
-
-  useEffect(() => {
-    branchesApi.list().then(setBranches).catch(() => setBranches([]));
-  }, []);
 
   useEffect(() => {
     if (open) {
@@ -160,17 +154,6 @@ export function DriverFormDialog({
             />
           </Field>
 
-          <Field label="Branch" required>
-            <GlassSelect
-              value={form.branch}
-              onChange={(val) => setForm((prev) => ({ ...prev, branch: val }))}
-              options={[
-                { value: "", label: "Select a branch" },
-                ...branches.map((b) => ({ value: b.name, label: b.name })),
-              ]}
-            />
-          </Field>
-
           <Field label="Driver Aadhaar Number" required>
             <input
               type="text"
@@ -183,29 +166,26 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="Date of Birth" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.dateOfBirth}
-              onChange={(e) => update("dateOfBirth", e.target.value)}
+              onChange={(v) => update("dateOfBirth", v)}
               className={inputClass}
             />
           </Field>
 
           <Field label="Date of Joining" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.dateOfJoining}
-              onChange={(e) => update("dateOfJoining", e.target.value)}
+              onChange={(v) => update("dateOfJoining", v)}
               className={inputClass}
             />
           </Field>
 
-          <Field label="Email" required>
+          <Field label="Email">
             <input
               type="email"
-              required
               value={form.email}
               onChange={(e) => handleEmailChange(e.target.value)}
               className={inputClass}
@@ -236,11 +216,10 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="License Expiry Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.licenseExpiryDate}
-              onChange={(e) => update("licenseExpiryDate", e.target.value)}
+              onChange={(v) => update("licenseExpiryDate", v)}
               className={inputClass}
             />
           </Field>
@@ -257,10 +236,9 @@ export function DriverFormDialog({
             />
           </Field>
 
-          <Field label="ESI Number" required>
+          <Field label="ESI Number">
             <input
               type="text"
-              required
               value={form.esiNumber}
               onChange={(e) => update("esiNumber", e.target.value)}
               className={inputClass}
@@ -268,10 +246,9 @@ export function DriverFormDialog({
             />
           </Field>
 
-          <Field label="PAN Number" required>
+          <Field label="PAN Number">
             <input
               type="text"
-              required
               value={form.panNumber}
               onChange={(e) => update("panNumber", e.target.value)}
               className={inputClass}
@@ -295,10 +272,9 @@ export function DriverFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>Bank Account Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Bank Name" required>
+            <Field label="Bank Name">
               <input
                 type="text"
-                required
                 value={form.bankName}
                 onChange={(e) => update("bankName", e.target.value)}
                 className={inputClass}
@@ -306,10 +282,9 @@ export function DriverFormDialog({
               />
             </Field>
 
-            <Field label="Branch Name of the Bank" required>
+            <Field label="Branch Name of the Bank">
               <input
                 type="text"
-                required
                 value={form.bankBranchName}
                 onChange={(e) => update("bankBranchName", e.target.value)}
                 className={inputClass}
@@ -317,10 +292,9 @@ export function DriverFormDialog({
               />
             </Field>
 
-            <Field label="Account Number" required>
+            <Field label="Account Number">
               <input
                 type="text"
-                required
                 value={form.accountNumber}
                 onChange={(e) => update("accountNumber", e.target.value)}
                 className={inputClass}
@@ -328,10 +302,9 @@ export function DriverFormDialog({
               />
             </Field>
 
-            <Field label="IFSC Code" required>
+            <Field label="IFSC Code">
               <input
                 type="text"
-                required
                 value={form.ifscCode}
                 onChange={(e) => update("ifscCode", e.target.value)}
                 className={inputClass}
@@ -354,10 +327,9 @@ export function DriverFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Username" required>
+            <Field label="Username">
               <input
                 type="text"
-                required
                 value={form.username}
                 onChange={(e) => {
                   lastAutoUsername.current = "";
@@ -379,10 +351,9 @@ export function DriverFormDialog({
               ) : null}
             </Field>
 
-            <Field label="Password" required={!initialData}>
+            <Field label="Password">
               <input
                 type="password"
-                required={!initialData}
                 value={form.password}
                 onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
                 className={inputClass}

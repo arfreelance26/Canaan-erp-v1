@@ -10,6 +10,7 @@ export type EmiRecord = {
   emiAmount: string;
   tenureMonths: string;
   emiPaymentDate: string;
+  costPerMonth: string;
 };
 
 export type RecurringPaymentFrequency = "Monthly" | "Quarterly" | "Yearly";

@@ -5,6 +5,7 @@ import { X, FileText } from "lucide-react";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Avatar } from "@/components/ui/Avatar";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
@@ -160,21 +161,19 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
 
           <Field label="Date of Birth" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.dateOfBirth}
-              onChange={(e) => update("dateOfBirth", e.target.value)}
+              onChange={(v) => update("dateOfBirth", v)}
               className={inputClass}
             />
           </Field>
 
           <Field label="Date of Joining" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.dateOfJoining}
-              onChange={(e) => update("dateOfJoining", e.target.value)}
+              onChange={(v) => update("dateOfJoining", v)}
               className={inputClass}
             />
           </Field>

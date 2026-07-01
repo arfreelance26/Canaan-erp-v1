@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { DateInput } from "@/components/ui/DateInput";
 import { tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
@@ -145,17 +146,15 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, onRecordPayme
 
         {filterMode === "custom" && (
           <div className="flex items-center gap-2 text-sm">
-            <input
-              type="date"
+            <DateInput
               value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
+              onChange={(v) => setCustomFrom(v)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
             />
             <span className="text-gray-400">→</span>
-            <input
-              type="date"
+            <DateInput
               value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
+              onChange={(v) => setCustomTo(v)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
             />
           </div>

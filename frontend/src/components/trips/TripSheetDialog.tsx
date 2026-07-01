@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { type TripSheetData, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
@@ -231,7 +232,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={closure?.closedAt ?? ""} readOnly disabled placeholder="Auto-fetched on close" />
           </Field>
           <Field label="Trip Sheet Date *">
-            <input type="date" value={form.tripSheetDate} readOnly={ro} onChange={(e) => set("tripSheetDate", e.target.value)} className={fc} />
+            <DateInput value={form.tripSheetDate} readOnly={ro} onChange={(v) => set("tripSheetDate", v)} className={fc} />
           </Field>
         </div>
 

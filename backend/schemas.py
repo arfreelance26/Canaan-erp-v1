@@ -806,6 +806,7 @@ class EmiRecordBase(OrmBase):
     emi_amount: Optional[Decimal] = None
     tenure_months: Optional[int] = None
     emi_payment_date: Optional[date] = None
+    cost_per_month: Optional[Decimal] = None
 
 
 class EmiRecordCreate(EmiRecordBase):
@@ -823,6 +824,7 @@ class EmiRecordUpdate(OrmBase):
     emi_amount: Optional[Decimal] = None
     tenure_months: Optional[int] = None
     emi_payment_date: Optional[date] = None
+    cost_per_month: Optional[Decimal] = None
 
 
 class EmiRecordOut(EmiRecordBase):

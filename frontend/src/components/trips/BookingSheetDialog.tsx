@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -265,12 +266,11 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Closure — Billing</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Trip Completed Date">
-              <input
-                type="date"
+              <DateInput
                 value={form.tripCompletedDate}
                 readOnly={readOnly}
                 disabled={readOnly}
-                onChange={(e) => update("tripCompletedDate", e.target.value)}
+                onChange={(v) => update("tripCompletedDate", v)}
                 className={fc}
               />
             </Field>

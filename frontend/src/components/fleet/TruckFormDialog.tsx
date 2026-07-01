@@ -7,6 +7,7 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
 import type { Branch } from "@/types/branch";
 import { branchesApi } from "@/lib/api";
@@ -286,11 +287,10 @@ export function TruckFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>RC Details</p>
           <Field label="RC Validity Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.rcValidityDate}
-              onChange={(e) => update("rcValidityDate", e.target.value)}
+              onChange={(v) => update("rcValidityDate", v)}
               className={inputClass}
             />
           </Field>
@@ -332,11 +332,10 @@ export function TruckFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>FC Details</p>
           <Field label="FC Validity Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.fcExpiryDate}
-              onChange={(e) => update("fcExpiryDate", e.target.value)}
+              onChange={(v) => update("fcExpiryDate", v)}
               className={inputClass}
             />
           </Field>
@@ -379,11 +378,10 @@ export function TruckFormDialog({
           <p className={sectionHeadingClass}>Road Tax</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Road Tax Validity Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.roadTaxDate}
-                onChange={(e) => update("roadTaxDate", e.target.value)}
+                onChange={(v) => update("roadTaxDate", v)}
                 className={inputClass}
               />
             </Field>
@@ -437,11 +435,10 @@ export function TruckFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>Insurance Details</p>
           <Field label="Insurance Expiry Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.insuranceExpiryDate}
-              onChange={(e) => update("insuranceExpiryDate", e.target.value)}
+              onChange={(v) => update("insuranceExpiryDate", v)}
               className={inputClass}
             />
           </Field>
@@ -495,11 +492,10 @@ export function TruckFormDialog({
             </Field>
 
             <Field label="National Permit Validity Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.nationalPermitDate}
-                onChange={(e) => update("nationalPermitDate", e.target.value)}
+                onChange={(v) => update("nationalPermitDate", v)}
                 className={inputClass}
               />
             </Field>
@@ -554,11 +550,10 @@ export function TruckFormDialog({
             </Field>
 
             <Field label="Local Permit Validity Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.localPermitDate}
-                onChange={(e) => update("localPermitDate", e.target.value)}
+                onChange={(v) => update("localPermitDate", v)}
                 className={inputClass}
               />
             </Field>
@@ -602,11 +597,10 @@ export function TruckFormDialog({
           <p className={sectionHeadingClass}>Pollution Certificate</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Pollution Certificate Validity Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.pollutionCertificateDate}
-                onChange={(e) => update("pollutionCertificateDate", e.target.value)}
+                onChange={(v) => update("pollutionCertificateDate", v)}
                 className={inputClass}
               />
             </Field>

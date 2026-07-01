@@ -4,6 +4,7 @@ import { X, Info, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import {
@@ -302,11 +303,10 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Booking Created Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.bookingCreatedDate}
-                onChange={(e) => handleBookingDateChange(e.target.value)}
+                onChange={(v) => handleBookingDateChange(v)}
                 className={inputClass}
               />
             </Field>
@@ -577,11 +577,10 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Scheduled Trip Date" required>
-              <input
-                type="date"
+              <DateInput
                 required
                 value={form.scheduledDate}
-                onChange={(e) => update("scheduledDate", e.target.value)}
+                onChange={(v) => update("scheduledDate", v)}
                 className={inputClass}
               />
             </Field>

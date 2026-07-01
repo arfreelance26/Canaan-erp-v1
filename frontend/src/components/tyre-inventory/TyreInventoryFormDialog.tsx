@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { TYRE_BRAND_OPTIONS, TYRE_CONDITION_OPTIONS, TYRE_TYPE_OPTIONS } from "@/lib/tyre-inventory-data";
@@ -148,10 +149,9 @@ export function TyreInventoryFormDialog({
           </Field>
 
           <Field label="Purchase Date" required>
-            <input
-              type="date"
+            <DateInput
               value={form.purchaseDate}
-              onChange={(e) => update("purchaseDate", e.target.value)}
+              onChange={(v) => update("purchaseDate", v)}
               className={inputClass}
             />
           </Field>

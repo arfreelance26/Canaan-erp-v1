@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { DateInput } from "@/components/ui/DateInput";
 import { tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
@@ -146,17 +147,15 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPaym
 
         {filterMode === "custom" && (
           <div className="flex items-center gap-2 text-sm">
-            <input
-              type="date"
+            <DateInput
               value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
+              onChange={(v) => setCustomFrom(v)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
             />
             <span className="text-gray-400">→</span>
-            <input
-              type="date"
+            <DateInput
               value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
+              onChange={(v) => setCustomTo(v)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
             />
           </div>

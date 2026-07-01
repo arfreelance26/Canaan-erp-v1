@@ -633,6 +633,7 @@ class EmiRecord(Base):
     emi_amount = Column(Numeric(10, 2), default=0)
     tenure_months = Column(Integer)
     emi_payment_date = Column(Date)
+    cost_per_month = Column(Numeric(10, 2), default=0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

@@ -4,6 +4,7 @@ import { Save, Search, CheckCircle2 } from "lucide-react";
 import { attendanceApi } from "@/lib/api";
 import { showError, showSuccess } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
+import { DateInput } from "@/components/ui/DateInput";
 import type { LeaveRequest } from "@/types/leave-request";
 
 type LeaveRequestFormDialogProps = {
@@ -149,21 +150,18 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="From Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.fromDate}
-              onChange={(e) => update("fromDate", e.target.value)}
+              onChange={(v) => update("fromDate", v)}
               className={inputClass}
             />
           </Field>
           <Field label="To Date" required>
-            <input
-              type="date"
+            <DateInput
               required
               value={form.toDate}
-              onChange={(e) => update("toDate", e.target.value)}
-              min={form.fromDate || undefined}
+              onChange={(v) => update("toDate", v)}
               className={inputClass}
             />
           </Field>

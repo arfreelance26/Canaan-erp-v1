@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ChevronRight, Search, Bell, ChevronDown, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Home, ChevronRight, Search, Bell, ChevronDown, ShieldAlert, ShieldCheck, ChevronUp } from "lucide-react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -54,6 +54,24 @@ function getPageLabel(pathname: string): string {
     }
   }
   return "Dashboard";
+}
+
+type NotifTab = "all" | "compliance" | "emi";
+
+function NotifItem({ n }: { n: AppNotification }) {
+  const isDanger = n.severity === "danger";
+  return (
+    <li className="flex items-start gap-2.5 px-4 py-2 hover:bg-gray-50/80 transition-colors">
+      <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", isDanger ? "bg-red-500" : "bg-yellow-400")} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] font-medium text-gray-900 leading-snug truncate">{n.title}</p>
+        <p className="text-[11px] text-gray-400 truncate">{n.subtitle}</p>
+        <p className={cn("text-[11px] font-medium", isDanger ? "text-red-600" : "text-yellow-600")}>
+          {n.timeLabel}
+        </p>
+      </div>
+    </li>
+  );
 }
 
 export function Topbar() {
@@ -173,6 +191,38 @@ export function Topbar() {
   const dangerCount = notifications.filter((n) => n.severity === "danger").length;
   const warningCount = notifications.filter((n) => n.severity === "warning").length;
 
+  const [activeTab, setActiveTab] = useState<NotifTab>("all");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["danger"]));
+
+  const COLLAPSE_THRESHOLD = 4;
+
+  const groupedNotifs = useMemo(() => {
+    const compliance = notifications.filter((n) => n.category === "Compliance");
+    const emiPayment = notifications.filter((n) => n.category === "EMI Payment");
+    const emiEnding  = notifications.filter((n) => n.category === "EMI Ending");
+    return { compliance, emiPayment, emiEnding };
+  }, [notifications]);
+
+  const tabNotifs = useMemo(() => {
+    if (activeTab === "compliance") return groupedNotifs.compliance;
+    if (activeTab === "emi") return [...groupedNotifs.emiPayment, ...groupedNotifs.emiEnding];
+    return notifications;
+  }, [activeTab, notifications, groupedNotifs]);
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  const tabs: { key: NotifTab; label: string; count: number }[] = [
+    { key: "all",        label: "All",        count: notifications.length },
+    { key: "compliance", label: "Compliance", count: groupedNotifs.compliance.length },
+    { key: "emi",        label: "EMI",        count: groupedNotifs.emiPayment.length + groupedNotifs.emiEnding.length },
+  ];
+
   return (
     <>
     <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/50 bg-white/60 backdrop-blur-xl px-6 shadow-sm">
@@ -239,75 +289,130 @@ export function Topbar() {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 z-[100] mt-3 w-[360px] origin-top-right rounded-2xl border border-white/60 bg-white/95 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
+            <div className="absolute right-0 z-[100] mt-3 w-[380px] origin-top-right rounded-2xl border border-white/60 bg-white/95 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+              <div className="flex items-center justify-between px-4 pt-3 pb-2">
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="h-4 w-4 text-gray-500" />
                   <span className="text-[13px] font-semibold text-gray-900">Notifications</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   {dangerCount > 0 && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                      {dangerCount} Urgent
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                      {dangerCount} urgent
                     </span>
                   )}
                   {warningCount > 0 && (
-                    <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[11px] font-semibold text-yellow-700">
-                      {warningCount} Warning
+                    <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700">
+                      {warningCount} warning
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Notification list */}
-              <div className="max-h-[380px] overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                    <ShieldCheck className="h-8 w-8 text-green-400" />
-                    <p className="text-[13px] font-medium text-gray-700">Everything looks good</p>
-                    <p className="text-xs text-gray-400">No compliance issues or EMI alerts</p>
+              {/* Tabs */}
+              <div className="flex gap-1 border-b border-gray-100 px-3 pb-0">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-t-lg px-3 py-1.5 text-[12px] font-medium transition-colors border-b-2 -mb-px",
+                      activeTab === tab.key
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                    )}
+                  >
+                    {tab.label}
+                    {tab.count > 0 && (
+                      <span className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                        activeTab === tab.key ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
+                      )}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Body */}
+              <div className="max-h-[360px] overflow-y-auto">
+                {tabNotifs.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                    <ShieldCheck className="h-7 w-7 text-green-400" />
+                    <p className="text-[13px] font-medium text-gray-700">All clear</p>
+                    <p className="text-xs text-gray-400">No alerts in this category</p>
                   </div>
-                ) : (
-                  <ul className="divide-y divide-gray-50 py-1">
-                    {notifications.map((n, i) => {
-                      const isDanger = n.severity === "danger";
-                      const categoryColors: Record<AppNotification["category"], string> = {
-                        "Compliance":  "bg-blue-50 text-blue-600",
-                        "EMI Payment": "bg-red-50 text-red-600",
-                        "EMI Ending":  "bg-orange-50 text-orange-600",
-                      };
+                ) : activeTab === "all" ? (
+                  // Grouped view for "All" tab
+                  <div className="py-1">
+                    {(
+                      [
+                        { key: "emi-payment", label: "EMI Payment",  items: groupedNotifs.emiPayment,  color: "text-red-600",    bg: "bg-red-50" },
+                        { key: "compliance",  label: "Compliance",   items: groupedNotifs.compliance,  color: "text-blue-600",   bg: "bg-blue-50" },
+                        { key: "emi-ending",  label: "EMI Ending",   items: groupedNotifs.emiEnding,   color: "text-orange-600", bg: "bg-orange-50" },
+                      ] as const
+                    ).filter((g) => g.items.length > 0).map((group) => {
+                      const isExpanded = expandedGroups.has(group.key);
+                      const visible = isExpanded ? group.items : group.items.slice(0, COLLAPSE_THRESHOLD);
+                      const hidden  = group.items.length - COLLAPSE_THRESHOLD;
                       return (
-                        <li key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50/80 transition-colors">
-                          <span
-                            className={cn(
-                              "mt-1 h-2 w-2 shrink-0 rounded-full",
-                              isDanger ? "bg-red-500" : "bg-yellow-400"
-                            )}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-[13px] font-medium text-gray-900 leading-snug">
-                                {n.title}
-                              </p>
-                              <span className={cn(
-                                "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                                categoryColors[n.category]
-                              )}>
-                                {n.category}
+                        <div key={group.key} className="mb-1">
+                          {/* Group header */}
+                          <button
+                            onClick={() => toggleGroup(group.key)}
+                            className="flex w-full items-center justify-between px-4 py-1.5 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-[11px] font-semibold uppercase tracking-wide", group.color)}>
+                                {group.label}
+                              </span>
+                              <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", group.bg, group.color)}>
+                                {group.items.length}
                               </span>
                             </div>
-                            <p className="mt-0.5 text-xs text-gray-500 truncate">{n.subtitle}</p>
-                            <p className={cn(
-                              "mt-0.5 text-[11px] font-medium",
-                              isDanger ? "text-red-600" : "text-yellow-600"
-                            )}>
-                              {n.timeLabel}
-                            </p>
-                          </div>
-                        </li>
+                            {isExpanded
+                              ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
+                              : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                            }
+                          </button>
+
+                          {/* Items */}
+                          {isExpanded && (
+                            <ul className="divide-y divide-gray-50">
+                              {visible.map((n, i) => (
+                                <NotifItem key={i} n={n} />
+                              ))}
+                            </ul>
+                          )}
+                          {/* Show more / show less */}
+                          {!isExpanded && group.items.length > COLLAPSE_THRESHOLD && (
+                            <button
+                              onClick={() => toggleGroup(group.key)}
+                              className="w-full px-4 py-1.5 text-center text-[11px] font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                            >
+                              +{hidden} more
+                            </button>
+                          )}
+                          {isExpanded && group.items.length > COLLAPSE_THRESHOLD && (
+                            <button
+                              onClick={() => toggleGroup(group.key)}
+                              className="w-full px-4 py-1.5 text-center text-[11px] font-medium text-gray-400 hover:bg-gray-50 transition-colors"
+                            >
+                              Show less
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
+                  </div>
+                ) : (
+                  // Flat filtered view for Compliance / EMI tabs
+                  <ul className="divide-y divide-gray-50 py-1">
+                    {tabNotifs.map((n, i) => (
+                      <NotifItem key={i} n={n} />
+                    ))}
                   </ul>
                 )}
               </div>

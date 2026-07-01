@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { DateInput } from "@/components/ui/DateInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -378,7 +379,7 @@ export function GenerateInvoiceDialog({ open, trip, customer, truck, onClose, on
               <input value={form.invoiceNo} onChange={(e) => update("invoiceNo", e.target.value)} className={inputClass} placeholder="e.g. INV-2024-001" required />
             </Field>
             <Field label="Invoice Date" required>
-              <input type="date" value={form.invoiceDate} onChange={(e) => update("invoiceDate", e.target.value)} className={inputClass} required />
+              <DateInput value={form.invoiceDate} onChange={(v) => update("invoiceDate", v)} className={inputClass} required />
             </Field>
             <Field label="Booking Reference No">
               <input readOnly disabled value={form.bookingReferenceNo} className={roClass} />
