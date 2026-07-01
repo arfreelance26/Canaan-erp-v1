@@ -1,5 +1,5 @@
 <IfModule mod_headers.c>
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://images.unsplash.com https://*.amazonaws.com https://*.cloudfront.net; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://erpbackend.canaanglobalinternational.com https://fonts.googleapis.com https://fonts.gstatic.com; media-src 'self'; frame-src 'none'; object-src 'none'"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://erpbackend.canaanglobalinternational.com https://images.unsplash.com https://*.amazonaws.com https://*.cloudfront.net; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://erpbackend.canaanglobalinternational.com https://fonts.googleapis.com https://fonts.gstatic.com; media-src 'self' https://erpbackend.canaanglobalinternational.com; worker-src 'self' blob:; frame-src 'self' blob: https://erpbackend.canaanglobalinternational.com; object-src 'self' blob: https://erpbackend.canaanglobalinternational.com; base-uri 'self'; form-action 'self';"
 </IfModule>
 
 # Handle Next.js static export trailing slash routing
