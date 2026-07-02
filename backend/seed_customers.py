@@ -38,6 +38,25 @@ def map_container_type(val):
     if s == "OPEN LOAD": return "OPEN LOAD"
     return s # Fallback
 
+def map_weight(val):
+    s = clean_str(val)
+    if not s: return None
+    s = s.upper().strip()
+    if s == "NORMAL": return "NORMAL"
+    if s == "UPTO 20": return "Up to 20 Tons"
+    if s == "20 - 25": return "Between 20 - 25 Tons"
+    if s == "25 - 28": return "Between 25-28 Tons"
+    if s == "28 - 30": return "Between 28-30 Tons"
+    return None
+
+def map_status(val):
+    s = clean_str(val)
+    if not s: return "ACTIVE"
+    s = s.upper()
+    if s == "INACTIVE": return "INACTIVE"
+    if s == "BLACKLISTED": return "BLACKLISTED"
+    return "ACTIVE"
+
 def seed_customers():
     db: Session = SessionLocal()
     
@@ -46,13 +65,14 @@ def seed_customers():
     df_dest = pd.read_excel("../Customer Destination.xlsx")
     df_price = pd.read_excel("../Customer Pricing.xlsx")
     
-    # 1. Build Destination State dictionary
-    dest_states = {}
+    # 1. Build Destination lookup: name.upper() -> { state, status }
+    dest_meta = {}
     for _, row in df_dest.iterrows():
         dest_name = clean_str(row.get('Destination Nam'))
         dest_state = clean_str(row.get('Destination State'))
+        dest_status = map_status(row.get('Destination Status'))
         if dest_name:
-            dest_states[dest_name.upper()] = dest_state
+            dest_meta[dest_name.upper()] = {"state": dest_state, "status": dest_status}
 
     # 2. Insert Customers
     print("Seeding Customers...")
@@ -134,12 +154,12 @@ def seed_customers():
         
         # Insert Destination if it doesn't exist for this customer
         if (cust_id, dest_upper) not in destinations_inserted:
-            state = dest_states.get(dest_upper)
+            meta = dest_meta.get(dest_upper, {})
             new_dest = CustomerDestination(
                 customer_id=cust_id,
                 destination_name=raw_dest,
-                destination_state=state,
-                status="ACTIVE"
+                destination_state=meta.get("state"),
+                status=meta.get("status", "ACTIVE"),
             )
             db.add(new_dest)
             destinations_inserted.add((cust_id, dest_upper))
@@ -148,10 +168,11 @@ def seed_customers():
         # Insert Pricing
         load_type = clean_str(row.get('Load Type'))
         container_type = map_container_type(row.get('Container Type'))
-        weight = clean_str(row.get('Weight (In tons)'))
-        rate_val = row.get('Rate')
+        weight = map_weight(row.get('Weight (In tons)'))
+        rate_val = row.get('Rate (Hire Amount)')
         rate = float(rate_val) if pd.notna(rate_val) else None
-        
+        pricing_status = map_status(row.get('Status'))
+
         # Check if pricing exists to prevent duplicates
         existing_price = db.query(CustomerPricing).filter(
             CustomerPricing.customer_id == cust_id,
@@ -160,7 +181,7 @@ def seed_customers():
             CustomerPricing.container_type == container_type,
             CustomerPricing.weight_in_tons == weight
         ).first()
-        
+
         if not existing_price:
             price = CustomerPricing(
                 customer_id=cust_id,
@@ -169,7 +190,7 @@ def seed_customers():
                 container_type=container_type,
                 weight_in_tons=weight,
                 rate=rate,
-                status="ACTIVE"
+                status=pricing_status,
             )
             db.add(price)
             

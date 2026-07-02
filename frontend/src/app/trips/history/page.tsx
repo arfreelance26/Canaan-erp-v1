@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { History, FileText, ClipboardList, Receipt } from "lucide-react";
+import { History, FileText, ClipboardList, Receipt, Search } from "lucide-react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -37,6 +37,7 @@ export default function TripHistoryPage() {
   const [bookingTrip, setBookingTrip] = useState<Trip | null>(null);
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [invoicePreview, setInvoicePreview] = useState<InvoicePreviewState | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
@@ -99,19 +100,33 @@ export default function TripHistoryPage() {
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading…</div>;
 
+  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) || t.origin?.toLowerCase().includes(searchQuery.toLowerCase()) || t.destination?.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <History className="h-6 w-6 text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Trip History</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <History className="h-6 w-6 text-blue-600" />
+            <h1 className="text-2xl font-bold text-gray-900">Trip History</h1>
+          </div>
+          <p className="mt-1 text-sm text-gray-500">
+            All closed trips — view their booking sheet, trip sheet, and invoice.
+          </p>
         </div>
-        <p className="mt-1 text-sm text-gray-500">
-          All closed trips — view their booking sheet, trip sheet, and invoice.
-        </p>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search trips..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          />
+        </div>
       </div>
 
-      {trips.length === 0 ? (
+      {filteredTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           No closed trips found.
         </div>
@@ -128,7 +143,7 @@ export default function TripHistoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {trips.map((trip) => {
+              {filteredTrips.map((trip) => {
                 const driver     = driverById.get(trip.driverId);
                 const truck      = truckById.get(trip.vehicleId);
                 const customer   = customerById.get(trip.customerId);

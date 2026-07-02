@@ -13,6 +13,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { Search } from "lucide-react";
 
 type SheetDialogMode = "view" | "edit";
 
@@ -33,6 +34,7 @@ export default function TripVerificationPage() {
   const [sheetMode, setSheetMode] = useState<SheetDialogMode>("view");
   const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
         Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -198,16 +200,30 @@ export default function TripVerificationPage() {
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
 
+  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Trip Verification</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Review and verify all trip data before proceeding to finalization
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Trip Verification</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Review and verify all trip data before proceeding to finalization
+          </p>
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search trips..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          />
+        </div>
       </div>
 
-      {trips.length === 0 ? (
+      {filteredTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           No trips ready for verification. Add a trip sheet on the{" "}
           <a href="/trips/reconciliation" className="text-blue-600 underline">Trip Reconciliation</a> page first.
@@ -226,7 +242,7 @@ export default function TripVerificationPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {trips.map((trip) => {
+              {filteredTrips.map((trip) => {
                 const closure = closures.get(trip.id);
                 const sheet = sheets.get(trip.id);
                 const driver = driverById.get(trip.driverId);

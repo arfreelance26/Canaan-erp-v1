@@ -435,7 +435,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Section 1: Hero KPIs ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard
           label="Active Trips"
           value={String(activeTripsCount)}
@@ -463,6 +463,13 @@ export default function DashboardPage() {
           caption={`${leaveSummary.Pending} leave request${leaveSummary.Pending !== 1 ? "s" : ""} pending`}
           icon={UserCheck}
           variant={totalWorkforce > 0 && presentToday < totalWorkforce * 0.7 ? "amber" : "emerald"}
+        />
+        <StatCard
+          label="Total Customers"
+          value={String(customers.length)}
+          caption="Active client base"
+          icon={UserCheck}
+          variant="purple"
         />
       </div>
 
