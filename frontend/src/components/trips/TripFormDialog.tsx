@@ -387,7 +387,7 @@ export function TripFormDialog({
             </Field>
           </div>
 
-          {selectedCustomer && (
+          {/* {selectedCustomer && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <h4 className="mb-3 text-sm font-semibold text-blue-900">Customer Details</h4>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -411,7 +411,7 @@ export function TripFormDialog({
                 )}
               </div>
             </div>
-          )}
+          )} */}
         </section>
 
         {/* Cargo Information */}
