@@ -16,7 +16,7 @@ function isoToDisplay(iso: string): string {
   if (!iso || iso.length < 10) return "";
   const [y, m, d] = iso.split("-");
   if (!y || !m || !d) return "";
-  return `${d}-${m}-${y}`;
+  return `${d}/${m}/${y}`;
 }
 
 export function DateInput({ value, onChange, required, readOnly, disabled, className }: Props) {
@@ -31,9 +31,9 @@ export function DateInput({ value, onChange, required, readOnly, disabled, class
 
     let formatted = digits;
     if (digits.length > 4) {
-      formatted = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
     } else if (digits.length > 2) {
-      formatted = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
     }
 
     setDisplay(formatted);
@@ -54,7 +54,7 @@ export function DateInput({ value, onChange, required, readOnly, disabled, class
       required={required}
       readOnly={readOnly}
       disabled={disabled}
-      placeholder="DD-MM-YYYY"
+      placeholder="DD/MM/YYYY"
       maxLength={10}
       className={cn(className)}
     />

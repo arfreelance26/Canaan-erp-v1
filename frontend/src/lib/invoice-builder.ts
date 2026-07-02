@@ -122,7 +122,7 @@ function commonFields(
     bookingNo:        closure.bookingNo || trip.bookingReferenceNo,
     tripSheetNo:      sheet?.tripSheetNo ?? trip.tripId ?? "",
     refNo:            closure.releaseOrderNo || trip.releaseOrderReference,
-    modeOfShipment:   closure.line || trip.shippingLine || "SEA",
+    modeOfShipment:   trip.cargoClassification || "SEA",
     containerType:    closure.containerType || trip.containerSpecification,
     gstNumber:        invoice?.gstNumber || customer?.gstin || "",
     cfs:              undefined as string | undefined,

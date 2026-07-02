@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import {
@@ -28,8 +29,9 @@ import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { Branch } from "@/types/branch";
-import { branchesApi, customersApi } from "@/lib/api";
+import { branchesApi, customersApi, tripsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
+import { AutocompleteInput, saveToAutocompleteHistory, getAutocompleteHistory } from "@/components/ui/AutocompleteInput";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -37,6 +39,7 @@ const sectionHeadingClass =
 type AssignableDriver = {
   driver: Driver;
   truck: Truck;
+  isActive?: boolean;
 };
 
 type TripFormDialogProps = {
@@ -103,10 +106,13 @@ export function TripFormDialog({
   const [branches, setBranches] = useState<Branch[]>([]);
   const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
+  const [dbOrigins, setDbOrigins] = useState<string[]>([]);
+  const [dbDestinations, setDbDestinations] = useState<string[]>([]);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
+    tripsApi.getAutocompleteValues().then((v) => { setDbOrigins(v.origins); setDbDestinations(v.destinations); }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -145,6 +151,20 @@ export function TripFormDialog({
       return { value: label, label };
     })
     .filter((o) => o.value !== "");
+
+  const allDestinationOptions = (() => {
+    const existing = new Set(destinationOptions.map((d) => d.value.toLowerCase()));
+    const historyPool = [
+      ...getAutocompleteHistory("erp_destination_history"),
+      ...dbDestinations,
+    ].filter((h, i, arr) => arr.indexOf(h) === i); // dedupe
+    return [
+      ...destinationOptions,
+      ...historyPool
+        .filter((h) => !existing.has(h.toLowerCase()))
+        .map((h) => ({ value: h, label: h })),
+    ];
+  })();
 
   function containerTypeToSpec(ct: string): Trip["containerSpecification"] | "" {
     const map: Record<string, Trip["containerSpecification"]> = {
@@ -265,6 +285,9 @@ export function TripFormDialog({
     event.preventDefault();
     const assigned = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
     if (!assigned) return;
+
+    saveToAutocompleteHistory("erp_origin_history", form.origin);
+    saveToAutocompleteHistory("erp_destination_history", form.destination);
 
     if (initialData) {
       onSave({
@@ -464,17 +487,6 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Release Order Reference" required>
-              <input
-                type="text"
-                required
-                value={form.releaseOrderReference}
-                onChange={(e) => update("releaseOrderReference", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. RO-99231"
-              />
-            </Field>
-
             <Field label="Cargo Weight (tons)" required>
               <GlassSelect
                 value={form.cargoWeight}
@@ -493,12 +505,12 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Route Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Origin Location" required>
-              <input
-                type="text"
+              <AutocompleteInput
                 required
                 value={form.origin}
-                onChange={(e) => update("origin", e.target.value)}
-                className={inputClass}
+                onChange={(v) => update("origin", v)}
+                storageKey="erp_origin_history"
+                suggestions={dbOrigins}
                 placeholder="e.g. Coimbatore"
               />
             </Field>
@@ -508,10 +520,15 @@ export function TripFormDialog({
                 required
                 value={form.destination}
                 onChange={handleDestinationChange}
-                placeholder={destinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
-                options={destinationOptions}
+                placeholder={allDestinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
+                options={allDestinationOptions}
               />
-              {customerPricing.find((p) => p.customerDestination === form.destination) && (
+              {customerPricing.find((p) => {
+                const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
+                  ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+                  : String(p.customerDestination || "");
+                return dest === form.destination;
+              }) && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />
                   Cargo classification, container spec, weight &amp; hire amount auto-filled from customer pricing
@@ -544,6 +561,17 @@ export function TripFormDialog({
                 placeholder="e.g. MV Malabar Star"
               />
             </Field>
+
+            <Field label="Release Order Reference" required>
+              <input
+                type="text"
+                required
+                value={form.releaseOrderReference}
+                onChange={(e) => update("releaseOrderReference", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. RO-99231"
+              />
+            </Field>
           </div>
         </section>
 
@@ -563,11 +591,10 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Scheduled Trip Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.scheduledDate}
                 onChange={(v) => update("scheduledDate", v)}
-                className={inputClass}
               />
             </Field>
 
@@ -579,7 +606,7 @@ export function TripFormDialog({
                   { value: "", label: assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle" },
                   ...assignableDrivers.map(a => ({
                     value: a.driver.driverId,
-                    label: `${a.driver.name} (Driver: ${a.driver.driverId}) — Vehicle: ${a.truck.registrationNumber} (ID: ${a.truck.truckId})`
+                    label: `${a.driver.name} (Driver: ${a.driver.driverId}) — Vehicle: ${a.truck.registrationNumber} (ID: ${a.truck.truckId})${a.isActive ? " — On Active Trip" : ""}`,
                   }))
                 ]}
                 placeholder={assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle"}

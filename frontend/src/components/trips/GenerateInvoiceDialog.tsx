@@ -116,7 +116,6 @@ const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 t
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 import type { TripSheetData } from "@/types/trip-sheet";
-import { tripsApi } from "@/lib/api";
 
 type Props = {
   open: boolean;
@@ -199,15 +198,16 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     sacCodesApi.list().then(setSacCodes).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!savedInvoice && form.invoiceType) {
-      tripsApi.getNextInvoiceNo(form.invoiceType).then((res) => {
-        setForm((prev) => ({ ...prev, invoiceNo: res.invoice_no }));
-      }).catch(() => {});
-    }
-  }, [form.invoiceType, savedInvoice]);
+  const autoInvoiceNo = useMemo(() => {
+    const ref = form.bookingReferenceNo;
+    if (!ref) return "";
+    const prefix = form.invoiceType === "Bill of Supply" ? "BS" : form.invoiceType === "Tax Invoice" ? "TIV" : "TM";
+    return `${prefix}/${ref.replace(/^CGI/, "TS")}`;
+  }, [form.bookingReferenceNo, form.invoiceType]);
 
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
+  const isSelf = trip?.billTo === "Self/CGI";
+  const isBillOfSupplyLocked = !isSelf && (customer?.isGta === "Yes" || customer?.customerType === "Transports");
 
   const originalBillTo = customer?.name ?? trip?.billTo ?? "";
   const originalGstNumber = customer?.gstin ?? "";
@@ -301,7 +301,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     e.preventDefault();
     setSaving(true);
     try {
-      await onSubmit(form, form.invoiceType);
+      await onSubmit({ ...form, invoiceNo: autoInvoiceNo }, form.invoiceType);
     } finally {
       setSaving(false);
     }
@@ -320,21 +320,32 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <p className={sh}>Invoice Type</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {INVOICE_TYPES.map((type) => {
-                const blocked = type === "Tax Invoice" && !taxSelected;
+                const lockedMemo = isSelf && type !== "Transport Memo";
+                const lockedBos = isBillOfSupplyLocked && type !== "Bill of Supply";
+                const blocked = !isSelf && !isBillOfSupplyLocked && type === "Tax Invoice" && !taxSelected;
+                const disabled = lockedMemo || lockedBos || blocked;
+                const lockTitle = lockedMemo
+                  ? "Locked — Bill To is Self/CGI"
+                  : lockedBos
+                  ? `Locked — customer is ${customer?.isGta === "Yes" ? "a GTA" : "a Transporter"}`
+                  : type === "Transport Memo"
+                  ? "Billed to Canaan Global International"
+                  : undefined;
                 return (
                   <button
                     key={type}
                     type="button"
-                    onClick={() => handleInvoiceTypeChange(type)}
+                    disabled={disabled}
+                    onClick={() => !disabled && handleInvoiceTypeChange(type)}
                     className={[
                       "rounded-xl border-2 px-4 py-3 text-sm font-semibold transition-all",
                       form.invoiceType === type
                         ? "border-blue-600 bg-blue-50 text-blue-700 shadow-sm"
-                        : blocked
+                        : disabled
                         ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
                     ].join(" ")}
-                    title={type === "Transport Memo" ? "Billed to Canaan Global International" : undefined}
+                    title={lockTitle}
                   >
                     {type}
                   </button>
@@ -342,14 +353,17 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
               })}
             </div>
             <p className="text-xs text-gray-400">
-              {form.invoiceType === "Bill of Supply" &&
-                "GST-exempt supply invoice — for GTA-to-GTA services under Notification 12/2017."}
-              {form.invoiceType === "Transport Memo" &&
-                "Internal transport memo — for own-fleet movements billed to Canaan Global International."}
-              {form.invoiceType === "Tax Invoice" &&
-                "Full tax invoice — 18% GST applied uniformly across all service lines."}
+              {isSelf
+                ? "Locked to Transport Memo — this trip is billed to Canaan Global International."
+                : isBillOfSupplyLocked
+                ? `Locked to Bill of Supply — customer is ${customer?.isGta === "Yes" ? "a registered GTA" : "a Transporter"} (GST-exempt under Notification 12/2017).`
+                : form.invoiceType === "Bill of Supply"
+                ? "GST-exempt supply invoice — for GTA-to-GTA services under Notification 12/2017."
+                : form.invoiceType === "Transport Memo"
+                ? "Internal transport memo — for own-fleet movements billed to Canaan Global International."
+                : "Full tax invoice — 18% GST applied uniformly across all service lines."}
             </p>
-            {taxWarning && (
+            {!isSelf && !isBillOfSupplyLocked && taxWarning && (
               <p className="text-xs font-medium text-amber-600">
                 Please select GST or IGST in Tax Details before choosing Tax Invoice.
               </p>
@@ -402,8 +416,8 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         <section className="flex flex-col gap-4">
           <p className={sh}>1. Invoice Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Invoice No" required>
-              <input value={form.invoiceNo} onChange={(e) => update("invoiceNo", e.target.value)} className={inputClass} placeholder="e.g. INV-2024-001" required />
+            <Field label="Invoice No">
+              <input readOnly disabled value={autoInvoiceNo} className={roClass} placeholder="Auto-generated from booking reference" />
             </Field>
             <Field label="Invoice Date" required>
               <DateInput value={form.invoiceDate} onChange={(v) => update("invoiceDate", v)} className={inputClass} required />
@@ -450,7 +464,14 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
         {/* Section 4: Service Details */}
         <section className="flex flex-col gap-4">
-          <p className={sh}>4. Service Details</p>
+          <div className="flex items-center justify-between">
+            <p className={sh}>4. Service Details</p>
+            {trip.transportHireAmount && Number(trip.transportHireAmount) > 0 && (
+              <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                Trip Hire Amount &nbsp;·&nbsp; ₹{Number(trip.transportHireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            )}
+          </div>
           <div className="flex flex-col gap-4">
             {form.services.map((svc, i) => {
               const calc = serviceCalcs[i];

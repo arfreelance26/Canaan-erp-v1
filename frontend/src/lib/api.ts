@@ -44,8 +44,20 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   const data = await res.json();
   if (!res.ok) {
-    const errorMsg = data?.detail ?? `HTTP ${res.status}`;
-    if (typeof window !== "undefined") window.alert(errorMsg);
+    const raw = data?.detail;
+    let errorMsg: string;
+    if (typeof raw === "string") {
+      errorMsg = raw;
+    } else if (Array.isArray(raw)) {
+      // FastAPI 422: detail is [{loc, msg, type}, ...]
+      errorMsg = raw
+        .map((e: Record<string, unknown>) => (typeof e.msg === "string" ? e.msg : JSON.stringify(e)))
+        .join("; ");
+    } else if (raw != null) {
+      errorMsg = JSON.stringify(raw);
+    } else {
+      errorMsg = `HTTP ${res.status}`;
+    }
     throw new Error(errorMsg);
   }
   return data as T;
@@ -72,15 +84,11 @@ export async function uploadFile(
       body: form,
     });
   } catch {
-    const msg = "Cannot reach the server. Make sure the backend is running.";
-    if (typeof window !== "undefined") window.alert(msg);
-    throw new Error(msg);
+    throw new Error("Cannot reach the server. Make sure the backend is running.");
   }
   if (!res.ok) {
     const err = await res.text();
-    const errorMsg = err || `Upload failed: HTTP ${res.status}`;
-    if (typeof window !== "undefined") window.alert(errorMsg);
-    throw new Error(errorMsg);
+    throw new Error(err || `Upload failed: HTTP ${res.status}`);
   }
 }
 
@@ -983,6 +991,7 @@ export const tripsApi = {
     }).then(toTrip),
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
   getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
+  getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
 };
 
 // ---------------------------------------------------------------------------

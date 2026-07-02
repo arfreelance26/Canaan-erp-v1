@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "react-datepicker/dist/react-datepicker.css";
 
 /* Remove spin buttons on number inputs globally */
 input[type="number"]::-webkit-inner-spin-button,

@@ -80,10 +80,10 @@ export default function AssignTripsPage() {
           const driver = drivers.find((d) => d.driverId === assignment.driverId);
           const truck = truckById.get(assignment.vehicleId);
           if (!driver || !truck) return null;
-          if (activeDriverIds.has(driver.driverId) || activeVehicleIds.has(truck.truckId)) return null;
-          return { driver, truck };
+          const isActive = activeDriverIds.has(driver.driverId) || activeVehicleIds.has(truck.truckId);
+          return { driver, truck, isActive };
         })
-        .filter((entry): entry is { driver: Driver; truck: Truck } => entry !== null),
+        .filter((entry): entry is { driver: Driver; truck: Truck; isActive: boolean } => entry !== null),
     [assignments, drivers, truckById, activeDriverIds, activeVehicleIds]
   );
 
