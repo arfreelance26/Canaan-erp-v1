@@ -11,6 +11,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 const FILTERS: Array<Trip["status"] | "All"> = ["All", ...TRIP_PROGRESS_STATUSES];
 
@@ -54,7 +55,7 @@ export default function AvailableTripsPage() {
       trip.destination?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

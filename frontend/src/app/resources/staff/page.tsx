@@ -5,10 +5,11 @@ import { Plus, Search } from "lucide-react";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { staffApi, uploadFile, fileUrl } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -44,33 +45,43 @@ export default function StaffPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("staff member");
     if (!result.isConfirmed) return;
-    await staffApi.delete(id);
-    setStaff((prev) => prev.filter((member) => member.id !== id));
+    try {
+      await staffApi.delete(id);
+      setStaff((prev) => prev.filter((member) => member.id !== id));
+      showSuccess("Staff member deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete staff member.");
+    }
   }
 
   async function handleSave(member: Staff, files: StaffFiles) {
-    let saved: Staff;
-    const exists = staff.some((existing) => existing.id === member.id);
-    if (exists) {
-      saved = await staffApi.update(member.id, member);
-      setStaff((prev) => prev.map((existing) => (existing.id === saved.id ? saved : existing)));
-    } else {
-      saved = await staffApi.create(member, member.password ?? "");
-      setStaff((prev) => [...prev, saved]);
+    try {
+      let saved: Staff;
+      const exists = staff.some((existing) => existing.id === member.id);
+      if (exists) {
+        saved = await staffApi.update(member.id, member);
+        setStaff((prev) => prev.map((existing) => (existing.id === saved.id ? saved : existing)));
+      } else {
+        saved = await staffApi.create(member, member.password ?? "");
+        setStaff((prev) => [...prev, saved]);
+      }
+      await Promise.all([
+        files.photo  && uploadFile("staff", saved.id, "photo",  files.photo),
+        files.aadhar && uploadFile("staff", saved.id, "aadhar", files.aadhar),
+      ].filter(Boolean));
+      if (files.photo) {
+        setStaff((prev) => prev.map((s) =>
+          s.id === saved.id ? { ...s, photoUrl: fileUrl("staff", saved.id, "photo") } : s
+        ));
+      }
+      setDialogOpen(false);
+      showSuccess(exists ? "Staff member updated successfully." : "Staff member added successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save staff member.");
     }
-    await Promise.all([
-      files.photo  && uploadFile("staff", saved.id, "photo",  files.photo),
-      files.aadhar && uploadFile("staff", saved.id, "aadhar", files.aadhar),
-    ].filter(Boolean));
-    if (files.photo) {
-      setStaff((prev) => prev.map((s) =>
-        s.id === saved.id ? { ...s, photoUrl: fileUrl("staff", saved.id, "photo") } : s
-      ));
-    }
-    setDialogOpen(false);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

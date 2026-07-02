@@ -7,9 +7,10 @@ import { useAuth } from "@/context/AuthContext";
 import { BranchTable } from "@/components/branches/BranchTable";
 import { BranchFormDialog } from "@/components/branches/BranchFormDialog";
 import { branchesApi } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Branch } from "@/types/branch";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function BranchesPage() {
   const { user, ready } = useAuth();
@@ -47,24 +48,35 @@ export default function BranchesPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("branch");
     if (!result.isConfirmed) return;
-    await branchesApi.delete(id);
-    setBranches((prev) => prev.filter((b) => b.id !== id));
+    try {
+      await branchesApi.delete(id);
+      setBranches((prev) => prev.filter((b) => b.id !== id));
+      showSuccess("Branch deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete branch.");
+    }
   }
 
   async function handleSave(branch: Branch) {
-    const exists = branches.some((b) => b.id === branch.id);
-    if (exists) {
-      const updated = await branchesApi.update(branch.id, branch);
-      setBranches((prev) => prev.map((b) => (b.id === branch.id ? updated : b)));
-    } else {
-      const created = await branchesApi.create(branch);
-      setBranches((prev) => [...prev, created]);
+    try {
+      const exists = branches.some((b) => b.id === branch.id);
+      if (exists) {
+        const updated = await branchesApi.update(branch.id, branch);
+        setBranches((prev) => prev.map((b) => (b.id === branch.id ? updated : b)));
+        showSuccess("Branch updated successfully.");
+      } else {
+        const created = await branchesApi.create(branch);
+        setBranches((prev) => [...prev, created]);
+        showSuccess("Branch created successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save branch.");
     }
-    setDialogOpen(false);
   }
 
   if (!ready || user?.softwareDesignation !== "Admin") return null;
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={4} />;
 
   const filteredBranches = branches.filter((b) =>
     !searchQuery || b.name.toLowerCase().includes(searchQuery.toLowerCase())

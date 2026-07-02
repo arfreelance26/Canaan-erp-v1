@@ -11,6 +11,8 @@ import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 export default function CompletedTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -69,12 +71,17 @@ export default function CompletedTripsPage() {
 
   async function handleSubmitClosure(data: TripClosureData) {
     if (!selectedTrip) return;
-    await tripsApi.close(selectedTrip.id, data);
-    setClosedTripIds((prev) => new Set([...prev, selectedTrip.id]));
-    setSelectedTrip(null);
+    try {
+      await tripsApi.close(selectedTrip.id, data);
+      setClosedTripIds((prev) => new Set([...prev, selectedTrip.id]));
+      setSelectedTrip(null);
+      showSuccess("Trip closed successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to close trip.");
+    }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
 

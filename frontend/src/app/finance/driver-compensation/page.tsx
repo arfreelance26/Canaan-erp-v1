@@ -10,6 +10,8 @@ import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
 import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 export default function DriverCompensationPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -55,18 +57,28 @@ export default function DriverCompensationPage() {
 
   async function handleRecordAdvancePayment(total: number) {
     if (!advanceRecordTarget) return;
-    const today = new Date().toISOString().split("T")[0];
-    const created = await financeApi.addDriverCompensation(advanceRecordTarget.id, "Advance", total, today, "");
-    setTransactions((prev) => [...prev, created]);
-    setAdvanceRecordTarget(null);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const created = await financeApi.addDriverCompensation(advanceRecordTarget.id, "Advance", total, today, "");
+      setTransactions((prev) => [...prev, created]);
+      setAdvanceRecordTarget(null);
+      showSuccess("Advance payment recorded successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to record advance payment.");
+    }
   }
 
   async function handleRecordSalaryPayment(total: number) {
     if (!salaryRecordTarget) return;
-    const today = new Date().toISOString().split("T")[0];
-    const created = await financeApi.addDriverCompensation(salaryRecordTarget.id, "Salary", total, today, "");
-    setTransactions((prev) => [...prev, created]);
-    setSalaryRecordTarget(null);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const created = await financeApi.addDriverCompensation(salaryRecordTarget.id, "Salary", total, today, "");
+      setTransactions((prev) => [...prev, created]);
+      setSalaryRecordTarget(null);
+      showSuccess("Salary payment recorded successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to record salary payment.");
+    }
   }
 
   const filteredPeople = useMemo(() => {
@@ -74,7 +86,7 @@ export default function DriverCompensationPage() {
     return q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people;
   }, [people, search]);
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

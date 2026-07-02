@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { History, FileText, ClipboardList, Receipt, Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -98,7 +99,7 @@ export default function TripHistoryPage() {
     return `${day}-${m}-${y}`;
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading…</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) || t.origin?.toLowerCase().includes(searchQuery.toLowerCase()) || t.destination?.toLowerCase().includes(searchQuery.toLowerCase()));
 

@@ -8,10 +8,11 @@ import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
-import { confirmAction, showError } from "@/lib/swal";
+import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import type { Customer } from "@/types/customer";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function AssignTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -103,9 +104,11 @@ export default function AssignTripsPage() {
       if (editingTrip) {
         const updated = await tripsApi.update(editingTrip.id, trip);
         setTrips((prev) => prev.map((t) => (t.id === editingTrip.id ? updated : t)));
+        showSuccess("Trip updated successfully.");
       } else {
         const created = await tripsApi.create(trip);
         setTrips((prev) => [...prev, created]);
+        showSuccess("Trip assigned successfully.");
       }
       setDialogOpen(false);
       setEditingTrip(null);
@@ -116,15 +119,25 @@ export default function AssignTripsPage() {
   }
 
   async function handleMarkStarted(id: string) {
-    const updated = await tripsApi.updateStatus(id, "Started");
-    setTrips((prev) => prev.map((trip) => (trip.id === id ? updated : trip)));
+    try {
+      const updated = await tripsApi.updateStatus(id, "Started");
+      setTrips((prev) => prev.map((trip) => (trip.id === id ? updated : trip)));
+      showSuccess("Trip marked as started.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update trip status.");
+    }
   }
 
   async function handleCancel(tripId: string) {
     const result = await confirmAction("Cancel this trip?", "The status will be changed to Cancelled.", "Yes, cancel trip");
     if (!result.isConfirmed) return;
-    const updated = await tripsApi.cancel(tripId);
-    setTrips((prev) => prev.map((trip) => (trip.id === tripId ? updated : trip)));
+    try {
+      const updated = await tripsApi.cancel(tripId);
+      setTrips((prev) => prev.map((trip) => (trip.id === tripId ? updated : trip)));
+      showSuccess("Trip cancelled successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to cancel trip.");
+    }
   }
 
   // Show only Assigned trips in Assign Trips page
@@ -132,7 +145,7 @@ export default function AssignTripsPage() {
     .filter((trip) => trip.status === "Assigned")
     .filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

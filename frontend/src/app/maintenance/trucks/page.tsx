@@ -11,6 +11,8 @@ import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 export default function TruckMaintenancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -54,16 +56,21 @@ export default function TruckMaintenancePage() {
   async function handleSaveRecord(record: MaintenanceRecord) {
     const truck = trucks.find((t) => t.id === record.truckId);
     if (!truck) return;
-    const created = await maintenanceApi.createRecord(record, truck.id);
-    setRecords((prev) => [...prev, created]);
-    if (Number(record.odometer) > Number(truck.odometer)) {
-      const updatedTruck = await trucksApi.update(truck.id, { ...truck, odometer: record.odometer });
-      setTrucks((prev) => prev.map((t) => (t.id === truck.id ? updatedTruck : t)));
+    try {
+      const created = await maintenanceApi.createRecord(record, truck.id);
+      setRecords((prev) => [...prev, created]);
+      if (Number(record.odometer) > Number(truck.odometer)) {
+        const updatedTruck = await trucksApi.update(truck.id, { ...truck, odometer: record.odometer });
+        setTrucks((prev) => prev.map((t) => (t.id === truck.id ? updatedTruck : t)));
+      }
+      setUpdateDialogOpen(false);
+      showSuccess("Maintenance record saved successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save maintenance record.");
     }
-    setUpdateDialogOpen(false);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;
 
   const filteredTrucks = trucks.filter((t) => !searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()));
 

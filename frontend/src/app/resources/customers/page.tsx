@@ -13,8 +13,9 @@ import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { CustomerDestination } from "@/types/customer-destination";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 const TABS = [
   { id: "list", label: "Customer List" },
@@ -105,20 +106,31 @@ export default function CustomersPage() {
   async function handleDeleteCustomer(id: string) {
     const result = await confirmDelete("customer");
     if (!result.isConfirmed) return;
-    await customersApi.delete(id);
-    setCustomers((prev) => prev.filter((customer) => customer.id !== id));
+    try {
+      await customersApi.delete(id);
+      setCustomers((prev) => prev.filter((customer) => customer.id !== id));
+      showSuccess("Customer deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete customer.");
+    }
   }
 
   async function handleSaveCustomer(customer: Customer) {
-    const exists = customers.some((existing) => existing.id === customer.id);
-    if (exists) {
-      const updated = await customersApi.update(customer.id, customer);
-      setCustomers((prev) => prev.map((existing) => (existing.id === customer.id ? updated : existing)));
-    } else {
-      const created = await customersApi.create(customer);
-      setCustomers((prev) => [...prev, created]);
+    try {
+      const exists = customers.some((existing) => existing.id === customer.id);
+      if (exists) {
+        const updated = await customersApi.update(customer.id, customer);
+        setCustomers((prev) => prev.map((existing) => (existing.id === customer.id ? updated : existing)));
+        showSuccess("Customer updated successfully.");
+      } else {
+        const created = await customersApi.create(customer);
+        setCustomers((prev) => [...prev, created]);
+        showSuccess("Customer created successfully.");
+      }
+      setCustomerDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save customer.");
     }
-    setCustomerDialogOpen(false);
   }
 
   function handleAddPricing() {
@@ -136,20 +148,31 @@ export default function CustomersPage() {
     if (!result.isConfirmed) return;
     const entry = pricing.find((p) => p.id === pricingId);
     if (!entry) return;
-    await customersApi.deletePricing(entry.customerId, pricingId);
-    setPricing((prev) => prev.filter((p) => p.id !== pricingId));
+    try {
+      await customersApi.deletePricing(entry.customerId, pricingId);
+      setPricing((prev) => prev.filter((p) => p.id !== pricingId));
+      showSuccess("Pricing entry deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete pricing entry.");
+    }
   }
 
   async function handleSavePricing(entry: CustomerPricing) {
-    const exists = pricing.some((existing) => existing.id === entry.id);
-    if (exists) {
-      const updated = await customersApi.updatePricing(entry.customerId, entry.id, entry);
-      setPricing((prev) => prev.map((existing) => (existing.id === entry.id ? updated : existing)));
-    } else {
-      const created = await customersApi.createPricing(entry.customerId, entry);
-      setPricing((prev) => [...prev, created]);
+    try {
+      const exists = pricing.some((existing) => existing.id === entry.id);
+      if (exists) {
+        const updated = await customersApi.updatePricing(entry.customerId, entry.id, entry);
+        setPricing((prev) => prev.map((existing) => (existing.id === entry.id ? updated : existing)));
+        showSuccess("Pricing entry updated successfully.");
+      } else {
+        const created = await customersApi.createPricing(entry.customerId, entry);
+        setPricing((prev) => [...prev, created]);
+        showSuccess("Pricing entry created successfully.");
+      }
+      setPricingDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save pricing entry.");
     }
-    setPricingDialogOpen(false);
   }
 
   function handleAddDestination() {
@@ -167,23 +190,34 @@ export default function CustomersPage() {
     if (!result.isConfirmed) return;
     const entry = destinations.find((d) => d.id === destId);
     if (!entry) return;
-    await customersApi.deleteDestination(entry.customerId, destId);
-    setDestinations((prev) => prev.filter((d) => d.id !== destId));
+    try {
+      await customersApi.deleteDestination(entry.customerId, destId);
+      setDestinations((prev) => prev.filter((d) => d.id !== destId));
+      showSuccess("Destination deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete destination.");
+    }
   }
 
   async function handleSaveDestination(entry: CustomerDestination) {
-    const exists = destinations.some((existing) => existing.id === entry.id);
-    if (exists) {
-      const updated = await customersApi.updateDestination(entry.customerId, entry.id, entry);
-      setDestinations((prev) => prev.map((existing) => (existing.id === entry.id ? updated : existing)));
-    } else {
-      const created = await customersApi.createDestination(entry.customerId, entry);
-      setDestinations((prev) => [...prev, created]);
+    try {
+      const exists = destinations.some((existing) => existing.id === entry.id);
+      if (exists) {
+        const updated = await customersApi.updateDestination(entry.customerId, entry.id, entry);
+        setDestinations((prev) => prev.map((existing) => (existing.id === entry.id ? updated : existing)));
+        showSuccess("Destination updated successfully.");
+      } else {
+        const created = await customersApi.createDestination(entry.customerId, entry);
+        setDestinations((prev) => [...prev, created]);
+        showSuccess("Destination created successfully.");
+      }
+      setDestinationDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save destination.");
     }
-    setDestinationDialogOpen(false);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

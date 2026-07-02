@@ -5,7 +5,7 @@ import { Plus, Search } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog } from "@/components/fleet/TruckFormDialog";
 import { trucksApi, uploadFile, fileUrl } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { generateTruckId } from "@/lib/truck-data";
 import type { Truck } from "@/types/truck";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
@@ -46,36 +46,46 @@ export default function FleetPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("truck");
     if (!result.isConfirmed) return;
-    await trucksApi.delete(id);
-    setTrucks((prev) => prev.filter((t) => t.id !== id));
+    try {
+      await trucksApi.delete(id);
+      setTrucks((prev) => prev.filter((t) => t.id !== id));
+      showSuccess("Truck deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete truck.");
+    }
   }
 
   async function handleSave(truck: Truck, files: TruckFiles) {
-    let saved: Truck;
-    if (editingTruck) {
-      saved = await trucksApi.update(truck.id, truck);
-      setTrucks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
-    } else {
-      const truckWithId = { ...truck, truckId: truck.truckId || generateTruckId(trucks) };
-      saved = await trucksApi.create(truckWithId);
-      setTrucks((prev) => [...prev, saved]);
+    try {
+      let saved: Truck;
+      if (editingTruck) {
+        saved = await trucksApi.update(truck.id, truck);
+        setTrucks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
+      } else {
+        const truckWithId = { ...truck, truckId: truck.truckId || generateTruckId(trucks) };
+        saved = await trucksApi.create(truckWithId);
+        setTrucks((prev) => [...prev, saved]);
+      }
+      const uploadMap: [File | null | undefined, string][] = [
+        [files.photo,           "photo"],
+        [files.rc,              "rc"],
+        [files.fc,              "fc"],
+        [files.road_tax,        "road_tax"],
+        [files.insurance_proof, "insurance"],
+        [files.national_permit, "national_permit"],
+        [files.local_permit,    "local_permit"],
+        [files.pollution_cert,  "pollution_cert"],
+      ];
+      await Promise.all(
+        uploadMap
+          .filter(([f]) => !!f)
+          .map(([f, field]) => uploadFile("trucks", saved.id, field, f!))
+      );
+      setDialogOpen(false);
+      showSuccess(editingTruck ? "Truck updated successfully." : "Truck added successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save truck.");
     }
-    const uploadMap: [File | null | undefined, string][] = [
-      [files.photo,           "photo"],
-      [files.rc,              "rc"],
-      [files.fc,              "fc"],
-      [files.road_tax,        "road_tax"],
-      [files.insurance_proof, "insurance"],
-      [files.national_permit, "national_permit"],
-      [files.local_permit,    "local_permit"],
-      [files.pollution_cert,  "pollution_cert"],
-    ];
-    await Promise.all(
-      uploadMap
-        .filter(([f]) => !!f)
-        .map(([f, field]) => uploadFile("trucks", saved.id, field, f!))
-    );
-    setDialogOpen(false);
   }
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading fleet...</div>;

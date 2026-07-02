@@ -5,7 +5,7 @@ import { Plus, Search } from "lucide-react";
 import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog } from "@/components/drivers/DriverFormDialog";
 import { driversApi, uploadFile, fileUrl } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
@@ -45,33 +45,43 @@ export default function DriversPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("driver");
     if (!result.isConfirmed) return;
-    await driversApi.delete(id);
-    setDrivers((prev) => prev.filter((d) => d.id !== id));
+    try {
+      await driversApi.delete(id);
+      setDrivers((prev) => prev.filter((d) => d.id !== id));
+      showSuccess("Driver deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete driver.");
+    }
   }
 
   async function handleSave(driver: Driver, files: DriverFiles) {
-    let saved: Driver;
-    if (editingDriver) {
-      saved = await driversApi.update(driver.id, driver, driver.password || undefined);
-      setDrivers((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
-    } else {
-      const driverWithId = { ...driver, driverId: driver.driverId || generateDriverId(drivers) };
-      saved = await driversApi.create(driverWithId, driver.password);
-      setDrivers((prev) => [...prev, saved]);
+    try {
+      let saved: Driver;
+      if (editingDriver) {
+        saved = await driversApi.update(driver.id, driver, driver.password || undefined);
+        setDrivers((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
+      } else {
+        const driverWithId = { ...driver, driverId: driver.driverId || generateDriverId(drivers) };
+        saved = await driversApi.create(driverWithId, driver.password);
+        setDrivers((prev) => [...prev, saved]);
+      }
+      // Upload files to BLOB storage
+      await Promise.all([
+        files.photo   && uploadFile("drivers", saved.id, "photo",   files.photo),
+        files.aadhaar && uploadFile("drivers", saved.id, "aadhaar", files.aadhaar),
+        files.license && uploadFile("drivers", saved.id, "license", files.license),
+      ].filter(Boolean));
+      // Set photo URL to the backend file endpoint so the avatar renders from DB
+      if (files.photo) {
+        setDrivers((prev) => prev.map((d) =>
+          d.id === saved.id ? { ...d, photoUrl: fileUrl("drivers", saved.id, "photo") } : d
+        ));
+      }
+      setDialogOpen(false);
+      showSuccess(editingDriver ? "Driver updated successfully." : "Driver added successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save driver.");
     }
-    // Upload files to BLOB storage
-    await Promise.all([
-      files.photo   && uploadFile("drivers", saved.id, "photo",   files.photo),
-      files.aadhaar && uploadFile("drivers", saved.id, "aadhaar", files.aadhaar),
-      files.license && uploadFile("drivers", saved.id, "license", files.license),
-    ].filter(Boolean));
-    // Set photo URL to the backend file endpoint so the avatar renders from DB
-    if (files.photo) {
-      setDrivers((prev) => prev.map((d) =>
-        d.id === saved.id ? { ...d, photoUrl: fileUrl("drivers", saved.id, "photo") } : d
-      ));
-    }
-    setDialogOpen(false);
   }
 
   if (loading) return <div className="p-6 text-sm text-gray-500">Loading drivers...</div>;

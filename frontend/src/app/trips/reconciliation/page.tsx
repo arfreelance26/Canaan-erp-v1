@@ -13,6 +13,8 @@ import type { TripClosureData } from "@/types/trip-closure";
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 type DialogMode = "add" | "view" | "edit";
 
@@ -140,22 +142,32 @@ export default function TripReconciliationPage() {
 
   async function handleSubmitSheet(data: TripSheetData) {
     if (!selectedTrip) return;
-    const saved = await tripsApi.upsertSheet(selectedTrip.id, data);
-    setSheets((prev) => new Map([...prev, [selectedTrip.id, saved]]));
-    setSelectedTrip(null);
+    try {
+      const saved = await tripsApi.upsertSheet(selectedTrip.id, data);
+      setSheets((prev) => new Map([...prev, [selectedTrip.id, saved]]));
+      setSelectedTrip(null);
+      showSuccess("Trip sheet saved successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save trip sheet.");
+    }
   }
 
   async function handleBookingSheetSubmit(data: TripClosureData) {
     if (!bookingSheetTrip) return;
-    const updated = await tripsApi.close(bookingSheetTrip.id, data);
-    setClosures((prev) => new Map([...prev, [bookingSheetTrip.id, updated]]));
-    setBookingSheetTrip(null);
+    try {
+      const updated = await tripsApi.close(bookingSheetTrip.id, data);
+      setClosures((prev) => new Map([...prev, [bookingSheetTrip.id, updated]]));
+      setBookingSheetTrip(null);
+      showSuccess("Booking sheet saved successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save booking sheet.");
+    }
   }
 
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
 

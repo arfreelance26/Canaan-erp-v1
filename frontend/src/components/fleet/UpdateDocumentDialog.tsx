@@ -9,6 +9,7 @@ import { DateInput } from "@/components/ui/DateInput";
 import { trucksApi, uploadFile } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
+import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 
 type DocumentMeta = {
@@ -110,6 +111,9 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
       }
       onUpdated(updated);
       handleClose();
+      showSuccess("Document updated successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update document.");
     } finally {
       setSaving(false);
     }

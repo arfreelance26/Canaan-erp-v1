@@ -9,6 +9,8 @@ import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { todayIst } from "@/lib/format-date";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showError } from "@/lib/swal";
 
 function getStaffAttendanceForDate(
   records: StaffAttendanceRecord[],
@@ -50,16 +52,20 @@ export default function StaffAttendancePage() {
 
   const handleMark = useCallback(
     async (staffId: string, currentRecord: StaffAttendanceRecord | undefined, status: string) => {
-      let updated: StaffAttendanceRecord;
-      if (currentRecord) {
-        updated = await attendanceApi.updateStaff(currentRecord.id, status);
-      } else {
-        updated = await attendanceApi.markStaff(parseInt(staffId), date, status, undefined, "Web");
+      try {
+        let updated: StaffAttendanceRecord;
+        if (currentRecord) {
+          updated = await attendanceApi.updateStaff(currentRecord.id, status);
+        } else {
+          updated = await attendanceApi.markStaff(parseInt(staffId), date, status, undefined, "Web");
+        }
+        setRecords((prev) => {
+          const without = prev.filter((r) => r.id !== updated.id);
+          return [...without, updated];
+        });
+      } catch (err: unknown) {
+        showError(err instanceof Error ? err.message : "Failed to mark attendance.");
       }
-      setRecords((prev) => {
-        const without = prev.filter((r) => r.id !== updated.id);
-        return [...without, updated];
-      });
     },
     [date]
   );
@@ -80,7 +86,7 @@ export default function StaffAttendancePage() {
     return staff.filter((member) => member.name.toLowerCase().includes(query));
   }, [staff, search]);
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={4} columns={4} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

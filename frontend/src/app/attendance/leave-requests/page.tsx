@@ -33,9 +33,14 @@ export default function LeaveRequestsPage() {
   useAutoRefresh(loadRequests, 5000);
 
   async function handleSave(payload: Omit<LeaveRequest, "id" | "status" | "appliedAt">) {
-    await attendanceApi.createLeaveRequest(payload);
-    showSuccess("Leave request submitted successfully.");
-    loadRequests();
+    try {
+      await attendanceApi.createLeaveRequest(payload);
+      showSuccess("Leave request submitted successfully.");
+      setIsFormOpen(false);
+      loadRequests();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to submit leave request.");
+    }
   }
 
   if (loading) return (

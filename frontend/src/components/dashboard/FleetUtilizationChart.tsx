@@ -1,50 +1,65 @@
 "use client";
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  Line,
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-const data = [
-  { name: "Available", "On Trip": 0, Idle: 0, Maintenance: 0 },
-  { name: "On Trip", "On Trip": 0, Idle: 0, Maintenance: 0 },
-  { name: "Maintenance", "On Trip": 0, Idle: 0, Maintenance: 0 },
-];
+type Props = { onTrip: number; available: number };
 
-export function FleetUtilizationChart() {
+export function FleetUtilizationChart({ onTrip, available }: Props) {
+  const total = onTrip + available;
+  const pct = total > 0 ? Math.round((onTrip / total) * 100) : 0;
+
+  const data = [
+    { name: "On Trip", value: onTrip, color: "#3b82f6" },
+    { name: "Available", value: available, color: "#22c55e" },
+  ].filter((d) => d.value > 0);
+
+  if (total === 0) {
+    return (
+      <div className="flex h-[230px] items-center justify-center text-sm text-gray-400">
+        No fleet data
+      </div>
+    );
+  }
+
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <LineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-        <XAxis
-          dataKey="name"
-          tick={{ fontSize: 12, fill: "#6b7280" }}
-          axisLine={{ stroke: "#e5e7eb" }}
-          tickLine={false}
-        />
-        <YAxis
-          domain={[0, 4]}
-          tick={{ fontSize: 12, fill: "#6b7280" }}
-          axisLine={{ stroke: "#e5e7eb" }}
-          tickLine={false}
-        />
-        <Tooltip />
-        <Legend
-          verticalAlign="bottom"
-          align="left"
-          iconType="circle"
-          formatter={(value) => <span className="text-sm text-gray-600">{value}</span>}
-        />
-        <Line type="monotone" dataKey="On Trip" stroke="#1b2b5e" strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="Idle" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
-        <Line type="monotone" dataKey="Maintenance" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="relative">
+      <ResponsiveContainer width="100%" height={195}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            innerRadius={62}
+            outerRadius={84}
+            paddingAngle={3}
+            startAngle={90}
+            endAngle={-270}
+            dataKey="value"
+          >
+            {data.map((entry, i) => (
+              <Cell key={i} fill={entry.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(value, name) => [`${value} trucks`, name]}
+            contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "0 4px 6px -1px rgb(0 0 0 / .05)" }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center" style={{ top: 0, height: 195 }}>
+        <p className="text-2xl font-bold text-gray-900">{pct}%</p>
+        <p className="text-xs text-gray-400">Utilized</p>
+      </div>
+      <div className="mt-1 flex justify-center gap-5">
+        <span className="flex items-center gap-1.5 text-xs text-gray-600">
+          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+          On Trip ({onTrip})
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-gray-600">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          Available ({available})
+        </span>
+      </div>
+    </div>
   );
 }

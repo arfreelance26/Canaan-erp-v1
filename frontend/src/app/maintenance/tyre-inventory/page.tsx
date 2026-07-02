@@ -6,12 +6,13 @@ import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTab
 import { TyreInventoryFormDialog } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
 import { tyreApi } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck } from "@/types/truck";
 import { trucksApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function TyreInventoryPage() {
   const [tyres, setTyres] = useState<TyreInventoryItem[]>([]);
@@ -56,20 +57,31 @@ export default function TyreInventoryPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("tyre");
     if (!result.isConfirmed) return;
-    await tyreApi.deleteTyre(id);
-    setTyres((prev) => prev.filter((tyre) => tyre.id !== id));
+    try {
+      await tyreApi.deleteTyre(id);
+      setTyres((prev) => prev.filter((tyre) => tyre.id !== id));
+      showSuccess("Tyre deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete tyre.");
+    }
   }
 
   async function handleSave(tyre: TyreInventoryItem) {
-    const exists = tyres.some((existing) => existing.id === tyre.id);
-    if (exists) {
-      const updated = await tyreApi.updateTyre(tyre.id, tyre);
-      setTyres((prev) => prev.map((existing) => (existing.id === tyre.id ? updated : existing)));
-    } else {
-      const created = await tyreApi.createTyre(tyre);
-      setTyres((prev) => [...prev, created]);
+    try {
+      const exists = tyres.some((existing) => existing.id === tyre.id);
+      if (exists) {
+        const updated = await tyreApi.updateTyre(tyre.id, tyre);
+        setTyres((prev) => prev.map((existing) => (existing.id === tyre.id ? updated : existing)));
+        showSuccess("Tyre updated successfully.");
+      } else {
+        const created = await tyreApi.createTyre(tyre);
+        setTyres((prev) => [...prev, created]);
+        showSuccess("Tyre added successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save tyre.");
     }
-    setDialogOpen(false);
   }
 
   function handleViewHistory(tyre: TyreInventoryItem) {
@@ -89,7 +101,7 @@ export default function TyreInventoryPage() {
     return matchesCondition && matchesSearch;
   });
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

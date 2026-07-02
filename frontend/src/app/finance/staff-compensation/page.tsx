@@ -9,6 +9,8 @@ import type { Staff } from "@/types/staff";
 import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 export default function StaffCompensationPage() {
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -53,18 +55,23 @@ export default function StaffCompensationPage() {
 
   async function handleSavePayment(payment: { amount: number; date: string; note: string }) {
     if (!paymentTarget) return;
-    const created = await financeApi.addStaffCompensation(
-      paymentTarget.id,
-      "Salary",
-      payment.amount,
-      payment.date,
-      payment.note
-    );
-    setTransactions((prev) => [...prev, created]);
-    setPaymentTarget(null);
+    try {
+      const created = await financeApi.addStaffCompensation(
+        paymentTarget.id,
+        "Salary",
+        payment.amount,
+        payment.date,
+        payment.note
+      );
+      setTransactions((prev) => [...prev, created]);
+      setPaymentTarget(null);
+      showSuccess("Salary payment recorded successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to record salary payment.");
+    }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;
 
   const filteredPeople = people.filter((p) => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()));
 

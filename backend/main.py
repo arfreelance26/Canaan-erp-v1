@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,9 +64,26 @@ app.include_router(pl_summary.router)
 @app.exception_handler(IntegrityError)
 async def sqlalchemy_integrity_exception_handler(request: Request, exc: IntegrityError):
     error_msg = str(exc.orig) if exc.orig else str(exc)
+
+    duplicate_match = re.search(r"Duplicate entry '(.+?)' for key '([^']+)'", error_msg)
+    if duplicate_match:
+        value, key = duplicate_match.groups()
+        field = key.split(".")[-1].replace("_", " ")
+        field = re.sub(r"^(uq|idx|ix)[\s_]+", "", field).strip()
+        return JSONResponse(
+            status_code=409,
+            content={"detail": f"'{value}' already exists for {field}. Please use a different value."},
+        )
+
+    if re.search(r"foreign key constraint fails", error_msg, re.IGNORECASE):
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "This record is referenced by other data and cannot be modified or deleted."},
+        )
+
     return JSONResponse(
         status_code=400,
-        content={"detail": f"Database integrity error: {error_msg}. This usually means a duplicate entry like email or username already exists."},
+        content={"detail": f"Database integrity error: {error_msg}"},
     )
 
 @app.get("/", tags=["Health"])

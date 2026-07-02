@@ -15,6 +15,7 @@ import {
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 import { tyreApi } from "@/lib/api";
 import { formatDate, todayIst } from "@/lib/format-date";
+import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 import { Search } from "lucide-react";
 
@@ -77,17 +78,18 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
       const fittedDate = todayIst();
       const newFitment = await tyreApi.fitTyre(selectedTyreId, truck.id, selectedPosition, odometer, fittedDate);
       setFitmentRecords((prev) => [...prev, newFitment]);
-      
+
       const posToAnimate = selectedPosition;
       setSelectedPosition(null);
       setAnimatingPosition(posToAnimate);
-      
+
       setTimeout(() => {
         setAnimatingPosition(null);
       }, 1000);
-      
+      showSuccess("Tyre attached successfully.");
     } catch (err: any) {
       setError(err.message || "Failed to attach tyre.");
+      showError(err.message || "Failed to attach tyre.");
     }
   }
 
@@ -107,8 +109,10 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
       const updatedFitment = await tyreApi.removeTyre(fitment.id, odometer, removedDate);
         setFitmentRecords((prev) => (prev.map((f) => (f.id === updatedFitment.id ? updatedFitment : f))));
         setSelectedPosition(null);
+        showSuccess("Tyre removed successfully.");
       } catch (err: any) {
       setError(err.message || "Failed to remove tyre.");
+      showError(err.message || "Failed to remove tyre.");
     }
   }
 

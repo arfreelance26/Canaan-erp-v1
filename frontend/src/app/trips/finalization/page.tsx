@@ -11,6 +11,8 @@ import type { TripClosureData } from "@/types/trip-closure";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 import { GenerateInvoiceDialog, type InvoiceType, type InvoiceFormData } from "@/components/trips/GenerateInvoiceDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 
@@ -92,6 +94,7 @@ export default function TripFinalizationPage() {
     if (!dialogState) return;
     const { trip } = dialogState;
 
+    try {
     await tripsApi.invoice(trip.id, {
       invoice_no: data.invoiceNo,
       invoice_date: data.invoiceDate || null,
@@ -135,6 +138,10 @@ export default function TripFinalizationPage() {
         customer: customerById.get(trip.customerId),
         invoiceType,
       });
+    }
+    showSuccess("Invoice generated successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to generate invoice.");
     }
   }
 
@@ -225,7 +232,7 @@ export default function TripFinalizationPage() {
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
 

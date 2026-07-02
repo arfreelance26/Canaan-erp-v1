@@ -8,6 +8,7 @@ import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function CompliancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -42,7 +43,7 @@ export default function CompliancePage() {
     return counts;
   }, [trucks]);
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch statCards={3} columns={6} />;
 
   const filteredTrucks = trucks.filter((t) => !searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()));
 

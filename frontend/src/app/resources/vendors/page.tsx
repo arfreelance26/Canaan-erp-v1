@@ -5,9 +5,10 @@ import { Plus, Search } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog } from "@/components/vendors/VendorFormDialog";
 import { vendorsApi } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Vendor } from "@/types/vendor";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -44,23 +45,34 @@ export default function VendorsPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("vendor");
     if (!result.isConfirmed) return;
-    await vendorsApi.delete(id);
-    setVendors((prev) => prev.filter((vendor) => vendor.id !== id));
+    try {
+      await vendorsApi.delete(id);
+      setVendors((prev) => prev.filter((vendor) => vendor.id !== id));
+      showSuccess("Vendor deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete vendor.");
+    }
   }
 
   async function handleSave(vendor: Vendor) {
-    const exists = vendors.some((existing) => existing.id === vendor.id);
-    if (exists) {
-      const updated = await vendorsApi.update(vendor.id, vendor);
-      setVendors((prev) => prev.map((existing) => (existing.id === vendor.id ? updated : existing)));
-    } else {
-      const created = await vendorsApi.create(vendor);
-      setVendors((prev) => [...prev, created]);
+    try {
+      const exists = vendors.some((existing) => existing.id === vendor.id);
+      if (exists) {
+        const updated = await vendorsApi.update(vendor.id, vendor);
+        setVendors((prev) => prev.map((existing) => (existing.id === vendor.id ? updated : existing)));
+        showSuccess("Vendor updated successfully.");
+      } else {
+        const created = await vendorsApi.create(vendor);
+        setVendors((prev) => [...prev, created]);
+        showSuccess("Vendor created successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save vendor.");
     }
-    setDialogOpen(false);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

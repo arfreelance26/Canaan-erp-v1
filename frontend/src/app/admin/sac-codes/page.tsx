@@ -5,11 +5,12 @@ import { Tag, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { sacCodesApi } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { SacCode } from "@/types/sac-code";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 const emptyForm = { description: "", code: "", gstRate: "" };
 
@@ -57,8 +58,13 @@ export default function SacCodeManagementPage() {
   async function handleDelete(sc: SacCode) {
     const result = await confirmDelete("SAC code");
     if (!result.isConfirmed) return;
-    await sacCodesApi.delete(sc.id);
-    setSacCodes((prev) => prev.filter((s) => s.id !== sc.id));
+    try {
+      await sacCodesApi.delete(sc.id);
+      setSacCodes((prev) => prev.filter((s) => s.id !== sc.id));
+      showSuccess("SAC code deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete SAC code.");
+    }
   }
 
   async function handleSave(e: FormEvent) {
@@ -68,18 +74,24 @@ export default function SacCodeManagementPage() {
       code: form.code.trim(),
       gstRate: form.gstRate || "0",
     };
-    if (editing) {
-      const updated = await sacCodesApi.update(editing.id, payload);
-      setSacCodes((prev) => prev.map((s) => (s.id === editing.id ? updated : s)));
-    } else {
-      const created = await sacCodesApi.create(payload);
-      setSacCodes((prev) => [...prev, created].sort((a, b) => a.code.localeCompare(b.code)));
+    try {
+      if (editing) {
+        const updated = await sacCodesApi.update(editing.id, payload);
+        setSacCodes((prev) => prev.map((s) => (s.id === editing.id ? updated : s)));
+        showSuccess("SAC code updated successfully.");
+      } else {
+        const created = await sacCodesApi.create(payload);
+        setSacCodes((prev) => [...prev, created].sort((a, b) => a.code.localeCompare(b.code)));
+        showSuccess("SAC code created successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save SAC code.");
     }
-    setDialogOpen(false);
   }
 
   if (!ready || user?.softwareDesignation !== "Admin") return null;
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={4} />;
 
   const filteredSacCodes = sacCodes.filter((sc) => !searchQuery || sc.code.toLowerCase().includes(searchQuery.toLowerCase()) || sc.description.toLowerCase().includes(searchQuery.toLowerCase()));
 

@@ -5,11 +5,12 @@ import { Wrench, Plus, Pencil, Trash2, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { repairTypesApi } from "@/lib/api";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { RepairType } from "@/types/repair-type";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function RepairsManagementPage() {
   const { user, ready } = useAuth();
@@ -47,25 +48,36 @@ export default function RepairsManagementPage() {
   async function handleDelete(rt: RepairType) {
     const result = await confirmDelete("repair type");
     if (!result.isConfirmed) return;
-    await repairTypesApi.delete(rt.id);
-    setRepairs((prev) => prev.filter((r) => r.id !== rt.id));
+    try {
+      await repairTypesApi.delete(rt.id);
+      setRepairs((prev) => prev.filter((r) => r.id !== rt.id));
+      showSuccess("Repair type deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete repair type.");
+    }
   }
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     const payload = { name: form.name.trim(), defaultCost: form.defaultCost || "0" };
-    if (editing) {
-      const updated = await repairTypesApi.update(editing.id, payload);
-      setRepairs((prev) => prev.map((r) => (r.id === editing.id ? updated : r)));
-    } else {
-      const created = await repairTypesApi.create(payload);
-      setRepairs((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    try {
+      if (editing) {
+        const updated = await repairTypesApi.update(editing.id, payload);
+        setRepairs((prev) => prev.map((r) => (r.id === editing.id ? updated : r)));
+        showSuccess("Repair type updated successfully.");
+      } else {
+        const created = await repairTypesApi.create(payload);
+        setRepairs((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+        showSuccess("Repair type created successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save repair type.");
     }
-    setDialogOpen(false);
   }
 
   if (!ready || user?.softwareDesignation !== "Admin") return null;
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={3} />;
 
   const filteredRepairs = repairs.filter((rt) => !searchQuery || rt.name.toLowerCase().includes(searchQuery.toLowerCase()));
 

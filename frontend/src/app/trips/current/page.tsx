@@ -9,6 +9,8 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 const CURRENT_STATUSES: Trip["status"][] = ["Started", "Loaded", "On-Transit", "Reached", "Unloaded"];
 
@@ -46,11 +48,16 @@ export default function CurrentTripsPage() {
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) || t.origin?.toLowerCase().includes(searchQuery.toLowerCase()) || t.destination?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   async function handleMarkCompleted(id: string) {
-    const updated = await tripsApi.updateStatus(id, "Completed");
-    setAllTrips((prev) => prev.map((trip) => (trip.id === id ? updated : trip)));
+    try {
+      const updated = await tripsApi.updateStatus(id, "Completed");
+      setAllTrips((prev) => prev.map((trip) => (trip.id === id ? updated : trip)));
+      showSuccess("Trip marked as completed.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update trip status.");
+    }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

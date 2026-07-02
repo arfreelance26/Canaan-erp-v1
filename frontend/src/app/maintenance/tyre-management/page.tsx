@@ -9,6 +9,7 @@ import { useTyreInventory } from "@/context/TyreInventoryContext";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function TyreManagementPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -53,7 +54,7 @@ export default function TyreManagementPage() {
     setManageDialogOpen(true);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
 
   const filteredTrucks = trucks.filter((t) => !searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()));
 

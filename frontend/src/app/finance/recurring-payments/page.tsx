@@ -6,6 +6,7 @@ import { financeApi } from "@/lib/api";
 import type { RecurringPayment } from "@/types/finance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -45,7 +46,7 @@ export default function RecurringPaymentsPage() {
     return { active, paused, monthlyTotal };
   }, [payments]);
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={5} />;
 
   const filteredPayments = payments.filter((p) => !searchQuery || p.title?.toLowerCase().includes(searchQuery.toLowerCase()) || p.category?.toLowerCase().includes(searchQuery.toLowerCase()));
 

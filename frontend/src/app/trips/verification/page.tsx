@@ -14,6 +14,8 @@ import type { TripClosureData } from "@/types/trip-closure";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 type SheetDialogMode = "view" | "edit";
 
@@ -158,10 +160,15 @@ export default function TripVerificationPage() {
 
   async function handleBookingSheetSubmit(data: TripClosureData) {
     if (!bookingSheetTrip) return;
-    const updated = await tripsApi.close(bookingSheetTrip.id, data);
-    setClosures((prev) => new Map([...prev, [bookingSheetTrip.id, updated]]));
-    setVerifyTrip(bookingSheetTrip);
-    setBookingSheetTrip(null);
+    try {
+      const updated = await tripsApi.close(bookingSheetTrip.id, data);
+      setClosures((prev) => new Map([...prev, [bookingSheetTrip.id, updated]]));
+      setVerifyTrip(bookingSheetTrip);
+      setBookingSheetTrip(null);
+      showSuccess("Booking sheet saved successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save booking sheet.");
+    }
   }
 
   function openSheetDialog(trip: Trip, mode: SheetDialogMode) {
@@ -172,33 +179,48 @@ export default function TripVerificationPage() {
 
   async function handleSaveSheet(data: TripSheetData) {
     if (!sheetTrip) return;
-    const saved = await tripsApi.upsertSheet(sheetTrip.id, data);
-    setSheets((prev) => new Map([...prev, [sheetTrip.id, saved]]));
-    // Return to the verify dialog so the user can confirm or flag the updated sheet
-    setVerifyTrip(sheetTrip);
-    setSheetTrip(null);
+    try {
+      const saved = await tripsApi.upsertSheet(sheetTrip.id, data);
+      setSheets((prev) => new Map([...prev, [sheetTrip.id, saved]]));
+      // Return to the verify dialog so the user can confirm or flag the updated sheet
+      setVerifyTrip(sheetTrip);
+      setSheetTrip(null);
+      showSuccess("Trip sheet saved successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save trip sheet.");
+    }
   }
 
   async function handleConfirmVerification() {
     if (!verifyTrip) return;
-    await tripsApi.verify(verifyTrip.id);
-    setVerifiedIds((prev) => new Set([...prev, verifyTrip.id]));
-    setFlaggedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
-    setVerifyTrip(null);
+    try {
+      await tripsApi.verify(verifyTrip.id);
+      setVerifiedIds((prev) => new Set([...prev, verifyTrip.id]));
+      setFlaggedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
+      setVerifyTrip(null);
+      showSuccess("Trip data verified successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to verify trip data.");
+    }
   }
 
   async function handleFlag() {
     if (!verifyTrip) return;
-    await tripsApi.flag(verifyTrip.id);
-    setFlaggedIds((prev) => new Set([...prev, verifyTrip.id]));
-    setVerifiedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
-    setVerifyTrip(null);
+    try {
+      await tripsApi.flag(verifyTrip.id);
+      setFlaggedIds((prev) => new Set([...prev, verifyTrip.id]));
+      setVerifiedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
+      setVerifyTrip(null);
+      showSuccess("Trip flagged for review.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to flag trip.");
+    }
   }
 
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
 

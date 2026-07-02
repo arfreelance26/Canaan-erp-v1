@@ -45,6 +45,10 @@ import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
+import { TripStatusDonutChart } from "@/components/dashboard/TripStatusDonutChart";
+import { FleetUtilizationChart } from "@/components/dashboard/FleetUtilizationChart";
+import { TripTrendChart } from "@/components/dashboard/TripTrendChart";
+import { FinanceBreakdownChart } from "@/components/dashboard/FuelConsumptionChart";
 
 function formatCurrency(value: number): string {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
@@ -404,10 +408,56 @@ export default function DashboardPage() {
   const totalCompSalary = driverCompTotals.Salary + staffCompTotals.Salary;
   const totalCompAdvance = driverCompTotals.Advance + staffCompTotals.Advance;
 
+  const sortedComplianceTrucks = useMemo(() => {
+    const statusPriority = (s: string) =>
+      s === "Expired" ? 0 : s === "Expiring Soon" ? 1 : 2;
+    return [...trucks].sort((a, b) => {
+      const aScore = Math.min(
+        ...COMPLIANCE_DOCS.map((d) =>
+          statusPriority(getComplianceStatus((a[d.field] as string) ?? ""))
+        )
+      );
+      const bScore = Math.min(
+        ...COMPLIANCE_DOCS.map((d) =>
+          statusPriority(getComplianceStatus((b[d.field] as string) ?? ""))
+        )
+      );
+      return aScore - bScore;
+    });
+  }, [trucks]);
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12 text-sm text-gray-400">
-        Loading dashboard…
+      <div className="flex flex-col gap-6 animate-pulse">
+        <div className="flex items-end justify-between">
+          <div className="space-y-1.5">
+            <div className="h-7 w-36 rounded-lg bg-slate-200" />
+            <div className="h-4 w-60 rounded bg-slate-100" />
+          </div>
+          <div className="h-8 w-16 rounded-full bg-slate-200" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-gray-200 bg-white p-5">
+              <div className="h-3 w-20 rounded bg-slate-200" />
+              <div className="mt-3 h-8 w-16 rounded-lg bg-slate-200" />
+              <div className="mt-2 h-3 w-28 rounded bg-slate-100" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-[300px] rounded-xl border border-gray-200 bg-white p-5">
+              <div className="h-4 w-32 rounded bg-slate-200 mb-1" />
+              <div className="h-3 w-20 rounded bg-slate-100 mb-4" />
+              <div className="h-[230px] rounded-lg bg-slate-100" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          <div className="h-52 rounded-xl border border-gray-200 bg-white lg:col-span-3" />
+          <div className="h-52 rounded-xl border border-gray-200 bg-white lg:col-span-2" />
+        </div>
       </div>
     );
   }
@@ -435,7 +485,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Section 1: Hero KPIs ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
         <StatCard
           label="Active Trips"
           value={String(activeTripsCount)}
@@ -465,11 +515,18 @@ export default function DashboardPage() {
           variant={totalWorkforce > 0 && presentToday < totalWorkforce * 0.7 ? "amber" : "emerald"}
         />
         <StatCard
-          label="Total Customers"
+          label="Customers"
           value={String(customers.length)}
-          caption="Active client base"
+          caption={`${vendors.length} vendor${vendors.length !== 1 ? "s" : ""} registered`}
           icon={UserCheck}
           variant="purple"
+        />
+        <StatCard
+          label="Monthly Fixed"
+          value={formatCurrency(monthlyEmiTotal + monthlyRecurringTotal)}
+          caption={`${emiRecords.length} EMI · ${activeRecurringPayments.length} recurring`}
+          icon={Wallet}
+          variant="default"
         />
       </div>
 
@@ -492,7 +549,47 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Section 2: Live Ops + Alert Board ───────────────────────────── */}
+      {/* ── Section 2: Visual Charts ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+        {/* Trip Status Donut */}
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center gap-2">
+            <Navigation className="h-4 w-4 text-blue-500" />
+            <h2 className="text-sm font-bold text-gray-900">Trip Distribution</h2>
+          </div>
+          <p className="mt-0.5 text-xs text-gray-400">{trips.length} trips across all statuses</p>
+          <div className="mt-3">
+            <TripStatusDonutChart counts={tripStatusCounts} />
+          </div>
+        </div>
+
+        {/* Fleet Utilization Donut */}
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center gap-2">
+            <Truck className="h-4 w-4 text-blue-500" />
+            <h2 className="text-sm font-bold text-gray-900">Fleet Utilization</h2>
+          </div>
+          <p className="mt-0.5 text-xs text-gray-400">{trucks.length} trucks in fleet</p>
+          <div className="mt-3">
+            <FleetUtilizationChart onTrip={trucksOnTripCount} available={trucksAvailableCount} />
+          </div>
+        </div>
+
+        {/* 6-Month Trip Trend */}
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-blue-500" />
+            <h2 className="text-sm font-bold text-gray-900">Trip Trend</h2>
+          </div>
+          <p className="mt-0.5 text-xs text-gray-400">Total vs completed — last 6 months</p>
+          <div className="mt-3">
+            <TripTrendChart trips={trips} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 3: Live Ops + Alert Board ───────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
 
         {/* Live Trips (3/5) */}
@@ -870,7 +967,29 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Section 5: Compliance Grid ───────────────────────────────────── */}
+      {/* ── Section 5: Finance Breakdown Chart ──────────────────────────── */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-purple-500" />
+            <h2 className="text-sm font-bold text-gray-900">Monthly Expenditure Breakdown</h2>
+          </div>
+          <span className="text-xs font-semibold text-gray-500">
+            Total: {formatCurrency(monthlyEmiTotal + monthlyRecurringTotal + totalCompSalary + totalCompAdvance)}
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs text-gray-400">EMI · Recurring · Salaries · Advances</p>
+        <div className="mt-4">
+          <FinanceBreakdownChart
+            emiTotal={monthlyEmiTotal}
+            recurringTotal={monthlyRecurringTotal}
+            salaryTotal={totalCompSalary}
+            advanceTotal={totalCompAdvance}
+          />
+        </div>
+      </div>
+
+      {/* ── Section 6: Compliance Grid ───────────────────────────────────── */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
           <div className="flex items-center gap-2">
@@ -917,10 +1036,14 @@ export default function DashboardPage() {
                   </td>
                 </tr>
               ) : (
-                trucks.map((truck) => (
+                sortedComplianceTrucks.map((truck) => {
+                  const hasExpired = COMPLIANCE_DOCS.some(
+                    (d) => getComplianceStatus((truck[d.field] as string) ?? "") === "Expired"
+                  );
+                  return (
                   <tr
                     key={truck.truckId}
-                    className="transition-colors hover:bg-gray-50/70"
+                    className={cn("transition-colors hover:bg-gray-50/70", hasExpired && "bg-red-50/40")}
                   >
                     <td className="px-5 py-3">
                       <p className="text-xs font-bold text-gray-900">
@@ -936,7 +1059,8 @@ export default function DashboardPage() {
                       </td>
                     ))}
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

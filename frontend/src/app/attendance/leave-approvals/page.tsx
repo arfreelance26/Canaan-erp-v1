@@ -8,6 +8,8 @@ import { attendanceApi } from "@/lib/api";
 import { LEAVE_CATEGORIES } from "@/lib/leave-request-data";
 import type { LeaveApplicantCategory, LeaveRequest } from "@/types/leave-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
@@ -69,20 +71,30 @@ export default function LeaveApprovalsPage() {
   }, [requests]);
 
   async function handleApprove(id: string) {
-    const updated = await attendanceApi.approveLeave(id);
-    setRequests((prev) =>
-      prev.map((request) => (request.id === id ? updated : request))
-    );
+    try {
+      const updated = await attendanceApi.approveLeave(id);
+      setRequests((prev) =>
+        prev.map((request) => (request.id === id ? updated : request))
+      );
+      showSuccess("Leave request approved.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to approve leave request.");
+    }
   }
 
   async function handleReject(id: string) {
-    const updated = await attendanceApi.rejectLeave(id);
-    setRequests((prev) =>
-      prev.map((request) => (request.id === id ? updated : request))
-    );
+    try {
+      const updated = await attendanceApi.rejectLeave(id);
+      setRequests((prev) =>
+        prev.map((request) => (request.id === id ? updated : request))
+      );
+      showSuccess("Leave request rejected.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to reject leave request.");
+    }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

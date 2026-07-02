@@ -9,6 +9,8 @@ import type { Truck } from "@/types/truck";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showSuccess, showError } from "@/lib/swal";
 
 export default function AssignDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -50,23 +52,29 @@ export default function AssignDriversPage() {
 
   async function handleSave(vehicleId: string) {
     if (!selectedDriver) return;
-    if (!vehicleId) {
-      await assignmentsApi.remove(selectedDriver.driverId);
-      setAssignments((prev) => prev.filter((a) => a.driverId !== selectedDriver.driverId));
-    } else {
-      await assignmentsApi.upsert(selectedDriver.driverId, vehicleId);
-      setAssignments((prev) => {
-        const withoutDriver = prev.filter((a) => a.driverId !== selectedDriver.driverId);
-        return [
-          ...withoutDriver,
-          { id: crypto.randomUUID(), driverId: selectedDriver.driverId, vehicleId },
-        ];
-      });
+    try {
+      if (!vehicleId) {
+        await assignmentsApi.remove(selectedDriver.driverId);
+        setAssignments((prev) => prev.filter((a) => a.driverId !== selectedDriver.driverId));
+        showSuccess("Vehicle unassigned successfully.");
+      } else {
+        await assignmentsApi.upsert(selectedDriver.driverId, vehicleId);
+        setAssignments((prev) => {
+          const withoutDriver = prev.filter((a) => a.driverId !== selectedDriver.driverId);
+          return [
+            ...withoutDriver,
+            { id: crypto.randomUUID(), driverId: selectedDriver.driverId, vehicleId },
+          ];
+        });
+        showSuccess("Vehicle assigned successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to assign vehicle.");
     }
-    setDialogOpen(false);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
 
   const filteredDrivers = drivers.filter((d) => !searchQuery || d.name?.toLowerCase().includes(searchQuery.toLowerCase()) || d.driverId?.toLowerCase().includes(searchQuery.toLowerCase()));
 

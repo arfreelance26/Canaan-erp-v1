@@ -9,6 +9,8 @@ import type { Driver } from "@/types/driver";
 import type { DriverAttendanceRecord } from "@/types/attendance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { todayIst } from "@/lib/format-date";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showError } from "@/lib/swal";
 
 function getAttendanceForDate(
   records: DriverAttendanceRecord[],
@@ -50,16 +52,20 @@ export default function DriverAttendancePage() {
 
   const handleMark = useCallback(
     async (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => {
-      let updated: DriverAttendanceRecord;
-      if (currentRecord) {
-        updated = await attendanceApi.updateDriver(currentRecord.id, status);
-      } else {
-        updated = await attendanceApi.markDriver(driverId, date, status);
+      try {
+        let updated: DriverAttendanceRecord;
+        if (currentRecord) {
+          updated = await attendanceApi.updateDriver(currentRecord.id, status);
+        } else {
+          updated = await attendanceApi.markDriver(driverId, date, status);
+        }
+        setRecords((prev) => {
+          const without = prev.filter((r) => r.id !== updated.id);
+          return [...without, updated];
+        });
+      } catch (err: unknown) {
+        showError(err instanceof Error ? err.message : "Failed to mark attendance.");
       }
-      setRecords((prev) => {
-        const without = prev.filter((r) => r.id !== updated.id);
-        return [...without, updated];
-      });
     },
     [date]
   );
@@ -80,7 +86,7 @@ export default function DriverAttendancePage() {
     return drivers.filter((driver) => driver.name.toLowerCase().includes(query));
   }, [drivers, search]);
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={4} columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

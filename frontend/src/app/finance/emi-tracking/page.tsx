@@ -6,9 +6,10 @@ import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog } from "@/components/finance/EmiFormDialog";
 import { financeApi } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
-import { confirmDelete } from "@/lib/swal";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { todayIst } from "@/lib/format-date";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -87,23 +88,34 @@ export default function EmiTrackingPage() {
   async function handleDelete(id: string) {
     const result = await confirmDelete("EMI entry");
     if (!result.isConfirmed) return;
-    await financeApi.deleteEmi(id);
-    setRecords((prev) => prev.filter((record) => record.id !== id));
+    try {
+      await financeApi.deleteEmi(id);
+      setRecords((prev) => prev.filter((record) => record.id !== id));
+      showSuccess("EMI entry deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete EMI entry.");
+    }
   }
 
   async function handleSave(record: EmiRecord) {
-    const exists = records.some((existing) => existing.id === record.id);
-    if (exists) {
-      const updated = await financeApi.updateEmi(record.id, record);
-      setRecords((prev) => prev.map((existing) => (existing.id === record.id ? updated : existing)));
-    } else {
-      const created = await financeApi.createEmi(record);
-      setRecords((prev) => [...prev, created]);
+    try {
+      const exists = records.some((existing) => existing.id === record.id);
+      if (exists) {
+        const updated = await financeApi.updateEmi(record.id, record);
+        setRecords((prev) => prev.map((existing) => (existing.id === record.id ? updated : existing)));
+        showSuccess("EMI entry updated successfully.");
+      } else {
+        const created = await financeApi.createEmi(record);
+        setRecords((prev) => [...prev, created]);
+        showSuccess("EMI entry created successfully.");
+      }
+      setDialogOpen(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save EMI entry.");
     }
-    setDialogOpen(false);
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch statCards={4} columns={6} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
