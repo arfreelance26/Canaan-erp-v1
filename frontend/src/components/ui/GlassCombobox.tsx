@@ -136,6 +136,12 @@ export function GlassCombobox({
           onChange={handleInputChange}
           onFocus={() => { if (blurTimerRef.current) clearTimeout(blurTimerRef.current); setIsOpen(true); }}
           onBlur={handleInputBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Tab" && isOpen && inputValue.trim() && filteredOptions.length > 0) {
+              e.preventDefault();
+              handleOptionClick(filteredOptions[0].value, filteredOptions[0].label);
+            }
+          }}
           disabled={disabled}
           required={required}
           placeholder={placeholder}

@@ -265,6 +265,26 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     db.refresh(trip)
     return _enrich(trip)
 
+@router.get("/autocomplete-values")
+def get_autocomplete_values(db: Session = Depends(get_db)):
+    origins = (
+        db.query(models.Trip.origin)
+        .filter(models.Trip.origin.isnot(None), models.Trip.origin != "")
+        .distinct()
+        .all()
+    )
+    destinations = (
+        db.query(models.Trip.destination)
+        .filter(models.Trip.destination.isnot(None), models.Trip.destination != "")
+        .distinct()
+        .all()
+    )
+    return {
+        "origins": sorted({r[0] for r in origins}),
+        "destinations": sorted({r[0] for r in destinations}),
+    }
+
+
 @router.get("/invoices/next-seq")
 def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
     from datetime import date

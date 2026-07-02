@@ -120,6 +120,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     } else {
       const sheet = emptySheet(trip.id);
       sheet.bookingReferenceNo  = trip.bookingReferenceNo ?? "";
+      sheet.tripSheetNo         = (trip.bookingReferenceNo ?? "").replace(/^CGI/, "TS");
       sheet.containerNumber     = trip.containerNumber ?? "";
       sheet.containerType       = trip.containerSpecification ?? "";
       sheet.line                = trip.shippingLine ?? "";
@@ -195,8 +196,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         {/* ── 1. Trip Information ── */}
         <p className={sh}>Trip Information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Trip Sheet No *">
-            <input className={fc} value={form.tripSheetNo} readOnly={ro} onChange={(e) => set("tripSheetNo", e.target.value)} placeholder="e.g. TS-2026-001" />
+          <Field label="Trip Sheet No">
+            <input className={roClass} value={form.tripSheetNo} readOnly disabled placeholder="Auto-generated from booking reference" />
           </Field>
           <Field label="Booking Reference Number">
             <input className={roClass} value={form.bookingReferenceNo} readOnly disabled />
