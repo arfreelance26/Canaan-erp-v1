@@ -3,13 +3,30 @@ import re
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
 import models  # noqa: F401 — ensure all models are registered before create_all
 
 from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary
 
 Base.metadata.create_all(bind=engine)
+
+def _run_schema_migrations():
+    """Idempotent ALTER TABLE migrations that create_all cannot handle (enum changes)."""
+    migrations = [
+        "ALTER TABLE trips MODIFY COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
+        "ALTER TABLE trip_closures MODIFY COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
+    ]
+    with engine.connect() as conn:
+        for stmt in migrations:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+        conn.commit()
+
+_run_schema_migrations()
 
 _DEFAULT_REPAIR_TYPES = [
     "Tyre Puncture", "Tyre Replacement", "Engine Oil Change", "Brake Repair",
@@ -85,6 +102,18 @@ async def sqlalchemy_integrity_exception_handler(request: Request, exc: Integrit
         status_code=400,
         content={"detail": f"Database integrity error: {error_msg}"},
     )
+
+@app.exception_handler(DataError)
+async def sqlalchemy_data_exception_handler(request: Request, exc: DataError):
+    error_msg = str(exc.orig) if exc.orig else str(exc)
+    truncation = re.search(r"Data truncated for column '(\w+)'", error_msg)
+    if truncation:
+        col = truncation.group(1).replace("_", " ")
+        return JSONResponse(
+            status_code=422,
+            content={"detail": f"Invalid value for '{col}'. The value is not allowed by the database."},
+        )
+    return JSONResponse(status_code=422, content={"detail": f"Invalid data: {error_msg}"})
 
 @app.get("/", tags=["Health"])
 def health_check():

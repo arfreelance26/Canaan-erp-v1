@@ -21,6 +21,7 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
 
   const totalLitres = logs.reduce((s, l) => s + l.litres, 0);
   const totalCost = logs.reduce((s, l) => s + l.totalCost, 0);
+  const avgCostPerLitre = totalLitres > 0 ? totalCost / totalLitres : 0;
 
   return (
     <Dialog
@@ -81,7 +82,7 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
           </div>
 
           {/* Summary row */}
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm">
               <p className="text-xs text-gray-400">Total Fill-ups</p>
               <p className="mt-0.5 text-lg font-bold text-gray-800">{logs.length}</p>
@@ -93,6 +94,10 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
             <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm">
               <p className="text-xs text-gray-400">Total Fuel Cost</p>
               <p className="mt-0.5 text-lg font-bold text-emerald-700">{fmt(totalCost)}</p>
+            </div>
+            <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm">
+              <p className="text-xs text-gray-400">Avg. Cost Per Litre</p>
+              <p className="mt-0.5 text-lg font-bold text-orange-600">{fmt(avgCostPerLitre)}</p>
             </div>
           </div>
         </>

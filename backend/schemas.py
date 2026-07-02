@@ -316,7 +316,7 @@ TripCategory = Literal["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING"]
 MovementCategory = Literal["Own Fleet", "Third-Party Transporter"]
 CargoClassification = Literal["IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL"]
 ContainerSpecification = Literal["20 FT CONTAINER", "40 FT CONTAINER", "2 X 20 FEET CONTAINERS", "OPEN LOAD CARGO"]
-BillTo = Literal["CUSTOMER", "CONSIGNEE"]
+BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
 PaymentType = Literal["Credit", "Cash", "Fuel"]
 TransportMethod = Literal["Own Fleet", "Third-Party Transporter"]
 DriverAdvancePaymentMethod = Literal["None", "CASH", "NEFT/IMPS/UPI", "Both"]
@@ -388,7 +388,7 @@ class TripOut(TripBase):
 # ---------------------------------------------------------------------------
 
 PaymentMode = Literal["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"]
-BillTo = Literal["CUSTOMER", "CONSIGNEE", "Self/CGI"]
+BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
 
 
 class TripClosureCreate(OrmBase):

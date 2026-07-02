@@ -321,8 +321,10 @@ function toCustomerDestination(b: B): CustomerDestination {
   return {
     id: String(b.id),
     customerId: String(b.customer_id),
+    destinationName: b.destination_name ?? undefined,
     destinationState: b.destination_state ?? "",
     destinationAddress: b.destination_address ?? "",
+    status: b.status ?? undefined,
   };
 }
 

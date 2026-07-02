@@ -62,6 +62,7 @@ export const MOVEMENT_CATEGORY_OPTIONS: MovementCategory[] = ["Own Fleet", "Thir
 
 export const CARGO_WEIGHT_OPTIONS = [
   "NORMAL",
+  "Up to 20 Tons",
   "Between 20 - 25 Tons",
   "Between 25-28 Tons",
   "Between 28-30 Tons",
@@ -83,7 +84,7 @@ export const CONTAINER_SPECIFICATION_OPTIONS: ContainerSpecification[] = [
   "OPEN LOAD CARGO",
 ];
 
-export const BILL_TO_OPTIONS = ["CUSTOMER", "CONSIGNEE", "Self/CGI"];
+export const BILL_TO_OPTIONS = ["CUSTOMER", "CONSIGNEE", "SELF/CGI"];
 
 export const PAYMENT_TYPE_OPTIONS: PaymentType[] = ["Credit", "Cash", "Fuel"];
 

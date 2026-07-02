@@ -287,7 +287,7 @@ class Trip(Base):
     driver_id = Column(String(20))                                      # ref drivers.driver_id
     vehicle_id = Column(String(20))                                     # ref trucks.truck_id
     # Payment & Advances
-    bill_to = Column(Enum("CUSTOMER", "CONSIGNEE"))
+    bill_to = Column(Enum("CUSTOMER", "CONSIGNEE", "SELF/CGI"))
     payment_type = Column(Enum("Credit", "Cash", "Fuel"))
     customer_cash_advance = Column(Numeric(10, 2), default=0)
     customer_fuel_advance_amount = Column(Numeric(10, 2), default=0)
@@ -348,7 +348,7 @@ class TripClosure(Base):
     driver_advance = Column(Numeric(10, 2), nullable=True)
     additional_driver_advance = Column(Numeric(10, 2), nullable=True)
     payment_mode = Column(Enum("Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"))
-    bill_to = Column(Enum("CUSTOMER", "CONSIGNEE"))
+    bill_to = Column(Enum("CUSTOMER", "CONSIGNEE", "SELF/CGI"))
 
     # 5. Halt Information
     company_halt_days = Column(Integer, default=0)

@@ -26,7 +26,7 @@ export type ContainerSpecification =
   | "2 X 20 FEET CONTAINERS"
   | "OPEN LOAD CARGO";
 
-export type BillTo = "CUSTOMER" | "CONSIGNEE" | "Self/CGI";
+export type BillTo = "CUSTOMER" | "CONSIGNEE" | "SELF/CGI";
 
 export type PaymentType = "Credit" | "Cash" | "Fuel";
 

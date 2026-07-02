@@ -5,7 +5,7 @@ import type { Truck } from "@/types/truck";
 import type { FuelLog } from "@/types/fuel-log";
 import { showError } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
 type FuelLogFormDialogProps = {
   open: boolean;
@@ -36,6 +36,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
     date: todayIst(),
     odometer: "",
     litres: "",
+    costPerLitre: "",
     totalCost: "",
     fuelStation: "",
     loggedBy: "",
@@ -62,6 +63,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
       date: todayIst(),
       odometer: "",
       litres: "",
+      costPerLitre: "",
       totalCost: "",
       fuelStation: "",
       loggedBy: "",
@@ -69,7 +71,17 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
   }
 
   function update(field: keyof typeof form, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "litres" || field === "costPerLitre") {
+        const l = parseFloat(field === "litres" ? value : prev.litres);
+        const c = parseFloat(field === "costPerLitre" ? value : prev.costPerLitre);
+        next.totalCost = (!isNaN(l) && !isNaN(c) && l > 0 && c > 0)
+          ? (l * c).toFixed(2)
+          : prev.totalCost;
+      }
+      return next;
+    });
   }
 
   return (
@@ -86,11 +98,10 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.date}
               onChange={(v) => update("date", v)}
-              className={inputClass}
             />
           </Field>
           
@@ -127,7 +138,20 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
             />
           </Field>
 
-          <Field label="Total Fuel Cost" required>
+          <Field label="Cost Per Litre (₹)" required>
+            <input
+              type="number"
+              required
+              step="0.01"
+              min="0.01"
+              value={form.costPerLitre}
+              onChange={(e) => update("costPerLitre", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 96.50"
+            />
+          </Field>
+
+          <Field label="Total Fuel Cost (₹)" required>
             <input
               type="number"
               required
@@ -135,9 +159,15 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
               min="1"
               value={form.totalCost}
               onChange={(e) => update("totalCost", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. 14500"
+              readOnly={!!(form.litres && form.costPerLitre)}
+              className={`${inputClass} ${form.litres && form.costPerLitre ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+              placeholder="Auto-calculated or enter manually"
             />
+            {form.litres && form.costPerLitre && (
+              <p className="mt-1 text-xs text-green-700">
+                Auto-calculated: {form.litres} L × ₹{form.costPerLitre} = ₹{form.totalCost}
+              </p>
+            )}
           </Field>
 
           <Field label="Fuel Station (Optional)">

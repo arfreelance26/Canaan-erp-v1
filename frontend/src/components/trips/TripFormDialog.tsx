@@ -284,7 +284,10 @@ export function TripFormDialog({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const assigned = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
-    if (!assigned) return;
+    if (!assigned) {
+      alert("Please select a driver and vehicle before assigning the trip.");
+      return;
+    }
 
     saveToAutocompleteHistory("erp_origin_history", form.origin);
     saveToAutocompleteHistory("erp_destination_history", form.destination);
@@ -601,14 +604,14 @@ export function TripFormDialog({
             <Field label="Assigned Vehicle" className="sm:col-span-2">
               <GlassCombobox
                 value={form.driverId}
-                onChange={(val) => handleDriverChange(val)}
-                options={[
-                  { value: "", label: assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle" },
-                  ...assignableDrivers.map(a => ({
-                    value: a.driver.driverId,
-                    label: `${a.driver.name} (Driver: ${a.driver.driverId}) — Vehicle: ${a.truck.registrationNumber} (ID: ${a.truck.truckId})${a.isActive ? " — On Active Trip" : ""}`,
-                  }))
-                ]}
+                onChange={(val) => {
+                  if (assignableDrivers.some((a) => a.driver.driverId === val)) handleDriverChange(val);
+                }}
+                options={assignableDrivers.map(a => ({
+                  value: a.driver.driverId,
+                  label: `${a.driver.name} — ${a.truck.registrationNumber} (${a.driver.driverId} / ${a.truck.truckId})`,
+                  disabled: a.isActive,
+                }))}
                 placeholder={assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle"}
               />
               {selectedAssignment && (
@@ -813,7 +816,7 @@ export function TripFormDialog({
           </button>
           <button
             type="submit"
-            disabled={assignableDrivers.length === 0}
+            disabled={assignableDrivers.length === 0 || !form.driverId}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             Assign Trip

@@ -143,7 +143,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         : trip.containerNumber ?? "";
 
     const billToVal = customer?.name ?? trip.billTo ?? "";
-    const isSelf = trip.billTo === "Self/CGI";
+    const isSelf = trip.billTo === "SELF/CGI";
     const isGta = customer?.isGta === "Yes";
     const invoiceType = isSelf ? "Transport Memo" : isGta ? "Bill of Supply" : "Tax Invoice";
 
@@ -206,7 +206,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   }, [form.bookingReferenceNo, form.invoiceType]);
 
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
-  const isSelf = trip?.billTo === "Self/CGI";
+  const isSelf = trip?.billTo === "SELF/CGI";
   const isBillOfSupplyLocked = !isSelf && (customer?.isGta === "Yes" || customer?.customerType === "Transports");
 
   const originalBillTo = customer?.name ?? trip?.billTo ?? "";
