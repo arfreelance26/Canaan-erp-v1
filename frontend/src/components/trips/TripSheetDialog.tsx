@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { type TripSheetData, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
@@ -168,7 +168,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       totalHaltDays:   haltTotalDays > 0   ? String(haltTotalDays)               : "",
       haltPay:         companyHaltPay > 0  ? companyHaltPay.toFixed(2)           : "",
       haltRemarks,
-      fuelCostApprox,
     });
   }
 
@@ -184,10 +183,15 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const displayDriver  = drivers.find((d) => d.driverId === form.driverId)?.name ?? form.driverId;
   const startKmTooLow  = !ro && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
 
-  const fuelCostApprox =
+  const autoFuelCost =
     n(form.totalKm) > 0 && Number(costPerKm) > 0
       ? (n(form.totalKm) * Number(costPerKm)).toFixed(2)
       : "";
+
+  // Auto-fill from computed value when km or cost-per-km changes; user can override between km edits
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
+  }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-3xl">
@@ -233,7 +237,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={closure?.closedAt ?? ""} readOnly disabled placeholder="Auto-fetched on close" />
           </Field>
           <Field label="Trip Sheet Date *">
-            <DateInput value={form.tripSheetDate} readOnly={ro} onChange={(v) => set("tripSheetDate", v)} className={fc} />
+            <DatePickerInput value={form.tripSheetDate} onChange={(v) => set("tripSheetDate", v)} disabled={ro} />
           </Field>
         </div>
 
@@ -281,14 +285,18 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </Field>
           <Field label="Fuel Cost for this Trip — approx (₹)">
             <input
-              className={`${fc} bg-gray-50`}
-              value={fuelCostApprox ? `₹${Number(fuelCostApprox).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : ""}
-              readOnly
-              placeholder={costPerKm ? "Enter km values above" : "No fuel data for this truck"}
+              type="number"
+              min="0"
+              className={fc}
+              value={form.fuelCostApprox}
+              readOnly={ro}
+              onChange={(e) => set("fuelCostApprox", e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
+              placeholder={costPerKm ? "Auto-calculated — you can override" : "Enter fuel cost manually"}
             />
             {costPerKm && Number(costPerKm) > 0 && (
               <p className="mt-1 text-xs text-gray-400">
-                {n(form.totalKm) > 0 ? `${n(form.totalKm)} km × ₹${Number(costPerKm).toFixed(2)}/km` : `₹${Number(costPerKm).toFixed(2)}/km from fuel history`}
+                {n(form.totalKm) > 0 ? `${n(form.totalKm)} km × ₹${Number(costPerKm).toFixed(2)}/km (auto-filled — edit to override)` : `₹${Number(costPerKm).toFixed(2)}/km from fuel history`}
               </p>
             )}
           </Field>

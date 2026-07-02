@@ -1,5 +1,5 @@
 export type PaymentMode = "Cash" | "UPI" | "Bank Transfer" | "Cheque" | "NEFT / RTGS";
-export type BillTo = "CUSTOMER" | "CONSIGNEE";
+export type BillTo = "CUSTOMER" | "CONSIGNEE" | "SELF/CGI";
 
 export type TripClosureData = {
   tripId: string;

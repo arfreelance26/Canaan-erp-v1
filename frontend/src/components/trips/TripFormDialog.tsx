@@ -786,7 +786,7 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Operational Notes</p>
           <div className="grid grid-cols-1 gap-4">
-            <Field label="Internal Remarks" required>
+            <Field label="Internal Remarks">
               <textarea
                 value={form.internalRemarks}
                 onChange={(e) => update("internalRemarks", e.target.value)}
@@ -795,7 +795,7 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Booking Instructions" required>
+            <Field label="Booking Instructions">
               <textarea
                 value={form.bookingInstructions}
                 onChange={(e) => update("bookingInstructions", e.target.value)}

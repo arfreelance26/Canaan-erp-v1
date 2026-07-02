@@ -22,7 +22,7 @@ const PAYMENT_MODE_OPTIONS: PaymentMode[] = [
   "NEFT / RTGS",
 ];
 
-const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE"];
+const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE", "SELF/CGI"];
 
 const readonlyClass =
   "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
@@ -197,7 +197,12 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Date">
-              <input readOnly disabled value={form.assignmentDate} className={readonlyClass} />
+              <input
+                readOnly
+                disabled
+                value={form.assignmentDate ? form.assignmentDate.split("-").reverse().join("-") : ""}
+                className={readonlyClass}
+              />
             </Field>
           </div>
         </section>

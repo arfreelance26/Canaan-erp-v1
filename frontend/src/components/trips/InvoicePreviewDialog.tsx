@@ -95,9 +95,12 @@ export function InvoicePreviewDialog({
       });
       await new Promise((r) => setTimeout(r, 1200));
 
-      const iframeBody = iframe.contentDocument!.body;
+      const iframeDoc = iframe.contentDocument!;
+      // Target only the .a4 element so html2canvas captures the invoice content
+      // and not the blank space that fills the rest of the 2400px-tall iframe body.
+      const targetEl = (iframeDoc.querySelector(".a4") as HTMLElement) ?? iframeDoc.body;
 
-      const canvas = await html2canvas(iframeBody, {
+      const canvas = await html2canvas(targetEl, {
         scale: 2,
         useCORS: true,
         logging: false,
@@ -113,15 +116,18 @@ export function InvoicePreviewDialog({
       if (imgH <= pageH) {
         pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, imgH);
       } else {
+        const pixelsPerPage = Math.ceil((canvas.width * pageH) / pageW);
         let y = 0;
         while (y < canvas.height) {
-          const sliceH = Math.min(canvas.height - y, Math.ceil((canvas.width * pageH) / pageW));
+          const sliceH = Math.min(canvas.height - y, pixelsPerPage);
           const slice  = document.createElement("canvas");
           slice.width  = canvas.width;
           slice.height = sliceH;
           slice.getContext("2d")?.drawImage(canvas, 0, -y);
           if (y > 0) pdf.addPage();
-          pdf.addImage(slice.toDataURL("image/png"), "PNG", 0, 0, pageW, pageH);
+          // Only fill the proportional height — avoids blank space on the last page
+          const sliceDisplayH = (sliceH * pageW) / canvas.width;
+          pdf.addImage(slice.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceDisplayH);
           y += sliceH;
         }
       }

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -384,25 +384,36 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                       {key === "gstApplicable" ? "GST Applicable? (CGST 9% + SGST 9%)" : "IGST Applicable? (18%)"}
                     </span>
                     <div className="flex gap-2">
-                      {(["Yes", "No"] as const).map((opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => handleTaxToggle(key, opt)}
-                          className={[
-                            "flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all",
-                            form[key] === opt
-                              ? "border-blue-600 bg-blue-50 text-blue-700"
-                              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300",
-                          ].join(" ")}
-                        >
-                          {opt}
-                        </button>
-                      ))}
+                      {(["Yes", "No"] as const).map((opt) => {
+                        const lockedByself = isSelf && opt === "Yes";
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            disabled={lockedByself}
+                            onClick={() => !lockedByself && handleTaxToggle(key, opt)}
+                            className={[
+                              "flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all",
+                              lockedByself
+                                ? "border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed"
+                                : form[key] === opt
+                                ? "border-blue-600 bg-blue-50 text-blue-700"
+                                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300",
+                            ].join(" ")}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
-              {taxSelected && (
+              {isSelf && (
+                <p className="text-xs text-gray-400">
+                  GST/IGST locked to No — Transport Memos to Canaan Global International are not taxable.
+                </p>
+              )}
+              {!isSelf && taxSelected && (
                 <p className="text-xs text-amber-600 font-medium">
                   {isIgst ? "IGST 18% will be applied to all service lines." : "CGST 9% + SGST 9% will be applied to all service lines."}
                 </p>
@@ -420,7 +431,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
               <input readOnly disabled value={autoInvoiceNo} className={roClass} placeholder="Auto-generated from booking reference" />
             </Field>
             <Field label="Invoice Date" required>
-              <DateInput value={form.invoiceDate} onChange={(v) => update("invoiceDate", v)} className={inputClass} required />
+              <DatePickerInput value={form.invoiceDate} onChange={(v) => update("invoiceDate", v)} required />
             </Field>
             <Field label="Booking Reference No">
               <input readOnly disabled value={form.bookingReferenceNo} className={roClass} />
