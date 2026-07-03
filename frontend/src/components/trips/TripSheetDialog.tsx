@@ -10,7 +10,10 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
-import { repairTypesApi, fuelLogsApi } from "@/lib/api";
+import { repairTypesApi, fuelLogsApi, tripsApi } from "@/lib/api";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { CONTAINER_SPECIFICATION_OPTIONS, TRIP_CATEGORY_OPTIONS, CARGO_WEIGHT_OPTIONS } from "@/lib/trip-data";
+import { showError } from "@/lib/swal";
 
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 const subsh = "text-xs font-medium text-gray-400 uppercase tracking-wider mt-3 mb-1";
@@ -78,6 +81,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [form, setForm] = useState<TripSheetData>(emptySheet(""));
   const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
   const [costPerKm, setCostPerKm] = useState<string>("");
+  const [saving, setSaving] = useState(false);
   // Tracks which session has been initialized to prevent auto-refresh from resetting the form
   const initKeyRef = useRef<string>("");
 
@@ -160,8 +164,30 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const haltPay     = companyHaltPay;
   const haltRemarks = closure?.haltRemarks ?? "";
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (trip) {
+      setSaving(true);
+      try {
+        await tripsApi.update(trip.id, {
+          ...trip,
+          containerNumber: form.containerNumber,
+          containerSpecification: form.containerType as Trip["containerSpecification"],
+          shippingLine: form.line,
+          tripCategory: form.tripType as Trip["tripCategory"],
+          bookingCreatedDate: form.bookingDate,
+          scheduledDate: form.tripScheduledDate,
+          origin: form.from,
+          destination: form.to,
+          cargoWeight: form.cargoWeight,
+        });
+      } catch (err: unknown) {
+        showError(err instanceof Error ? err.message : "Failed to save trip details.");
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
     onSubmit({
       ...form,
       tripClosedDate:  closure?.closedAt ?? "",
@@ -207,16 +233,32 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={form.bookingReferenceNo} readOnly disabled />
           </Field>
           <Field label="Container Number">
-            <input className={roClass} value={form.containerNumber} readOnly disabled />
+            <input className={fc} value={form.containerNumber} readOnly={ro} onChange={(e) => set("containerNumber", e.target.value)} />
           </Field>
           <Field label="Container Specification">
-            <input className={roClass} value={form.containerType} readOnly disabled />
+            {ro ? (
+              <input className={roClass} value={form.containerType} readOnly disabled />
+            ) : (
+              <GlassSelect
+                value={form.containerType}
+                onChange={(val) => set("containerType", val)}
+                options={[{ value: "", label: "Select container specification" }, ...CONTAINER_SPECIFICATION_OPTIONS.map((o) => ({ value: o, label: o }))]}
+              />
+            )}
           </Field>
           <Field label="Shipping Line">
-            <input className={roClass} value={form.line} readOnly disabled />
+            <input className={fc} value={form.line} readOnly={ro} onChange={(e) => set("line", e.target.value)} />
           </Field>
           <Field label="Trip Category">
-            <input className={roClass} value={form.tripType} readOnly disabled />
+            {ro ? (
+              <input className={roClass} value={form.tripType} readOnly disabled />
+            ) : (
+              <GlassSelect
+                value={form.tripType}
+                onChange={(val) => set("tripType", val)}
+                options={[{ value: "", label: "Select trip category" }, ...TRIP_CATEGORY_OPTIONS.map((o) => ({ value: o, label: o }))]}
+              />
+            )}
           </Field>
           <Field label="Assigned Vehicle">
             <input className={roClass} value={displayVehicle} readOnly disabled />
@@ -225,13 +267,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={displayDriver} readOnly disabled />
           </Field>
           <Field label="Booking Date">
-            <input className={roClass} value={form.bookingDate} readOnly disabled />
+            <DatePickerInput value={form.bookingDate} onChange={(v) => set("bookingDate", v)} disabled={ro} />
           </Field>
           <Field label="Trip Scheduled Date">
-            <input className={roClass} value={form.tripScheduledDate} readOnly disabled />
+            <DatePickerInput value={form.tripScheduledDate} onChange={(v) => set("tripScheduledDate", v)} disabled={ro} />
           </Field>
           <Field label="Trip Completed Date">
-            <input className={roClass} value={form.tripCompletedDate} readOnly disabled />
+            <DatePickerInput value={form.tripCompletedDate} onChange={(v) => set("tripCompletedDate", v)} disabled={ro} />
           </Field>
           <Field label="Trip Closed Date">
             <input className={roClass} value={closure?.closedAt ?? ""} readOnly disabled placeholder="Auto-fetched on close" />
@@ -245,10 +287,10 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Route Information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="From">
-            <input className={roClass} value={form.from} readOnly disabled />
+            <input className={fc} value={form.from} readOnly={ro} onChange={(e) => set("from", e.target.value)} />
           </Field>
           <Field label="To">
-            <input className={roClass} value={form.to} readOnly disabled />
+            <input className={fc} value={form.to} readOnly={ro} onChange={(e) => set("to", e.target.value)} />
           </Field>
           <Field label="Clearing Agent">
             <input className={fc} value={form.clearingAgent} readOnly={ro} onChange={(e) => set("clearingAgent", e.target.value)} placeholder="e.g. ABC Clearing" />
@@ -301,7 +343,15 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             )}
           </Field>
           <Field label="Cargo Weight (tons)">
-            <input className={roClass} value={form.cargoWeight} readOnly disabled placeholder="Auto-fetched from trip" />
+            {ro ? (
+              <input className={roClass} value={form.cargoWeight} readOnly disabled placeholder="Auto-fetched from trip" />
+            ) : (
+              <GlassSelect
+                value={form.cargoWeight}
+                onChange={(val) => set("cargoWeight", val)}
+                options={[{ value: "", label: "Select cargo weight" }, ...CARGO_WEIGHT_OPTIONS.map((o) => ({ value: o, label: o }))]}
+              />
+            )}
           </Field>
         </div>
 
@@ -556,9 +606,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             {ro ? "Close" : "Cancel"}
           </button>
           {!ro && (
-            <button type="submit"
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-              Save Trip Sheet
+            <button type="submit" disabled={saving}
+              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+              {saving ? "Saving…" : "Save Trip Sheet"}
             </button>
           )}
         </div>

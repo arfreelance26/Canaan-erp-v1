@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DateInput } from "@/components/ui/DateInput";
 import type { Trip } from "@/types/trip";
@@ -11,8 +12,20 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { Branch } from "@/types/branch";
 import type { TripClosureData, PaymentMode, BillTo } from "@/types/trip-closure";
-import { MOVEMENT_CATEGORY_OPTIONS } from "@/lib/trip-data";
-import { branchesApi } from "@/lib/api";
+import {
+  MOVEMENT_CATEGORY_OPTIONS,
+  TRIP_CATEGORY_OPTIONS,
+  CARGO_CLASSIFICATION_OPTIONS,
+  CONTAINER_SPECIFICATION_OPTIONS,
+  CARGO_WEIGHT_OPTIONS,
+  TRANSPORT_METHOD_OPTIONS,
+  PAYMENT_TYPE_OPTIONS,
+  DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS,
+  DRIVER_COMPENSATION_TYPE_OPTIONS,
+  BILL_TO_OPTIONS as TRIP_BILL_TO_OPTIONS,
+} from "@/lib/trip-data";
+import { branchesApi, tripsApi } from "@/lib/api";
+import { showError } from "@/lib/swal";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"];
 const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE"];
@@ -34,7 +47,9 @@ type Props = {
 
 export function BookingSheetDialog({ open, trip, closure, driver, truck, customers, readOnly, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripClosureData | null>(null);
+  const [tripForm, setTripForm] = useState<Trip | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [saving, setSaving] = useState(false);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
@@ -47,16 +62,35 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
     if (justOpened && closure) {
       setForm({ ...closure });
     }
-    if (!open) setForm(null);
-  }, [open, closure]);
+    if (justOpened && trip) {
+      setTripForm({ ...trip });
+    }
+    if (!open) { setForm(null); setTripForm(null); }
+  }, [open, closure, trip]);
 
   function update<K extends keyof TripClosureData>(key: K, value: TripClosureData[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  function updateTrip<K extends keyof Trip>(key: K, value: Trip[K]) {
+    setTripForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (form) onSubmit(form);
+    if (!form) return;
+    if (!readOnly && tripForm && trip) {
+      setSaving(true);
+      try {
+        await tripsApi.update(trip.id, tripForm);
+      } catch (err: unknown) {
+        showError(err instanceof Error ? err.message : "Failed to save trip details.");
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
+    onSubmit(form);
   }
 
   const truckBranch = branches.find((b) => b.name === truck?.branchRegisteredTo);
@@ -69,16 +103,17 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
   if (!trip || !form) return null;
 
   const fc = readOnly ? roClass : inputClass;
-  const customer = customers.find((c) => c.id === trip.customerId);
+  const tf = tripForm ?? trip;
+  const customer = customers.find((c) => c.id === tf.customerId);
 
   // Resolve container number display based on spec
-  const containerSpec = trip.containerSpecification ?? "";
+  const containerSpec = tf.containerSpecification ?? "";
   const containerDisplay =
     containerSpec === "2 X 20 FEET CONTAINERS"
-      ? [trip.containerNumber1, trip.containerNumber2].filter(Boolean).join(" / ")
+      ? [tf.containerNumber1, tf.containerNumber2].filter(Boolean).join(" / ")
       : containerSpec === "OPEN LOAD CARGO"
-      ? trip.cargoReference ?? ""
-      : trip.containerNumber ?? "";
+      ? tf.cargoReference ?? ""
+      : tf.containerNumber ?? "";
 
   return (
     <Dialog
@@ -99,13 +134,29 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               <input readOnly disabled value={trip.bookingReferenceNo ?? ""} className={roClass} />
             </Field>
             <Field label="Booking Created Date">
-              <input readOnly disabled value={trip.bookingCreatedDate ?? ""} className={roClass} />
+              <DateInput value={tf.bookingCreatedDate ?? ""} readOnly={readOnly} disabled={readOnly} onChange={(v) => updateTrip("bookingCreatedDate", v)} className={fc} />
             </Field>
             <Field label="Trip Category">
-              <input readOnly disabled value={trip.tripCategory ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.tripCategory ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.tripCategory ?? ""}
+                  onChange={(val) => updateTrip("tripCategory", val as Trip["tripCategory"])}
+                  options={[{ value: "", label: "Select trip category" }, ...TRIP_CATEGORY_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
             <Field label="Movement Category">
-              <input readOnly disabled value={trip.movementCategory ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.movementCategory ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.movementCategory ?? ""}
+                  onChange={(val) => updateTrip("movementCategory", val as Trip["movementCategory"])}
+                  options={[{ value: "", label: "Select movement category" }, ...MOVEMENT_CATEGORY_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
           </div>
         </section>
@@ -115,10 +166,24 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Customer Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Customer Account">
-              <input readOnly disabled value={customer?.name ?? trip.customerId ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={customer?.name ?? tf.customerId ?? ""} className={roClass} />
+              ) : (
+                <GlassCombobox
+                  value={tf.customerId}
+                  onChange={(val) => updateTrip("customerId", val)}
+                  options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                  placeholder="Select a customer"
+                />
+              )}
             </Field>
             <Field label="Shipper / Consignee">
-              <input readOnly disabled value={trip.shipperConsignee ?? ""} className={roClass} />
+              <input
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.shipperConsignee ?? ""}
+                onChange={(e) => updateTrip("shipperConsignee", e.target.value)}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -128,21 +193,69 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Cargo Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Container Specification">
-              <input readOnly disabled value={containerSpec} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={containerSpec} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={containerSpec}
+                  onChange={(val) => updateTrip("containerSpecification", val as Trip["containerSpecification"])}
+                  options={[{ value: "", label: "Select container specification" }, ...CONTAINER_SPECIFICATION_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
-            {containerDisplay && (
-              <Field label={containerSpec === "OPEN LOAD CARGO" ? "Cargo Reference" : "Container Number(s)"}>
-                <input readOnly disabled value={containerDisplay} className={roClass} />
+            {readOnly ? (
+              containerDisplay && (
+                <Field label={containerSpec === "OPEN LOAD CARGO" ? "Cargo Reference" : "Container Number(s)"}>
+                  <input readOnly disabled value={containerDisplay} className={roClass} />
+                </Field>
+              )
+            ) : containerSpec === "2 X 20 FEET CONTAINERS" ? (
+              <>
+                <Field label="Container Number (1st)">
+                  <input className={fc} value={tf.containerNumber1 ?? ""} onChange={(e) => updateTrip("containerNumber1", e.target.value)} />
+                </Field>
+                <Field label="Container Number (2nd)">
+                  <input className={fc} value={tf.containerNumber2 ?? ""} onChange={(e) => updateTrip("containerNumber2", e.target.value)} />
+                </Field>
+              </>
+            ) : containerSpec === "OPEN LOAD CARGO" ? (
+              <Field label="Cargo Reference">
+                <input className={fc} value={tf.cargoReference ?? ""} onChange={(e) => updateTrip("cargoReference", e.target.value)} />
+              </Field>
+            ) : (
+              <Field label="Container Number">
+                <input className={fc} value={tf.containerNumber ?? ""} onChange={(e) => updateTrip("containerNumber", e.target.value)} />
               </Field>
             )}
             <Field label="Cargo Classification">
-              <input readOnly disabled value={trip.cargoClassification ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.cargoClassification ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.cargoClassification ?? ""}
+                  onChange={(val) => updateTrip("cargoClassification", val as Trip["cargoClassification"])}
+                  options={[{ value: "", label: "Select cargo classification" }, ...CARGO_CLASSIFICATION_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
             <Field label="Release Order Reference">
-              <input readOnly disabled value={trip.releaseOrderReference ?? ""} className={roClass} />
+              <input
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.releaseOrderReference ?? ""}
+                onChange={(e) => updateTrip("releaseOrderReference", e.target.value)}
+                className={fc}
+              />
             </Field>
             <Field label="Cargo Weight (tons)">
-              <input readOnly disabled value={trip.cargoWeight ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.cargoWeight ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.cargoWeight ?? ""}
+                  onChange={(val) => updateTrip("cargoWeight", val)}
+                  options={[{ value: "", label: "Select cargo weight" }, ...CARGO_WEIGHT_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
           </div>
         </section>
@@ -152,10 +265,20 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Route Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Origin Location">
-              <input readOnly disabled value={trip.origin ?? ""} className={roClass} />
+              <input
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.origin ?? ""}
+                onChange={(e) => updateTrip("origin", e.target.value)}
+                className={fc}
+              />
             </Field>
             <Field label="Destination Location">
-              <input readOnly disabled value={trip.destination ?? ""} className={roClass} />
+              <input
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.destination ?? ""}
+                onChange={(e) => updateTrip("destination", e.target.value)}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -165,10 +288,20 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Shipping Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Shipping Line">
-              <input readOnly disabled value={trip.shippingLine ?? ""} className={roClass} />
+              <input
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.shippingLine ?? ""}
+                onChange={(e) => updateTrip("shippingLine", e.target.value)}
+                className={fc}
+              />
             </Field>
             <Field label="Vessel Name">
-              <input readOnly disabled value={trip.vesselName ?? ""} className={roClass} />
+              <input
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.vesselName ?? ""}
+                onChange={(e) => updateTrip("vesselName", e.target.value)}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -178,10 +311,18 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Vehicle &amp; Trip Assignment</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Transport Method">
-              <input readOnly disabled value={trip.transportMethod ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.transportMethod ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.transportMethod ?? ""}
+                  onChange={(val) => updateTrip("transportMethod", val as Trip["transportMethod"])}
+                  options={[{ value: "", label: "Select transport method" }, ...TRANSPORT_METHOD_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
             <Field label="Scheduled Trip Date">
-              <input readOnly disabled value={trip.scheduledDate ?? ""} className={roClass} />
+              <DateInput value={tf.scheduledDate ?? ""} readOnly={readOnly} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} />
             </Field>
             <Field label="Assigned Vehicle">
               <input readOnly disabled value={truck?.registrationNumber ?? trip.vehicleId ?? ""} className={roClass} />
@@ -197,19 +338,56 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Payment &amp; Advances</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Bill To">
-              <input readOnly disabled value={trip.billTo ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.billTo ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.billTo ?? ""}
+                  onChange={(val) => updateTrip("billTo", val as Trip["billTo"])}
+                  options={[{ value: "", label: "Select bill to" }, ...TRIP_BILL_TO_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
             <Field label="Payment Type">
-              <input readOnly disabled value={trip.paymentType ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.paymentType ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.paymentType ?? ""}
+                  onChange={(val) => updateTrip("paymentType", val as Trip["paymentType"])}
+                  options={[{ value: "", label: "Select payment type" }, ...PAYMENT_TYPE_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
             <Field label="Customer Cash Advance (₹)">
-              <input readOnly disabled value={trip.customerCashAdvance ?? ""} className={roClass} />
+              <input
+                type="number" min="0"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.customerCashAdvance ?? ""}
+                onChange={(e) => updateTrip("customerCashAdvance", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
             <Field label="Customer Fuel Advance (₹)">
-              <input readOnly disabled value={trip.customerFuelAdvanceAmount ?? ""} className={roClass} />
+              <input
+                type="number" min="0"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.customerFuelAdvanceAmount ?? ""}
+                onChange={(e) => updateTrip("customerFuelAdvanceAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
             <Field label="Customer Fuel Advance (Litres)">
-              <input readOnly disabled value={trip.customerFuelAdvanceLitres ?? ""} className={roClass} />
+              <input
+                type="number" min="0"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.customerFuelAdvanceLitres ?? ""}
+                onChange={(e) => updateTrip("customerFuelAdvanceLitres", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -219,16 +397,47 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Driver Compensation</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Driver Compensation Type">
-              <input readOnly disabled value={trip.driverCompensationType ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.driverCompensationType ?? ""} className={roClass} />
+              ) : (
+                <GlassSelect
+                  value={tf.driverCompensationType ?? ""}
+                  onChange={(val) => updateTrip("driverCompensationType", val as Trip["driverCompensationType"])}
+                  options={[{ value: "", label: "Select compensation type" }, ...DRIVER_COMPENSATION_TYPE_OPTIONS.map((o) => ({ value: o, label: o }))]}
+                />
+              )}
             </Field>
             <Field label="Driver Advance Payment Method">
-              <input readOnly disabled value={trip.driverAdvancePaymentMethod ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={tf.driverAdvancePaymentMethod ?? ""} className={roClass} />
+              ) : (
+                <GlassCombobox
+                  value={tf.driverAdvancePaymentMethod ?? ""}
+                  onChange={(val) => updateTrip("driverAdvancePaymentMethod", val as Trip["driverAdvancePaymentMethod"])}
+                  placeholder="Select or type payment method"
+                  options={DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS.map((o) => ({ value: o, label: o }))}
+                />
+              )}
             </Field>
             <Field label="Driver Advance (₹)">
-              <input readOnly disabled value={trip.driverAdvance ?? ""} className={roClass} />
+              <input
+                type="number"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.driverAdvance ?? ""}
+                onChange={(e) => updateTrip("driverAdvance", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
             <Field label="Driver Batta Amount (₹)">
-              <input readOnly disabled value={trip.driverAdvanceAmount ?? ""} className={roClass} />
+              <input
+                type="number"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.driverAdvanceAmount ?? ""}
+                onChange={(e) => updateTrip("driverAdvanceAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -238,10 +447,24 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Transport Hire Amount (₹)">
-              <input readOnly disabled value={trip.transportHireAmount ?? ""} className={roClass} />
+              <input
+                type="number" min="0"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.transportHireAmount ?? ""}
+                onChange={(e) => updateTrip("transportHireAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
             <Field label="Transport Crossing Amount (₹)">
-              <input readOnly disabled value={trip.transportCrossingAmount ?? ""} className={roClass} />
+              <input
+                type="number" min="0"
+                readOnly={readOnly} disabled={readOnly}
+                value={tf.transportCrossingAmount ?? ""}
+                onChange={(e) => updateTrip("transportCrossingAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -251,10 +474,22 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Operational Notes</p>
           <div className="grid grid-cols-1 gap-4">
             <Field label="Internal Remarks">
-              <textarea readOnly disabled rows={3} value={trip.internalRemarks ?? ""} className={roClass} />
+              <textarea
+                readOnly={readOnly} disabled={readOnly}
+                rows={3}
+                value={tf.internalRemarks ?? ""}
+                onChange={(e) => updateTrip("internalRemarks", e.target.value)}
+                className={fc}
+              />
             </Field>
             <Field label="Booking Instructions">
-              <textarea readOnly disabled rows={3} value={trip.bookingInstructions ?? ""} className={roClass} />
+              <textarea
+                readOnly={readOnly} disabled={readOnly}
+                rows={3}
+                value={tf.bookingInstructions ?? ""}
+                onChange={(e) => updateTrip("bookingInstructions", e.target.value)}
+                className={fc}
+              />
             </Field>
           </div>
         </section>
@@ -447,9 +682,10 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           {!readOnly && (
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Save Changes
+              {saving ? "Saving…" : "Save Changes"}
             </button>
           )}
         </div>

@@ -33,6 +33,9 @@ import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, tripsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { AutocompleteInput, saveToAutocompleteHistory, getAutocompleteHistory } from "@/components/ui/AutocompleteInput";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const TRIP_DRAFT_KEY = "erp_trip_form_draft";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -143,6 +146,10 @@ export function TripFormDialog({
     }
   }, [open, initialData]);
 
+  // Preserve unsaved "Add Trip" input across close/reopen — only for a genuinely new trip,
+  // never when editing (editing always loads real data from initialData above).
+  useFormDraft(TRIP_DRAFT_KEY, open && !initialData, form, setForm);
+
   const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
   const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
   const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
@@ -223,7 +230,7 @@ export function TripFormDialog({
     setForm((prev) => ({
       ...prev,
       bookingCreatedDate: value,
-      bookingReferenceNo: generateBookingReferenceNo(existingTrips, value),
+      ...(initialData ? {} : { bookingReferenceNo: generateBookingReferenceNo(existingTrips, value) }),
     }));
   }
 
@@ -328,6 +335,7 @@ export function TripFormDialog({
         ...form,
       });
     } else {
+      clearFormDraft(TRIP_DRAFT_KEY);
       onSave({
         id: crypto.randomUUID(),
         tripId: generateTripId(existingTrips),
