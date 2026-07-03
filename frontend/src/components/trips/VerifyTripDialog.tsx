@@ -1,10 +1,14 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
+
+export type InvoiceHint = { label: string; value: number };
+export const INVOICE_HINTS_KEY = (tripId: string) => `erp_invoice_hints_${tripId}`;
 
 type VerifyTripDialogProps = {
   open: boolean;
@@ -20,154 +24,310 @@ type VerifyTripDialogProps = {
   onConfirm: () => void;
 };
 
-const sectionHeadingClass = "text-xs font-semibold uppercase tracking-wider text-gray-400 pt-2";
-
-function Row({ label, value }: { label: string; value: string }) {
+function SectionCard({ title, accent, children }: { title: string; accent: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-1.5 text-sm">
-      <span className="shrink-0 text-gray-500">{label}</span>
-      <span className="text-right font-medium text-gray-800">{value || "—"}</span>
-    </div>
+    <section className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      <div className={`flex items-center gap-2.5 border-b border-gray-100 px-4 py-2.5 ${accent}`}>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-current opacity-70">{title}</p>
+      </div>
+      <div className="px-4 py-2">{children}</div>
+    </section>
   );
 }
 
-function Divider() {
-  return <div className="my-2 border-t border-gray-100" />;
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-6 py-1.5 text-sm border-b border-gray-50 last:border-0">
+      <span className="shrink-0 text-gray-400 font-medium">{label}</span>
+      <span className={`text-right font-semibold text-gray-800 ${mono ? "font-mono text-xs" : ""}`}>
+        {value || <span className="text-gray-300 font-normal">—</span>}
+      </span>
+    </div>
+  );
 }
 
 export function VerifyTripDialog({
   open, trip, closure, sheet,
   onClose, onViewSheet, onEditSheet, onViewBookingSheet, onEditBookingSheet, onFlag, onConfirm,
 }: VerifyTripDialogProps) {
+  const [markedLabels, setMarkedLabels] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!trip) return;
+    try {
+      const saved = localStorage.getItem(INVOICE_HINTS_KEY(trip.id));
+      if (saved) {
+        const arr: InvoiceHint[] = JSON.parse(saved);
+        setMarkedLabels(new Set(arr.map((e) => e.label)));
+      } else {
+        setMarkedLabels(new Set());
+      }
+    } catch {}
+  }, [trip?.id, open]);
+
   if (!trip) return null;
 
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const hireAmount   = sheet ? n(sheet.hireAmount) : 0;
-  const totalExpense = sheet ? calcTripExpenses(sheet) : 0;
+  const hireAmount    = sheet ? n(sheet.hireAmount) : 0;
+  const compHD        = closure ? Number(closure.companyHaltDays || 0) : 0;
+  const partHD        = closure ? Number(closure.partyHaltDays   || 0) : 0;
+  const totalHD       = compHD + partHD;
+  const totalHaltComp = closure ? Number(closure.driverHaltCompensation || 0) : 0;
+  const perDayRate    = totalHD > 0 ? totalHaltComp / totalHD : 0;
+  const haltPay       = compHD * perDayRate;
+
+  const majorRepairsTotal = sheet
+    ? (sheet.majorRepairs || []).reduce((sum, r) => sum + n(r.cost), 0)
+    : 0;
+
+  const expenses: { label: string; value: number; note?: string }[] = sheet
+    ? [
+        { label: "Driver Batta",           value: n(sheet.driverPay) },
+        { label: "Halt Pay (Company)",      value: haltPay,                      note: compHD > 0 ? `${compHD} day${compHD > 1 ? "s" : ""}` : undefined },
+        { label: "Port Pass Expense",       value: n(sheet.portPassExpense) },
+        { label: "Weight Sheet Expense",    value: n(sheet.weightSheetExpense) },
+        { label: "Mamol Expense",           value: n(sheet.mamolExpense) },
+        { label: "Claimable Mamol Expense", value: n(sheet.claimableMamolExpense) },
+        { label: "Traffic / RTO / Police",  value: n(sheet.trafficRtoExpense) },
+        { label: "Lift On / Off",           value: n(sheet.liftOnOffExpense) },
+        { label: "Crane Operator",          value: n(sheet.craneOperatorExpense) },
+        { label: "Parking",                 value: n(sheet.parkingExpense) },
+        { label: "Toll Charges",            value: n(sheet.tollCharges) },
+        { label: "Other Expenses",          value: n(sheet.otherExpenses) },
+      ]
+    : [];
+
+  const totalExpense  = calcTripExpenses(sheet ?? {} as TripSheetData) + haltPay;
+  const markedCount   = markedLabels.size;
+
+  function toggleMark(label: string, value: number) {
+    const next = new Set(markedLabels);
+    if (next.has(label)) { next.delete(label); } else { next.add(label); }
+    setMarkedLabels(next);
+    const marked = expenses.filter((e) => next.has(e.label));
+    localStorage.setItem(
+      INVOICE_HINTS_KEY(trip!.id),
+      JSON.stringify(marked.map(({ label: l, value: v }) => ({ label: l, value: v }))),
+    );
+  }
+
+  const containerRef =
+    trip.containerSpecification === "2 X 20 FEET CONTAINERS"
+      ? `${trip.containerNumber1} / ${trip.containerNumber2}`
+      : trip.containerSpecification === "20 FT CONTAINER" || trip.containerSpecification === "40 FT CONTAINER"
+      ? trip.containerNumber ?? ""
+      : trip.containerSpecification === "OPEN LOAD CARGO"
+      ? trip.cargoReference ?? ""
+      : "";
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Verify Trip Data — ${trip.tripId}`} className="max-w-2xl">
-      <div className="flex flex-col gap-5">
+    <Dialog open={open} onClose={onClose} title={`Verify Trip — ${trip.tripId}`} className="max-w-2xl">
+      <div className="flex flex-col gap-4">
 
-        {/* Trip Sheet attribution */}
-        <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm">
-          <span className="text-blue-500">
+        {/* Status banner */}
+        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 px-4 py-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </span>
-          <span className="text-blue-700">
-            Trip Sheet uploaded by{" "}
-            <span className="font-semibold">Fleet Manager</span>
-          </span>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Trip sheet pending verification</p>
+            <p className="text-xs text-gray-500">Uploaded by Fleet Manager · Review all details before confirming.</p>
+          </div>
         </div>
 
         {/* Trip Identification */}
-        <section>
-          <p className={sectionHeadingClass}>Trip Identification</p>
-          <Divider />
-          <Row label="Trip ID" value={trip.tripId} />
-          <Row label="Booking Reference" value={trip.bookingReferenceNo} />
-          <Row
-            label="Container Reference"
-            value={
-              trip.containerSpecification === "2 X 20 FEET CONTAINERS"
-                ? `${trip.containerNumber1} / ${trip.containerNumber2}`
-                : trip.containerSpecification === "20 FT CONTAINER" || trip.containerSpecification === "40 FT CONTAINER"
-                ? trip.containerNumber
-                : trip.containerSpecification === "OPEN LOAD CARGO"
-                ? trip.cargoReference
-                : ""
-            }
-          />
-          <Row label="Origin → Destination" value={`${trip.origin} → ${trip.destination}`} />
-          <Row label="Cargo Classification" value={trip.cargoClassification} />
+        <SectionCard title="Trip Identification" accent="bg-slate-50 text-slate-500">
+          <Row label="Trip ID"                value={trip.tripId} mono />
+          <Row label="Booking Reference"      value={trip.bookingReferenceNo} mono />
+          <Row label="Container Reference"    value={containerRef} />
+          <Row label="Origin → Destination"   value={`${trip.origin} → ${trip.destination}`} />
+          <Row label="Cargo Classification"   value={trip.cargoClassification} />
           <Row label="Container Specification" value={trip.containerSpecification} />
-        </section>
+        </SectionCard>
 
         {/* Trip Closure */}
-        <section>
-          <p className={sectionHeadingClass}>Trip Closure</p>
-          <Divider />
-          <Row label="Bill To" value={closure?.billTo ?? ""} />
+        <SectionCard title="Trip Closure" accent="bg-violet-50 text-violet-500">
+          <Row label="Bill To"             value={closure?.billTo ?? ""} />
           <Row label="Trip Completed Date" value={closure?.tripCompletedDate ?? ""} />
-          <Row label="Hire Amount" value={closure ? `₹${closure.hireAmount}` : ""} />
-          <Row label="Transport Amount" value={closure?.transportAmount ? `₹${closure.transportAmount}` : ""} />
-          <Row label="Advance Amount" value={closure ? `₹${closure.advanceAmount}` : ""} />
-          <Row label="Payment Mode" value={trip.paymentType ?? ""} />
-          <Row label="Company Halt Days" value={closure?.companyHaltDays ?? ""} />
-          <Row label="Party Halt Days" value={closure?.partyHaltDays ?? ""} />
-          <Row label="Halt Remarks" value={closure?.haltRemarks ?? ""} />
-        </section>
+          <Row label="Hire Amount"         value={closure ? fmt(Number(closure.hireAmount)) : ""} />
+          <Row label="Transport Amount"    value={closure?.transportAmount ? fmt(Number(closure.transportAmount)) : ""} />
+          <Row label="Advance Amount"      value={closure ? fmt(Number(closure.advanceAmount)) : ""} />
+          <Row label="Payment Mode"        value={trip.paymentType ?? ""} />
+          <Row label="Company Halt Days"   value={closure?.companyHaltDays ?? ""} />
+          <Row label="Party Halt Days"     value={closure?.partyHaltDays ?? ""} />
+          <Row label="Halt Remarks"        value={closure?.haltRemarks ?? ""} />
+        </SectionCard>
 
-        {/* Trip Sheet Summary */}
-        <section>
-          <p className={sectionHeadingClass}>Trip Sheet Summary</p>
-          <Divider />
-          <Row label="Trip Type" value={sheet?.tripType ?? ""} />
-          <Row
-            label="Container Reference"
-            value={
-              trip.containerSpecification === "2 X 20 FEET CONTAINERS"
-                ? `${trip.containerNumber1} / ${trip.containerNumber2}`
-                : trip.containerSpecification === "20 FT CONTAINER" || trip.containerSpecification === "40 FT CONTAINER"
-                ? trip.containerNumber
-                : trip.containerSpecification === "OPEN LOAD CARGO"
-                ? trip.cargoReference
-                : ""
-            }
-          />
-          <Row label="Route" value={sheet ? `${sheet.from} → ${sheet.to}` : ""} />
-          <Row label="Start km" value={sheet?.startKm ?? ""} />
-          <Row label="End km" value={sheet?.endKm ?? ""} />
-          <Row label="Total km" value={sheet?.totalKm ?? ""} />
+        {/* Trip Sheet */}
+        <SectionCard title="Trip Sheet" accent="bg-blue-50 text-blue-500">
+          <Row label="Trip Category"            value={sheet?.tripType ?? ""} />
+          <Row label="Route"                    value={sheet ? `${sheet.from} → ${sheet.to}` : ""} />
+          <Row label="Start km"                 value={sheet?.startKm ?? ""} />
+          <Row label="End km"                   value={sheet?.endKm ?? ""} />
+          <Row label="Total km"                 value={sheet?.totalKm ? `${sheet.totalKm} km` : ""} />
+          <Row label="Driver Compensation Type" value={sheet?.driverCompensationType ?? ""} />
+          <Row label="Advance Paid to Driver"   value={sheet ? fmt(n(sheet.driverAdvanceAmount)) : ""} />
+          <Row label="Driver Balance"           value={sheet ? fmt(n(sheet.driverBalance)) : ""} />
+          <div className="mt-2 mb-1 flex items-center justify-between rounded-lg bg-blue-600 px-4 py-2.5">
+            <span className="text-sm font-semibold text-blue-100">Hire Amount</span>
+            <span className="text-base font-bold text-white">{fmt(hireAmount)}</span>
+          </div>
+        </SectionCard>
 
-          <Row label="Driver Pay" value={sheet ? `₹${sheet.driverPay}` : ""} />
-          <Row label="Driver Balance" value={sheet ? `₹${sheet.driverBalance}` : ""} />
-          <Row label="Toll Charges" value={sheet ? `₹${sheet.tollCharges}` : ""} />
-          <div className="mt-2 flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2 text-sm">
-            <span className="font-semibold text-gray-700">Hire Amount</span>
-            <span className="font-bold text-blue-700">{fmt(hireAmount)}</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm">
-            <span className="font-semibold text-gray-700">Total Expense</span>
-            <span className="font-bold text-emerald-700">{fmt(totalExpense)}</span>
-          </div>
-        </section>
+        {/* Trip Expenses */}
+        <SectionCard
+          title="Trip Expenses"
+          accent="bg-emerald-50 text-emerald-600"
+        >
+          {sheet ? (
+            <div className="flex flex-col gap-2 py-1">
+              {/* hint about marking */}
+              {markedCount === 0 && (
+                <p className="text-xs text-gray-400 mb-1">
+                  Tap <span className="font-semibold text-indigo-500">+ Inv</span> on any expense to flag it for the invoice.
+                </p>
+              )}
+              {markedCount > 0 && (
+                <p className="text-xs font-medium text-indigo-600 mb-1">
+                  {markedCount} expense{markedCount > 1 ? "s" : ""} flagged for invoice.
+                </p>
+              )}
+
+              {/* expense rows */}
+              <div className="rounded-xl border border-gray-100 overflow-hidden shadow-sm">
+                {expenses.map(({ label, value, note }, idx) => {
+                  const marked = markedLabels.has(label);
+                  const isZero = value === 0;
+                  return (
+                    <div
+                      key={label}
+                      className={[
+                        "flex items-center justify-between px-3.5 py-2.5 text-sm transition-colors",
+                        idx % 2 === 0 ? "bg-white" : "bg-gray-50/60",
+                        marked ? "!bg-indigo-50/70" : "",
+                        idx !== 0 ? "border-t border-gray-100" : "",
+                      ].join(" ")}
+                    >
+                      <span className={`flex items-center gap-1.5 ${isZero ? "text-gray-300" : "text-gray-600"}`}>
+                        {marked && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
+                        )}
+                        {label}
+                        {note && <span className="text-xs text-gray-400 font-normal">({note})</span>}
+                      </span>
+                      <span className="flex items-center gap-2.5 shrink-0">
+                        <span className={isZero ? "text-gray-300 text-sm" : "font-semibold text-gray-800 text-sm"}>
+                          {fmt(value)}
+                        </span>
+                        {!isZero && (
+                          <button
+                            type="button"
+                            onClick={() => toggleMark(label, value)}
+                            title={marked ? "Remove from invoice hints" : "Flag for invoice"}
+                            className={[
+                              "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all duration-150 leading-none select-none",
+                              marked
+                                ? "border-indigo-500 bg-indigo-500 text-white shadow-sm hover:bg-indigo-600 hover:border-indigo-600"
+                                : "border-gray-200 bg-white text-gray-400 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600",
+                            ].join(" ")}
+                          >
+                            {marked ? (
+                              <>
+                                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Inv
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Inv
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {/* Major repairs */}
+                {majorRepairsTotal > 0 && (
+                  <>
+                    <div className="flex items-center justify-between border-t border-orange-100 bg-orange-50 px-3.5 py-2.5">
+                      <span className="flex items-center gap-1.5 text-sm text-orange-700">
+                        Major Repairs
+                        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-500">not in trip cost</span>
+                      </span>
+                      <span className="text-sm font-semibold text-orange-700">{fmt(majorRepairsTotal)}</span>
+                    </div>
+                    {(sheet.majorRepairs || []).map((r, i) => (
+                      <div key={i} className="flex justify-between border-t border-orange-50 bg-orange-50/40 px-3.5 py-1.5">
+                        <span className="pl-3 text-xs text-gray-400">· {r.name}</span>
+                        <span className="text-xs text-gray-500">{fmt(n(r.cost))}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {/* Total */}
+              <div className="mt-1 flex items-center justify-between rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3.5 shadow-sm">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-emerald-200">Total Trip Expense</p>
+                </div>
+                <span className="text-xl font-bold text-white tracking-tight">{fmt(totalExpense)}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="py-4 text-center text-sm text-gray-400">No trip sheet available yet.</p>
+          )}
+        </SectionCard>
 
         {/* Action buttons */}
-        <div className="flex flex-col gap-3 border-t border-gray-100 pt-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={onViewSheet}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
+              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors">
               View Trip Sheet
             </button>
             <button type="button" onClick={onEditSheet}
-              className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
+              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
               Edit Trip Sheet
             </button>
             <button type="button" onClick={onViewBookingSheet}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
+              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors">
               View Booking Sheet
             </button>
             <button type="button" onClick={onEditBookingSheet}
-              className="rounded-lg border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
+              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
               Edit Booking Sheet
             </button>
           </div>
-          <div className="flex justify-between">
+          <div className="flex items-center justify-between border-t border-gray-100 pt-3">
             <button type="button" onClick={onFlag}
-              className="rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-500 shadow-sm hover:bg-red-50 transition-colors">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H11.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+              </svg>
               Flag for Rechecking
             </button>
             <button type="button" onClick={onConfirm}
-              className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700">
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               Confirm Verification
             </button>
           </div>
         </div>
+
       </div>
     </Dialog>
   );

@@ -476,6 +476,7 @@ class TripSheetCreate(OrmBase):
     end_km: Optional[Decimal] = None
     total_km: Optional[Decimal] = None
     cargo_weight: Optional[Decimal] = None
+    driver_compensation_type: Optional[str] = None
     driver_pay: Optional[Decimal] = None
     driver_advance_amount: Optional[Decimal] = None
     driver_balance: Optional[Decimal] = None

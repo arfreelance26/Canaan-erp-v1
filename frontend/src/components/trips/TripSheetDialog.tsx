@@ -16,6 +16,15 @@ import { CONTAINER_SPECIFICATION_OPTIONS, TRIP_CATEGORY_OPTIONS, CARGO_WEIGHT_OP
 import { showError } from "@/lib/swal";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
+// Auto-fill rules: tripType → containerType → { type, amount }
+const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
+  "LOCAL":     { "20 FT CONTAINER":       { type: "FIXED", amount: "1000" },
+                 "40 FT CONTAINER":        { type: "FIXED", amount: "1300" } },
+  "LOCAL CFS": { "20 FT CONTAINER":       { type: "FIXED", amount: "1000" },
+                 "20 X 2 FT CONTAINERS":  { type: "FIXED", amount: "1300" },
+                 "40 FT CONTAINER":        { type: "FIXED", amount: "1000" } },
+};
+
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 const subsh = "text-xs font-medium text-gray-400 uppercase tracking-wider mt-3 mb-1";
 
@@ -52,6 +61,7 @@ const emptySheet = (tripId: string): TripSheetData => ({
   clearingAgent: "",
   hireAmount: "",
   startKm: "", endKm: "", totalKm: "", cargoWeight: "",
+  driverCompensationType: "",
   driverPay: "",
   driverAdvanceAmount: "",
   driverBalance: "",
@@ -207,6 +217,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   useEffect(() => {
     setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
   }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-fill driver compensation type + batta based on BATTA_RULES
+  useEffect(() => {
+    const rule = BATTA_RULES[form.tripType]?.[form.containerType];
+    if (rule) {
+      setForm((prev) => recalcDerived({ ...prev, driverCompensationType: rule.type, driverPay: rule.amount }, haltPay));
+    }
+  }, [form.tripType, form.containerType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!trip) return null;
 
@@ -518,9 +536,35 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 8. Driver Settlement ── */}
         <p className={sh}>Driver Settlement</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Driver Compensation Type">
+            {ro ? (
+              <input className={roClass} value={form.driverCompensationType} readOnly disabled />
+            ) : (
+              <GlassSelect
+                value={form.driverCompensationType}
+                onChange={(val) => set("driverCompensationType", val)}
+                options={[
+                  { value: "", label: "Select type" },
+                  { value: "FIXED", label: "FIXED" },
+                  { value: "PER KM", label: "PER KM" },
+                  { value: "PERCENTAGE", label: "PERCENTAGE" },
+                  { value: "NEGOTIATED", label: "NEGOTIATED" },
+                ]}
+              />
+            )}
+          </Field>
+        </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Field label="Driver Batta Amount">
-            <DecimalInput type="number" className={roClass} value={form.driverPay} readOnly disabled />
+          <Field label="Driver Batta Amount (₹)">
+            <DecimalInput type="number" min="0" className={fc} value={form.driverPay} readOnly={ro} onChange={(e) => set("driverPay", e.target.value)} placeholder="e.g. 1000" />
+            {(() => {
+              const rule = BATTA_RULES[form.tripType]?.[form.containerType];
+              if (rule) return <p className="mt-1 text-xs text-blue-500">Auto-set to ₹{Number(rule.amount).toLocaleString("en-IN")} — {form.tripType} with {form.containerType} ({rule.type} rate). Edit to override.</p>;
+              if (form.driverCompensationType === "FIXED") return <p className="mt-1 text-xs text-gray-400">Fixed batta amount based on compensation type.</p>;
+              if (form.driverCompensationType === "PER KM" && n(form.totalKm) > 0) return <p className="mt-1 text-xs text-gray-400">Per-km rate × {n(form.totalKm).toLocaleString()} km. Edit to set amount.</p>;
+              return <p className="mt-1 text-xs text-gray-400">Batta paid to driver for this trip.</p>;
+            })()}
           </Field>
           <Field label="Advance Paid">
             <DecimalInput type="number" className={roClass} value={form.driverAdvanceAmount} readOnly disabled />

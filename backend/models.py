@@ -406,6 +406,7 @@ class TripSheet(Base):
     total_km = Column(Numeric(10, 2), default=0)
     cargo_weight = Column(Numeric(10, 2), default=0)
     # Driver Settlement
+    driver_compensation_type = Column(String(50), nullable=True)
     driver_pay = Column(Numeric(10, 2), default=0)
     driver_advance_amount = Column(Numeric(10, 2), default=0)
     driver_balance = Column(Numeric(10, 2), default=0)

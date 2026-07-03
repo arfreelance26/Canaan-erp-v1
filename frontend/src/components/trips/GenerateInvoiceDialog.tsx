@@ -118,6 +118,7 @@ const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue
 
 import type { TripSheetData } from "@/types/trip-sheet";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { INVOICE_HINTS_KEY, type InvoiceHint } from "@/components/trips/VerifyTripDialog";
 
 type Props = {
   open: boolean;
@@ -134,6 +135,8 @@ type Props = {
 
 export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, truck, onClose, onSubmit, savedInvoice }: Props) {
   const [sacCodes, setSacCodes] = useState<SacCode[]>([]);
+  const [invoiceHints, setInvoiceHints] = useState<InvoiceHint[]>([]);
+  const [showSacTable, setShowSacTable] = useState(false);
   const [form, setForm] = useState<InvoiceFormData>(() => {
     if (!trip) return emptyForm();
 
@@ -203,14 +206,46 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     sacCodesApi.list().then(setSacCodes).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!open || !trip) return;
+    try {
+      const saved = localStorage.getItem(INVOICE_HINTS_KEY(trip.id));
+      setInvoiceHints(saved ? JSON.parse(saved) : []);
+    } catch {
+      setInvoiceHints([]);
+    }
+  }, [open, trip?.id]);
+
+  function addHintAsService(hint: InvoiceHint, index: number) {
+    setForm((prev) => ({
+      ...prev,
+      services: [...prev.services, { ...emptyService(), descriptionOfService: hint.label, rate: String(hint.value), quantity: "1" }],
+    }));
+    const remaining = invoiceHints.filter((_, i) => i !== index);
+    setInvoiceHints(remaining);
+    if (trip) {
+      remaining.length === 0
+        ? localStorage.removeItem(INVOICE_HINTS_KEY(trip.id))
+        : localStorage.setItem(INVOICE_HINTS_KEY(trip.id), JSON.stringify(remaining));
+    }
+  }
+
+  function dismissHints() {
+    setInvoiceHints([]);
+    if (trip) localStorage.removeItem(INVOICE_HINTS_KEY(trip.id));
+  }
+
   const autoInvoiceNo = useMemo(() => {
     const ref = form.bookingReferenceNo;
     if (!ref) return "";
     const parts = ref.split("/");
-    // Reorder: CGI/date/seq/fiscal-year → CGI/date/fiscal-year/seq
-    if (parts.length >= 4) [parts[2], parts[3]] = [parts[3], parts[2]];
-    return parts.join("/");
-  }, [form.bookingReferenceNo]);
+    if (parts.length < 4) return ref;
+    // parts: CGI / DDMMYY / 26-27 / 004
+    const fiscalYear = parts[2].replace("-", ""); // "26-27" → "2627"
+    const seq = parts[3].padStart(4, "0");         // "004"   → "0004"
+    const prefix = form.invoiceType === "Transport Memo" ? "TM" : "T";
+    return `CGI${fiscalYear}/${prefix}${seq}`;
+  }, [form.bookingReferenceNo, form.invoiceType]);
 
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
   const isSelf = trip?.billTo === "SELF/CGI";
@@ -318,6 +353,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   if (!trip) return null;
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-3xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
@@ -483,15 +519,56 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
         {/* Section 4: Service Details */}
         <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className={sh}>4. Service Details</p>
-            {trip.transportHireAmount && Number(trip.transportHireAmount) > 0 && (
-              <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                Trip Hire Amount &nbsp;·&nbsp; ₹{Number(trip.transportHireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {trip.transportHireAmount && Number(trip.transportHireAmount) > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  Trip Hire Amount &nbsp;·&nbsp; ₹{Number(trip.transportHireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowSacTable(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                View SAC Code Table
+              </button>
+            </div>
           </div>
           <div className="flex flex-col gap-4">
+            {invoiceHints.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-amber-800">
+                    Flagged during verification — add to service lines if billable:
+                  </p>
+                  <button type="button" onClick={dismissHints} className="text-xs text-amber-500 hover:text-amber-700 font-medium">
+                    Dismiss all
+                  </button>
+                </div>
+                {invoiceHints.map((hint, i) => (
+                  <div key={i} className="flex items-center justify-between rounded bg-white/80 border border-amber-100 px-2.5 py-1.5">
+                    <span className="text-xs text-amber-700">
+                      {hint.label}
+                      <span className="ml-2 font-semibold">
+                        ₹{hint.value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => addHintAsService(hint, i)}
+                      className="rounded border border-indigo-300 bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                    >
+                      + Add Service
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {form.services.map((svc, i) => {
               const calc = serviceCalcs[i];
               const displayRate = taxOverride ? "18" : svc.gstRate;
@@ -681,5 +758,86 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
       </form>
     </Dialog>
+
+    {/* SAC Code Table Modal */}
+    <Dialog open={showSacTable} onClose={() => setShowSacTable(false)} title="SAC Code Reference Table" className="max-w-2xl">
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-gray-500">
+          {sacCodes.length} codes available · Click <span className="font-semibold text-blue-600">+ Add</span> to insert a service line pre-filled with that code.
+        </p>
+        <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Description of Service</th>
+                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-28">SAC Code</th>
+                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20">GST (%)</th>
+                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {sacCodes.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">Loading SAC codes…</td>
+                </tr>
+              ) : (
+                sacCodes.map((sc, i) => (
+                  <tr key={sc.id} className={`transition-colors ${i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
+                    <td className="px-4 py-2.5 text-gray-700">{sc.description}</td>
+                    <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      {parseFloat(sc.gstRate) > 0 ? (
+                        <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">
+                          {sc.gstRate}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            services: [
+                              ...prev.services,
+                              {
+                                ...emptyService(),
+                                descriptionOfService: sc.description,
+                                sacCode: sc.code,
+                                gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
+                                quantity: "1",
+                              },
+                            ],
+                          }));
+                          setShowSacTable(false);
+                        }}
+                        className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => setShowSacTable(false)}
+            className="rounded-lg border border-gray-200 bg-white px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </Dialog>
+    </>
   );
 }

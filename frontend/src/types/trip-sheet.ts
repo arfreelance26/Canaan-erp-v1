@@ -31,6 +31,7 @@ export type TripSheetData = {
   cargoWeight: string;  // auto-fetched from trip.cargoWeight
 
   // Driver Settlement
+  driverCompensationType: string;
   driverPay: string;
   driverAdvanceAmount: string;  // auto-fetched from trip.driverAdvanceAmount
   driverBalance: string;        // auto-calculated: driverPay - driverAdvanceAmount

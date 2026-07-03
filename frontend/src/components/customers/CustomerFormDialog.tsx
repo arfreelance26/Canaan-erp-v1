@@ -72,10 +72,9 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
             />
           </Field>
 
-          <Field label="GSTIN" required>
+          <Field label="GSTIN">
             <input
               type="text"
-              required
               value={form.gstin}
               onChange={(e) => update("gstin", e.target.value)}
               className={inputClass}
@@ -83,10 +82,9 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
             />
           </Field>
 
-          <Field label="Contact Personnel Name" required>
+          <Field label="Contact Personnel Name">
             <input
               type="text"
-              required
               value={form.contactPersonnelName}
               onChange={(e) => update("contactPersonnelName", e.target.value)}
               className={inputClass}
@@ -94,10 +92,9 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
             />
           </Field>
 
-          <Field label="Phone" required>
+          <Field label="Phone">
             <input
               type="tel"
-              required
               value={form.phone}
               onChange={(e) => update("phone", e.target.value)}
               className={inputClass}
@@ -105,10 +102,9 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
             />
           </Field>
 
-          <Field label="Email" required>
+          <Field label="Email">
             <input
               type="email"
-              required
               value={form.email}
               onChange={(e) => update("email", e.target.value)}
               className={inputClass}
@@ -116,7 +112,7 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
             />
           </Field>
 
-          <Field label="Customer Type" required>
+          <Field label="Customer Type">
             <GlassSelect
               value={form.customerType}
               onChange={(val) => update("customerType", val as Customer["customerType"])}
