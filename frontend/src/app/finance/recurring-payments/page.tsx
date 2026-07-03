@@ -6,6 +6,7 @@ import { financeApi } from "@/lib/api";
 import type { RecurringPayment } from "@/types/finance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 function formatCurrency(amount: number): string {
@@ -59,15 +60,18 @@ export default function RecurringPaymentsPage() {
             Track recurring expenses such as rent, insurance, and subscriptions
           </p>
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search payments..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search payments..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <DownloadExcelButton path="/exports/recurring-payments" filename="recurring_payments.xlsx" />
         </div>
       </div>
 

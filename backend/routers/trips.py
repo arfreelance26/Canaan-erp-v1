@@ -1,12 +1,27 @@
 from datetime import date as date_type
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 import models, schemas
 from duplicate_checks import check_trip_duplicates
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
+
+
+def _remember_customer_origin(db: Session, customer_id, origin: Optional[str]):
+    """Persist a customer's typed origin so it can be auto-fetched next time the same customer is selected."""
+    if not customer_id or not origin or not origin.strip():
+        return
+    origin = origin.strip()
+    exists = db.query(models.CustomerOrigin).filter(
+        models.CustomerOrigin.customer_id == customer_id,
+        func.lower(models.CustomerOrigin.origin_name) == origin.lower(),
+    ).first()
+    if not exists:
+        db.add(models.CustomerOrigin(customer_id=customer_id, origin_name=origin))
+        db.commit()
 
 ACTIVE_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
 
@@ -72,6 +87,7 @@ def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
     db.add(trip)
     db.commit()
     db.refresh(trip)
+    _remember_customer_origin(db, trip.customer_id, trip.origin)
     return _enrich(trip)
 
 
@@ -100,6 +116,7 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
         setattr(trip, field, value)
     db.commit()
     db.refresh(trip)
+    _remember_customer_origin(db, trip.customer_id, trip.origin)
     return _enrich(trip)
 
 

@@ -12,6 +12,7 @@ import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function DriverCompensationPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -90,9 +91,12 @@ export default function DriverCompensationPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Driver Compensation</h1>
-        <p className="mt-1 text-sm text-gray-500">View advance and salary records for drivers</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Driver Compensation</h1>
+          <p className="mt-1 text-sm text-gray-500">View advance and salary records for drivers</p>
+        </div>
+        <DownloadExcelButton path="/exports/driver-compensation" filename="driver_compensation.xlsx" />
       </div>
 
       <div className="flex justify-end">

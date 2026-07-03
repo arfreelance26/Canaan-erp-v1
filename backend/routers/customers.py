@@ -57,6 +57,46 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Customer Origins
+# ---------------------------------------------------------------------------
+
+@router.get("/{customer_id}/origins", response_model=list[schemas.CustomerOriginOut])
+def list_origins(customer_id: int, db: Session = Depends(get_db)):
+    return db.query(models.CustomerOrigin).filter(
+        models.CustomerOrigin.customer_id == customer_id
+    ).order_by(models.CustomerOrigin.id.desc()).all()
+
+
+@router.post("/{customer_id}/origins", response_model=schemas.CustomerOriginOut, status_code=201)
+def create_origin(customer_id: int, payload: schemas.CustomerOriginCreate, db: Session = Depends(get_db)):
+    if not db.get(models.Customer, customer_id):
+        raise HTTPException(404, "Customer not found")
+    existing = db.query(models.CustomerOrigin).filter(
+        models.CustomerOrigin.customer_id == customer_id,
+        models.CustomerOrigin.origin_name == payload.origin_name,
+    ).first()
+    if existing:
+        return existing
+    origin = models.CustomerOrigin(customer_id=customer_id, **payload.model_dump())
+    db.add(origin)
+    db.commit()
+    db.refresh(origin)
+    return origin
+
+
+@router.delete("/{customer_id}/origins/{origin_id}", status_code=204)
+def delete_origin(customer_id: int, origin_id: int, db: Session = Depends(get_db)):
+    origin = db.query(models.CustomerOrigin).filter(
+        models.CustomerOrigin.id == origin_id,
+        models.CustomerOrigin.customer_id == customer_id,
+    ).first()
+    if not origin:
+        raise HTTPException(404, "Origin not found")
+    db.delete(origin)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
 # Customer Destinations
 # ---------------------------------------------------------------------------
 

@@ -16,6 +16,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 type SheetDialogMode = "view" | "edit";
 
@@ -233,15 +234,18 @@ export default function TripVerificationPage() {
             Review and verify all trip data before proceeding to finalization
           </p>
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search trips..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search trips..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
         </div>
       </div>
 

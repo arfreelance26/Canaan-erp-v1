@@ -11,6 +11,7 @@ import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Branch } from "@/types/branch";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function BranchesPage() {
   const { user, ready } = useAuth();
@@ -105,6 +106,7 @@ export default function BranchesPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
+          <DownloadExcelButton path="/exports/branches" filename="branches.xlsx" />
           <button
             type="button"
             onClick={handleAdd}

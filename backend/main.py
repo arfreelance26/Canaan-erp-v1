@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
 import models  # noqa: F401 — ensure all models are registered before create_all
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports
 
 Base.metadata.create_all(bind=engine)
 
@@ -77,6 +77,7 @@ app.include_router(branches.router)
 app.include_router(repair_types.router)
 app.include_router(sac_codes.router)
 app.include_router(pl_summary.router)
+app.include_router(exports.router)
 
 
 @app.exception_handler(IntegrityError)

@@ -229,6 +229,20 @@ class CustomerOut(CustomerBase):
     updated_at: Optional[datetime] = None
 
 
+class CustomerOriginBase(OrmBase):
+    origin_name: str
+
+
+class CustomerOriginCreate(CustomerOriginBase):
+    pass
+
+
+class CustomerOriginOut(CustomerOriginBase):
+    id: int
+    customer_id: int
+    created_at: Optional[datetime] = None
+
+
 class CustomerDestinationBase(OrmBase):
     destination_name: Optional[str] = None
     destination_state: Optional[str] = None

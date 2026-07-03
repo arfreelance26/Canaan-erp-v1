@@ -10,6 +10,7 @@ import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -106,6 +107,7 @@ export default function DriversPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
+          <DownloadExcelButton path="/exports/drivers" filename="drivers.xlsx" />
           <button
             type="button"
             onClick={handleAdd}

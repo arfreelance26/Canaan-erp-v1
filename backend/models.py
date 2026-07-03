@@ -183,8 +183,20 @@ class Customer(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     destinations = relationship("CustomerDestination", back_populates="customer", cascade="all, delete-orphan")
+    origins = relationship("CustomerOrigin", back_populates="customer", cascade="all, delete-orphan")
     pricing = relationship("CustomerPricing", back_populates="customer", cascade="all, delete-orphan")
     trips = relationship("Trip", back_populates="customer")
+
+
+class CustomerOrigin(Base):
+    __tablename__ = "customer_origins"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    origin_name = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=func.now())
+
+    customer = relationship("Customer", back_populates="origins")
 
 
 class CustomerDestination(Base):

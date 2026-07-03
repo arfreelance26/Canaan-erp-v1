@@ -27,6 +27,7 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
+import type { CustomerOrigin } from "@/types/customer-origin";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, tripsApi } from "@/lib/api";
@@ -105,6 +106,7 @@ export function TripFormDialog({
   const [form, setForm] = useState(emptyForm);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
+  const [customerOrigins, setCustomerOrigins] = useState<CustomerOrigin[]>([]);
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
   const [dbOrigins, setDbOrigins] = useState<string[]>([]);
   const [dbDestinations, setDbDestinations] = useState<string[]>([]);
@@ -125,11 +127,13 @@ export function TripFormDialog({
         if (initialData.customerId) {
           customersApi.listDestinations(initialData.customerId).then(setCustomerDestinations).catch(() => {});
           customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
+          customersApi.listOrigins(initialData.customerId).then(setCustomerOrigins).catch(() => {});
         }
       } else {
         const initialDate = todayIst();
         setCustomerDestinations([]);
         setCustomerPricing([]);
+        setCustomerOrigins([]);
         setForm({
           ...emptyForm,
           bookingCreatedDate: initialDate,
@@ -151,6 +155,20 @@ export function TripFormDialog({
       return { value: label, label };
     })
     .filter((o) => o.value !== "");
+
+  const customerOriginNames = customerOrigins.map((o) => o.originName).filter(Boolean);
+
+  const allOriginOptions = (() => {
+    const existing = new Set(customerOriginNames.map((o) => o.toLowerCase()));
+    const historyPool = [
+      ...getAutocompleteHistory("erp_origin_history"),
+      ...dbOrigins,
+    ].filter((h, i, arr) => arr.indexOf(h) === i);
+    return [
+      ...customerOriginNames,
+      ...historyPool.filter((h) => !existing.has(h.toLowerCase())),
+    ];
+  })();
 
   const allDestinationOptions = (() => {
     const existing = new Set(destinationOptions.map((d) => d.value.toLowerCase()));
@@ -215,6 +233,7 @@ export function TripFormDialog({
       ...prev,
       customerId,
       shipperConsignee: selectedCustomer?.name ?? prev.shipperConsignee,
+      origin: "",
       destination: "",
       cargoClassification: "",
       containerSpecification: "",
@@ -223,12 +242,19 @@ export function TripFormDialog({
     }));
     setCustomerDestinations([]);
     setCustomerPricing([]);
+    setCustomerOrigins([]);
     if (customerId) {
       customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
       customersApi.listPricing(customerId).then((pricing) => {
         setCustomerPricing(pricing);
         if (pricing.length > 0) {
           setForm((prev) => ({ ...prev, ...applyPricingFields(pricing[0]) }));
+        }
+      }).catch(() => {});
+      customersApi.listOrigins(customerId).then((origins) => {
+        setCustomerOrigins(origins);
+        if (origins.length > 0) {
+          setForm((prev) => ({ ...prev, origin: origins[0].originName }));
         }
       }).catch(() => {});
     }
@@ -513,9 +539,15 @@ export function TripFormDialog({
                 value={form.origin}
                 onChange={(v) => update("origin", v)}
                 storageKey="erp_origin_history"
-                suggestions={dbOrigins}
+                suggestions={allOriginOptions}
                 placeholder="e.g. Coimbatore"
               />
+              {customerOriginNames.some((o) => o.toLowerCase() === form.origin.toLowerCase()) && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-filled from this customer&apos;s previously used origin
+                </span>
+              )}
             </Field>
 
             <Field label="Destination Location" required>

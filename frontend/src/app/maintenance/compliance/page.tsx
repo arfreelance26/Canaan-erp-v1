@@ -9,6 +9,7 @@ import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function CompliancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -67,6 +68,7 @@ export default function CompliancePage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
+          <DownloadExcelButton path="/exports/trucks" filename="fleet.xlsx" />
           <button
             type="button"
             onClick={() => setUpdateOpen(true)}

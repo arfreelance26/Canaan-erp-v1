@@ -13,6 +13,7 @@ import type { Truck } from "@/types/truck";
 import { trucksApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function TyreInventoryPage() {
   const [tyres, setTyres] = useState<TyreInventoryItem[]>([]);
@@ -110,6 +111,8 @@ export default function TyreInventoryPage() {
           <h1 className="text-2xl font-bold text-gray-900">Tyre Inventory</h1>
           <p className="mt-1 text-sm text-gray-500">Track all tyres purchased by the company</p>
         </div>
+        <div className="flex items-center gap-3">
+        <DownloadExcelButton path="/exports/tyre-inventory" filename="tyre_inventory.xlsx" />
         <button
           type="button"
           onClick={handleAdd}
@@ -118,6 +121,7 @@ export default function TyreInventoryPage() {
           <Plus className="h-4 w-4" />
           Add Tyre
         </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

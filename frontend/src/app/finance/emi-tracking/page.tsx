@@ -10,6 +10,7 @@ import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -137,6 +138,7 @@ export default function EmiTrackingPage() {
               className="w-64 rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
+          <DownloadExcelButton path="/exports/emi" filename="emi_records.xlsx" />
           <button
             type="button"
             onClick={handleAdd}

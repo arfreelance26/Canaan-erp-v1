@@ -7,6 +7,7 @@ import type { Driver } from "@/types/driver";
 import type { Staff } from "@/types/staff";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
+import type { CustomerOrigin } from "@/types/customer-origin";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { Vendor } from "@/types/vendor";
 import type { DriverAssignment } from "@/types/driver-assignment";
@@ -66,6 +67,36 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 // Returns the URL to serve a stored file (photo / document)
 export function fileUrl(entity: string, entityId: string, field: string): string {
   return `${BASE}/files/${entity}/${entityId}/${field}`;
+}
+
+// Requests a server-generated .xlsx export and triggers a browser download.
+export async function downloadExcel(path: string, fallbackFilename: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`);
+  } catch {
+    throw new Error(`Cannot reach the server at ${BASE}. Make sure the backend is running (uvicorn main:app --port 8000).`);
+  }
+  if (!res.ok) {
+    let errorMsg = `HTTP ${res.status}`;
+    try {
+      const data = await res.json();
+      if (typeof data?.detail === "string") errorMsg = data.detail;
+    } catch {}
+    throw new Error(errorMsg);
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match?.[1] ?? fallbackFilename;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // Upload a file (photo or document) for an entity
@@ -314,6 +345,14 @@ function fromCustomer(f: Customer) {
     customer_type: f.customerType || null,
     is_gta: f.isGta || null,
     applicable_for_e_invoice: f.applicableForEInvoice || null,
+  };
+}
+
+function toCustomerOrigin(b: B): CustomerOrigin {
+  return {
+    id: String(b.id),
+    customerId: String(b.customer_id),
+    originName: b.origin_name ?? "",
   };
 }
 
@@ -899,6 +938,16 @@ export const customersApi = {
   update: (dbId: string, customer: Customer) =>
     req<B>(`/customers/${dbId}`, { method: "PUT", body: JSON.stringify(fromCustomer(customer)) }).then(toCustomer),
   delete: (dbId: string) => req<void>(`/customers/${dbId}`, { method: "DELETE" }),
+
+  listOrigins: (customerId: string) =>
+    req<B[]>(`/customers/${customerId}/origins`).then((d) => d.map(toCustomerOrigin)),
+  createOrigin: (customerId: string, originName: string) =>
+    req<B>(`/customers/${customerId}/origins`, {
+      method: "POST",
+      body: JSON.stringify({ origin_name: originName }),
+    }).then(toCustomerOrigin),
+  deleteOrigin: (customerId: string, originId: string) =>
+    req<void>(`/customers/${customerId}/origins/${originId}`, { method: "DELETE" }),
 
   listDestinations: (customerId: string) =>
     req<B[]>(`/customers/${customerId}/destinations`).then((d) => d.map(toCustomerDestination)),

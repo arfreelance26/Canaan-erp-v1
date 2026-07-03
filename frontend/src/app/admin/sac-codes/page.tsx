@@ -11,6 +11,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import type { SacCode } from "@/types/sac-code";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 const emptyForm = { description: "", code: "", gstRate: "" };
 
@@ -118,6 +119,7 @@ export default function SacCodeManagementPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
+          <DownloadExcelButton path="/exports/sac-codes" filename="sac_codes.xlsx" />
           <button
             type="button"
             onClick={openAdd}

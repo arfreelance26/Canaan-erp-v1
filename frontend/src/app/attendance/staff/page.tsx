@@ -11,6 +11,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/swal";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 function getStaffAttendanceForDate(
   records: StaffAttendanceRecord[],
@@ -97,15 +98,18 @@ export default function StaffAttendancePage() {
             Track and mark attendance for all staff members
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <label htmlFor="staff-attendance-date" className="text-sm font-medium text-gray-600">
-            Date
-          </label>
-          <DateInput
-            value={date}
-            onChange={(v) => setDate(v)}
-            className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-          />
+        <div className="flex items-center gap-3">
+          <DownloadExcelButton path="/exports/staff-attendance" filename="staff_attendance.xlsx" />
+          <div className="flex items-center gap-2">
+            <label htmlFor="staff-attendance-date" className="text-sm font-medium text-gray-600">
+              Date
+            </label>
+            <DateInput
+              value={date}
+              onChange={(v) => setDate(v)}
+              className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 

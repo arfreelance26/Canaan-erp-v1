@@ -11,6 +11,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import type { RepairType } from "@/types/repair-type";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function RepairsManagementPage() {
   const { user, ready } = useAuth();
@@ -104,6 +105,7 @@ export default function RepairsManagementPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
+          <DownloadExcelButton path="/exports/repair-types" filename="repair_types.xlsx" />
           <button
             type="button"
             onClick={openAdd}

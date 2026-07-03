@@ -10,6 +10,7 @@ import type { LeaveApplicantCategory, LeaveRequest } from "@/types/leave-request
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
@@ -98,11 +99,14 @@ export default function LeaveApprovalsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Review and respond to leave requests from drivers, fleet managers, tyre managers, and staff
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Review and respond to leave requests from drivers, fleet managers, tyre managers, and staff
+          </p>
+        </div>
+        <DownloadExcelButton path="/exports/leave-requests" filename="leave_requests.xlsx" />
       </div>
 
       <div className="grid grid-cols-3 gap-4 sm:max-w-md">
