@@ -171,6 +171,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     });
   }
 
+  const autoFuelCost =
+    n(form.totalKm) > 0 && Number(costPerKm) > 0
+      ? (n(form.totalKm) * Number(costPerKm)).toFixed(2)
+      : "";
+
+  // Auto-fill from computed value when km or cost-per-km changes; user can override between km edits
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
+  }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!trip) return null;
 
   const ro = readOnly;
@@ -182,16 +192,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const displayVehicle = currentTruck?.registrationNumber ?? form.vehicleId;
   const displayDriver  = drivers.find((d) => d.driverId === form.driverId)?.name ?? form.driverId;
   const startKmTooLow  = !ro && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
-
-  const autoFuelCost =
-    n(form.totalKm) > 0 && Number(costPerKm) > 0
-      ? (n(form.totalKm) * Number(costPerKm)).toFixed(2)
-      : "";
-
-  // Auto-fill from computed value when km or cost-per-km changes; user can override between km edits
-  useEffect(() => {
-    setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
-  }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-3xl">
