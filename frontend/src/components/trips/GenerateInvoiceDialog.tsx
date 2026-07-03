@@ -671,7 +671,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             Grand Total: <span className="font-semibold text-emerald-700">₹{grandTotal > 0 ? fmt(grandTotal) : "0.00"}</span>
           </div>
           <div className="flex gap-3">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+            <button type="button" onClick={() => { clearFormDraft(draftKey); onClose(); }} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
               Cancel
             </button>
             <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">

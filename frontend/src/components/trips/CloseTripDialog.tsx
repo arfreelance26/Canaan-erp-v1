@@ -380,7 +380,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
         <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { clearFormDraft(draftKey); onClose(); }}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
           >
             Cancel

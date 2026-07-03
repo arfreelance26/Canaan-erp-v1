@@ -646,7 +646,7 @@ export function TruckFormDialog({
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
             className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
           >
             Cancel

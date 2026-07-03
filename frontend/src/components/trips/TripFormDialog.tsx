@@ -377,7 +377,10 @@ export function TripFormDialog({
             <Field label="Trip Category" required>
               <GlassSelect
                 value={form.tripCategory}
-                onChange={(val) => update("tripCategory", val as Trip["tripCategory"])}
+                onChange={(val) => {
+                  update("tripCategory", val as Trip["tripCategory"]);
+                  if (val === "SHIFTING") update("billTo", "");
+                }}
                 options={[
                   { value: "", label: "Select trip category" },
                   ...TRIP_CATEGORY_OPTIONS.map(o => ({ value: o, label: o }))
@@ -671,10 +674,11 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Payment &amp; Advances</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Bill To" required>
+            <Field label="Bill To" required={form.tripCategory !== "SHIFTING"}>
               <GlassSelect
                 value={form.billTo}
                 onChange={(val) => update("billTo", val as Trip["billTo"])}
+                disabled={form.tripCategory === "SHIFTING"}
                 options={[
                   { value: "", label: "Select bill to" },
                   ...BILL_TO_OPTIONS.map(o => ({ value: o, label: o }))
@@ -847,7 +851,7 @@ export function TripFormDialog({
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { clearFormDraft(TRIP_DRAFT_KEY); onClose(); }}
             className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
           >
             Cancel
