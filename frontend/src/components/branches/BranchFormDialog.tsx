@@ -4,6 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { Branch } from "@/types/branch";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_branch_form_draft";
 
 type BranchFormDialogProps = {
   open: boolean;
@@ -33,8 +36,11 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
     }
   }, [open, initialData]);
 
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({ id: initialData?.id ?? "", ...form });
   }
 

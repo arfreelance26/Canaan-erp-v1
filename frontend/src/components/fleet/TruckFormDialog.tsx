@@ -14,6 +14,9 @@ import { branchesApi } from "@/lib/api";
 import { getTyreLayout, TYRE_LAYOUT_OPTIONS } from "@/lib/tyre-layouts";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import type { Truck } from "@/types/truck";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_truck_form_draft";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -107,6 +110,8 @@ export function TruckFormDialog({
     }
   }, [open, initialData]);
 
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+
   function update<K extends keyof Omit<Truck, "id" | "truckId">>(
     key: K,
     value: Omit<Truck, "id" | "truckId">[K]
@@ -116,6 +121,7 @@ export function TruckFormDialog({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave(
       { id: initialData?.id ?? crypto.randomUUID(), truckId: initialData?.truckId ?? generateTruckId(existingTrucks), ...form },
       files,

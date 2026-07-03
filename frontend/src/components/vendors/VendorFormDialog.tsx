@@ -8,6 +8,9 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { VENDOR_CATEGORY_OPTIONS, VENDOR_STATUS_OPTIONS } from "@/lib/vendor-data";
 import type { Vendor } from "@/types/vendor";
 import { todayIst } from "@/lib/format-date";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_vendor_form_draft";
 
 type VendorFormDialogProps = {
   open: boolean;
@@ -41,6 +44,8 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
     }
   }, [open, initialData]);
 
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+
   function update<K extends keyof Omit<Vendor, "id" | "createdAt">>(
     key: K,
     value: Omit<Vendor, "id" | "createdAt">[K]
@@ -50,6 +55,7 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       createdAt: initialData?.createdAt ?? todayIst(),
@@ -72,9 +78,8 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
             />
           </Field>
 
-          <Field label="Vendor Category" required>
+          <Field label="Vendor Category">
             <GlassCombobox
-              required
               value={form.category}
               onChange={(val) => update("category", val)}
               placeholder="Select or type a category"
@@ -82,10 +87,9 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
             />
           </Field>
 
-          <Field label="Contact Number" required>
+          <Field label="Contact Number">
             <input
               type="tel"
-              required
               value={form.contactNumber}
               onChange={(e) => update("contactNumber", e.target.value)}
               className={inputClass}
@@ -93,32 +97,29 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
             />
           </Field>
 
-          <Field label="GSTIN" required>
+          <Field label="GSTIN">
             <input
               type="text"
-              required
               value={form.gstin}
-              onChange={(e) => update("gstin", e.target.value)}
+              onChange={(e) => update("gstin", e.target.value.toUpperCase())}
               className={inputClass}
               placeholder="e.g. 33AABCT1234F1Z9"
             />
           </Field>
 
-          <Field label="PAN" required>
+          <Field label="PAN">
             <input
               type="text"
-              required
               value={form.pan}
-              onChange={(e) => update("pan", e.target.value)}
+              onChange={(e) => update("pan", e.target.value.toUpperCase())}
               className={inputClass}
               placeholder="e.g. AABCT1234F"
             />
           </Field>
 
-          <Field label="Email" required>
+          <Field label="Email">
             <input
               type="email"
-              required
               value={form.email}
               onChange={(e) => update("email", e.target.value)}
               className={inputClass}
@@ -126,7 +127,7 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
             />
           </Field>
 
-          <Field label="Status" required>
+          <Field label="Status">
             <GlassSelect
               value={form.status}
               onChange={(val) => update("status", val as Vendor["status"])}
@@ -138,12 +139,11 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
           </Field>
         </div>
 
-        <Field label="Address" required>
+        <Field label="Address">
           <textarea
-            required
             value={form.address}
             onChange={(e) => update("address", e.target.value)}
-            className={inputClass}
+            className={`${inputClass} resize-none`}
             rows={3}
           />
         </Field>

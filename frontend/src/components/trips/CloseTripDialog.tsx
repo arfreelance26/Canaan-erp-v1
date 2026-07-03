@@ -13,6 +13,7 @@ import type { TripClosureData, PaymentMode, BillTo } from "@/types/trip-closure"
 import { MOVEMENT_CATEGORY_OPTIONS } from "@/lib/trip-data";
 import { branchesApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = [
   "Cash",
@@ -120,12 +121,16 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
     }
   }, [open, trip]);
 
+  const draftKey = `erp_close_trip_draft_${trip?.id ?? "none"}`;
+  useFormDraft(draftKey, open, form, setForm);
+
   function update<K extends keyof TripClosureData>(key: K, value: TripClosureData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    clearFormDraft(draftKey);
     onSubmit({ ...form, driverHaltCompensation: String(haltCompensation) });
   }
 

@@ -5,6 +5,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_customer_destination_form_draft";
 
 type CustomerDestinationFormDialogProps = {
   open: boolean;
@@ -43,6 +46,8 @@ export function CustomerDestinationFormDialog({
       setCustomerError(false);
     }
   }, [open, initialData, customers]);
+
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
 
   // Close dropdown on outside click, restore display text to selected customer
   useEffect(() => {
@@ -94,6 +99,7 @@ export function CustomerDestinationFormDialog({
       setCustomerError(true);
       return;
     }
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form });
   }
 

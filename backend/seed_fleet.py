@@ -1,11 +1,22 @@
+import re
 import pandas as pd
 from database import SessionLocal
 import models
 import datetime
 
+def parse_fuel_capacity(val):
+    """Fuel Capacity is sometimes a single number, sometimes a range like '300 to 365'.
+    For ranges, use the highest number."""
+    if pd.isnull(val):
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    numbers = re.findall(r"\d+(?:\.\d+)?", str(val))
+    return max((float(n) for n in numbers), default=0.0)
+
 def main():
     db = SessionLocal()
-    df = pd.read_excel("../CGI Fleet Data copy.xlsx")
+    df = pd.read_excel("../CGI Fleet Data.xlsx")
     
     # Clean NaN values
     df = df.where(pd.notnull(df), None)
@@ -74,7 +85,7 @@ def main():
             chassis_number=chassis,
             year_of_manufacture=year,
             tyre_layout=tyre_layout,
-            fuel_capacity=get_float(row['Fuel Capacity']),
+            fuel_capacity=parse_fuel_capacity(row['Fuel Capacity']),
             odometer_during_purchase=get_float(row['Odometer During Purchase']),
             odometer=get_float(row['Current Odometer']),
             rc_date=get_date(row['RC Date (YYYY-MM-DD)']),

@@ -6,6 +6,9 @@ import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { CUSTOMER_TYPE_OPTIONS } from "@/lib/customer-data";
 import type { Customer } from "@/types/customer";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_customer_form_draft";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -39,12 +42,15 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
     }
   }, [open, initialData]);
 
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+
   function update<K extends keyof Omit<Customer, "id">>(key: K, value: Omit<Customer, "id">[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,

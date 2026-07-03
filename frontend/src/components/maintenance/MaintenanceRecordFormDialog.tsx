@@ -8,6 +8,7 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { MAINTENANCE_TYPE_OPTIONS } from "@/lib/truck-maintenance-data";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
 type MaintenanceRecordFormDialogProps = {
   open: boolean;
@@ -31,7 +32,10 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
     if (open) {
       setForm(emptyForm);
     }
-  }, [open]);
+  }, [open, truck?.id]);
+
+  const draftKey = `erp_maintenance_record_draft_${truck?.id ?? "none"}`;
+  useFormDraft(draftKey, open, form, setForm);
 
   function update<K extends keyof Omit<MaintenanceRecord, "id" | "truckId">>(
     key: K,
@@ -43,6 +47,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!truck) return;
+    clearFormDraft(draftKey);
     onSave({
       id: crypto.randomUUID(),
       truckId: truck.id,

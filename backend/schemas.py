@@ -612,6 +612,17 @@ class StaffAttendanceOut(OrmBase):
     source: Literal["Web", "App"] = "Web"
 
 
+class AttendanceSummaryOut(BaseModel):
+    id: str
+    code: str
+    name: str
+    present: int
+    absent: int
+    on_leave: int
+    not_marked: int
+    total_days: int
+
+
 # ---------------------------------------------------------------------------
 # Leave Requests
 # ---------------------------------------------------------------------------

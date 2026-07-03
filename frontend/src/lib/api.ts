@@ -14,7 +14,7 @@ import type { DriverAssignment } from "@/types/driver-assignment";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
-import type { DriverAttendanceRecord, StaffAttendanceRecord } from "@/types/attendance";
+import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
@@ -1106,6 +1106,20 @@ export const attendanceApi = {
     req<B>(`/attendance/leave-requests/${id}/approve`, { method: "PATCH" }).then(toLeaveRequest),
   rejectLeave: (id: string) =>
     req<B>(`/attendance/leave-requests/${id}/reject`, { method: "PATCH" }).then(toLeaveRequest),
+
+  getSummary: (category: "driver" | "staff", from: string, to: string) =>
+    req<B[]>(`/attendance/summary?category=${category}&from=${from}&to=${to}`).then((d) =>
+      d.map((b): AttendanceSummaryRow => ({
+        id: String(b.id),
+        code: String(b.code),
+        name: String(b.name),
+        present: Number(b.present) || 0,
+        absent: Number(b.absent) || 0,
+        onLeave: Number(b.on_leave) || 0,
+        notMarked: Number(b.not_marked) || 0,
+        totalDays: Number(b.total_days) || 0,
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------

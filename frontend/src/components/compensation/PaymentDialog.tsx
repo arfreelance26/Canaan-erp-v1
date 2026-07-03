@@ -7,6 +7,7 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import type { CompensationTransactionType } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
 import { DateInput } from "@/components/ui/DateInput";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
 type PaymentDialogProps = {
   open: boolean;
@@ -17,28 +18,32 @@ type PaymentDialogProps = {
   tripNumbers?: string[];
 };
 
+const emptyForm = { amount: "", date: todayIst(), note: "", tripNumber: "" };
+
 export function PaymentDialog({ open, onClose, onSave, type, personName, tripNumbers }: PaymentDialogProps) {
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(todayIst());
-  const [note, setNote] = useState("");
-  const [tripNumber, setTripNumber] = useState("");
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     if (open) {
-      setAmount("");
-      setDate(todayIst());
-      setNote("");
-      setTripNumber("");
+      setForm({ ...emptyForm, date: todayIst() });
     }
   }, [open]);
 
+  const draftKey = `erp_payment_dialog_draft_${type}`;
+  useFormDraft(draftKey, open, form, setForm);
+
+  function update<K extends keyof typeof emptyForm>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    clearFormDraft(draftKey);
     onSave({
-      amount: Number(amount),
-      date,
-      note,
-      ...(tripNumbers ? { tripNumber } : {}),
+      amount: Number(form.amount),
+      date: form.date,
+      note: form.note,
+      ...(tripNumbers ? { tripNumber: form.tripNumber } : {}),
     });
   }
 
@@ -50,8 +55,8 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
             type="number"
             required
             min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            value={form.amount}
+            onChange={(e) => update("amount", e.target.value)}
             className={inputClass}
             placeholder="e.g. 5000"
           />
@@ -60,8 +65,8 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
         <Field label="Date">
           <DateInput
             required
-            value={date}
-            onChange={(v) => setDate(v)}
+            value={form.date}
+            onChange={(v) => update("date", v)}
             className={inputClass}
           />
         </Field>
@@ -70,8 +75,8 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
           <Field label="Trip Number">
             <GlassCombobox
               required
-              value={tripNumber}
-              onChange={(val) => setTripNumber(val)}
+              value={form.tripNumber}
+              onChange={(val) => update("tripNumber", val)}
               placeholder="e.g. TRP-1050"
               options={tripNumbers.map(trip => ({ value: trip, label: trip }))}
             />
@@ -81,8 +86,8 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
         <Field label="Note">
           <input
             type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            value={form.note}
+            onChange={(e) => update("note", e.target.value)}
             className={inputClass}
             placeholder="Optional note"
           />

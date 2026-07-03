@@ -12,6 +12,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { SacCode } from "@/types/sac-code";
 import { sacCodesApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
 export const INVOICE_TYPES = ["Bill of Supply", "Transport Memo", "Tax Invoice"] as const;
 export type InvoiceType = (typeof INVOICE_TYPES)[number];
@@ -194,6 +195,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const [saving, setSaving] = useState(false);
   const [taxWarning, setTaxWarning] = useState(false);
 
+  const draftKey = `erp_invoice_draft_${trip?.id ?? "none"}`;
+  useFormDraft(draftKey, open && !savedInvoice, form, setForm);
+
   useEffect(() => {
     sacCodesApi.list().then(setSacCodes).catch(() => {});
   }, []);
@@ -304,6 +308,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     setSaving(true);
     try {
       await onSubmit({ ...form, invoiceNo: autoInvoiceNo }, form.invoiceType);
+      if (!savedInvoice) clearFormDraft(draftKey);
     } finally {
       setSaving(false);
     }

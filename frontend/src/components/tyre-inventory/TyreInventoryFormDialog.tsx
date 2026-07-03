@@ -9,6 +9,9 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { TYRE_BRAND_OPTIONS, TYRE_CONDITION_OPTIONS, TYRE_TYPE_OPTIONS } from "@/lib/tyre-inventory-data";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import { todayIst } from "@/lib/format-date";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_tyre_inventory_form_draft";
 
 type TyreInventoryFormDialogProps = {
   open: boolean;
@@ -50,6 +53,8 @@ export function TyreInventoryFormDialog({
     }
   }, [open, initialData]);
 
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+
   function update<K extends keyof Omit<TyreInventoryItem, "id">>(
     key: K,
     value: Omit<TyreInventoryItem, "id">[K]
@@ -70,6 +75,7 @@ export function TyreInventoryFormDialog({
       return;
     }
 
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,

@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { ChevronDown, CheckCircle2, XCircle, CalendarOff, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, XCircle, CalendarOff, Loader2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 import { getAttendanceForDate } from "@/lib/attendance-data";
@@ -17,23 +16,15 @@ type DriverAttendanceTableProps = {
   onMark: (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => Promise<void>;
 };
 
-const columns = ["Photo", "Driver ID", "Driver's Name", "Status", "Marked At", "Action"];
-
-const statusStyles: Record<string, string> = {
-  Present: "bg-green-50 text-green-700",
-  Absent: "bg-red-50 text-red-700",
-  "On Leave": "bg-yellow-50 text-yellow-700",
-  "Not Marked": "bg-gray-100 text-gray-500",
-};
+const columns = ["Photo", "Driver ID", "Driver's Name", "Attendance", "Marked At"];
 
 const statusOptions = [
-  { value: "Present", label: "Present", icon: CheckCircle2, color: "text-green-600 hover:bg-green-50" },
-  { value: "Absent", label: "Absent", icon: XCircle, color: "text-red-600 hover:bg-red-50" },
-  { value: "On Leave", label: "On Leave", icon: CalendarOff, color: "text-yellow-600 hover:bg-yellow-50" },
+  { value: "Present", label: "Present", icon: CheckCircle2, activeClass: "border-green-500 bg-green-50 text-green-700" },
+  { value: "Absent", label: "Absent", icon: XCircle, activeClass: "border-red-500 bg-red-50 text-red-700" },
+  { value: "On Leave", label: "On Leave", icon: CalendarOff, activeClass: "border-yellow-500 bg-yellow-50 text-yellow-700" },
 ];
 
-
-function MarkButton({
+function AttendanceRadioGroup({
   driverId,
   record,
   onMark,
@@ -42,61 +33,11 @@ function MarkButton({
   record: DriverAttendanceRecord | undefined;
   onMark: DriverAttendanceTableProps["onMark"];
 }) {
-  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const updatePosition = () => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const dropdownHeight = 150;
-      
-      const openUpwards = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
-      
-      setDropdownStyle({
-        position: 'fixed',
-        left: rect.right - 176, // w-44 = 176px. Align right side with button right side
-        width: 176,
-        ...(openUpwards 
-             ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(spaceAbove - 20, 300) }
-             : { top: rect.bottom + 8, maxHeight: Math.min(spaceBelow - 20, 300) })
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (open) {
-      updatePosition();
-      window.addEventListener("scroll", updatePosition, true);
-      window.addEventListener("resize", updatePosition);
-      return () => {
-        window.removeEventListener("scroll", updatePosition, true);
-        window.removeEventListener("resize", updatePosition);
-      };
-    }
-  }, [open]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current && 
-        !containerRef.current.contains(event.target as Node) &&
-        dropdownRef.current && 
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  const current = record?.status ?? "Not Marked";
 
   async function handleSelect(status: string) {
-    setOpen(false);
+    if (status === current || saving) return;
     setSaving(true);
     try {
       await onMark(driverId, record, status);
@@ -106,53 +47,33 @@ function MarkButton({
   }
 
   return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        disabled={saving}
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
-      >
-        {saving ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : (
-          <>
-            Mark Attendance
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
-          </>
-        )}
-      </button>
-
-      {open && typeof document !== "undefined" && createPortal(
-        <div 
-          ref={dropdownRef}
-          style={dropdownStyle}
-          className="z-[9999] rounded-xl border border-white/60 bg-white/80 p-1 shadow-[0_8px_30px_rgba(0,0,0,0.12)] backdrop-blur-xl animate-dropdown duration-200"
-        >
-          {statusOptions.map(({ value, label, icon: Icon, color }) => (
-            <button
-              key={value}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSelect(value);
-              }}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                color,
-                record?.status === value && "font-semibold ring-1 ring-inset ring-current/20"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-              {record?.status === value && (
-                <span className="ml-auto text-[10px] font-bold uppercase opacity-60">current</span>
-              )}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
+    <div className="flex items-center gap-2" role="radiogroup" aria-label={`Attendance for ${driverId}`}>
+      {statusOptions.map(({ value, label, icon: Icon, activeClass }) => {
+        const checked = current === value;
+        return (
+          <label
+            key={value}
+            className={cn(
+              "flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              checked ? activeClass : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50",
+              saving && "opacity-50"
+            )}
+          >
+            <input
+              type="radio"
+              name={`attendance-${driverId}`}
+              value={value}
+              checked={checked}
+              disabled={saving}
+              onChange={() => handleSelect(value)}
+              className="sr-only"
+            />
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </label>
+        );
+      })}
+      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
     </div>
   );
 }
@@ -168,7 +89,7 @@ export function DriverAttendanceTable({ drivers, records, date, onMark }: Driver
 
   return (
     <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-      <table className="w-full min-w-[1100px] text-left text-sm">
+      <table className="w-full min-w-[900px] text-left text-sm">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
             {columns.map((column) => (
@@ -181,7 +102,6 @@ export function DriverAttendanceTable({ drivers, records, date, onMark }: Driver
         <tbody className="divide-y divide-gray-100">
           {drivers.map((driver) => {
             const record = getAttendanceForDate(records, driver.driverId, date);
-            const status = record?.status ?? "Not Marked";
             return (
               <tr key={driver.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
@@ -189,16 +109,10 @@ export function DriverAttendanceTable({ drivers, records, date, onMark }: Driver
                 </td>
                 <td className="px-4 py-3 font-medium text-gray-900">{driver.driverId}</td>
                 <td className="px-4 py-3 text-gray-600">{driver.name}</td>
-
                 <td className="px-4 py-3">
-                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", statusStyles[status] ?? "bg-gray-100 text-gray-600")}>
-                    {status}
-                  </span>
+                  <AttendanceRadioGroup driverId={driver.driverId} record={record || undefined} onMark={onMark} />
                 </td>
                 <td className="px-4 py-3 text-gray-600">{formatDateTime(record?.markedAt)}</td>
-                <td className="px-4 py-3">
-                  <MarkButton driverId={driver.driverId} record={record || undefined} onMark={onMark} />
-                </td>
               </tr>
             );
           })}

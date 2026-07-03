@@ -87,7 +87,7 @@ export default function StaffAttendancePage() {
     return staff.filter((member) => member.name.toLowerCase().includes(query));
   }, [staff, search]);
 
-  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={4} columns={4} />;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={4} columns={7} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

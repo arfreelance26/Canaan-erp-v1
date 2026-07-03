@@ -6,6 +6,7 @@ import type { FuelLog } from "@/types/fuel-log";
 import { showError } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
 type FuelLogFormDialogProps = {
   open: boolean;
@@ -42,6 +43,9 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
     loggedBy: "",
   });
 
+  const draftKey = `erp_fuel_log_draft_${truck.id}`;
+  useFormDraft(draftKey, open, form, setForm);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     
@@ -59,6 +63,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
       fuelStation: form.fuelStation || null,
       loggedBy: form.loggedBy || null,
     });
+    clearFormDraft(draftKey);
     setForm({
       date: todayIst(),
       odometer: "",

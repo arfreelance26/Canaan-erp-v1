@@ -8,6 +8,9 @@ import { CARGO_CLASSIFICATION_OPTIONS, CONTAINER_TYPE_OPTIONS, WEIGHT_IN_TONS_OP
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_customer_pricing_form_draft";
 
 type CustomerPricingFormDialogProps = {
   open: boolean;
@@ -54,6 +57,8 @@ export function CustomerPricingFormDialog({
       setCustomerError(false);
     }
   }, [open, initialData, customers]);
+
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -125,6 +130,7 @@ export function CustomerPricingFormDialog({
       setCustomerError(true);
       return;
     }
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form });
   }
 

@@ -8,6 +8,9 @@ import { DateInput } from "@/components/ui/DateInput";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import type { EmiRecord } from "@/types/finance";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_emi_form_draft";
 
 type EmiFormDialogProps = {
   open: boolean;
@@ -44,6 +47,8 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
       setForm(rest);
     }
   }, [open, initialData]);
+
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
 
   function update<K extends keyof Omit<EmiRecord, "id">>(key: K, value: Omit<EmiRecord, "id">[K]) {
     setForm((prev) => {
@@ -92,6 +97,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
       finalPaymentDate = `${year}-${month}-${day}`;
     }
 
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,

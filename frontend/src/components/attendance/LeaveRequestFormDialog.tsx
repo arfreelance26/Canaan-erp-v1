@@ -6,6 +6,9 @@ import { showError, showSuccess } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { DateInput } from "@/components/ui/DateInput";
 import type { LeaveRequest } from "@/types/leave-request";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_leave_request_form_draft";
 
 type LeaveRequestFormDialogProps = {
   open: boolean;
@@ -43,6 +46,8 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  useFormDraft(DRAFT_KEY, open, form, setForm);
 
   async function handleVerify() {
     if (!form.applicantCode.trim()) {
@@ -90,6 +95,7 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
         reason: form.reason || "",
       });
       // Reset form
+      clearFormDraft(DRAFT_KEY);
       setForm({
         applicantCode: "",
         fromDate: todayIst(),

@@ -20,3 +20,14 @@ export type StaffAttendanceRecord = {
   markedAt: string | null;
   source: AttendanceSource;
 };
+
+export type AttendanceSummaryRow = {
+  id: string;
+  code: string;
+  name: string;
+  present: number;
+  absent: number;
+  onLeave: number;
+  notMarked: number;
+  totalDays: number;
+};

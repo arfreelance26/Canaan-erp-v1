@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Tag,
   History,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 
@@ -52,6 +53,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
       { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
+      { label: "Attendance Report", href: "/attendance/report", icon: BarChart3 },
     ],
   },
   {

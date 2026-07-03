@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -6,6 +6,75 @@ from database import get_db
 import models, schemas
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
+
+
+# ---------------------------------------------------------------------------
+# Attendance Summary (date-range report)
+# ---------------------------------------------------------------------------
+
+@router.get("/summary", response_model=list[schemas.AttendanceSummaryOut])
+def attendance_summary(
+    category: str = Query(..., description="'driver' or 'staff'"),
+    date_from: str = Query(..., alias="from"),
+    date_to: str = Query(..., alias="to"),
+    db: Session = Depends(get_db),
+):
+    if category not in ("driver", "staff"):
+        raise HTTPException(400, "category must be 'driver' or 'staff'")
+
+    try:
+        start = date_type.fromisoformat(date_from)
+        end = date_type.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(400, "from/to must be valid dates (YYYY-MM-DD)")
+    if end < start:
+        raise HTTPException(400, "'to' date cannot be before 'from' date")
+    total_days = (end - start).days + 1
+
+    result = []
+    if category == "driver":
+        people = db.query(models.Driver).order_by(models.Driver.name).all()
+        records = db.query(models.DriverAttendance).filter(
+            models.DriverAttendance.date >= start,
+            models.DriverAttendance.date <= end,
+        ).all()
+        by_person: dict[str, list] = {}
+        for r in records:
+            by_person.setdefault(r.driver_id, []).append(r)
+        for p in people:
+            recs = by_person.get(p.driver_id, [])
+            counts = {"Present": 0, "Absent": 0, "On Leave": 0}
+            for r in recs:
+                if r.status in counts:
+                    counts[r.status] += 1
+            marked = sum(counts.values())
+            result.append(schemas.AttendanceSummaryOut(
+                id=str(p.id), code=p.driver_id, name=p.name,
+                present=counts["Present"], absent=counts["Absent"], on_leave=counts["On Leave"],
+                not_marked=max(total_days - marked, 0), total_days=total_days,
+            ))
+    else:
+        people = db.query(models.Staff).order_by(models.Staff.name).all()
+        records = db.query(models.StaffAttendance).filter(
+            models.StaffAttendance.date >= start,
+            models.StaffAttendance.date <= end,
+        ).all()
+        by_person: dict[int, list] = {}
+        for r in records:
+            by_person.setdefault(r.staff_id, []).append(r)
+        for p in people:
+            recs = by_person.get(p.id, [])
+            counts = {"Present": 0, "Absent": 0, "On Leave": 0}
+            for r in recs:
+                if r.status in counts:
+                    counts[r.status] += 1
+            marked = sum(counts.values())
+            result.append(schemas.AttendanceSummaryOut(
+                id=str(p.id), code=p.staff_id, name=p.name,
+                present=counts["Present"], absent=counts["Absent"], on_leave=counts["On Leave"],
+                not_marked=max(total_days - marked, 0), total_days=total_days,
+            ))
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,9 @@ import { DEPARTMENT_OPTIONS, SOFTWARE_DESIGNATION_OPTIONS } from "@/lib/staff-da
 import type { Staff } from "@/types/staff";
 import type { Branch } from "@/types/branch";
 import { branchesApi } from "@/lib/api";
+import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+
+const DRAFT_KEY = "erp_staff_form_draft";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -61,6 +64,8 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
     }
   }, [open, initialData]);
 
+  useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
+
   function update<K extends keyof Omit<Staff, "id">>(key: K, value: Omit<Staff, "id">[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -75,6 +80,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form }, files);
   }
 
