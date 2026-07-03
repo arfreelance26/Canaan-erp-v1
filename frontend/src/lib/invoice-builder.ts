@@ -45,7 +45,7 @@ export function amountToWords(amount: string): string {
   const rupees = Math.floor(num);
   const paise  = Math.round((num - rupees) * 100);
 
-  let words = `INR ${numToWords(rupees)} Rupees`;
+  let words = `${numToWords(rupees)} Rupees`;
   if (paise) words += ` and ${numToWords(paise)} Paise`;
   return words + " Only";
 }
@@ -56,6 +56,12 @@ function n(v: string): number { return parseFloat(v) || 0; }
 
 function fmt(v: number): string {
   return v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(iso: string): string {
+  if (!iso || iso.length < 10) return iso;
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}-${m}-${y}`;
 }
 
 function resolveContainerNo(trip: Trip, closure: TripClosureData): string {
@@ -92,10 +98,24 @@ function buildServiceItems(closure: TripClosureData): ServiceItem[] {
   }];
 }
 
+function reorderRef(ref: string): string {
+  const parts = ref.split("/");
+  if (parts.length < 4) return ref;
+  // Fiscal year looks like "25-26" / "26-27"; sequence looks like "001".
+  // Ensure order is always: CGI / date / fiscal-year / seq
+  const a = parts[2]!;
+  const b = parts[3]!;
+  const aIsFiscal = /^\d{2}-\d{2}$/.test(a);
+  if (!aIsFiscal) [parts[2], parts[3]] = [b, a];
+  return parts.join("/");
+}
+
 function resolveInvoiceNo(trip: Trip, invoice?: Record<string, any>): string {
-  if (invoice?.invoiceNo) return invoice.invoiceNo;
-  if (trip.bookingReferenceNo.startsWith("CGI/")) return trip.bookingReferenceNo;
-  return `CGI/${trip.bookingReferenceNo}`;
+  if (invoice?.invoiceNo) return reorderRef(invoice.invoiceNo);
+  const ref = trip.bookingReferenceNo.startsWith("CGI/")
+    ? trip.bookingReferenceNo
+    : `CGI/${trip.bookingReferenceNo}`;
+  return reorderRef(ref);
 }
 
 function resolveBillToName(trip: Trip, closure: TripClosureData, customer: Customer | undefined): string {
@@ -116,7 +136,7 @@ function commonFields(
   const totalBilling = n(closure.billingAmount) || n(closure.hireAmount);
   return {
     invoiceNo:        resolveInvoiceNo(trip, invoice),
-    date:             invoice?.invoiceDate || closure.tripCompletedDate || new Date().toISOString().slice(0, 10),
+    date:             fmtDate(invoice?.invoiceDate || new Date().toISOString().slice(0, 10)),
     billToName:       invoice?.billTo || resolveBillToName(trip, closure, customer),
     billToAddress:    customer?.address,
     bookingNo:        closure.bookingNo || trip.bookingReferenceNo,
@@ -142,7 +162,15 @@ function commonFields(
     subtotal:         fmt(totalBilling),
     amountInWords:    amountToWords(String(totalBilling)),
     grandTotal:       fmt(totalBilling),
-    narration:        `Transport charges for ${closure.containerType || trip.containerSpecification} from ${closure.fromLocation || trip.origin} to ${closure.toLocation || trip.destination} — Ref: ${trip.bookingReferenceNo}`,
+    narration:        invoice?.narration || (() => {
+      const containerNo = resolveContainerNo(trip, closure);
+      const spec = closure.containerType || trip.containerSpecification;
+      const origin = closure.fromLocation || trip.origin;
+      const destination = closure.toLocation || trip.destination;
+      const date = trip.scheduledDate ? trip.scheduledDate.split("-").reverse().join("-") : "";
+      const shortSpec = spec === "20 FT CONTAINER" ? "20 FT" : spec === "40 FT CONTAINER" ? "40 FT" : spec === "2 X 20 FEET CONTAINERS" ? "2X20 FT" : spec === "OPEN LOAD CARGO" ? "OPEN LOAD" : spec;
+      return [containerNo, shortSpec, origin, destination, date].filter(Boolean).join("/");
+    })(),
     bankName:         "HDFC - 9181 - Shipping",
     branchName:       "TUTICORIN",
     accountNumber:    "50200037439181",
@@ -183,6 +211,9 @@ export function buildTransportMemo(
   const total = invoice?.services?.length ? invoice.services.reduce((acc: number, s: any) => acc + (n(s.quantity) * n(s.rate)), 0) : (n(closure.billingAmount) || n(closure.hireAmount));
   return {
     ...commonFields(trip, closure, sheet, customer, invoice),
+    // Transport Memo is always billed to Canaan Global International — never the customer
+    billToName: invoice?.billTo || "Canaan Global International, Puthukottai, Tuticorin, Tamil Nadu, India.",
+    billToAddress: undefined,
     subtotal: fmt(total),
     grandTotal: fmt(total),
     amountInWords: amountToWords(String(total)),

@@ -52,8 +52,8 @@ export function DatePickerInput({ value, onChange, required, disabled }: Props) 
     <ReactDatePicker
       selected={toDate(value)}
       onChange={(date: Date | null) => onChange(date ? toISO(date) : "")}
-      dateFormat="dd/MM/yyyy"
-      placeholderText="DD/MM/YYYY"
+      dateFormat="dd-MM-yyyy"
+      placeholderText="DD-MM-YYYY"
       showMonthDropdown
       showYearDropdown
       dropdownMode="select"

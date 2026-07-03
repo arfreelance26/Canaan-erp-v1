@@ -14,7 +14,8 @@ type BranchFormDialogProps = {
 
 const emptyForm: Omit<Branch, "id"> = {
   name: "",
-  driverHaltDayFee: "",
+  haltDayFee20ft: "",
+  haltDayFee40ft: "",
   driverHaltDayPercentage: "",
 };
 
@@ -56,16 +57,31 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Driver Halt Day Fee (₹)" required>
+          <Field label="20FT Halt Day Fee (₹)" required>
             <input
               type="number"
               required
               min="0"
               step="0.01"
-              value={form.driverHaltDayFee}
-              onChange={(e) => setForm((p) => ({ ...p, driverHaltDayFee: e.target.value }))}
+              value={form.haltDayFee20ft}
+              onChange={(e) => setForm((p) => ({ ...p, haltDayFee20ft: e.target.value }))}
+              onWheel={(e) => e.currentTarget.blur()}
               className={inputClass}
               placeholder="e.g. 500"
+            />
+          </Field>
+
+          <Field label="40FT Halt Day Fee (₹)" required>
+            <input
+              type="number"
+              required
+              min="0"
+              step="0.01"
+              value={form.haltDayFee40ft}
+              onChange={(e) => setForm((p) => ({ ...p, haltDayFee40ft: e.target.value }))}
+              onWheel={(e) => e.currentTarget.blur()}
+              className={inputClass}
+              placeholder="e.g. 700"
             />
           </Field>
 
@@ -78,6 +94,7 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
               step="0.01"
               value={form.driverHaltDayPercentage}
               onChange={(e) => setForm((p) => ({ ...p, driverHaltDayPercentage: e.target.value }))}
+              onWheel={(e) => e.currentTarget.blur()}
               className={inputClass}
               placeholder="e.g. 10"
             />

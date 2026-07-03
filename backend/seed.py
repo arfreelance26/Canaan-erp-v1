@@ -14,8 +14,8 @@ def seed():
         # 0. BRANCHES
         # -------------------------------------------------------------------
         branches = [
-            models.Branch(name="CHENNAI",   driver_halt_day_fee=500, driver_halt_day_percentage=5),
-            models.Branch(name="TUTICORIN", driver_halt_day_fee=450, driver_halt_day_percentage=5),
+            models.Branch(name="CHENNAI",   halt_day_fee_20ft=500, halt_day_fee_40ft=700, driver_halt_day_percentage=5),
+            models.Branch(name="TUTICORIN", halt_day_fee_20ft=450, halt_day_fee_40ft=650, driver_halt_day_percentage=5),
         ]
         db.add_all(branches)
         db.commit()

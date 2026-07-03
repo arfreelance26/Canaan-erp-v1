@@ -278,7 +278,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Trip Closed Date">
             <input className={roClass} value={closure?.closedAt ?? ""} readOnly disabled placeholder="Auto-fetched on close" />
           </Field>
-          <Field label="Trip Sheet Date *">
+          <Field label="Date of Trip Sheet Entry *">
             <DatePickerInput value={form.tripSheetDate} onChange={(v) => set("tripSheetDate", v)} disabled={ro} />
           </Field>
         </div>

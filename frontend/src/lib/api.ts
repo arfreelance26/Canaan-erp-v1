@@ -1256,7 +1256,8 @@ function toBranch(b: B): Branch {
   return {
     id: String(b.id),
     name: b.name ?? "",
-    driverHaltDayFee: String(b.driver_halt_day_fee ?? "0"),
+    haltDayFee20ft: String(b.halt_day_fee_20ft ?? "0"),
+    haltDayFee40ft: String(b.halt_day_fee_40ft ?? "0"),
     driverHaltDayPercentage: String(b.driver_halt_day_percentage ?? "0"),
   };
 }
@@ -1264,7 +1265,8 @@ function toBranch(b: B): Branch {
 function fromBranch(f: Branch) {
   return {
     name: f.name,
-    driver_halt_day_fee: f.driverHaltDayFee ? parseFloat(f.driverHaltDayFee) : 0,
+    halt_day_fee_20ft: f.haltDayFee20ft ? parseFloat(f.haltDayFee20ft) : 0,
+    halt_day_fee_40ft: f.haltDayFee40ft ? parseFloat(f.haltDayFee40ft) : 0,
     driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
   };
 }

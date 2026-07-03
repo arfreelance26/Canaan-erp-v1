@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -39,21 +39,54 @@ export function CustomerPricingFormDialog({
   existingPricing,
 }: CustomerPricingFormDialogProps) {
   const [form, setForm] = useState<Omit<CustomerPricing, "id">>(emptyForm);
+  const [search, setSearch] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [customerError, setCustomerError] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       const { id: _id, ...rest } = initialData ?? { id: "", ...emptyForm };
       setForm(rest);
+      const preselected = customers.find((c) => c.id === (initialData?.customerId ?? ""));
+      setSearch(preselected?.name ?? "");
+      setDropdownOpen(false);
+      setCustomerError(false);
     }
-  }, [open, initialData]);
+  }, [open, initialData, customers]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [dropdownOpen]);
+
+  // When dropdown closes, restore search text to selected customer name
+  useEffect(() => {
+    if (!dropdownOpen) {
+      const selected = customers.find((c) => c.id === form.customerId);
+      setSearch(selected?.name ?? "");
+    }
+  }, [dropdownOpen, form.customerId, customers]);
 
   const availableCustomers = useMemo(() => {
     return customers.filter(
       (customer) =>
         customer.id === initialData?.customerId ||
-        !existingPricing.some((pricing) => pricing.customerId === customer.id)
+        !existingPricing.some((pricing) => pricing.customerId === customer.id),
     );
   }, [customers, existingPricing, initialData]);
+
+  const filteredCustomers = useMemo(
+    () => availableCustomers.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
+    [availableCustomers, search],
+  );
 
   const customerDestinationOptions = useMemo(() => {
     return destinations
@@ -73,26 +106,75 @@ export function CustomerPricingFormDialog({
     setForm((prev) => ({ ...prev, customerId, customerDestination: "" }));
   }
 
+  function selectCustomer(customer: Customer) {
+    handleCustomerChange(customer.id);
+    setSearch(customer.name);
+    setDropdownOpen(false);
+    setCustomerError(false);
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setDropdownOpen(true);
+    if (!value) handleCustomerChange("");
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onSave({
-      id: initialData?.id ?? crypto.randomUUID(),
-      ...form,
-    });
+    if (!form.customerId) {
+      setCustomerError(true);
+      return;
+    }
+    onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form });
   }
 
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Customer Pricing" : "Add Customer Pricing"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+        {/* Customer Name — searchable combobox */}
         <Field label="Customer Name" required>
-          <GlassSelect
-            value={form.customerId}
-            onChange={(val) => handleCustomerChange(val)}
-            options={[
-              { value: "", label: "Select a customer" },
-              ...availableCustomers.map((customer) => ({ value: customer.id, label: customer.name })),
-            ]}
-          />
+          <div ref={containerRef} className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => setDropdownOpen(true)}
+              placeholder="Search customer…"
+              autoComplete="off"
+              className={[
+                inputClass,
+                customerError ? "border-red-400 focus:border-red-500" : "",
+              ].join(" ")}
+            />
+            {dropdownOpen && (
+              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                {filteredCustomers.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-400">No customers found</div>
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <button
+                      key={customer.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectCustomer(customer)}
+                      className={[
+                        "w-full px-3 py-2 text-left text-sm transition-colors",
+                        form.customerId === customer.id
+                          ? "bg-blue-50 font-semibold text-blue-700"
+                          : "text-gray-700 hover:bg-gray-50",
+                      ].join(" ")}
+                    >
+                      {customer.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          {customerError && (
+            <p className="mt-1 text-xs text-red-500">Please select a customer from the list.</p>
+          )}
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -142,15 +224,17 @@ export function CustomerPricingFormDialog({
 
           <Field label="Hire Amount" required>
             <input
-              type="text"
+              type="number"
               required
+              min="0"
+              step="0.01"
               value={form.rate}
               onChange={(e) => update("rate", e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
               className={inputClass}
               placeholder="e.g. 25000"
             />
           </Field>
-
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

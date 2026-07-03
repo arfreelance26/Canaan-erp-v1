@@ -919,7 +919,8 @@ class CompensationTransactionOut(OrmBase):
 
 class BranchBase(OrmBase):
     name: str
-    driver_halt_day_fee: Optional[Decimal] = None
+    halt_day_fee_20ft: Optional[Decimal] = None
+    halt_day_fee_40ft: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
 
 
@@ -929,7 +930,8 @@ class BranchCreate(BranchBase):
 
 class BranchUpdate(OrmBase):
     name: Optional[str] = None
-    driver_halt_day_fee: Optional[Decimal] = None
+    halt_day_fee_20ft: Optional[Decimal] = None
+    halt_day_fee_40ft: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
 
 

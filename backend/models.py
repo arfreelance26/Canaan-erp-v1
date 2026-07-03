@@ -16,7 +16,8 @@ class Branch(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), nullable=False, unique=True)
-    driver_halt_day_fee = Column(Numeric(10, 2), default=0)
+    halt_day_fee_20ft = Column(Numeric(10, 2), default=0)
+    halt_day_fee_40ft = Column(Numeric(10, 2), default=0)
     driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

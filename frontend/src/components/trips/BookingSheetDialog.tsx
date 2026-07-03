@@ -95,10 +95,6 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
 
   const truckBranch = branches.find((b) => b.name === truck?.branchRegisteredTo);
   const totalHaltDays = Number(form?.companyHaltDays || 0) + Number(form?.partyHaltDays || 0);
-  const haltCompensation =
-    totalHaltDays > 0 && truckBranch
-      ? totalHaltDays * Number(truckBranch.driverHaltDayFee || 0)
-      : 0;
 
   if (!trip || !form) return null;
 
@@ -108,6 +104,12 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
 
   // Resolve container number display based on spec
   const containerSpec = tf.containerSpecification ?? "";
+  const haltDayRate = truckBranch
+    ? (containerSpec === "40 FT CONTAINER"
+        ? Number(truckBranch.haltDayFee40ft || 0)
+        : Number(truckBranch.haltDayFee20ft || 0))
+    : 0;
+  const haltCompensation = totalHaltDays > 0 ? totalHaltDays * haltDayRate : 0;
   const containerDisplay =
     containerSpec === "2 X 20 FEET CONTAINERS"
       ? [tf.containerNumber1, tf.containerNumber2].filter(Boolean).join(" / ")
@@ -658,8 +660,8 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                     <span className="font-semibold">{totalHaltDays} day{totalHaltDays !== 1 ? "s" : ""}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm text-blue-800">
-                    <span>Rate per Day ({truckBranch?.name ?? "Branch"})</span>
-                    <span className="font-semibold">₹{Number(truckBranch?.driverHaltDayFee ?? 0).toLocaleString("en-IN")}</span>
+                    <span>Rate per Day ({containerSpec === "40 FT CONTAINER" ? "40FT" : "20FT"} · {truckBranch?.name ?? "Branch"})</span>
+                    <span className="font-semibold">₹{haltDayRate.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between border-t border-blue-200 pt-1.5 text-sm font-bold text-blue-900">
                     <span>Driver Halt Compensation</span>

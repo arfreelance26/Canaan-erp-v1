@@ -9,7 +9,10 @@ type BranchTableProps = {
   onDelete: (id: string) => void;
 };
 
-const columns = ["Branch Name", "Driver Halt Day Fee", "Driver Compensation %", "Actions"];
+const columns = ["Branch Name", "20FT Halt Day Fee", "40FT Halt Day Fee", "Driver Compensation %", "Actions"];
+
+const fmt = (v: string) =>
+  `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
 export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
   if (branches.length === 0) {
@@ -39,9 +42,8 @@ export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
           {branches.map((branch) => (
             <tr key={branch.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium text-gray-900">{branch.name}</td>
-              <td className="px-4 py-3 text-gray-600">
-                ₹{Number(branch.driverHaltDayFee).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </td>
+              <td className="px-4 py-3 text-gray-600">{fmt(branch.haltDayFee20ft)}</td>
+              <td className="px-4 py-3 text-gray-600">{fmt(branch.haltDayFee40ft)}</td>
               <td className="px-4 py-3 text-gray-600">{branch.driverHaltDayPercentage}%</td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">

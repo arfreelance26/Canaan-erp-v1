@@ -138,6 +138,7 @@ export default function TripFinalizationPage() {
         sheet: sheets.get(trip.id),
         customer: customerById.get(trip.customerId),
         invoiceType,
+        savedInvoice: data,
       });
     }
     showSuccess("Invoice generated successfully.");

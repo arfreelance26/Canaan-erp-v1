@@ -367,11 +367,10 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Booking Created Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.bookingCreatedDate}
                 onChange={(v) => handleBookingDateChange(v)}
-                className={inputClass}
               />
             </Field>
 
@@ -585,7 +584,7 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Shipping Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Shipping Line" required>
+            <Field label="Shipping Line">
               <input
                 type="text"
                 value={form.shippingLine}
@@ -595,7 +594,7 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Vessel Name" required>
+            <Field label="Vessel Name">
               <input
                 type="text"
                 value={form.vesselName}
@@ -605,10 +604,9 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Release Order Reference" required>
+            <Field label="Release Order Reference">
               <input
                 type="text"
-                required
                 value={form.releaseOrderReference}
                 onChange={(e) => update("releaseOrderReference", e.target.value)}
                 className={inputClass}

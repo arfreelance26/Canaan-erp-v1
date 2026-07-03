@@ -105,11 +105,11 @@ function shortContainerType(spec: string): string {
   return spec;
 }
 
-function buildNarration(regNo: string | undefined, containerNo: string, spec: string, scheduledDate: string, destination: string): string {
+function buildNarration(containerNo: string, spec: string, origin: string, destination: string, scheduledDate: string): string {
   const dateFormatted = scheduledDate ? scheduledDate.split("-").reverse().join("-") : "";
-  return [regNo ?? "", containerNo, shortContainerType(spec), dateFormatted, destination]
+  return [containerNo, shortContainerType(spec), origin, destination, dateFormatted]
     .map((v) => v.trim())
-    .join(" | ");
+    .join("/");
 }
 
 const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
@@ -169,7 +169,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
       contactPerson: "S SUNDER",
       email: "tutfin@canaanglobal.com",
       contact: "9047015423",
-      narration: buildNarration(truck?.registrationNumber, containerNo, trip.containerSpecification, trip.scheduledDate, trip.destination),
+      narration: buildNarration(containerNo, trip.containerSpecification, trip.origin ?? "", trip.destination ?? "", trip.scheduledDate ?? ""),
       invoiceType,
       services: [{
         ...emptyService(),
@@ -201,9 +201,11 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const autoInvoiceNo = useMemo(() => {
     const ref = form.bookingReferenceNo;
     if (!ref) return "";
-    const prefix = form.invoiceType === "Bill of Supply" ? "BS" : form.invoiceType === "Tax Invoice" ? "TIV" : "TM";
-    return `${prefix}/${ref.replace(/^CGI/, "TS")}`;
-  }, [form.bookingReferenceNo, form.invoiceType]);
+    const parts = ref.split("/");
+    // Reorder: CGI/date/seq/fiscal-year → CGI/date/fiscal-year/seq
+    if (parts.length >= 4) [parts[2], parts[3]] = [parts[3], parts[2]];
+    return parts.join("/");
+  }, [form.bookingReferenceNo]);
 
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
   const isSelf = trip?.billTo === "SELF/CGI";
