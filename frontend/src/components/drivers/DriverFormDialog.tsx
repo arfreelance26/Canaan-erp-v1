@@ -5,7 +5,7 @@ import { FileText } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { Avatar } from "@/components/ui/Avatar";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { generateDriverId } from "@/lib/driver-data";
@@ -172,7 +172,7 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="Date of Birth" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.dateOfBirth}
               onChange={(v) => update("dateOfBirth", v)}
@@ -181,7 +181,7 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="Date of Joining" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.dateOfJoining}
               onChange={(v) => update("dateOfJoining", v)}
@@ -222,7 +222,7 @@ export function DriverFormDialog({
           </Field>
 
           <Field label="License Expiry Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.licenseExpiryDate}
               onChange={(v) => update("licenseExpiryDate", v)}

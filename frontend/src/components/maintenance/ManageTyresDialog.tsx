@@ -18,6 +18,7 @@ import { formatDate, todayIst } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 import { Search } from "lucide-react";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 type ManageTyresDialogProps = {
   open: boolean;
@@ -175,8 +176,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                     <div className="flex flex-col gap-3 rounded-lg border border-red-100 bg-red-50/30 p-3">
                       <h4 className="text-sm font-medium text-gray-900">Remove Tyre</h4>
-                      <input
-                        type="number"
+                      <DecimalInput type="number"
                         min="0"
                         value={odometerInput}
                         onChange={(e) => setOdometerInput(e.target.value)}
@@ -254,8 +254,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       </div>
                       <div className="flex flex-col gap-1 mt-1">
                         <label className="text-xs font-medium text-gray-700">Odometer at Fitment (km)</label>
-                        <input
-                          type="number"
+                        <DecimalInput type="number"
                           min="0"
                           value={odometerInput}
                           onChange={(e) => setOdometerInput(e.target.value)}

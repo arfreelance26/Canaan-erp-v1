@@ -6,8 +6,9 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import type { CompensationTransactionType } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 type PaymentDialogProps = {
   open: boolean;
@@ -51,8 +52,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
     <Dialog open={open} onClose={onClose} title={`Pay ${type} - ${personName}`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Field label="Amount">
-          <input
-            type="number"
+          <DecimalInput type="number"
             required
             min="0"
             value={form.amount}
@@ -63,7 +63,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
         </Field>
 
         <Field label="Date">
-          <DateInput
+          <DatePickerInput
             required
             value={form.date}
             onChange={(v) => update("date", v)}

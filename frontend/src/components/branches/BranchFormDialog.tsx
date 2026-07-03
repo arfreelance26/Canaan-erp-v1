@@ -5,6 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import type { Branch } from "@/types/branch";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const DRAFT_KEY = "erp_branch_form_draft";
 
@@ -64,8 +65,7 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="20FT Halt Day Fee (₹)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               step="0.01"
@@ -78,8 +78,7 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
           </Field>
 
           <Field label="40FT Halt Day Fee (₹)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               step="0.01"
@@ -92,8 +91,7 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
           </Field>
 
           <Field label="Driver Compensation Percentage (%)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               max="100"

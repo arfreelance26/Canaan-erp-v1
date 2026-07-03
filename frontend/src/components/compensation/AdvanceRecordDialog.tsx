@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
@@ -147,13 +147,13 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPaym
 
         {filterMode === "custom" && (
           <div className="flex items-center gap-2 text-sm">
-            <DateInput
+            <DatePickerInput
               value={customFrom}
               onChange={(v) => setCustomFrom(v)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
             />
             <span className="text-gray-400">→</span>
-            <DateInput
+            <DatePickerInput
               value={customTo}
               onChange={(v) => setCustomTo(v)}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"

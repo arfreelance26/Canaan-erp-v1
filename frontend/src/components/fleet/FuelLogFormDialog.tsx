@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Fuel, Save } from "lucide-react";
 import type { Truck } from "@/types/truck";
@@ -7,6 +7,8 @@ import { showError } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { fuelLogsApi } from "@/lib/api";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 type FuelLogFormDialogProps = {
   open: boolean;
@@ -45,6 +47,17 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
 
   const draftKey = `erp_fuel_log_draft_${truck.id}`;
   useFormDraft(draftKey, open, form, setForm);
+
+  const [stations, setStations] = useState<string[]>([]);
+
+  // Fetch unique fuel stations when the dialog opens
+  useEffect(() => {
+    if (open) {
+      fuelLogsApi.listFuelStations()
+        .then(setStations)
+        .catch(console.error);
+    }
+  }, [open]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,8 +124,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
           </Field>
           
           <Field label="Odometer Reading" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.odometer}
@@ -131,21 +143,25 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
               </span>
             }
           >
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
-              step="0.1"
-              min="0.1"
+              step="0.01"
+              min="0.01"
               value={form.litres}
               onChange={(e) => update("litres", e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value) {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) update("litres", val.toFixed(2));
+                }
+              }}
               className={inputClass}
-              placeholder="e.g. 150"
+              placeholder="e.g. 150.00"
             />
           </Field>
 
           <Field label="Cost Per Litre (₹)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               step="0.01"
               min="0.01"
@@ -157,8 +173,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
           </Field>
 
           <Field label="Total Fuel Cost (₹)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               step="0.01"
               min="1"
@@ -178,11 +193,17 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
           <Field label="Fuel Station (Optional)">
             <input
               type="text"
+              list="fuel-stations"
               value={form.fuelStation}
               onChange={(e) => update("fuelStation", e.target.value)}
               className={inputClass}
               placeholder="e.g. Reliance Petrol Pump"
             />
+            <datalist id="fuel-stations">
+              {stations.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
           </Field>
 
           <div className="pt-4 flex justify-end gap-3 border-t border-gray-100">

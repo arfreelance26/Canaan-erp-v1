@@ -5,7 +5,7 @@ import { Paperclip, X } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { trucksApi, uploadFile } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
@@ -171,7 +171,7 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
         )}
 
         <Field label="New Validity Date" required>
-          <DateInput
+          <DatePickerInput
             required
             value={newDate}
             onChange={(v) => setNewDate(v)}

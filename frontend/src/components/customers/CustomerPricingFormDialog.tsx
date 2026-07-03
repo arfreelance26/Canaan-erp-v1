@@ -9,6 +9,7 @@ import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const DRAFT_KEY = "erp_customer_pricing_form_draft";
 
@@ -229,8 +230,7 @@ export function CustomerPricingFormDialog({
           </Field>
 
           <Field label="Hire Amount" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               step="0.01"

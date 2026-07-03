@@ -7,7 +7,7 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
 import type { Branch } from "@/types/branch";
 import { branchesApi } from "@/lib/api";
@@ -15,6 +15,7 @@ import { getTyreLayout, TYRE_LAYOUT_OPTIONS } from "@/lib/tyre-layouts";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const DRAFT_KEY = "erp_truck_form_draft";
 
@@ -222,8 +223,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Odometer During Purchase" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.odometerDuringPurchase}
@@ -234,8 +234,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Fuel Capacity of the Truck(Fuel Tank Size in Liters)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.fuelCapacity || ""}
@@ -272,7 +271,7 @@ export function TruckFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>RC Details</p>
           <Field label="RC Validity Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.rcValidityDate}
               onChange={(v) => update("rcValidityDate", v)}
@@ -281,8 +280,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses For RC" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.rcExpenses}
@@ -318,7 +316,7 @@ export function TruckFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>FC Details</p>
           <Field label="FC Validity Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.fcExpiryDate}
               onChange={(v) => update("fcExpiryDate", v)}
@@ -349,8 +347,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses For FC" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.fcExpenses}
@@ -365,7 +362,7 @@ export function TruckFormDialog({
           <p className={sectionHeadingClass}>Road Tax</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Road Tax Validity Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.roadTaxDate}
                 onChange={(v) => update("roadTaxDate", v)}
@@ -408,8 +405,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses For Road Tax" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.roadTaxExpenses}
@@ -423,7 +419,7 @@ export function TruckFormDialog({
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>Insurance Details</p>
           <Field label="Insurance Expiry Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.insuranceExpiryDate}
               onChange={(v) => update("insuranceExpiryDate", v)}
@@ -454,8 +450,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses for Insurance" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.insuranceExpenses}
@@ -481,7 +476,7 @@ export function TruckFormDialog({
             </Field>
 
             <Field label="National Permit Validity Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.nationalPermitDate}
                 onChange={(v) => update("nationalPermitDate", v)}
@@ -513,8 +508,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses For National Permit" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.nationalPermitExpenses}
@@ -540,7 +534,7 @@ export function TruckFormDialog({
             </Field>
 
             <Field label="Local Permit Validity Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.localPermitDate}
                 onChange={(v) => update("localPermitDate", v)}
@@ -572,8 +566,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses For Local Permit" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.localPermitExpenses}
@@ -588,7 +581,7 @@ export function TruckFormDialog({
           <p className={sectionHeadingClass}>Pollution Certificate</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Pollution Certificate Validity Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.pollutionCertificateDate}
                 onChange={(v) => update("pollutionCertificateDate", v)}
@@ -631,8 +624,7 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Expenses For Pollution Certificate" className="mt-4">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               value={form.pollutionCertificateExpenses}

@@ -4,11 +4,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import type { EmiRecord } from "@/types/finance";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const DRAFT_KEY = "erp_emi_form_draft";
 
@@ -154,8 +155,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="Loan Amount" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.loanAmount}
@@ -166,8 +166,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="EMI Amount" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.emiAmount}
@@ -178,7 +177,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="EMI Start Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.emiStartDate}
               onChange={(v) => update("emiStartDate", v)}
@@ -187,7 +186,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="EMI End Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.emiEndDate}
               onChange={(v) => update("emiEndDate", v)}
@@ -218,8 +217,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
           </Field>
 
           <Field label="Date of EMI Payment (Day of Month)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="1"
               max="31"

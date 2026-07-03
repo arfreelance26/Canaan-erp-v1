@@ -164,6 +164,13 @@ def list_fuel_logs(truck_id: Optional[int] = Query(None), db: Session = Depends(
     return q.order_by(models.FuelLog.date.desc()).all()
 
 
+@router.get("/maintenance/fuel-stations", response_model=list[str], tags=["Fuel Logs"])
+def list_fuel_stations(db: Session = Depends(get_db)):
+    rows = db.query(models.FuelLog.fuel_station).filter(models.FuelLog.fuel_station.isnot(None)).distinct().all()
+    stations = {r[0].strip() for r in rows if r[0] and r[0].strip()}
+    return sorted(list(stations))
+
+
 @router.post("/maintenance/fuel-logs", response_model=schemas.FuelLogOut, status_code=201, tags=["Fuel Logs"])
 def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db)):
     if not db.get(models.Truck, payload.truck_id):

@@ -3,12 +3,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { MAINTENANCE_TYPE_OPTIONS } from "@/lib/truck-maintenance-data";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 type MaintenanceRecordFormDialogProps = {
   open: boolean;
@@ -64,7 +65,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Date" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.date}
               onChange={(v) => update("date", v)}
@@ -73,8 +74,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           </Field>
 
           <Field label="Odometer (km)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.odometer}
@@ -95,8 +95,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           </Field>
 
           <Field label="Cost" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.cost}

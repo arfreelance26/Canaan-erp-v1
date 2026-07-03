@@ -4,7 +4,6 @@ import { X, Info, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
@@ -34,6 +33,7 @@ import { branchesApi, customersApi, tripsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { AutocompleteInput, saveToAutocompleteHistory, getAutocompleteHistory } from "@/components/ui/AutocompleteInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const TRIP_DRAFT_KEY = "erp_trip_form_draft";
 
@@ -698,8 +698,7 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Customer Cash Advance (₹)" required>
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.customerCashAdvance}
                 onChange={(e) => update("customerCashAdvance", e.target.value)}
@@ -710,8 +709,7 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Customer Fuel Advance (₹)" required>
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.customerFuelAdvanceAmount}
                 onChange={(e) => update("customerFuelAdvanceAmount", e.target.value)}
@@ -722,8 +720,7 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Customer Fuel Advance (Litres)" required>
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.customerFuelAdvanceLitres}
                 onChange={(e) => update("customerFuelAdvanceLitres", e.target.value)}
@@ -761,8 +758,7 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Driver Advance (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.driverAdvance}
                 onChange={(e) => update("driverAdvance", e.target.value)}
@@ -773,8 +769,7 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Driver Batta Amount (₹)" required>
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.driverAdvanceAmount}
                 onChange={(e) => update("driverAdvanceAmount", e.target.value)}
@@ -811,8 +806,7 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Hire Amount (₹)" required>
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.transportHireAmount}
                 onChange={(e) => handleHireAmountChange(e.target.value)}

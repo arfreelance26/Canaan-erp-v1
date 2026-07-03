@@ -5,7 +5,7 @@ import { X, FileText } from "lucide-react";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Avatar } from "@/components/ui/Avatar";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
@@ -158,7 +158,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
 
 
           <Field label="Date of Birth" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.dateOfBirth}
               onChange={(v) => update("dateOfBirth", v)}
@@ -167,7 +167,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
 
           <Field label="Date of Joining" required>
-            <DateInput
+            <DatePickerInput
               required
               value={form.dateOfJoining}
               onChange={(v) => update("dateOfJoining", v)}

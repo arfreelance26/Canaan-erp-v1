@@ -12,6 +12,7 @@ import type { SacCode } from "@/types/sac-code";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const emptyForm = { description: "", code: "", gstRate: "" };
 
@@ -206,8 +207,7 @@ export default function SacCodeManagementPage() {
             />
           </Field>
           <Field label="GST (%)">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               max="100"
               step="0.01"

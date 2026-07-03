@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { cn } from "@/lib/utils";
 import type { AttendanceSummaryRow } from "@/types/attendance";
@@ -90,7 +90,7 @@ export default function AttendanceReportPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">From</label>
-            <DateInput
+            <DatePickerInput
               value={fromDate}
               onChange={setFromDate}
               className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
@@ -98,7 +98,7 @@ export default function AttendanceReportPage() {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">To</label>
-            <DateInput
+            <DatePickerInput
               value={toDate}
               onChange={setToDate}
               className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"

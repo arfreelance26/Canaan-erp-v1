@@ -5,11 +5,14 @@ export function todayIst(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: IST });
 }
 
-/** Formats a date/datetime value as "12 Jun 2026" in IST. Returns "—" for empty. */
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   try {
-    const str = new Date(value).toLocaleDateString("en-GB", {
+    let parsedValue = value;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value)) {
+      parsedValue += "Z";
+    }
+    const str = new Date(parsedValue).toLocaleDateString("en-GB", {
       timeZone: IST,
       day: "2-digit",
       month: "2-digit",
@@ -26,11 +29,14 @@ export function formatDateLong(value: string | null | undefined): string {
   return formatDate(value);
 }
 
-/** Formats a datetime value as "DD-MM-YYYY, h:mm a" in IST. Returns "—" for empty. */
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   try {
-    const str = new Date(value).toLocaleString("en-GB", {
+    let parsedValue = value;
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(value)) {
+      parsedValue += "Z";
+    }
+    const str = new Date(parsedValue).toLocaleString("en-GB", {
       timeZone: IST,
       day: "2-digit",
       month: "2-digit",

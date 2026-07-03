@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/trip-data";
 import { branchesApi, tripsApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"];
 const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE"];
@@ -136,7 +137,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               <input readOnly disabled value={trip.bookingReferenceNo ?? ""} className={roClass} />
             </Field>
             <Field label="Booking Created Date">
-              <DateInput value={tf.bookingCreatedDate ?? ""} readOnly={readOnly} disabled={readOnly} onChange={(v) => updateTrip("bookingCreatedDate", v)} className={fc} />
+              <DatePickerInput value={tf.bookingCreatedDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("bookingCreatedDate", v)} className={fc} />
             </Field>
             <Field label="Trip Category">
               {readOnly ? (
@@ -324,7 +325,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               )}
             </Field>
             <Field label="Scheduled Trip Date">
-              <DateInput value={tf.scheduledDate ?? ""} readOnly={readOnly} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} />
+              <DatePickerInput value={tf.scheduledDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} />
             </Field>
             <Field label="Assigned Vehicle">
               <input readOnly disabled value={truck?.registrationNumber ?? trip.vehicleId ?? ""} className={roClass} />
@@ -362,8 +363,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               )}
             </Field>
             <Field label="Customer Cash Advance (₹)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.customerCashAdvance ?? ""}
                 onChange={(e) => updateTrip("customerCashAdvance", e.target.value)}
@@ -372,8 +372,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Customer Fuel Advance (₹)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.customerFuelAdvanceAmount ?? ""}
                 onChange={(e) => updateTrip("customerFuelAdvanceAmount", e.target.value)}
@@ -382,8 +381,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Customer Fuel Advance (Litres)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.customerFuelAdvanceLitres ?? ""}
                 onChange={(e) => updateTrip("customerFuelAdvanceLitres", e.target.value)}
@@ -422,8 +420,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               )}
             </Field>
             <Field label="Driver Advance (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.driverAdvance ?? ""}
                 onChange={(e) => updateTrip("driverAdvance", e.target.value)}
@@ -432,8 +429,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Driver Batta Amount (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.driverAdvanceAmount ?? ""}
                 onChange={(e) => updateTrip("driverAdvanceAmount", e.target.value)}
@@ -449,8 +445,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Transport Hire Amount (₹)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.transportHireAmount ?? ""}
                 onChange={(e) => updateTrip("transportHireAmount", e.target.value)}
@@ -459,8 +454,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Transport Crossing Amount (₹)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.transportCrossingAmount ?? ""}
                 onChange={(e) => updateTrip("transportCrossingAmount", e.target.value)}
@@ -503,9 +497,8 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Closure — Billing</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Trip Completed Date">
-              <DateInput
+              <DatePickerInput
                 value={form.tripCompletedDate}
-                readOnly={readOnly}
                 disabled={readOnly}
                 onChange={(v) => update("tripCompletedDate", v)}
                 className={fc}
@@ -526,8 +519,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               )}
             </Field>
             <Field label="Hire Amount (₹)">
-              <input
-                type="number" min="0" step="0.01"
+              <DecimalInput type="number" min="0" step="0.01"
                 value={form.hireAmount}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("hireAmount", e.target.value)}
@@ -537,8 +529,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Transport Amount (₹)">
-              <input
-                type="number" min="0" step="0.01"
+              <DecimalInput type="number" min="0" step="0.01"
                 value={form.transportAmount}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("transportAmount", e.target.value)}
@@ -548,8 +539,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Billing Amount (₹)">
-              <input
-                type="number" min="0" step="0.01"
+              <DecimalInput type="number" min="0" step="0.01"
                 value={form.billingAmount}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("billingAmount", e.target.value)}
@@ -559,8 +549,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Customer Advance Amount (₹)">
-              <input
-                type="number" min="0" step="0.01"
+              <DecimalInput type="number" min="0" step="0.01"
                 value={form.advanceAmount}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("advanceAmount", e.target.value)}
@@ -570,11 +559,10 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Driver Advance (₹)">
-              <input type="number" value={form.driverAdvance} readOnly disabled className={roClass} />
+              <DecimalInput type="number" value={form.driverAdvance} readOnly disabled className={roClass} />
             </Field>
             <Field label="Additional Driver Advance (₹)">
-              <input
-                type="number" min="0" step="0.01"
+              <DecimalInput type="number" min="0" step="0.01"
                 value={form.additionalDriverAdvance}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("additionalDriverAdvance", e.target.value)}
@@ -619,8 +607,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Closure — Halt Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Company Halt Days (Driver)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 value={form.companyHaltDays}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("companyHaltDays", e.target.value)}
@@ -630,8 +617,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               />
             </Field>
             <Field label="Party Halt Days (Customer)">
-              <input
-                type="number" min="0"
+              <DecimalInput type="number" min="0"
                 value={form.partyHaltDays}
                 readOnly={readOnly} disabled={readOnly}
                 onChange={(e) => update("partyHaltDays", e.target.value)}

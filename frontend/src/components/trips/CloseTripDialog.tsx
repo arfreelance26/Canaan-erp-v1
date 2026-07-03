@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -14,6 +14,7 @@ import { MOVEMENT_CATEGORY_OPTIONS } from "@/lib/trip-data";
 import { branchesApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = [
   "Cash",
@@ -226,7 +227,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               <input readOnly disabled value={form.toLocation} className={readonlyClass} />
             </Field>
             <Field label="Trip Completed Date" required>
-              <DateInput
+              <DatePickerInput
                 required
                 value={form.tripCompletedDate}
                 onChange={(v) => update("tripCompletedDate", v)}
@@ -241,8 +242,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
           <p className={sectionHeadingClass}>4. Billing</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Hire Amount (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 step="0.01"
                 value={form.hireAmount}
@@ -253,8 +253,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Transport Amount (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 step="0.01"
                 value={form.transportAmount}
@@ -265,8 +264,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Customer Advance Amount (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 step="0.01"
                 value={form.advanceAmount}
@@ -277,8 +275,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Driver Advance (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 value={form.driverAdvance}
                 readOnly
                 disabled
@@ -286,8 +283,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Additional Driver Advance (₹)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 step="0.01"
                 value={form.additionalDriverAdvance}
@@ -325,8 +321,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
           <p className={sectionHeadingClass}>5. Halt Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Company Halt Days (Driver)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.companyHaltDays}
                 onChange={(e) => update("companyHaltDays", e.target.value)}
@@ -336,8 +331,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Party Halt Days (Customer)">
-              <input
-                type="number"
+              <DecimalInput type="number"
                 min="0"
                 value={form.partyHaltDays}
                 onChange={(e) => update("partyHaltDays", e.target.value)}

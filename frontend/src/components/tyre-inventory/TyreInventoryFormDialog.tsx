@@ -3,13 +3,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { TYRE_BRAND_OPTIONS, TYRE_CONDITION_OPTIONS, TYRE_TYPE_OPTIONS } from "@/lib/tyre-inventory-data";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const DRAFT_KEY = "erp_tyre_inventory_form_draft";
 
@@ -132,8 +133,7 @@ export function TyreInventoryFormDialog({
           </Field>
 
           <Field label="Purchase Cost (₹)" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               required
               min="0"
               value={form.cost}
@@ -155,7 +155,7 @@ export function TyreInventoryFormDialog({
           </Field>
 
           <Field label="Purchase Date" required>
-            <DateInput
+            <DatePickerInput
               value={form.purchaseDate}
               onChange={(v) => update("purchaseDate", v)}
               className={inputClass}
@@ -163,8 +163,7 @@ export function TyreInventoryFormDialog({
           </Field>
 
           <Field label="Repair Cost" required>
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               value={form.repairCost}
               onChange={(e) => update("repairCost", e.target.value)}
@@ -181,8 +180,7 @@ export function TyreInventoryFormDialog({
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Retreading Cost (₹)" required>
-                <input
-                  type="number"
+                <DecimalInput type="number"
                   required
                   min="1"
                   value={form.retreadCost}
@@ -193,8 +191,7 @@ export function TyreInventoryFormDialog({
               </Field>
 
               <Field label="Number of Retreads" required>
-                <input
-                  type="number"
+                <DecimalInput type="number"
                   required
                   min="1"
                   value={form.retreadCount}

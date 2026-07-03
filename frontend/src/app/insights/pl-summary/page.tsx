@@ -6,7 +6,7 @@ import {
   Loader2, Search, Route, Wrench, Landmark, FileText,
 } from "lucide-react";
 import { plSummaryApi, type TruckPLEntry } from "@/lib/api";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -543,7 +543,7 @@ export default function PLSummaryPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">From</label>
-            <DateInput
+            <DatePickerInput
               value={startDate}
               onChange={(v) => { setStartDate(v); setActivePreset(""); }}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
@@ -551,7 +551,7 @@ export default function PLSummaryPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">To</label>
-            <DateInput
+            <DatePickerInput
               value={endDate}
               onChange={(v) => { setEndDate(v); setActivePreset(""); }}
               className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"

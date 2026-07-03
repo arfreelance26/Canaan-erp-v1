@@ -77,7 +77,7 @@ function numberToWords(amount: number): string {
   if (lakh) parts.push(inWords(lakh) + " Lakh");
   if (thousand) parts.push(inWords(thousand) + " Thousand");
   if (rest) parts.push(inWords(rest));
-  let result = (parts.join(" ") || "Zero") + " Rupees";
+  let result = "Rupees " + (parts.join(" ") || "Zero");
   if (paise) result += " and " + inWords(paise) + " Paise";
   return result + " Only";
 }
@@ -117,6 +117,7 @@ const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 t
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 import type { TripSheetData } from "@/types/trip-sheet";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 type Props = {
   open: boolean;
@@ -533,8 +534,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                       />
                     </Field>
                     <Field label="Quantity">
-                      <input
-                        type="number" min="0" step="any"
+                      <DecimalInput type="number" min="0" step="any"
                         value={svc.quantity}
                         onChange={(e) => updateService(i, "quantity", e.target.value)}
                         onWheel={(e) => e.currentTarget.blur()}
@@ -543,8 +543,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                       />
                     </Field>
                     <Field label="Rate (INR)">
-                      <input
-                        type="number" min="0" step="0.01"
+                      <DecimalInput type="number" min="0" step="0.01"
                         value={svc.rate}
                         onChange={(e) => updateService(i, "rate", e.target.value)}
                         onWheel={(e) => e.currentTarget.blur()}

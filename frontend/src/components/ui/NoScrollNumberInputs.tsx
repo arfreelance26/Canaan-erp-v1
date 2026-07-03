@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 /**
  * Mounts a single capture-phase wheel listener on document that blurs any
- * focused <input type="number"> before the browser can increment/decrement
+ * focused <DecimalInput type="number"> before the browser can increment/decrement
  * its value via scroll. Applies globally to every number input in the app.
  */
 export function NoScrollNumberInputs() {

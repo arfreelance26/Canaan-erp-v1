@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { DateInput } from "@/components/ui/DateInput";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StaffAttendanceTable } from "@/components/attendance/StaffAttendanceTable";
 import { staffApi, attendanceApi } from "@/lib/api";
@@ -104,7 +104,7 @@ export default function StaffAttendancePage() {
             <label htmlFor="staff-attendance-date" className="text-sm font-medium text-gray-600">
               Date
             </label>
-            <DateInput
+            <DatePickerInput
               value={date}
               onChange={(v) => setDate(v)}
               className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"

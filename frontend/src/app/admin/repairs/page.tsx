@@ -12,6 +12,7 @@ import type { RepairType } from "@/types/repair-type";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DecimalInput } from "@/components/ui/DecimalInput";
 
 export default function RepairsManagementPage() {
   const { user, ready } = useAuth();
@@ -183,8 +184,7 @@ export default function RepairsManagementPage() {
             />
           </Field>
           <Field label="Default Cost (₹)">
-            <input
-              type="number"
+            <DecimalInput type="number"
               min="0"
               step="0.01"
               className={inputClass}

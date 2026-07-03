@@ -101,7 +101,7 @@ export function InvoiceShell({
 }: InvoiceShellProps) {
   return (
     <div className={s.page}>
-      <div className={s.a4}>
+      <div className={s.a4} id="invoice-a4-root">
 
         {/* ── HEADER ── */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>

@@ -54,7 +54,7 @@ export default function TripFinalizationPage() {
     setTrucks(tr);
     setCustomers(c);
 
-    const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true);
+    const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true && t.tripCategory !== "SHIFTING");
     setTrips(sheettedTrips);
 
     const invoiced = new Set<string>(

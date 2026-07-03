@@ -202,7 +202,11 @@ export default function TripHistoryPage() {
                     </td>
 
                     <td className="px-4 py-3">
-                      {isInvoiced ? (
+                      {trip.tripCategory === "SHIFTING" ? (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                          N/A (Shifting)
+                        </span>
+                      ) : isInvoiced ? (
                         <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                           Invoiced
                         </span>

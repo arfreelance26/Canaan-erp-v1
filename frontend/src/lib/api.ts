@@ -1158,6 +1158,7 @@ export const maintenanceApi = {
 };
 
 export const fuelLogsApi = {
+  listFuelStations: () => req<string[]>("/maintenance/fuel-stations"),
   listFuelLogs: (truckId?: string) =>
     req<B[]>(`/maintenance/fuel-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toFuelLog)),
   createFuelLog: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre">) =>

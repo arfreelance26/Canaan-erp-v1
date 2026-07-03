@@ -45,7 +45,7 @@ export function amountToWords(amount: string): string {
   const rupees = Math.floor(num);
   const paise  = Math.round((num - rupees) * 100);
 
-  let words = `${numToWords(rupees)} Rupees`;
+  let words = `Rupees ${numToWords(rupees)}`;
   if (paise) words += ` and ${numToWords(paise)} Paise`;
   return words + " Only";
 }
