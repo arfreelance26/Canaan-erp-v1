@@ -44,13 +44,18 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
     fuelStation: "",
     loggedBy: "",
   });
+  const [litresError, setLitresError] = useState("");
+  const [dailyUsed, setDailyUsed] = useState(0);
+  const [dailyLoading, setDailyLoading] = useState(false);
+
+  const DAILY_LIMIT = 150;
+  const dailyFull = dailyUsed > DAILY_LIMIT;
 
   const draftKey = `erp_fuel_log_draft_${truck.id}`;
   useFormDraft(draftKey, open, form, setForm);
 
   const [stations, setStations] = useState<string[]>([]);
 
-  // Fetch unique fuel stations when the dialog opens
   useEffect(() => {
     if (open) {
       fuelLogsApi.listFuelStations()
@@ -59,11 +64,31 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
     }
   }, [open]);
 
+  // Recalculate daily usage whenever the dialog opens or date changes
+  useEffect(() => {
+    if (!open) return;
+    setDailyLoading(true);
+    fuelLogsApi.listFuelLogs(truck.id)
+      .then((logs) => {
+        const used = logs
+          .filter((l) => l.date === form.date)
+          .reduce((sum, l) => sum + (parseFloat(l.litres) || 0), 0);
+        setDailyUsed(used);
+      })
+      .catch(() => setDailyUsed(0))
+      .finally(() => setDailyLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, form.date, truck.id]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    
-    if (truck.fuelCapacity && Number(form.litres) > Number(truck.fuelCapacity)) {
-      await showError(`Cannot add more fuel than the truck's maximum capacity (${truck.fuelCapacity} L)`, 'Capacity Exceeded');
+
+    if (dailyFull) {
+      await showError(`Fuel logs for this date already exceed ${DAILY_LIMIT} L. No more logs can be added for this day.`, "Daily Limit Reached");
+      return;
+    }
+    if (litresError) {
+      await showError(litresError, "Validation Error");
       return;
     }
 
@@ -77,6 +102,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
       loggedBy: form.loggedBy || null,
     });
     clearFormDraft(draftKey);
+    setLitresError("");
     setForm({
       date: todayIst(),
       odometer: "",
@@ -89,6 +115,14 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
   }
 
   function update(field: keyof typeof form, value: string) {
+    if (field === "litres") {
+      const l = parseFloat(value);
+      if (!isNaN(l) && l > 0 && truck.fuelCapacity && l > Number(truck.fuelCapacity)) {
+        setLitresError(`Exceeds tank capacity of ${truck.fuelCapacity} L per fill.`);
+      } else {
+        setLitresError("");
+      }
+    }
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "litres" || field === "costPerLitre") {
@@ -113,6 +147,31 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
             <p className="text-sm text-gray-500">{truck.modelName}</p>
             </div>
         </div>
+
+        {/* Daily fuel usage summary */}
+        {!dailyLoading && dailyUsed > 0 && (
+          <div className={`rounded-lg border px-4 py-3 text-sm ${dailyFull ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className={`font-semibold ${dailyFull ? "text-red-700" : "text-amber-800"}`}>
+                {dailyFull ? "Daily limit exceeded — no more logs" : "Fuel logged today"}
+              </span>
+              <span className={`text-xs font-bold ${dailyFull ? "text-red-600" : "text-amber-700"}`}>
+                {dailyUsed.toFixed(2)} L <span className="font-normal opacity-60">/ {DAILY_LIMIT} L limit</span>
+              </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-white/60 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${dailyFull ? "bg-red-500" : "bg-amber-400"}`}
+                style={{ width: `${Math.min(100, (dailyUsed / DAILY_LIMIT) * 100)}%` }}
+              />
+            </div>
+            {dailyFull && (
+              <p className="mt-1.5 text-xs text-red-600 font-medium">
+                Logs for this date total {dailyUsed.toFixed(2)} L, which exceeds the {DAILY_LIMIT} L daily limit. Change the date or contact admin.
+              </p>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Date" required>
@@ -149,15 +208,12 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
               min="0.01"
               value={form.litres}
               onChange={(e) => update("litres", e.target.value)}
-              onBlur={(e) => {
-                if (e.target.value) {
-                  const val = parseFloat(e.target.value);
-                  if (!isNaN(val)) update("litres", val.toFixed(2));
-                }
-              }}
-              className={inputClass}
+              className={`${inputClass} ${litresError ? "border-red-400 focus:border-red-500 focus:ring-red-400" : ""}`}
               placeholder="e.g. 150.00"
             />
+            {litresError && (
+              <p className="mt-1 text-xs font-medium text-red-600">{litresError}</p>
+            )}
           </Field>
 
           <Field label="Cost Per Litre (₹)" required>
@@ -216,7 +272,9 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
             </button>
             <button
               type="submit"
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm"
+              disabled={dailyFull}
+              title={dailyFull ? `Fuel logs for this date already exceed ${DAILY_LIMIT} L` : undefined}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
               Save Fuel Log
