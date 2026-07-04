@@ -15,7 +15,6 @@ import {
   DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS,
   DRIVER_COMPENSATION_TYPE_OPTIONS,
   MOVEMENT_CATEGORY_OPTIONS,
-  TRANSPORT_METHOD_OPTIONS,
   TRIP_CATEGORY_OPTIONS,
   CARGO_WEIGHT_OPTIONS,
   generateBookingReferenceNo,
@@ -36,6 +35,17 @@ import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const TRIP_DRAFT_KEY = "erp_trip_form_draft";
+
+const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
+  "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
+                 "40 FT CONTAINER":         { type: "FIXED", amount: "1300" } },
+  "LOCAL CFS": { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
+                 "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "1300" },
+                 "40 FT CONTAINER":         { type: "FIXED", amount: "1000" } },
+  "SHIFTING":  { "20 FT CONTAINER":        { type: "FIXED", amount: "300" },
+                "40 FT CONTAINER":         { type: "FIXED", amount: "300" },
+                "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "600" } },
+};
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -75,7 +85,6 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   destination: "",
   shippingLine: "",
   vesselName: "",
-  transportMethod: "",
   scheduledDate: "",
   driverId: "",
   billTo: "",
@@ -150,11 +159,24 @@ export function TripFormDialog({
   // never when editing (editing always loads real data from initialData above).
   useFormDraft(TRIP_DRAFT_KEY, open && !initialData, form, setForm);
 
+  useEffect(() => {
+    const rule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
+    if (rule) {
+      setForm((prev) => ({
+        ...prev,
+        driverCompensationType: rule.type as Trip["driverCompensationType"],
+        driverAdvanceAmount: rule.amount,
+      }));
+    }
+  }, [form.tripCategory, form.containerSpecification]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
   const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
   const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
   const compensationPct = selectedBranch ? parseFloat(selectedBranch.driverHaltDayPercentage || "0") : null;
   const isNormalComp = form.driverCompensationType === "Normal";
+  const isShifting = form.tripCategory === "SHIFTING";
+  const battaRule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
 
   const destinationOptions = customerDestinations
     .map((d) => {
@@ -378,8 +400,19 @@ export function TripFormDialog({
               <GlassSelect
                 value={form.tripCategory}
                 onChange={(val) => {
-                  update("tripCategory", val as Trip["tripCategory"]);
-                  if (val === "SHIFTING") update("billTo", "");
+                  if (val === "SHIFTING") {
+                    setForm((prev) => ({
+                      ...prev,
+                      tripCategory: val as Trip["tripCategory"],
+                      billTo: "",
+                      paymentType: "",
+                      customerCashAdvance: "",
+                      customerFuelAdvanceAmount: "",
+                      customerFuelAdvanceLitres: "",
+                    }));
+                  } else {
+                    update("tripCategory", val as Trip["tripCategory"]);
+                  }
                 }}
                 options={[
                   { value: "", label: "Select trip category" },
@@ -623,17 +656,6 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Vehicle &amp; Trip Assignment</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Transport Method" required>
-              <GlassSelect
-                value={form.transportMethod}
-                onChange={(val) => update("transportMethod", val as Trip["transportMethod"])}
-                options={[
-                  { value: "", label: "Select transport method" },
-                  ...TRANSPORT_METHOD_OPTIONS.map(o => ({ value: o, label: o }))
-                ]}
-              />
-            </Field>
-
             <Field label="Scheduled Trip Date" required>
               <DatePickerInput
                 required
@@ -673,12 +695,20 @@ export function TripFormDialog({
         {/* Payment & Advances */}
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Payment &amp; Advances</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Bill To" required={form.tripCategory !== "SHIFTING"}>
+          {isShifting && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <p className="text-sm text-amber-800">
+                <span className="font-semibold">Billing not applicable for Shifting trips</span> — shifting trips are internal vehicle relocations between company locations and are not billed to any customer or consignee. All billing fields are locked.
+              </p>
+            </div>
+          )}
+          <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isShifting ? "pointer-events-none opacity-50" : ""}`}>
+            <Field label="Bill To" required={!isShifting}>
               <GlassSelect
                 value={form.billTo}
                 onChange={(val) => update("billTo", val as Trip["billTo"])}
-                disabled={form.tripCategory === "SHIFTING"}
+                disabled={isShifting}
                 options={[
                   { value: "", label: "Select bill to" },
                   ...BILL_TO_OPTIONS.map(o => ({ value: o, label: o }))
@@ -686,10 +716,11 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Payment Type" required>
+            <Field label="Payment Type" required={!isShifting}>
               <GlassSelect
                 value={form.paymentType}
                 onChange={(val) => update("paymentType", val as Trip["paymentType"])}
+                disabled={isShifting}
                 options={[
                   { value: "", label: "Select payment type" },
                   ...PAYMENT_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
@@ -697,35 +728,38 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Customer Cash Advance (₹)" required>
+            <Field label="Customer Cash Advance (₹)" required={!isShifting}>
               <DecimalInput type="number"
                 min="0"
                 value={form.customerCashAdvance}
                 onChange={(e) => update("customerCashAdvance", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
+                readOnly={isShifting}
+                className={`${inputClass} ${isShifting ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
                 placeholder="e.g. 5000"
               />
             </Field>
 
-            <Field label="Customer Fuel Advance (₹)" required>
+            <Field label="Customer Fuel Advance (₹)" required={!isShifting}>
               <DecimalInput type="number"
                 min="0"
                 value={form.customerFuelAdvanceAmount}
                 onChange={(e) => update("customerFuelAdvanceAmount", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
+                readOnly={isShifting}
+                className={`${inputClass} ${isShifting ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
                 placeholder="e.g. 8000"
               />
             </Field>
 
-            <Field label="Customer Fuel Advance (Litres)" required>
+            <Field label="Customer Fuel Advance (Litres)" required={!isShifting}>
               <DecimalInput type="number"
                 min="0"
                 value={form.customerFuelAdvanceLitres}
                 onChange={(e) => update("customerFuelAdvanceLitres", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
+                readOnly={isShifting}
+                className={`${inputClass} ${isShifting ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
                 placeholder="e.g. 85"
               />
             </Field>
@@ -778,6 +812,12 @@ export function TripFormDialog({
                 className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
                 placeholder={isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
               />
+              {battaRule && !isNormalComp && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-set to ₹{Number(battaRule.amount).toLocaleString("en-IN")} — {form.tripCategory} with {form.containerSpecification} ({battaRule.type} rate). Edit to override.
+                </span>
+              )}
               {isNormalComp && form.driverAdvanceAmount && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />

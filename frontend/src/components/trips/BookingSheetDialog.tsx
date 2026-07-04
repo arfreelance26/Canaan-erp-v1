@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, type FormEvent } from "react";
+import { Sparkles } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
@@ -18,7 +19,6 @@ import {
   CARGO_CLASSIFICATION_OPTIONS,
   CONTAINER_SPECIFICATION_OPTIONS,
   CARGO_WEIGHT_OPTIONS,
-  TRANSPORT_METHOD_OPTIONS,
   PAYMENT_TYPE_OPTIONS,
   DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS,
   DRIVER_COMPENSATION_TYPE_OPTIONS,
@@ -30,6 +30,17 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"];
 const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE"];
+
+const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
+  "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
+                 "40 FT CONTAINER":         { type: "FIXED", amount: "1300" } },
+  "LOCAL CFS": { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
+                 "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "1300" },
+                 "40 FT CONTAINER":         { type: "FIXED", amount: "1000" } },
+  "SHIFTING":  { "20 FT CONTAINER":        { type: "FIXED", amount: "300" },
+                "40 FT CONTAINER":         { type: "FIXED", amount: "300" },
+                "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "600" } },
+};
 
 const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -68,6 +79,18 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
     }
     if (!open) { setForm(null); setTripForm(null); }
   }, [open, closure, trip]);
+
+  useEffect(() => {
+    if (readOnly || !tripForm) return;
+    const rule = BATTA_RULES[tripForm.tripCategory ?? ""]?.[tripForm.containerSpecification ?? ""];
+    if (rule) {
+      setTripForm((prev) => prev ? {
+        ...prev,
+        driverCompensationType: rule.type as Trip["driverCompensationType"],
+        driverAdvanceAmount: rule.amount,
+      } : prev);
+    }
+  }, [tripForm?.tripCategory, tripForm?.containerSpecification, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function update<K extends keyof TripClosureData>(key: K, value: TripClosureData[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -111,6 +134,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
         : Number(truckBranch.haltDayFee20ft || 0))
     : 0;
   const haltCompensation = totalHaltDays > 0 ? totalHaltDays * haltDayRate : 0;
+  const battaRule = !readOnly ? BATTA_RULES[tf.tripCategory ?? ""]?.[tf.containerSpecification ?? ""] : undefined;
   const containerDisplay =
     containerSpec === "2 X 20 FEET CONTAINERS"
       ? [tf.containerNumber1, tf.containerNumber2].filter(Boolean).join(" / ")
@@ -313,17 +337,6 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
         <section className="flex flex-col gap-4">
           <p className={sh}>Vehicle &amp; Trip Assignment</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Transport Method">
-              {readOnly ? (
-                <input readOnly disabled value={tf.transportMethod ?? ""} className={roClass} />
-              ) : (
-                <GlassSelect
-                  value={tf.transportMethod ?? ""}
-                  onChange={(val) => updateTrip("transportMethod", val as Trip["transportMethod"])}
-                  options={[{ value: "", label: "Select transport method" }, ...TRANSPORT_METHOD_OPTIONS.map((o) => ({ value: o, label: o }))]}
-                />
-              )}
-            </Field>
             <Field label="Scheduled Trip Date">
               <DatePickerInput value={tf.scheduledDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} />
             </Field>
@@ -436,6 +449,12 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 onWheel={(e) => e.currentTarget.blur()}
                 className={fc}
               />
+              {battaRule && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-set to ₹{Number(battaRule.amount).toLocaleString("en-IN")} — {tf.tripCategory} with {tf.containerSpecification} ({battaRule.type} rate). Edit to override.
+                </span>
+              )}
             </Field>
           </div>
         </section>

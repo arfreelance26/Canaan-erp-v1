@@ -30,8 +30,6 @@ export type BillTo = "CUSTOMER" | "CONSIGNEE" | "SELF/CGI";
 
 export type PaymentType = "Credit" | "Cash" | "Fuel";
 
-export type TransportMethod = "Own Fleet" | "Third-Party Transporter";
-
 export type DriverAdvancePaymentMethod = "None" | "CASH" | "NEFT/IMPS/UPI" | "Both";
 
 export type DriverCompensationType = "Normal" | "FIXED";
@@ -71,7 +69,6 @@ export type Trip = {
   vesselName: string;
 
   // Vehicle & Trip Assignment
-  transportMethod: TransportMethod | "";
   scheduledDate: string;
   driverId: string;
   vehicleId: string;

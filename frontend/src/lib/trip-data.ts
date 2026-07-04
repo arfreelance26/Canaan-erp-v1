@@ -6,7 +6,6 @@ import type {
   DriverCompensationType,
   MovementCategory,
   PaymentType,
-  TransportMethod,
   Trip,
   TripCategory,
 } from "@/types/trip";
@@ -88,11 +87,6 @@ export const BILL_TO_OPTIONS = ["CUSTOMER", "CONSIGNEE", "SELF/CGI"];
 
 export const PAYMENT_TYPE_OPTIONS: PaymentType[] = ["Credit", "Cash", "Fuel"];
 
-export const TRANSPORT_METHOD_OPTIONS: TransportMethod[] = [
-  "Own Fleet",
-  "Third-Party Transporter",
-];
-
 export const DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS: DriverAdvancePaymentMethod[] = [
   "None",
   "CASH",
@@ -129,7 +123,6 @@ export const initialTrips: Trip[] = [
     destination: "Bengaluru",
     shippingLine: "—",
     vesselName: "—",
-    transportMethod: "Own Fleet",
     scheduledDate: "2026-06-13",
     driverId: "CGI-D001",
     vehicleId: "CGI-T001",
@@ -174,7 +167,6 @@ export const initialTrips: Trip[] = [
     destination: "Chennai",
     shippingLine: "—",
     vesselName: "—",
-    transportMethod: "Own Fleet",
     scheduledDate: "2026-06-12",
     driverId: "CGI-D001",
     vehicleId: "CGI-T001",
@@ -219,7 +211,6 @@ export const initialTrips: Trip[] = [
     destination: "Coimbatore",
     shippingLine: "Cochin Shipyard Lines",
     vesselName: "MV Malabar Star",
-    transportMethod: "Own Fleet",
     scheduledDate: "2026-06-10",
     driverId: "CGI-D001",
     vehicleId: "CGI-T001",

@@ -333,15 +333,19 @@ def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
     start_year = today.year if today.month >= 4 else today.year - 1
     fy = f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
 
-    count = db.query(models.TripInvoice).filter(models.TripInvoice.invoice_type == invoice_type).count()
-    next_num = str(count + 1).zfill(3)
-
     if invoice_type == "Transport Memo":
-        invoice_no = f"TM/{fy}/{next_num}"
-    elif invoice_type == "Bill of Supply":
-        invoice_no = f"CGI/{fy}/{next_num}"
+        count = db.query(models.TripInvoice).filter(
+            models.TripInvoice.invoice_type == "Transport Memo"
+        ).count()
+        next_num = str(count + 1).zfill(4)
+        invoice_no = f"CGI{fy}/TM{next_num}"
     else:
-        invoice_no = f"CGI/{fy}/{next_num}"
+        # Bill of Supply and Tax Invoice share the same T-series counter
+        count = db.query(models.TripInvoice).filter(
+            models.TripInvoice.invoice_type.in_(["Bill of Supply", "Tax Invoice"])
+        ).count()
+        next_num = str(count + 1).zfill(4)
+        invoice_no = f"CGI{fy}/T{next_num}"
 
     return {"invoice_no": invoice_no}
 

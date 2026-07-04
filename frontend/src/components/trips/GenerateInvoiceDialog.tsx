@@ -10,7 +10,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { SacCode } from "@/types/sac-code";
-import { sacCodesApi } from "@/lib/api";
+import { sacCodesApi, tripsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
@@ -229,17 +229,17 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     if (trip) localStorage.removeItem(INVOICE_HINTS_KEY(trip.id));
   }
 
-  const autoInvoiceNo = useMemo(() => {
-    const ref = form.bookingReferenceNo;
-    if (!ref) return "";
-    const parts = ref.split("/");
-    if (parts.length < 4) return ref;
-    // parts: CGI / DDMMYY / 26-27 / 004
-    const fiscalYear = parts[2].replace("-", ""); // "26-27" → "2627"
-    const seq = parts[3].padStart(4, "0");         // "004"   → "0004"
-    const prefix = form.invoiceType === "Transport Memo" ? "TM" : "T";
-    return `CGI${fiscalYear}/${prefix}${seq}`;
-  }, [form.bookingReferenceNo, form.invoiceType]);
+  const [fetchedInvoiceNo, setFetchedInvoiceNo] = useState("");
+  useEffect(() => {
+    if (!open) { setFetchedInvoiceNo(""); return; }
+    if (savedInvoice?.invoiceNo) return;
+    setFetchedInvoiceNo("");
+    tripsApi.getNextInvoiceNo(form.invoiceType)
+      .then((r) => setFetchedInvoiceNo(r.invoice_no))
+      .catch(() => setFetchedInvoiceNo(""));
+  }, [open, form.invoiceType, savedInvoice?.invoiceNo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const autoInvoiceNo = savedInvoice?.invoiceNo || fetchedInvoiceNo;
 
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
   const isSelf = trip?.billTo === "SELF/CGI";
@@ -325,10 +325,10 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     form.services.map((s) => {
       const subtotal = (parseFloat(s.quantity) || 0) * (parseFloat(s.rate) || 0);
       const effectiveRate = parseFloat(s.gstRate) || 0;
-      const gstAmount = taxSelected ? parseFloat((subtotal * (effectiveRate / 100)).toFixed(2)) : 0;
+      const gstAmount = parseFloat((subtotal * (effectiveRate / 100)).toFixed(2));
       return { subtotal, gstAmount, lineTotal: subtotal + gstAmount, effectiveRate };
     }),
-  [form.services, taxSelected]);
+  [form.services]);
 
   const subtotalAll = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.subtotal, 0), [serviceCalcs]);
   const totalGst = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.gstAmount, 0), [serviceCalcs]);
@@ -470,7 +470,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
           <p className={sh}>1. Invoice Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Invoice No">
-              <input readOnly disabled value={autoInvoiceNo} className={roClass} placeholder="Auto-generated from booking reference" />
+              <input readOnly disabled value={autoInvoiceNo} className={roClass} placeholder={open ? "Fetching next number…" : ""} />
             </Field>
             <Field label="Invoice Date" required>
               <DatePickerInput value={form.invoiceDate} onChange={(v) => update("invoiceDate", v)} required />
@@ -756,8 +756,8 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <button type="button" onClick={() => { clearFormDraft(draftKey); onClose(); }} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-              {saving ? (savedInvoice ? "Saving…" : "Generating…") : (savedInvoice ? "Save Changes" : "Generate Invoice")}
+            <button type="submit" disabled={saving || (!savedInvoice && !autoInvoiceNo)} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+              {saving ? (savedInvoice ? "Saving…" : "Generating…") : (!savedInvoice && !autoInvoiceNo) ? "Fetching No…" : (savedInvoice ? "Save Changes" : "Generate Invoice")}
             </button>
           </div>
         </div>

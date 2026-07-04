@@ -10,7 +10,6 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Branch } from "@/types/branch";
 import type { TripClosureData, PaymentMode, BillTo } from "@/types/trip-closure";
-import { MOVEMENT_CATEGORY_OPTIONS } from "@/lib/trip-data";
 import { branchesApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -23,8 +22,6 @@ const PAYMENT_MODE_OPTIONS: PaymentMode[] = [
   "Cheque",
   "NEFT / RTGS",
 ];
-
-const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE", "SELF/CGI"];
 
 const readonlyClass =
   "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
@@ -114,6 +111,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
 
       // 4. Billing — pre-fill what we know
       f.hireAmount = trip.transportHireAmount ?? "";
+      f.transportAmount = trip.transportHireAmount ?? "";
       f.advanceAmount = trip.customerCashAdvance ?? "";
       f.driverAdvance = trip.driverAdvance ?? "";
       f.billTo = (trip.billTo as BillTo) ?? "";
@@ -173,14 +171,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               <input readOnly disabled value={form.loadType} className={readonlyClass} />
             </Field>
             <Field label="Movement Category">
-              <GlassSelect
-                value={form.movementCategory}
-                onChange={(val) => update("movementCategory", val)}
-                options={[
-                  { value: "", label: "Select movement category" },
-                  ...MOVEMENT_CATEGORY_OPTIONS.map((o) => ({ value: o, label: o })),
-                ]}
-              />
+              <input readOnly disabled value={form.movementCategory} className={readonlyClass} />
             </Field>
           </div>
         </section>
@@ -242,37 +233,13 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
           <p className={sectionHeadingClass}>4. Billing</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Hire Amount (₹)">
-              <DecimalInput type="number"
-                min="0"
-                step="0.01"
-                value={form.hireAmount}
-                onChange={(e) => update("hireAmount", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="e.g. 32000"
-              />
+              <input readOnly disabled value={form.hireAmount} className={readonlyClass} />
             </Field>
             <Field label="Transport Amount (₹)">
-              <DecimalInput type="number"
-                min="0"
-                step="0.01"
-                value={form.transportAmount}
-                onChange={(e) => update("transportAmount", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="e.g. 34000"
-              />
+              <input readOnly disabled value={form.transportAmount} className={readonlyClass} />
             </Field>
             <Field label="Customer Advance Amount (₹)">
-              <DecimalInput type="number"
-                min="0"
-                step="0.01"
-                value={form.advanceAmount}
-                onChange={(e) => update("advanceAmount", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="e.g. 5000"
-              />
+              <input readOnly disabled value={form.advanceAmount} className={readonlyClass} />
             </Field>
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
@@ -304,14 +271,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               />
             </Field>
             <Field label="Bill To">
-              <GlassSelect
-                value={form.billTo}
-                onChange={(val) => update("billTo", val as BillTo)}
-                options={[
-                  { value: "", label: "Select bill to" },
-                  ...BILL_TO_OPTIONS.map((opt) => ({ value: opt, label: opt })),
-                ]}
-              />
+              <input readOnly disabled value={form.billTo} className={readonlyClass} />
             </Field>
           </div>
         </section>
@@ -321,20 +281,26 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
           <p className={sectionHeadingClass}>5. Halt Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Company Halt Days (Driver)">
-              <DecimalInput type="number"
+              <input
+                type="number"
                 min="0"
+                step="1"
                 value={form.companyHaltDays}
-                onChange={(e) => update("companyHaltDays", e.target.value)}
+                onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) e.preventDefault(); }}
+                onChange={(e) => { const v = e.target.value; update("companyHaltDays", v === "" ? "" : String(Math.trunc(Number(v)))); }}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="0"
               />
             </Field>
             <Field label="Party Halt Days (Customer)">
-              <DecimalInput type="number"
+              <input
+                type="number"
                 min="0"
+                step="1"
                 value={form.partyHaltDays}
-                onChange={(e) => update("partyHaltDays", e.target.value)}
+                onKeyDown={(e) => { if ([".", ",", "e", "E", "+", "-"].includes(e.key)) e.preventDefault(); }}
+                onChange={(e) => { const v = e.target.value; update("partyHaltDays", v === "" ? "" : String(Math.trunc(Number(v)))); }}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
                 placeholder="0"

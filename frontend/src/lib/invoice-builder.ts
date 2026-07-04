@@ -65,7 +65,6 @@ function fmtDate(iso: string): string {
 }
 
 function resolveContainerNo(trip: Trip, closure: TripClosureData): string {
-  // Use the simplified containerNo from closure; fall back to trip fields
   if (closure.containerNo) return closure.containerNo;
   const spec = closure.containerType || trip.containerSpecification;
   if (spec === "2 X 20 FEET CONTAINERS") {
@@ -98,24 +97,22 @@ function buildServiceItems(closure: TripClosureData): ServiceItem[] {
   }];
 }
 
-function reorderRef(ref: string): string {
-  const parts = ref.split("/");
-  if (parts.length < 4) return ref;
-  // Fiscal year looks like "25-26" / "26-27"; sequence looks like "001".
-  // Ensure order is always: CGI / date / fiscal-year / seq
-  const a = parts[2]!;
-  const b = parts[3]!;
-  const aIsFiscal = /^\d{2}-\d{2}$/.test(a);
-  if (!aIsFiscal) [parts[2], parts[3]] = [b, a];
-  return parts.join("/");
+// Returns the pre-GST subtotal and the total GST across all service lines.
+function computeServiceTotals(services: any[]): { subtotal: number; gstTotal: number } {
+  return services.reduce(
+    (acc, s) => {
+      const base = n(s.quantity) * n(s.rate);
+      const gst = parseFloat((base * ((parseFloat(s.gstRate) || 0) / 100)).toFixed(2));
+      return { subtotal: acc.subtotal + base, gstTotal: acc.gstTotal + gst };
+    },
+    { subtotal: 0, gstTotal: 0 },
+  );
 }
 
 function resolveInvoiceNo(trip: Trip, invoice?: Record<string, any>): string {
-  if (invoice?.invoiceNo) return reorderRef(invoice.invoiceNo);
-  const ref = trip.bookingReferenceNo.startsWith("CGI/")
-    ? trip.bookingReferenceNo
-    : `CGI/${trip.bookingReferenceNo}`;
-  return reorderRef(ref);
+  const invNo = invoice?.invoiceNo ?? invoice?.invoice_no;
+  if (invNo) return invNo;
+  return trip.bookingReferenceNo ?? "";
 }
 
 function resolveBillToName(trip: Trip, closure: TripClosureData, customer: Customer | undefined): string {
@@ -137,29 +134,34 @@ function commonFields(
   const isExport = trip.cargoClassification === "EXPORT";
   return {
     invoiceNo:        resolveInvoiceNo(trip, invoice),
-    date:             fmtDate(invoice?.invoiceDate || new Date().toISOString().slice(0, 10)),
-    billToName:       invoice?.billTo || resolveBillToName(trip, closure, customer),
+    date:             fmtDate(invoice?.invoiceDate || invoice?.invoice_date || new Date().toISOString().slice(0, 10)),
+    billToName:       invoice?.billTo || invoice?.bill_to || resolveBillToName(trip, closure, customer),
     billToAddress:    customer?.address,
     bookingNo:        closure.bookingNo || trip.bookingReferenceNo,
     tripSheetNo:      sheet?.tripSheetNo ?? trip.tripId ?? "",
     refNo:            closure.releaseOrderNo || trip.releaseOrderReference,
-    modeOfShipment:   invoice?.modeOfShipment || trip.cargoClassification || "SEA",
-    containerType:    invoice?.containerType || closure.containerType || trip.containerSpecification,
-    gstNumber:        invoice?.gstNumber || customer?.gstin || "",
+    modeOfShipment:   invoice?.modeOfShipment || invoice?.mode_of_shipment || trip.cargoClassification || "SEA",
+    containerType:    invoice?.containerType || invoice?.container_type || closure.containerType || trip.containerSpecification,
+    gstNumber:        invoice?.gstNumber || invoice?.gst_number || customer?.gstin || "",
     cfs:              invoice?.cfs || undefined,
-    lineForwarder:    invoice?.shippingLine || (isExport ? "" : (closure.line || trip.shippingLine)),
-    vesselName:       invoice?.vesselName || (isExport ? "" : trip.vesselName),
-    from:             invoice?.from || closure.fromLocation || trip.origin,
-    to:               invoice?.to || closure.toLocation || trip.destination,
-    containerNo:      invoice?.containerNo || resolveContainerNo(trip, closure),
+    lineForwarder:    invoice?.shippingLine || invoice?.shipping_line || (isExport ? "" : (closure.line || trip.shippingLine)),
+    vesselName:       invoice?.vesselName || invoice?.vessel_name || (isExport ? "" : trip.vesselName),
+    from:             invoice?.from || invoice?.origin || closure.fromLocation || trip.origin,
+    to:               invoice?.to || invoice?.destination || closure.toLocation || trip.destination,
+    containerNo:      invoice?.containerNo || invoice?.container_no || resolveContainerNo(trip, closure),
     consignee:        invoice?.consignee || trip.shipperConsignee,
-    serviceItems:     invoice?.services?.length ? invoice.services.map((s: any) => ({
-      description: s.descriptionOfService,
-      sacCode: s.sacCode,
-      qty: n(s.quantity),
-      rate: fmt(n(s.rate)),
-      total: fmt(n(s.quantity) * n(s.rate))
-    })) : buildServiceItems(closure),
+    // Service table: rate is pre-GST; total is GST-inclusive (base + per-line GST).
+    serviceItems:     invoice?.services?.length ? invoice.services.map((s: any) => {
+      const base = n(s.quantity) * n(s.rate);
+      const gst  = parseFloat((base * ((parseFloat(s.gstRate) || 0) / 100)).toFixed(2));
+      return {
+        description: s.descriptionOfService,
+        sacCode: s.sacCode,
+        qty: n(s.quantity),
+        rate: fmt(n(s.rate)),
+        total: fmt(base + gst),
+      };
+    }) : buildServiceItems(closure),
     subtotal:         fmt(totalBilling),
     amountInWords:    amountToWords(String(totalBilling)),
     grandTotal:       fmt(totalBilling),
@@ -172,13 +174,13 @@ function commonFields(
       const shortSpec = spec === "20 FT CONTAINER" ? "20 FT" : spec === "40 FT CONTAINER" ? "40 FT" : spec === "2 X 20 FEET CONTAINERS" ? "2X20 FT" : spec === "OPEN LOAD CARGO" ? "OPEN LOAD" : spec;
       return [containerNo, shortSpec, origin, destination, date].filter(Boolean).join("/");
     })(),
-    bankName:         invoice?.bankName || "HDFC - 9181 - Shipping",
-    branchName:       invoice?.branchName || "TUTICORIN",
-    accountNumber:    invoice?.accountNumber || "50200037439181",
-    ifscCode:         invoice?.ifscCode || "HDFC0001104",
-    contactPerson:    invoice?.contactPerson || "S SUNDER",
-    email:            invoice?.email || "tutfin@canaanglobal.com",
-    contact:          invoice?.contact || "9047015423",
+    bankName:      invoice?.bankName || invoice?.bank_name || "HDFC - 9181 - Shipping",
+    branchName:    invoice?.branchName || invoice?.branch_name || "TUTICORIN",
+    accountNumber: invoice?.accountNumber || invoice?.account_number || "50200037439181",
+    ifscCode:      invoice?.ifscCode || invoice?.ifsc_code || "HDFC0001104",
+    contactPerson: invoice?.contactPerson || "S SUNDER",
+    email:         invoice?.email || "tutfin@canaanglobal.com",
+    contact:       invoice?.contact || "9047015423",
   };
 }
 
@@ -191,14 +193,17 @@ export function buildBillOfSupply(
   customer: Customer | undefined,
   invoice?: Record<string, any>
 ): BillOfSupplyInvoiceProps {
-  const total = invoice?.services?.length ? invoice.services.reduce((acc: number, s: any) => acc + (n(s.quantity) * n(s.rate)), 0) : (n(closure.billingAmount) || n(closure.hireAmount));
+  const { subtotal, gstTotal } = invoice?.services?.length
+    ? computeServiceTotals(invoice.services)
+    : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
+  const grand = subtotal + gstTotal;
   return {
     ...commonFields(trip, closure, sheet, customer, invoice),
-    subtotal: fmt(total),
-    grandTotal: fmt(total),
-    amountInWords: amountToWords(String(total)),
-    hsnRows:  [{ hsn: "996791 — Goods Transport Services", taxableValue: fmt(total) }],
-    hsnTotal: fmt(total),
+    subtotal: fmt(grand),
+    grandTotal: fmt(grand),
+    amountInWords: amountToWords(String(grand)),
+    hsnRows:  [{ hsn: "996791 — Goods Transport Services", taxableValue: fmt(subtotal) }],
+    hsnTotal: fmt(subtotal),
   };
 }
 
@@ -209,15 +214,17 @@ export function buildTransportMemo(
   customer: Customer | undefined,
   invoice?: Record<string, any>
 ): TransportMemoInvoiceProps {
-  const total = invoice?.services?.length ? invoice.services.reduce((acc: number, s: any) => acc + (n(s.quantity) * n(s.rate)), 0) : (n(closure.billingAmount) || n(closure.hireAmount));
+  const { subtotal, gstTotal } = invoice?.services?.length
+    ? computeServiceTotals(invoice.services)
+    : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
+  const grand = subtotal + gstTotal;
   return {
     ...commonFields(trip, closure, sheet, customer, invoice),
-    // Transport Memo is always billed to Canaan Global International — never the customer
     billToName: invoice?.billTo || "Canaan Global International, Puthukottai, Tuticorin, Tamil Nadu, India.",
     billToAddress: undefined,
-    subtotal: fmt(total),
-    grandTotal: fmt(total),
-    amountInWords: amountToWords(String(total)),
+    subtotal: fmt(grand),
+    grandTotal: fmt(grand),
+    amountInWords: amountToWords(String(grand)),
   };
 }
 
@@ -228,22 +235,28 @@ export function buildTaxInvoice(
   customer: Customer | undefined,
   invoice?: Record<string, any>
 ): TaxInvoiceProps {
-  const subtotal    = invoice?.services?.length ? invoice.services.reduce((acc: number, s: any) => acc + (n(s.quantity) * n(s.rate)), 0) : (n(closure.billingAmount) || n(closure.hireAmount));
-  const sgst        = invoice?.gstApplicable === "Yes" ? parseFloat((subtotal * 0.09).toFixed(2)) : 0;
-  const cgst        = invoice?.gstApplicable === "Yes" ? parseFloat((subtotal * 0.09).toFixed(2)) : 0;
-  const igst        = invoice?.igstApplicable === "Yes" ? parseFloat((subtotal * 0.18).toFixed(2)) : 0;
-  const grandTotal  = subtotal + sgst + cgst + igst;
+  const { subtotal, gstTotal } = invoice?.services?.length
+    ? computeServiceTotals(invoice.services)
+    : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
+
+  const gstApp  = invoice?.gstApplicable || invoice?.gst_applicable;
+  const igstApp = invoice?.igstApplicable || invoice?.igst_applicable;
+  // Split per-service GST into CGST+SGST (9%+9%) or IGST (18%) based on invoice toggle.
+  const sgst = gstApp === "Yes" ? parseFloat((gstTotal / 2).toFixed(2)) : 0;
+  const cgst = gstApp === "Yes" ? parseFloat((gstTotal / 2).toFixed(2)) : 0;
+  const igst = igstApp === "Yes" ? gstTotal : 0;
+  const grand = subtotal + (gstApp === "Yes" ? sgst + cgst : igstApp === "Yes" ? igst : gstTotal);
 
   return {
     ...commonFields(trip, closure, sheet, customer, invoice),
-    subtotal: fmt(subtotal),
-    amountInWords: amountToWords(String(grandTotal)),
-    grandTotal:    fmt(grandTotal),
+    subtotal: fmt(grand),
+    amountInWords: amountToWords(String(grand)),
+    grandTotal:    fmt(grand),
     hsnRows: [
       { description: "996791 — Goods Transport Services", value: fmt(subtotal) },
       ...(sgst > 0 ? [{ description: "SGST @ 9%", value: fmt(sgst) }, { description: "CGST @ 9%", value: fmt(cgst) }] : []),
       ...(igst > 0 ? [{ description: "IGST @ 18%", value: fmt(igst) }] : []),
     ],
-    hsnTotal: fmt(grandTotal),
+    hsnTotal: fmt(grand),
   };
 }

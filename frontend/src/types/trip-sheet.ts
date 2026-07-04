@@ -64,7 +64,6 @@ export type TripSheetData = {
 
   // Toll Details
   tollCharges: string;
-  tollCount: string;
 
   // Remarks
   remarks: string;

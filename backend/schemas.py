@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -343,7 +343,6 @@ CargoClassification = Literal["IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LO
 ContainerSpecification = Literal["20 FT CONTAINER", "40 FT CONTAINER", "2 X 20 FEET CONTAINERS", "OPEN LOAD CARGO"]
 BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
 PaymentType = Literal["Credit", "Cash", "Fuel"]
-TransportMethod = Literal["Own Fleet", "Third-Party Transporter"]
 DriverAdvancePaymentMethod = Literal["None", "CASH", "NEFT/IMPS/UPI", "Both"]
 DriverCompensationType = Literal["Normal", "FIXED"]
 VerificationStatus = Literal["pending", "verified", "flagged"]
@@ -371,7 +370,6 @@ class TripBase(OrmBase):
     destination: Optional[str] = None
     shipping_line: Optional[str] = None
     vessel_name: Optional[str] = None
-    transport_method: Optional[TransportMethod] = None
     scheduled_date: Optional[date] = None
     driver_id: Optional[str] = None
     vehicle_id: Optional[str] = None
@@ -388,6 +386,17 @@ class TripBase(OrmBase):
     transport_crossing_amount: Optional[Decimal] = None
     internal_remarks: Optional[str] = None
     booking_instructions: Optional[str] = None
+
+
+    @model_validator(mode="after")
+    def _clear_billing_for_shifting(self) -> "TripBase":
+        if self.trip_category == "SHIFTING":
+            self.bill_to = None
+            self.payment_type = None
+            self.customer_cash_advance = None
+            self.customer_fuel_advance_amount = None
+            self.customer_fuel_advance_litres = None
+        return self
 
 
 class TripCreate(TripBase):
@@ -518,7 +527,6 @@ class TripSheetCreate(OrmBase):
     total_expense: Optional[Decimal] = None
     fuel_cost_approx: Optional[Decimal] = None
     toll_charges: Optional[Decimal] = None
-    toll_count: Optional[int] = 0
     remarks: Optional[str] = None
 
 

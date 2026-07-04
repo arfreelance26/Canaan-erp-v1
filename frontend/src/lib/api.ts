@@ -444,7 +444,6 @@ function toTrip(b: B): Trip & { _dbId: number } {
     destination: b.destination ?? "",
     shippingLine: b.shipping_line ?? "",
     vesselName: b.vessel_name ?? "",
-    transportMethod: b.transport_method ?? "",
     scheduledDate: b.scheduled_date ?? "",
     driverId: b.driver_id ?? "",
     vehicleId: b.vehicle_id ?? "",
@@ -491,7 +490,6 @@ function fromTrip(f: Trip) {
     destination: f.destination || null,
     shipping_line: f.shippingLine || null,
     vessel_name: f.vesselName || null,
-    transport_method: f.transportMethod || null,
     scheduled_date: f.scheduledDate || null,
     driver_id: f.driverId || null,
     vehicle_id: f.vehicleId || null,
@@ -635,7 +633,6 @@ function toSheet(b: B): TripSheetData {
     totalExpense: String(b.total_expense ?? ""),
     fuelCostApprox: String(b.fuel_cost_approx ?? ""),
     tollCharges: String(b.toll_charges ?? ""),
-    tollCount: String(b.toll_count ?? ""),
     remarks: b.remarks ?? "",
     version: typeof b.version === "number" ? b.version : undefined,
   };
@@ -687,7 +684,6 @@ function fromSheet(f: TripSheetData) {
     total_expense: n(f.totalExpense),
     fuel_cost_approx: n(f.fuelCostApprox),
     toll_charges: n(f.tollCharges),
-    toll_count: parseInt(f.tollCount) || 0,
     remarks: f.remarks || null,
     client_version: f.version,  // echo version back for optimistic locking
   };

@@ -11,18 +11,19 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
 import { repairTypesApi, fuelLogsApi, tripsApi } from "@/lib/api";
-import { GlassSelect } from "@/components/ui/GlassSelect";
-import { CONTAINER_SPECIFICATION_OPTIONS, TRIP_CATEGORY_OPTIONS, CARGO_WEIGHT_OPTIONS } from "@/lib/trip-data";
 import { showError } from "@/lib/swal";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 // Auto-fill rules: tripType → containerType → { type, amount }
 const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
-  "LOCAL":     { "20 FT CONTAINER":       { type: "FIXED", amount: "1000" },
-                 "40 FT CONTAINER":        { type: "FIXED", amount: "1300" } },
-  "LOCAL CFS": { "20 FT CONTAINER":       { type: "FIXED", amount: "1000" },
-                 "20 X 2 FT CONTAINERS":  { type: "FIXED", amount: "1300" },
-                 "40 FT CONTAINER":        { type: "FIXED", amount: "1000" } },
+  "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
+                 "40 FT CONTAINER":         { type: "FIXED", amount: "1300" } },
+  "LOCAL CFS": { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
+                 "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "1300" },
+                 "40 FT CONTAINER":         { type: "FIXED", amount: "1000" } },
+  "SHIFTING":  { "20 FT CONTAINER":        { type: "FIXED", amount: "300" },
+                "40 FT CONTAINER":         { type: "FIXED", amount: "300" },
+                "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "600" } },
 };
 
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -72,7 +73,7 @@ const emptySheet = (tripId: string): TripSheetData => ({
   majorRepairs: [],
   otherExpenses: "",
   tripExpensesTotal: "", driverExpensesTotal: "", totalExpense: "", fuelCostApprox: "",
-  tollCharges: "", tollCount: "0",
+  tollCharges: "",
   remarks: "",
 });
 
@@ -130,8 +131,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     // Only company-caused halt days go into trip expenses
     const hp = totalHD > 0 ? (compHD / totalHD) * totalComp : 0;
 
+    const battaCompType =
+      BATTA_RULES[trip.tripCategory ?? ""]?.[trip.containerSpecification ?? ""]?.type ?? "";
+
     if (existingSheet) {
-      setForm(recalcDerived({ ...existingSheet }, hp));
+      setForm(recalcDerived({
+        ...existingSheet,
+        driverCompensationType: existingSheet.driverCompensationType || trip.driverCompensationType || battaCompType,
+      }, hp));
     } else {
       const sheet = emptySheet(trip.id);
       sheet.bookingReferenceNo  = trip.bookingReferenceNo ?? "";
@@ -147,8 +154,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.from                = trip.origin ?? "";
       sheet.to                  = trip.destination ?? "";
       sheet.cargoWeight         = trip.cargoWeight ?? "";
-      sheet.hireAmount          = trip.transportHireAmount ?? "";
-      sheet.driverPay           = trip.driverAdvanceAmount ?? "";
+      sheet.hireAmount              = trip.transportHireAmount ?? "";
+      sheet.driverCompensationType  = trip.driverCompensationType || battaCompType;
+      sheet.driverPay               = trip.driverAdvanceAmount ?? "";
       sheet.driverAdvanceAmount = String(
         (Number(closure?.driverAdvance || 0) + Number(closure?.additionalDriverAdvance || 0)).toFixed(2)
       );
@@ -218,11 +226,11 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
   }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-fill driver compensation type + batta based on BATTA_RULES
+  // Auto-fill driver batta based on BATTA_RULES
   useEffect(() => {
     const rule = BATTA_RULES[form.tripType]?.[form.containerType];
     if (rule) {
-      setForm((prev) => recalcDerived({ ...prev, driverCompensationType: rule.type, driverPay: rule.amount }, haltPay));
+      setForm((prev) => recalcDerived({ ...prev, driverPay: rule.amount }, haltPay));
     }
   }, [form.tripType, form.containerType]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -252,32 +260,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={form.bookingReferenceNo} readOnly disabled />
           </Field>
           <Field label="Container Number">
-            <input className={fc} value={form.containerNumber} readOnly={ro} onChange={(e) => set("containerNumber", e.target.value)} />
+            <input className={roClass} value={form.containerNumber} readOnly disabled />
           </Field>
           <Field label="Container Specification">
-            {ro ? (
-              <input className={roClass} value={form.containerType} readOnly disabled />
-            ) : (
-              <GlassSelect
-                value={form.containerType}
-                onChange={(val) => set("containerType", val)}
-                options={[{ value: "", label: "Select container specification" }, ...CONTAINER_SPECIFICATION_OPTIONS.map((o) => ({ value: o, label: o }))]}
-              />
-            )}
+            <input className={roClass} value={form.containerType} readOnly disabled />
           </Field>
           <Field label="Shipping Line">
-            <input className={fc} value={form.line} readOnly={ro} onChange={(e) => set("line", e.target.value)} />
+            <input className={roClass} value={form.line} readOnly disabled />
           </Field>
           <Field label="Trip Category">
-            {ro ? (
-              <input className={roClass} value={form.tripType} readOnly disabled />
-            ) : (
-              <GlassSelect
-                value={form.tripType}
-                onChange={(val) => set("tripType", val)}
-                options={[{ value: "", label: "Select trip category" }, ...TRIP_CATEGORY_OPTIONS.map((o) => ({ value: o, label: o }))]}
-              />
-            )}
+            <input className={roClass} value={form.tripType} readOnly disabled />
           </Field>
           <Field label="Assigned Vehicle">
             <input className={roClass} value={displayVehicle} readOnly disabled />
@@ -286,16 +278,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={displayDriver} readOnly disabled />
           </Field>
           <Field label="Booking Date">
-            <DatePickerInput value={form.bookingDate} onChange={(v) => set("bookingDate", v)} disabled={ro} />
+            <input className={roClass} value={form.bookingDate ? form.bookingDate.split("-").reverse().join("-") : ""} readOnly disabled />
           </Field>
           <Field label="Trip Scheduled Date">
-            <DatePickerInput value={form.tripScheduledDate} onChange={(v) => set("tripScheduledDate", v)} disabled={ro} />
+            <input className={roClass} value={form.tripScheduledDate ? form.tripScheduledDate.split("-").reverse().join("-") : ""} readOnly disabled />
           </Field>
           <Field label="Trip Completed Date">
-            <DatePickerInput value={form.tripCompletedDate} onChange={(v) => set("tripCompletedDate", v)} disabled={ro} />
+            <input className={roClass} value={form.tripCompletedDate ? form.tripCompletedDate.split("-").reverse().join("-") : ""} readOnly disabled />
           </Field>
           <Field label="Trip Closed Date">
-            <input className={roClass} value={closure?.closedAt ?? ""} readOnly disabled placeholder="Auto-fetched on close" />
+            <input className={roClass} value={closure?.closedAt ? closure.closedAt.split("-").reverse().join("-") : ""} readOnly disabled placeholder="Auto-fetched on close" />
           </Field>
           <Field label="Date of Trip Sheet Entry *">
             <DatePickerInput value={form.tripSheetDate} onChange={(v) => set("tripSheetDate", v)} disabled={ro} />
@@ -306,10 +298,10 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Route Information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="From">
-            <input className={fc} value={form.from} readOnly={ro} onChange={(e) => set("from", e.target.value)} />
+            <input className={roClass} value={form.from} readOnly disabled />
           </Field>
           <Field label="To">
-            <input className={fc} value={form.to} readOnly={ro} onChange={(e) => set("to", e.target.value)} />
+            <input className={roClass} value={form.to} readOnly disabled />
           </Field>
           <Field label="Clearing Agent">
             <input className={fc} value={form.clearingAgent} readOnly={ro} onChange={(e) => set("clearingAgent", e.target.value)} placeholder="e.g. ABC Clearing" />
@@ -320,7 +312,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Hire</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Hire Amount *">
-            <DecimalInput type="number" min="0" className={fc} value={form.hireAmount} readOnly={ro} onChange={(e) => set("hireAmount", e.target.value)} placeholder="e.g. 35000" />
+            <DecimalInput type="number" min="0" className={roClass} value={form.hireAmount} readOnly disabled />
           </Field>
         </div>
 
@@ -361,15 +353,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             )}
           </Field>
           <Field label="Cargo Weight (tons)">
-            {ro ? (
-              <input className={roClass} value={form.cargoWeight} readOnly disabled placeholder="Auto-fetched from trip" />
-            ) : (
-              <GlassSelect
-                value={form.cargoWeight}
-                onChange={(val) => set("cargoWeight", val)}
-                options={[{ value: "", label: "Select cargo weight" }, ...CARGO_WEIGHT_OPTIONS.map((o) => ({ value: o, label: o }))]}
-              />
-            )}
+            <input className={roClass} value={form.cargoWeight} readOnly disabled placeholder="Auto-fetched from trip" />
           </Field>
         </div>
 
@@ -529,30 +513,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Toll Charges (டோல்) *">
             <DecimalInput type="number" min="0" className={fc} value={form.tollCharges} readOnly={ro} onChange={(e) => set("tollCharges", e.target.value)} placeholder="e.g. 1200" />
           </Field>
-          <Field label="Selected Toll Count">
-            <DecimalInput type="number" min="0" className={fc} value={form.tollCount} readOnly={ro} onChange={(e) => set("tollCount", e.target.value)} placeholder="e.g. 4" />
-          </Field>
         </div>
 
         {/* ── 8. Driver Settlement ── */}
         <p className={sh}>Driver Settlement</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Driver Compensation Type">
-            {ro ? (
-              <input className={roClass} value={form.driverCompensationType} readOnly disabled />
-            ) : (
-              <GlassSelect
-                value={form.driverCompensationType}
-                onChange={(val) => set("driverCompensationType", val)}
-                options={[
-                  { value: "", label: "Select type" },
-                  { value: "FIXED", label: "FIXED" },
-                  { value: "PER KM", label: "PER KM" },
-                  { value: "PERCENTAGE", label: "PERCENTAGE" },
-                  { value: "NEGOTIATED", label: "NEGOTIATED" },
-                ]}
-              />
-            )}
+            <input className={roClass} value={form.driverCompensationType} readOnly disabled />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
