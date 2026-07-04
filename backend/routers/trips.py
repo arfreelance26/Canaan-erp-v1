@@ -148,20 +148,34 @@ def delete_trip(trip_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{trip_id}/close", response_model=schemas.TripClosureOut, status_code=201)
 def close_trip(trip_id: int, payload: schemas.TripClosureCreate, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
+    # SELECT FOR UPDATE — serialises concurrent requests on this trip row
+    trip = db.query(models.Trip).with_for_update().filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
     if trip.status != "Completed":
         raise HTTPException(400, "Only Completed trips can be closed")
+
+    data = payload.model_dump(exclude={"client_version"})
+
     if trip.closure:
-        # Allow re-closure (update)
         closure = trip.closure
-        for field, value in payload.model_dump().items():
+        # Optimistic locking: reject if client is working from a stale version
+        if payload.client_version is not None and closure.version != payload.client_version:
+            raise HTTPException(
+                409,
+                "This closure was modified by someone else while you were editing. "
+                "Please refresh the page to get the latest data and try again."
+            )
+        for field, value in data.items():
             setattr(closure, field, value)
+        closure.version = (closure.version or 1) + 1
         db.commit()
         db.refresh(closure)
         return closure
-    closure = models.TripClosure(trip_id=trip_id, **payload.model_dump())
+
+    # New closure — UNIQUE constraint on trip_id is the final safety net
+    # (global IntegrityError handler converts duplicates to 409)
+    closure = models.TripClosure(trip_id=trip_id, **data)
     db.add(closure)
     db.commit()
     db.refresh(closure)
@@ -184,20 +198,30 @@ def get_closure(trip_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{trip_id}/sheet", response_model=schemas.TripSheetOut, status_code=201)
 def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
+    # SELECT FOR UPDATE — serialises concurrent requests on this trip row
+    trip = db.query(models.Trip).with_for_update().filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
     if not trip.closure:
         raise HTTPException(400, "Trip must be closed before adding a trip sheet")
 
-    data = payload.model_dump()
+    data = payload.model_dump(exclude={"client_version"})
     is_new = not trip.sheet
 
     if trip.sheet:
         sheet = trip.sheet
+        # Optimistic locking: reject if client is working from a stale version
+        if payload.client_version is not None and sheet.version != payload.client_version:
+            raise HTTPException(
+                409,
+                "This trip sheet was modified by someone else while you were editing. "
+                "Please refresh the page to get the latest data and try again."
+            )
         for field, value in data.items():
             setattr(sheet, field, value)
+        sheet.version = (sheet.version or 1) + 1
     else:
+        # New sheet — UNIQUE constraint on trip_id is the final safety net
         sheet = models.TripSheet(trip_id=trip_id, **data)
         db.add(sheet)
 
@@ -331,7 +355,8 @@ def get_invoice(trip_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{trip_id}/invoice", response_model=schemas.TripOut)
 def generate_invoice(trip_id: int, payload: schemas.TripInvoiceCreate, db: Session = Depends(get_db)):
-    trip = db.query(models.Trip).options(
+    # SELECT FOR UPDATE — serialises concurrent invoice generation on the same trip
+    trip = db.query(models.Trip).with_for_update().options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
@@ -343,7 +368,9 @@ def generate_invoice(trip_id: int, payload: schemas.TripInvoiceCreate, db: Sessi
     if existing:
         for k, v in payload.model_dump(exclude_unset=True).items():
             setattr(existing, k, v)
+        existing.version = (existing.version or 1) + 1
     else:
+        # New invoice — UNIQUE constraint on trip_id is the final safety net
         db.add(models.TripInvoice(trip_id=trip_id, **payload.model_dump(exclude_unset=True)))
     db.commit()
     db.refresh(trip)

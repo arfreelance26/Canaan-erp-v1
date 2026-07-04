@@ -25,4 +25,5 @@ export type Driver = {
   ifscCode: string;
   username: string;
   password: string;
+  version?: number;
 };

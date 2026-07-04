@@ -18,6 +18,24 @@ def _run_schema_migrations():
         "ALTER TABLE trips MODIFY COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
         "ALTER TABLE trip_closures MODIFY COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
         "ALTER TABLE emi_records ADD COLUMN cost_per_month DECIMAL(10,2) DEFAULT 0",
+        # Optimistic-locking version columns — trips (already existed)
+        "ALTER TABLE trip_closures ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE trip_sheets ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE trip_invoices ADD COLUMN version INT NOT NULL DEFAULT 1",
+        # Optimistic-locking version columns — all mutable entities
+        "ALTER TABLE trucks ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE drivers ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE staff ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE customers ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE vendors ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE branches ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE maintenance_records ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE fuel_logs ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE tyre_inventory ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE emi_records ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE recurring_payments ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE repair_types ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE sac_codes ADD COLUMN version INT NOT NULL DEFAULT 1",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

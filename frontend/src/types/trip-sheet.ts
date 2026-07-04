@@ -68,6 +68,7 @@ export type TripSheetData = {
 
   // Remarks
   remarks: string;
+  version?: number;  // optimistic-locking token echoed back on save
 };
 
 export function n(v: string): number {

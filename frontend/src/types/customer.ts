@@ -18,4 +18,5 @@ export type Customer = {
   tdsExemptionApplicable?: YesNoOption | "";
   msmeDeclarationSubmitted?: YesNoOption | "";
   gstExemptedCustomer?: YesNoOption | "";
+  version?: number;
 };

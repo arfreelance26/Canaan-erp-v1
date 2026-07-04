@@ -11,4 +11,5 @@ export type Vendor = {
   address: string;
   status: VendorStatus | "";
   createdAt: string;
+  version?: number;
 };

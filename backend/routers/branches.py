@@ -36,11 +36,18 @@ def get_branch(branch_id: int, db: Session = Depends(get_db)):
 @router.put("/{branch_id}", response_model=schemas.BranchOut)
 def update_branch(branch_id: int, payload: schemas.BranchUpdate, db: Session = Depends(get_db)):
     check_branch_duplicates(db, payload, exclude_id=branch_id)
-    branch = db.get(models.Branch, branch_id)
+    branch = db.query(models.Branch).with_for_update().filter(models.Branch.id == branch_id).first()
     if not branch:
         raise HTTPException(404, "Branch not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and branch.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This branch record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(branch, field, value)
+    branch.version = (branch.version or 1) + 1
     db.commit()
     db.refresh(branch)
     return branch

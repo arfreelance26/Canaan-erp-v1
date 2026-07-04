@@ -65,6 +65,7 @@ class TruckCreate(TruckBase):
 
 
 class TruckUpdate(TruckBase):
+    client_version: Optional[int] = None
     truck_id: Optional[str] = None
     registration_number: Optional[str] = None
     manufacturer: Optional[str] = None
@@ -75,6 +76,7 @@ class TruckUpdate(TruckBase):
 
 class TruckOut(TruckBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -114,6 +116,7 @@ class DriverCreate(DriverBase):
 
 
 class DriverUpdate(OrmBase):
+    client_version: Optional[int] = None
     name: Optional[str] = None
     aadhaar_number: Optional[str] = None
     aadhaar_file_name: Optional[str] = None
@@ -141,6 +144,7 @@ class DriverUpdate(OrmBase):
 
 class DriverOut(DriverBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -175,6 +179,7 @@ class StaffCreate(StaffBase):
 
 
 class StaffUpdate(OrmBase):
+    client_version: Optional[int] = None
     name: Optional[str] = None
     department: Optional[str] = None
     designation: Optional[str] = None
@@ -191,6 +196,7 @@ class StaffUpdate(OrmBase):
 
 class StaffOut(StaffBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -220,11 +226,13 @@ class CustomerCreate(CustomerBase):
 
 
 class CustomerUpdate(CustomerBase):
+    client_version: Optional[int] = None
     name: Optional[str] = None
 
 
 class CustomerOut(CustomerBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -297,11 +305,13 @@ class VendorCreate(VendorBase):
 
 
 class VendorUpdate(VendorBase):
+    client_version: Optional[int] = None
     name: Optional[str] = None
 
 
 class VendorOut(VendorBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -406,6 +416,9 @@ BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
 
 
 class TripClosureCreate(OrmBase):
+    # Optimistic locking — client echoes back the version it last saw
+    client_version: Optional[int] = None
+
     # 1. Shipment Information
     booking_no: Optional[str] = None
     container_no: Optional[str] = None
@@ -445,6 +458,7 @@ class TripClosureCreate(OrmBase):
 class TripClosureOut(TripClosureCreate):
     id: int
     trip_id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -455,6 +469,9 @@ class TripClosureOut(TripClosureCreate):
 # ---------------------------------------------------------------------------
 
 class TripSheetCreate(OrmBase):
+    # Optimistic locking — client echoes back the version it last saw
+    client_version: Optional[int] = None
+
     trip_sheet_no: Optional[str] = None
     booking_reference_no: Optional[str] = None
     container_number: Optional[str] = None
@@ -507,6 +524,7 @@ class TripSheetCreate(OrmBase):
 class TripSheetOut(TripSheetCreate):
     id: int
     trip_id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -553,6 +571,7 @@ class TripInvoiceCreate(OrmBase):
 class TripInvoiceOut(TripInvoiceCreate):
     id: int
     trip_id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -676,6 +695,7 @@ class MaintenanceRecordCreate(OrmBase):
 
 
 class MaintenanceRecordUpdate(OrmBase):
+    client_version: Optional[int] = None
     date: Optional[date] = None
     odometer: Optional[int] = None
     maintenance_type: Optional[str] = None
@@ -691,6 +711,7 @@ class MaintenanceRecordOut(OrmBase):
     maintenance_type: str
     description: Optional[str] = None
     cost: Optional[Decimal] = None
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -711,6 +732,7 @@ class FuelLogCreate(OrmBase):
 
 
 class FuelLogUpdate(OrmBase):
+    client_version: Optional[int] = None
     date: Optional[date] = None
     odometer: Optional[int] = None
     litres: Optional[Decimal] = None
@@ -732,6 +754,7 @@ class FuelLogOut(OrmBase):
     mileage: Decimal
     fuel_station: Optional[str] = None
     logged_by: Optional[str] = None
+    version: int = 1
     created_at: Optional[datetime] = None
 
 
@@ -770,6 +793,7 @@ class TyreInventoryCreate(TyreInventoryBase):
 
 
 class TyreInventoryUpdate(OrmBase):
+    client_version: Optional[int] = None
     brand: Optional[str] = None
     tyre_type: Optional[str] = None
     size: Optional[str] = None
@@ -784,6 +808,7 @@ class TyreInventoryUpdate(OrmBase):
 
 class TyreInventoryOut(TyreInventoryBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -840,6 +865,7 @@ class EmiRecordCreate(EmiRecordBase):
 
 
 class EmiRecordUpdate(OrmBase):
+    client_version: Optional[int] = None
     emi_name: Optional[str] = None
     truck_registration: Optional[str] = None
     loan_number: Optional[str] = None
@@ -855,6 +881,7 @@ class EmiRecordUpdate(OrmBase):
 
 class EmiRecordOut(EmiRecordBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -881,6 +908,7 @@ class RecurringPaymentCreate(RecurringPaymentBase):
 
 
 class RecurringPaymentUpdate(OrmBase):
+    client_version: Optional[int] = None
     title: Optional[str] = None
     category: Optional[str] = None
     amount: Optional[Decimal] = None
@@ -891,6 +919,7 @@ class RecurringPaymentUpdate(OrmBase):
 
 class RecurringPaymentOut(RecurringPaymentBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -941,6 +970,7 @@ class BranchCreate(BranchBase):
 
 
 class BranchUpdate(OrmBase):
+    client_version: Optional[int] = None
     name: Optional[str] = None
     halt_day_fee_20ft: Optional[Decimal] = None
     halt_day_fee_40ft: Optional[Decimal] = None
@@ -949,6 +979,7 @@ class BranchUpdate(OrmBase):
 
 class BranchOut(BranchBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -963,6 +994,7 @@ class RepairTypeCreate(OrmBase):
 
 
 class RepairTypeUpdate(OrmBase):
+    client_version: Optional[int] = None
     name: Optional[str] = None
     default_cost: Optional[Decimal] = None
 
@@ -971,6 +1003,7 @@ class RepairTypeOut(OrmBase):
     id: int
     name: str
     default_cost: Optional[Decimal] = None
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -990,6 +1023,7 @@ class SacCodeCreate(SacCodeBase):
 
 
 class SacCodeUpdate(OrmBase):
+    client_version: Optional[int] = None
     description: Optional[str] = None
     code: Optional[str] = None
     gst_rate: Optional[Decimal] = None
@@ -997,6 +1031,7 @@ class SacCodeUpdate(OrmBase):
 
 class SacCodeOut(SacCodeBase):
     id: int
+    version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

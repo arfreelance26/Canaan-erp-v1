@@ -53,7 +53,7 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {["Date", "Odometer (km)", "Litres", "Price/L", "Total Cost", "Fuel Station", "Logged By"].map((h) => (

@@ -302,6 +302,10 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
       if (opt === "Yes") {
         next[other] = "No";
         next.invoiceType = "Tax Invoice";
+        // Pre-fill any service lines that have no GST rate yet with 18%
+        next.services = prev.services.map((s) =>
+          s.gstRate ? s : { ...s, gstRate: "18" }
+        );
         setTaxWarning(false);
       } else if (prev[other] !== "Yes") {
         next.invoiceType = "Bill of Supply";
@@ -326,11 +330,11 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const serviceCalcs = useMemo(() =>
     form.services.map((s) => {
       const subtotal = (parseFloat(s.quantity) || 0) * (parseFloat(s.rate) || 0);
-      const effectiveRate = taxOverride ? 18 : (parseFloat(s.gstRate) || 0);
-      const gstAmount = parseFloat((subtotal * (effectiveRate / 100)).toFixed(2));
+      const effectiveRate = parseFloat(s.gstRate) || 0;
+      const gstAmount = taxSelected ? parseFloat((subtotal * (effectiveRate / 100)).toFixed(2)) : 0;
       return { subtotal, gstAmount, lineTotal: subtotal + gstAmount, effectiveRate };
     }),
-  [form.services, taxOverride]);
+  [form.services, taxSelected]);
 
   const subtotalAll = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.subtotal, 0), [serviceCalcs]);
   const totalGst = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.gstAmount, 0), [serviceCalcs]);
@@ -571,7 +575,6 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             )}
             {form.services.map((svc, i) => {
               const calc = serviceCalcs[i];
-              const displayRate = taxOverride ? "18" : svc.gstRate;
               return (
                 <div key={i} className="relative flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
                   {form.services.length > 1 && (
@@ -603,12 +606,21 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                         ))}
                       </datalist>
                     </Field>
-                    <Field label={taxOverride ? `GST Rate (%) — ${isIgst ? "IGST override" : "GST override"}` : "GST Rate (%)"}>
-                      <input
-                        readOnly
-                        value={displayRate ? `${displayRate}%` : "—"}
-                        className={`${roClass} ${taxOverride ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`}
-                      />
+                    <Field label={`GST Rate (%)${taxSelected ? ` — ${isIgst ? "IGST" : "GST"}` : ""}`}>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={svc.gstRate}
+                          onChange={(e) => updateService(i, "gstRate", e.target.value)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className={`${inputClass} pr-8`}
+                          placeholder="e.g. 18"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">%</span>
+                      </div>
                     </Field>
                     <Field label="Quantity">
                       <DecimalInput type="number" min="0" step="any"
@@ -634,7 +646,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                       <span>Subtotal: <strong className="text-gray-700">₹{fmt(calc.subtotal)}</strong></span>
                       {calc.gstAmount > 0 && (
                         <span>
-                          {isIgst ? "IGST" : isGst ? "GST" : "GST"} ({displayRate || 0}%):
+                          {isIgst ? "IGST" : "GST"} ({svc.gstRate || 0}%):
                           <strong className="text-amber-700"> +₹{fmt(calc.gstAmount)}</strong>
                         </span>
                       )}
@@ -766,7 +778,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
           {sacCodes.length} codes available · Click <span className="font-semibold text-blue-600">+ Add</span> to insert a service line pre-filled with that code.
         </p>
         <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Description of Service</th>

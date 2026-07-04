@@ -38,4 +38,5 @@ export type Truck = {
   pollutionCertificateNumber: string;
   pollutionCertificateProofFileName: string | null;
   pollutionCertificateExpenses: string;
+  version?: number;
 };

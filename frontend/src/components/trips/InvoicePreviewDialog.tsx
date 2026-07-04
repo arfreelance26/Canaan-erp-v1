@@ -116,23 +116,17 @@ export function InvoicePreviewDialog({
       const pageH = pdf.internal.pageSize.getHeight();
       const imgH  = (canvas.height * pageW) / canvas.width;
 
-      if (imgH <= pageH + 2) { // 2mm tolerance to prevent an almost-empty extra page
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, Math.min(imgH, pageH));
+      if (imgH <= pageH) {
+        // Fits perfectly on one page without scaling down
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageW, imgH);
       } else {
-        const pixelsPerPage = Math.ceil((canvas.width * pageH) / pageW);
-        let y = 0;
-        while (y + 5 < canvas.height) { // 5px tolerance to avoid a blank last page
-          const sliceH = Math.min(canvas.height - y, pixelsPerPage);
-          const slice  = document.createElement("canvas");
-          slice.width  = canvas.width;
-          slice.height = sliceH;
-          slice.getContext("2d")?.drawImage(canvas, 0, -y);
-          if (y > 0) pdf.addPage();
-          // Only fill the proportional height — avoids blank space on the last page
-          const sliceDisplayH = (sliceH * pageW) / canvas.width;
-          pdf.addImage(slice.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceDisplayH);
-          y += sliceH;
-        }
+        // Too tall! Scale both width and height proportionally to fit exactly onto one A4 page
+        const scaleFactor = pageH / imgH;
+        const newW = pageW * scaleFactor;
+        const newH = imgH * scaleFactor;
+        // Center it horizontally
+        const xOffset = (pageW - newW) / 2;
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", xOffset, 0, newW, newH);
       }
 
       pdf.save(filename);

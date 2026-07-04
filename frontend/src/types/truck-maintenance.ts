@@ -10,6 +10,7 @@ export type MaintenanceRecord = {
   maintenanceType: string;
   description: string;
   cost: string;
+  version?: number;
 };
 
 export type MaintenanceCategory = "Service A" | "Service B" | "Service C" | "Major Service";

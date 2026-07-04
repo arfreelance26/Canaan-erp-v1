@@ -107,7 +107,7 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                   <h3 className="font-semibold text-gray-900">Calculated Mileage History</h3>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
                     <thead>
                       <tr className="bg-gray-50 text-xs uppercase text-gray-500 border-b border-gray-100">
                         <th className="px-6 py-3 font-medium">Refuel Date</th>

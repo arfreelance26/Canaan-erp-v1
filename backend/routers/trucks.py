@@ -37,11 +37,18 @@ def get_truck(truck_id: int, db: Session = Depends(get_db)):
 @router.put("/{truck_id}", response_model=schemas.TruckOut)
 def update_truck(truck_id: int, payload: schemas.TruckUpdate, db: Session = Depends(get_db)):
     check_truck_duplicates(db, payload, exclude_id=truck_id)
-    truck = db.get(models.Truck, truck_id)
+    truck = db.query(models.Truck).with_for_update().filter(models.Truck.id == truck_id).first()
     if not truck:
         raise HTTPException(404, "Truck not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and truck.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This truck was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(truck, field, value)
+    truck.version = (truck.version or 1) + 1
     db.commit()
     db.refresh(truck)
     return truck

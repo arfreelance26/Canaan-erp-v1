@@ -193,7 +193,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
         <p className="text-sm text-gray-500">No maintenance records found for this period.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200">
-          <table className="w-full min-w-[600px] text-left text-sm">
+          <table className="w-full min-w-[600px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 {columns.map((column) => (

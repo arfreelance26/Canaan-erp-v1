@@ -37,11 +37,18 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
 @router.put("/{customer_id}", response_model=schemas.CustomerOut)
 def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Session = Depends(get_db)):
     check_customer_duplicates(db, payload, exclude_id=customer_id)
-    customer = db.get(models.Customer, customer_id)
+    customer = db.query(models.Customer).with_for_update().filter(models.Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(404, "Customer not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and customer.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This customer record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(customer, field, value)
+    customer.version = (customer.version or 1) + 1
     db.commit()
     db.refresh(customer)
     return customer

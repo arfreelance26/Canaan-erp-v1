@@ -171,6 +171,7 @@ function toTruck(b: B): Truck {
     pollutionCertificateNumber: b.pollution_certificate_number ?? "",
     pollutionCertificateProofFileName: b.pollution_certificate_proof_file_name ?? null,
     pollutionCertificateExpenses: String(b.pollution_certificate_expenses ?? ""),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -214,6 +215,7 @@ function fromTruck(f: Truck) {
     pollution_certificate_number: f.pollutionCertificateNumber || null,
     pollution_certificate_proof_file_name: f.pollutionCertificateProofFileName ?? null,
     pollution_certificate_expenses: f.pollutionCertificateExpenses ? parseFloat(f.pollutionCertificateExpenses) : null,
+    client_version: f.version,
   };
 }
 
@@ -244,6 +246,7 @@ function toDriver(b: B): Driver {
     ifscCode: b.ifsc_code ?? "",
     username: b.username ?? "",
     password: "",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -273,6 +276,7 @@ function fromDriver(f: Driver, password?: string) {
     photo_url: (f.photoUrl && f.photoUrl.startsWith("data:")) ? null : (f.photoUrl || null),
     username: f.username || null,
     password: (password || f.password) || undefined,
+    client_version: f.version,
   };
 }
 
@@ -295,6 +299,7 @@ function toStaff(b: B): Staff {
     aadharFileName: b.aadhar_file_name ?? null,
     username: b.username ?? "",
     password: "",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -316,6 +321,7 @@ function fromStaff(f: Staff, password?: string) {
     photo_url: (f.photoUrl && f.photoUrl.startsWith("data:")) ? null : (f.photoUrl || null),
     username: f.username || null,
     password: (password || f.password) || undefined,
+    client_version: f.version,
   };
 }
 
@@ -331,6 +337,7 @@ function toCustomer(b: B): Customer {
     customerType: b.customer_type ?? "",
     isGta: b.is_gta ?? "",
     applicableForEInvoice: b.applicable_for_e_invoice ?? "",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -345,6 +352,7 @@ function fromCustomer(f: Customer) {
     customer_type: f.customerType || null,
     is_gta: f.isGta || null,
     applicable_for_e_invoice: f.applicableForEInvoice || null,
+    client_version: f.version,
   };
 }
 
@@ -392,6 +400,7 @@ function toVendor(b: B): Vendor {
     address: b.address ?? "",
     status: b.status ?? "",
     createdAt: b.created_at ?? "",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -405,6 +414,7 @@ function fromVendor(f: Vendor) {
     email: f.email || null,
     address: f.address || null,
     status: f.status || "ACTIVE",
+    client_version: f.version,
   };
 }
 
@@ -536,6 +546,7 @@ function toClosure(b: B): TripClosureData {
     driverHaltCompensation: String(b.driver_halt_compensation ?? "0"),
     // Meta
     closedAt: b.created_at ? String(b.created_at).split("T")[0] : "",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -572,6 +583,7 @@ function fromClosure(f: TripClosureData) {
     party_halt_days: parseInt(f.partyHaltDays) || 0,
     halt_remarks: f.haltRemarks || null,
     driver_halt_compensation: n(f.driverHaltCompensation),
+    client_version: f.version,  // echo version back for optimistic locking
   };
 }
 
@@ -625,6 +637,7 @@ function toSheet(b: B): TripSheetData {
     tollCharges: String(b.toll_charges ?? ""),
     tollCount: String(b.toll_count ?? ""),
     remarks: b.remarks ?? "",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -676,6 +689,7 @@ function fromSheet(f: TripSheetData) {
     toll_charges: n(f.tollCharges),
     toll_count: parseInt(f.tollCount) || 0,
     remarks: f.remarks || null,
+    client_version: f.version,  // echo version back for optimistic locking
   };
 }
 
@@ -726,6 +740,7 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     maintenanceType: b.maintenance_type ?? "",
     description: b.description ?? "",
     cost: String(b.cost ?? ""),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -743,6 +758,7 @@ function toFuelLog(b: B): FuelLog {
     fuelStation: b.fuel_station ?? null,
     loggedBy: b.logged_by ?? null,
     createdAt: b.created_at ?? null,
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -773,6 +789,7 @@ function toTyreInventory(b: B): TyreInventoryItem {
     repairCost: String(b.repair_cost ?? ""),
     retreadCost: String(b.retread_cost ?? ""),
     retreadCount: String(b.retread_count ?? ""),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -789,6 +806,7 @@ function fromTyreInventory(f: TyreInventoryItem) {
     repair_cost: parseFloat(f.repairCost) || 0,
     retread_cost: parseFloat(f.retreadCost) || 0,
     retread_count: parseInt(f.retreadCount) || 0,
+    client_version: f.version,
   };
 }
 
@@ -819,6 +837,7 @@ function toEmiRecord(b: B): EmiRecord {
     tenureMonths: String(b.tenure_months ?? ""),
     emiPaymentDate: b.emi_payment_date ?? "",
     costPerMonth: String(b.cost_per_month ?? ""),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -835,6 +854,7 @@ function fromEmiRecord(f: EmiRecord) {
     tenure_months: parseInt(f.tenureMonths) || null,
     emi_payment_date: f.emiPaymentDate || null,
     cost_per_month: parseFloat(f.costPerMonth) || 0,
+    client_version: f.version,
   };
 }
 
@@ -847,6 +867,7 @@ function toRecurringPayment(b: B): RecurringPayment {
     frequency: b.frequency ?? "Monthly",
     nextDueDate: b.next_due_date ?? "",
     status: b.status ?? "Active",
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -858,6 +879,7 @@ function fromRecurringPayment(f: RecurringPayment) {
     frequency: f.frequency,
     next_due_date: f.nextDueDate || null,
     status: f.status,
+    client_version: f.version,
   };
 }
 
@@ -1152,6 +1174,7 @@ export const maintenanceApi = {
         maintenance_type: record.maintenanceType,
         description: record.description,
         cost: record.cost ? parseFloat(record.cost) : undefined,
+        client_version: record.version,
       }),
     }).then(toMaintenanceRecord),
   deleteRecord: (id: string) => req<void>(`/maintenance/records/${id}`, { method: "DELETE" }),
@@ -1179,7 +1202,7 @@ export const fuelLogsApi = {
     }).then(toFuelLog),
   getFuelStats: (truckId: string) =>
     req<B>(`/maintenance/trucks/${truckId}/fuel-stats`).then(toFuelStats),
-  updateFuelLog: (id: string, log: Partial<Pick<FuelLog, "date" | "odometer" | "litres" | "totalCost" | "fuelStation" | "loggedBy">>) =>
+  updateFuelLog: (id: string, log: Partial<FuelLog>) =>
     req<B>(`/maintenance/fuel-logs/${id}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -1190,6 +1213,7 @@ export const fuelLogsApi = {
         total_cost: log.totalCost ? parseFloat(log.totalCost) : undefined,
         fuel_station: log.fuelStation,
         logged_by: log.loggedBy,
+        client_version: log.version,
       }),
     }).then(toFuelLog),
   deleteFuelLog: (id: string) => req<void>(`/maintenance/fuel-logs/${id}`, { method: "DELETE" }),
@@ -1276,6 +1300,7 @@ function toBranch(b: B): Branch {
     haltDayFee20ft: String(b.halt_day_fee_20ft ?? "0"),
     haltDayFee40ft: String(b.halt_day_fee_40ft ?? "0"),
     driverHaltDayPercentage: String(b.driver_halt_day_percentage ?? "0"),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -1285,6 +1310,7 @@ function fromBranch(f: Branch) {
     halt_day_fee_20ft: f.haltDayFee20ft ? parseFloat(f.haltDayFee20ft) : 0,
     halt_day_fee_40ft: f.haltDayFee40ft ? parseFloat(f.haltDayFee40ft) : 0,
     driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
+    client_version: f.version,
   };
 }
 
@@ -1297,6 +1323,7 @@ function toRepairType(b: B): RepairType {
     id: String(b.id ?? ""),
     name: b.name ?? "",
     defaultCost: String(b.default_cost ?? "0"),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -1306,6 +1333,7 @@ function toSacCode(b: B): SacCode {
     description: b.description ?? "",
     code: b.code ?? "",
     gstRate: String(b.gst_rate ?? "0"),
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -1316,10 +1344,10 @@ export const repairTypesApi = {
       method: "POST",
       body: JSON.stringify({ name: payload.name, default_cost: parseFloat(payload.defaultCost) || 0 }),
     }).then(toRepairType),
-  update: (id: string, payload: Partial<Omit<RepairType, "id">>) =>
+  update: (id: string, payload: Partial<RepairType>) =>
     req<B>(`/repair-types/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ name: payload.name, default_cost: payload.defaultCost !== undefined ? parseFloat(payload.defaultCost) || 0 : undefined }),
+      body: JSON.stringify({ name: payload.name, default_cost: payload.defaultCost !== undefined ? parseFloat(payload.defaultCost) || 0 : undefined, client_version: payload.version }),
     }).then(toRepairType),
   delete: (id: string) => req<void>(`/repair-types/${id}`, { method: "DELETE" }),
 };
@@ -1334,12 +1362,13 @@ export const sacCodesApi = {
         gst_rate: parseFloat(payload.gstRate) || 0,
       }),
     }).then(toSacCode),
-  update: (id: string, payload: Partial<Omit<SacCode, "id">>) =>
+  update: (id: string, payload: Partial<SacCode>) =>
     req<B>(`/sac-codes/${id}`, {
       method: "PUT",
       body: JSON.stringify({
         description: payload.description, code: payload.code,
         gst_rate: payload.gstRate !== undefined ? parseFloat(payload.gstRate) || 0 : undefined,
+        client_version: payload.version,
       }),
     }).then(toSacCode),
   delete: (id: string) => req<void>(`/sac-codes/${id}`, { method: "DELETE" }),

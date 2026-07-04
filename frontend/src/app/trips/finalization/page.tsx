@@ -8,7 +8,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
-import { n, calcTripExpenses } from "@/types/trip-sheet";
+import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -37,6 +37,7 @@ export default function TripFinalizationPage() {
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [invoicedIds, setInvoicedIds] = useState<Set<string>>(new Set());
+  const [invoiceData, setInvoiceData] = useState<Map<string, any>>(new Map());
   // Tracks invoice type used per trip (for preview / download after generation)
   const [invoiceTypes, setInvoiceTypes] = useState<Map<string, InvoiceType>>(new Map());
 
@@ -57,12 +58,11 @@ export default function TripFinalizationPage() {
     const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true && t.tripCategory !== "SHIFTING");
     setTrips(sheettedTrips);
 
-    const invoiced = new Set<string>(
-      allTrips.filter((t) => (t as any).isInvoiced === true).map((t) => t.id)
-    );
+    const invoicedTrips = allTrips.filter((t) => (t as any).isInvoiced === true);
+    const invoiced = new Set<string>(invoicedTrips.map((t) => t.id));
     setInvoicedIds(invoiced);
 
-    const [closureResults, sheetResults] = await Promise.all([
+    const [closureResults, sheetResults, invoiceResults] = await Promise.all([
       Promise.all(
         sheettedTrips.map((trip) =>
           tripsApi.getClosure(trip.id).then((closure) => ({ tripId: trip.id, closure })).catch(() => null)
@@ -71,6 +71,11 @@ export default function TripFinalizationPage() {
       Promise.all(
         sheettedTrips.map((trip) =>
           tripsApi.getSheet(trip.id).then((sheet) => ({ tripId: trip.id, sheet })).catch(() => null)
+        )
+      ),
+      Promise.all(
+        invoicedTrips.map((trip) =>
+          tripsApi.getInvoice(trip.id).then((inv) => ({ tripId: trip.id, inv })).catch(() => null)
         )
       ),
     ]);
@@ -82,6 +87,10 @@ export default function TripFinalizationPage() {
     const sheetMap = new Map<string, TripSheetData>();
     for (const r of sheetResults) if (r && r.sheet) sheetMap.set(r.tripId, r.sheet);
     setSheets(sheetMap);
+
+    const invMap = new Map<string, any>();
+    for (const r of invoiceResults) if (r) invMap.set(r.tripId, r.inv);
+    setInvoiceData(invMap);
   }
 
   useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
@@ -125,8 +134,12 @@ export default function TripFinalizationPage() {
     });
     setInvoicedIds((prev) => new Set([...prev, trip.id]));
 
-    const savedClosure = await tripsApi.getClosure(trip.id).catch(() => null);
+    const [savedClosure, savedInv] = await Promise.all([
+      tripsApi.getClosure(trip.id).catch(() => null),
+      tripsApi.getInvoice(trip.id).catch(() => null),
+    ]);
     if (savedClosure) setClosures((prev) => new Map(prev).set(trip.id, savedClosure));
+    if (savedInv) setInvoiceData((prev) => new Map(prev).set(trip.id, savedInv));
 
     setInvoiceTypes((prev) => new Map(prev).set(trip.id, invoiceType));
     setDialogState(null);
@@ -269,11 +282,11 @@ export default function TripFinalizationPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[1050px] text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle",
-                  "Bill To", "Hire Amount", "Total Expense", "Actions"].map((col) => (
+                  "Bill To", "Invoice No / Date", "Invoice Type", "Invoice Amount", "Actions"].map((col) => (
                   <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
@@ -288,9 +301,28 @@ export default function TripFinalizationPage() {
                 const truck      = truckById.get(trip.vehicleId);
                 const customer   = customerById.get(trip.customerId);
                 const isInvoiced = invoicedIds.has(trip.id);
+                const inv        = invoiceData.get(trip.id);
 
-                const totalTransport = sheet ? n(sheet.hireAmount) : 0;
-                const totalBilling   = sheet ? calcTripExpenses(sheet) : 0;
+                // Invoice amount: sum of service lines when invoice exists, else sheet hire amount
+                const invoiceTotal = inv?.services?.length
+                  ? (inv.services as any[]).reduce((sum: number, s: any) =>
+                      sum + (parseFloat(s.quantity) || 0) * (parseFloat(s.rate) || 0), 0)
+                  : sheet ? n(sheet.hireAmount) : 0;
+
+                const invNo   = inv?.invoice_no ?? "—";
+                const invDate = inv?.invoice_date
+                  ? inv.invoice_date.slice(0, 10).split("-").reverse().join("-")
+                  : "—";
+                const invType = (inv?.invoice_type ?? invoiceTypes.get(trip.id) ?? "—") as string;
+
+                const invTypeBadgeClass =
+                  invType === "Bill of Supply"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : invType === "Transport Memo"
+                    ? "bg-orange-100 text-orange-700"
+                    : invType === "Tax Invoice"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-100 text-gray-500";
 
                 return (
                   <tr key={trip.id} className="hover:bg-gray-50">
@@ -303,8 +335,26 @@ export default function TripFinalizationPage() {
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{closure?.billTo ?? "—"}</td>
-                    <td className="px-4 py-3 font-medium text-blue-700">{fmt(totalTransport)}</td>
-                    <td className="px-4 py-3 font-medium text-emerald-700">{fmt(totalBilling)}</td>
+                    <td className="px-4 py-3">
+                      {isInvoiced ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium text-gray-900 text-xs">{invNo}</span>
+                          <span className="text-xs text-gray-400">{invDate}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {invType !== "—" ? (
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${invTypeBadgeClass}`}>
+                          {invType}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-emerald-700">{fmt(invoiceTotal)}</td>
                     <td className="px-4 py-3">
                       {isInvoiced ? (
                         <div className="flex flex-col gap-1.5">
@@ -392,6 +442,7 @@ export default function TripFinalizationPage() {
         closure={preview?.closure ?? null}
         sheet={preview?.sheet}
         customer={preview?.customer}
+        savedInvoice={preview?.savedInvoice}
         autoDownload={preview?.autoDownload}
         onClose={() => setPreview(null)}
       />

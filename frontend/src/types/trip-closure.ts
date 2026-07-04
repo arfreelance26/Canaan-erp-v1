@@ -41,4 +41,5 @@ export type TripClosureData = {
 
   // Meta — set by backend when closure is created
   closedAt: string;  // ISO date string from created_at
+  version?: number;  // optimistic-locking token echoed back on save
 };

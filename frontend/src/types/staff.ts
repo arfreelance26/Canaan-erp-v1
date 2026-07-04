@@ -15,4 +15,5 @@ export type Staff = {
   softwareDesignation: string;
   username: string;
   password: string;
+  version?: number;
 };

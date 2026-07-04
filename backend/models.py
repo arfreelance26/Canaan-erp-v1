@@ -19,6 +19,7 @@ class Branch(Base):
     halt_day_fee_20ft = Column(Numeric(10, 2), default=0)
     halt_day_fee_40ft = Column(Numeric(10, 2), default=0)
     driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -83,6 +84,7 @@ class Truck(Base):
     national_permit_proof_blob = Column(LargeBinary(length=16777215))
     local_permit_proof_blob = Column(LargeBinary(length=16777215))
     pollution_certificate_blob = Column(LargeBinary(length=16777215))
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -121,6 +123,7 @@ class Driver(Base):
     license_blob = Column(LargeBinary(length=16777215))
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -159,6 +162,7 @@ class Staff(Base):
     aadhar_document_blob = Column(LargeBinary(length=16777215))
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -180,6 +184,7 @@ class Customer(Base):
     photo_blob = Column(LargeBinary(length=16777215))
     is_gta = Column(Enum("Yes", "No"))
     applicable_for_e_invoice = Column(Enum("Yes", "No"))
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -240,6 +245,7 @@ class Vendor(Base):
     email = Column(String(100))
     address = Column(Text)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -333,6 +339,7 @@ class TripClosure(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), unique=True, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
 
     # 1. Shipment Information
     booking_no = Column(String(50))
@@ -380,6 +387,7 @@ class TripSheet(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), unique=True, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
     # Trip Information
     trip_sheet_no = Column(String(50))
     booking_reference_no = Column(String(100))
@@ -446,6 +454,7 @@ class TripInvoice(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), unique=True, nullable=False)
+    version = Column(Integer, default=1, nullable=False)
     invoice_no = Column(String(100))
     invoice_date = Column(Date)
     invoice_type = Column(String(50))
@@ -540,6 +549,7 @@ class MaintenanceRecord(Base):
     maintenance_type = Column(String(200), nullable=False)
     description = Column(Text)
     cost = Column(Numeric(10, 2), default=0)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -560,6 +570,7 @@ class FuelLog(Base):
     mileage = Column(Numeric(10, 2), default=0)
     fuel_station = Column(String(200))
     logged_by = Column(String(100))
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
 
     truck = relationship("Truck", back_populates="fuel_logs")
@@ -580,6 +591,7 @@ class TyreInventory(Base):
     repair_cost = Column(Numeric(10, 2), default=0)
     retread_cost = Column(Numeric(10, 2), default=0)
     retread_count = Column(Integer, default=0)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -614,6 +626,7 @@ class SacCode(Base):
     description = Column(String(500), nullable=False)
     code = Column(String(20), nullable=False, unique=True)
     gst_rate = Column(Numeric(5, 2), default=0)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -624,6 +637,7 @@ class RepairType(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), nullable=False, unique=True)
     default_cost = Column(Numeric(10, 2), default=0)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -647,6 +661,7 @@ class EmiRecord(Base):
     tenure_months = Column(Integer)
     emi_payment_date = Column(Date)
     cost_per_month = Column(Numeric(10, 2), default=0)
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -661,6 +676,7 @@ class RecurringPayment(Base):
     frequency = Column(Enum("Monthly", "Quarterly", "Yearly"), nullable=False)
     next_due_date = Column(Date)
     status = Column(Enum("Active", "Paused"), default="Active")
+    version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

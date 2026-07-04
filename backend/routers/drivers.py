@@ -39,14 +39,21 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)):
 @router.put("/{driver_id}", response_model=schemas.DriverOut)
 def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = Depends(get_db)):
     check_driver_duplicates(db, payload, exclude_id=driver_id)
-    driver = db.get(models.Driver, driver_id)
+    driver = db.query(models.Driver).with_for_update().filter(models.Driver.id == driver_id).first()
     if not driver:
         raise HTTPException(404, "Driver not found")
-    data = payload.model_dump(exclude_unset=True)
+    if payload.client_version is not None and driver.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This driver record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    data = payload.model_dump(exclude_unset=True, exclude={"client_version"})
     if "password" in data:
         data["password_hash"] = pwd_ctx.hash(data.pop("password"))
     for field, value in data.items():
         setattr(driver, field, value)
+    driver.version = (driver.version or 1) + 1
     db.commit()
     db.refresh(driver)
     return driver
@@ -72,7 +79,7 @@ def list_assignments(db: Session = Depends(get_db)):
 
 @router.post("/assignments", response_model=schemas.DriverAssignmentOut, status_code=201)
 def assign_vehicle(payload: schemas.DriverAssignmentCreate, db: Session = Depends(get_db)):
-    existing = db.query(models.DriverAssignment).filter(
+    existing = db.query(models.DriverAssignment).with_for_update().filter(
         models.DriverAssignment.driver_id == payload.driver_id
     ).first()
     if existing:

@@ -99,11 +99,18 @@ def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Sess
 
 @router.put("/maintenance/records/{record_id}", response_model=schemas.MaintenanceRecordOut, tags=["Maintenance"])
 def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecordUpdate, db: Session = Depends(get_db)):
-    record = db.get(models.MaintenanceRecord, record_id)
+    record = db.query(models.MaintenanceRecord).with_for_update().filter(models.MaintenanceRecord.id == record_id).first()
     if not record:
         raise HTTPException(404, "Maintenance record not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and record.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This maintenance record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(record, field, value)
+    record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)
     return record
@@ -236,10 +243,16 @@ def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
 
 @router.put("/maintenance/fuel-logs/{log_id}", response_model=schemas.FuelLogOut, tags=["Fuel Logs"])
 def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = Depends(get_db)):
-    log = db.get(models.FuelLog, log_id)
+    log = db.query(models.FuelLog).with_for_update().filter(models.FuelLog.id == log_id).first()
     if not log:
         raise HTTPException(404, "Fuel log not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and log.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This fuel log was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(log, field, value)
     prev_log = db.query(models.FuelLog)\
         .filter(models.FuelLog.truck_id == log.truck_id, models.FuelLog.odometer < log.odometer)\
@@ -249,6 +262,7 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
     mileage = (distance / float(log.litres)) if (float(log.litres) > 0 and distance > 0) else 0
     log.distance = distance
     log.mileage = mileage
+    log.version = (log.version or 1) + 1
     db.commit()
     db.refresh(log)
     return log
@@ -293,11 +307,18 @@ def create_tyre(payload: schemas.TyreInventoryCreate, db: Session = Depends(get_
 
 @router.put("/tyre-inventory/{tyre_id}", response_model=schemas.TyreInventoryOut, tags=["Tyre"])
 def update_tyre(tyre_id: int, payload: schemas.TyreInventoryUpdate, db: Session = Depends(get_db)):
-    tyre = db.get(models.TyreInventory, tyre_id)
+    tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
     if not tyre:
         raise HTTPException(404, "Tyre not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and tyre.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This tyre record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(tyre, field, value)
+    tyre.version = (tyre.version or 1) + 1
     db.commit()
     db.refresh(tyre)
     return tyre
@@ -337,6 +358,8 @@ def list_fitments(truck_id: Optional[int] = Query(None), active_only: bool = Que
 
 @router.post("/tyre-fitment", response_model=schemas.TyreFitmentOut, status_code=201, tags=["Tyre"])
 def fit_tyre(payload: schemas.TyreFitmentCreate, db: Session = Depends(get_db)):
+    # Lock the tyre row to prevent concurrent fitting of the same tyre
+    db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == payload.tyre_id).first()
     # Ensure tyre is not already fitted elsewhere
     active = db.query(models.TyreFitmentRecord).filter(
         models.TyreFitmentRecord.tyre_id == payload.tyre_id,

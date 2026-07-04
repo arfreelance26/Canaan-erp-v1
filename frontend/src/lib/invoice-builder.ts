@@ -134,6 +134,7 @@ function commonFields(
   invoice: Record<string, any> | undefined,
 ) {
   const totalBilling = n(closure.billingAmount) || n(closure.hireAmount);
+  const isExport = trip.cargoClassification === "EXPORT";
   return {
     invoiceNo:        resolveInvoiceNo(trip, invoice),
     date:             fmtDate(invoice?.invoiceDate || new Date().toISOString().slice(0, 10)),
@@ -142,16 +143,16 @@ function commonFields(
     bookingNo:        closure.bookingNo || trip.bookingReferenceNo,
     tripSheetNo:      sheet?.tripSheetNo ?? trip.tripId ?? "",
     refNo:            closure.releaseOrderNo || trip.releaseOrderReference,
-    modeOfShipment:   trip.cargoClassification || "SEA",
-    containerType:    closure.containerType || trip.containerSpecification,
+    modeOfShipment:   invoice?.modeOfShipment || trip.cargoClassification || "SEA",
+    containerType:    invoice?.containerType || closure.containerType || trip.containerSpecification,
     gstNumber:        invoice?.gstNumber || customer?.gstin || "",
-    cfs:              undefined as string | undefined,
-    lineForwarder:    trip.cargoClassification === "EXPORT" ? "" : (closure.line || trip.shippingLine),
-    vesselName:       trip.cargoClassification === "EXPORT" ? "" : trip.vesselName,
-    from:             closure.fromLocation || trip.origin,
-    to:               closure.toLocation || trip.destination,
-    containerNo:      resolveContainerNo(trip, closure),
-    consignee:        trip.shipperConsignee,
+    cfs:              invoice?.cfs || undefined,
+    lineForwarder:    invoice?.shippingLine || (isExport ? "" : (closure.line || trip.shippingLine)),
+    vesselName:       invoice?.vesselName || (isExport ? "" : trip.vesselName),
+    from:             invoice?.from || closure.fromLocation || trip.origin,
+    to:               invoice?.to || closure.toLocation || trip.destination,
+    containerNo:      invoice?.containerNo || resolveContainerNo(trip, closure),
+    consignee:        invoice?.consignee || trip.shipperConsignee,
     serviceItems:     invoice?.services?.length ? invoice.services.map((s: any) => ({
       description: s.descriptionOfService,
       sacCode: s.sacCode,
@@ -171,13 +172,13 @@ function commonFields(
       const shortSpec = spec === "20 FT CONTAINER" ? "20 FT" : spec === "40 FT CONTAINER" ? "40 FT" : spec === "2 X 20 FEET CONTAINERS" ? "2X20 FT" : spec === "OPEN LOAD CARGO" ? "OPEN LOAD" : spec;
       return [containerNo, shortSpec, origin, destination, date].filter(Boolean).join("/");
     })(),
-    bankName:         "HDFC - 9181 - Shipping",
-    branchName:       "TUTICORIN",
-    accountNumber:    "50200037439181",
-    ifscCode:         "HDFC0001104",
-    contactPerson:    "S SUNDER",
-    email:            "tutfin@canaanglobal.com",
-    contact:          "9047015423",
+    bankName:         invoice?.bankName || "HDFC - 9181 - Shipping",
+    branchName:       invoice?.branchName || "TUTICORIN",
+    accountNumber:    invoice?.accountNumber || "50200037439181",
+    ifscCode:         invoice?.ifscCode || "HDFC0001104",
+    contactPerson:    invoice?.contactPerson || "S SUNDER",
+    email:            invoice?.email || "tutfin@canaanglobal.com",
+    contact:          invoice?.contact || "9047015423",
   };
 }
 

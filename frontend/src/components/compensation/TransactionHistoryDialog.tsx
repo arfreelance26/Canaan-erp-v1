@@ -69,7 +69,7 @@ export function TransactionHistoryDialog({
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">

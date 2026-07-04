@@ -28,7 +28,7 @@ export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: Fuel
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="w-full text-left text-sm whitespace-nowrap">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               {columns.map((column, index) => (

@@ -39,14 +39,21 @@ def get_staff(staff_id: int, db: Session = Depends(get_db)):
 @router.put("/{staff_id}", response_model=schemas.StaffOut)
 def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depends(get_db)):
     check_staff_duplicates(db, payload, exclude_id=staff_id)
-    member = db.get(models.Staff, staff_id)
+    member = db.query(models.Staff).with_for_update().filter(models.Staff.id == staff_id).first()
     if not member:
         raise HTTPException(404, "Staff member not found")
-    data = payload.model_dump(exclude_unset=True)
+    if payload.client_version is not None and member.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This staff record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    data = payload.model_dump(exclude_unset=True, exclude={"client_version"})
     if "password" in data:
         data["password_hash"] = pwd_ctx.hash(data.pop("password"))
     for field, value in data.items():
         setattr(member, field, value)
+    member.version = (member.version or 1) + 1
     db.commit()
     db.refresh(member)
     return member

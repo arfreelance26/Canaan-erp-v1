@@ -1012,7 +1012,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left text-sm">
+          <table className="w-full min-w-[680px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -1084,7 +1084,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 {["Vehicle", "Category", "Item", "Remaining (km)", "Status"].map((col) => (

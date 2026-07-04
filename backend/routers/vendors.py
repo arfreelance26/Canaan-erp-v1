@@ -33,11 +33,18 @@ def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
 @router.put("/{vendor_id}", response_model=schemas.VendorOut)
 def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = Depends(get_db)):
     check_vendor_duplicates(db, payload, exclude_id=vendor_id)
-    vendor = db.get(models.Vendor, vendor_id)
+    vendor = db.query(models.Vendor).with_for_update().filter(models.Vendor.id == vendor_id).first()
     if not vendor:
         raise HTTPException(404, "Vendor not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and vendor.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This vendor record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(vendor, field, value)
+    vendor.version = (vendor.version or 1) + 1
     db.commit()
     db.refresh(vendor)
     return vendor

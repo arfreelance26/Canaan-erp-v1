@@ -13,4 +13,5 @@ export type TyreInventoryItem = {
   repairCost: string;
   retreadCost: string;
   retreadCount: string;
+  version?: number;
 };

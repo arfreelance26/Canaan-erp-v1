@@ -35,11 +35,18 @@ def get_emi(emi_id: int, db: Session = Depends(get_db)):
 
 @router.put("/emi/{emi_id}", response_model=schemas.EmiRecordOut)
 def update_emi(emi_id: int, payload: schemas.EmiRecordUpdate, db: Session = Depends(get_db)):
-    record = db.get(models.EmiRecord, emi_id)
+    record = db.query(models.EmiRecord).with_for_update().filter(models.EmiRecord.id == emi_id).first()
     if not record:
         raise HTTPException(404, "EMI record not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and record.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This EMI record was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(record, field, value)
+    record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)
     return record
@@ -82,11 +89,18 @@ def get_recurring(payment_id: int, db: Session = Depends(get_db)):
 
 @router.put("/recurring-payments/{payment_id}", response_model=schemas.RecurringPaymentOut)
 def update_recurring(payment_id: int, payload: schemas.RecurringPaymentUpdate, db: Session = Depends(get_db)):
-    payment = db.get(models.RecurringPayment, payment_id)
+    payment = db.query(models.RecurringPayment).with_for_update().filter(models.RecurringPayment.id == payment_id).first()
     if not payment:
         raise HTTPException(404, "Recurring payment not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    if payload.client_version is not None and payment.version != payload.client_version:
+        raise HTTPException(
+            409,
+            "This recurring payment was modified by someone else while you were editing. "
+            "Please refresh the page to get the latest data and try again."
+        )
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(payment, field, value)
+    payment.version = (payment.version or 1) + 1
     db.commit()
     db.refresh(payment)
     return payment
