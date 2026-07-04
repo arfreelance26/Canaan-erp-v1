@@ -36,6 +36,7 @@ def _run_schema_migrations():
         "ALTER TABLE recurring_payments ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE repair_types ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE sac_codes ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE sac_codes DROP INDEX code",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

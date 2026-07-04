@@ -191,6 +191,7 @@ class StaffUpdate(OrmBase):
     address: Optional[str] = None
 
     aadhar_number: Optional[str] = None
+    username: Optional[str] = None
     password: Optional[str] = None
 
 

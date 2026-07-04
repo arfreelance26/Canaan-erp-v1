@@ -17,7 +17,7 @@ function useBackendStatus() {
 
 export default function LoginPage() {
   const { login, completeLogin } = useAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginState, setLoginState] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -36,7 +36,7 @@ export default function LoginPage() {
     setError(null);
     setLoginState("loading");
     try {
-      const authUser = await login(email.trim(), password, true);
+      const authUser = await login(username.trim(), password, true);
       if (!authUser) throw new Error("Failed to get user context");
       
       setLoginState("success");
@@ -115,20 +115,20 @@ export default function LoginPage() {
             {/* Email */}
             <div className="relative group animate-cinematic-enter" style={{ animationDelay: "900ms" }}>
               <input
-                id="email"
-                type="email"
+                id="username"
+                type="text"
                 required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 placeholder=" "
                 className="peer w-full rounded-xl border border-gray-200 bg-white/50 px-4 pt-6 pb-2 text-sm text-gray-900 transition-all duration-300 focus:border-[#D4AF37] focus:bg-white focus:shadow-[0_0_15px_rgba(212,175,55,0.15)] focus:outline-none hover:border-gray-300 backdrop-blur-sm"
               />
               <label
-                htmlFor="email"
+                htmlFor="username"
                 className="pointer-events-none absolute left-4 top-4 text-xs text-gray-400 transition-all duration-300 -translate-y-2.5 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:text-sm peer-focus:-translate-y-2.5 peer-focus:text-xs peer-focus:text-[#D4AF37]"
               >
-                Email address
+                Username
               </label>
             </div>
 

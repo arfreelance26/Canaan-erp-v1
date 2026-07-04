@@ -21,7 +21,7 @@ export type AuthUser = {
 type AuthContextType = {
   user: AuthUser | null;
   ready: boolean;
-  login: (email: string, password: string, preventRedirect?: boolean) => Promise<AuthUser | void>;
+  login: (username: string, password: string, preventRedirect?: boolean) => Promise<AuthUser | void>;
   completeLogin: (user: AuthUser) => void;
   logout: () => void;
 };
@@ -57,11 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, ready, pathname, router]);
 
-  async function login(email: string, password: string, preventRedirect: boolean = false) {
+  async function login(username: string, password: string, preventRedirect: boolean = false) {
     const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

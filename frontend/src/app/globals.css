@@ -124,8 +124,8 @@ input[type="number"] {
 
 /* Custom Scrollbar Styles */
 ::-webkit-scrollbar {
-  width: 0.01px;
-  height: 0.01px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -133,17 +133,17 @@ input[type="number"] {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e100;
-  border-radius: 0.01px;
+  background: #cbd5e1;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b800;
+  background: #94a3b8;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e100 transparent;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 @keyframes truck-success {

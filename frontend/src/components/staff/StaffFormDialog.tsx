@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { X, FileText } from "lucide-react";
+import { X, FileText, KeyRound } from "lucide-react";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -51,6 +51,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   const [form, setForm] = useState<Omit<Staff, "id">>(emptyForm);
   const [files, setFiles] = useState<StaffFiles>({});
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [changePassword, setChangePassword] = useState(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
@@ -59,8 +60,9 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   useEffect(() => {
     if (open) {
       const { id: _id, ...rest } = initialData ?? { id: "", ...emptyForm };
-      setForm(rest);
+      setForm({ ...rest, password: "" });
       setFiles({});
+      setChangePassword(false);
     }
   }, [open, initialData]);
 
@@ -209,13 +211,12 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           </Field>
         </div>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-gray-200 p-4 flex flex-col gap-4">
           <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Username" required>
+            <Field label="Username (auto-filled from email)">
               <input
                 type="text"
-                required
                 readOnly
                 value={form.username}
                 className={`${inputClass} bg-gray-50 text-gray-500 cursor-not-allowed`}
@@ -223,17 +224,49 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               />
             </Field>
 
-            <Field label="Password" required={!initialData}>
-              <input
-                type="password"
-                required={!initialData}
-                value={form.password}
-                onChange={(e) => update("password", e.target.value)}
-                className={inputClass}
-                placeholder={initialData ? "Leave blank to keep current password" : "Set a login password"}
-              />
-            </Field>
+            {!initialData && (
+              <Field label="Password" required>
+                <input
+                  type="password"
+                  required
+                  value={form.password}
+                  onChange={(e) => update("password", e.target.value)}
+                  className={inputClass}
+                  placeholder="Set a login password"
+                />
+              </Field>
+            )}
           </div>
+
+          {initialData && (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setChangePassword((v) => !v);
+                  update("password", "");
+                }}
+                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <KeyRound className="w-4 h-4" />
+                {changePassword ? "Cancel password change" : "Change password"}
+              </button>
+              {changePassword && (
+                <div className="mt-3">
+                  <Field label="New Password" required>
+                    <input
+                      type="password"
+                      required
+                      value={form.password}
+                      onChange={(e) => update("password", e.target.value)}
+                      className={inputClass}
+                      placeholder="Enter new password"
+                    />
+                  </Field>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <Field label="Address" required>

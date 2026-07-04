@@ -13,7 +13,7 @@ ADMIN_PASSWORD = "admin"
 
 
 class LoginRequest(BaseModel):
-    email: str
+    username: str
     password: str
 
 
@@ -28,7 +28,8 @@ class LoginResponse(BaseModel):
 
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    if payload.email.strip().lower() == ADMIN_EMAIL and payload.password == ADMIN_PASSWORD:
+    username = payload.username.strip()
+    if username.lower() == ADMIN_EMAIL and payload.password == ADMIN_PASSWORD:
         return LoginResponse(
             id=None,
             name="Administrator",
@@ -40,14 +41,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     member = (
         db.query(models.Staff)
-        .filter(models.Staff.username == payload.email.strip())
+        .filter(models.Staff.username == username)
         .first()
     )
     if not member:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
     if not member.password_hash or not pwd_ctx.verify(payload.password, member.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
     return LoginResponse(
         id=member.id,

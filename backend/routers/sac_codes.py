@@ -13,8 +13,6 @@ def list_sac_codes(db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.SacCodeOut, status_code=201)
 def create_sac_code(payload: schemas.SacCodeCreate, db: Session = Depends(get_db)):
-    if db.query(models.SacCode).filter(models.SacCode.code == payload.code).first():
-        raise HTTPException(400, f"SAC code '{payload.code}' already exists")
     record = models.SacCode(**payload.model_dump())
     db.add(record)
     db.commit()

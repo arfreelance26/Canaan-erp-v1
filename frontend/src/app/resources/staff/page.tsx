@@ -60,7 +60,8 @@ export default function StaffPage() {
       let saved: Staff;
       const exists = staff.some((existing) => existing.id === member.id);
       if (exists) {
-        saved = await staffApi.update(member.id, member);
+        const newPassword = member.password?.trim() || undefined;
+        saved = await staffApi.update(member.id, member, newPassword);
         setStaff((prev) => prev.map((existing) => (existing.id === saved.id ? saved : existing)));
       } else {
         saved = await staffApi.create(member, member.password ?? "");

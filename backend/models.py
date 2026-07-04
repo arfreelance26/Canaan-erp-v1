@@ -624,7 +624,7 @@ class SacCode(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     description = Column(String(500), nullable=False)
-    code = Column(String(20), nullable=False, unique=True)
+    code = Column(String(20), nullable=False)
     gst_rate = Column(Numeric(5, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
