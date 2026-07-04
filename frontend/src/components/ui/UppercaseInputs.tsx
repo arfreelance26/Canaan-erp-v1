@@ -44,10 +44,11 @@ export function UppercaseInputs() {
       const t = e.target;
 
       if (t instanceof HTMLInputElement) {
-        if (EXCLUDED_TYPES.has(t.type)) return;
+        if (EXCLUDED_TYPES.has(t.type) || t.classList.contains("input-no-transform")) return;
         const upper = t.value.toUpperCase();
         if (upper !== t.value) inputSetter?.call(t, upper);
       } else if (t instanceof HTMLTextAreaElement) {
+        if (t.classList.contains("input-no-transform")) return;
         const upper = t.value.toUpperCase();
         if (upper !== t.value) textareaSetter?.call(t, upper);
       }

@@ -122,6 +122,11 @@ input[type="number"] {
   }
 }
 
+/* Force no text-transform on credential inputs */
+.input-no-transform {
+  text-transform: none !important;
+}
+
 /* Custom Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 4px;

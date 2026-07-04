@@ -176,13 +176,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
       contact: "9047015423",
       narration: buildNarration(containerNo, trip.containerSpecification, trip.origin ?? "", trip.destination ?? "", trip.scheduledDate ?? ""),
       invoiceType,
-      services: [{
-        ...emptyService(),
-        descriptionOfService: "Container Transport Hire",
-        sacCode: "996791",
-        quantity: "1",
-        rate: trip.transportHireAmount ? String(trip.transportHireAmount) : ""
-      }],
+      services: [emptyService()],
       gstApplicable: invoiceType === "Tax Invoice" ? "Yes" : "No",
       igstApplicable: "No"
     };
@@ -777,8 +771,8 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         <p className="text-xs text-gray-500">
           {sacCodes.length} codes available · Click <span className="font-semibold text-blue-600">+ Add</span> to insert a service line pre-filled with that code.
         </p>
-        <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-          <table className="w-full text-sm whitespace-nowrap">
+        <div className="overflow-auto rounded-xl border border-gray-200 shadow-sm">
+          <table className="w-full text-sm">
             <thead>
               <tr className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Description of Service</th>
@@ -795,7 +789,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
               ) : (
                 sacCodes.map((sc, i) => (
                   <tr key={sc.id} className={`transition-colors ${i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
-                    <td className="px-4 py-2.5 text-gray-700">{sc.description}</td>
+                    <td className="px-4 py-2.5 text-gray-700 whitespace-normal break-words">{sc.description}</td>
                     <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
                     <td className="px-4 py-2.5 text-center">
                       {parseFloat(sc.gstRate) > 0 ? (

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { X, FileText, KeyRound } from "lucide-react";
+import { X, FileText, KeyRound, Eye, EyeOff } from "lucide-react";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
-import { Field, inputClass } from "@/components/ui/Field";
+import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Avatar } from "@/components/ui/Avatar";
@@ -52,6 +52,8 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
   const [files, setFiles] = useState<StaffFiles>({});
   const [branches, setBranches] = useState<Branch[]>([]);
   const [changePassword, setChangePassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
@@ -120,7 +122,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               required
               value={form.name}
               onChange={(e) => update("name", e.target.value)}
-              className={inputClass}
+              className={inputClassLower}
               placeholder="e.g. Anita Menon"
             />
           </Field>
@@ -183,7 +185,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               required
               value={form.email}
               onChange={(e) => handleEmailChange(e.target.value)}
-              className={inputClass}
+              className={inputClassLower}
               placeholder="name@company.com"
             />
           </Field>
@@ -219,23 +221,22 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
                 type="text"
                 readOnly
                 value={form.username}
-                className={`${inputClass} bg-gray-50 text-gray-500 cursor-not-allowed`}
+                className={`${inputClassLower} bg-gray-50 text-gray-500 cursor-not-allowed`}
                 placeholder="Auto-filled from email"
               />
             </Field>
 
-            {!initialData && (
-              <Field label="Password" required>
-                <input
-                  type="password"
-                  required
-                  value={form.password}
-                  onChange={(e) => update("password", e.target.value)}
-                  className={inputClass}
-                  placeholder="Set a login password"
-                />
-              </Field>
-            )}
+            <Field label="Password" required={!initialData}>
+              <input
+                type="password"
+                required={!initialData}
+                readOnly={!!initialData}
+                value={initialData ? "••••••••" : form.password}
+                onChange={(e) => !initialData && update("password", e.target.value)}
+                className={`${inputClassLower} ${initialData ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""}`}
+                placeholder="Set a login password"
+              />
+            </Field>
           </div>
 
           {initialData && (
@@ -254,14 +255,23 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               {changePassword && (
                 <div className="mt-3">
                   <Field label="New Password" required>
-                    <input
-                      type="password"
-                      required
-                      value={form.password}
-                      onChange={(e) => update("password", e.target.value)}
-                      className={inputClass}
-                      placeholder="Enter new password"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        required
+                        value={form.password}
+                        onChange={(e) => update("password", e.target.value)}
+                        className={`${inputClassLower} pr-10`}
+                        placeholder="Enter new password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </Field>
                 </div>
               )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Eye, EyeOff } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -61,6 +61,7 @@ export function DriverFormDialog({
 }: DriverFormDialogProps) {
   const [form, setForm] = useState<Omit<Driver, "id" | "driverId">>(emptyForm);
   const [files, setFiles] = useState<DriverFiles>({});
+  const [showPassword, setShowPassword] = useState(false);
   const lastAutoUsername = useRef<string>("");
 
   useEffect(() => {
@@ -362,7 +363,7 @@ export function DriverFormDialog({
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-                className={inputClass}
+                className={inputClassLower}
                 placeholder={initialData ? "Leave blank to keep current password" : "Set a login password"}
               />
             </Field>

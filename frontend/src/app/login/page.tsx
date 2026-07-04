@@ -122,7 +122,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder=" "
-                className="peer w-full rounded-xl border border-gray-200 bg-white/50 px-4 pt-6 pb-2 text-sm text-gray-900 transition-all duration-300 focus:border-[#D4AF37] focus:bg-white focus:shadow-[0_0_15px_rgba(212,175,55,0.15)] focus:outline-none hover:border-gray-300 backdrop-blur-sm"
+                className="input-no-transform peer w-full rounded-xl border border-gray-200 bg-white/50 px-4 pt-6 pb-2 text-sm text-gray-900 transition-all duration-300 focus:border-[#D4AF37] focus:bg-white focus:shadow-[0_0_15px_rgba(212,175,55,0.15)] focus:outline-none hover:border-gray-300 backdrop-blur-sm"
               />
               <label
                 htmlFor="username"
@@ -142,7 +142,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder=" "
-                className="peer w-full rounded-xl border border-gray-200 bg-white/50 px-4 pt-6 pb-2 pr-10 text-sm text-gray-900 transition-all duration-300 focus:border-[#D4AF37] focus:bg-white focus:shadow-[0_0_15px_rgba(212,175,55,0.15)] focus:outline-none hover:border-gray-300 backdrop-blur-sm"
+                className="input-no-transform peer w-full rounded-xl border border-gray-200 bg-white/50 px-4 pt-6 pb-2 pr-10 text-sm text-gray-900 transition-all duration-300 focus:border-[#D4AF37] focus:bg-white focus:shadow-[0_0_15px_rgba(212,175,55,0.15)] focus:outline-none hover:border-gray-300 backdrop-blur-sm"
               />
               <label
                 htmlFor="password"
@@ -211,7 +211,7 @@ export default function LoginPage() {
         </div>
 
         {/* Backend status */}
-        <div className="mt-4 flex justify-center">
+        {/* <div className="mt-4 flex justify-center">
           {backendOnline === false && (
             <span className="flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-600 ring-1 ring-red-200">
               <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
@@ -224,7 +224,7 @@ export default function LoginPage() {
               Connected
             </span>
           )}
-        </div>
+        </div> */}
       </div>
     </div>
   );
