@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FileText, Eye, EyeOff } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
-import { Field, inputClass } from "@/components/ui/Field";
+import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { Avatar } from "@/components/ui/Avatar";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
