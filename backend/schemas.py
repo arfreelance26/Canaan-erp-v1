@@ -545,6 +545,7 @@ class TripSheetOut(TripSheetCreate):
 class ServiceLineSchema(OrmBase):
     descriptionOfService: Optional[str] = None
     sacCode: Optional[str] = None
+    gstRate: Optional[str] = None
     quantity: Optional[str] = None
     rate: Optional[str] = None
 

@@ -303,10 +303,13 @@ export default function TripFinalizationPage() {
                 const isInvoiced = invoicedIds.has(trip.id);
                 const inv        = invoiceData.get(trip.id);
 
-                // Invoice amount: sum of service lines when invoice exists, else sheet hire amount
+                // Invoice amount: sum of GST-inclusive service line totals
                 const invoiceTotal = inv?.services?.length
-                  ? (inv.services as any[]).reduce((sum: number, s: any) =>
-                      sum + (parseFloat(s.quantity) || 0) * (parseFloat(s.rate) || 0), 0)
+                  ? (inv.services as any[]).reduce((sum: number, s: any) => {
+                      const base = (parseFloat(s.quantity) || 0) * (parseFloat(s.rate) || 0);
+                      const gst  = parseFloat((base * ((parseFloat(s.gstRate) || 0) / 100)).toFixed(2));
+                      return sum + base + gst;
+                    }, 0)
                   : sheet ? n(sheet.hireAmount) : 0;
 
                 const invNo   = inv?.invoice_no ?? "—";
