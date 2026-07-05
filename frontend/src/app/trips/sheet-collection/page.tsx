@@ -68,7 +68,7 @@ export default function SheetCollectionPage() {
   const pending = filtered.filter((t) => !t.tripSheetCollected);
 
   // Select-all state: considers only pending (uncollected) rows for the primary bulk action
-  const selectableIds = pending.map((t) => t.id);
+  const selectableIds = pending.filter((t) => !t.hasSheet).map((t) => t.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0;
 
@@ -243,6 +243,7 @@ export default function SheetCollectionPage() {
                 const isCollected = trip.tripSheetCollected;
                 const isBusy = toggling.has(trip.id);
                 const isChecked = selected.has(trip.id);
+                const sheetSubmitted = trip.hasSheet;
 
                 return (
                   <tr
@@ -281,18 +282,27 @@ export default function SheetCollectionPage() {
                       {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => handleToggleCollect(trip)}
-                        className={
-                          isCollected
-                            ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                            : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                        }
-                      >
-                        {isBusy ? "..." : isCollected ? "Undo" : "Mark Collected"}
-                      </button>
+                      {isCollected && sheetSubmitted ? (
+                        <span
+                          title="Trip sheet already submitted in reconciliation — cannot undo collection"
+                          className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed"
+                        >
+                          Locked
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleToggleCollect(trip)}
+                          className={
+                            isCollected
+                              ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                              : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          }
+                        >
+                          {isBusy ? "..." : isCollected ? "Undo" : "Mark Collected"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
