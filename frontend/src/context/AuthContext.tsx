@@ -53,8 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!ready) return;
     if (!user && pathname !== "/login") {
       router.replace("/login");
-    } else if (user && pathname === "/login") {
-      router.replace("/");
+    } else if (user) {
+      const isCoordinator = user.softwareDesignation === "Trip Sheet Coordinator";
+      if (pathname === "/login") {
+        router.replace(isCoordinator ? "/trips/sheet-collection" : "/");
+      } else if (isCoordinator && pathname === "/") {
+        router.replace("/trips/sheet-collection");
+      }
     }
   }, [user, ready, pathname, router]);
 
@@ -89,7 +94,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function completeLogin(authUser: AuthUser) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
-    router.replace("/");
+    const home =
+      authUser.softwareDesignation === "Trip Sheet Coordinator"
+        ? "/trips/sheet-collection"
+        : "/";
+    router.replace(home);
   }
 
   function logout() {
