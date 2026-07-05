@@ -10,6 +10,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -24,6 +25,7 @@ export default function CompletedTripsPage() {
   const [closedTripIds, setClosedTripIds] = useState<Set<string>>(new Set());
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         Promise.all([
@@ -44,7 +46,7 @@ export default function CompletedTripsPage() {
             setClosedTripIds(closed);
           })
           .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([
       tripsApi.list("Completed"),
@@ -66,6 +68,8 @@ export default function CompletedTripsPage() {
       .finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));

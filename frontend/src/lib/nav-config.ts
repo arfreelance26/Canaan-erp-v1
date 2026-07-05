@@ -24,6 +24,7 @@ import {
   History,
   BarChart3,
   FileCheck,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +55,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
       { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
+      { label: "Edit Approvals", href: "/attendance/edit-approvals", icon: ShieldAlert },
       { label: "Attendance Report", href: "/attendance/report", icon: BarChart3 },
     ],
   },

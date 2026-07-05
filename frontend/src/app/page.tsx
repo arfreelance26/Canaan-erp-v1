@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { FleetManagerDashboard } from "@/components/dashboard/FleetManagerDashboard";
+import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboard";
+import { FinanceManagerDashboard } from "@/components/dashboard/FinanceManagerDashboard";
+import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
+import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
 import {
   Truck,
   Navigation,
@@ -45,6 +51,7 @@ import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { TripStatusDonutChart } from "@/components/dashboard/TripStatusDonutChart";
 import { FleetUtilizationChart } from "@/components/dashboard/FleetUtilizationChart";
 import { TripTrendChart } from "@/components/dashboard/TripTrendChart";
@@ -145,6 +152,28 @@ function AttendanceBar({
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+
+  if (user?.softwareDesignation === "Fleet Manager") {
+    return <FleetManagerDashboard />;
+  }
+
+  if (user?.softwareDesignation === "Tyre Manager") {
+    return <TyreManagerDashboard />;
+  }
+
+  if (user?.softwareDesignation === "Finance Manager") {
+    return <FinanceManagerDashboard />;
+  }
+
+  if (user?.softwareDesignation === "Staff") {
+    return <StaffDashboard />;
+  }
+
+  if (user?.softwareDesignation === "Trip Sheet Coordinator") {
+    return <TripSheetCoordinatorDashboard />;
+  }
+
   const [loading, setLoading] = useState(true);
   const [trucks, setTrucks] = useState<TruckType[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -161,8 +190,21 @@ export default function DashboardPage() {
   const [recurringPayments, setRecurringPayments] = useState<RecurringPayment[]>([]);
   const [driverTransactions, setDriverTransactions] = useState<CompensationTransaction[]>([]);
   const [staffTransactions, setStaffTransactions] = useState<CompensationTransaction[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const today = todayIst();
+
+  useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("leave_request_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
 
   useEffect(() => {
     Promise.all([
@@ -200,7 +242,7 @@ export default function DashboardPage() {
         setStaffTransactions(stx);
       })
       .finally(() => setLoading(false));
-  }, [today]);
+  }, [today, refreshKey]);
 
   // ── Maintenance ───────────────────────────────────────────────────────────
   const truckSummaries = useMemo(

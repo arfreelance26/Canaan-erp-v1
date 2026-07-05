@@ -12,6 +12,7 @@ import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import type { Customer } from "@/types/customer";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
@@ -25,6 +26,7 @@ export default function AssignTripsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         Promise.all([
@@ -42,7 +44,7 @@ export default function AssignTripsPage() {
             setAssignments(a);
           })
           .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([
       tripsApi.list(),
@@ -61,6 +63,10 @@ export default function AssignTripsPage() {
       .finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   const truckById = useMemo(() => new Map(trucks.map((truck) => [truck.truckId, truck])), [trucks]);
 

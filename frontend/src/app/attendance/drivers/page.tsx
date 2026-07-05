@@ -8,6 +8,7 @@ import { driversApi, attendanceApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { DriverAttendanceRecord } from "@/types/attendance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/swal";
@@ -27,6 +28,7 @@ export default function DriverAttendancePage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [records, setRecords] = useState<DriverAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     Promise.all([driversApi.list(), attendanceApi.listDrivers()])
@@ -46,10 +48,13 @@ export default function DriverAttendancePage() {
       .finally(() => setLoading(false));
   }, 5000);
 
-  // Reload records when date changes
+  // Reload records when date changes or WS event fires
   useEffect(() => {
     attendanceApi.listDrivers(date).then(setRecords);
-  }, [date]);
+  }, [date, refreshKey]);
+
+  useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
   const handleMark = useCallback(
     async (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => {

@@ -5,6 +5,7 @@ import { History, FileText, ClipboardList, Receipt, Search } from "lucide-react"
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -17,6 +18,7 @@ import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 import type { InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 type InvoicePreviewState = {
   trip: Trip;
@@ -27,6 +29,8 @@ type InvoicePreviewState = {
 };
 
 export default function TripHistoryPage() {
+  const { user } = useAuth();
+  const isFleetManager = user?.softwareDesignation === "Fleet Manager";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -76,6 +80,9 @@ export default function TripHistoryPage() {
 
   useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
   useAutoRefresh(() => { loadAll(); }, 10000);
+
+  useWebSocketEvent("trip_updated", loadAll);
+  useWebSocketEvent("trip_closed", loadAll);
 
   const driverById   = useMemo(() => new Map(drivers.map((d) => [d.driverId, d])), [drivers]);
   const truckById    = useMemo(() => new Map(trucks.map((t) => [t.truckId, t])), [trucks]);
@@ -140,7 +147,7 @@ export default function TripHistoryPage() {
           <table className="w-full min-w-[1500px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", "Invoice", "Documents"].map((col) => (
+                {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
                   <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
@@ -201,21 +208,23 @@ export default function TripHistoryPage() {
                       )}
                     </td>
 
-                    <td className="px-4 py-3">
-                      {trip.tripCategory === "SHIFTING" ? (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
-                          N/A (Shifting)
-                        </span>
-                      ) : isInvoiced ? (
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                          Invoiced
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
-                          Not Invoiced
-                        </span>
-                      )}
-                    </td>
+                    {!isFleetManager && (
+                      <td className="px-4 py-3">
+                        {trip.tripCategory === "SHIFTING" ? (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                            N/A (Shifting)
+                          </span>
+                        ) : isInvoiced ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                            Invoiced
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                            Not Invoiced
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {/* Booking Sheet — always available (hasClosure is required to appear here) */}
@@ -240,8 +249,8 @@ export default function TripHistoryPage() {
                           Trip Sheet
                         </button>
 
-                        {/* Invoice — only if generated */}
-                        {isInvoiced && (
+                        {/* Invoice — only if generated and role is not Fleet Manager */}
+                        {isInvoiced && !isFleetManager && (
                           <button
                             type="button"
                             onClick={() => handleViewInvoice(trip)}

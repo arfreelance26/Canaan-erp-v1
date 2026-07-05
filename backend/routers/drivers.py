@@ -4,6 +4,7 @@ from passlib.context import CryptContext
 from database import get_db
 import models, schemas
 from duplicate_checks import check_driver_duplicates
+from websocket_manager import emit
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -25,6 +26,7 @@ def create_driver(payload: schemas.DriverCreate, db: Session = Depends(get_db)):
     db.add(driver)
     db.commit()
     db.refresh(driver)
+    emit("driver_updated", {"id": driver.id})
     return driver
 
 
@@ -56,6 +58,7 @@ def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = D
     driver.version = (driver.version or 1) + 1
     db.commit()
     db.refresh(driver)
+    emit("driver_updated", {"id": driver.id})
     return driver
 
 
@@ -66,6 +69,7 @@ def delete_driver(driver_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Driver not found")
     db.delete(driver)
     db.commit()
+    emit("driver_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -86,11 +90,13 @@ def assign_vehicle(payload: schemas.DriverAssignmentCreate, db: Session = Depend
         existing.vehicle_id = payload.vehicle_id
         db.commit()
         db.refresh(existing)
+        emit("driver_updated", {})
         return existing
     assignment = models.DriverAssignment(**payload.model_dump())
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
+    emit("driver_updated", {})
     return assignment
 
 
@@ -103,3 +109,4 @@ def remove_assignment(driver_id_str: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "Assignment not found")
     db.delete(assignment)
     db.commit()
+    emit("driver_updated", {})

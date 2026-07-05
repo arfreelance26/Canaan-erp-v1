@@ -10,6 +10,7 @@ import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function DriversPage() {
@@ -18,6 +19,7 @@ export default function DriversPage() {
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const filteredDrivers = drivers.filter(d => 
     !searchQuery ||
@@ -27,11 +29,12 @@ export default function DriversPage() {
 
   useEffect(() => {
         driversApi.list().then(setDrivers).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     driversApi.list().then(setDrivers).finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
   function handleAdd() {
     setEditingDriver(null);

@@ -8,6 +8,7 @@ import { attendanceApi } from "@/lib/api";
 import { showSuccess, showError } from "@/lib/swal";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function LeaveRequestsPage() {
@@ -32,6 +33,9 @@ export default function LeaveRequestsPage() {
   }, []);
 
   useAutoRefresh(loadRequests, 5000);
+
+  useWebSocketEvent("leave_request_created", loadRequests);
+  useWebSocketEvent("leave_request_updated", loadRequests);
 
   async function handleSave(payload: Omit<LeaveRequest, "id" | "status" | "appliedAt">) {
     try {

@@ -525,7 +525,7 @@ class LeaveRequest(Base):
     __tablename__ = "leave_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Staff"), nullable=False)
+    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"), nullable=False)
     applicant_id = Column(Integer, nullable=False)                      # driver.id or staff.id
     applicant_name = Column(String(100), nullable=False)
     applicant_code = Column(String(20))                                 # CGI-D001 / STF-1001
@@ -681,6 +681,24 @@ class RecurringPayment(Base):
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class EditApprovalRequest(Base):
+    __tablename__ = "edit_approval_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_db_id = Column(Integer, nullable=False)        # staff.id (numeric)
+    staff_name = Column(String(100), nullable=False)
+    staff_code = Column(String(20))                      # STF-1001
+    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet"), nullable=False)
+    resource_id = Column(Integer, nullable=False)
+    resource_name = Column(String(200), nullable=False)
+    action = Column(Enum("Edit", "Delete"), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
+    approved_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)         # approved_at + 1 hour
+    created_at = Column(DateTime, default=func.now())
 
 
 class CompensationTransaction(Base):

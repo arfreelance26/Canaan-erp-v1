@@ -6,6 +6,7 @@ import type { Truck } from "@/types/truck";
 import { showSuccess, showError } from "@/lib/swal";
 import { FuelHistoryTable } from "@/components/maintenance/FuelHistoryTable";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { FuelLogFormDialog } from "@/components/fleet/FuelLogFormDialog";
 import { FuelHistoryViewDialog } from "@/components/fleet/FuelHistoryViewDialog";
 import { Search } from "lucide-react";
@@ -21,17 +22,20 @@ export default function FuelHistoryPage() {
   const [logFormOpen, setLogFormOpen] = useState(false);
   const [historyViewOpen, setHistoryViewOpen] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     trucksApi.list()
       .then(setTrucks)
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
   useAutoRefresh(() => {
     trucksApi.list()
       .then(setTrucks);
   }, 5000);
+
+  useWebSocketEvent("fuel_updated", () => setRefreshKey(k => k + 1));
 
   function handleViewHistory(truck: Truck) {
     setSelectedTruck(truck);

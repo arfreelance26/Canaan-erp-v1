@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -10,6 +10,13 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 class OrmBase(BaseModel):
     model_config = ConfigDict(from_attributes=True, protected_namespaces=())
+
+    def model_post_init(self, __context: object) -> None:
+        # MySQL DATETIME columns return naive datetimes — stamp them UTC so the
+        # JSON serialiser emits "+00:00" and clients can parse them unambiguously.
+        for name, value in self.__dict__.items():
+            if isinstance(value, datetime) and value.tzinfo is None:
+                object.__setattr__(self, name, value.replace(tzinfo=timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -656,10 +663,43 @@ class AttendanceSummaryOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Edit Approval Requests
+# ---------------------------------------------------------------------------
+
+EditApprovalAction = Literal["Edit", "Delete"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet"]
+EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
+
+
+class EditApprovalRequestCreate(OrmBase):
+    resource_type: EditApprovalResourceType
+    resource_id: int
+    resource_name: str
+    action: EditApprovalAction
+    reason: str
+
+
+class EditApprovalRequestOut(OrmBase):
+    id: int
+    staff_db_id: int
+    staff_name: str
+    staff_code: Optional[str] = None
+    resource_type: EditApprovalResourceType
+    resource_id: int
+    resource_name: str
+    action: EditApprovalAction
+    reason: str
+    status: EditApprovalStatus
+    approved_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
 # Leave Requests
 # ---------------------------------------------------------------------------
 
-LeaveCategory = Literal["Driver", "Fleet Manager", "Tyre Manager", "Staff"]
+LeaveCategory = Literal["Driver", "Fleet Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"]
 LeaveStatus = Literal["Pending", "Approved", "Rejected"]
 
 class ApplicantLookupOut(OrmBase):

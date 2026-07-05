@@ -8,6 +8,7 @@ import { financeApi } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -26,13 +27,16 @@ export default function EmiTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EmiRecord | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
   useAutoRefresh(() => {
     financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
   }, 5000);
+
+  useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 
   const today = todayIst();
 

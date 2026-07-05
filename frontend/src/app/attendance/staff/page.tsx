@@ -8,6 +8,7 @@ import { staffApi, attendanceApi } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/swal";
@@ -27,6 +28,7 @@ export default function StaffAttendancePage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [records, setRecords] = useState<StaffAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     Promise.all([staffApi.list(), attendanceApi.listStaff()])
@@ -46,10 +48,12 @@ export default function StaffAttendancePage() {
       .finally(() => setLoading(false));
   }, 5000);
 
-  // Reload records when date changes
+  // Reload records when date changes or WS event fires
   useEffect(() => {
     attendanceApi.listStaff(date).then(setRecords);
-  }, [date]);
+  }, [date, refreshKey]);
+
+  useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
 
   const handleMark = useCallback(
     async (staffId: string, currentRecord: StaffAttendanceRecord | undefined, status: string) => {

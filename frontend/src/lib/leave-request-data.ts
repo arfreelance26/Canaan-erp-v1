@@ -5,6 +5,7 @@ export const LEAVE_CATEGORIES: LeaveApplicantCategory[] = [
   "Fleet Manager",
   "Tyre Manager",
   "Staff",
+  "Trip Sheet Coordinator",
 ];
 
 export const initialLeaveRequests: LeaveRequest[] = [

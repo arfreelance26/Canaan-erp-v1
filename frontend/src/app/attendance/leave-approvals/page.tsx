@@ -8,6 +8,7 @@ import { attendanceApi } from "@/lib/api";
 import { LEAVE_CATEGORIES } from "@/lib/leave-request-data";
 import type { LeaveApplicantCategory, LeaveRequest } from "@/types/leave-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -17,6 +18,7 @@ const categoryLabels: Record<LeaveApplicantCategory, string> = {
   "Fleet Manager": "Fleet Managers",
   "Tyre Manager": "Tyre Managers",
   Staff: "Staff",
+  "Trip Sheet Coordinator": "Sheet Coordinators",
 };
 
 type FilterValue = "All" | LeaveApplicantCategory;
@@ -26,13 +28,17 @@ export default function LeaveApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterValue>("All");
   const [search, setSearch] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
       }, 5000);
+
+  useWebSocketEvent("leave_request_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));
 
 
   const summary = useMemo(() => {
@@ -62,6 +68,7 @@ export default function LeaveApprovalsPage() {
       "Fleet Manager": 0,
       "Tyre Manager": 0,
       Staff: 0,
+      "Trip Sheet Coordinator": 0,
     };
     for (const request of requests) {
       if (request.status !== "Pending") continue;

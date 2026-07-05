@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from duplicate_checks import check_vendor_duplicates
+from websocket_manager import emit
 
 router = APIRouter(prefix="/vendors", tags=["Vendors"])
 
@@ -19,6 +20,7 @@ def create_vendor(payload: schemas.VendorCreate, db: Session = Depends(get_db)):
     db.add(vendor)
     db.commit()
     db.refresh(vendor)
+    emit("vendor_updated", {})
     return vendor
 
 
@@ -47,6 +49,7 @@ def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = D
     vendor.version = (vendor.version or 1) + 1
     db.commit()
     db.refresh(vendor)
+    emit("vendor_updated", {})
     return vendor
 
 
@@ -57,3 +60,4 @@ def delete_vendor(vendor_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Vendor not found")
     db.delete(vendor)
     db.commit()
+    emit("vendor_updated", {})

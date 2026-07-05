@@ -10,6 +10,7 @@ import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
 import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -35,6 +36,10 @@ export default function DriverCompensationPage() {
 
   useEffect(() => { loadData().finally(() => setLoading(false)); }, []);
   useAutoRefresh(() => { loadData(); }, 5000);
+
+  useWebSocketEvent("finance_updated", loadData);
+  useWebSocketEvent("trip_updated", loadData);
+  useWebSocketEvent("driver_updated", loadData);
 
   const people: CompensationPerson[] = useMemo(
     () =>

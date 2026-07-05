@@ -5,6 +5,7 @@ import { RecurringPaymentsTable } from "@/components/finance/RecurringPaymentsTa
 import { financeApi } from "@/lib/api";
 import type { RecurringPayment } from "@/types/finance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -21,13 +22,16 @@ export default function RecurringPaymentsPage() {
   const [payments, setPayments] = useState<RecurringPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
       }, 5000);
+
+  useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 
 
   const summary = useMemo(() => {

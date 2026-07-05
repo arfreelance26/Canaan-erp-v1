@@ -7,6 +7,7 @@ from database import get_db
 from security import require_roles
 import models, schemas
 from duplicate_checks import check_trip_duplicates
+from websocket_manager import emit
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
 
@@ -92,6 +93,7 @@ def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(trip)
     _remember_customer_origin(db, trip.customer_id, trip.origin)
+    emit("trip_created", {"trip_id": trip.trip_id})
     return _enrich(trip)
 
 
@@ -121,6 +123,7 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
     db.commit()
     db.refresh(trip)
     _remember_customer_origin(db, trip.customer_id, trip.origin)
+    emit("trip_updated", {"trip_id": trip.trip_id, "id": trip.id})
     return _enrich(trip)
 
 
@@ -134,6 +137,7 @@ def update_trip_status(trip_id: int, payload: schemas.TripStatusUpdate, db: Sess
     trip.status = payload.status
     db.commit()
     db.refresh(trip)
+    emit("trip_updated", {"trip_id": trip.trip_id, "id": trip.id, "status": payload.status})
     return _enrich(trip)
 
 
@@ -183,6 +187,7 @@ def close_trip(trip_id: int, payload: schemas.TripClosureCreate, db: Session = D
     db.add(closure)
     db.commit()
     db.refresh(closure)
+    emit("trip_closed", {"trip_id": trip_id})
     return closure
 
 
@@ -324,10 +329,71 @@ def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Trip not found")
     if trip.status != "Completed":
         raise HTTPException(400, "Trip sheet can only be marked as delivered for Completed trips")
+    if not trip.closure:
+        raise HTTPException(400, "Trip must be closed before marking the sheet as delivered")
     trip.trip_sheet_collected = not trip.trip_sheet_collected
     trip.trip_sheet_collected_at = datetime.now(timezone.utc) if trip.trip_sheet_collected else None
     db.commit()
     db.refresh(trip)
+    emit("sheet_collected", {"trip_id": trip_id, "collected": trip.trip_sheet_collected})
+    return _enrich(trip)
+
+
+@router.post(
+    "/{trip_id}/unmark-sheet",
+    response_model=schemas.TripOut,
+    dependencies=[Depends(require_roles("Fleet Manager", "Finance Manager", *SHEET_COLLECTOR_ROLES))],
+)
+def unmark_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
+    """Mark a trip sheet as not received, clearing delivery status from reconciliation."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if not trip.trip_sheet_collected:
+        raise HTTPException(400, "Trip sheet is not currently marked as delivered")
+    trip.trip_sheet_collected = False
+    trip.trip_sheet_collected_at = None
+    db.commit()
+    db.refresh(trip)
+    emit("sheet_unmarked", {
+        "trip_db_id": trip_id,
+        "trip_id_str": trip.trip_id,
+        "booking_reference_no": trip.booking_reference_no,
+    })
+    return _enrich(trip)
+
+
+@router.post(
+    "/{trip_id}/flag-sheet-missing",
+    response_model=schemas.TripOut,
+    dependencies=[Depends(require_roles(*SHEET_COLLECTOR_ROLES))],
+)
+def flag_sheet_missing(trip_id: int, db: Session = Depends(get_db)):
+    """Flag that a trip sheet has not been received; notifies Admin and Fleet Manager."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    # If currently marked as collected but not yet in reconciliation, undo it
+    if trip.trip_sheet_collected and trip.sheet is None:
+        trip.trip_sheet_collected = False
+        trip.trip_sheet_collected_at = None
+        db.commit()
+        db.refresh(trip)
+        emit("sheet_unmarked", {
+            "trip_db_id": trip_id,
+            "trip_id_str": trip.trip_id,
+            "booking_reference_no": trip.booking_reference_no,
+        })
+    # Always broadcast the alert notification
+    emit("sheet_alert", {
+        "trip_db_id": trip_id,
+        "trip_id_str": trip.trip_id,
+        "booking_reference_no": trip.booking_reference_no,
+    })
     return _enrich(trip)
 
 

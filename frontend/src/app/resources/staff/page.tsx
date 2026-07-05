@@ -9,6 +9,7 @@ import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
@@ -18,6 +19,7 @@ export default function StaffPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const filteredStaff = staff.filter(s =>
     !searchQuery ||
@@ -27,11 +29,13 @@ export default function StaffPage() {
 
   useEffect(() => {
         staffApi.list().then(setStaff).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     staffApi.list().then(setStaff).finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("staff_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
   function handleAdd() {
     setEditingStaff(null);

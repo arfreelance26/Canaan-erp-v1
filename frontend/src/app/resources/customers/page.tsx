@@ -8,15 +8,19 @@ import { CustomerPricingTable } from "@/components/customers/CustomerPricingTabl
 import { CustomerPricingFormDialog } from "@/components/customers/CustomerPricingFormDialog";
 import { CustomerDestinationTable } from "@/components/customers/CustomerDestinationTable";
 import { CustomerDestinationFormDialog } from "@/components/customers/CustomerDestinationFormDialog";
-import { customersApi } from "@/lib/api";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { customersApi, editApprovalsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { CustomerDestination } from "@/types/customer-destination";
+import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { useAuth } from "@/context/AuthContext";
 
 const TABS = [
   { id: "list", label: "Customer List" },
@@ -27,6 +31,9 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 export default function CustomersPage() {
+  const { user } = useAuth();
+  const isStaff = user?.softwareDesignation === "Staff";
+
   const [activeTab, setActiveTab] = useState<TabId>("list");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,6 +41,11 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Edit approval state (Staff only)
+  const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [editRequestOpen, setEditRequestOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
 
   const [pricing, setPricing] = useState<CustomerPricing[]>([]);
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
@@ -72,13 +84,36 @@ export default function CustomersPage() {
     );
   });
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
         customersApi.list().then(setCustomers).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     customersApi.list().then(setCustomers).finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("customer_updated", () => setRefreshKey(k => k + 1));
+
+  // Load and refresh active edit approvals for Staff
+  useEffect(() => {
+    if (!isStaff) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  }, [isStaff]);
+  useWebSocketEvent("edit_approval_updated", () => {
+    if (!isStaff) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  });
+
+  function hasActiveApproval(resourceId: string, action: EditApprovalAction): boolean {
+    return activeApprovals.some((a) =>
+      a.resourceType === "Customer" &&
+      String(a.resourceId) === resourceId &&
+      a.action === action &&
+      a.expiresAt != null &&
+      new Date(a.expiresAt.endsWith("Z") ? a.expiresAt : a.expiresAt + "Z") > new Date()
+    );
+  }
 
   // Load pricing and destinations lazily when tab is opened
   useEffect(() => {
@@ -100,11 +135,22 @@ export default function CustomersPage() {
   }
 
   function handleEditCustomer(customer: Customer) {
+    if (isStaff && !hasActiveApproval(customer.id, "Edit")) {
+      setPendingAction({ type: "Edit", resourceId: customer.id, resourceName: customer.name });
+      setEditRequestOpen(true);
+      return;
+    }
     setEditingCustomer(customer);
     setCustomerDialogOpen(true);
   }
 
   async function handleDeleteCustomer(id: string) {
+    const customer = customers.find((c) => c.id === id);
+    if (isStaff && !hasActiveApproval(id, "Delete")) {
+      setPendingAction({ type: "Delete", resourceId: id, resourceName: customer?.name ?? id });
+      setEditRequestOpen(true);
+      return;
+    }
     const result = await confirmDelete("customer");
     if (!result.isConfirmed) return;
     try {
@@ -114,6 +160,20 @@ export default function CustomersPage() {
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete customer.");
     }
+  }
+
+  async function handleEditRequestSubmit(reason: string) {
+    if (!pendingAction) return;
+    await editApprovalsApi.create({
+      resourceType: "Customer",
+      resourceId: parseInt(pendingAction.resourceId),
+      resourceName: pendingAction.resourceName,
+      action: pendingAction.type,
+      reason,
+    });
+    showSuccess("Edit request has been sent.");
+    setEditRequestOpen(false);
+    setPendingAction(null);
   }
 
   async function handleSaveCustomer(customer: Customer) {
@@ -372,6 +432,18 @@ export default function CustomersPage() {
             customers={customers}
           />
         </div>
+      )}
+
+      {/* Edit approval request dialog — shown when Staff clicks Edit/Delete without active approval */}
+      {pendingAction && (
+        <EditRequestDialog
+          open={editRequestOpen}
+          resourceType="Customer"
+          resourceName={pendingAction.resourceName}
+          action={pendingAction.type}
+          onSubmit={handleEditRequestSubmit}
+          onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
+        />
       )}
     </div>
   );

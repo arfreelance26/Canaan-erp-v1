@@ -16,6 +16,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
+import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
@@ -1103,6 +1104,10 @@ export const tripsApi = {
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
   collectSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),
+  unmarkSheet: (dbId: string) =>
+    req<B>(`/trips/${dbId}/unmark-sheet`, { method: "POST" }).then(toTrip),
+  flagSheetMissing: (dbId: string) =>
+    req<B>(`/trips/${dbId}/flag-sheet-missing`, { method: "POST" }).then(toTrip),
 };
 
 // ---------------------------------------------------------------------------
@@ -1536,4 +1541,54 @@ export const plSummaryApi = {
       }))
     );
   },
+};
+
+// ---------------------------------------------------------------------------
+// Edit Approvals
+// ---------------------------------------------------------------------------
+
+function toEditApproval(b: B): EditApprovalRequest {
+  return {
+    id: String(b.id),
+    staffDbId: Number(b.staff_db_id),
+    staffName: String(b.staff_name ?? ""),
+    staffCode: b.staff_code ?? null,
+    resourceType: b.resource_type as EditApprovalResourceType,
+    resourceId: Number(b.resource_id),
+    resourceName: String(b.resource_name ?? ""),
+    action: b.action as EditApprovalAction,
+    reason: String(b.reason ?? ""),
+    status: (b.status ?? "Pending") as EditApprovalRequest["status"],
+    approvedAt: b.approved_at ?? null,
+    expiresAt: b.expires_at ?? null,
+    createdAt: b.created_at ?? null,
+  };
+}
+
+export const editApprovalsApi = {
+  list: (status?: string) =>
+    req<B[]>(`/edit-approvals${status ? `?status=${status}` : ""}`).then((d) => d.map(toEditApproval)),
+  getMyActive: () =>
+    req<B[]>("/edit-approvals/my-active").then((d) => d.map(toEditApproval)),
+  create: (payload: {
+    resourceType: EditApprovalResourceType;
+    resourceId: number;
+    resourceName: string;
+    action: EditApprovalAction;
+    reason: string;
+  }) =>
+    req<B>("/edit-approvals", {
+      method: "POST",
+      body: JSON.stringify({
+        resource_type: payload.resourceType,
+        resource_id: payload.resourceId,
+        resource_name: payload.resourceName,
+        action: payload.action,
+        reason: payload.reason,
+      }),
+    }).then(toEditApproval),
+  approve: (id: string) =>
+    req<B>(`/edit-approvals/${id}/approve`, { method: "PATCH" }).then(toEditApproval),
+  reject: (id: string) =>
+    req<B>(`/edit-approvals/${id}/reject`, { method: "PATCH" }).then(toEditApproval),
 };

@@ -10,6 +10,7 @@ import { trucksApi, maintenanceApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -24,6 +25,7 @@ export default function TruckMaintenancePage() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export default function TruckMaintenancePage() {
             setRecords(r);
           })
           .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([trucksApi.list(), maintenanceApi.listRecords()])
     .then(([t, r]) => {
@@ -43,6 +45,8 @@ export default function TruckMaintenancePage() {
     .finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   function handleUpdateRecord(truck: Truck) {
     setSelectedTruck(truck);

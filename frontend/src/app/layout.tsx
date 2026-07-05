@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { TyreInventoryProvider } from "@/context/TyreInventoryContext";
 import { TripWorkflowProvider } from "@/context/TripWorkflowContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { WebSocketProvider } from "@/context/WebSocketContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 
@@ -44,11 +45,13 @@ export default function RootLayout({
         <UppercaseInputs />
         <NoScrollNumberInputs />
         <AuthProvider>
-          <TripWorkflowProvider>
-            <TyreInventoryProvider>
-              <AppShell>{children}</AppShell>
-            </TyreInventoryProvider>
-          </TripWorkflowProvider>
+          <WebSocketProvider>
+            <TripWorkflowProvider>
+              <TyreInventoryProvider>
+                <AppShell>{children}</AppShell>
+              </TyreInventoryProvider>
+            </TripWorkflowProvider>
+          </WebSocketProvider>
         </AuthProvider>
       </body>
     </html>

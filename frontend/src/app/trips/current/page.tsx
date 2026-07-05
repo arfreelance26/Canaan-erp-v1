@@ -8,6 +8,7 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -22,6 +23,7 @@ export default function CurrentTripsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -32,7 +34,7 @@ export default function CurrentTripsPage() {
             setCustomers(c);
           })
           .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
     .then(([t, d, tr, c]) => {
@@ -44,6 +46,8 @@ export default function CurrentTripsPage() {
     .finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
 
   const trips = allTrips.filter((trip) => CURRENT_STATUSES.includes(trip.status));
   const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) || t.origin?.toLowerCase().includes(searchQuery.toLowerCase()) || t.destination?.toLowerCase().includes(searchQuery.toLowerCase()));

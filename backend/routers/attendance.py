@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from websocket_manager import emit
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
@@ -107,11 +108,13 @@ def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session 
             setattr(existing, field, value)
         db.commit()
         db.refresh(existing)
+        emit("attendance_updated", {})
         return existing
     record = models.DriverAttendance(**payload.model_dump())
     db.add(record)
     db.commit()
     db.refresh(record)
+    emit("attendance_updated", {})
     return record
 
 
@@ -125,6 +128,7 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     record.marked_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(record)
+    emit("attendance_updated", {})
     return record
 
 
@@ -157,11 +161,13 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
             setattr(existing, field, value)
         db.commit()
         db.refresh(existing)
+        emit("attendance_updated", {})
         return existing
     record = models.StaffAttendance(**payload.model_dump())
     db.add(record)
     db.commit()
     db.refresh(record)
+    emit("attendance_updated", {})
     return record
 
 
@@ -175,6 +181,7 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
     record.marked_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(record)
+    emit("attendance_updated", {})
     return record
 
 
@@ -198,7 +205,7 @@ def lookup_applicant(code: str, db: Session = Depends(get_db)):
     staff = db.query(models.Staff).filter(models.Staff.staff_id == code_upper).first()
     if staff:
         return schemas.ApplicantLookupOut(
-            category=staff.software_designation if staff.software_designation in ["Fleet Manager", "Tyre Manager", "Staff"] else "Staff",
+            category=staff.software_designation if staff.software_designation in ["Fleet Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"] else "Staff",
             applicant_id=staff.id,
             applicant_name=staff.name,
             applicant_code=staff.staff_id
@@ -222,6 +229,15 @@ def create_leave_request(payload: schemas.LeaveRequestCreate, db: Session = Depe
     db.add(request)
     db.commit()
     db.refresh(request)
+    emit("leave_request_created", {
+        "id": request.id,
+        "applicant_name": request.applicant_name,
+        "category": request.category,
+        "from_date": str(request.from_date),
+        "to_date": str(request.to_date),
+        "reason": request.reason,
+        "applied_at": request.applied_at.isoformat() if request.applied_at else None,
+    })
     return request
 
 
@@ -241,6 +257,7 @@ def approve_leave(request_id: int, db: Session = Depends(get_db)):
     request.status = "Approved"
     db.commit()
     db.refresh(request)
+    emit("leave_request_updated", {"id": request.id, "status": "Approved"})
     return request
 
 
@@ -252,4 +269,5 @@ def reject_leave(request_id: int, db: Session = Depends(get_db)):
     request.status = "Rejected"
     db.commit()
     db.refresh(request)
+    emit("leave_request_updated", {"id": request.id, "status": "Rejected"})
     return request

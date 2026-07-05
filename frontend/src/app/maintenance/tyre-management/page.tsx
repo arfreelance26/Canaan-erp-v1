@@ -8,6 +8,7 @@ import { useTyreInventory } from "@/context/TyreInventoryContext";
 
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -21,6 +22,7 @@ export default function TyreManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { setTyres, setFitmentRecords } = useTyreInventory();
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         Promise.all([
@@ -34,7 +36,7 @@ export default function TyreManagementPage() {
             setFitmentRecords(fit);
           })
           .finally(() => setLoading(false));
-      }, [setTyres, setFitmentRecords]);
+      }, [setTyres, setFitmentRecords, refreshKey]);
       useAutoRefresh(() => {
     Promise.all([
       trucksApi.list(),
@@ -49,6 +51,8 @@ export default function TyreManagementPage() {
       .finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   function handleManageTyres(truck: Truck) {
     setSelectedTruck(truck);

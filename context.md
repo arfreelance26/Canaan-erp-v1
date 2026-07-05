@@ -8,7 +8,7 @@
 
 ---
 
-## All Features Implemented (this full conversation)
+## All Features Implemented (cumulative across all sessions)
 
 ### 1. Repairs Management Page (`/admin/repairs`)
 Admin CRUD page for managing repair types (name + default cost).
@@ -134,16 +134,98 @@ The "Booking Sheet" = Trip form (assign page) + Close Trip form combined into on
 
 ---
 
+### 11. Leave Requests Page for Trip Sheet Coordinator
+- `frontend/src/components/layout/Sidebar.tsx` — Added `/attendance/leave-requests` to `"Trip Sheet Coordinator"` role's `ROLE_HREFS`
+- Trip Sheet Coordinators can now submit and track leave requests from their own sidebar
+
+---
+
+### 12. WebSocket Infrastructure (Full Real-Time)
+**New files:**
+- `backend/websocket_manager.py` — `ConnectionManager` singleton + `emit()` helper for broadcasting from sync route handlers using `asyncio.run_coroutine_threadsafe`
+- `frontend/src/context/WebSocketContext.tsx` — `WebSocketProvider` (single WS connection per session, auto-reconnects after 3s, `subscribe()` method)
+- `frontend/src/hooks/useWebSocketEvent.ts` — `useWebSocketEvent(eventType, handler)` hook using `handlerRef` pattern to avoid stale closures
+
+**`backend/main.py` additions:**
+- `@app.on_event("startup")` captures the async event loop via `set_event_loop()`
+- `GET /ws` WebSocket endpoint — authenticates via `?token=<JWT>` query param, then keeps alive
+- `WebSocketProvider` wraps `<AuthProvider>` in `layout.tsx`
+
+**Events emitted per router:**
+
+| Router | Events |
+|---|---|
+| `trips.py` | `trip_created`, `trip_updated`, `trip_closed`, `sheet_collected`, `sheet_unmarked`, `sheet_alert` |
+| `attendance.py` | `leave_request_created`, `leave_request_updated`, `attendance_updated` |
+| `trucks.py` | `truck_updated` |
+| `drivers.py` | `driver_updated` |
+| `customers.py` | `customer_updated` |
+| `vendors.py` | `vendor_updated` |
+| `maintenance.py` | `maintenance_updated`, `fuel_updated`, `tyre_updated` |
+| `finance.py` | `finance_updated` |
+
+**Frontend wiring:** All 30+ pages and 5 dashboard components use `useWebSocketEvent` to reload data on relevant events. Two patterns used:
+- **Named load function pattern**: pages with `loadData()` pass it directly → `useWebSocketEvent("event", loadData)`
+- **`refreshKey` counter pattern**: anonymous `useEffect` pages → `useState(0)` + `refreshKey` in deps + `setRefreshKey(k => k+1)` in WS handler
+
+---
+
+### 13. Admin Notification Bell
+- `frontend/src/components/layout/Topbar.tsx` — Full notification bell implementation
+- **Two notification types:**
+  1. **Leave Requests** (blue, Admin only): Shows pending leave requests from all roles. Clicking navigates to `/attendance/leave-approvals`.
+  2. **Trip Sheet Alerts** (orange, Admin + Fleet Manager): Shows sheet-not-received alerts. Admin → `/trips/sheet-collection`; Fleet Manager → `/trips/current`.
+- Badge count: `leaveRequests.length + sheetAlerts.length` (Admin) or `sheetAlerts.length` (Fleet Manager)
+- Initial load: `attendanceApi.listLeaveRequests("Pending")` on mount (admin only)
+- WS events consumed:
+  - `leave_request_created` → adds to pending list (admin only)
+  - `leave_request_updated` → removes from pending list (admin only)
+  - `sheet_unmarked` → adds SheetAlert (admin + fleet manager)
+  - `sheet_alert` → adds SheetAlert (admin + fleet manager)
+
+---
+
+### 14. "Trip Sheet Not Yet Received" Button Alert
+- `frontend/src/app/trips/sheet-collection/page.tsx` — "Trip Sheet Not Yet Received" button calls `tripsApi.flagSheetMissing(trip.id)`
+- `frontend/src/lib/api.ts` — `flagSheetMissing: (dbId) => POST /trips/{dbId}/flag-sheet-missing`
+- `backend/routers/trips.py` — New endpoint `POST /{trip_id}/flag-sheet-missing`:
+  - If trip was collected but not reconciled → undoes collection + emits `sheet_unmarked`
+  - Always emits `sheet_alert` with `{trip_db_id, trip_id_str, booking_reference_no}`
+  - Roles: Trip Sheet Coordinator + Admin
+- Topbar `sheet_alert` handler adds notification: "Trip sheet not yet received — Booking ref: {X}. Please follow up immediately."
+- **Note:** "Not Found" error on button click = backend server needs restart to load the new endpoint (server is running old compiled `.pyc`)
+
+---
+
+### 15. Trip Sheet Coordinator as Leave Category
+**Problem:** TSC staff were mapped to "Staff" category in leave requests. They now have their own category.
+
+**Backend:**
+- `backend/models.py` — `LeaveRequest.category` ENUM now includes `"Trip Sheet Coordinator"`
+- `backend/schemas.py` — `LeaveCategory` Literal now includes `"Trip Sheet Coordinator"`
+- `backend/routers/attendance.py` — `lookup_applicant` returns `"Trip Sheet Coordinator"` category for TSC staff (not `"Staff"`)
+- `backend/main.py` — Added migration: `ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL`
+
+**Frontend:**
+- `frontend/src/types/leave-request.ts` — `LeaveApplicantCategory` includes `"Trip Sheet Coordinator"`
+- `frontend/src/lib/leave-request-data.ts` — `LEAVE_CATEGORIES` array includes `"Trip Sheet Coordinator"`
+- `frontend/src/app/attendance/leave-approvals/page.tsx` — `categoryLabels` maps it to `"Sheet Coordinators"`; `pendingCounts` initializer includes the key
+
+---
+
 ## Key Architectural Patterns
 
 | Pattern | Description |
 |---|---|
 | `initKeyRef` | In `TripSheetDialog`, prevents auto-refresh from resetting the form. Key = `${trip.id}::${existingSheet?.tripSheetNo ?? "new"}` |
 | `useAutoRefresh` | 5s polling hook used in all pages to refresh data |
+| `useWebSocketEvent` | Real-time hook — subscribes to a WS event type, calls handler on receipt. Uses `handlerRef` to avoid stale closures. |
+| `refreshKey` pattern | For pages with anonymous `useEffect` load: `useState(0)` + `refreshKey` in deps + `setRefreshKey(k=>k+1)` from WS handler |
 | snake_case ↔ camelCase | All API responses transformed in `api.ts` via `toXxx` functions |
 | Parallel-change rule | Every user-facing change is applied across: DB model → backend schema/router → frontend types/api/component |
 | Admin page pattern | Follows Branch Management: table + inline Dialog, `useAutoRefresh`, `confirmDelete` |
 | Truck odometer | `trucks.odometer` = "current odometer". Only updated from `end_km` of trip sheet saves. Never goes backward. |
+| Schema migrations | Enum/column changes that `create_all` can't handle go in `_run_schema_migrations()` in `main.py` as idempotent `ALTER TABLE` stmts |
 
 ---
 
@@ -152,27 +234,38 @@ The "Booking Sheet" = Trip form (assign page) + Close Trip form combined into on
 ### Backend
 | File | Purpose |
 |---|---|
-| `backend/models.py` | SQLAlchemy models — `RepairType`, `Truck` (with `odometer`), etc. |
-| `backend/schemas.py` | Pydantic schemas — `RepairTypeCreate/Update/Out`, `FuelStats` (with `cost_per_km`) |
+| `backend/models.py` | SQLAlchemy models — `RepairType`, `Truck`, `LeaveRequest` (with TSC category), etc. |
+| `backend/schemas.py` | Pydantic schemas — `RepairTypeCreate/Update/Out`, `FuelStats`, `LeaveCategory` (includes TSC) |
+| `backend/websocket_manager.py` | WS `ConnectionManager` + `emit()` — thread-safe broadcast via `run_coroutine_threadsafe` |
 | `backend/routers/repair_types.py` | CRUD router at `/repair-types` |
-| `backend/routers/trips.py` | `upsert_trip_sheet` — updates `truck.odometer` from `end_km` |
+| `backend/routers/trips.py` | `upsert_trip_sheet` (odometer update), `flag_sheet_missing` endpoint |
 | `backend/routers/maintenance.py` | `get_fuel_stats` — computes `cost_per_km` |
-| `backend/main.py` | Registers routers; seeds default repair types on startup |
+| `backend/routers/attendance.py` | Leave requests CRUD + `lookup_applicant` (returns TSC category) |
+| `backend/main.py` | Startup: `create_all`, `_run_schema_migrations()`, seed repair types, WS loop capture, `/ws` endpoint |
 
 ### Frontend
 | File | Purpose |
 |---|---|
+| `frontend/src/context/WebSocketContext.tsx` | WS provider — single connection, `subscribe()`, auto-reconnect |
+| `frontend/src/hooks/useWebSocketEvent.ts` | `useWebSocketEvent(event, handler)` — handlerRef pattern |
 | `frontend/src/types/repair-type.ts` | `RepairType` type |
 | `frontend/src/types/fuel-log.ts` | `FuelStats` with `costPerKm` |
 | `frontend/src/types/trip.ts` | Full `Trip` type (all fields) |
 | `frontend/src/types/trip-closure.ts` | `TripClosureData` type |
-| `frontend/src/lib/api.ts` | All API calls — `repairTypesApi`, `tripsApi.close`, `toFuelStats`, etc. |
+| `frontend/src/types/leave-request.ts` | `LeaveApplicantCategory` (includes TSC), `LeaveRequest` type |
+| `frontend/src/lib/api.ts` | All API calls — `repairTypesApi`, `tripsApi` (incl. `flagSheetMissing`), `attendanceApi`, etc. |
 | `frontend/src/lib/nav-config.ts` | Sidebar nav — "Repairs Management" in Administration |
+| `frontend/src/lib/leave-request-data.ts` | `LEAVE_CATEGORIES` array (includes TSC) |
+| `frontend/src/app/layout.tsx` | Root layout — `AuthProvider > WebSocketProvider > TripWorkflowProvider > ...` |
 | `frontend/src/app/admin/repairs/page.tsx` | Repairs Management admin page |
-| `frontend/src/app/trips/reconciliation/page.tsx` | Trip Reconciliation — now has both Booking Sheet + Trip Sheet actions |
+| `frontend/src/app/trips/reconciliation/page.tsx` | Trip Reconciliation — Booking Sheet + Trip Sheet actions |
+| `frontend/src/app/trips/sheet-collection/page.tsx` | Sheet Collection — "Trip Sheet Not Yet Received" button triggers alert |
+| `frontend/src/app/attendance/leave-approvals/page.tsx` | Leave Approvals — TSC tab ("Sheet Coordinators") added |
+| `frontend/src/components/layout/Topbar.tsx` | Notification bell — leave requests (admin) + sheet alerts (admin+FM) |
+| `frontend/src/components/layout/Sidebar.tsx` | TSC role now includes `/attendance/leave-requests` |
 | `frontend/src/components/trips/TripSheetDialog.tsx` | Trip Sheet form — repair chips, km validations, advance paid calc |
-| `frontend/src/components/trips/BookingSheetDialog.tsx` | NEW — full Booking Sheet view/edit dialog |
-| `frontend/src/components/trips/CloseTripDialog.tsx` | Close Trip form (unchanged — used from Completed Trips page) |
+| `frontend/src/components/trips/BookingSheetDialog.tsx` | Booking Sheet view/edit dialog |
+| `frontend/src/components/trips/CloseTripDialog.tsx` | Close Trip form (unchanged) |
 | `frontend/src/components/trips/TripFormDialog.tsx` | Assign Trip form (unchanged) |
 | `frontend/src/components/fleet/FuelHistoryViewDialog.tsx` | Fuel history stats — includes Cost Per Km card |
 | `frontend/src/components/maintenance/FuelHistoryTable.tsx` | Fuel history table — "Current Odometer" column removed |
@@ -190,21 +283,52 @@ Assigned → Started → Loaded → On-Transit → Reached → Unloaded → Comp
                                                       Reconciliation Page (hasClosure = true)
                                                       → View/Edit Booking Sheet (BookingSheetDialog)
                                                       → Add/View/Edit Trip Sheet (TripSheetDialog)
+                                                                     ↓
+                                                      Sheet Collection Page
+                                                      → Mark as Collected (Trip Sheet Coordinator)
+                                                      → Flag as Missing → notifies Admin + Fleet Manager
 ```
+
+---
+
+## WebSocket Event Reference
+
+| Event | Emitted by | Consumed by |
+|---|---|---|
+| `trip_created` | trips.py create | dashboard, trips pages |
+| `trip_updated` | trips.py update/status | dashboard, trips pages |
+| `trip_closed` | trips.py close | dashboard, trips pages, sheet-collection |
+| `sheet_collected` | trips.py collect-sheet | sheet-collection, dashboard |
+| `sheet_unmarked` | trips.py unmark-sheet + flag-sheet-missing | all pages (data reload) + Topbar (SheetAlert) |
+| `sheet_alert` | trips.py flag-sheet-missing | Topbar only (notification, no data reload) |
+| `leave_request_created` | attendance.py create | leave pages + Topbar (admin pending list) |
+| `leave_request_updated` | attendance.py approve/reject | leave pages + Topbar (removes from pending) |
+| `attendance_updated` | attendance.py mark/update | attendance pages |
+| `truck_updated` | trucks.py mutations | fleet pages, dashboard |
+| `driver_updated` | drivers.py mutations | driver pages |
+| `customer_updated` | customers.py mutations | customer pages |
+| `vendor_updated` | vendors.py mutations | vendor pages |
+| `maintenance_updated` | maintenance.py record mutations | maintenance pages |
+| `fuel_updated` | maintenance.py fuel mutations | fuel pages |
+| `tyre_updated` | maintenance.py tyre mutations | tyre pages |
+| `finance_updated` | finance.py mutations | finance pages |
 
 ---
 
 ## Key API Functions (tripsApi)
 ```ts
-tripsApi.list(status?)          // GET /trips?status=...
-tripsApi.create(trip)           // POST /trips
-tripsApi.update(id, trip)       // PUT /trips/{id}
-tripsApi.updateStatus(id, s)    // PATCH /trips/{id}/status
-tripsApi.cancel(id)             // PATCH /trips/{id}/status → Cancelled
-tripsApi.close(id, data)        // POST /trips/{id}/close  ← upserts closure
-tripsApi.getClosure(id)         // GET /trips/{id}/closure
-tripsApi.getSheet(id)           // GET /trips/{id}/sheet
-tripsApi.upsertSheet(id, data)  // POST /trips/{id}/sheet
+tripsApi.list(status?)              // GET /trips?status=...
+tripsApi.create(trip)               // POST /trips
+tripsApi.update(id, trip)           // PUT /trips/{id}
+tripsApi.updateStatus(id, s)        // PATCH /trips/{id}/status
+tripsApi.cancel(id)                 // PATCH /trips/{id}/status → Cancelled
+tripsApi.close(id, data)            // POST /trips/{id}/close  ← upserts closure
+tripsApi.getClosure(id)             // GET /trips/{id}/closure
+tripsApi.getSheet(id)               // GET /trips/{id}/sheet
+tripsApi.upsertSheet(id, data)      // POST /trips/{id}/sheet
+tripsApi.collectSheet(dbId)         // POST /trips/{dbId}/collect-sheet
+tripsApi.unmarkSheet(dbId)          // POST /trips/{dbId}/unmark-sheet
+tripsApi.flagSheetMissing(dbId)     // POST /trips/{dbId}/flag-sheet-missing
 ```
 
 ---

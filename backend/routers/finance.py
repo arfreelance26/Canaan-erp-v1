@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from websocket_manager import emit
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
@@ -22,6 +23,7 @@ def create_emi(payload: schemas.EmiRecordCreate, db: Session = Depends(get_db)):
     db.add(record)
     db.commit()
     db.refresh(record)
+    emit("finance_updated", {})
     return record
 
 
@@ -49,6 +51,7 @@ def update_emi(emi_id: int, payload: schemas.EmiRecordUpdate, db: Session = Depe
     record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)
+    emit("finance_updated", {})
     return record
 
 
@@ -59,6 +62,7 @@ def delete_emi(emi_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "EMI record not found")
     db.delete(record)
     db.commit()
+    emit("finance_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +80,7 @@ def create_recurring(payload: schemas.RecurringPaymentCreate, db: Session = Depe
     db.add(payment)
     db.commit()
     db.refresh(payment)
+    emit("finance_updated", {})
     return payment
 
 
@@ -103,6 +108,7 @@ def update_recurring(payment_id: int, payload: schemas.RecurringPaymentUpdate, d
     payment.version = (payment.version or 1) + 1
     db.commit()
     db.refresh(payment)
+    emit("finance_updated", {})
     return payment
 
 
@@ -113,6 +119,7 @@ def delete_recurring(payment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Recurring payment not found")
     db.delete(payment)
     db.commit()
+    emit("finance_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +147,7 @@ def add_driver_compensation(payload: schemas.CompensationTransactionCreate, db: 
     db.add(tx)
     db.commit()
     db.refresh(tx)
+    emit("finance_updated", {})
     return tx
 
 
@@ -168,6 +176,7 @@ def add_staff_compensation(payload: schemas.CompensationTransactionCreate, db: S
     db.add(tx)
     db.commit()
     db.refresh(tx)
+    emit("finance_updated", {})
     return tx
 
 
@@ -178,3 +187,4 @@ def delete_compensation(tx_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Transaction not found")
     db.delete(tx)
     db.commit()
+    emit("finance_updated", {})

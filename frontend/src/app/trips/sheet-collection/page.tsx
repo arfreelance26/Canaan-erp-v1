@@ -6,12 +6,15 @@ import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Circle } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
 function fmtIST(iso: string) {
-  return new Date(iso).toLocaleString("en-IN", {
+  // MySQL returns datetime without timezone marker — append Z to force UTC parsing
+  const utc = iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z";
+  const formatted = new Date(utc).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
     day: "2-digit",
     month: "short",
@@ -20,6 +23,7 @@ function fmtIST(iso: string) {
     minute: "2-digit",
     hour12: true,
   });
+  return `${formatted} (GMT+05:30)`;
 }
 
 export default function SheetCollectionPage() {
@@ -31,6 +35,8 @@ export default function SheetCollectionPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Tracks trips where the physical sheet has been confirmed received (local UI gate)
+  const [receivedSheetIds, setReceivedSheetIds] = useState<Set<string>>(new Set());
 
   function loadData() {
     return Promise.all([
@@ -38,11 +44,20 @@ export default function SheetCollectionPage() {
       driversApi.list(),
       customersApi.list(),
     ]).then(([t, d, c]) => {
-      setTrips(t);
+      // Only closed trips (hasClosure=true) proceed to sheet collection
+      const closed = t.filter((trip) => (trip as any).hasClosure === true);
+      setTrips(closed);
       setDrivers(d);
       setCustomers(c);
-      // Clear selection on refresh so stale ids don't linger
       setSelected(new Set());
+      // Pre-populate: already-delivered trips are implicitly received
+      setReceivedSheetIds((prev) => {
+        const next = new Set(prev);
+        for (const trip of closed) {
+          if (trip.tripSheetCollected) next.add(trip.id);
+        }
+        return next;
+      });
     });
   }
 
@@ -53,6 +68,10 @@ export default function SheetCollectionPage() {
   useAutoRefresh(() => {
     loadData();
   }, 10000);
+
+  useWebSocketEvent("sheet_collected", loadData);
+  useWebSocketEvent("sheet_unmarked", loadData);
+  useWebSocketEvent("trip_closed", loadData);
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
@@ -67,8 +86,8 @@ export default function SheetCollectionPage() {
   const collected = filtered.filter((t) => t.tripSheetCollected);
   const pending = filtered.filter((t) => !t.tripSheetCollected);
 
-  // Select-all state: considers only pending (uncollected) rows for the primary bulk action
-  const selectableIds = pending.filter((t) => !t.hasSheet).map((t) => t.id);
+  // Select-all state: only pending trips where sheet has been confirmed received
+  const selectableIds = pending.filter((t) => !t.hasSheet && receivedSheetIds.has(t.id)).map((t) => t.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0;
 
@@ -106,6 +125,42 @@ export default function SheetCollectionPage() {
       );
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to update delivery status.");
+    } finally {
+      setToggling((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.id);
+        return next;
+      });
+    }
+  }
+
+  function handleMarkReceived(id: string) {
+    setReceivedSheetIds((prev) => new Set([...prev, id]));
+  }
+
+  function handleMarkNotReceived(id: string) {
+    setReceivedSheetIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  async function handleFlagSheetMissing(trip: Trip) {
+    if (toggling.has(trip.id)) return;
+    setToggling((prev) => new Set([...prev, trip.id]));
+    try {
+      const updated = await tripsApi.flagSheetMissing(trip.id);
+      setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+      // Undo any local "received" state
+      setReceivedSheetIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.id);
+        return next;
+      });
+      showSuccess(`Alert sent — Admin and Fleet Manager notified for trip ${trip.tripId}.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to send alert.");
     } finally {
       setToggling((prev) => {
         const next = new Set(prev);
@@ -167,7 +222,7 @@ export default function SheetCollectionPage() {
       {/* Stats row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Completed</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Closed</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{filtered.length}</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
@@ -212,7 +267,7 @@ export default function SheetCollectionPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[950px] text-left text-sm whitespace-nowrap">
+          <table className="w-full min-w-[1150px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="px-4 py-3">
@@ -224,7 +279,7 @@ export default function SheetCollectionPage() {
                     title="Select all pending"
                   />
                 </th>
-                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Delivered On (IST)", "Action"].map(
+                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Trip Sheet Status", "Delivered On (IST)", "Action"].map(
                   (col) => (
                     <th
                       key={col}
@@ -241,6 +296,7 @@ export default function SheetCollectionPage() {
                 const driver = driverById.get(trip.driverId);
                 const customer = customerById.get(trip.customerId);
                 const isCollected = trip.tripSheetCollected;
+                const isReceived = receivedSheetIds.has(trip.id);
                 const isBusy = toggling.has(trip.id);
                 const isChecked = selected.has(trip.id);
                 const sheetSubmitted = trip.hasSheet;
@@ -278,6 +334,48 @@ export default function SheetCollectionPage() {
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
+
+                    {/* Trip Sheet Status toggle */}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1.5">
+                        {isCollected && sheetSubmitted ? (
+                          <>
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-not-allowed">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Received Trip Sheet
+                            </span>
+                            <span className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed">
+                              Trip Sheet Not Yet Received
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => !isReceived && handleMarkReceived(trip.id)}
+                              className={
+                                isReceived
+                                  ? "inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white cursor-default"
+                                  : "inline-flex items-center gap-1.5 rounded-lg border border-emerald-400 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                              }
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Received Trip Sheet
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleFlagSheetMissing(trip)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Circle className="h-3.5 w-3.5" />
+                              Trip Sheet Not Yet Received
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
                     </td>
@@ -292,8 +390,9 @@ export default function SheetCollectionPage() {
                       ) : (
                         <button
                           type="button"
-                          disabled={isBusy}
+                          disabled={isBusy || (!isCollected && !isReceived)}
                           onClick={() => handleToggleCollect(trip)}
+                          title={!isCollected && !isReceived ? "Confirm receipt of trip sheet first" : undefined}
                           className={
                             isCollected
                               ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"

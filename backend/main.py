@@ -1,16 +1,19 @@
+import asyncio
 import os
 import re
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
-from security import get_current_user, require_roles
+from security import get_current_user, require_roles, SECRET_KEY, ALGORITHM
+from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
+from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals
 
 Base.metadata.create_all(bind=engine)
 
@@ -43,6 +46,11 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected_at DATETIME NULL",
         "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL DEFAULT 'Staff'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL",
+        # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet') NOT NULL",
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending'",
     ]
     with engine.connect() as conn:
         for stmt in migrations:
@@ -77,6 +85,10 @@ app = FastAPI(
     description="Backend for Canaan Global International — Fleet & Logistics ERP",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+async def _startup():
+    set_event_loop(asyncio.get_running_loop())
 
 # CORS: set CORS_ORIGINS in .env (comma-separated) to restrict in production,
 # e.g. CORS_ORIGINS=https://erp.canaanglobal.com
@@ -122,6 +134,7 @@ app.include_router(repair_types.router, dependencies=AUTH)
 app.include_router(sac_codes.router, dependencies=AUTH)
 app.include_router(pl_summary.router, dependencies=FINANCE)
 app.include_router(exports.router, dependencies=AUTH)
+app.include_router(edit_approvals.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)
@@ -164,3 +177,18 @@ async def sqlalchemy_data_exception_handler(request: Request, exc: DataError):
 @app.get("/", tags=["Health"])
 def health_check():
     return {"status": "ok", "service": "Canaan ERP API"}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, token: str = ""):
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        await websocket.close(code=1008)
+        return
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # keep-alive; client can send pings
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)

@@ -10,6 +10,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -95,6 +96,10 @@ export default function TripFinalizationPage() {
 
   useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
   useAutoRefresh(() => { loadAll(); }, 5000);
+
+  useWebSocketEvent("trip_updated", loadAll);
+  useWebSocketEvent("trip_closed", loadAll);
+  useWebSocketEvent("sheet_collected", loadAll);
 
   const driverById   = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById    = new Map(trucks.map((t) => [t.truckId, t]));

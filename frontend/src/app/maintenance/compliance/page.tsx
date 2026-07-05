@@ -7,6 +7,7 @@ import { getComplianceStatus } from "@/lib/compliance";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -16,14 +17,16 @@ export default function CompliancePage() {
   const [loading, setLoading] = useState(true);
   const [updateOpen, setUpdateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         trucksApi.list().then(setTrucks).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     trucksApi.list().then(setTrucks).finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   const summary = useMemo(() => {
     const counts = { Valid: 0, "Expiring Soon": 0, Expired: 0 };

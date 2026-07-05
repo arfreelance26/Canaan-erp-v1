@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from duplicate_checks import check_customer_duplicates, check_customer_destination_duplicates
+from websocket_manager import emit
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -23,6 +24,7 @@ def create_customer(payload: schemas.CustomerCreate, db: Session = Depends(get_d
     db.add(customer)
     db.commit()
     db.refresh(customer)
+    emit("customer_updated", {})
     return customer
 
 
@@ -51,6 +53,7 @@ def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Sessi
     customer.version = (customer.version or 1) + 1
     db.commit()
     db.refresh(customer)
+    emit("customer_updated", {})
     return customer
 
 
@@ -61,6 +64,7 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Customer not found")
     db.delete(customer)
     db.commit()
+    emit("customer_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +92,7 @@ def create_origin(customer_id: int, payload: schemas.CustomerOriginCreate, db: S
     db.add(origin)
     db.commit()
     db.refresh(origin)
+    emit("customer_updated", {})
     return origin
 
 
@@ -101,6 +106,7 @@ def delete_origin(customer_id: int, origin_id: int, db: Session = Depends(get_db
         raise HTTPException(404, "Origin not found")
     db.delete(origin)
     db.commit()
+    emit("customer_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +129,7 @@ def create_destination(customer_id: int, payload: schemas.CustomerDestinationCre
     db.add(dest)
     db.commit()
     db.refresh(dest)
+    emit("customer_updated", {})
     return dest
 
 
@@ -139,6 +146,7 @@ def update_destination(customer_id: int, dest_id: int, payload: schemas.Customer
         setattr(dest, field, value)
     db.commit()
     db.refresh(dest)
+    emit("customer_updated", {})
     return dest
 
 
@@ -152,6 +160,7 @@ def delete_destination(customer_id: int, dest_id: int, db: Session = Depends(get
         raise HTTPException(404, "Destination not found")
     db.delete(dest)
     db.commit()
+    emit("customer_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +182,7 @@ def create_pricing(customer_id: int, payload: schemas.CustomerPricingCreate, db:
     db.add(pricing)
     db.commit()
     db.refresh(pricing)
+    emit("customer_updated", {})
     return pricing
 
 
@@ -188,6 +198,7 @@ def update_pricing(customer_id: int, price_id: int, payload: schemas.CustomerPri
         setattr(pricing, field, value)
     db.commit()
     db.refresh(pricing)
+    emit("customer_updated", {})
     return pricing
 
 
@@ -201,3 +212,4 @@ def delete_pricing(customer_id: int, price_id: int, db: Session = Depends(get_db
         raise HTTPException(404, "Pricing not found")
     db.delete(pricing)
     db.commit()
+    emit("customer_updated", {})

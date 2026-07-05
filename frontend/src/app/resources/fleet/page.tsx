@@ -10,6 +10,7 @@ import { generateTruckId } from "@/lib/truck-data";
 import type { Truck } from "@/types/truck";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function FleetPage() {
@@ -18,6 +19,7 @@ export default function FleetPage() {
   const [editingTruck, setEditingTruck] = useState<Truck | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const filteredTrucks = trucks.filter(t =>
     !searchQuery ||
@@ -28,11 +30,12 @@ export default function FleetPage() {
 
   useEffect(() => {
         trucksApi.list().then(setTrucks).finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     trucksApi.list().then(setTrucks).finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
   function handleAdd() {
     setEditingTruck(null);

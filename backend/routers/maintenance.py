@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from websocket_manager import emit
 
 router = APIRouter(tags=["Maintenance"])
 
@@ -94,6 +95,7 @@ def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Sess
     db.add(record)
     db.commit()
     db.refresh(record)
+    emit("maintenance_updated", {})
     return record
 
 
@@ -113,6 +115,7 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
     record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)
+    emit("maintenance_updated", {})
     return record
 
 
@@ -123,6 +126,7 @@ def delete_maintenance_record(record_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Maintenance record not found")
     db.delete(record)
     db.commit()
+    emit("maintenance_updated", {})
 
 
 @router.get("/maintenance/status", tags=["Maintenance"])
@@ -199,6 +203,7 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
     db.add(log)
     db.commit()
     db.refresh(log)
+    emit("fuel_updated", {})
     return log
 
 
@@ -265,6 +270,7 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
     log.version = (log.version or 1) + 1
     db.commit()
     db.refresh(log)
+    emit("fuel_updated", {})
     return log
 
 
@@ -275,6 +281,7 @@ def delete_fuel_log(log_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Fuel log not found")
     db.delete(log)
     db.commit()
+    emit("fuel_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +309,7 @@ def create_tyre(payload: schemas.TyreInventoryCreate, db: Session = Depends(get_
     db.add(tyre)
     db.commit()
     db.refresh(tyre)
+    emit("tyre_updated", {})
     return tyre
 
 
@@ -321,6 +329,7 @@ def update_tyre(tyre_id: int, payload: schemas.TyreInventoryUpdate, db: Session 
     tyre.version = (tyre.version or 1) + 1
     db.commit()
     db.refresh(tyre)
+    emit("tyre_updated", {})
     return tyre
 
 
@@ -331,6 +340,7 @@ def delete_tyre(tyre_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Tyre not found")
     db.delete(tyre)
     db.commit()
+    emit("tyre_updated", {})
 
 
 @router.get("/tyre-inventory/{tyre_id}/history", response_model=list[schemas.TyreFitmentOut], tags=["Tyre"])
@@ -379,6 +389,7 @@ def fit_tyre(payload: schemas.TyreFitmentCreate, db: Session = Depends(get_db)):
     db.add(record)
     db.commit()
     db.refresh(record)
+    emit("tyre_updated", {})
     return record
 
 
@@ -393,4 +404,5 @@ def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session
     record.removed_date = payload.removed_date
     db.commit()
     db.refresh(record)
+    emit("tyre_updated", {})
     return record

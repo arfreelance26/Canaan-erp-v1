@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from duplicate_checks import check_truck_duplicates
+from websocket_manager import emit
 
 router = APIRouter(prefix="/trucks", tags=["Trucks"])
 
@@ -23,6 +24,7 @@ def create_truck(payload: schemas.TruckCreate, db: Session = Depends(get_db)):
     db.add(truck)
     db.commit()
     db.refresh(truck)
+    emit("truck_updated", {"id": truck.id})
     return truck
 
 
@@ -51,6 +53,7 @@ def update_truck(truck_id: int, payload: schemas.TruckUpdate, db: Session = Depe
     truck.version = (truck.version or 1) + 1
     db.commit()
     db.refresh(truck)
+    emit("truck_updated", {"id": truck.id})
     return truck
 
 
@@ -61,3 +64,4 @@ def delete_truck(truck_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Truck not found")
     db.delete(truck)
     db.commit()
+    emit("truck_updated", {})

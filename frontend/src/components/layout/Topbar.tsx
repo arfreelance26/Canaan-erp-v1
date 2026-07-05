@@ -1,37 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, ChevronRight, Search, Bell, ChevronDown, ShieldAlert, ShieldCheck, ChevronUp } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Home, ChevronRight, Search, Bell, ChevronDown, CalendarClock, User, AlertTriangle } from "lucide-react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { ProfileModal } from "./ProfileModal";
-import { trucksApi, financeApi } from "@/lib/api";
-import { getComplianceStatus } from "@/lib/compliance";
-import type { Truck } from "@/types/truck";
-import type { EmiRecord } from "@/types/finance";
+import { attendanceApi, editApprovalsApi } from "@/lib/api";
+import type { LeaveRequest } from "@/types/leave-request";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-type AppNotification = {
-  category: "Compliance" | "EMI Payment" | "EMI Ending";
-  severity: "danger" | "warning";
-  title: string;
-  subtitle: string;
-  timeLabel: string;
-};
-
-const DOC_FIELDS: { label: string; key: keyof Truck }[] = [
-  { label: "RC",                    key: "rcValidityDate" },
-  { label: "FC",                    key: "fcExpiryDate" },
-  { label: "Road Tax",              key: "roadTaxDate" },
-  { label: "National Permit",       key: "nationalPermitDate" },
-  { label: "Local Permit",          key: "localPermitDate" },
-  { label: "Pollution Certificate", key: "pollutionCertificateDate" },
-  { label: "Insurance",             key: "insuranceExpiryDate" },
-];
 
 function useBackendStatus() {
   const [online, setOnline] = useState<boolean | null>(null);
@@ -56,35 +37,58 @@ function getPageLabel(pathname: string): string {
   return "Dashboard";
 }
 
-type NotifTab = "all" | "compliance" | "emi";
-
-function NotifItem({ n }: { n: AppNotification }) {
-  const isDanger = n.severity === "danger";
-  return (
-    <li className="flex items-start gap-2.5 px-4 py-2 hover:bg-gray-50/80 transition-colors">
-      <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", isDanger ? "bg-red-500" : "bg-yellow-400")} />
-      <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-medium text-gray-900 leading-snug truncate">{n.title}</p>
-        <p className="text-[11px] text-gray-400 truncate">{n.subtitle}</p>
-        <p className={cn("text-[11px] font-medium", isDanger ? "text-red-600" : "text-yellow-600")}>
-          {n.timeLabel}
-        </p>
-      </div>
-    </li>
-  );
+function timeAgo(raw: string): string {
+  if (!raw) return "";
+  const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
+  const diff = Math.floor((Date.now() - new Date(s).getTime()) / 1000);
+  if (diff < 60)   return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
+
+type SheetAlert = {
+  tripDbId: number;
+  tripIdStr: string;
+  bookingRef: string;
+  alertedAt: string;
+};
+
+type EditRequestNotif = {
+  id: number;
+  staffName: string;
+  resourceType: string;
+  resourceName: string;
+  action: string;
+  createdAt: string;
+};
+
+type EditApprovalNotif = {
+  id: number;
+  resourceName: string;
+  action: string;
+  expiresAt: string;
+  notifiedAt: string;
+};
 
 export function Topbar() {
   const pathname = usePathname();
+  const router   = useRouter();
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: getPageLabel(pathname) }];
   const backendOnline = useBackendStatus();
   const { user, logout } = useAuth();
 
-  const [isProfileOpen, setIsProfileOpen]     = useState(false);
+  const isAdmin        = user?.softwareDesignation === "Admin";
+  const isFleetManager = user?.softwareDesignation === "Fleet Manager";
+  const isStaff        = user?.softwareDesignation === "Staff";
+
+  const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isNotifOpen, setIsNotifOpen]         = useState(false);
-  const [trucks, setTrucks]                   = useState<Truck[]>([]);
-  const [emiRecords, setEmiRecords]           = useState<EmiRecord[]>([]);
+  const [isNotifOpen, setIsNotifOpen]             = useState(false);
+  const [leaveRequests, setLeaveRequests]         = useState<LeaveRequest[]>([]);
+  const [sheetAlerts, setSheetAlerts]             = useState<SheetAlert[]>([]);
+  const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);   // Admin
+  const [editApprovalNotifs, setEditApprovalNotifs] = useState<EditApprovalNotif[]>([]); // Staff
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
@@ -94,9 +98,94 @@ export function Topbar() {
   }
 
   useEffect(() => {
-    trucksApi.list().then(setTrucks).catch(() => {});
-    financeApi.listEmi().then(setEmiRecords).catch(() => {});
-  }, []);
+    if (!isAdmin) return;
+    attendanceApi.listLeaveRequests("Pending").then(setLeaveRequests).catch(() => {});
+    editApprovalsApi.list("Pending").then((reqs) =>
+      setEditRequestNotifs(reqs.map((r) => ({
+        id: Number(r.id),
+        staffName: r.staffName,
+        resourceType: r.resourceType,
+        resourceName: r.resourceName,
+        action: r.action,
+        createdAt: r.createdAt ?? new Date().toISOString(),
+      })))
+    ).catch(() => {});
+  }, [isAdmin]);
+
+  // New leave request submitted by any staff — add immediately
+  useWebSocketEvent("leave_request_created", (payload) => {
+    if (!isAdmin) return;
+    const req: LeaveRequest = {
+      id: String(payload.id),
+      category: (payload.category as LeaveRequest["category"]) ?? "Staff",
+      applicantId: String(payload.applicant_id ?? ""),
+      applicantName: String(payload.applicant_name ?? ""),
+      applicantCode: "",
+      fromDate: String(payload.from_date ?? ""),
+      toDate: String(payload.to_date ?? ""),
+      reason: String(payload.reason ?? ""),
+      status: "Pending",
+      appliedAt: String(payload.applied_at ?? ""),
+    };
+    setLeaveRequests((prev) => [req, ...prev]);
+  });
+
+  // Admin approved / rejected — remove from pending list
+  useWebSocketEvent("leave_request_updated", (payload) => {
+    if (!isAdmin) return;
+    setLeaveRequests((prev) => prev.filter((r) => r.id !== String(payload.id)));
+  });
+
+  // Sheet marked as not received — alert Admin + Fleet Manager
+  useWebSocketEvent("sheet_unmarked", (payload) => {
+    if (!isAdmin && !isFleetManager) return;
+    setSheetAlerts((prev) => [{
+      tripDbId: Number(payload.trip_db_id),
+      tripIdStr: String(payload.trip_id_str ?? ""),
+      bookingRef: String(payload.booking_reference_no ?? ""),
+      alertedAt: new Date().toISOString(),
+    }, ...prev]);
+  });
+
+  // Coordinator explicitly flagged sheet as missing — dedicated alert event
+  useWebSocketEvent("sheet_alert", (payload) => {
+    if (!isAdmin && !isFleetManager) return;
+    setSheetAlerts((prev) => [{
+      tripDbId: Number(payload.trip_db_id),
+      tripIdStr: String(payload.trip_id_str ?? ""),
+      bookingRef: String(payload.booking_reference_no ?? ""),
+      alertedAt: new Date().toISOString(),
+    }, ...prev]);
+  });
+
+  // Staff submitted an edit request — Admin gets notified
+  useWebSocketEvent("edit_approval_created", (payload) => {
+    if (!isAdmin) return;
+    setEditRequestNotifs((prev) => [{
+      id: Number(payload.id),
+      staffName: String(payload.staff_name ?? ""),
+      resourceType: String(payload.resource_type ?? ""),
+      resourceName: String(payload.resource_name ?? ""),
+      action: String(payload.action ?? ""),
+      createdAt: String(payload.created_at ?? new Date().toISOString()),
+    }, ...prev]);
+  });
+
+  // Admin approved/rejected — remove from admin list; notify Staff if it's their own
+  useWebSocketEvent("edit_approval_updated", (payload) => {
+    if (isAdmin) {
+      setEditRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
+    }
+    if (isStaff && Number(payload.staff_db_id) === user?.id && payload.status === "Approved") {
+      setEditApprovalNotifs((prev) => [{
+        id: Number(payload.id),
+        resourceName: String(payload.resource_name ?? ""),
+        action: String(payload.action ?? ""),
+        expiresAt: String(payload.expires_at ?? ""),
+        notifiedAt: new Date().toISOString(),
+      }, ...prev]);
+    }
+  });
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -110,122 +199,6 @@ export function Topbar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const notifications = useMemo<AppNotification[]>(() => {
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    const todayStr = todayDate.toISOString().slice(0, 10);
-
-    function daysBetween(dateStr: string): number {
-      const d = new Date(dateStr);
-      d.setHours(0, 0, 0, 0);
-      return Math.round((d.getTime() - todayDate.getTime()) / 86400000);
-    }
-
-    const result: AppNotification[] = [];
-
-    // Compliance notifications
-    for (const truck of trucks) {
-      for (const { label, key } of DOC_FIELDS) {
-        const dateStr = truck[key] as string;
-        if (!dateStr) continue;
-        const status = getComplianceStatus(dateStr);
-        if (status === "Valid") continue;
-        const days = daysBetween(dateStr);
-        const daysAbs = Math.abs(days);
-        const isExpired = status === "Expired";
-        result.push({
-          category: "Compliance",
-          severity: isExpired ? "danger" : "warning",
-          title: `${label} — ${truck.truckId}`,
-          subtitle: truck.registrationNumber,
-          timeLabel: isExpired
-            ? daysAbs === 0 ? "Expired today" : `Expired ${daysAbs} day${daysAbs !== 1 ? "s" : ""} ago`
-            : days === 0 ? "Expires today" : `Expires in ${days} day${days !== 1 ? "s" : ""}`,
-        });
-      }
-    }
-
-    // EMI notifications — only active EMIs (emiEndDate >= today)
-    for (const record of emiRecords) {
-      if (record.emiEndDate < todayStr) continue;
-
-      const daysUntilEnd = daysBetween(record.emiEndDate);
-      const daysOverdue = -daysBetween(record.emiPaymentDate);
-
-      // Payment due / overdue
-      if (record.emiPaymentDate <= todayStr) {
-        result.push({
-          category: "EMI Payment",
-          severity: "danger",
-          title: record.emiName,
-          subtitle: `${record.truckRegistration} · ${record.bankName}`,
-          timeLabel: daysOverdue === 0
-            ? "Payment due today"
-            : `Payment ${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue`,
-        });
-      }
-
-      // Last month — ending within 30 days
-      if (daysUntilEnd <= 30) {
-        result.push({
-          category: "EMI Ending",
-          severity: "warning",
-          title: `${record.emiName} — Final Month`,
-          subtitle: `${record.truckRegistration} · ${record.bankName}`,
-          timeLabel: daysUntilEnd === 0
-            ? "Loan ends today"
-            : `Loan ends in ${daysUntilEnd} day${daysUntilEnd !== 1 ? "s" : ""}`,
-        });
-      }
-    }
-
-    // Sort: danger first, then warning; within each group by urgency
-    return result.sort((a, b) => {
-      if (a.severity !== b.severity) return a.severity === "danger" ? -1 : 1;
-      return 0;
-    });
-  }, [trucks, emiRecords]);
-
-  const badgeCount = notifications.length;
-  const dangerCount = notifications.filter((n) => n.severity === "danger").length;
-  const warningCount = notifications.filter((n) => n.severity === "warning").length;
-
-  const [activeTab, setActiveTab] = useState<NotifTab>("all");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(["danger"]));
-
-  const COLLAPSE_THRESHOLD = 4;
-
-  const groupedNotifs = useMemo(() => {
-    const compliance = notifications.filter((n) => n.category === "Compliance");
-    const emiPayment = notifications.filter((n) => n.category === "EMI Payment");
-    const emiEnding  = notifications.filter((n) => n.category === "EMI Ending");
-    return { compliance, emiPayment, emiEnding };
-  }, [notifications]);
-
-  const tabNotifs = useMemo(() => {
-    if (activeTab === "compliance") return groupedNotifs.compliance;
-    if (activeTab === "emi") return [...groupedNotifs.emiPayment, ...groupedNotifs.emiEnding];
-    return notifications;
-  }, [activeTab, notifications, groupedNotifs]);
-
-  function toggleGroup(key: string) {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }
-
-  const tabs: { key: NotifTab; label: string; count: number }[] = [
-    { key: "all",        label: "All",        count: notifications.length },
-    { key: "compliance", label: "Compliance", count: groupedNotifs.compliance.length },
-    { key: "emi",        label: "EMI",        count: groupedNotifs.emiPayment.length + groupedNotifs.emiEnding.length },
-  ];
 
   return (
     <>
@@ -278,167 +251,244 @@ export function Topbar() {
 
         {/* Notification bell */}
         <div className="relative" ref={notifRef}>
-          <button
-            type="button"
-            aria-label="Notifications"
-            onClick={() => setIsNotifOpen((v) => !v)}
-            className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
-          >
-            <Bell className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-            {badgeCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
-                {badgeCount > 99 ? "99+" : badgeCount}
-              </span>
-            )}
-          </button>
+          {(() => {
+            const totalBadge = isAdmin
+              ? leaveRequests.length + sheetAlerts.length + editRequestNotifs.length
+              : isFleetManager
+              ? sheetAlerts.length
+              : isStaff
+              ? editApprovalNotifs.length
+              : 0;
+            return (
+              <button
+                type="button"
+                aria-label="Notifications"
+                onClick={() => setIsNotifOpen((v) => !v)}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
+              >
+                <Bell className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                {totalBadge > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
+                    {totalBadge > 99 ? "99+" : totalBadge}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
 
           {isNotifOpen && (
             <div className="absolute right-0 z-[100] mt-3 w-[380px] origin-top-right rounded-2xl border border-white/60 bg-white/95 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="h-4 w-4 text-gray-500" />
+                  <Bell className="h-4 w-4 text-gray-400" />
                   <span className="text-[13px] font-semibold text-gray-900">Notifications</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  {dangerCount > 0 && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                      {dangerCount} urgent
+                {(() => {
+                  const count = isAdmin
+                    ? leaveRequests.length + sheetAlerts.length + editRequestNotifs.length
+                    : isFleetManager ? sheetAlerts.length
+                    : isStaff ? editApprovalNotifs.length
+                    : 0;
+                  return count > 0 ? (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                      {count} unread
                     </span>
-                  )}
-                  {warningCount > 0 && (
-                    <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700">
-                      {warningCount} warning
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex gap-1 border-b border-gray-100 px-3 pb-0">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-t-lg px-3 py-1.5 text-[12px] font-medium transition-colors border-b-2 -mb-px",
-                      activeTab === tab.key
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700"
-                    )}
-                  >
-                    {tab.label}
-                    {tab.count > 0 && (
-                      <span className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                        activeTab === tab.key ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"
-                      )}>
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                  ) : null;
+                })()}
               </div>
 
               {/* Body */}
-              <div className="max-h-[360px] overflow-y-auto">
-                {tabNotifs.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                    <ShieldCheck className="h-7 w-7 text-green-400" />
-                    <p className="text-[13px] font-medium text-gray-700">All clear</p>
-                    <p className="text-xs text-gray-400">No alerts in this category</p>
-                  </div>
-                ) : activeTab === "all" ? (
-                  // Grouped view for "All" tab
-                  <div className="py-1">
-                    {(
-                      [
-                        { key: "emi-payment", label: "EMI Payment",  items: groupedNotifs.emiPayment,  color: "text-red-600",    bg: "bg-red-50" },
-                        { key: "compliance",  label: "Compliance",   items: groupedNotifs.compliance,  color: "text-blue-600",   bg: "bg-blue-50" },
-                        { key: "emi-ending",  label: "EMI Ending",   items: groupedNotifs.emiEnding,   color: "text-orange-600", bg: "bg-orange-50" },
-                      ] as const
-                    ).filter((g) => g.items.length > 0).map((group) => {
-                      const isExpanded = expandedGroups.has(group.key);
-                      const visible = isExpanded ? group.items : group.items.slice(0, COLLAPSE_THRESHOLD);
-                      const hidden  = group.items.length - COLLAPSE_THRESHOLD;
-                      return (
-                        <div key={group.key} className="mb-1">
-                          {/* Group header */}
-                          <button
-                            onClick={() => toggleGroup(group.key)}
-                            className="flex w-full items-center justify-between px-4 py-1.5 hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={cn("text-[11px] font-semibold uppercase tracking-wide", group.color)}>
-                                {group.label}
-                              </span>
-                              <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", group.bg, group.color)}>
-                                {group.items.length}
-                              </span>
-                            </div>
-                            {isExpanded
-                              ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
-                              : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                            }
-                          </button>
+              {!isAdmin && !isFleetManager && !isStaff ? (
+                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                  <Bell className="h-8 w-8 text-gray-200" />
+                  <p className="text-sm font-medium text-gray-500">No notifications yet</p>
+                  <p className="text-xs text-gray-400">Role-specific alerts coming soon</p>
+                </div>
+              ) : (
+                <div className="max-h-[420px] overflow-y-auto">
 
-                          {/* Items */}
-                          {isExpanded && (
-                            <ul className="divide-y divide-gray-50">
-                              {visible.map((n, i) => (
-                                <NotifItem key={i} n={n} />
-                              ))}
-                            </ul>
-                          )}
-                          {/* Show more / show less */}
-                          {!isExpanded && group.items.length > COLLAPSE_THRESHOLD && (
+                  {/* ── Sheet Alerts (Admin + Fleet Manager) ── */}
+                  {sheetAlerts.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-orange-600">
+                        Trip Sheet Alerts
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {sheetAlerts.map((alert, i) => (
+                          <li key={`${alert.tripDbId}-${i}`}>
                             <button
-                              onClick={() => toggleGroup(group.key)}
-                              className="w-full px-4 py-1.5 text-center text-[11px] font-medium text-blue-600 hover:bg-blue-50 transition-colors"
+                              type="button"
+                              onClick={() => {
+                                setSheetAlerts((prev) => prev.filter((_, idx) => idx !== i));
+                                setIsNotifOpen(false);
+                                router.push(isAdmin ? "/trips/sheet-collection" : "/trips/current");
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-orange-50/60"
                             >
-                              +{hidden} more
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100">
+                                <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">Trip sheet not yet received</p>
+                                <p className="text-[11px] text-gray-600">
+                                  Booking ref: <span className="font-semibold">{alert.bookingRef}</span>
+                                  {alert.tripIdStr && <span className="ml-1 text-gray-400">({alert.tripIdStr})</span>}
+                                </p>
+                                <p className="text-[11px] text-orange-700 font-medium">Please follow up immediately.</p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(alert.alertedAt)}</span>
                             </button>
-                          )}
-                          {isExpanded && group.items.length > COLLAPSE_THRESHOLD && (
-                            <button
-                              onClick={() => toggleGroup(group.key)}
-                              className="w-full px-4 py-1.5 text-center text-[11px] font-medium text-gray-400 hover:bg-gray-50 transition-colors"
-                            >
-                              Show less
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  // Flat filtered view for Compliance / EMI tabs
-                  <ul className="divide-y divide-gray-50 py-1">
-                    {tabNotifs.map((n, i) => (
-                      <NotifItem key={i} n={n} />
-                    ))}
-                  </ul>
-                )}
-              </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-              {/* Footer */}
-              <div className="flex items-center justify-around border-t border-gray-100 px-4 py-2.5 gap-3">
-                <Link
-                  href="/maintenance/compliance"
-                  onClick={() => setIsNotifOpen(false)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  Compliance &amp; Renewals →
-                </Link>
-                <span className="h-3 w-px bg-gray-200" />
-                <Link
-                  href="/finance/emi-tracking"
-                  onClick={() => setIsNotifOpen(false)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
-                >
-                  EMI Tracking →
-                </Link>
-              </div>
+                  {/* ── Leave Requests (Admin only) ── */}
+                  {isAdmin && leaveRequests.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                        Leave Requests
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {leaveRequests.map((req) => (
+                          <li key={req.id}>
+                            <button
+                              type="button"
+                              onClick={() => { setIsNotifOpen(false); router.push("/attendance/leave-approvals"); }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-blue-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                                <User className="h-3.5 w-3.5 text-blue-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[12px] font-semibold text-gray-900">
+                                  {req.applicantName}
+                                  <span className="ml-1.5 font-normal text-gray-400">({req.category})</span>
+                                </p>
+                                <p className="text-[11px] text-gray-500">
+                                  Leave: {req.fromDate} → {req.toDate}
+                                </p>
+                                {req.reason && (
+                                  <p className="truncate text-[11px] text-gray-400">{req.reason}</p>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(req.appliedAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="border-t border-gray-100 px-4 py-2.5">
+                        <Link
+                          href="/attendance/leave-approvals"
+                          onClick={() => setIsNotifOpen(false)}
+                          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          View all in Leave Approvals →
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Edit Requests (Admin only) ── */}
+                  {isAdmin && editRequestNotifs.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-purple-600">
+                        Edit Requests
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {editRequestNotifs.map((notif, i) => (
+                          <li key={`edit-req-${notif.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditRequestNotifs((prev) => prev.filter((_, idx) => idx !== i));
+                                setIsNotifOpen(false);
+                                router.push("/attendance/edit-approvals");
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-purple-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100">
+                                <CalendarClock className="h-3.5 w-3.5 text-purple-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">
+                                  {notif.staffName} is requesting{" "}
+                                  <span className="text-purple-700">{notif.action.toLowerCase()}</span> access
+                                </p>
+                                <p className="text-[11px] text-gray-600">
+                                  {notif.resourceType}: <span className="font-semibold">{notif.resourceName}</span>
+                                </p>
+                                <p className="text-[11px] text-purple-700 font-medium">Please follow up</p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="border-t border-gray-100 px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
+                          className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+                        >
+                          View all in Edit Approvals →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Edit Approval notifications (Staff only) ── */}
+                  {isStaff && editApprovalNotifs.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-green-600">
+                        Edit Access Approved
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {editApprovalNotifs.map((notif, i) => (
+                          <li key={`edit-appr-${notif.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditApprovalNotifs((prev) => prev.filter((_, idx) => idx !== i));
+                                setIsNotifOpen(false);
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-green-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100">
+                                <User className="h-3.5 w-3.5 text-green-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">
+                                  Your Edit Access has been approved by the Admin
+                                </p>
+                                <p className="text-[11px] text-gray-600">
+                                  {notif.action} access for: <span className="font-semibold">{notif.resourceName}</span>
+                                </p>
+                                <p className="text-[11px] text-green-700 font-medium">
+                                  Please do the changes within a Hour.
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.notifiedAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {sheetAlerts.length === 0 &&
+                   editApprovalNotifs.length === 0 &&
+                   (isStaff || isFleetManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0)) && (
+                    <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                      <Bell className="h-8 w-8 text-gray-200" />
+                      <p className="text-sm font-medium text-gray-500">No notifications</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -8,6 +8,7 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -21,6 +22,7 @@ export default function AssignDriversPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
@@ -30,7 +32,7 @@ export default function AssignDriversPage() {
             setAssignments(a);
           })
           .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
     .then(([d, t, a]) => {
@@ -41,6 +43,8 @@ export default function AssignDriversPage() {
     .finally(() => setLoading(false));
       }, 5000);
 
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
   const vehicleByDriverId = Object.fromEntries(
     assignments.map((assignment) => [assignment.driverId, assignment.vehicleId])

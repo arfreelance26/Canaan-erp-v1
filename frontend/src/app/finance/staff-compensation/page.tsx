@@ -8,6 +8,7 @@ import { staffApi, financeApi } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -20,6 +21,7 @@ export default function StaffCompensationPage() {
   const [paymentTarget, setPaymentTarget] = useState<CompensationPerson | null>(null);
   const [historyTarget, setHistoryTarget] = useState<CompensationPerson | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
         Promise.all([staffApi.list(), financeApi.listStaffCompensation()])
@@ -28,7 +30,7 @@ export default function StaffCompensationPage() {
             setTransactions(tx);
           })
           .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([staffApi.list(), financeApi.listStaffCompensation()])
     .then(([s, tx]) => {
@@ -37,6 +39,8 @@ export default function StaffCompensationPage() {
     })
     .finally(() => setLoading(false));
       }, 5000);
+
+  useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 
 
   const people: CompensationPerson[] = useMemo(

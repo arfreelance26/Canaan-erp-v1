@@ -12,6 +12,7 @@ import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck } from "@/types/truck";
 import { trucksApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
@@ -24,6 +25,7 @@ export default function TyreInventoryPage() {
   const [editingTyre, setEditingTyre] = useState<TyreInventoryItem | null>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyTyre, setHistoryTyre] = useState<TyreInventoryItem | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     Promise.all([tyreApi.listInventory(), tyreApi.listFitments(), trucksApi.list()])
@@ -33,7 +35,7 @@ export default function TyreInventoryPage() {
         setTrucks(tr);
       })
       .finally(() => setLoading(false));
-      }, []);
+      }, [refreshKey]);
       useAutoRefresh(() => {
     Promise.all([tyreApi.listInventory(), tyreApi.listFitments(), trucksApi.list()])
       .then(([t, f, tr]) => {
@@ -44,6 +46,7 @@ export default function TyreInventoryPage() {
       .finally(() => setLoading(false));
   }, 5000);
 
+  useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
 
   function handleAdd() {
     setEditingTyre(null);
