@@ -29,6 +29,29 @@ import type { SacCode } from "@/types/sac-code";
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 // ---------------------------------------------------------------------------
+// Auth helpers — read the JWT saved by AuthContext and attach it to requests
+// ---------------------------------------------------------------------------
+
+function authHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem("canaan_erp_user");
+    const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+function handleUnauthorized() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("canaan_erp_user");
+  if (!window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Core fetch utility
 // ---------------------------------------------------------------------------
 
@@ -37,10 +60,14 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${BASE}${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...options?.headers },
+      headers: { "Content-Type": "application/json", ...authHeaders(), ...options?.headers },
     });
   } catch {
     throw new Error(`Cannot reach the server at ${BASE}. Make sure the backend is running (uvicorn main:app --port 8000).`);
+  }
+  if (res.status === 401 && !path.startsWith("/auth/")) {
+    handleUnauthorized();
+    throw new Error("Session expired. Please log in again.");
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json();
@@ -73,9 +100,13 @@ export function fileUrl(entity: string, entityId: string, field: string): string
 export async function downloadExcel(path: string, fallbackFilename: string): Promise<void> {
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`);
+    res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   } catch {
     throw new Error(`Cannot reach the server at ${BASE}. Make sure the backend is running (uvicorn main:app --port 8000).`);
+  }
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error("Session expired. Please log in again.");
   }
   if (!res.ok) {
     let errorMsg = `HTTP ${res.status}`;
@@ -112,10 +143,15 @@ export async function uploadFile(
   try {
     res = await fetch(`${BASE}/files/${entity}/${entityId}/${field}`, {
       method: "POST",
+      headers: authHeaders(),
       body: form,
     });
   } catch {
     throw new Error("Cannot reach the server. Make sure the backend is running.");
+  }
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error("Session expired. Please log in again.");
   }
   if (!res.ok) {
     const err = await res.text();

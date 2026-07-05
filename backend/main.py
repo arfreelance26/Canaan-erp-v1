@@ -1,11 +1,13 @@
+import os
 import re
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
+from security import get_current_user, require_roles
 import models  # noqa: F401 — ensure all models are registered before create_all
 
 from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports
@@ -72,31 +74,50 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS: set CORS_ORIGINS in .env (comma-separated) to restrict in production,
+# e.g. CORS_ORIGINS=https://erp.canaanglobal.com
+_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # allow all origins in dev; restrict in production
-    allow_credentials=False,    # must be False when allow_origins="*"
+    allow_origins=_cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(trucks.router)
-app.include_router(drivers.router)
-app.include_router(staff.router)
-app.include_router(customers.router)
-app.include_router(vendors.router)
-app.include_router(trips.router)
-app.include_router(attendance.router)
-app.include_router(maintenance.router)
-app.include_router(finance.router)
-app.include_router(dashboard.router)
-app.include_router(files.router)
-app.include_router(auth.router)
-app.include_router(branches.router)
-app.include_router(repair_types.router)
-app.include_router(sac_codes.router)
-app.include_router(pl_summary.router)
-app.include_router(exports.router)
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Cache-Control"] = response.headers.get("Cache-Control", "no-store")
+    return response
+
+
+# All business routers require a valid JWT (see security.py).
+AUTH = [Depends(get_current_user)]
+# Finance data additionally requires the Finance Manager (or Admin) role.
+FINANCE = [Depends(require_roles("Finance Manager"))]
+
+app.include_router(auth.router)                              # public: /auth/login
+app.include_router(files.router)                             # GET public (img tags), POST guarded inside
+app.include_router(trucks.router, dependencies=AUTH)
+app.include_router(drivers.router, dependencies=AUTH)
+app.include_router(staff.router, dependencies=AUTH)
+app.include_router(customers.router, dependencies=AUTH)
+app.include_router(vendors.router, dependencies=AUTH)
+app.include_router(trips.router, dependencies=AUTH)
+app.include_router(attendance.router, dependencies=AUTH)
+app.include_router(maintenance.router, dependencies=AUTH)
+app.include_router(finance.router, dependencies=FINANCE)
+app.include_router(dashboard.router, dependencies=AUTH)
+app.include_router(branches.router, dependencies=AUTH)
+app.include_router(repair_types.router, dependencies=AUTH)
+app.include_router(sac_codes.router, dependencies=AUTH)
+app.include_router(pl_summary.router, dependencies=FINANCE)
+app.include_router(exports.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from database import get_db
+from security import require_roles
 import models, schemas
 from duplicate_checks import check_staff_duplicates
 
@@ -59,7 +60,7 @@ def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depe
     return member
 
 
-@router.delete("/{staff_id}", status_code=204)
+@router.delete("/{staff_id}", status_code=204, dependencies=[Depends(require_roles())])
 def delete_staff(staff_id: int, db: Session = Depends(get_db)):
     member = db.get(models.Staff, staff_id)
     if not member:

@@ -10,8 +10,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from database import get_db
+from security import get_current_user
 import models
 
+# GET stays public because <img src> tags cannot send Authorization headers;
+# uploads require a valid login (dependency on the POST endpoint below).
 router = APIRouter(prefix="/files", tags=["Files"])
 
 # Map (entity, field) → (Model class, column attribute name)
@@ -85,7 +88,7 @@ def _col_name(entity: str, field: str) -> str:
 # Upload
 # ---------------------------------------------------------------------------
 
-@router.post("/{entity}/{entity_id}/{field}", status_code=204)
+@router.post("/{entity}/{entity_id}/{field}", status_code=204, dependencies=[Depends(get_current_user)])
 async def upload_file(
     entity: str,
     entity_id: int,

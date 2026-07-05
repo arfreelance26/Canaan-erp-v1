@@ -16,6 +16,7 @@ export type AuthUser = {
   softwareDesignation: string;
   staffId: string | null;
   photoUrl: string | null;
+  token?: string;
 };
 
 type AuthContextType = {
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       softwareDesignation: data.software_designation,
       staffId: data.staff_id ?? null,
       photoUrl: data.photo_url ?? null,
+      token: data.access_token,
     };
     
     if (preventRedirect) {
