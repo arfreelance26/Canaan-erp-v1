@@ -101,11 +101,11 @@ export default function SheetCollectionPage() {
       });
       showSuccess(
         updated.tripSheetCollected
-          ? `Trip sheet marked as collected for ${trip.tripId}.`
-          : `Trip sheet collection unmarked for ${trip.tripId}.`
+          ? `Trip sheet marked as delivered for ${trip.tripId}.`
+          : `Trip sheet delivery unmarked for ${trip.tripId}.`
       );
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to update collection status.");
+      showError(err instanceof Error ? err.message : "Failed to update delivery status.");
     } finally {
       setToggling((prev) => {
         const next = new Set(prev);
@@ -135,7 +135,7 @@ export default function SheetCollectionPage() {
     setSelected(new Set());
     setBulkBusy(false);
     if (errors.length === 0) {
-      showSuccess(`${successCount} trip sheet${successCount > 1 ? "s" : ""} marked as collected.`);
+      showSuccess(`${successCount} trip sheet${successCount > 1 ? "s" : ""} marked as delivered.`);
     } else {
       showError(`${successCount} succeeded, ${errors.length} failed: ${errors.join(", ")}`);
     }
@@ -149,7 +149,7 @@ export default function SheetCollectionPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Trip Sheet Collection</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Mark trip sheets as collected from drivers before reconciliation
+            Mark trip sheets as delivered from drivers before reconciliation
           </p>
         </div>
         <div className="relative w-full sm:w-64">
@@ -171,11 +171,11 @@ export default function SheetCollectionPage() {
           <p className="mt-1 text-2xl font-bold text-gray-900">{filtered.length}</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Sheets Collected</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Sheets Delivered</p>
           <p className="mt-1 text-2xl font-bold text-emerald-700">{collected.length}</p>
         </div>
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Pending Collection</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Pending Delivery</p>
           <p className="mt-1 text-2xl font-bold text-amber-700">{pending.length}</p>
         </div>
       </div>
@@ -200,7 +200,7 @@ export default function SheetCollectionPage() {
               onClick={handleBulkCollect}
               className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
-              {bulkBusy ? "Marking..." : `Mark ${selected.size} as Collected`}
+              {bulkBusy ? "Marking..." : `Mark ${selected.size} as Delivered`}
             </button>
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function SheetCollectionPage() {
                     title="Select all pending"
                   />
                 </th>
-                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Collected On (IST)", "Action"].map(
+                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Delivered On (IST)", "Action"].map(
                   (col) => (
                     <th
                       key={col}
@@ -262,7 +262,7 @@ export default function SheetCollectionPage() {
                       {isCollected ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                           <CheckCircle2 className="h-3 w-3" />
-                          Collected
+                          Delivered
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
@@ -284,7 +284,7 @@ export default function SheetCollectionPage() {
                     <td className="px-4 py-3">
                       {isCollected && sheetSubmitted ? (
                         <span
-                          title="Trip sheet already submitted in reconciliation — cannot undo collection"
+                          title="Trip sheet already submitted in reconciliation — cannot undo delivery"
                           className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed"
                         >
                           Locked
@@ -300,7 +300,7 @@ export default function SheetCollectionPage() {
                               : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                           }
                         >
-                          {isBusy ? "..." : isCollected ? "Undo" : "Mark Collected"}
+                          {isBusy ? "..." : isCollected ? "Undo" : "Mark as Delivered"}
                         </button>
                       )}
                     </td>

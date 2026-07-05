@@ -316,14 +316,14 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     dependencies=[Depends(require_roles(*SHEET_COLLECTOR_ROLES))],
 )
 def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
-    """Mark a trip sheet as physically collected by the Trip Sheet Coordinator."""
+    """Mark a trip sheet as delivered by the Trip Sheet Coordinator."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
     if trip.status != "Completed":
-        raise HTTPException(400, "Trip sheet can only be collected for Completed trips")
+        raise HTTPException(400, "Trip sheet can only be marked as delivered for Completed trips")
     trip.trip_sheet_collected = not trip.trip_sheet_collected
     trip.trip_sheet_collected_at = datetime.now(timezone.utc) if trip.trip_sheet_collected else None
     db.commit()

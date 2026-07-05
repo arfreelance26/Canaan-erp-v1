@@ -264,6 +264,16 @@ export default function TripReconciliationPage() {
                         {/* Trip Sheet */}
                         <div className="flex flex-col gap-0.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Trip Sheet</p>
+                          {trip.tripSheetCollected && trip.tripSheetCollectedAt && (
+                            <p className="text-[10px] text-emerald-600 font-medium mb-0.5">
+                              Trip Sheet for this Trip has been handed over on{" "}
+                              {new Date(trip.tripSheetCollectedAt).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </p>
+                          )}
                           {sheet ? (
                             <div className="flex gap-1.5">
                               <button
