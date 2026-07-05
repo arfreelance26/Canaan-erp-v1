@@ -3,6 +3,7 @@
 import { Dialog } from "@/components/ui/Dialog";
 import type { Truck } from "@/types/truck";
 import type { FuelLog } from "@/lib/fuel-log-data";
+import { formatDate } from "@/lib/format-date";
 
 type FuelHistoryDialogProps = {
   open: boolean;
@@ -67,7 +68,7 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
                 {[...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log) => {
                   return (
                     <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{log.date}</td>
+                      <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{formatDate(log.date)}</td>
                       <td className="px-3 py-2.5 text-gray-700">{log.odometer.toLocaleString("en-IN")}</td>
                       <td className="px-3 py-2.5 text-gray-700">{log.litres} L</td>
                       <td className="px-3 py-2.5 text-gray-700">₹{log.pricePerLitre}</td>

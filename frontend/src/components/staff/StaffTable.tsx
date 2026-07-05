@@ -3,6 +3,7 @@
 import { FileText, Pencil, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Staff } from "@/types/staff";
+import { formatDate } from "@/lib/format-date";
 
 type StaffTableProps = {
   staff: Staff[];
@@ -61,7 +62,7 @@ export function StaffTable({ staff, onEdit, onDelete }: StaffTableProps) {
 
               <td className="px-4 py-3 text-gray-600">{member.contactNumber}</td>
               <td className="px-4 py-3 text-gray-600">{member.email}</td>
-              <td className="px-4 py-3 text-gray-600">{member.dateOfJoining}</td>
+              <td className="px-4 py-3 text-gray-600">{formatDate(member.dateOfJoining)}</td>
               <td className="px-4 py-3 text-gray-600">
                 {member.aadharFileName ? (
                   <span className="flex items-center gap-1.5">

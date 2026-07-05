@@ -153,7 +153,7 @@ class DriverOut(DriverBase):
 # Staff
 # ---------------------------------------------------------------------------
 
-SoftwareDesignation = Literal["Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Staff"]
+SoftwareDesignation = Literal["Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"]
 
 
 class StaffBase(OrmBase):

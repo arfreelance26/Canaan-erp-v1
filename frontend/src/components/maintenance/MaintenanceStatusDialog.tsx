@@ -4,6 +4,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import type { MaintenanceStatusItem } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
+import { formatDate } from "@/lib/format-date";
 
 type MaintenanceStatusDialogProps = {
   open: boolean;
@@ -41,7 +42,7 @@ export function MaintenanceStatusDialog({ open, onClose, title, truck, items, em
               </p>
               <p className="mt-1 text-xs text-gray-600">
                 {item.lastDoneOdometer !== null
-                  ? `Last done at ${item.lastDoneOdometer.toLocaleString()} km${item.lastDoneDate ? ` on ${item.lastDoneDate}` : ""}`
+                  ? `Last done at ${item.lastDoneOdometer.toLocaleString()} km${item.lastDoneDate ? ` on ${formatDate(item.lastDoneDate)}` : ""}`
                   : "No record found — never performed"}
               </p>
               <p className="mt-1 text-xs text-gray-600">

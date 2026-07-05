@@ -9,6 +9,7 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { todayIst } from "@/lib/format-date";
+import { formatDate } from "@/lib/format-date";
 
 type MaintenanceRecordHistoryDialogProps = {
   open: boolean;
@@ -102,7 +103,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
     const rows = filteredRecords
       .map(
         (record) => `<tr>
-          <td>${record.date}</td>
+          <td>${formatDate(record.date)}</td>
           <td>${Number(record.odometer).toLocaleString()} km</td>
           <td>${record.maintenanceType}</td>
           <td>${record.description}</td>
@@ -209,7 +210,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
             <tbody className="divide-y divide-gray-100">
               {filteredRecords.map((record) => (
                 <tr key={record.id}>
-                  <td className="px-4 py-3 text-gray-600">{record.date}</td>
+                  <td className="px-4 py-3 text-gray-600">{formatDate(record.date)}</td>
                   <td className="px-4 py-3 text-gray-600">{Number(record.odometer).toLocaleString()} km</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{record.maintenanceType}</td>
                   <td className="px-4 py-3 text-gray-600">{record.description}</td>

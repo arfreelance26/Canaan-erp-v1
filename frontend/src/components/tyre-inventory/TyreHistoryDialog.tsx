@@ -2,6 +2,7 @@
 
 import { Dialog } from "@/components/ui/Dialog";
 import { initialTrucks } from "@/lib/truck-data";
+import { formatDate } from "@/lib/format-date";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 
@@ -45,11 +46,11 @@ export function TyreHistoryDialog({ open, onClose, tyre, records }: TyreHistoryD
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-gray-600">
-                  Fitted at {record.fittedOdometer.toLocaleString()} km on {record.fittedDate}
+                  Fitted at {record.fittedOdometer.toLocaleString()} km on {formatDate(record.fittedDate)}
                 </p>
                 {record.removedOdometer !== null ? (
                   <p className="mt-1 text-xs text-gray-600">
-                    Removed at {record.removedOdometer.toLocaleString()} km on {record.removedDate}
+                    Removed at {record.removedOdometer.toLocaleString()} km on {formatDate(record.removedDate)}
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-gray-600">Still in service on this truck</p>

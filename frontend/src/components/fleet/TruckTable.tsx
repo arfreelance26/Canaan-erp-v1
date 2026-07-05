@@ -3,6 +3,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import type { Truck } from "@/types/truck";
+import { formatDate } from "@/lib/format-date";
 
 type TruckTableProps = {
   trucks: Truck[];
@@ -59,8 +60,8 @@ export function TruckTable({ trucks, onEdit, onDelete }: TruckTableProps) {
                 {getTyreLayout(truck.tyreLayout)?.label ?? truck.tyreLayout}
               </td>
               <td className="px-4 py-3 text-gray-600">{truck.odometer}</td>
-              <td className="px-4 py-3 text-gray-600">{truck.fcExpiryDate}</td>
-              <td className="px-4 py-3 text-gray-600">{truck.insuranceExpiryDate}</td>
+              <td className="px-4 py-3 text-gray-600">{formatDate(truck.fcExpiryDate)}</td>
+              <td className="px-4 py-3 text-gray-600">{formatDate(truck.insuranceExpiryDate)}</td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   <button

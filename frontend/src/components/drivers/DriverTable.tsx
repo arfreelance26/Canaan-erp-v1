@@ -3,6 +3,7 @@
 import { FileText, Pencil, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Driver } from "@/types/driver";
+import { formatDate } from "@/lib/format-date";
 
 type DriverTableProps = {
   drivers: Driver[];
@@ -71,7 +72,7 @@ export function DriverTable({ drivers, onEdit, onDelete }: DriverTableProps) {
                 )}
               </td>
               <td className="px-4 py-3 text-gray-600">{driver.licenseNumber}</td>
-              <td className="px-4 py-3 text-gray-600">{driver.licenseExpiryDate}</td>
+              <td className="px-4 py-3 text-gray-600">{formatDate(driver.licenseExpiryDate)}</td>
               <td className="px-4 py-3 text-gray-600">
                 {driver.licenseFileName ? (
                   <span className="flex items-center gap-1.5">

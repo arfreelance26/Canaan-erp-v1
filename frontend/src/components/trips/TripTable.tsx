@@ -5,6 +5,7 @@ import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
+import { formatDate } from "@/lib/format-date";
 
 type TripTableProps = {
   trips: Trip[];
@@ -81,8 +82,8 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
                     ? trip.cargoReference
                     : "—"}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{trip.scheduledDate}</td>
-                <td className="px-4 py-3 text-gray-600">{trip.assignedDate}</td>
+                <td className="px-4 py-3 text-gray-600">{formatDate(trip.scheduledDate)}</td>
+                <td className="px-4 py-3 text-gray-600">{formatDate(trip.assignedDate)}</td>
                 <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                 {(onEdit || onMarkStarted || onMarkCompleted || onCancel || onCloseTrip) && (
