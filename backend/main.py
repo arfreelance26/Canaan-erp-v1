@@ -39,6 +39,10 @@ def _run_schema_migrations():
         "ALTER TABLE repair_types ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE sac_codes ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE sac_codes DROP INDEX code",
+        # Trip Sheet Coordinator workflow
+        "ALTER TABLE trips ADD COLUMN trip_sheet_collected BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE trips ADD COLUMN trip_sheet_collected_at DATETIME NULL",
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL DEFAULT 'Staff'",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

@@ -50,8 +50,8 @@ export default function TripReconciliationPage() {
             setDrivers(d);
             setTrucks(tr);
             setCustomers(c);
-            // Only trips that have a closure
-            const closedTrips = t.filter((trip) => (trip as any).hasClosure === true);
+            // Only trips that have a closure AND have had their sheet collected
+            const closedTrips = t.filter((trip) => (trip as any).hasClosure === true && (trip as any).tripSheetCollected === true);
             setTrips(closedTrips);
             // Fetch closures for each closed trip
             return Promise.all(
@@ -93,8 +93,8 @@ export default function TripReconciliationPage() {
         setDrivers(d);
         setTrucks(tr);
         setCustomers(c);
-        // Only trips that have a closure
-        const closedTrips = t.filter((trip) => (trip as any).hasClosure === true);
+        // Only trips that have a closure AND have had their sheet collected
+        const closedTrips = t.filter((trip) => (trip as any).hasClosure === true && (trip as any).tripSheetCollected === true);
         setTrips(closedTrips);
         // Fetch closures for each closed trip
         return Promise.all(

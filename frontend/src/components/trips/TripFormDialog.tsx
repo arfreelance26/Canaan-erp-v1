@@ -102,6 +102,8 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   bookingInstructions: "",
   hasClosure: false,
   hasSheet: false,
+  tripSheetCollected: false,
+  tripSheetCollectedAt: null,
   verificationStatus: "pending",
   isInvoiced: false,
 };

@@ -498,6 +498,8 @@ function toTrip(b: B): Trip & { _dbId: number } {
     bookingInstructions: b.booking_instructions ?? "",
     hasClosure: b.has_closure ?? false,
     hasSheet: b.has_sheet ?? false,
+    tripSheetCollected: b.trip_sheet_collected ?? false,
+    tripSheetCollectedAt: b.trip_sheet_collected_at ?? null,
     verificationStatus: b.verification_status ?? "pending",
     isInvoiced: b.is_invoiced ?? false,
   };
@@ -1099,6 +1101,8 @@ export const tripsApi = {
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
   getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
+  collectSheet: (dbId: string) =>
+    req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),
 };
 
 // ---------------------------------------------------------------------------

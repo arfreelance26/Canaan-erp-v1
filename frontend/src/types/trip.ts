@@ -97,6 +97,8 @@ export type Trip = {
   // Workflow state (computed by backend)
   hasClosure: boolean;
   hasSheet: boolean;
+  tripSheetCollected: boolean;
+  tripSheetCollectedAt: string | null;
   verificationStatus: "pending" | "verified" | "flagged";
   isInvoiced: boolean;
 };

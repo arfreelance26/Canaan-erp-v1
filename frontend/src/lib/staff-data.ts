@@ -12,6 +12,7 @@ export const SOFTWARE_DESIGNATION_OPTIONS = [
   "Fleet Manager",
   "Finance Manager",
   "Tyre Manager",
+  "Trip Sheet Coordinator",
   "Staff",
 ];
 

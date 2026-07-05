@@ -145,7 +145,7 @@ class Staff(Base):
     department = Column(String(100))
     designation = Column(String(100))
     software_designation = Column(
-        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Staff"),
+        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"),
         nullable=False,
         default="Staff",
     )
@@ -325,6 +325,8 @@ class Trip(Base):
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged"), default="pending")
     is_invoiced = Column(Boolean, default=False)
+    trip_sheet_collected = Column(Boolean, default=False, nullable=False)
+    trip_sheet_collected_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

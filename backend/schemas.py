@@ -413,6 +413,8 @@ class TripOut(TripBase):
     is_invoiced: bool = False
     has_closure: bool = False
     has_sheet: bool = False
+    trip_sheet_collected: bool = False
+    trip_sheet_collected_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

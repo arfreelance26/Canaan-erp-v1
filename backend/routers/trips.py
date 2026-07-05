@@ -1,9 +1,10 @@
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
+from security import require_roles
 import models, schemas
 from duplicate_checks import check_trip_duplicates
 
@@ -55,6 +56,9 @@ def _enrich(trip: models.Trip) -> dict:
     data["has_closure"] = trip.closure is not None
     data["has_sheet"] = trip.sheet is not None
     return data
+
+
+SHEET_COLLECTOR_ROLES = ("Trip Sheet Coordinator",)
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +309,27 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(trip)
     return _enrich(trip)
+
+@router.post(
+    "/{trip_id}/collect-sheet",
+    response_model=schemas.TripOut,
+    dependencies=[Depends(require_roles(*SHEET_COLLECTOR_ROLES))],
+)
+def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
+    """Mark a trip sheet as physically collected by the Trip Sheet Coordinator."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if trip.status != "Completed":
+        raise HTTPException(400, "Trip sheet can only be collected for Completed trips")
+    trip.trip_sheet_collected = not trip.trip_sheet_collected
+    trip.trip_sheet_collected_at = datetime.utcnow() if trip.trip_sheet_collected else None
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
 
 @router.get("/autocomplete-values")
 def get_autocomplete_values(db: Session = Depends(get_db)):
