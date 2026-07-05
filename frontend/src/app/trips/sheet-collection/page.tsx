@@ -10,13 +10,27 @@ import { Search, CheckCircle2, Circle } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
+function fmtIST(iso: string) {
+  return new Date(iso).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 export default function SheetCollectionPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   function loadData() {
     return Promise.all([
@@ -27,6 +41,8 @@ export default function SheetCollectionPage() {
       setTrips(t);
       setDrivers(d);
       setCustomers(c);
+      // Clear selection on refresh so stale ids don't linger
+      setSelected(new Set());
     });
   }
 
@@ -41,12 +57,48 @@ export default function SheetCollectionPage() {
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
+  const filtered = trips.filter(
+    (t) =>
+      !searchQuery ||
+      t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const collected = filtered.filter((t) => t.tripSheetCollected);
+  const pending = filtered.filter((t) => !t.tripSheetCollected);
+
+  // Select-all state: considers only pending (uncollected) rows for the primary bulk action
+  const selectableIds = pending.map((t) => t.id);
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const someSelected = selected.size > 0;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(selectableIds));
+    }
+  }
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   async function handleToggleCollect(trip: Trip) {
     if (toggling.has(trip.id)) return;
     setToggling((prev) => new Set([...prev, trip.id]));
     try {
       const updated = await tripsApi.collectSheet(trip.id);
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.id);
+        return next;
+      });
       showSuccess(
         updated.tripSheetCollected
           ? `Trip sheet marked as collected for ${trip.tripId}.`
@@ -63,17 +115,33 @@ export default function SheetCollectionPage() {
     }
   }
 
-  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={7} />;
+  async function handleBulkCollect() {
+    if (selected.size === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    const targets = filtered.filter((t) => selected.has(t.id) && !t.tripSheetCollected);
+    let successCount = 0;
+    const errors: string[] = [];
+    await Promise.all(
+      targets.map(async (trip) => {
+        try {
+          const updated = await tripsApi.collectSheet(trip.id);
+          setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+          successCount++;
+        } catch (err: unknown) {
+          errors.push(trip.tripId);
+        }
+      })
+    );
+    setSelected(new Set());
+    setBulkBusy(false);
+    if (errors.length === 0) {
+      showSuccess(`${successCount} trip sheet${successCount > 1 ? "s" : ""} marked as collected.`);
+    } else {
+      showError(`${successCount} succeeded, ${errors.length} failed: ${errors.join(", ")}`);
+    }
+  }
 
-  const filtered = trips.filter(
-    (t) =>
-      !searchQuery ||
-      t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const collected = filtered.filter((t) => t.tripSheetCollected);
-  const pending = filtered.filter((t) => !t.tripSheetCollected);
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={8} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -112,16 +180,51 @@ export default function SheetCollectionPage() {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {someSelected && (
+        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <span className="text-sm font-medium text-blue-800">
+            {selected.size} trip{selected.size > 1 ? "s" : ""} selected
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={handleBulkCollect}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {bulkBusy ? "Marking..." : `Mark ${selected.size} as Collected`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           No completed trips found.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[900px] text-left text-sm whitespace-nowrap">
+          <table className="w-full min-w-[950px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Collected On", "Action"].map(
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
+                    title="Select all pending"
+                  />
+                </th>
+                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Collected On (IST)", "Action"].map(
                   (col) => (
                     <th
                       key={col}
@@ -139,9 +242,21 @@ export default function SheetCollectionPage() {
                 const customer = customerById.get(trip.customerId);
                 const isCollected = trip.tripSheetCollected;
                 const isBusy = toggling.has(trip.id);
+                const isChecked = selected.has(trip.id);
 
                 return (
-                  <tr key={trip.id} className="hover:bg-gray-50">
+                  <tr
+                    key={trip.id}
+                    className={isChecked ? "bg-blue-50/60" : "hover:bg-gray-50"}
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleRow(trip.id)}
+                        className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       {isCollected ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
@@ -163,15 +278,7 @@ export default function SheetCollectionPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {trip.tripSheetCollectedAt
-                        ? new Date(trip.tripSheetCollectedAt).toLocaleString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—"}
+                      {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <button

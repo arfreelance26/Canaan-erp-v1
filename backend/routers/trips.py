@@ -1,4 +1,4 @@
-from datetime import date as date_type, datetime
+from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
@@ -325,7 +325,7 @@ def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
     if trip.status != "Completed":
         raise HTTPException(400, "Trip sheet can only be collected for Completed trips")
     trip.trip_sheet_collected = not trip.trip_sheet_collected
-    trip.trip_sheet_collected_at = datetime.utcnow() if trip.trip_sheet_collected else None
+    trip.trip_sheet_collected_at = datetime.now(timezone.utc) if trip.trip_sheet_collected else None
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

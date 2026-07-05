@@ -198,8 +198,7 @@ export default function TripReconciliationPage() {
 
       {filteredTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          No closed trips yet. Close a completed trip first from the{" "}
-          <a href="/trips/completed" className="text-blue-600 underline">Completed Trips</a> page.
+          No closed trips yet.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
