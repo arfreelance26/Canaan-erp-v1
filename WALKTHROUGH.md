@@ -1,4 +1,4 @@
-# Canaan ERP — Complete System Walkthrough
+# Canaan ERP: Complete System Walkthrough
 
 **For:** Client Overview
 **Prepared by:** Canaan Development Team
@@ -8,11 +8,11 @@
 
 ## What Is This System?
 
-**Canaan ERP** is a purpose-built business management platform for a fleet logistics company. It handles the complete lifecycle of every trip — from the moment a booking is created, all the way through driver assignment, on-road updates, financial settlement, and final invoicing.
+**Canaan ERP** is a purpose-built business management platform for a fleet logistics company. It handles the complete lifecycle of every trip. It starts from the moment a booking is created and goes all the way through driver assignment, on-road updates, financial settlement, and final invoicing.
 
 It also manages everything the business runs on: trucks, drivers, staff, customers, vendors, tyres, fuel, finances, and compliance documents.
 
-The entire system runs securely in a web browser. Staff log in with a username and password, and each person only sees the parts of the system relevant to their role — nothing more, nothing less.
+The entire system runs securely in a web browser. Staff log in with a username and password, and each person only sees the parts of the system relevant to their role. Nothing more, nothing less.
 
 ---
 
@@ -27,7 +27,7 @@ There are **6 roles** in the system. Each role has its own login and its own set
 | **Finance Manager** | Handles financial settlement and invoicing of completed trips. Tracks EMI and compliance. |
 | **Tyre Manager** | Manages tyre stock, fitment, and vehicle tyre records. |
 | **Yard Staff** | Receives physical trip sheets from drivers and marks them as delivered in the system. |
-| **Trip Sheet Register** | Enters trip sheet data for reconciliation. Manages customers, vendors, and basic records. |
+| **Trip Sheet Register** | Confirms receipt of physical trip sheets and enters the trip sheet data for reconciliation. |
 
 > The Admin can always see and do everything that any other role can do.
 
@@ -50,13 +50,13 @@ Use the credentials below to log in. Open the system in a web browser and enter 
 
 ---
 
-## How a Trip Works — The Full Journey
+## How a Trip Works: The Full Journey
 
 Every trip goes through a clear, step-by-step process. Here is what happens from start to finish.
 
 ---
 
-### Step 1 — Trip Booking Created
+### Step 1: Trip Booking Created
 **Who:** Fleet Manager / Admin
 **Where:** Assign Trips page
 
@@ -73,7 +73,7 @@ The trip is now in **"Assigned"** status.
 
 ---
 
-### Step 2 — Driver Assigned to the Trip
+### Step 2: Driver Assigned to the Trip
 **Who:** Fleet Manager / Admin
 **Where:** Assign Drivers page
 
@@ -81,7 +81,7 @@ Before the driver can start, a driver and truck must be linked to the trip. The 
 
 ---
 
-### Step 3 — Trip in Progress (Live Tracking)
+### Step 3: Trip in Progress (Live Tracking)
 **Who:** Fleet Manager / Admin
 **Where:** Current Trips page
 
@@ -99,11 +99,11 @@ Once the trip starts, the Fleet Manager updates the trip status as the driver mo
 
 ---
 
-### Step 4 — Trip Closure (Booking Sheet)
+### Step 4: Trip Closure (Booking Sheet)
 **Who:** Fleet Manager / Admin
 **Where:** Completed Trips page
 
-Once a trip is marked Completed, the Fleet Manager fills in the **Trip Closure / Booking Sheet** — the internal financial summary of what happened on the trip:
+Once a trip is marked Completed, the Fleet Manager fills in the **Trip Closure / Booking Sheet**. This is the internal financial summary of what happened on the trip:
 
 - Actual hire amount, transport amount, and billing amount
 - Driver advance paid
@@ -115,23 +115,30 @@ This is saved as the **Booking Sheet** for the trip.
 
 ---
 
-### Step 5 — Physical Trip Sheet Collected
+### Step 5: Physical Trip Sheet Collected
 **Who:** Yard Staff
 **Where:** Sheet Collection page
 
-When the driver returns, they hand over a **physical trip sheet** (a paper document filled out during the trip). The Yard Staff receives this document and marks it as "Delivered" in the system — one trip at a time, or many at once using the multi-select feature.
+When the driver returns, they hand over a **physical trip sheet** (a paper document filled out during the trip). The Yard Staff receives this document and marks it as "Delivered" in the system, one trip at a time, or many at once using the multi-select feature.
 
 The system records the exact date and time of collection (in Indian Standard Time).
 
-> **Important:** A trip only moves to reconciliation **after** the physical sheet has been marked as delivered here. If the sheet is marked delivered but was never actually received, the Trip Sheet Register in reconciliation can click "Mark as Not Received" — which instantly alerts the Admin via a notification.
+> **Important:** A trip only moves to reconciliation **after** the physical sheet has been marked as delivered here. If the sheet is marked delivered but was never actually received, the Trip Sheet Register in reconciliation can click "Mark as Not Received", and the Admin is alerted instantly with a notification.
 
 ---
 
-### Step 6 — Trip Sheet Reconciliation
+### Step 6: Trip Sheet Received & Reconciliation
 **Who:** Trip Sheet Register
 **Where:** Trip Reconciliation page
 
-The Trip Sheet Register sees only the trips whose physical sheets have been confirmed delivered. They enter the detailed **Trip Sheet data** for each trip:
+The Trip Sheet Register sees only the trips whose physical sheets have been marked delivered by the Yard Staff. For each trip there are two simple buttons:
+
+- **Mark as Received**: confirms the physical sheet actually arrived at their desk
+- **Mark as Not Received**: reports that the sheet never arrived (this instantly alerts the Admin and Fleet Manager)
+
+Only after clicking **Mark as Received** can the trip sheet data be entered. With this two-step hand-off, where the Yard Staff delivers it and the Trip Sheet Register receives it, every physical document is accounted for by two different people.
+
+Once received, they enter the detailed **Trip Sheet data** for the trip:
 
 - Trip sheet number and date
 - Start and end odometer readings (total KM)
@@ -143,20 +150,20 @@ This reconciliation sheet becomes the master cost record for the trip.
 
 ---
 
-### Step 7 — Trip Verification
+### Step 7: Trip Verification
 **Who:** Admin
 **Where:** Trip Verification page
 
 Once the trip sheet is entered, the Admin reviews everything. They can either:
 
-- ✅ **Verify** the trip — everything looks correct
-- 🚩 **Flag** the trip — something needs to be checked or corrected
+- ✅ **Verify** the trip when everything looks correct
+- 🚩 **Flag** the trip when something needs to be checked or corrected
 
 Only verified trips move forward to finalization.
 
 ---
 
-### Step 8 — Trip Finalization & Invoice
+### Step 8: Trip Finalization & Invoice
 **Who:** Finance Manager / Admin
 **Where:** Trip Finalization page
 
@@ -169,7 +176,7 @@ Once invoiced, the trip is fully closed financially.
 
 ---
 
-### Step 9 — Trip History
+### Step 9: Trip History
 **Who:** Admin, Finance Manager
 **Where:** Trip History page
 
@@ -183,31 +190,50 @@ Nothing is ever deleted from history.
 
 ---
 
-## Notifications — What the Bell Icon Shows
+## Notifications: What the Bell Icon Shows
 
-The notification bell in the top bar keeps everyone informed in real time. It updates automatically the moment something changes — no need to refresh the page.
+The notification bell in the top bar keeps everyone informed in real time. It updates automatically the moment something changes, so there is no need to refresh the page.
 
 ### Admin sees:
-- **Trip Sheet Alerts** — when a trip sheet was marked "delivered" but never arrived in reconciliation (someone flagged it as not received)
-- **Renewals & Payments** — vehicles and driver documents expiring within 30 days; EMI payments and recurring bills due within 7 days
-- **Leave Requests** — pending leave applications from drivers and staff
-- **Edit Requests** — staff asking permission to edit a locked record
+- **Trip Sheet Alerts**: when a trip sheet was marked "delivered" but never arrived in reconciliation (someone flagged it as not received)
+- **Renewals & Payments**: vehicles and driver documents expiring within 30 days; EMI payments and recurring bills due within 7 days
+- **Leave Requests**: pending leave applications from drivers and staff
+- **Edit Requests**: staff asking permission to edit a locked record
 
 ### Fleet Manager sees:
-- **Trip Sheet Alerts** — same as Admin
-- **Renewals & Payments** — vehicle and driver document expiries
+- **Trip Sheet Alerts**: same as Admin
+- **Renewals & Payments**: vehicle and driver document expiries
 
 ### Trip Sheet Register sees:
-- **Edit Access Approved** — confirmation when the Admin has approved their edit request
+- **Edit Access Approved**: confirmation when the Admin has approved their edit request
 
 Notifications are saved in the system. Even if the Admin is logged out when a trip sheet alert is raised, they will see it the next time they log in.
 
 ---
 
-## All Pages — What Each One Does
+## Global Search: Find a Truck's Trips Instantly
+
+The search bar at the top of every screen works across the whole application:
+
+- Type a **truck number** (registration number), trip ID, or booking reference and press Enter
+- The system takes you straight to your role's main trips page, already filtered to what you searched
+- If you are already on a trips page, the list filters **live as you type**
+
+Every trip page (Current Trips, Completed Trips, History, Reconciliation, Sheet Collection, and more) supports searching by truck number. Answering "where are the trips for this truck?" takes just one search from anywhere.
+
+---
+
+## All Pages: What Each One Does
 
 ### Dashboard (`/`)
 The home screen. Shows a live summary of the business: how many trips are active, how many trucks are running, driver count, and quick-access cards for the most common actions. Each role sees a dashboard tailored to their work.
+
+The Admin and Fleet Manager dashboards also include a **Trip Sheet Tracking** panel showing, in real time:
+- How many sheets have been **Delivered by the Yard Staff** (and which trips)
+- How many sheets have been **Received by the Trip Sheet Register** (and which trips)
+- A warning line if any sheet was delivered but not yet confirmed received
+
+Once the trip sheet data is entered for a trip, it drops off this panel automatically. The panel only tracks the physical hand-over.
 
 ---
 
@@ -218,14 +244,14 @@ A profit and loss report that pulls together income (hire amounts from invoiced 
 
 ---
 
-### Attendance — Drivers (`/attendance/drivers`)
+### Attendance: Drivers (`/attendance/drivers`)
 **Who:** Admin, Fleet Manager
 
 Mark daily attendance for each driver: Present, Absent, On Leave, or Not Marked. Records are saved by date so attendance history is always available.
 
 ---
 
-### Attendance — Staff (`/attendance/staff`)
+### Attendance: Staff (`/attendance/staff`)
 **Who:** Admin
 
 Same as above, but for office staff.
@@ -242,7 +268,7 @@ A summary report showing attendance statistics for all staff and drivers across 
 ### Leave Requests (`/attendance/leave-requests`)
 **Who:** All roles (for themselves)
 
-Any driver or staff member can submit a leave application — specifying the dates, reason, and leave type. Once submitted, a notification goes to the Admin instantly.
+Any driver or staff member can submit a leave application by specifying the dates, reason, and leave type. Once submitted, a notification goes to the Admin instantly.
 
 ---
 
@@ -256,7 +282,7 @@ The Admin sees all pending leave requests and approves or rejects them. The outc
 ### Edit Approvals (`/attendance/edit-approvals`)
 **Who:** Admin (reviews), Trip Sheet Register (requests)
 
-Some records are locked after they are saved to prevent accidental changes. If a Trip Sheet Register needs to correct something, they submit an edit request explaining what they want to change. The Admin sees this as a notification and can approve it — granting a 1-hour edit window for that specific record.
+Some records are locked after they are saved to prevent accidental changes. If a Trip Sheet Register needs to correct something, they submit an edit request explaining what they want to change. The Admin sees this as a notification and can approve it, which grants a 1-hour edit window for that specific record.
 
 ---
 
@@ -277,7 +303,7 @@ Where new trips are created. The full booking form is filled in here. Existing t
 ### Current Trips (`/trips/current`)
 **Who:** Fleet Manager, Admin
 
-Live view of all trips that are in progress (Assigned → Completed). The Fleet Manager updates the status as the trip moves through each stage. The Booking Sheet (Trip Closure) is also filled in here once the trip reaches "Completed."
+Live view of all trips that are in progress (from Assigned to Completed). The Fleet Manager updates the status as the trip moves through each stage. The Booking Sheet (Trip Closure) is also filled in here once the trip reaches "Completed."
 
 ---
 
@@ -291,23 +317,29 @@ All trips that have reached "Completed" status but have not yet moved through re
 ### Sheet Collection (`/trips/sheet-collection`)
 **Who:** Yard Staff
 
-This is the **only page the Yard Staff uses** — it is their dedicated workspace. When a driver returns from a trip and hands in the physical trip sheet (the paper document filled out on the road), the Yard Staff opens this page and marks that trip's sheet as "Delivered."
+This is the **only page the Yard Staff uses**. It is their dedicated workspace. When a driver returns from a trip and hands in the physical trip sheet (the paper document filled out on the road), the Yard Staff opens this page and marks that trip's sheet as "Delivered."
 
 Key features:
-- Shows all completed trips waiting for their physical sheet to be received
+- **Search by truck number**: type a truck's registration number to instantly find its trips
+- Shows all completed trips waiting for their physical sheet to be received, with each truck's registration number visible
 - Each trip can be marked delivered one at a time, or many trips can be selected together and marked in bulk using the multi-select checkboxes
 - Once marked, the system records the exact date and time of delivery in Indian Standard Time (IST)
-- If a sheet has already been submitted into reconciliation, the row is **locked** and cannot be undone — preventing accidental changes to settled records
+- If a sheet has already been submitted into reconciliation, the row is **locked** and cannot be undone. This prevents accidental changes to settled records
 - A **stats bar** at the top shows at a glance: total completed trips, how many sheets have been delivered, and how many are still pending
 
-> **What happens next:** Once the Yard Staff marks a sheet as delivered, it immediately becomes visible to the Staff in Trip Reconciliation. Nothing reaches reconciliation without going through this step first — this is the quality gate that ensures only physically received documents are processed.
+> **What happens next:** Once the Yard Staff marks a sheet as delivered, it immediately becomes visible to the Trip Sheet Register in Trip Reconciliation. Nothing reaches reconciliation without going through this step first. This is the quality gate that ensures only physically received documents are processed.
 
 ---
 
 ### Trip Reconciliation (`/trips/reconciliation`)
 **Who:** Trip Sheet Register
 
-Shows only trips whose physical sheets have been confirmed collected. The Trip Sheet Register enters the detailed trip sheet data (expenses, KM, driver settlement) here. The "Mark as Not Received" button sends an alert to the Admin if a sheet was marked collected but never actually arrived.
+Shows only trips whose physical sheets have been marked delivered by the Yard Staff. For each trip:
+
+- **Mark as Received** confirms the physical sheet arrived. Only then can the trip sheet data be entered
+- **Mark as Not Received** sends an instant alert to the Admin and Fleet Manager if a sheet was marked delivered but never actually arrived
+
+After confirming receipt, the Trip Sheet Register enters the detailed trip sheet data (expenses, KM, driver settlement) here. Trips can be searched by truck number.
 
 ---
 
@@ -354,23 +386,23 @@ Full list of all trucks in the fleet. Add new vehicles, track registration numbe
 ---
 
 ### Our Customers (`/resources/customers`)
-**Who:** Admin, Trip Sheet Register
+**Who:** Admin
 
-Customer master data — company names, contact details, billing information, GST numbers, default origins and destinations for that customer, and pricing agreements.
+Customer master data: company names, contact details, billing information, GST numbers, default origins and destinations for that customer, and pricing agreements.
 
 ---
 
 ### Our Vendors (`/resources/vendors`)
-**Who:** Admin, Trip Sheet Register
+**Who:** Admin
 
-Vendor master data — all third-party service providers and suppliers the company works with.
+Vendor master data: all third-party service providers and suppliers the company works with.
 
 ---
 
 ### Truck Maintenance (`/maintenance/trucks`)
-**Who:** Admin, Trip Sheet Register, Tyre Manager
+**Who:** Admin, Tyre Manager
 
-Logs all maintenance work done on each truck — service dates, type of repair, cost, and the workshop/vendor who did the work. Gives a full service history per vehicle.
+Logs all maintenance work done on each truck: service dates, type of repair, cost, and the workshop/vendor who did the work. Gives a full service history per vehicle.
 
 ---
 
@@ -384,14 +416,14 @@ Manages which tyre is fitted to which position on which truck. Records fitment a
 ### Tyre Inventory (`/maintenance/tyre-inventory`)
 **Who:** Tyre Manager, Admin
 
-Stock list of all tyres owned by the company — new, in-use, and worn out. Tracks tyre IDs, brand, size, and current status.
+Stock list of all tyres owned by the company, whether new, in-use, or worn out. Tracks tyre IDs, brand, size, and current status.
 
 ---
 
 ### Fuel History (`/maintenance/fuel-history`)
 **Who:** Admin, Trip Sheet Register
 
-Logs every fuel fill-up for every truck — date, quantity (litres), cost, and odometer reading. Used to track fuel efficiency and cost per KM.
+Logs every fuel fill-up for every truck: date, quantity (litres), cost, and odometer reading. Used to track fuel efficiency and cost per KM.
 
 ---
 
@@ -430,7 +462,7 @@ Same as Driver Compensation, but for office staff members.
 
 Manages all vehicle loan EMIs. Stores loan details (bank, loan number, amount, tenure, monthly EMI) for each truck. The system automatically alerts the Admin when an EMI payment date is coming up within 7 days.
 
-Also includes **Recurring Payments** — monthly, quarterly, or yearly bills like insurance premiums, annual subscriptions, or fixed service contracts. These also trigger 7-day due alerts.
+Also includes **Recurring Payments**, monthly, quarterly, or yearly bills like insurance premiums, annual subscriptions, or fixed service contracts. These also trigger 7-day due alerts.
 
 ---
 
@@ -455,27 +487,27 @@ Manage the SAC (Services Accounting Code) codes used in invoices for GST complia
 
 ---
 
-## Security — How the System Stays Safe
+## Security: How the System Stays Safe
 
 - **Every user must log in** with a username and password to access the system. There are no public pages.
-- **Passwords are never stored in plain text** — they are encrypted using industry-standard hashing.
-- **Sessions expire after 12 hours** — each login session is valid for 12 hours. After that, the system will automatically log the user out and ask them to sign in again. This means staff who log in at the start of their shift will stay logged in for the full working day without interruption.
-- **Role-based access** — the system enforces at both the screen level (menus) and the server level (API) that users can only access what their role permits. A Staff member cannot reach a Finance page even if they type the URL directly.
-- **5-attempt login lockout** — if someone enters the wrong password 5 times for an account, that account is locked out for 15 minutes.
-- **Per-tab sessions** — each browser tab maintains its own independent login session. Two different users can be logged in simultaneously in two tabs on the same computer without interfering with each other.
-- **Edit locking** — certain records are locked after submission. Changes require an explicit approval from the Admin, creating an audit trail.
+- **Passwords are never stored in plain text**: they are encrypted using industry-standard hashing.
+- **Sessions expire after 12 hours**: each login session is valid for 12 hours. After that, the system will automatically log the user out and ask them to sign in again. This means staff who log in at the start of their shift will stay logged in for the full working day without interruption.
+- **Role-based access**: the system enforces at both the screen level (menus) and the server level (API) that users can only access what their role permits. A Trip Sheet Register user cannot reach a Finance page even if they type the URL directly.
+- **5-attempt login lockout**: if someone enters the wrong password 5 times for an account, that account is locked out for 15 minutes.
+- **Per-tab sessions**: each browser tab maintains its own independent login session. Two different users can be logged in simultaneously in two tabs on the same computer without interfering with each other.
+- **Edit locking**: certain records are locked after submission. Changes require an explicit approval from the Admin, creating an audit trail.
 
 ---
 
-## Summary — The Business Value
+## Summary: The Business Value
 
 | Area | What the System Solves |
 |---|---|
 | **Trip Operations** | Complete end-to-end trip lifecycle from booking to invoice, with clear accountability at every step |
 | **Financial Accuracy** | Trip sheets, closures, and invoices are cross-checked in three separate steps before money moves |
 | **Fleet Health** | Every truck's documents, maintenance history, fuel logs, and tyres are tracked in one place |
-| **Compliance** | The system proactively alerts the team 30 days before any document expires — no more surprises |
+| **Compliance** | The system proactively alerts the team 30 days before any document expires, so there are no surprises |
 | **EMI & Payments** | Loan and recurring payment due dates trigger automatic reminders 7 days in advance |
 | **People Management** | Attendance, leave, and compensation for all drivers and staff managed centrally |
-| **Access Control** | Every action is tied to a logged-in user with a specific role — no unauthorised changes |
-| **Real-Time Awareness** | The notification bell updates live across the whole team — no need to ask "has it been done yet?" |
+| **Access Control** | Every action is tied to a logged-in user with a specific role, no unauthorised changes |
+| **Real-Time Awareness** | The notification bell updates live across the whole team, so nobody has to ask "has it been done yet?" |

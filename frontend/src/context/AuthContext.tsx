@@ -56,11 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user && pathname !== "/login") {
       router.replace("/login");
     } else if (user) {
-      const isCoordinator = user.softwareDesignation === "Yard Staff";
+      // Roles without a dashboard land on their dedicated workspace instead of "/"
+      const roleHome =
+        user.softwareDesignation === "Yard Staff"
+          ? "/trips/sheet-collection"
+          : user.softwareDesignation === "Trip Sheet Register"
+            ? "/trips/reconciliation"
+            : "/";
       if (pathname === "/login") {
-        router.replace(isCoordinator ? "/trips/sheet-collection" : "/");
-      } else if (isCoordinator && pathname === "/") {
-        router.replace("/trips/sheet-collection");
+        router.replace(roleHome);
+      } else if (roleHome !== "/" && pathname === "/") {
+        router.replace(roleHome);
       }
     }
   }, [user, ready, pathname, router]);
@@ -99,7 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const home =
       authUser.softwareDesignation === "Yard Staff"
         ? "/trips/sheet-collection"
-        : "/";
+        : authUser.softwareDesignation === "Trip Sheet Register"
+          ? "/trips/reconciliation"
+          : "/";
     router.replace(home);
   }
 

@@ -44,11 +44,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
   ],
   "Trip Sheet Register": [
-    "/",
     "/trips/reconciliation",
-    "/resources/customers",
-    "/resources/vendors",
-    "/maintenance/trucks",
     "/maintenance/fuel-history",
   ],
 };
