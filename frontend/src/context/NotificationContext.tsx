@@ -35,7 +35,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   alertsRef.current = sheetAlerts;
 
   const isAdmin = user?.softwareDesignation === "Admin";
-  const canReceive = isAdmin || user?.softwareDesignation === "Fleet Manager";
+  // Admin + Fleet Manager get sheet alerts; Finance Manager additionally gets payment reminders.
+  const canReceive =
+    isAdmin ||
+    user?.softwareDesignation === "Fleet Manager" ||
+    user?.softwareDesignation === "Finance Manager";
 
   // Server-backed: fetch on login, poll every 20s, and refetch instantly when
   // the WebSocket reports a data change — works even if the socket is down.

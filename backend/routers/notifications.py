@@ -88,39 +88,46 @@ def list_reminders(
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    """All upcoming/overdue renewals and payments. Admin sees everything;
-    Fleet Manager sees vehicle & driver document renewals."""
-    if current_user.role not in ("Admin", "Fleet Manager"):
+    """Upcoming/overdue reminders, split by role:
+    - Renewals (vehicle & driver documents): Admin + Fleet Manager
+    - Payments (EMI & recurring): Admin + Finance Manager
+    Admin sees both."""
+    role = current_user.role
+    show_renewals = role in ("Admin", "Fleet Manager")
+    show_payments = role in ("Admin", "Finance Manager")
+    if not show_renewals and not show_payments:
         return []
 
     reminders = []
 
-    # -- Truck document renewals ------------------------------------------
-    trucks = db.query(models.Truck).all()
-    for t in trucks:
-        entity = t.registration_number
-        for kind, label, expiry in (
-            ("insurance", "Insurance", t.insurance_expiry_date),
-            ("fc", "Fitness Certificate (FC)", t.fc_expiry_date),
-            ("rc", "RC Validity", t.rc_validity_date),
-            ("road_tax", "Road Tax", t.road_tax_date),
-            ("national_permit", "National Permit", t.national_permit_date),
-            ("local_permit", "Local Permit", t.local_permit_date),
-            ("pollution", "Pollution Certificate", t.pollution_certificate_date),
-        ):
-            r = _doc_reminder(kind, label, entity, expiry, "/maintenance/compliance")
+    # -- Renewals (Admin + Fleet Manager) ---------------------------------
+    if show_renewals:
+        # Truck document renewals
+        trucks = db.query(models.Truck).all()
+        for t in trucks:
+            entity = t.registration_number
+            for kind, label, expiry in (
+                ("insurance", "Insurance", t.insurance_expiry_date),
+                ("fc", "Fitness Certificate (FC)", t.fc_expiry_date),
+                ("rc", "RC Validity", t.rc_validity_date),
+                ("road_tax", "Road Tax", t.road_tax_date),
+                ("national_permit", "National Permit", t.national_permit_date),
+                ("local_permit", "Local Permit", t.local_permit_date),
+                ("pollution", "Pollution Certificate", t.pollution_certificate_date),
+            ):
+                r = _doc_reminder(kind, label, entity, expiry, "/maintenance/compliance")
+                if r:
+                    reminders.append(r)
+
+        # Driver license expiry
+        drivers = db.query(models.Driver).all()
+        for d in drivers:
+            r = _doc_reminder("license", "Driving License", d.name, d.license_expiry_date, "/resources/drivers")
             if r:
                 reminders.append(r)
 
-    # -- Driver license expiry --------------------------------------------
-    drivers = db.query(models.Driver).all()
-    for d in drivers:
-        r = _doc_reminder("license", "Driving License", d.name, d.license_expiry_date, "/resources/drivers")
-        if r:
-            reminders.append(r)
-
-    # -- Finance reminders: Admin only --------------------------------------
-    if current_user.role == "Admin":
+    # -- Payments (Admin + Finance Manager) -------------------------------
+    if show_payments:
         today = date.today()
         for e in db.query(models.EmiRecord).all():
             # skip loans already finished

@@ -42,7 +42,6 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
   ],
   "Yard Staff": [
-    "/",
     "/trips/sheet-collection",
     "/attendance/leave-requests",
   ],

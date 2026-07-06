@@ -108,9 +108,18 @@ export function Topbar() {
   const backendOnline = useBackendStatus();
   const { user, logout } = useAuth();
 
-  const isAdmin        = user?.softwareDesignation === "Admin";
-  const isFleetManager = user?.softwareDesignation === "Fleet Manager";
-  const isStaff        = user?.softwareDesignation === "Trip Sheet Register";
+  const isAdmin          = user?.softwareDesignation === "Admin";
+  const isFleetManager   = user?.softwareDesignation === "Fleet Manager";
+  const isFinanceManager = user?.softwareDesignation === "Finance Manager";
+  const isStaff          = user?.softwareDesignation === "Trip Sheet Register";
+  // Header for the reminders block depends on what the role actually receives
+  const remindersHeading = isAdmin
+    ? "Renewals & Payments"
+    : isFleetManager
+    ? "Renewals"
+    : isFinanceManager
+    ? "Payments"
+    : "Reminders";
 
   // ── Global search ──────────────────────────────────────────────────────
   const [globalQuery, setGlobalQuery] = useState("");
@@ -381,7 +390,7 @@ export function Topbar() {
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isStaff && editApprovalNotifs.length === 0 ? (
+              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && editApprovalNotifs.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <Bell className="h-8 w-8 text-gray-200" />
                   <p className="text-sm font-medium text-gray-500">No notifications yet</p>
@@ -434,11 +443,11 @@ export function Topbar() {
                     </div>
                   )}
 
-                  {/* ── Renewals & Payments (Admin + Fleet Manager) ── */}
+                  {/* ── Renewals / Payments (role-dependent) ── */}
                   {reminders.length > 0 && (
                     <div>
                       <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
-                        Renewals &amp; Payments
+                        {remindersHeading}
                       </p>
                       <ul className="divide-y divide-gray-50">
                         {reminders.map((rem, i) => (
@@ -629,7 +638,7 @@ export function Topbar() {
                   {sheetAlerts.length === 0 &&
                    reminders.length === 0 &&
                    editApprovalNotifs.length === 0 &&
-                   (isStaff || isFleetManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0)) && (
+                   (isStaff || isFleetManager || isFinanceManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Bell className="h-8 w-8 text-gray-200" />
                       <p className="text-sm font-medium text-gray-500">No notifications</p>

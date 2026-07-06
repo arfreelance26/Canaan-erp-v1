@@ -257,31 +257,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const currentTruck   = trucks.find((t) => t.truckId === form.vehicleId);
   const displayVehicle = currentTruck?.registrationNumber ?? form.vehicleId;
   const displayDriver  = drivers.find((d) => d.driverId === form.driverId)?.name ?? form.driverId;
-  const startKmTooLow  = !ro && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
+  // Only validate against the live odometer for a NEW sheet. When editing an existing
+  // sheet, the truck's odometer was already advanced to this sheet's end km on save,
+  // so comparing its start km against the odometer would always false-positive.
+  const startKmTooLow  = !ro && !existingSheet && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-3xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-        {!ro && (auto ? (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
-            <span>✓</span>
-            <span>Auto-fetched fields are <span className="font-semibold">unlocked</span>. Changes here update the trip record itself.</span>
-          </div>
-        ) : onRequestAutoEdit ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
-            <p className="text-sm text-amber-800">
-              Auto-fetched fields (greyed out) are locked. To correct them, request edit access from the Admin.
-            </p>
-            <button
-              type="button"
-              onClick={onRequestAutoEdit}
-              className="shrink-0 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
-            >
-              Request Edit Access
-            </button>
-          </div>
-        ) : null)}
+        
 
         {/* ── 1. Trip Information ── */}
         <p className={sh}>Trip Information</p>
@@ -580,19 +565,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 8. Driver Settlement ── */}
         <p className={sh}>Driver Settlement</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Driver Compensation Type">
-            {auto ? (
-              <select className={inputClass} value={form.driverCompensationType} onChange={(e) => set("driverCompensationType", e.target.value)}>
-                <option value="">Select type</option>
-                <option value="FIXED">FIXED</option>
-                <option value="PER KM">PER KM</option>
-              </select>
-            ) : (
-              <input className={roClass} value={form.driverCompensationType} readOnly disabled />
-            )}
-          </Field>
-        </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field label="Driver Batta Amount (₹)">
             <DecimalInput type="number" min="0" className={fc} value={form.driverPay} readOnly={ro} onChange={(e) => set("driverPay", e.target.value)} placeholder="e.g. 1000" />

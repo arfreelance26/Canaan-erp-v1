@@ -332,10 +332,18 @@ export function TripFormDialog({
       const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-      const driverAdvanceAmount =
-        val === "Normal"
-          ? calcCompensation(prev.transportHireAmount, pct)
-          : "";
+      const rule = BATTA_RULES[prev.tripCategory]?.[prev.containerSpecification];
+      let driverAdvanceAmount: string;
+      if (val === "Normal") {
+        // Auto-calculated from hire amount and branch percentage
+        driverAdvanceAmount = calcCompensation(prev.transportHireAmount, pct);
+      } else if (rule) {
+        // FIXED with a known rule for this category/container → auto-set the fixed rate
+        driverAdvanceAmount = rule.amount;
+      } else {
+        // FIXED with no rule → keep whatever is there for the user to edit
+        driverAdvanceAmount = prev.driverAdvanceAmount;
+      }
       return { ...prev, driverCompensationType: val as Trip["driverCompensationType"], driverAdvanceAmount };
     });
   }
