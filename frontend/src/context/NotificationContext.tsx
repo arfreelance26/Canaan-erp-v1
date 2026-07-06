@@ -24,7 +24,7 @@ type NotificationCtx = {
 
 const NotificationContext = createContext<NotificationCtx | null>(null);
 
-const POLL_MS = 20000;
+const POLL_MS = 10000;
 const REALTIME_DEBOUNCE_MS = 1500;
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
@@ -49,7 +49,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         .then((rows) => {
           if (cancelled) return;
           setSheetAlerts((prev) => {
-            const localOnly = prev.filter((a) => a.serverId === undefined);
             const fromServer = rows.map((r) => ({
               serverId: r.id,
               tripDbId: 0,
@@ -58,6 +57,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               reportedBy: r.createdBy,
               alertedAt: r.createdAt,
             }));
+            // keep local (WS-pushed) alerts only if the server copy hasn't arrived yet
+            const localOnly = prev.filter(
+              (a) =>
+                a.serverId === undefined &&
+                !fromServer.some((s) => s.tripIdStr === a.tripIdStr && s.bookingRef === a.bookingRef)
+            );
             return [...fromServer, ...localOnly];
           });
         })
@@ -82,11 +87,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       debounce = setTimeout(load, REALTIME_DEBOUNCE_MS);
     });
 
+    // Refetch the moment the tab regains focus (user switches back to Admin tab)
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+
     return () => {
       cancelled = true;
       clearInterval(id);
       if (debounce) clearTimeout(debounce);
       unsub();
+      window.removeEventListener("focus", onFocus);
     };
   }, [canReceive]);
 

@@ -48,6 +48,18 @@ function timeAgo(raw: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function fmtIST(raw: string): string {
+  if (!raw) return "";
+  const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit", month: "short",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+}
+
 type EditRequestNotif = {
   id: number;
   staffName: string;
@@ -344,7 +356,11 @@ export function Topbar() {
                                 )}
                                 <p className="text-[11px] text-orange-700 font-medium">Please follow up immediately.</p>
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(alert.alertedAt)}</span>
+                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                                {timeAgo(alert.alertedAt)}
+                                <br />
+                                {fmtIST(alert.alertedAt)}
+                              </span>
                             </button>
                           </li>
                         ))}

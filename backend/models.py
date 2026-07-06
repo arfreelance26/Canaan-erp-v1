@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Enum, ForeignKey,
     Integer, JSON, LargeBinary, Numeric, String, Text, UniqueConstraint, func,
@@ -728,4 +728,6 @@ class Notification(Base):
     created_by = Column(String(100))                       # reporter's name
     created_by_role = Column(String(50))
     is_read = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=func.now())
+    # Python-side UTC default (not func.now()): the DB server clock may be in any
+    # timezone, but the API serializer stamps naive datetimes as UTC — they must match.
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
