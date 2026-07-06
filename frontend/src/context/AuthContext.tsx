@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { disconnectRealtime } from "@/lib/realtime";
 
 export type AuthUser = {
   id: number | null;
@@ -103,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     localStorage.removeItem(STORAGE_KEY);
+    disconnectRealtime();
     setUser(null);
     router.replace("/login");
   }

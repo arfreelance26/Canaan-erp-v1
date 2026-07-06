@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import time
 
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -112,6 +113,28 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+_MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# Paths whose mutations should NOT trigger a broadcast (auth = login attempts, ws = n/a)
+_REALTIME_EXEMPT_PREFIXES = ("/auth", "/ws")
+
+
+@app.middleware("http")
+async def realtime_broadcast(request: Request, call_next):
+    """After any successful mutating request, notify all connected clients which
+    resource changed so open pages can refetch instantly instead of polling."""
+    response = await call_next(request)
+    if (
+        request.method in _MUTATING_METHODS
+        and response.status_code < 400
+        and not request.url.path.startswith(_REALTIME_EXEMPT_PREFIXES)
+    ):
+        # "/trips/12/collect-sheet" -> resource "trips"
+        resource = request.url.path.strip("/").split("/", 1)[0]
+        if resource:
+            ws_manager.emit_soon("data_changed", {"resource": resource, "path": request.url.path})
+    return response
+
+
 # All business routers require a valid JWT (see security.py).
 AUTH = [Depends(get_current_user)]
 # Finance data additionally requires the Finance Manager (or Admin) role.
@@ -182,13 +205,27 @@ def health_check():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = ""):
     try:
-        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
-        await websocket.close(code=1008)
+        await websocket.close(code=1008)  # policy violation: bad/expired token
         return
-    await ws_manager.connect(websocket)
+    token_exp = payload.get("exp", 0)
+
+    if not await ws_manager.connect(websocket):
+        return  # server at connection capacity
     try:
         while True:
-            await websocket.receive_text()  # keep-alive; client can send pings
+            # Wake up at least every 60s to re-check token expiry even if idle
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=60)
+            except asyncio.TimeoutError:
+                msg = None
+            if token_exp and time.time() > token_exp:
+                await websocket.close(code=4001)  # session expired — client should re-auth
+                break
+            if msg == "ping":
+                await websocket.send_text('{"type":"pong"}')
     except WebSocketDisconnect:
+        pass
+    finally:
         ws_manager.disconnect(websocket)

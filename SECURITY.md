@@ -75,12 +75,22 @@ Every response now carries:
 
 ---
 
+## 8. Realtime updates (WebSocket)
+
+- `GET /ws?token=<jwt>` — connection is **rejected (1008)** without a valid, unexpired JWT.
+- Live connections are **closed (4001)** when the token expires mid-session; the client reconnects after re-login.
+- **Connection cap** (500) prevents connection-flood exhaustion; excess connections get `1013 Try Again Later`.
+- Server broadcasts only a lightweight `{resource, path}` notification on data changes — **no business data travels over the socket**, so a leaked frame reveals nothing sensitive. Clients refetch through the authenticated REST API.
+- Broadcasts are **debounced (250ms per resource)** server-side and refreshes debounced (300ms) client-side, so bulk operations cannot trigger client refetch storms.
+- Frontend auto-reconnects with exponential backoff (1s→30s) and sends a 30s heartbeat so proxies don't drop idle connections. If the socket is down, pages **fall back to polling automatically** — the app never goes stale.
+
 ## Deployment checklist
 
 1. `backend/.env`: set a strong `ADMIN_PASSWORD`, set `CORS_ORIGINS` to the real frontend URL. (`SECRET_KEY` already generated.)
 2. Restart the backend. **All users must log in again once** (old sessions have no token).
-3. Serve the backend over **HTTPS** in production (tokens travel in headers; TLS protects them in transit).
+3. Serve the backend over **HTTPS** in production (tokens travel in headers; TLS protects them in transit). The WebSocket then runs over **WSS** automatically.
 4. Assign the correct *Software Designation* to each staff member — it now controls real API permissions, not just menu visibility.
+5. **cPanel/GoDaddy specifics:** run uvicorn behind the Apache/LiteSpeed proxy with WebSocket proxying enabled (`.htaccess`: `RewriteCond %{HTTP:Upgrade} websocket [NC]` → proxy `/ws` to the uvicorn port with `ws://`). Run a **single uvicorn worker** (`--workers 1`) — the in-memory connection manager and login-lockout tracker are per-process; multiple workers would fragment broadcasts. One worker comfortably handles hundreds of concurrent ERP users.
 
 ## Known limitations / future work
 
