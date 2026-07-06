@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
-import { notificationsApi } from "@/lib/api";
+import { notificationsApi, remindersApi, type Reminder } from "@/lib/api";
+import { subscribeRealtime } from "@/lib/realtime";
 import { useAuth } from "./AuthContext";
 
 export type SheetAlertNotif = {
@@ -15,6 +16,7 @@ export type SheetAlertNotif = {
 
 type NotificationCtx = {
   sheetAlerts: SheetAlertNotif[];
+  reminders: Reminder[];
   pushSheetAlert: (alert: Omit<SheetAlertNotif, "alertedAt">) => void;
   dismissSheetAlert: (index: number) => void;
   clearSheetAlerts: () => void;
@@ -23,23 +25,25 @@ type NotificationCtx = {
 const NotificationContext = createContext<NotificationCtx | null>(null);
 
 const POLL_MS = 20000;
+const REALTIME_DEBOUNCE_MS = 1500;
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [sheetAlerts, setSheetAlerts] = useState<SheetAlertNotif[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const alertsRef = useRef(sheetAlerts);
   alertsRef.current = sheetAlerts;
 
-  const canReceive =
-    user?.softwareDesignation === "Admin" || user?.softwareDesignation === "Fleet Manager";
+  const isAdmin = user?.softwareDesignation === "Admin";
+  const canReceive = isAdmin || user?.softwareDesignation === "Fleet Manager";
 
-  // Server-backed: fetch unread notifications on login and poll — works even
-  // when the WebSocket is down (proxy limitations, backend restarts, late login).
+  // Server-backed: fetch on login, poll every 20s, and refetch instantly when
+  // the WebSocket reports a data change — works even if the socket is down.
   useEffect(() => {
     if (!canReceive) return;
     let cancelled = false;
 
-    const load = () =>
+    const load = () => {
       notificationsApi
         .list(true)
         .then((rows) => {
@@ -58,12 +62,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
         })
         .catch(() => {});
+      remindersApi
+        .list()
+        .then((rows) => {
+          if (!cancelled) setReminders(rows);
+        })
+        .catch(() => {});
+    };
 
     load();
     const id = setInterval(load, POLL_MS);
+
+    // Realtime: any data change (truck edited, EMI added, sheet unmarked…)
+    // triggers an immediate refetch, debounced against bursts.
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const unsub = subscribeRealtime((event) => {
+      if (event.type !== "data_changed" && !event.type.startsWith("sheet_")) return;
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(load, REALTIME_DEBOUNCE_MS);
+    });
+
     return () => {
       cancelled = true;
       clearInterval(id);
+      if (debounce) clearTimeout(debounce);
+      unsub();
     };
   }, [canReceive]);
 
@@ -93,7 +116,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <NotificationContext.Provider value={{ sheetAlerts, pushSheetAlert, dismissSheetAlert, clearSheetAlerts }}>
+    <NotificationContext.Provider
+      value={{ sheetAlerts, reminders, pushSheetAlert, dismissSheetAlert, clearSheetAlerts }}
+    >
       {children}
     </NotificationContext.Provider>
   );

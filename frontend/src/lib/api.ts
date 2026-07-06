@@ -1625,3 +1625,30 @@ export const notificationsApi = {
   markRead: (id: number) => req<B>(`/notifications/${id}/read`, { method: "POST" }),
   markAllRead: () => req<{ ok: boolean }>("/notifications/read-all", { method: "POST" }),
 };
+
+export type Reminder = {
+  kind: string;
+  severity: "overdue" | "due_soon";
+  title: string;
+  detail: string;
+  entity: string;
+  dueDate: string;
+  daysLeft: number;
+  href: string;
+};
+
+export const remindersApi = {
+  list: () =>
+    req<B[]>("/notifications/reminders").then((rows) =>
+      rows.map((r) => ({
+        kind: String(r.kind ?? ""),
+        severity: (r.severity === "overdue" ? "overdue" : "due_soon") as Reminder["severity"],
+        title: String(r.title ?? ""),
+        detail: String(r.detail ?? ""),
+        entity: String(r.entity ?? ""),
+        dueDate: String(r.due_date ?? ""),
+        daysLeft: Number(r.days_left ?? 0),
+        href: String(r.href ?? "/"),
+      }))
+    ),
+};

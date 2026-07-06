@@ -76,7 +76,7 @@ export function Topbar() {
   const isFleetManager = user?.softwareDesignation === "Fleet Manager";
   const isStaff        = user?.softwareDesignation === "Staff";
 
-  const { sheetAlerts, pushSheetAlert, dismissSheetAlert } = useNotifications();
+  const { sheetAlerts, reminders, pushSheetAlert, dismissSheetAlert } = useNotifications();
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -260,6 +260,7 @@ export function Topbar() {
           {(() => {
             const totalBadge =
               sheetAlerts.length +
+              reminders.length +
               (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
               (isStaff ? editApprovalNotifs.length : 0);
             return (
@@ -290,6 +291,7 @@ export function Topbar() {
                 {(() => {
                   const count =
                     sheetAlerts.length +
+                    reminders.length +
                     (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
                     (isStaff ? editApprovalNotifs.length : 0);
                   return count > 0 ? (
@@ -343,6 +345,50 @@ export function Topbar() {
                                 <p className="text-[11px] text-orange-700 font-medium">Please follow up immediately.</p>
                               </div>
                               <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(alert.alertedAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* ── Renewals & Payments (Admin + Fleet Manager) ── */}
+                  {reminders.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                        Renewals &amp; Payments
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {reminders.map((rem, i) => (
+                          <li key={`rem-${rem.kind}-${rem.entity}-${i}`}>
+                            <button
+                              type="button"
+                              onClick={() => { setIsNotifOpen(false); router.push(rem.href); }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/60"
+                            >
+                              <div className={cn(
+                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                                rem.severity === "overdue" ? "bg-red-100" : "bg-amber-100"
+                              )}>
+                                <CalendarClock className={cn(
+                                  "h-3.5 w-3.5",
+                                  rem.severity === "overdue" ? "text-red-600" : "text-amber-600"
+                                )} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">{rem.title}</p>
+                                <p className="text-[11px] text-gray-600">{rem.detail}</p>
+                                <p className={cn(
+                                  "text-[11px] font-medium",
+                                  rem.severity === "overdue" ? "text-red-700" : "text-amber-700"
+                                )}>
+                                  {rem.daysLeft < 0
+                                    ? `Overdue by ${Math.abs(rem.daysLeft)} day${Math.abs(rem.daysLeft) === 1 ? "" : "s"}`
+                                    : rem.daysLeft === 0
+                                    ? "Due today"
+                                    : `${rem.daysLeft} day${rem.daysLeft === 1 ? "" : "s"} left`}
+                                </p>
+                              </div>
                             </button>
                           </li>
                         ))}
@@ -485,6 +531,7 @@ export function Topbar() {
 
                   {/* Empty state */}
                   {sheetAlerts.length === 0 &&
+                   reminders.length === 0 &&
                    editApprovalNotifs.length === 0 &&
                    (isStaff || isFleetManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
