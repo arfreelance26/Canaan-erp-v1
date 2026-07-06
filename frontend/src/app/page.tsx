@@ -166,7 +166,7 @@ export default function DashboardPage() {
     return <FinanceManagerDashboard />;
   }
 
-  if (user?.softwareDesignation === "Trip Sheet Coordinator") {
+  if (user?.softwareDesignation === "Trip Sheet Register") {
     return <StaffDashboard />;
   }
 

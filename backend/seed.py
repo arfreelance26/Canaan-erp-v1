@@ -729,7 +729,7 @@ def seed():
                 applied_at=datetime(2026, 6, 28, 14, 0, 0),
             ),
             models.LeaveRequest(
-                category="Trip Sheet Coordinator", applicant_id=staff[1].id,
+                category="Trip Sheet Register", applicant_id=staff[1].id,
                 applicant_name="Karthik Subramaniam", applicant_code="STF-1002",
                 from_date=date(2026, 7, 14), to_date=date(2026, 7, 16),
                 reason="Personal travel - annual family trip",

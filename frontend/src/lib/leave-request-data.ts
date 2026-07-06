@@ -4,7 +4,7 @@ export const LEAVE_CATEGORIES: LeaveApplicantCategory[] = [
   "Driver",
   "Fleet Manager",
   "Tyre Manager",
-  "Trip Sheet Coordinator",
+  "Trip Sheet Register",
   "Yard Staff",
 ];
 
@@ -47,7 +47,7 @@ export const initialLeaveRequests: LeaveRequest[] = [
   },
   {
     id: "4",
-    category: "Trip Sheet Coordinator",
+    category: "Trip Sheet Register",
     applicantId: "1",
     applicantName: "Anita Menon",
     applicantCode: "STF-1001",

@@ -145,9 +145,9 @@ class Staff(Base):
     department = Column(String(100))
     designation = Column(String(100))
     software_designation = Column(
-        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"),
+        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"),
         nullable=False,
-        default="Trip Sheet Coordinator",
+        default="Trip Sheet Register",
     )
     date_of_birth = Column(Date)
     date_of_joining = Column(Date)
@@ -525,7 +525,7 @@ class LeaveRequest(Base):
     __tablename__ = "leave_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"), nullable=False)
+    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"), nullable=False)
     applicant_id = Column(Integer, nullable=False)                      # driver.id or staff.id
     applicant_name = Column(String(100), nullable=False)
     applicant_code = Column(String(20))                                 # CGI-D001 / STF-1001

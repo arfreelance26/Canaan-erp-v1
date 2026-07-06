@@ -160,7 +160,7 @@ class DriverOut(DriverBase):
 # Staff
 # ---------------------------------------------------------------------------
 
-SoftwareDesignation = Literal["Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"]
+SoftwareDesignation = Literal["Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"]
 
 
 class StaffBase(OrmBase):
@@ -168,7 +168,7 @@ class StaffBase(OrmBase):
     name: str
     department: Optional[str] = None
     designation: Optional[str] = None
-    software_designation: SoftwareDesignation = "Trip Sheet Coordinator"
+    software_designation: SoftwareDesignation = "Trip Sheet Register"
     date_of_birth: Optional[date] = None
     date_of_joining: Optional[date] = None
     email: Optional[str] = None
@@ -699,7 +699,7 @@ class EditApprovalRequestOut(OrmBase):
 # Leave Requests
 # ---------------------------------------------------------------------------
 
-LeaveCategory = Literal["Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"]
+LeaveCategory = Literal["Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"]
 LeaveStatus = Literal["Pending", "Approved", "Rejected"]
 
 class ApplicantLookupOut(OrmBase):

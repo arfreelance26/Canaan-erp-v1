@@ -43,7 +43,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/trips/sheet-collection",
     "/attendance/leave-requests",
   ],
-  "Trip Sheet Coordinator": [
+  "Trip Sheet Register": [
     "/",
     "/trips/reconciliation",
     "/resources/customers",
@@ -78,7 +78,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Coordinator");
+  const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
 
   return (
     <aside className="flex h-screen w-[280px] shrink-0 flex-col border-r border-white/50 bg-white/60 backdrop-blur-xl shadow-sm">

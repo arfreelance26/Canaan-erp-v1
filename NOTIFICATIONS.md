@@ -183,9 +183,9 @@ Panel sections (top to bottom):
 | Renewals & Payments | red (overdue) / amber (due soon) | Admin (+ FM for documents) | `NotificationContext.reminders` |
 | Leave Requests | blue | Admin | REST + `leave_request_created` WS |
 | Edit Requests | purple | Admin | REST + `edit_approval_created` WS |
-| Edit Access Approved | green | Trip Sheet Coordinator | `edit_approval_updated` WS |
+| Edit Access Approved | green | Trip Sheet Register | `edit_approval_updated` WS |
 
-- Badge count = sheet alerts + reminders + role-specific items (leave/edit requests for Admin, edit approvals for Trip Sheet Coordinator).
+- Badge count = sheet alerts + reminders + role-specific items (leave/edit requests for Admin, edit approvals for Trip Sheet Register).
 - Sheet alerts show reporter name, relative time ("5m ago") **and absolute IST time** ("05 Jul, 06:34 pm").
 - Reminder rows show a countdown: "Due today", "N days left", or "Overdue by N days".
 - Clicking a row dismisses it (server-side for persisted ones) and navigates to the relevant page.
@@ -220,7 +220,7 @@ tripsApi.collectSheet(dbId) / unmarkSheet(dbId) / flagSheetMissing(dbId)
 | `sheet_not_received_alert` | unmark-sheet | + `reported_by_role`, `message` | Topbar, reconciliation page (SweetAlert) |
 | `sheet_alert` | flag-sheet-missing | trip ids, booking ref | Topbar |
 | `leave_request_created` / `leave_request_updated` | attendance router | request fields | Topbar (Admin) |
-| `edit_approval_created` / `edit_approval_updated` | edit-approvals router | request fields, `staff_db_id`, `status` | Topbar (Admin / Trip Sheet Coordinator) |
+| `edit_approval_created` / `edit_approval_updated` | edit-approvals router | request fields, `staff_db_id`, `status` | Topbar (Admin / Trip Sheet Register) |
 | `trip_created` / `trip_updated` / `trip_closed` | trips router | trip ids | trip pages |
 
 ---

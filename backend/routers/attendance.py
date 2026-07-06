@@ -205,7 +205,7 @@ def lookup_applicant(code: str, db: Session = Depends(get_db)):
     staff = db.query(models.Staff).filter(models.Staff.staff_id == code_upper).first()
     if staff:
         return schemas.ApplicantLookupOut(
-            category=staff.software_designation if staff.software_designation in ["Fleet Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"] else "Trip Sheet Coordinator",
+            category=staff.software_designation if staff.software_designation in ["Fleet Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"] else "Trip Sheet Register",
             applicant_id=staff.id,
             applicant_name=staff.name,
             applicant_code=staff.staff_id

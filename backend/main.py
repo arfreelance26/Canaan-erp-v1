@@ -46,29 +46,71 @@ def _run_schema_migrations():
         # Yard Staff workflow
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected_at DATETIME NULL",
-        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Coordinator'",
-        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL",
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL DEFAULT 'Staff'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL",
         # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending'",
-        # Role rename: Trip Sheet Coordinator → Yard Staff, Staff → Trip Sheet Coordinator
-        # Step 1: expand enum to hold all transitional values simultaneously
-        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff') NOT NULL DEFAULT 'Staff'",
-        # Step 2: move old 'Trip Sheet Coordinator' rows to new name 'Yard Staff'
-        "UPDATE staff SET software_designation = 'Yard Staff' WHERE software_designation = 'Trip Sheet Coordinator'",
-        # Step 3: move old 'Staff' rows to new name 'Trip Sheet Coordinator'
-        "UPDATE staff SET software_designation = 'Trip Sheet Coordinator' WHERE software_designation = 'Staff'",
-        # Step 4: finalize enum — remove old 'Staff' value, set new default
-        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Coordinator'",
-        # Same pattern for leave_requests.category
-        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff') NOT NULL",
-        "UPDATE leave_requests SET category = 'Yard Staff' WHERE category = 'Trip Sheet Coordinator'",
-        "UPDATE leave_requests SET category = 'Trip Sheet Coordinator' WHERE category = 'Staff'",
-        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL",
+    ]
+    # Role rename detection must happen BEFORE the enum is expanded: if the column
+    # definition already contains 'Yard Staff', the previous intermediate rename
+    # (Staff → 'Trip Sheet Coordinator') already ran on this DB.
+    _was_intermediate = False
+    with engine.connect() as conn:
+        try:
+            coltype = conn.execute(text(
+                "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' "
+                "AND COLUMN_NAME = 'software_designation'"
+            )).scalar() or ""
+            _was_intermediate = "Yard Staff" in coltype
+        except Exception:
+            pass
+
+    migrations += [
+        # Role rename, step 1: expand enums to hold every historical + final value at once
+        # (old 'Trip Sheet Coordinator' → 'Yard Staff', old 'Staff' → 'Trip Sheet Register')
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff','Trip Sheet Register') NOT NULL DEFAULT 'Staff'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff','Trip Sheet Register') NOT NULL",
     ]
     with engine.connect() as conn:
         for stmt in migrations:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+        conn.commit()
+
+    # Role rename, step 2: data migration. Must be state-aware because a DB may
+    # already have run the intermediate rename (Staff → 'Trip Sheet Coordinator'),
+    # in which case remaining 'Trip Sheet Coordinator' rows are ex-Staff, not yard people.
+    _rename_map_fresh = [  # DB still on original names
+        ("Trip Sheet Coordinator", "Yard Staff"),
+        ("Staff", "Trip Sheet Register"),
+    ]
+    _rename_map_intermediate = [  # DB already ran the previous rename
+        ("Trip Sheet Coordinator", "Trip Sheet Register"),
+    ]
+    with engine.connect() as conn:
+        try:
+            rename_map = _rename_map_intermediate if _was_intermediate else _rename_map_fresh
+            for table, col in (("staff", "software_designation"), ("leave_requests", "category")):
+                for old, new in rename_map:
+                    conn.execute(text(
+                        f"UPDATE {table} SET {col} = :new WHERE {col} = :old"
+                    ), {"new": new, "old": old})
+            conn.commit()
+        except Exception:
+            pass
+
+    # Role rename, step 3: finalize enums to only the current role names
+    _final_enums = [
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Register','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Register'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Register','Yard Staff') NOT NULL",
+    ]
+    with engine.connect() as conn:
+        for stmt in _final_enums:
             try:
                 conn.execute(text(stmt))
             except Exception:

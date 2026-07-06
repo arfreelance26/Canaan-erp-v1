@@ -86,7 +86,7 @@ export function Topbar() {
 
   const isAdmin        = user?.softwareDesignation === "Admin";
   const isFleetManager = user?.softwareDesignation === "Fleet Manager";
-  const isStaff        = user?.softwareDesignation === "Trip Sheet Coordinator";
+  const isStaff        = user?.softwareDesignation === "Trip Sheet Register";
 
   const { sheetAlerts, reminders, pushSheetAlert, dismissSheetAlert } = useNotifications();
 
@@ -124,7 +124,7 @@ export function Topbar() {
     if (!isAdmin) return;
     const req: LeaveRequest = {
       id: String(payload.id),
-      category: (payload.category as LeaveRequest["category"]) ?? "Trip Sheet Coordinator",
+      category: (payload.category as LeaveRequest["category"]) ?? "Trip Sheet Register",
       applicantId: String(payload.applicant_id ?? ""),
       applicantName: String(payload.applicant_name ?? ""),
       applicantCode: "",

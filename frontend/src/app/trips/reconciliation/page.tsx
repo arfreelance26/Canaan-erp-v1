@@ -26,7 +26,7 @@ type DialogMode = "add" | "view" | "edit";
 
 export default function TripReconciliationPage() {
   const { user } = useAuth();
-  const isStaff = user?.softwareDesignation === "Trip Sheet Coordinator";
+  const isStaff = user?.softwareDesignation === "Trip Sheet Register";
   const { pushSheetAlert } = useNotifications();
 
   const [trips, setTrips] = useState<Trip[]>([]);

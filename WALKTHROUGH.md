@@ -27,7 +27,7 @@ There are **6 roles** in the system. Each role has its own login and its own set
 | **Finance Manager** | Handles financial settlement and invoicing of completed trips. Tracks EMI and compliance. |
 | **Tyre Manager** | Manages tyre stock, fitment, and vehicle tyre records. |
 | **Yard Staff** | Receives physical trip sheets from drivers and marks them as delivered in the system. |
-| **Trip Sheet Coordinator** | Enters trip sheet data for reconciliation. Manages customers, vendors, and basic records. |
+| **Trip Sheet Register** | Enters trip sheet data for reconciliation. Manages customers, vendors, and basic records. |
 
 > The Admin can always see and do everything that any other role can do.
 
@@ -44,7 +44,7 @@ Use the credentials below to log in. Open the system in a web browser and enter 
 | Finance Manager | | | |
 | Tyre Manager | | | |
 | Yard Staff | | | |
-| Trip Sheet Coordinator | | | |
+| Trip Sheet Register | | | |
 
 > **Keep these credentials private.** Do not share your username and password with anyone else. If you forget your password, contact the Admin.
 
@@ -123,15 +123,15 @@ When the driver returns, they hand over a **physical trip sheet** (a paper docum
 
 The system records the exact date and time of collection (in Indian Standard Time).
 
-> **Important:** A trip only moves to reconciliation **after** the physical sheet has been marked as delivered here. If the sheet is marked delivered but was never actually received, the Trip Sheet Coordinator in reconciliation can click "Mark as Not Received" — which instantly alerts the Admin via a notification.
+> **Important:** A trip only moves to reconciliation **after** the physical sheet has been marked as delivered here. If the sheet is marked delivered but was never actually received, the Trip Sheet Register in reconciliation can click "Mark as Not Received" — which instantly alerts the Admin via a notification.
 
 ---
 
 ### Step 6 — Trip Sheet Reconciliation
-**Who:** Trip Sheet Coordinator
+**Who:** Trip Sheet Register
 **Where:** Trip Reconciliation page
 
-The Trip Sheet Coordinator sees only the trips whose physical sheets have been confirmed delivered. They enter the detailed **Trip Sheet data** for each trip:
+The Trip Sheet Register sees only the trips whose physical sheets have been confirmed delivered. They enter the detailed **Trip Sheet data** for each trip:
 
 - Trip sheet number and date
 - Start and end odometer readings (total KM)
@@ -197,7 +197,7 @@ The notification bell in the top bar keeps everyone informed in real time. It up
 - **Trip Sheet Alerts** — same as Admin
 - **Renewals & Payments** — vehicle and driver document expiries
 
-### Trip Sheet Coordinator sees:
+### Trip Sheet Register sees:
 - **Edit Access Approved** — confirmation when the Admin has approved their edit request
 
 Notifications are saved in the system. Even if the Admin is logged out when a trip sheet alert is raised, they will see it the next time they log in.
@@ -254,9 +254,9 @@ The Admin sees all pending leave requests and approves or rejects them. The outc
 ---
 
 ### Edit Approvals (`/attendance/edit-approvals`)
-**Who:** Admin (reviews), Trip Sheet Coordinator (requests)
+**Who:** Admin (reviews), Trip Sheet Register (requests)
 
-Some records are locked after they are saved to prevent accidental changes. If a Trip Sheet Coordinator needs to correct something, they submit an edit request explaining what they want to change. The Admin sees this as a notification and can approve it — granting a 1-hour edit window for that specific record.
+Some records are locked after they are saved to prevent accidental changes. If a Trip Sheet Register needs to correct something, they submit an edit request explaining what they want to change. The Admin sees this as a notification and can approve it — granting a 1-hour edit window for that specific record.
 
 ---
 
@@ -291,7 +291,7 @@ All trips that have reached "Completed" status but have not yet moved through re
 ### Sheet Collection (`/trips/sheet-collection`)
 **Who:** Yard Staff
 
-This is the **only page the Yard Staff uses** — it is their dedicated workspace. When a driver returns from a trip and hands in the physical trip sheet (the paper document filled out on the road), the Coordinator opens this page and marks that trip's sheet as "Delivered."
+This is the **only page the Yard Staff uses** — it is their dedicated workspace. When a driver returns from a trip and hands in the physical trip sheet (the paper document filled out on the road), the Yard Staff opens this page and marks that trip's sheet as "Delivered."
 
 Key features:
 - Shows all completed trips waiting for their physical sheet to be received
@@ -300,14 +300,14 @@ Key features:
 - If a sheet has already been submitted into reconciliation, the row is **locked** and cannot be undone — preventing accidental changes to settled records
 - A **stats bar** at the top shows at a glance: total completed trips, how many sheets have been delivered, and how many are still pending
 
-> **What happens next:** Once the Coordinator marks a sheet as delivered, it immediately becomes visible to the Staff in Trip Reconciliation. Nothing reaches reconciliation without going through this step first — this is the quality gate that ensures only physically received documents are processed.
+> **What happens next:** Once the Yard Staff marks a sheet as delivered, it immediately becomes visible to the Staff in Trip Reconciliation. Nothing reaches reconciliation without going through this step first — this is the quality gate that ensures only physically received documents are processed.
 
 ---
 
 ### Trip Reconciliation (`/trips/reconciliation`)
-**Who:** Trip Sheet Coordinator
+**Who:** Trip Sheet Register
 
-Shows only trips whose physical sheets have been confirmed collected. The Trip Sheet Coordinator enters the detailed trip sheet data (expenses, KM, driver settlement) here. The "Mark as Not Received" button sends an alert to the Admin if a sheet was marked collected but never actually arrived.
+Shows only trips whose physical sheets have been confirmed collected. The Trip Sheet Register enters the detailed trip sheet data (expenses, KM, driver settlement) here. The "Mark as Not Received" button sends an alert to the Admin if a sheet was marked collected but never actually arrived.
 
 ---
 
@@ -354,21 +354,21 @@ Full list of all trucks in the fleet. Add new vehicles, track registration numbe
 ---
 
 ### Our Customers (`/resources/customers`)
-**Who:** Admin, Trip Sheet Coordinator
+**Who:** Admin, Trip Sheet Register
 
 Customer master data — company names, contact details, billing information, GST numbers, default origins and destinations for that customer, and pricing agreements.
 
 ---
 
 ### Our Vendors (`/resources/vendors`)
-**Who:** Admin, Trip Sheet Coordinator
+**Who:** Admin, Trip Sheet Register
 
 Vendor master data — all third-party service providers and suppliers the company works with.
 
 ---
 
 ### Truck Maintenance (`/maintenance/trucks`)
-**Who:** Admin, Trip Sheet Coordinator, Tyre Manager
+**Who:** Admin, Trip Sheet Register, Tyre Manager
 
 Logs all maintenance work done on each truck — service dates, type of repair, cost, and the workshop/vendor who did the work. Gives a full service history per vehicle.
 
@@ -389,7 +389,7 @@ Stock list of all tyres owned by the company — new, in-use, and worn out. Trac
 ---
 
 ### Fuel History (`/maintenance/fuel-history`)
-**Who:** Admin, Trip Sheet Coordinator
+**Who:** Admin, Trip Sheet Register
 
 Logs every fuel fill-up for every truck — date, quantity (litres), cost, and odometer reading. Used to track fuel efficiency and cost per KM.
 

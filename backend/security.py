@@ -68,7 +68,7 @@ def get_current_user(request: Request) -> TokenUser:
     return TokenUser(
         id=int(sub) if sub and sub != "admin" else None,
         name=payload.get("name", ""),
-        role=payload.get("role", "Trip Sheet Coordinator"),
+        role=payload.get("role", "Trip Sheet Register"),
         staff_id=payload.get("staff_id"),
     )
 

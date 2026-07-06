@@ -1,6 +1,6 @@
 export type LeaveRequestStatus = "Pending" | "Approved" | "Rejected";
 
-export type LeaveApplicantCategory = "Driver" | "Fleet Manager" | "Tyre Manager" | "Trip Sheet Coordinator" | "Yard Staff";
+export type LeaveApplicantCategory = "Driver" | "Fleet Manager" | "Tyre Manager" | "Trip Sheet Register" | "Yard Staff";
 
 export type LeaveRequest = {
   id: string;
