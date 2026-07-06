@@ -518,7 +518,7 @@ class StaffAttendance(Base):
     marked_at = Column(DateTime)
     source = Column(Enum("Web", "App"), default="Web")
 
-    staff = relationship("Trip Sheet Coordinator", back_populates="attendance_records")
+    staff = relationship("Staff", back_populates="attendance_records")
 
 
 class LeaveRequest(Base):
