@@ -36,7 +36,7 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 function authHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
-    const stored = localStorage.getItem("canaan_erp_user");
+    const stored = sessionStorage.getItem("canaan_erp_user");
     const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
@@ -46,7 +46,7 @@ function authHeaders(): Record<string, string> {
 
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("canaan_erp_user");
+  sessionStorage.removeItem("canaan_erp_user");
   if (!window.location.pathname.startsWith("/login")) {
     window.location.href = "/login";
   }

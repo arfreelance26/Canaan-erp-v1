@@ -109,6 +109,20 @@ export default function TripReconciliationPage() {
   useWebSocketEvent("sheet_unmarked", loadReconciliationData);
   useWebSocketEvent("trip_updated", loadReconciliationData);
 
+  // Admin alert: someone in reconciliation reported a missing physical sheet
+  useWebSocketEvent("sheet_not_received_alert", (payload) => {
+    const isAdminOrManager =
+      user?.softwareDesignation === "Admin" ||
+      user?.softwareDesignation === "Fleet Manager" ||
+      user?.softwareDesignation === "Finance Manager";
+    if (!isAdminOrManager) return;
+    const p = payload as { trip_id_str?: string; booking_reference_no?: string; reported_by?: string };
+    showError(
+      `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Trip Sheet Coordinator but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
+    );
+    loadReconciliationData();
+  });
+
   // Load and refresh active edit approvals for Staff
   useEffect(() => {
     if (!isStaff) return;
@@ -307,14 +321,23 @@ export default function TripReconciliationPage() {
                             </span>
                           </p>
                         )}
-                        <button
-                          type="button"
-                          disabled={toggling.has(trip.id)}
-                          onClick={() => handleMarkNotReceived(trip)}
-                          className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-50 w-fit"
-                        >
-                          {toggling.has(trip.id) ? "..." : "Mark as Not Received"}
-                        </button>
+                        {sheet ? (
+                          <span
+                            title="Trip sheet has already been entered — cannot unmark delivery"
+                            className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-400 cursor-not-allowed w-fit"
+                          >
+                            Locked
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={toggling.has(trip.id)}
+                            onClick={() => handleMarkNotReceived(trip)}
+                            className="rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-50 w-fit"
+                          >
+                            {toggling.has(trip.id) ? "..." : "Mark as Not Received"}
+                          </button>
+                        )}
                       </div>
                     </td>
 

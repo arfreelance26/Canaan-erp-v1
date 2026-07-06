@@ -3,7 +3,7 @@
 /**
  * Singleton WebSocket client for realtime updates.
  *
- * - Connects to the backend /ws endpoint with the JWT from localStorage
+ * - Connects to the backend /ws endpoint with the JWT from sessionStorage (per-tab session)
  * - Auto-reconnects with exponential backoff (1s → 30s max)
  * - Sends a "ping" heartbeat every 30s to keep proxies (cPanel/LiteSpeed) from
  *   dropping the idle connection
@@ -29,7 +29,7 @@ let connected = false;
 
 function getToken(): string | null {
   try {
-    const stored = localStorage.getItem("canaan_erp_user");
+    const stored = sessionStorage.getItem("canaan_erp_user");
     return stored ? (JSON.parse(stored).token ?? null) : null;
   } catch {
     return null;

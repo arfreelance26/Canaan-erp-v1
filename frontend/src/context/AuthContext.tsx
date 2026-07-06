@@ -38,10 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Rehydrate from localStorage on mount
+  // Rehydrate from sessionStorage on mount (per-tab: each browser tab is an
+  // independent session, so two users can work in two tabs without clashing)
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) setUser(JSON.parse(stored));
     } catch {
       /* ignore corrupt storage */
@@ -93,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function completeLogin(authUser: AuthUser) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
     const home =
       authUser.softwareDesignation === "Trip Sheet Coordinator"
@@ -103,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
     disconnectRealtime();
     setUser(null);
     router.replace("/login");

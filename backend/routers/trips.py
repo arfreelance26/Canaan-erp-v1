@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
-from security import require_roles
+from security import require_roles, get_current_user, TokenUser
 import models, schemas
 from duplicate_checks import check_trip_duplicates
 from websocket_manager import emit
@@ -339,18 +339,24 @@ def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
     return _enrich(trip)
 
 
-@router.post(
-    "/{trip_id}/unmark-sheet",
-    response_model=schemas.TripOut,
-    dependencies=[Depends(require_roles("Fleet Manager", "Finance Manager", *SHEET_COLLECTOR_ROLES))],
-)
-def unmark_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
-    """Mark a trip sheet as not received, clearing delivery status from reconciliation."""
+@router.post("/{trip_id}/unmark-sheet", response_model=schemas.TripOut)
+def unmark_trip_sheet(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Mark a trip sheet as not received — clears delivery status and alerts Admin."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
+    if trip.sheet is not None:
+        raise HTTPException(
+            400,
+            "Trip sheet has already been entered in reconciliation and cannot be unmarked. "
+            "Please contact an Admin."
+        )
     if not trip.trip_sheet_collected:
         raise HTTPException(400, "Trip sheet is not currently marked as delivered")
     trip.trip_sheet_collected = False
@@ -361,6 +367,19 @@ def unmark_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
         "trip_db_id": trip_id,
         "trip_id_str": trip.trip_id,
         "booking_reference_no": trip.booking_reference_no,
+    })
+    # Admin notification: a person in reconciliation reported the physical sheet is missing
+    emit("sheet_not_received_alert", {
+        "trip_db_id": trip_id,
+        "trip_id_str": trip.trip_id,
+        "booking_reference_no": trip.booking_reference_no,
+        "reported_by": current_user.name,
+        "reported_by_role": current_user.role,
+        "message": (
+            f"Trip sheet for {trip.trip_id} ({trip.booking_reference_no}) was marked as "
+            f"delivered by the Trip Sheet Coordinator but was NOT received in reconciliation. "
+            f"Reported by {current_user.name} ({current_user.role})."
+        ),
     })
     return _enrich(trip)
 

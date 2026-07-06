@@ -96,5 +96,5 @@ Every response now carries:
 
 - File **downloads** are unauthenticated (browser `<img>` limitation). Fix would be signed short-lived file URLs.
 - Login lockout is in-memory: it resets if the backend restarts, and is per-username rather than per-IP.
-- Tokens are stored in `localStorage`; an XSS vulnerability could read them. React escapes output by default, but avoid `dangerouslySetInnerHTML` with user data.
+- Tokens are stored in `sessionStorage` (per-tab, cleared when the tab closes — each tab is an independent session, so multiple users can work side-by-side in one browser). An XSS vulnerability could still read them; React escapes output by default, but avoid `dangerouslySetInnerHTML` with user data.
 - No audit log yet (who changed what, when). The `version` columns provide conflict detection but not history.
