@@ -12,6 +12,7 @@ import { attendanceApi, editApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useNotifications } from "@/context/NotificationContext";
+import { showToast } from "@/lib/swal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -95,6 +96,7 @@ type EditApprovalNotif = {
   id: number;
   resourceName: string;
   action: string;
+  status: "Approved" | "Rejected";
   expiresAt: string;
   notifiedAt: string;
 };
@@ -225,19 +227,36 @@ export function Topbar() {
     }, ...prev]);
   });
 
-  // Admin approved/rejected — remove from admin list; notify Staff if it's their own
+  // Admin approved/rejected — remove from admin list; notify the requester in realtime
   useWebSocketEvent("edit_approval_updated", (payload) => {
     if (isAdmin) {
       setEditRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
     }
-    if (isStaff && Number(payload.staff_db_id) === user?.id && payload.status === "Approved") {
+    // The staff member who raised this request gets a pop-up toast + bell entry
+    if (!isAdmin && user?.id != null && Number(payload.staff_db_id) === user.id) {
+      const status = String(payload.status ?? "") as "Approved" | "Rejected";
+      const resourceName = String(payload.resource_name ?? "");
       setEditApprovalNotifs((prev) => [{
         id: Number(payload.id),
-        resourceName: String(payload.resource_name ?? ""),
+        resourceName,
         action: String(payload.action ?? ""),
+        status,
         expiresAt: String(payload.expires_at ?? ""),
         notifiedAt: new Date().toISOString(),
       }, ...prev]);
+      if (status === "Approved") {
+        showToast(
+          `You have 1 hour to edit "${resourceName}".`,
+          "success",
+          "Edit access approved",
+        );
+      } else if (status === "Rejected") {
+        showToast(
+          `Your edit request for "${resourceName}" was rejected by the Admin.`,
+          "error",
+          "Edit request rejected",
+        );
+      }
     }
   });
 
@@ -321,7 +340,7 @@ export function Topbar() {
               sheetAlerts.length +
               reminders.length +
               (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
-              (isStaff ? editApprovalNotifs.length : 0);
+              editApprovalNotifs.length;
             return (
               <button
                 type="button"
@@ -352,7 +371,7 @@ export function Topbar() {
                     sheetAlerts.length +
                     reminders.length +
                     (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
-                    (isStaff ? editApprovalNotifs.length : 0);
+                    editApprovalNotifs.length;
                   return count > 0 ? (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
                       {count} unread
@@ -362,7 +381,7 @@ export function Topbar() {
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isStaff ? (
+              {!isAdmin && !isFleetManager && !isStaff && editApprovalNotifs.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <Bell className="h-8 w-8 text-gray-200" />
                   <p className="text-sm font-medium text-gray-500">No notifications yet</p>
@@ -553,14 +572,16 @@ export function Topbar() {
                     </div>
                   )}
 
-                  {/* ── Edit Approval notifications (Staff only) ── */}
-                  {isStaff && editApprovalNotifs.length > 0 && (
+                  {/* ── Edit Request outcomes (the staff member who raised them) ── */}
+                  {editApprovalNotifs.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-green-600">
-                        Edit Access Approved
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                        Edit Request Updates
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {editApprovalNotifs.map((notif, i) => (
+                        {editApprovalNotifs.map((notif, i) => {
+                          const approved = notif.status === "Approved";
+                          return (
                           <li key={`edit-appr-${notif.id}`}>
                             <button
                               type="button"
@@ -568,26 +589,38 @@ export function Topbar() {
                                 setEditApprovalNotifs((prev) => prev.filter((_, idx) => idx !== i));
                                 setIsNotifOpen(false);
                               }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-green-50/60"
+                              className={cn(
+                                "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors",
+                                approved ? "hover:bg-green-50/60" : "hover:bg-red-50/60"
+                              )}
                             >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100">
-                                <User className="h-3.5 w-3.5 text-green-600" />
+                              <div className={cn(
+                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                                approved ? "bg-green-100" : "bg-red-100"
+                              )}>
+                                <User className={cn("h-3.5 w-3.5", approved ? "text-green-600" : "text-red-600")} />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-[12px] font-semibold text-gray-900">
-                                  Your Edit Access has been approved by the Admin
+                                  {approved
+                                    ? "Your edit access has been approved by the Admin"
+                                    : "Your edit request was rejected by the Admin"}
                                 </p>
                                 <p className="text-[11px] text-gray-600">
                                   {notif.action} access for: <span className="font-semibold">{notif.resourceName}</span>
                                 </p>
-                                <p className="text-[11px] text-green-700 font-medium">
-                                  Please do the changes within a Hour.
+                                <p className={cn(
+                                  "text-[11px] font-medium",
+                                  approved ? "text-green-700" : "text-red-700"
+                                )}>
+                                  {approved ? "Please make your changes within 1 hour." : "Contact the Admin if you need access."}
                                 </p>
                               </div>
                               <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.notifiedAt)}</span>
                             </button>
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                     </div>
                   )}

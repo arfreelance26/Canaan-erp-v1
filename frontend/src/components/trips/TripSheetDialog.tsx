@@ -83,13 +83,17 @@ type Props = {
   closure: TripClosureData | undefined;
   existingSheet?: TripSheetData;
   readOnly?: boolean;
+  /** Auto-fetched trip fields become editable (Admin, or approved TripData edit request) */
+  autoEditable?: boolean;
+  /** Called when a non-admin wants to request edit access for the auto-fetched fields */
+  onRequestAutoEdit?: () => void;
   drivers: Driver[];
   trucks: Truck[];
   onClose: () => void;
   onSubmit: (data: TripSheetData) => void;
 };
 
-export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, drivers, trucks, onClose, onSubmit }: Props) {
+export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, autoEditable, onRequestAutoEdit, drivers, trucks, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripSheetData>(emptySheet(""));
   const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
   const [costPerKm, setCostPerKm] = useState<string>("");
@@ -199,6 +203,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           origin: form.from,
           destination: form.to,
           cargoWeight: form.cargoWeight,
+          ...(autoEditable ? {
+            vehicleId: form.vehicleId,
+            driverId: form.driverId,
+            transportHireAmount: form.hireAmount,
+            driverCompensationType: form.driverCompensationType as Trip["driverCompensationType"],
+          } : {}),
         });
       } catch (err: unknown) {
         showError(err instanceof Error ? err.message : "Failed to save trip details.");
@@ -239,6 +249,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const ro = readOnly;
   const fc = ro ? `${inputClass} bg-gray-50 cursor-default` : inputClass;
   const roClass = `w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed`;
+  // Auto-fetched fields: editable only with autoEditable (Admin or approved request)
+  const auto = !!autoEditable && !ro;
+  const ac = auto ? inputClass : roClass;
   const fmt = (v: string) => v ? `₹${n(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00";
 
   const currentTruck   = trucks.find((t) => t.truckId === form.vehicleId);
@@ -250,6 +263,26 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-3xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
+        {!ro && (auto ? (
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+            <span>✓</span>
+            <span>Auto-fetched fields are <span className="font-semibold">unlocked</span>. Changes here update the trip record itself.</span>
+          </div>
+        ) : onRequestAutoEdit ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+            <p className="text-sm text-amber-800">
+              Auto-fetched fields (greyed out) are locked. To correct them, request edit access from the Admin.
+            </p>
+            <button
+              type="button"
+              onClick={onRequestAutoEdit}
+              className="shrink-0 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+            >
+              Request Edit Access
+            </button>
+          </div>
+        ) : null)}
+
         {/* ── 1. Trip Information ── */}
         <p className={sh}>Trip Information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -260,31 +293,61 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <input className={roClass} value={form.bookingReferenceNo} readOnly disabled />
           </Field>
           <Field label="Container Number">
-            <input className={roClass} value={form.containerNumber} readOnly disabled />
+            <input className={ac} value={form.containerNumber} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerNumber", e.target.value)} />
           </Field>
           <Field label="Container Specification">
-            <input className={roClass} value={form.containerType} readOnly disabled />
+            <input className={ac} value={form.containerType} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerType", e.target.value)} />
           </Field>
           <Field label="Shipping Line">
-            <input className={roClass} value={form.line} readOnly disabled />
+            <input className={ac} value={form.line} readOnly={!auto} disabled={!auto} onChange={(e) => set("line", e.target.value)} />
           </Field>
           <Field label="Trip Category">
-            <input className={roClass} value={form.tripType} readOnly disabled />
+            <input className={ac} value={form.tripType} readOnly={!auto} disabled={!auto} onChange={(e) => set("tripType", e.target.value)} />
           </Field>
           <Field label="Assigned Vehicle">
-            <input className={roClass} value={displayVehicle} readOnly disabled />
+            {auto ? (
+              <select className={inputClass} value={form.vehicleId} onChange={(e) => set("vehicleId", e.target.value)}>
+                <option value="">Select truck</option>
+                {trucks.map((t) => (
+                  <option key={t.truckId} value={t.truckId}>{t.registrationNumber} ({t.truckId})</option>
+                ))}
+              </select>
+            ) : (
+              <input className={roClass} value={displayVehicle} readOnly disabled />
+            )}
           </Field>
           <Field label="Assigned Driver">
-            <input className={roClass} value={displayDriver} readOnly disabled />
+            {auto ? (
+              <select className={inputClass} value={form.driverId} onChange={(e) => set("driverId", e.target.value)}>
+                <option value="">Select driver</option>
+                {drivers.map((d) => (
+                  <option key={d.driverId} value={d.driverId}>{d.name} ({d.driverId})</option>
+                ))}
+              </select>
+            ) : (
+              <input className={roClass} value={displayDriver} readOnly disabled />
+            )}
           </Field>
           <Field label="Booking Date">
-            <input className={roClass} value={form.bookingDate ? form.bookingDate.split("-").reverse().join("-") : ""} readOnly disabled />
+            {auto ? (
+              <DatePickerInput value={form.bookingDate} onChange={(v) => set("bookingDate", v)} />
+            ) : (
+              <input className={roClass} value={form.bookingDate ? form.bookingDate.split("-").reverse().join("-") : ""} readOnly disabled />
+            )}
           </Field>
           <Field label="Trip Scheduled Date">
-            <input className={roClass} value={form.tripScheduledDate ? form.tripScheduledDate.split("-").reverse().join("-") : ""} readOnly disabled />
+            {auto ? (
+              <DatePickerInput value={form.tripScheduledDate} onChange={(v) => set("tripScheduledDate", v)} />
+            ) : (
+              <input className={roClass} value={form.tripScheduledDate ? form.tripScheduledDate.split("-").reverse().join("-") : ""} readOnly disabled />
+            )}
           </Field>
           <Field label="Trip Completed Date">
-            <input className={roClass} value={form.tripCompletedDate ? form.tripCompletedDate.split("-").reverse().join("-") : ""} readOnly disabled />
+            {auto ? (
+              <DatePickerInput value={form.tripCompletedDate} onChange={(v) => set("tripCompletedDate", v)} />
+            ) : (
+              <input className={roClass} value={form.tripCompletedDate ? form.tripCompletedDate.split("-").reverse().join("-") : ""} readOnly disabled />
+            )}
           </Field>
           <Field label="Trip Closed Date">
             <input className={roClass} value={closure?.closedAt ? closure.closedAt.split("-").reverse().join("-") : ""} readOnly disabled placeholder="Auto-fetched on close" />
@@ -298,10 +361,10 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Route Information</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="From">
-            <input className={roClass} value={form.from} readOnly disabled />
+            <input className={ac} value={form.from} readOnly={!auto} disabled={!auto} onChange={(e) => set("from", e.target.value)} />
           </Field>
           <Field label="To">
-            <input className={roClass} value={form.to} readOnly disabled />
+            <input className={ac} value={form.to} readOnly={!auto} disabled={!auto} onChange={(e) => set("to", e.target.value)} />
           </Field>
           <Field label="Clearing Agent">
             <input className={fc} value={form.clearingAgent} readOnly={ro} onChange={(e) => set("clearingAgent", e.target.value)} placeholder="e.g. ABC Clearing" />
@@ -312,7 +375,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Hire</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Hire Amount *">
-            <DecimalInput type="number" min="0" className={roClass} value={form.hireAmount} readOnly disabled />
+            <DecimalInput type="number" min="0" className={ac} value={form.hireAmount} readOnly={!auto} disabled={!auto} onChange={(e) => set("hireAmount", e.target.value)} />
           </Field>
         </div>
 
@@ -353,7 +416,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             )}
           </Field>
           <Field label="Cargo Weight (tons)">
-            <input className={roClass} value={form.cargoWeight} readOnly disabled placeholder="Auto-fetched from trip" />
+            <input className={ac} value={form.cargoWeight} readOnly={!auto} disabled={!auto} onChange={(e) => set("cargoWeight", e.target.value)} placeholder="Auto-fetched from trip" />
           </Field>
         </div>
 
@@ -519,7 +582,15 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Driver Settlement</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="Driver Compensation Type">
-            <input className={roClass} value={form.driverCompensationType} readOnly disabled />
+            {auto ? (
+              <select className={inputClass} value={form.driverCompensationType} onChange={(e) => set("driverCompensationType", e.target.value)}>
+                <option value="">Select type</option>
+                <option value="FIXED">FIXED</option>
+                <option value="PER KM">PER KM</option>
+              </select>
+            ) : (
+              <input className={roClass} value={form.driverCompensationType} readOnly disabled />
+            )}
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

@@ -49,10 +49,8 @@ def _run_schema_migrations():
         # Trip Sheet Register receive-confirmation workflow
         "ALTER TABLE trips ADD COLUMN trip_sheet_received BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_received_at DATETIME NULL",
-        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL DEFAULT 'Staff'",
-        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL",
         # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
-        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet') NOT NULL",
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending'",
     ]
@@ -60,6 +58,7 @@ def _run_schema_migrations():
     # definition already contains 'Yard Staff', the previous intermediate rename
     # (Staff → 'Trip Sheet Coordinator') already ran on this DB.
     _was_intermediate = False
+    _rename_done = False
     with engine.connect() as conn:
         try:
             coltype = conn.execute(text(
@@ -68,10 +67,18 @@ def _run_schema_migrations():
                 "AND COLUMN_NAME = 'software_designation'"
             )).scalar() or ""
             _was_intermediate = "Yard Staff" in coltype
+            # Already in final state: has the new role names and none of the old ones.
+            # Skip the whole rename block so production restarts never touch data.
+            _rename_done = (
+                "Trip Sheet Register" in coltype
+                and "'Staff'" not in coltype
+                and "Trip Sheet Coordinator" not in coltype
+            )
         except Exception:
             pass
 
-    migrations += [
+    if not _rename_done:
+        migrations += [
         # Role rename, step 1: expand enums to hold every historical + final value at once
         # (old 'Trip Sheet Coordinator' → 'Yard Staff', old 'Staff' → 'Trip Sheet Register')
         "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff','Trip Sheet Register') NOT NULL DEFAULT 'Staff'",
@@ -84,6 +91,9 @@ def _run_schema_migrations():
             except Exception:
                 pass
         conn.commit()
+
+    if _rename_done:
+        return  # DB already fully migrated — restarts never touch data
 
     # Role rename, step 2: data migration. Must be state-aware because a DB may
     # already have run the intermediate rename (Staff → 'Trip Sheet Coordinator'),

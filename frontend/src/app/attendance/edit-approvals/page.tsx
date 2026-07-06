@@ -8,7 +8,9 @@ import type { EditApprovalRequest } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { Dialog } from "@/components/ui/Dialog";
+import { showSuccess, showError, confirmDelete } from "@/lib/swal";
+import { Trash2 } from "lucide-react";
 
 type FilterValue = "All" | "Pending" | "Approved" | "Rejected";
 
@@ -25,7 +27,15 @@ function timeLeft(expiresAt: string | null): string {
 function formatDate(raw: string | null): string {
   if (!raw) return "—";
   const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
-  return new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(s).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }) + " IST";
 }
 
 export default function EditApprovalsPage() {
@@ -34,6 +44,9 @@ export default function EditApprovalsPage() {
   const [filter, setFilter] = useState<FilterValue>("All");
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewing, setViewing] = useState<EditApprovalRequest | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   async function loadData() {
     try {
@@ -48,6 +61,7 @@ export default function EditApprovalsPage() {
   useAutoRefresh(loadData, 5000);
   useWebSocketEvent("edit_approval_created", loadData);
   useWebSocketEvent("edit_approval_updated", loadData);
+  useWebSocketEvent("edit_approval_deleted", loadData);
 
   const summary = useMemo(() => {
     return requests.reduce(
@@ -84,6 +98,35 @@ export default function EditApprovalsPage() {
       showSuccess("Request rejected.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to reject request.");
+    }
+  }
+
+  function toggleRow(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0 || deleting) return;
+    const res = await confirmDelete(`${selected.size} edit request${selected.size > 1 ? "s" : ""}`);
+    if (!res.isConfirmed) return;
+    setDeleting(true);
+    const ids = [...selected];
+    const failed: string[] = [];
+    await Promise.all(
+      ids.map((id) => editApprovalsApi.remove(id).catch(() => { failed.push(id); }))
+    );
+    setRequests((prev) => prev.filter((r) => !selected.has(r.id) || failed.includes(r.id)));
+    setSelected(new Set());
+    setDeleting(false);
+    if (failed.length === 0) {
+      showSuccess(`${ids.length} request${ids.length > 1 ? "s" : ""} deleted.`);
+    } else {
+      showError(`${ids.length - failed.length} deleted, ${failed.length} failed.`);
+      loadData();
     }
   }
 
@@ -157,6 +200,33 @@ export default function EditApprovalsPage() {
         />
       </div>
 
+      {/* Bulk delete bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <span className="text-sm font-medium text-red-800">
+            {selected.size} request{selected.size > 1 ? "s" : ""} selected
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleting ? "Deleting…" : `Delete ${selected.size}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">
         {filtered.length === 0 ? (
@@ -169,6 +239,21 @@ export default function EditApprovalsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && filtered.every((r) => selected.has(r.id))}
+                      onChange={() =>
+                        setSelected(
+                          filtered.every((r) => selected.has(r.id))
+                            ? new Set()
+                            : new Set(filtered.map((r) => r.id))
+                        )
+                      }
+                      className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                      title="Select all"
+                    />
+                  </th>
                   <th className="px-4 py-3">Staff</th>
                   <th className="px-4 py-3">Resource</th>
                   <th className="px-4 py-3">Action</th>
@@ -184,7 +269,15 @@ export default function EditApprovalsPage() {
                     ? new Date(req.expiresAt.endsWith("Z") ? req.expiresAt : req.expiresAt + "Z") < new Date()
                     : false;
                   return (
-                    <tr key={req.id} className="transition-colors hover:bg-white/60">
+                    <tr key={req.id} className={cn("transition-colors", selected.has(req.id) ? "bg-red-50/60" : "hover:bg-white/60")}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(req.id)}
+                          onChange={() => toggleRow(req.id)}
+                          className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100">
@@ -210,8 +303,15 @@ export default function EditApprovalsPage() {
                           {req.action}
                         </span>
                       </td>
-                      <td className="max-w-[200px] px-4 py-3">
-                        <p className="truncate text-gray-600" title={req.reason}>{req.reason}</p>
+                      <td className="max-w-[220px] px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => setViewing(req)}
+                          className="truncate text-left text-blue-600 hover:text-blue-800 hover:underline"
+                          title="Click to view full request"
+                        >
+                          {req.reason}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(req.createdAt)}</td>
                       <td className="px-4 py-3">
@@ -242,27 +342,33 @@ export default function EditApprovalsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {req.status === "Pending" && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(req.id)}
-                              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleReject(req.id)}
-                              className="rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        )}
-                        {req.status !== "Pending" && (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setViewing(req)}
+                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            View
+                          </button>
+                          {req.status === "Pending" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(req.id)}
+                                className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleReject(req.id)}
+                                className="rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -272,6 +378,75 @@ export default function EditApprovalsPage() {
           </div>
         )}
       </div>
+
+      {/* Request detail modal */}
+      <Dialog open={viewing !== null} onClose={() => setViewing(null)} title="Edit Request Details" className="max-w-lg">
+        {viewing && (
+          <div className="flex flex-col gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Requested By</p>
+                <p className="mt-0.5 font-medium text-gray-900">{viewing.staffName}</p>
+                {viewing.staffCode && <p className="text-[11px] text-gray-400">{viewing.staffCode}</p>}
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Requested At</p>
+                <p className="mt-0.5 text-gray-700">{formatDate(viewing.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Resource</p>
+                <p className="mt-0.5 font-medium text-gray-900">{viewing.resourceName}</p>
+                <p className="text-[11px] text-gray-400">{viewing.resourceType}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Action</p>
+                <span className={cn(
+                  "mt-0.5 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                  viewing.action === "Edit" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                )}>
+                  {viewing.action}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Reason</p>
+              <p className="mt-1 whitespace-pre-wrap rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-gray-700">
+                {viewing.reason || "—"}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+              <span className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                viewing.status === "Pending" ? "bg-yellow-100 text-yellow-700"
+                  : viewing.status === "Approved" ? "bg-green-100 text-green-700"
+                  : "bg-red-100 text-red-700"
+              )}>
+                {viewing.status}
+              </span>
+              {viewing.status === "Pending" && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { handleReject(viewing.id); setViewing(null); }}
+                    className="rounded-lg bg-red-100 px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-200 transition-colors"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { handleApprove(viewing.id); setViewing(null); }}
+                    className="rounded-lg bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+                  >
+                    Approve
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

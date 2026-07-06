@@ -52,12 +52,15 @@ type Props = {
   driver: Driver | undefined;
   truck: Truck | undefined;
   customers: Customer[];
+  /** Full lists for the typable vehicle / driver dropdowns (edit mode) */
+  drivers?: Driver[];
+  trucks?: Truck[];
   readOnly: boolean;
   onClose: () => void;
   onSubmit: (data: TripClosureData) => void;
 };
 
-export function BookingSheetDialog({ open, trip, closure, driver, truck, customers, readOnly, onClose, onSubmit }: Props) {
+export function BookingSheetDialog({ open, trip, closure, driver, truck, customers, drivers = [], trucks = [], readOnly, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripClosureData | null>(null);
   const [tripForm, setTripForm] = useState<Trip | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -78,7 +81,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
       setTripForm({ ...trip });
     }
     if (!open) { setForm(null); setTripForm(null); }
-  }, [open, closure, trip]);
+  }, [open, closure, trip, truck, driver]);
 
   useEffect(() => {
     if (readOnly || !tripForm) return;
@@ -341,10 +344,28 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               <DatePickerInput value={tf.scheduledDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} />
             </Field>
             <Field label="Assigned Vehicle">
-              <input readOnly disabled value={truck?.registrationNumber ?? trip.vehicleId ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={truck?.registrationNumber ?? trip.vehicleId ?? ""} className={roClass} />
+              ) : (
+                <GlassCombobox
+                  value={tf.vehicleId ?? ""}
+                  onChange={(val) => updateTrip("vehicleId", val)}
+                  options={trucks.map((t) => ({ value: t.truckId, label: t.registrationNumber }))}
+                  placeholder="Type truck number to search…"
+                />
+              )}
             </Field>
             <Field label="Assigned Driver">
-              <input readOnly disabled value={driver?.name ?? trip.driverId ?? ""} className={roClass} />
+              {readOnly ? (
+                <input readOnly disabled value={driver?.name ?? trip.driverId ?? ""} className={roClass} />
+              ) : (
+                <GlassCombobox
+                  value={tf.driverId ?? ""}
+                  onChange={(val) => updateTrip("driverId", val)}
+                  options={drivers.map((d) => ({ value: d.driverId, label: d.name }))}
+                  placeholder="Type driver name to search…"
+                />
+              )}
             </Field>
           </div>
         </section>

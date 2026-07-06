@@ -1,6 +1,6 @@
 export type EditApprovalStatus = "Pending" | "Approved" | "Rejected";
 export type EditApprovalAction = "Edit" | "Delete";
-export type EditApprovalResourceType = "Customer" | "Vendor" | "BookingSheet" | "TripSheet";
+export type EditApprovalResourceType = "Customer" | "Vendor" | "BookingSheet" | "TripSheet" | "TripData";
 
 export type EditApprovalRequest = {
   id: string;

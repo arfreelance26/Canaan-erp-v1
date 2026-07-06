@@ -20,6 +20,7 @@ import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 import type { InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 
 type InvoicePreviewState = {
   trip: Trip;
@@ -32,6 +33,7 @@ type InvoicePreviewState = {
 export default function TripHistoryPage() {
   const { user } = useAuth();
   const isFleetManager = user?.softwareDesignation === "Fleet Manager";
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -46,6 +48,8 @@ export default function TripHistoryPage() {
   const [invoicePreview, setInvoicePreview] = useState<InvoicePreviewState | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
@@ -55,7 +59,10 @@ export default function TripHistoryPage() {
     setTrucks(tr);
     setCustomers(c);
 
-    const closedTrips = allTrips.filter((t) => (t as any).hasClosure === true);
+    // History = every closed trip, plus cancelled trips (which may have no closure)
+    const closedTrips = allTrips.filter(
+      (t) => (t as any).hasClosure === true || t.status === "Cancelled"
+    );
     setTrips(closedTrips);
 
     const [closureResults, sheetResults] = await Promise.all([
@@ -85,6 +92,7 @@ export default function TripHistoryPage() {
 
   useWebSocketEvent("trip_updated", loadAll);
   useWebSocketEvent("trip_closed", loadAll);
+  useWebSocketEvent("trip_deleted", loadAll);
 
   const driverById   = useMemo(() => new Map(drivers.map((d) => [d.driverId, d])), [drivers]);
   const truckById    = useMemo(() => new Map(trucks.map((t) => [t.truckId, t])), [trucks]);
@@ -101,6 +109,42 @@ export default function TripHistoryPage() {
       customer: customerById.get(trip.customerId),
       invoiceType: (raw?.invoice_type as InvoiceType) ?? "Bill of Supply",
     });
+  }
+
+  const deletableIds = new Set(trips.filter((t) => (t as any).isInvoiced === true || t.status === "Cancelled").map((t) => t.id));
+
+  function toggleRow(id: string) {
+    if (!deletableIds.has(id)) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0 || deleting) return;
+    const res = await confirmDelete(`${selected.size} trip${selected.size > 1 ? "s" : ""} (including their booking sheets, trip sheets and invoices)`);
+    if (!res.isConfirmed) return;
+    setDeleting(true);
+    const ids = [...selected];
+    const failed: string[] = [];
+    await Promise.all(
+      ids.map((id) =>
+        tripsApi.remove(id).catch(() => {
+          failed.push(trips.find((t) => t.id === id)?.tripId ?? id);
+        })
+      )
+    );
+    setTrips((prev) => prev.filter((t) => !selected.has(t.id) || failed.length > 0 && failed.includes(t.tripId)));
+    setSelected(new Set());
+    setDeleting(false);
+    if (failed.length === 0) {
+      showSuccess(`${ids.length} trip${ids.length > 1 ? "s" : ""} deleted.`);
+    } else {
+      showError(`${ids.length - failed.length} deleted, ${failed.length} failed: ${failed.join(", ")}`);
+      loadAll();
+    }
   }
 
   function fmtDate(d?: string) {
@@ -140,6 +184,31 @@ export default function TripHistoryPage() {
         </div>
       </div>
 
+      {isAdmin && selected.size > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <span className="text-sm font-medium text-red-800">
+            {selected.size} trip{selected.size > 1 ? "s" : ""} selected
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelected(new Set())}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleBulkDelete}
+              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleting ? "Deleting…" : `Delete ${selected.size} Trip${selected.size > 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {filteredTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           No closed trips found.
@@ -149,6 +218,27 @@ export default function TripHistoryPage() {
           <table className="w-full min-w-[1500px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
+                {isAdmin && (
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredTrips.some((t) => deletableIds.has(t.id)) &&
+                        filteredTrips.filter((t) => deletableIds.has(t.id)).every((t) => selected.has(t.id))
+                      }
+                      onChange={() => {
+                        const selectable = filteredTrips.filter((t) => deletableIds.has(t.id));
+                        setSelected(
+                          selectable.length > 0 && selectable.every((t) => selected.has(t.id))
+                            ? new Set()
+                            : new Set(selectable.map((t) => t.id))
+                        );
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 accent-red-600"
+                      title="Select all deletable trips"
+                    />
+                  </th>
+                )}
                 {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
                   <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
@@ -170,8 +260,29 @@ export default function TripHistoryPage() {
                 const isProfit   = pl !== null && pl >= 0;
 
                 return (
-                  <tr key={trip.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-900">{trip.tripId}</td>
+                  <tr key={trip.id} className={selected.has(trip.id) ? "bg-red-50/60" : "hover:bg-gray-50"}>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(trip.id)}
+                          onChange={() => toggleRow(trip.id)}
+                          disabled={!deletableIds.has(trip.id)}
+                          title={deletableIds.has(trip.id) ? undefined : "Only invoiced or cancelled trips can be deleted"}
+                          className="h-4 w-4 rounded border-gray-300 accent-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+                        />
+                      </td>
+                    )}
+                    <td className="px-4 py-3 font-semibold text-gray-900">
+                      <div className="flex items-center gap-2">
+                        {trip.tripId}
+                        {trip.status === "Cancelled" && (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                            Cancelled
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
                     <td className="px-4 py-3 text-gray-600">{customer?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-500">
@@ -205,6 +316,8 @@ export default function TripHistoryPage() {
                           ₹{Math.abs(pl).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           <span className="font-normal opacity-70">{isProfit ? "Profit" : "Loss"}</span>
                         </span>
+                      ) : trip.status === "Cancelled" ? (
+                        <span className="text-xs font-medium text-red-500">Trip cancelled</span>
                       ) : (
                         <span className="text-xs text-gray-300">No sheet</span>
                       )}
@@ -228,6 +341,9 @@ export default function TripHistoryPage() {
                       </td>
                     )}
                     <td className="px-4 py-3">
+                      {!closures.has(trip.id) && trip.status === "Cancelled" ? (
+                        <span className="text-xs text-gray-400">No documents (cancelled)</span>
+                      ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {/* Booking Sheet — always available (hasClosure is required to appear here) */}
                         <button
@@ -263,6 +379,7 @@ export default function TripHistoryPage() {
                           </button>
                         )}
                       </div>
+                      )}
                     </td>
                   </tr>
                 );

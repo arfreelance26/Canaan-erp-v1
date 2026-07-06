@@ -89,6 +89,32 @@ export const showSuccess = async (message: string, title = 'Success') => {
 };
 
 /**
+ * Non-blocking corner toast — used for realtime pop-up notifications that should
+ * not interrupt what the user is doing (e.g. an edit request being approved/rejected).
+ */
+export const showToast = (
+  message: string,
+  icon: 'success' | 'error' | 'info' | 'warning' = 'info',
+  title?: string,
+) => {
+  return MySwal.fire({
+    toast: true,
+    position: 'top-end',
+    icon,
+    title: title ?? message,
+    text: title ? message : undefined,
+    showConfirmButton: false,
+    timer: 6000,
+    timerProgressBar: true,
+    customClass: {
+      popup: 'rounded-xl shadow-lg border border-gray-100',
+      title: 'text-sm font-semibold text-gray-900',
+      htmlContainer: 'text-gray-500 text-xs',
+    },
+  });
+};
+
+/**
  * General info notification dialog.
  */
 export const showInfo = async (message: string, title = 'Info') => {

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { dashboardApi, tripsApi, trucksApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { Trip } from "@/types/trip";
 import type { Truck as TruckType } from "@/types/truck";
 
@@ -142,6 +143,9 @@ export function FleetManagerDashboard() {
   useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
+  // Robust fallback: any server mutation (data_changed) + slow poll keeps the
+  // Trip Sheet Tracking panel live even if a specific WS event is missed.
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 15000);
 
   // Map vehicleId → active trip
   const activeTripByVehicle = new Map<string, Trip>();

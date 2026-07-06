@@ -141,13 +141,16 @@ def update_trip_status(trip_id: int, payload: schemas.TripStatusUpdate, db: Sess
     return _enrich(trip)
 
 
-@router.delete("/{trip_id}", status_code=204)
+@router.delete("/{trip_id}", status_code=204, dependencies=[Depends(require_roles())])
 def delete_trip(trip_id: int, db: Session = Depends(get_db)):
+    """Admin only: permanently delete a trip (cascades to closure/sheet/invoice)."""
     trip = db.get(models.Trip, trip_id)
     if not trip:
         raise HTTPException(404, "Trip not found")
+    trip_id_str = trip.trip_id
     db.delete(trip)
     db.commit()
+    emit("trip_deleted", {"trip_db_id": trip_id, "trip_id_str": trip_id_str})
 
 
 # ---------------------------------------------------------------------------

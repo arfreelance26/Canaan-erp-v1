@@ -373,6 +373,8 @@ export default function TripVerificationPage() {
         closure={bookingSheetTrip ? closures.get(bookingSheetTrip.id) : undefined}
         driver={bookingSheetTrip ? driverById.get(bookingSheetTrip.driverId) : undefined}
         truck={bookingSheetTrip ? truckById.get(bookingSheetTrip.vehicleId) : undefined}
+        drivers={drivers}
+        trucks={trucks}
         customers={customers}
         readOnly={bookingSheetReadOnly}
         onClose={() => { setVerifyTrip(bookingSheetTrip); setBookingSheetTrip(null); }}

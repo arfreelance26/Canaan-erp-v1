@@ -7,6 +7,7 @@ import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboar
 import { FinanceManagerDashboard } from "@/components/dashboard/FinanceManagerDashboard";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
+import Link from "next/link";
 import {
   Truck,
   Navigation,
@@ -34,6 +35,7 @@ import {
   maintenanceApi,
   tyreApi,
   financeApi,
+  editApprovalsApi,
 } from "@/lib/api";
 import {
   getMaintenanceStatus,
@@ -48,12 +50,14 @@ import type { Vendor } from "@/types/vendor";
 import type { Trip, TripStatus } from "@/types/trip";
 import type { DriverAttendanceRecord, StaffAttendanceRecord } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
+import type { EditApprovalRequest } from "@/types/edit-approval";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { TripStatusDonutChart } from "@/components/dashboard/TripStatusDonutChart";
 import { FleetUtilizationChart } from "@/components/dashboard/FleetUtilizationChart";
 import { TripTrendChart } from "@/components/dashboard/TripTrendChart";
@@ -186,6 +190,7 @@ export default function DashboardPage() {
   const [driverAttendance, setDriverAttendance] = useState<DriverAttendanceRecord[]>([]);
   const [staffAttendance, setStaffAttendance] = useState<StaffAttendanceRecord[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [pendingEditApprovals, setPendingEditApprovals] = useState<EditApprovalRequest[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
   const [tyreInventory, setTyreInventory] = useState<TyreInventoryItem[]>([]);
   const [emiRecords, setEmiRecords] = useState<EmiRecord[]>([]);
@@ -211,6 +216,17 @@ export default function DashboardPage() {
   useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
+  // Robust fallback: refresh on ANY server mutation (data_changed) + slow poll,
+  // so Trip Sheet Tracking stays live even if a specific WS event is missed.
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 15000);
+  useWebSocketEvent("edit_approval_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));
+
+  // Pending edit approval requests (own lightweight fetch so it can render its own panel)
+  useEffect(() => {
+    editApprovalsApi.list("Pending").then(setPendingEditApprovals).catch(() => {});
+  }, [refreshKey]);
 
   useEffect(() => {
     Promise.all([
@@ -510,12 +526,10 @@ export default function DashboardPage() {
     );
   }
 
-  const dayLabel = new Date().toLocaleDateString("en-IN", {
-    weekday: "short",
+  const dayLabel = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short",
     day: "2-digit",
     month: "short",
-    year: "numeric",
-  });
+    year: "numeric", });
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -676,6 +690,52 @@ export default function DashboardPage() {
           </div>
         );
       })()}
+
+      {/* ── Edit Approval Requests ───────────────────────────────────────── */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Edit Approval Requests</h2>
+          <Link href="/attendance/edit-approvals" className="text-xs font-medium text-blue-600 hover:text-blue-800">
+            Open Edit Approvals →
+          </Link>
+        </div>
+        <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-purple-600">
+              <ShieldCheck className="h-4 w-4" />
+              Pending Requests
+            </p>
+            <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-sm font-bold text-purple-700">
+              {pendingEditApprovals.length}
+            </span>
+          </div>
+          {pendingEditApprovals.length === 0 ? (
+            <p className="text-xs text-gray-400">No pending edit requests.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {pendingEditApprovals.slice(0, 6).map((r) => (
+                <li key={r.id}>
+                  <Link
+                    href="/attendance/edit-approvals"
+                    className="flex items-center justify-between gap-3 rounded-lg bg-white/80 px-3 py-2 text-xs transition-colors hover:bg-white"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="font-semibold text-gray-800">{r.staffName}</span>
+                      <span className="text-gray-400"> · {r.action} </span>
+                      <span className="text-gray-600">{r.resourceName}</span>
+                      <span className="text-gray-400"> ({r.resourceType})</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Pending</span>
+                  </Link>
+                </li>
+              ))}
+              {pendingEditApprovals.length > 6 && (
+                <li className="px-3 text-[11px] text-gray-400">+{pendingEditApprovals.length - 6} more…</li>
+              )}
+            </ul>
+          )}
+        </div>
+      </div>
 
       {/* ── Section 2: Visual Charts ────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

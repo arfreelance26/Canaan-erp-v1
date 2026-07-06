@@ -669,7 +669,7 @@ class AttendanceSummaryOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 EditApprovalAction = Literal["Edit", "Delete"]
-EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData"]
 EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
 
 

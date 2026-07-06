@@ -19,7 +19,7 @@ function getLast6Months(): { key: string; label: string }[] {
     d.setDate(1);
     d.setMonth(d.getMonth() - i);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+    const label = d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", month: "short", year: "2-digit" });
     result.push({ key, label });
   }
   return result;

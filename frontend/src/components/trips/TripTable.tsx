@@ -1,6 +1,6 @@
 "use client";
 
-import { Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2, Ban } from "lucide-react";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -16,12 +16,13 @@ type TripTableProps = {
   onMarkStarted?: (id: string) => void;
   onMarkCompleted?: (id: string) => void;
   onCancel?: (id: string) => void;
+  onDelete?: (trip: Trip) => void;
   onCloseTrip?: (trip: Trip) => void;
   closedTripIds?: Set<string>;
   emptyStateMessage?: string;
 };
 
-export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkStarted, onMarkCompleted, onCancel, onCloseTrip, closedTripIds, emptyStateMessage }: TripTableProps) {
+export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkStarted, onMarkCompleted, onCancel, onDelete, onCloseTrip, closedTripIds, emptyStateMessage }: TripTableProps) {
   if (trips.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -49,7 +50,7 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
               "Assigned Date",
               "Driver",
               "Vehicle",
-              ...(onEdit || onMarkStarted || onMarkCompleted || onCancel || onCloseTrip ? ["Actions"] : []),
+              ...(onEdit || onMarkStarted || onMarkCompleted || onCancel || onDelete || onCloseTrip ? ["Actions"] : []),
             ].map(
               (column) => (
                 <th key={column} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -86,7 +87,7 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
                 <td className="px-4 py-3 text-gray-600">{formatDate(trip.assignedDate)}</td>
                 <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
                 <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
-                {(onEdit || onMarkStarted || onMarkCompleted || onCancel || onCloseTrip) && (
+                {(onEdit || onMarkStarted || onMarkCompleted || onCancel || onDelete || onCloseTrip) && (
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {onEdit && trip.status !== "Cancelled" && trip.status !== "Completed" && (
@@ -122,6 +123,18 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
                           type="button"
                           onClick={() => onCancel(trip.id)}
                           aria-label={`Cancel ${trip.tripId}`}
+                          title="Cancel trip"
+                          className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600"
+                        >
+                          <Ban className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(trip)}
+                          aria-label={`Delete ${trip.tripId}`}
+                          title="Delete trip"
                           className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" />

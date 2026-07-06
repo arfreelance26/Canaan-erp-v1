@@ -28,6 +28,7 @@ type DialogMode = "add" | "view" | "edit";
 export default function TripReconciliationPage() {
   const { user } = useAuth();
   const isStaff = user?.softwareDesignation === "Trip Sheet Register";
+  const isAdmin = user?.softwareDesignation === "Admin";
   const { pushSheetAlert } = useNotifications();
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -128,13 +129,13 @@ export default function TripReconciliationPage() {
     loadReconciliationData();
   });
 
-  // Load and refresh active edit approvals for Staff
+  // Load and refresh active edit approvals for all non-admin users
   useEffect(() => {
-    if (!isStaff) return;
+    if (isAdmin || !user) return;
     editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
-  }, [isStaff]);
+  }, [isAdmin, user]);
   useWebSocketEvent("edit_approval_updated", () => {
-    if (!isStaff) return;
+    if (isAdmin || !user) return;
     editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
   });
 
@@ -476,6 +477,15 @@ export default function TripReconciliationPage() {
         closure={selectedTrip ? closures.get(selectedTrip.id) : undefined}
         existingSheet={selectedTrip ? sheets.get(selectedTrip.id) : undefined}
         readOnly={dialogMode === "view"}
+        autoEditable={isAdmin || (selectedTrip ? hasActiveApproval("TripData", selectedTrip.id) : false)}
+        onRequestAutoEdit={
+          isAdmin || !selectedTrip
+            ? undefined
+            : () => {
+                setPendingEditAction({ resourceType: "TripData", trip: selectedTrip });
+                setEditRequestOpen(true);
+              }
+        }
         drivers={drivers}
         trucks={trucks}
         onClose={() => setSelectedTrip(null)}
@@ -488,6 +498,8 @@ export default function TripReconciliationPage() {
         closure={bookingSheetTrip ? closures.get(bookingSheetTrip.id) : undefined}
         driver={bookingSheetTrip ? driverById.get(bookingSheetTrip.driverId) : undefined}
         truck={bookingSheetTrip ? truckById.get(bookingSheetTrip.vehicleId) : undefined}
+        drivers={drivers}
+        trucks={trucks}
         customers={customers}
         readOnly={bookingSheetReadOnly}
         onClose={() => setBookingSheetTrip(null)}

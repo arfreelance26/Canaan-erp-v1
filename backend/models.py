@@ -20,8 +20,8 @@ class Branch(Base):
     halt_day_fee_40ft = Column(Numeric(10, 2), default=0)
     driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +85,8 @@ class Truck(Base):
     local_permit_proof_blob = Column(LargeBinary(length=16777215))
     pollution_certificate_blob = Column(LargeBinary(length=16777215))
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     maintenance_records = relationship("MaintenanceRecord", back_populates="truck", cascade="all, delete-orphan")
     fuel_logs = relationship("FuelLog", back_populates="truck", cascade="all, delete-orphan")
@@ -124,8 +124,8 @@ class Driver(Base):
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     assignment = relationship("DriverAssignment", back_populates="driver", uselist=False, cascade="all, delete-orphan")
     attendance_records = relationship("DriverAttendance", back_populates="driver", cascade="all, delete-orphan")
@@ -163,8 +163,8 @@ class Staff(Base):
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     attendance_records = relationship("StaffAttendance", back_populates="staff", cascade="all, delete-orphan")
 
@@ -185,8 +185,8 @@ class Customer(Base):
     is_gta = Column(Enum("Yes", "No"))
     applicable_for_e_invoice = Column(Enum("Yes", "No"))
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     destinations = relationship("CustomerDestination", back_populates="customer", cascade="all, delete-orphan")
     origins = relationship("CustomerOrigin", back_populates="customer", cascade="all, delete-orphan")
@@ -200,7 +200,7 @@ class CustomerOrigin(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
     origin_name = Column(String(200), nullable=False)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     customer = relationship("Customer", back_populates="origins")
 
@@ -246,8 +246,8 @@ class Vendor(Base):
     address = Column(Text)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -329,8 +329,8 @@ class Trip(Base):
     trip_sheet_collected_at = Column(DateTime, nullable=True)
     trip_sheet_received = Column(Boolean, default=False, nullable=False)      # confirmed by Trip Sheet Register
     trip_sheet_received_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     customer = relationship("Customer", back_populates="trips")
     closure = relationship("TripClosure", back_populates="trip", uselist=False, cascade="all, delete-orphan")
@@ -380,8 +380,8 @@ class TripClosure(Base):
     halt_remarks = Column(Text)
     driver_halt_compensation = Column(Numeric(10, 2), default=0)
 
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     trip = relationship("Trip", back_populates="closure")
 
@@ -447,8 +447,8 @@ class TripSheet(Base):
     toll_charges = Column(Numeric(10, 2), default=0)
     toll_count = Column(Integer, default=0)
     remarks = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     trip = relationship("Trip", back_populates="sheet")
 
@@ -484,8 +484,8 @@ class TripInvoice(Base):
     narration = Column(Text)
     gst_applicable = Column(Enum("Yes", "No"), default="No")
     igst_applicable = Column(Enum("Yes", "No"), default="No")
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     trip = relationship("Trip", back_populates="invoice")
 
@@ -535,8 +535,8 @@ class LeaveRequest(Base):
     to_date = Column(Date, nullable=False)
     reason = Column(Text)
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
-    applied_at = Column(DateTime, default=func.now())
-    created_at = Column(DateTime, default=func.now())
+    applied_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -554,8 +554,8 @@ class MaintenanceRecord(Base):
     description = Column(Text)
     cost = Column(Numeric(10, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     truck = relationship("Truck", back_populates="maintenance_records")
 
@@ -575,7 +575,7 @@ class FuelLog(Base):
     fuel_station = Column(String(200))
     logged_by = Column(String(100))
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     truck = relationship("Truck", back_populates="fuel_logs")
 
@@ -596,8 +596,8 @@ class TyreInventory(Base):
     retread_cost = Column(Numeric(10, 2), default=0)
     retread_count = Column(Integer, default=0)
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     fitment_records = relationship("TyreFitmentRecord", back_populates="tyre", cascade="all, delete-orphan")
 
@@ -613,7 +613,7 @@ class TyreFitmentRecord(Base):
     fitted_date = Column(Date, nullable=False)
     removed_odometer = Column(Integer)
     removed_date = Column(Date)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     tyre = relationship("TyreInventory", back_populates="fitment_records")
     truck = relationship("Truck", back_populates="tyre_fitments")
@@ -631,8 +631,8 @@ class SacCode(Base):
     code = Column(String(20), nullable=False)
     gst_rate = Column(Numeric(5, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class RepairType(Base):
@@ -642,8 +642,8 @@ class RepairType(Base):
     name = Column(String(200), nullable=False, unique=True)
     default_cost = Column(Numeric(10, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -666,8 +666,8 @@ class EmiRecord(Base):
     emi_payment_date = Column(Date)
     cost_per_month = Column(Numeric(10, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class RecurringPayment(Base):
@@ -681,8 +681,8 @@ class RecurringPayment(Base):
     next_due_date = Column(Date)
     status = Column(Enum("Active", "Paused"), default="Active")
     version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class EditApprovalRequest(Base):
@@ -692,7 +692,7 @@ class EditApprovalRequest(Base):
     staff_db_id = Column(Integer, nullable=False)        # staff.id (numeric)
     staff_name = Column(String(100), nullable=False)
     staff_code = Column(String(20))                      # STF-1001
-    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet"), nullable=False)
+    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(200), nullable=False)
     action = Column(Enum("Edit", "Delete"), nullable=False)
@@ -700,7 +700,7 @@ class EditApprovalRequest(Base):
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
     approved_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)         # approved_at + 1 hour
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class CompensationTransaction(Base):
@@ -714,7 +714,7 @@ class CompensationTransaction(Base):
     date = Column(Date, nullable=False)
     note = Column(Text)
     trip_number = Column(String(20))
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Notification(Base):

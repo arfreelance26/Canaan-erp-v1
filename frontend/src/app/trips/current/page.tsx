@@ -12,12 +12,15 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError, confirmAction } from "@/lib/swal";
+import { useAuth } from "@/context/AuthContext";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 const CURRENT_STATUSES: Trip["status"][] = ["Started", "Loaded", "On-Transit", "Reached", "Unloaded"];
 
 export default function CurrentTripsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -64,6 +67,23 @@ export default function CurrentTripsPage() {
     }
   }
 
+  async function handleCancel(id: string) {
+    const trip = allTrips.find((t) => t.id === id);
+    const res = await confirmAction(
+      "Cancel this trip?",
+      `Trip ${trip?.tripId ?? ""} will be marked as Cancelled and its driver and truck freed.`,
+      "Yes, cancel trip"
+    );
+    if (!res.isConfirmed) return;
+    try {
+      const updated = await tripsApi.cancel(id);
+      setAllTrips((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      showSuccess(`Trip ${updated.tripId} has been cancelled.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to cancel trip.");
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
   return (
@@ -96,6 +116,7 @@ export default function CurrentTripsPage() {
         trucks={trucks}
         customers={customers}
         onMarkCompleted={handleMarkCompleted}
+        onCancel={isAdmin ? handleCancel : undefined}
         emptyStateMessage='No trips assigned yet. Go to Assign Trips to create one.'
       />
     </div>

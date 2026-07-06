@@ -1,10 +1,11 @@
 import sys
 import subprocess
 
-def run_script(script_name):
+def run_script(script_name, extra_args=None):
     print(f"\n[{script_name}] Running...")
     try:
-        result = subprocess.run([sys.executable, script_name], check=True, text=True, capture_output=True)
+        cmd = [sys.executable, script_name] + (extra_args or [])
+        result = subprocess.run(cmd, check=True, text=True, capture_output=True)
         print(result.stdout)
         print(f"[{script_name}] SUCCESS")
     except subprocess.CalledProcessError as e:
@@ -24,10 +25,11 @@ def main():
     print(" 4. Seed Drivers from Excel.")
     print(" 5. Seed Fleet from Excel.")
     print(" 6. Seed EMI from Excel.")
-    print("\nStarting in 3 seconds...")
-    
-    import time
-    time.sleep(3)
+    print("\nWARNING: This PERMANENTLY DELETES ALL existing data (trips, invoices, everything).")
+    answer = input('Type exactly "DELETE ALL DATA" to continue: ').strip()
+    if answer != "DELETE ALL DATA":
+        print("Aborted. Nothing was changed.")
+        sys.exit(0)
     
     scripts = [
         "clear_database.py",
@@ -39,7 +41,7 @@ def main():
     ]
     
     for script in scripts:
-        run_script(script)
+        run_script(script, ["--yes"] if script == "clear_database.py" else None)
         
     print("\n" + "="*60)
     print("✅ DATABASE RESET & SEED COMPLETELY SUCCESSFUL!")

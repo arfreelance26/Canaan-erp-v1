@@ -98,6 +98,17 @@ def approve_edit_request(
     return req
 
 
+@router.delete("/{request_id}", status_code=204, dependencies=[Depends(require_roles("Admin"))])
+def delete_edit_request(request_id: int, db: Session = Depends(get_db)):
+    """Admin only: permanently remove an edit approval request."""
+    req = db.get(models.EditApprovalRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Edit approval request not found")
+    db.delete(req)
+    db.commit()
+    emit("edit_approval_deleted", {"id": request_id})
+
+
 @router.patch("/{request_id}/reject", response_model=schemas.EditApprovalRequestOut)
 def reject_edit_request(
     request_id: int,

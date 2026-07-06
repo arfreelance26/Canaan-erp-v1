@@ -58,7 +58,13 @@ export default function TripFinalizationPage() {
     setTrucks(tr);
     setCustomers(c);
 
-    const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true && t.tripCategory !== "SHIFTING");
+    // Only trips verified in Trip Verification (or already invoiced) reach finalization
+    const sheettedTrips = allTrips.filter(
+      (t) =>
+        (t as any).hasSheet === true &&
+        t.tripCategory !== "SHIFTING" &&
+        ((t as any).verificationStatus === "verified" || (t as any).isInvoiced === true)
+    );
     setTrips(sheettedTrips);
 
     const invoicedTrips = allTrips.filter((t) => (t as any).isInvoiced === true);

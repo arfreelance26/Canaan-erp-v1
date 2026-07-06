@@ -1104,6 +1104,7 @@ export const tripsApi = {
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
   getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
+  remove: (dbId: string) => req<void>(`/trips/${dbId}`, { method: "DELETE" }),
   collectSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),
   receiveSheet: (dbId: string) =>
@@ -1595,6 +1596,8 @@ export const editApprovalsApi = {
     req<B>(`/edit-approvals/${id}/approve`, { method: "PATCH" }).then(toEditApproval),
   reject: (id: string) =>
     req<B>(`/edit-approvals/${id}/reject`, { method: "PATCH" }).then(toEditApproval),
+  remove: (id: string) =>
+    req<void>(`/edit-approvals/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

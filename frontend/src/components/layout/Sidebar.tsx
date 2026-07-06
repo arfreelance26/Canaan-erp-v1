@@ -1,11 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { sidebarSections, type NavSection } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { editApprovalsApi } from "@/lib/api";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 // Allowed hrefs per software designation (Admin gets everything)
 const ROLE_HREFS: Record<string, string[] | "all"> = {
@@ -73,6 +76,23 @@ function getInitials(name: string): string {
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
+
+  // Live count of pending edit-approval requests, shown as a badge (Admin only)
+  const [pendingEditApprovals, setPendingEditApprovals] = useState(0);
+  useEffect(() => {
+    if (!isAdmin) return;
+    editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
+  }, [isAdmin]);
+  const refreshPendingEditApprovals = () => {
+    if (!isAdmin) return;
+    editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
+  };
+  useWebSocketEvent("edit_approval_created", refreshPendingEditApprovals);
+  useWebSocketEvent("edit_approval_updated", refreshPendingEditApprovals);
+
+  const badgeFor = (href: string): number =>
+    href === "/attendance/edit-approvals" ? pendingEditApprovals : 0;
 
   const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
 
@@ -96,6 +116,7 @@ export function Sidebar() {
               {section.items.map((item) => {
                 const isActive = pathname === item.href;
                 const Icon = item.icon;
+                const badge = badgeFor(item.href);
                 return (
                   <li key={item.href}>
                     <Link
@@ -108,7 +129,12 @@ export function Sidebar() {
                       )}
                     >
                       <Icon className="h-4 w-4" />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {badge > 0 && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                          {badge > 99 ? "99+" : badge}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );
