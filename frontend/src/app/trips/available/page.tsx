@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { TripTable } from "@/components/trips/TripTable";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { TRIP_PROGRESS_STATUSES } from "@/lib/trip-data";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -24,6 +25,7 @@ export default function AvailableTripsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Trip["status"] | "All">("All");
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
 
   useEffect(() => {
         Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -49,11 +51,7 @@ export default function AvailableTripsPage() {
 
   const trips = allTrips.filter((trip) =>
     (filter === "All" || trip.status === filter) &&
-    (!searchQuery ||
-      trip.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      trip.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      trip.origin?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      trip.destination?.toLowerCase().includes(searchQuery.toLowerCase()))
+    tripMatchesSearch(trip, searchQuery, trucks)
   );
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;

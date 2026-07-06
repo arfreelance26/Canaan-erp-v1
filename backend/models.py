@@ -327,6 +327,8 @@ class Trip(Base):
     is_invoiced = Column(Boolean, default=False)
     trip_sheet_collected = Column(Boolean, default=False, nullable=False)
     trip_sheet_collected_at = Column(DateTime, nullable=True)
+    trip_sheet_received = Column(Boolean, default=False, nullable=False)      # confirmed by Trip Sheet Register
+    trip_sheet_received_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

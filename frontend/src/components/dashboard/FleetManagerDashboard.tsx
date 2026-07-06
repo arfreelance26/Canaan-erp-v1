@@ -13,6 +13,8 @@ import {
   History,
   MapPin,
   Circle,
+  FileCheck2,
+  Inbox,
 } from "lucide-react";
 import { dashboardApi, tripsApi, trucksApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -136,6 +138,10 @@ export function FleetManagerDashboard() {
   useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
 
   // Map vehicleId → active trip
   const activeTripByVehicle = new Map<string, Trip>();
@@ -151,6 +157,12 @@ export function FleetManagerDashboard() {
   const completedCount = overview?.trip_status_counts?.["Completed"] ?? 0;
   const activeCount    = overview?.active_trips ?? 0;
 
+  // Trip sheet tracking — delivered by Yard Staff, received by Trip Sheet Register
+  const completedTrips  = allTrips.filter((t) => t.status === "Completed");
+  const sheetsDelivered = completedTrips.filter((t) => t.tripSheetCollected && !t.hasSheet);
+  const sheetsReceived  = sheetsDelivered.filter((t) => t.tripSheetReceived);
+  const awaitingReceipt = sheetsDelivered.filter((t) => !t.tripSheetReceived);
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
@@ -165,6 +177,78 @@ export function FleetManagerDashboard() {
         <StatCard icon={Activity}     label="Active Trips"     value={loading ? "—" : activeCount}      color="bg-indigo-100 text-indigo-600" />
         <StatCard icon={CheckCircle2} label="Completed Trips"  value={loading ? "—" : completedCount}   color="bg-teal-100 text-teal-600" />
         <StatCard icon={Users}        label="Total Drivers"    value={loading ? "—" : (overview?.total_drivers ?? 0)} color="bg-violet-100 text-violet-600" />
+      </div>
+
+      {/* Trip Sheet Tracking */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Trip Sheet Tracking</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-600">
+                <FileCheck2 className="h-4 w-4" />
+                Delivered by Yard Staff
+              </p>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold text-emerald-700">
+                {sheetsDelivered.length}
+              </span>
+            </div>
+            {sheetsDelivered.length === 0 ? (
+              <p className="text-xs text-gray-400">No trip sheets delivered yet.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {sheetsDelivered.slice(0, 8).map((t) => (
+                  <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
+                    <span className="font-semibold text-gray-800">{t.tripId}</span>
+                    <span className="text-gray-500">{t.bookingReferenceNo}</span>
+                    {t.tripSheetReceived ? (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">Received</span>
+                    ) : (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Awaiting Receipt</span>
+                    )}
+                  </li>
+                ))}
+                {sheetsDelivered.length > 8 && (
+                  <li className="px-3 text-[11px] text-gray-400">+{sheetsDelivered.length - 8} more…</li>
+                )}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-600">
+                <Inbox className="h-4 w-4" />
+                Received by Trip Sheet Register
+              </p>
+              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-bold text-blue-700">
+                {sheetsReceived.length}
+              </span>
+            </div>
+            {sheetsReceived.length === 0 ? (
+              <p className="text-xs text-gray-400">No trip sheets received yet.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {sheetsReceived.slice(0, 8).map((t) => (
+                  <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
+                    <span className="font-semibold text-gray-800">{t.tripId}</span>
+                    <span className="text-gray-500">{t.bookingReferenceNo}</span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
+                      Pending Entry
+                    </span>
+                  </li>
+                ))}
+                {sheetsReceived.length > 8 && (
+                  <li className="px-3 text-[11px] text-gray-400">+{sheetsReceived.length - 8} more…</li>
+                )}
+              </ul>
+            )}
+          </div>
+        </div>
+        {awaitingReceipt.length > 0 && (
+          <p className="mt-2 text-xs font-medium text-amber-600">
+            {awaitingReceipt.length} sheet{awaitingReceipt.length > 1 ? "s" : ""} delivered but not yet confirmed received.
+          </p>
+        )}
       </div>
 
       {/* Quick Links */}

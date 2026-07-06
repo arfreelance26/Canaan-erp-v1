@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
 import { CloseTripDialog } from "@/components/trips/CloseTripDialog";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -25,6 +26,7 @@ export default function CompletedTripsPage() {
   const [closedTripIds, setClosedTripIds] = useState<Set<string>>(new Set());
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function CompletedTripsPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
-  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

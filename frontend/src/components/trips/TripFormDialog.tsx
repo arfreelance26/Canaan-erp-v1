@@ -104,6 +104,8 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   hasSheet: false,
   tripSheetCollected: false,
   tripSheetCollectedAt: null,
+  tripSheetReceived: false,
+  tripSheetReceivedAt: null,
   verificationStatus: "pending",
   isInvoiced: false,
 };

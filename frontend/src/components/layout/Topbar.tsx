@@ -15,6 +15,28 @@ import { useNotifications } from "@/context/NotificationContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Trip pages whose local search is driven by the Topbar global search
+const SEARCHABLE_TRIP_PATHS = new Set([
+  "/trips/assign",
+  "/trips/available",
+  "/trips/current",
+  "/trips/completed",
+  "/trips/history",
+  "/trips/finalization",
+  "/trips/verification",
+  "/trips/sheet-collection",
+  "/trips/reconciliation",
+]);
+
+// Where the global search lands per role (their main trips page)
+const SEARCH_TARGET_BY_ROLE: Record<string, string> = {
+  Admin: "/trips/history",
+  "Fleet Manager": "/trips/current",
+  "Finance Manager": "/trips/finalization",
+  "Yard Staff": "/trips/sheet-collection",
+  "Trip Sheet Register": "/trips/reconciliation",
+};
+
 function useBackendStatus() {
   const [online, setOnline] = useState<boolean | null>(null);
   useEffect(() => {
@@ -87,6 +109,20 @@ export function Topbar() {
   const isAdmin        = user?.softwareDesignation === "Admin";
   const isFleetManager = user?.softwareDesignation === "Fleet Manager";
   const isStaff        = user?.softwareDesignation === "Trip Sheet Register";
+
+  // ── Global search ──────────────────────────────────────────────────────
+  const [globalQuery, setGlobalQuery] = useState("");
+  function submitGlobalSearch() {
+    const q = globalQuery.trim();
+    if (SEARCHABLE_TRIP_PATHS.has(pathname)) {
+      window.dispatchEvent(new CustomEvent("erp:global-search", { detail: q }));
+      window.history.replaceState(null, "", q ? `${pathname}?q=${encodeURIComponent(q)}` : pathname);
+      return;
+    }
+    if (!q) return;
+    const target = SEARCH_TARGET_BY_ROLE[user?.softwareDesignation ?? ""] ?? "/trips/history";
+    router.push(`${target}?q=${encodeURIComponent(q)}`);
+  }
 
   const { sheetAlerts, reminders, pushSheetAlert, dismissSheetAlert } = useNotifications();
 
@@ -249,15 +285,26 @@ export function Topbar() {
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="search"
-            placeholder="Search jobs, LR, trips..."
+            placeholder="Search truck no, trip, ref..."
+            value={globalQuery}
+            onChange={(e) => {
+              setGlobalQuery(e.target.value);
+              // Live-filter when already on a searchable trips page
+              if (SEARCHABLE_TRIP_PATHS.has(pathname)) {
+                window.dispatchEvent(new CustomEvent("erp:global-search", { detail: e.target.value }));
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitGlobalSearch();
+            }}
             className="w-64 rounded-full border border-gray-200 bg-white py-2 pl-10 pr-4 text-sm text-gray-700 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05),0_4px_6px_-2px_rgba(0,0,0,0.025)] placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:border-blue-200 focus:w-72"
           />
         </div>
 
-        {backendOnline === false && (
+        {/* {backendOnline === false && (
           <span className="hidden items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 ring-1 ring-red-200 sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-            Backend offline — run start.sh
+            Backend offline
           </span>
         )}
         {backendOnline === true && (
@@ -265,7 +312,7 @@ export function Topbar() {
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
             Connected
           </span>
-        )}
+        )} */}
 
         {/* Notification bell */}
         <div className="relative" ref={notifRef}>

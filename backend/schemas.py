@@ -422,6 +422,8 @@ class TripOut(TripBase):
     has_sheet: bool = False
     trip_sheet_collected: bool = False
     trip_sheet_collected_at: Optional[datetime] = None
+    trip_sheet_received: bool = False
+    trip_sheet_received_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

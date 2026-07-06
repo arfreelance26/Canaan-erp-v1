@@ -236,6 +236,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
 
     db.commit()
     db.refresh(sheet)
+    emit("sheet_entered", {"trip_db_id": trip_id, "trip_id_str": trip.trip_id, "is_new": is_new})
 
     # Resolve the truck once — used for both odometer update and maintenance records
     vehicle_id = payload.vehicle_id or trip.vehicle_id
@@ -333,9 +334,46 @@ def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
         raise HTTPException(400, "Trip must be closed before marking the sheet as delivered")
     trip.trip_sheet_collected = not trip.trip_sheet_collected
     trip.trip_sheet_collected_at = datetime.now(timezone.utc) if trip.trip_sheet_collected else None
+    if not trip.trip_sheet_collected:
+        # Undoing delivery also clears any receive-confirmation
+        trip.trip_sheet_received = False
+        trip.trip_sheet_received_at = None
     db.commit()
     db.refresh(trip)
     emit("sheet_collected", {"trip_id": trip_id, "collected": trip.trip_sheet_collected})
+    return _enrich(trip)
+
+
+@router.post(
+    "/{trip_id}/receive-sheet",
+    response_model=schemas.TripOut,
+    dependencies=[Depends(require_roles("Trip Sheet Register"))],
+)
+def receive_trip_sheet(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Confirm the physical trip sheet was received by the Trip Sheet Register."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if not trip.trip_sheet_collected:
+        raise HTTPException(400, "Trip sheet must be marked as delivered by the Yard Staff first")
+    if trip.trip_sheet_received:
+        raise HTTPException(400, "Trip sheet is already marked as received")
+    trip.trip_sheet_received = True
+    trip.trip_sheet_received_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(trip)
+    emit("sheet_received", {
+        "trip_db_id": trip_id,
+        "trip_id_str": trip.trip_id,
+        "booking_reference_no": trip.booking_reference_no,
+        "received_by": current_user.name,
+    })
     return _enrich(trip)
 
 
@@ -361,6 +399,8 @@ def unmark_trip_sheet(
         raise HTTPException(400, "Trip sheet is not currently marked as delivered")
     trip.trip_sheet_collected = False
     trip.trip_sheet_collected_at = None
+    trip.trip_sheet_received = False
+    trip.trip_sheet_received_at = None
     # Persist the alert so Admin sees it even without a live WebSocket connection
     db.add(models.Notification(
         event_type="sheet_not_received",
@@ -420,6 +460,8 @@ def flag_sheet_missing(
     if trip.trip_sheet_collected and trip.sheet is None:
         trip.trip_sheet_collected = False
         trip.trip_sheet_collected_at = None
+        trip.trip_sheet_received = False
+        trip.trip_sheet_received_at = None
         db.commit()
         db.refresh(trip)
         emit("sheet_unmarked", {

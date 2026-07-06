@@ -5,6 +5,7 @@ import { History, FileText, ClipboardList, Receipt, Search } from "lucide-react"
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -44,6 +45,7 @@ export default function TripHistoryPage() {
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [invoicePreview, setInvoicePreview] = useState<InvoicePreviewState | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
 
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
@@ -109,7 +111,7 @@ export default function TripHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
-  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) || t.origin?.toLowerCase().includes(searchQuery.toLowerCase()) || t.destination?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

@@ -5,6 +5,7 @@ import { Plus, Search } from "lucide-react";
 import { TripTable } from "@/components/trips/TripTable";
 import { TripFormDialog } from "@/components/trips/TripFormDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@/lib/api";
+import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -26,6 +27,7 @@ export default function AssignTripsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -150,7 +152,7 @@ export default function AssignTripsPage() {
   // Show only Assigned trips in Assign Trips page
   const assignedTrips = trips
     .filter((trip) => trip.status === "Assigned")
-    .filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter((t) => tripMatchesSearch(t, searchQuery, trucks));
 
   if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 

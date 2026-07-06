@@ -501,6 +501,8 @@ function toTrip(b: B): Trip & { _dbId: number } {
     hasSheet: b.has_sheet ?? false,
     tripSheetCollected: b.trip_sheet_collected ?? false,
     tripSheetCollectedAt: b.trip_sheet_collected_at ?? null,
+    tripSheetReceived: b.trip_sheet_received ?? false,
+    tripSheetReceivedAt: b.trip_sheet_received_at ?? null,
     verificationStatus: b.verification_status ?? "pending",
     isInvoiced: b.is_invoiced ?? false,
   };
@@ -1104,6 +1106,8 @@ export const tripsApi = {
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
   collectSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),
+  receiveSheet: (dbId: string) =>
+    req<B>(`/trips/${dbId}/receive-sheet`, { method: "POST" }).then(toTrip),
   unmarkSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/unmark-sheet`, { method: "POST" }).then(toTrip),
   flagSheetMissing: (dbId: string) =>

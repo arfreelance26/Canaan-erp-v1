@@ -18,6 +18,8 @@ import {
   Wallet,
   CheckCircle2,
   UserCheck,
+  FileCheck2,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -205,6 +207,10 @@ export default function DashboardPage() {
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
 
   useEffect(() => {
     Promise.all([
@@ -590,6 +596,86 @@ export default function DashboardPage() {
             ))}
         </div>
       )}
+
+      {/* ── Trip Sheet Tracking ─────────────────────────────────────────── */}
+      {(() => {
+        const completedTrips  = trips.filter((t) => t.status === "Completed");
+        const sheetsDelivered = completedTrips.filter((t) => t.tripSheetCollected && !t.hasSheet);
+        const sheetsReceived  = sheetsDelivered.filter((t) => t.tripSheetReceived);
+        const awaitingReceipt = sheetsDelivered.filter((t) => !t.tripSheetReceived);
+        return (
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Trip Sheet Tracking</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-600">
+                    <FileCheck2 className="h-4 w-4" />
+                    Delivered by Yard Staff
+                  </p>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold text-emerald-700">
+                    {sheetsDelivered.length}
+                  </span>
+                </div>
+                {sheetsDelivered.length === 0 ? (
+                  <p className="text-xs text-gray-400">No trip sheets delivered yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1.5">
+                    {sheetsDelivered.slice(0, 8).map((t) => (
+                      <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
+                        <span className="font-semibold text-gray-800">{t.tripId}</span>
+                        <span className="text-gray-500">{t.bookingReferenceNo}</span>
+                        {t.tripSheetReceived ? (
+                          <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">Received</span>
+                        ) : (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Awaiting Receipt</span>
+                        )}
+                      </li>
+                    ))}
+                    {sheetsDelivered.length > 8 && (
+                      <li className="px-3 text-[11px] text-gray-400">+{sheetsDelivered.length - 8} more…</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-600">
+                    <Inbox className="h-4 w-4" />
+                    Received by Trip Sheet Register
+                  </p>
+                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-bold text-blue-700">
+                    {sheetsReceived.length}
+                  </span>
+                </div>
+                {sheetsReceived.length === 0 ? (
+                  <p className="text-xs text-gray-400">No trip sheets received yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1.5">
+                    {sheetsReceived.slice(0, 8).map((t) => (
+                      <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
+                        <span className="font-semibold text-gray-800">{t.tripId}</span>
+                        <span className="text-gray-500">{t.bookingReferenceNo}</span>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
+                          Pending Entry
+                        </span>
+                      </li>
+                    ))}
+                    {sheetsReceived.length > 8 && (
+                      <li className="px-3 text-[11px] text-gray-400">+{sheetsReceived.length - 8} more…</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            </div>
+            {awaitingReceipt.length > 0 && (
+              <p className="mt-2 text-xs font-medium text-amber-600">
+                {awaitingReceipt.length} sheet{awaitingReceipt.length > 1 ? "s" : ""} delivered but not yet confirmed received.
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Section 2: Visual Charts ────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

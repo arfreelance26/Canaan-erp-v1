@@ -99,6 +99,8 @@ export type Trip = {
   hasSheet: boolean;
   tripSheetCollected: boolean;
   tripSheetCollectedAt: string | null;
+  tripSheetReceived: boolean;
+  tripSheetReceivedAt: string | null;
   verificationStatus: "pending" | "verified" | "flagged";
   isInvoiced: boolean;
 };

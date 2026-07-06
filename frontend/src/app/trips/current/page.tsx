@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -23,6 +24,7 @@ export default function CurrentTripsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function CurrentTripsPage() {
   useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
 
   const trips = allTrips.filter((trip) => CURRENT_STATUSES.includes(trip.status));
-  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()) || t.origin?.toLowerCase().includes(searchQuery.toLowerCase()) || t.destination?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks));
 
   async function handleMarkCompleted(id: string) {
     try {

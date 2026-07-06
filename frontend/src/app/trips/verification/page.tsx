@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { VerifyTripDialog } from "@/components/trips/VerifyTripDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
@@ -38,6 +39,7 @@ export default function TripVerificationPage() {
   const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
 
   useEffect(() => {
         Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -223,7 +225,7 @@ export default function TripVerificationPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
-  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

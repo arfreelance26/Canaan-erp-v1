@@ -46,6 +46,9 @@ def _run_schema_migrations():
         # Yard Staff workflow
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected_at DATETIME NULL",
+        # Trip Sheet Register receive-confirmation workflow
+        "ALTER TABLE trips ADD COLUMN trip_sheet_received BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE trips ADD COLUMN trip_sheet_received_at DATETIME NULL",
         "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL DEFAULT 'Staff'",
         "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL",
         # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
@@ -92,17 +95,28 @@ def _run_schema_migrations():
     _rename_map_intermediate = [  # DB already ran the previous rename
         ("Trip Sheet Coordinator", "Trip Sheet Register"),
     ]
+    rename_map = _rename_map_intermediate if _was_intermediate else _rename_map_fresh
     with engine.connect() as conn:
-        try:
-            rename_map = _rename_map_intermediate if _was_intermediate else _rename_map_fresh
-            for table, col in (("staff", "software_designation"), ("leave_requests", "category")):
-                for old, new in rename_map:
+        for table, col in (("staff", "software_designation"), ("leave_requests", "category")):
+            for old, new in rename_map:
+                try:
                     conn.execute(text(
                         f"UPDATE {table} SET {col} = :new WHERE {col} = :old"
                     ), {"new": new, "old": old})
-            conn.commit()
-        except Exception:
-            pass
+                except Exception:
+                    pass
+        # Repair rows blanked by an earlier enum truncation (value not in enum → '')
+        for table, col, fallback in (
+            ("staff", "software_designation", "Trip Sheet Register"),
+            ("leave_requests", "category", "Trip Sheet Register"),
+        ):
+            try:
+                conn.execute(text(
+                    f"UPDATE {table} SET {col} = :fb WHERE {col} = ''"
+                ), {"fb": fallback})
+            except Exception:
+                pass
+        conn.commit()
 
     # Role rename, step 3: finalize enums to only the current role names
     _final_enums = [

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
+import { useGlobalSearchQuery } from "@/lib/trip-search";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
@@ -47,6 +48,7 @@ export default function TripReconciliationPage() {
   const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  useGlobalSearchQuery(setSearchQuery);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
 
   // Edit approval state (Staff only)
@@ -109,6 +111,7 @@ export default function TripReconciliationPage() {
 
   useWebSocketEvent("sheet_collected", loadReconciliationData);
   useWebSocketEvent("sheet_unmarked", loadReconciliationData);
+  useWebSocketEvent("sheet_received", loadReconciliationData);
   useWebSocketEvent("trip_updated", loadReconciliationData);
 
   // Admin alert: someone in reconciliation reported a missing physical sheet
@@ -233,12 +236,40 @@ export default function TripReconciliationPage() {
     }
   }
 
+  async function handleMarkReceived(trip: Trip) {
+    if (toggling.has(trip.id)) return;
+    setToggling((prev) => new Set([...prev, trip.id]));
+    try {
+      const updated = await tripsApi.receiveSheet(trip.id);
+      setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+      showSuccess(`Trip sheet for ${trip.tripId} marked as received.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to mark trip sheet as received.");
+    } finally {
+      setToggling((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.id);
+        return next;
+      });
+    }
+  }
+
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
-  const filteredTrips = trips.filter((t) => !searchQuery || t.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) || t.bookingReferenceNo?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTrips = trips.filter((t) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const truck = truckById.get(t.vehicleId);
+    return (
+      t.tripId?.toLowerCase().includes(q) ||
+      t.bookingReferenceNo?.toLowerCase().includes(q) ||
+      t.vehicleId?.toLowerCase().includes(q) ||
+      (truck?.registrationNumber ?? "").toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -254,7 +285,7 @@ export default function TripReconciliationPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search trips..."
+            placeholder="Search by truck no, trip ID, ref..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
@@ -329,6 +360,30 @@ export default function TripReconciliationPage() {
                             </span>
                           </p>
                         )}
+                        {trip.tripSheetReceived ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 w-fit">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Received
+                            {trip.tripSheetReceivedAt && (
+                              <span className="font-normal text-blue-500">
+                                {new Date(
+                                  trip.tripSheetReceivedAt.endsWith("Z") || trip.tripSheetReceivedAt.includes("+")
+                                    ? trip.tripSheetReceivedAt
+                                    : trip.tripSheetReceivedAt + "Z"
+                                ).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={toggling.has(trip.id)}
+                            onClick={() => handleMarkReceived(trip)}
+                            className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 w-fit"
+                          >
+                            {toggling.has(trip.id) ? "..." : "Mark as Received"}
+                          </button>
+                        )}
                         {sheet ? (
                           <span
                             title="Trip sheet has already been entered — cannot unmark delivery"
@@ -396,8 +451,10 @@ export default function TripReconciliationPage() {
                           ) : (
                             <button
                               type="button"
+                              disabled={!trip.tripSheetReceived}
+                              title={!trip.tripSheetReceived ? "Mark the trip sheet as received first" : undefined}
                               onClick={() => openDialog(trip, "add")}
-                              className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                              className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               ADD
                             </button>
