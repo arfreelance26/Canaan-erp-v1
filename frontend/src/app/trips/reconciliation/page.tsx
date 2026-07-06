@@ -20,12 +20,14 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
 
 type DialogMode = "add" | "view" | "edit";
 
 export default function TripReconciliationPage() {
   const { user } = useAuth();
   const isStaff = user?.softwareDesignation === "Staff";
+  const { pushSheetAlert } = useNotifications();
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -214,6 +216,12 @@ export default function TripReconciliationPage() {
       await tripsApi.unmarkSheet(trip.id);
       setTrips((prev) => prev.filter((t) => t.id !== trip.id));
       showSuccess(`Trip sheet for ${trip.tripId} marked as not received.`);
+      pushSheetAlert({
+        tripDbId: Number(trip.id),
+        tripIdStr: trip.tripId,
+        bookingRef: trip.bookingReferenceNo,
+        reportedBy: user?.name ?? "Unknown",
+      });
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to update trip sheet status.");
     } finally {

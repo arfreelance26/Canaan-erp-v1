@@ -1592,3 +1592,36 @@ export const editApprovalsApi = {
   reject: (id: string) =>
     req<B>(`/edit-approvals/${id}/reject`, { method: "PATCH" }).then(toEditApproval),
 };
+
+// ---------------------------------------------------------------------------
+// Notifications API (persistent, role-targeted)
+// ---------------------------------------------------------------------------
+
+export type ServerNotification = {
+  id: number;
+  eventType: string;
+  title: string;
+  message: string;
+  tripIdStr: string;
+  bookingRef: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+export const notificationsApi = {
+  list: (unreadOnly = true) =>
+    req<B[]>(`/notifications?unread_only=${unreadOnly}`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        eventType: String(r.event_type ?? ""),
+        title: String(r.title ?? ""),
+        message: String(r.message ?? ""),
+        tripIdStr: String(r.trip_id_str ?? ""),
+        bookingRef: String(r.booking_reference_no ?? ""),
+        createdBy: String(r.created_by ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }) as ServerNotification)
+    ),
+  markRead: (id: number) => req<B>(`/notifications/${id}/read`, { method: "POST" }),
+  markAllRead: () => req<{ ok: boolean }>("/notifications/read-all", { method: "POST" }),
+};

@@ -1103,3 +1103,21 @@ class DashboardOverview(OrmBase):
     compliance_expiring_soon: int
     monthly_emi_total: Decimal
     active_recurring_payments: int
+
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+
+class NotificationOut(OrmBase):
+    id: int
+    event_type: str
+    title: str
+    message: Optional[str] = None
+    trip_id_str: Optional[str] = None
+    booking_reference_no: Optional[str] = None
+    target_roles: str
+    created_by: Optional[str] = None
+    created_by_role: Optional[str] = None
+    is_read: bool = False
+    created_at: Optional[datetime] = None

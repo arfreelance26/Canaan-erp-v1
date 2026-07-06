@@ -361,12 +361,28 @@ def unmark_trip_sheet(
         raise HTTPException(400, "Trip sheet is not currently marked as delivered")
     trip.trip_sheet_collected = False
     trip.trip_sheet_collected_at = None
+    # Persist the alert so Admin sees it even without a live WebSocket connection
+    db.add(models.Notification(
+        event_type="sheet_not_received",
+        title="Trip sheet not received in reconciliation",
+        message=(
+            f"Trip sheet for {trip.trip_id} ({trip.booking_reference_no}) was marked as "
+            f"delivered but was NOT received in reconciliation. "
+            f"Reported by {current_user.name} ({current_user.role})."
+        ),
+        trip_id_str=trip.trip_id,
+        booking_reference_no=trip.booking_reference_no,
+        target_roles="Admin,Fleet Manager",
+        created_by=current_user.name,
+        created_by_role=current_user.role,
+    ))
     db.commit()
     db.refresh(trip)
     emit("sheet_unmarked", {
         "trip_db_id": trip_id,
         "trip_id_str": trip.trip_id,
         "booking_reference_no": trip.booking_reference_no,
+        "reported_by": current_user.name,
     })
     # Admin notification: a person in reconciliation reported the physical sheet is missing
     emit("sheet_not_received_alert", {
@@ -389,7 +405,11 @@ def unmark_trip_sheet(
     response_model=schemas.TripOut,
     dependencies=[Depends(require_roles(*SHEET_COLLECTOR_ROLES))],
 )
-def flag_sheet_missing(trip_id: int, db: Session = Depends(get_db)):
+def flag_sheet_missing(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Flag that a trip sheet has not been received; notifies Admin and Fleet Manager."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
@@ -407,6 +427,21 @@ def flag_sheet_missing(trip_id: int, db: Session = Depends(get_db)):
             "trip_id_str": trip.trip_id,
             "booking_reference_no": trip.booking_reference_no,
         })
+    # Persist the alert so it survives without a live WebSocket connection
+    db.add(models.Notification(
+        event_type="sheet_missing",
+        title="Trip sheet flagged as missing",
+        message=(
+            f"Trip sheet for {trip.trip_id} ({trip.booking_reference_no}) was flagged as "
+            f"missing by {current_user.name} ({current_user.role})."
+        ),
+        trip_id_str=trip.trip_id,
+        booking_reference_no=trip.booking_reference_no,
+        target_roles="Admin,Fleet Manager",
+        created_by=current_user.name,
+        created_by_role=current_user.role,
+    ))
+    db.commit()
     # Always broadcast the alert notification
     emit("sheet_alert", {
         "trip_db_id": trip_id,

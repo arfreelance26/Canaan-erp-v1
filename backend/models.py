@@ -713,3 +713,19 @@ class CompensationTransaction(Base):
     note = Column(Text)
     trip_number = Column(String(20))
     created_at = Column(DateTime, default=func.now())
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_type = Column(String(50), nullable=False)        # e.g. "sheet_not_received"
+    title = Column(String(200), nullable=False)
+    message = Column(Text)
+    trip_id_str = Column(String(30))                       # TRP-xxxx (display)
+    booking_reference_no = Column(String(100))
+    target_roles = Column(String(200), nullable=False)     # comma-separated, e.g. "Admin,Fleet Manager"
+    created_by = Column(String(100))                       # reporter's name
+    created_by_role = Column(String(50))
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=func.now())

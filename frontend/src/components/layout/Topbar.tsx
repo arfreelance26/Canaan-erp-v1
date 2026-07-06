@@ -11,6 +11,7 @@ import { ProfileModal } from "./ProfileModal";
 import { attendanceApi, editApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useNotifications } from "@/context/NotificationContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -47,13 +48,6 @@ function timeAgo(raw: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-type SheetAlert = {
-  tripDbId: number;
-  tripIdStr: string;
-  bookingRef: string;
-  alertedAt: string;
-};
-
 type EditRequestNotif = {
   id: number;
   staffName: string;
@@ -82,11 +76,12 @@ export function Topbar() {
   const isFleetManager = user?.softwareDesignation === "Fleet Manager";
   const isStaff        = user?.softwareDesignation === "Staff";
 
+  const { sheetAlerts, pushSheetAlert, dismissSheetAlert } = useNotifications();
+
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen]             = useState(false);
   const [leaveRequests, setLeaveRequests]         = useState<LeaveRequest[]>([]);
-  const [sheetAlerts, setSheetAlerts]             = useState<SheetAlert[]>([]);
   const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);   // Admin
   const [editApprovalNotifs, setEditApprovalNotifs] = useState<EditApprovalNotif[]>([]); // Staff
 
@@ -136,26 +131,37 @@ export function Topbar() {
     setLeaveRequests((prev) => prev.filter((r) => r.id !== String(payload.id)));
   });
 
-  // Sheet marked as not received — alert Admin + Fleet Manager
+  // Sheet marked as not received — alert Admin + Fleet Manager via WebSocket (realtime for OTHER tabs)
   useWebSocketEvent("sheet_unmarked", (payload) => {
     if (!isAdmin && !isFleetManager) return;
-    setSheetAlerts((prev) => [{
+    pushSheetAlert({
       tripDbId: Number(payload.trip_db_id),
       tripIdStr: String(payload.trip_id_str ?? ""),
       bookingRef: String(payload.booking_reference_no ?? ""),
-      alertedAt: new Date().toISOString(),
-    }, ...prev]);
+      reportedBy: String((payload as { reported_by?: string }).reported_by ?? ""),
+    });
   });
 
   // Coordinator explicitly flagged sheet as missing — dedicated alert event
   useWebSocketEvent("sheet_alert", (payload) => {
     if (!isAdmin && !isFleetManager) return;
-    setSheetAlerts((prev) => [{
+    pushSheetAlert({
       tripDbId: Number(payload.trip_db_id),
       tripIdStr: String(payload.trip_id_str ?? ""),
       bookingRef: String(payload.booking_reference_no ?? ""),
-      alertedAt: new Date().toISOString(),
-    }, ...prev]);
+      reportedBy: "",
+    });
+  });
+
+  // Also handle sheet_not_received_alert (emitted alongside sheet_unmarked)
+  useWebSocketEvent("sheet_not_received_alert", (payload) => {
+    if (!isAdmin && !isFleetManager) return;
+    pushSheetAlert({
+      tripDbId: Number(payload.trip_db_id),
+      tripIdStr: String(payload.trip_id_str ?? ""),
+      bookingRef: String(payload.booking_reference_no ?? ""),
+      reportedBy: String((payload as { reported_by?: string }).reported_by ?? ""),
+    });
   });
 
   // Staff submitted an edit request — Admin gets notified
@@ -252,13 +258,10 @@ export function Topbar() {
         {/* Notification bell */}
         <div className="relative" ref={notifRef}>
           {(() => {
-            const totalBadge = isAdmin
-              ? leaveRequests.length + sheetAlerts.length + editRequestNotifs.length
-              : isFleetManager
-              ? sheetAlerts.length
-              : isStaff
-              ? editApprovalNotifs.length
-              : 0;
+            const totalBadge =
+              sheetAlerts.length +
+              (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
+              (isStaff ? editApprovalNotifs.length : 0);
             return (
               <button
                 type="button"
@@ -285,11 +288,10 @@ export function Topbar() {
                   <span className="text-[13px] font-semibold text-gray-900">Notifications</span>
                 </div>
                 {(() => {
-                  const count = isAdmin
-                    ? leaveRequests.length + sheetAlerts.length + editRequestNotifs.length
-                    : isFleetManager ? sheetAlerts.length
-                    : isStaff ? editApprovalNotifs.length
-                    : 0;
+                  const count =
+                    sheetAlerts.length +
+                    (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
+                    (isStaff ? editApprovalNotifs.length : 0);
                   return count > 0 ? (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
                       {count} unread
@@ -320,7 +322,7 @@ export function Topbar() {
                             <button
                               type="button"
                               onClick={() => {
-                                setSheetAlerts((prev) => prev.filter((_, idx) => idx !== i));
+                                dismissSheetAlert(i);
                                 setIsNotifOpen(false);
                                 router.push(isAdmin ? "/trips/sheet-collection" : "/trips/current");
                               }}
@@ -335,6 +337,9 @@ export function Topbar() {
                                   Booking ref: <span className="font-semibold">{alert.bookingRef}</span>
                                   {alert.tripIdStr && <span className="ml-1 text-gray-400">({alert.tripIdStr})</span>}
                                 </p>
+                                {alert.reportedBy && (
+                                  <p className="text-[11px] text-gray-500">Reported by: <span className="font-medium">{alert.reportedBy}</span></p>
+                                )}
                                 <p className="text-[11px] text-orange-700 font-medium">Please follow up immediately.</p>
                               </div>
                               <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(alert.alertedAt)}</span>

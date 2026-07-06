@@ -6,6 +6,7 @@ import { TyreInventoryProvider } from "@/context/TyreInventoryContext";
 import { TripWorkflowProvider } from "@/context/TripWorkflowContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WebSocketProvider } from "@/context/WebSocketContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 
@@ -46,11 +47,13 @@ export default function RootLayout({
         <NoScrollNumberInputs />
         <AuthProvider>
           <WebSocketProvider>
-            <TripWorkflowProvider>
-              <TyreInventoryProvider>
-                <AppShell>{children}</AppShell>
-              </TyreInventoryProvider>
-            </TripWorkflowProvider>
+            <NotificationProvider>
+              <TripWorkflowProvider>
+                <TyreInventoryProvider>
+                  <AppShell>{children}</AppShell>
+                </TyreInventoryProvider>
+              </TripWorkflowProvider>
+            </NotificationProvider>
           </WebSocketProvider>
         </AuthProvider>
       </body>
