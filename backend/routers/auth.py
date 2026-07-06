@@ -89,7 +89,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     _clear_failures(lockout_key)
-    role = member.software_designation or "Staff"
+    role = member.software_designation or "Trip Sheet Coordinator"
     token = create_access_token(user_id=member.id, name=member.name, role=role, staff_id=member.staff_id)
     return LoginResponse(
         access_token=token,

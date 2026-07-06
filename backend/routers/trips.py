@@ -59,7 +59,7 @@ def _enrich(trip: models.Trip) -> dict:
     return data
 
 
-SHEET_COLLECTOR_ROLES = ("Trip Sheet Coordinator",)
+SHEET_COLLECTOR_ROLES = ("Yard Staff",)
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +321,7 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     dependencies=[Depends(require_roles(*SHEET_COLLECTOR_ROLES))],
 )
 def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
-    """Mark a trip sheet as delivered by the Trip Sheet Coordinator."""
+    """Mark a trip sheet as delivered by the Yard Staff."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
@@ -393,7 +393,7 @@ def unmark_trip_sheet(
         "reported_by_role": current_user.role,
         "message": (
             f"Trip sheet for {trip.trip_id} ({trip.booking_reference_no}) was marked as "
-            f"delivered by the Trip Sheet Coordinator but was NOT received in reconciliation. "
+            f"delivered by the Yard Staff but was NOT received in reconciliation. "
             f"Reported by {current_user.name} ({current_user.role})."
         ),
     })

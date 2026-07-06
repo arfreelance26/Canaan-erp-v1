@@ -17,8 +17,8 @@ const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
   "Fleet Manager": "Fleet Managers",
   "Tyre Manager": "Tyre Managers",
-  Staff: "Staff",
-  "Trip Sheet Coordinator": "Sheet Coordinators",
+  "Trip Sheet Coordinator": "Trip Sheet Coordinators",
+  "Yard Staff": "Yard Staff",
 };
 
 type FilterValue = "All" | LeaveApplicantCategory;
@@ -67,8 +67,8 @@ export default function LeaveApprovalsPage() {
       Driver: 0,
       "Fleet Manager": 0,
       "Tyre Manager": 0,
-      Staff: 0,
       "Trip Sheet Coordinator": 0,
+      "Yard Staff": 0,
     };
     for (const request of requests) {
       if (request.status !== "Pending") continue;

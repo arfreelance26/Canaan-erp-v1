@@ -122,7 +122,7 @@ export function TripSheetCoordinatorDashboard() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trip Sheet Coordinator</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Yard Staff</h1>
           <p className="mt-1 text-sm text-gray-500">Sheet collection status across all closed trips</p>
         </div>
         {!loading && pending.length > 0 && (

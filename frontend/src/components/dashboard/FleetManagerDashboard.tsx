@@ -126,7 +126,7 @@ export function FleetManagerDashboard() {
       trucksApi.list(),
     ])
       .then(([ov, trips, trks]) => {
-        setOverview(ov as OverviewData);
+        setOverview(ov as unknown as OverviewData);
         setAllTrips(trips);
         setTrucks(trks);
       })

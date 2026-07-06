@@ -12,8 +12,8 @@ export const SOFTWARE_DESIGNATION_OPTIONS = [
   "Fleet Manager",
   "Finance Manager",
   "Tyre Manager",
+  "Yard Staff",
   "Trip Sheet Coordinator",
-  "Staff",
 ];
 
 export const initialStaff: Staff[] = [
@@ -32,7 +32,7 @@ export const initialStaff: Staff[] = [
     aadharNumber: null,
     aadharFileName: "anita_menon_aadhar.pdf",
 
-    softwareDesignation: "Staff",
+    softwareDesignation: "Trip Sheet Coordinator",
     username: "anita.menon@canaanglobal.com",
     password: "Anita@1234",
   },

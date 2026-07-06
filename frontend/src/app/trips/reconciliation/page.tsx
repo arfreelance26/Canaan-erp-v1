@@ -26,7 +26,7 @@ type DialogMode = "add" | "view" | "edit";
 
 export default function TripReconciliationPage() {
   const { user } = useAuth();
-  const isStaff = user?.softwareDesignation === "Staff";
+  const isStaff = user?.softwareDesignation === "Trip Sheet Coordinator";
   const { pushSheetAlert } = useNotifications();
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -120,7 +120,7 @@ export default function TripReconciliationPage() {
     if (!isAdminOrManager) return;
     const p = payload as { trip_id_str?: string; booking_reference_no?: string; reported_by?: string };
     showError(
-      `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Trip Sheet Coordinator but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
+      `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Yard Staff but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
     );
     loadReconciliationData();
   });

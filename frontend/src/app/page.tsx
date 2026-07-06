@@ -166,11 +166,11 @@ export default function DashboardPage() {
     return <FinanceManagerDashboard />;
   }
 
-  if (user?.softwareDesignation === "Staff") {
+  if (user?.softwareDesignation === "Trip Sheet Coordinator") {
     return <StaffDashboard />;
   }
 
-  if (user?.softwareDesignation === "Trip Sheet Coordinator") {
+  if (user?.softwareDesignation === "Yard Staff") {
     return <TripSheetCoordinatorDashboard />;
   }
 

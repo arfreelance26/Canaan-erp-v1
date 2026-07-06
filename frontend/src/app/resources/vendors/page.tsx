@@ -17,7 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function VendorsPage() {
   const { user } = useAuth();
-  const isStaff = user?.softwareDesignation === "Staff";
+  const isStaff = user?.softwareDesignation === "Trip Sheet Coordinator";
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,7 +1,7 @@
 # Canaan ERP — Realtime Notifications & Reminders System
 
 Technical documentation. Last updated: 2026-07-06.
-Scope: WebSocket realtime layer, persistent notifications, computed reminders (renewals / EMI / payments), Trip Sheet Coordinator alert flow, timezone handling.
+Scope: WebSocket realtime layer, persistent notifications, computed reminders (renewals / EMI / payments), Yard Staff alert flow, timezone handling.
 
 ---
 
@@ -113,7 +113,7 @@ No business data travels over the socket — clients refetch through the authent
 - `POST /trips/{id}/unmark-sheet` ("Mark as Not Received", any authenticated user):
   - Guards: 404 if trip missing; **400 if a trip sheet has already been entered** (locked); 400 if not currently marked delivered.
   - Clears `trip_sheet_collected` / `trip_sheet_collected_at`, **inserts a `Notification` row (target `Admin,Fleet Manager`) in the same commit**, then emits `sheet_unmarked` and `sheet_not_received_alert` over WebSocket.
-- `POST /trips/{id}/flag-sheet-missing` (Trip Sheet Coordinator): undoes delivery if applicable, persists a `sheet_missing` notification, emits `sheet_alert`.
+- `POST /trips/{id}/flag-sheet-missing` (Yard Staff): undoes delivery if applicable, persists a `sheet_missing` notification, emits `sheet_alert`.
 
 ### 3.5 Computed reminders — `GET /notifications/reminders`
 
@@ -183,9 +183,9 @@ Panel sections (top to bottom):
 | Renewals & Payments | red (overdue) / amber (due soon) | Admin (+ FM for documents) | `NotificationContext.reminders` |
 | Leave Requests | blue | Admin | REST + `leave_request_created` WS |
 | Edit Requests | purple | Admin | REST + `edit_approval_created` WS |
-| Edit Access Approved | green | Staff | `edit_approval_updated` WS |
+| Edit Access Approved | green | Trip Sheet Coordinator | `edit_approval_updated` WS |
 
-- Badge count = sheet alerts + reminders + role-specific items (leave/edit requests for Admin, edit approvals for Staff).
+- Badge count = sheet alerts + reminders + role-specific items (leave/edit requests for Admin, edit approvals for Trip Sheet Coordinator).
 - Sheet alerts show reporter name, relative time ("5m ago") **and absolute IST time** ("05 Jul, 06:34 pm").
 - Reminder rows show a countdown: "Due today", "N days left", or "Overdue by N days".
 - Clicking a row dismisses it (server-side for persisted ones) and navigates to the relevant page.
@@ -193,7 +193,7 @@ Panel sections (top to bottom):
 
 ### 4.4 Reconciliation page (`src/app/trips/reconciliation/page.tsx`)
 
-- Lists only trips with `tripSheetCollected === true` (gated by the Trip Sheet Coordinator).
+- Lists only trips with `tripSheetCollected === true` (gated by the Yard Staff).
 - "Mark as Not Received" button → `POST /trips/{id}/unmark-sheet`; on success removes the row, shows a toast, and pushes a local sheet alert (instant feedback for the clicker).
 - Button replaced by a grey **Locked** badge once a trip sheet has been entered (backend enforces the same rule with a 400).
 - Admin/Manager sessions on this page also get a SweetAlert popup via the `sheet_not_received_alert` WS event.
@@ -220,7 +220,7 @@ tripsApi.collectSheet(dbId) / unmarkSheet(dbId) / flagSheetMissing(dbId)
 | `sheet_not_received_alert` | unmark-sheet | + `reported_by_role`, `message` | Topbar, reconciliation page (SweetAlert) |
 | `sheet_alert` | flag-sheet-missing | trip ids, booking ref | Topbar |
 | `leave_request_created` / `leave_request_updated` | attendance router | request fields | Topbar (Admin) |
-| `edit_approval_created` / `edit_approval_updated` | edit-approvals router | request fields, `staff_db_id`, `status` | Topbar (Admin / Staff) |
+| `edit_approval_created` / `edit_approval_updated` | edit-approvals router | request fields, `staff_db_id`, `status` | Topbar (Admin / Trip Sheet Coordinator) |
 | `trip_created` / `trip_updated` / `trip_closed` | trips router | trip ids | trip pages |
 
 ---

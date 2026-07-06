@@ -145,9 +145,9 @@ class Staff(Base):
     department = Column(String(100))
     designation = Column(String(100))
     software_designation = Column(
-        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"),
+        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"),
         nullable=False,
-        default="Staff",
+        default="Trip Sheet Coordinator",
     )
     date_of_birth = Column(Date)
     date_of_joining = Column(Date)
@@ -518,14 +518,14 @@ class StaffAttendance(Base):
     marked_at = Column(DateTime)
     source = Column(Enum("Web", "App"), default="Web")
 
-    staff = relationship("Staff", back_populates="attendance_records")
+    staff = relationship("Trip Sheet Coordinator", back_populates="attendance_records")
 
 
 class LeaveRequest(Base):
     __tablename__ = "leave_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Staff", "Trip Sheet Coordinator"), nullable=False)
+    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Coordinator", "Yard Staff"), nullable=False)
     applicant_id = Column(Integer, nullable=False)                      # driver.id or staff.id
     applicant_name = Column(String(100), nullable=False)
     applicant_code = Column(String(20))                                 # CGI-D001 / STF-1001

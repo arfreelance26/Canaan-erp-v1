@@ -43,15 +43,29 @@ def _run_schema_migrations():
         "ALTER TABLE repair_types ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE sac_codes ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE sac_codes DROP INDEX code",
-        # Trip Sheet Coordinator workflow
+        # Yard Staff workflow
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_collected_at DATETIME NULL",
-        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL DEFAULT 'Staff'",
-        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator') NOT NULL",
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Coordinator'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL",
         # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending'",
+        # Role rename: Trip Sheet Coordinator → Yard Staff, Staff → Trip Sheet Coordinator
+        # Step 1: expand enum to hold all transitional values simultaneously
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff') NOT NULL DEFAULT 'Staff'",
+        # Step 2: move old 'Trip Sheet Coordinator' rows to new name 'Yard Staff'
+        "UPDATE staff SET software_designation = 'Yard Staff' WHERE software_designation = 'Trip Sheet Coordinator'",
+        # Step 3: move old 'Staff' rows to new name 'Trip Sheet Coordinator'
+        "UPDATE staff SET software_designation = 'Trip Sheet Coordinator' WHERE software_designation = 'Staff'",
+        # Step 4: finalize enum — remove old 'Staff' value, set new default
+        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Coordinator'",
+        # Same pattern for leave_requests.category
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff') NOT NULL",
+        "UPDATE leave_requests SET category = 'Yard Staff' WHERE category = 'Trip Sheet Coordinator'",
+        "UPDATE leave_requests SET category = 'Trip Sheet Coordinator' WHERE category = 'Staff'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Coordinator','Yard Staff') NOT NULL",
     ]
     with engine.connect() as conn:
         for stmt in migrations:

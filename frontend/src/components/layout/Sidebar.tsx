@@ -38,12 +38,12 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/trucks",
     "/attendance/leave-requests",
   ],
-  "Trip Sheet Coordinator": [
+  "Yard Staff": [
     "/",
     "/trips/sheet-collection",
     "/attendance/leave-requests",
   ],
-  Staff: [
+  "Trip Sheet Coordinator": [
     "/",
     "/trips/reconciliation",
     "/resources/customers",
@@ -78,7 +78,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  const sections = getFilteredSections(user?.softwareDesignation ?? "Staff");
+  const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Coordinator");
 
   return (
     <aside className="flex h-screen w-[280px] shrink-0 flex-col border-r border-white/50 bg-white/60 backdrop-blur-xl shadow-sm">

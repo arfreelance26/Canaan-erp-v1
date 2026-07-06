@@ -325,7 +325,7 @@ function toStaff(b: B): Staff {
     name: b.name ?? "",
     department: b.department ?? "",
     designation: b.designation ?? "",
-    softwareDesignation: b.software_designation ?? "Staff",
+    softwareDesignation: b.software_designation ?? "Trip Sheet Coordinator",
     dateOfBirth: b.date_of_birth ?? "",
     dateOfJoining: b.date_of_joining ?? "",
     email: b.email ?? "",
@@ -754,7 +754,7 @@ function toStaffAttendance(b: B): StaffAttendanceRecord {
 function toLeaveRequest(b: B): LeaveRequest {
   return {
     id: String(b.id),
-    category: b.category ?? "Staff",
+    category: b.category ?? "Trip Sheet Coordinator",
     applicantId: String(b.applicant_id ?? ""),
     applicantName: b.applicant_name ?? "",
     applicantCode: b.applicant_code ?? "",

@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user && pathname !== "/login") {
       router.replace("/login");
     } else if (user) {
-      const isCoordinator = user.softwareDesignation === "Trip Sheet Coordinator";
+      const isCoordinator = user.softwareDesignation === "Yard Staff";
       if (pathname === "/login") {
         router.replace(isCoordinator ? "/trips/sheet-collection" : "/");
       } else if (isCoordinator && pathname === "/") {
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
     const home =
-      authUser.softwareDesignation === "Trip Sheet Coordinator"
+      authUser.softwareDesignation === "Yard Staff"
         ? "/trips/sheet-collection"
         : "/";
     router.replace(home);

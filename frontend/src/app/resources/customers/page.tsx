@@ -32,7 +32,7 @@ type TabId = (typeof TABS)[number]["id"];
 
 export default function CustomersPage() {
   const { user } = useAuth();
-  const isStaff = user?.softwareDesignation === "Staff";
+  const isStaff = user?.softwareDesignation === "Trip Sheet Coordinator";
 
   const [activeTab, setActiveTab] = useState<TabId>("list");
   const [loading, setLoading] = useState(true);
