@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { Field, inputClass } from "@/components/ui/Field";
+import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -85,6 +86,12 @@ function numberToWords(amount: number): string {
 const emptyService = (): ServiceLine => ({
   descriptionOfService: "", sacCode: "", gstRate: "", quantity: "", rate: "",
 });
+
+// A service line the user hasn't touched yet — used so newly added SAC/hint lines
+// fill the empty default line (Service 1) instead of appending an empty Service 1.
+const isBlankService = (s: ServiceLine): boolean =>
+  !s.descriptionOfService.trim() && !s.sacCode.trim() &&
+  !s.gstRate.trim() && !s.quantity.trim() && !s.rate.trim();
 
 function emptyForm(): InvoiceFormData {
   return {
@@ -210,11 +217,20 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     }
   }, [open, trip?.id]);
 
+  // Insert a new service line — but if there's still an untouched blank line
+  // (e.g. the default Service 1), fill that one instead of appending after it.
+  function addOrFillService(line: ServiceLine) {
+    setForm((prev) => {
+      const idx = prev.services.findIndex(isBlankService);
+      const services = idx >= 0
+        ? prev.services.map((s, i) => (i === idx ? line : s))
+        : [...prev.services, line];
+      return { ...prev, services };
+    });
+  }
+
   function addHintAsService(hint: InvoiceHint, index: number) {
-    setForm((prev) => ({
-      ...prev,
-      services: [...prev.services, { ...emptyService(), descriptionOfService: hint.label, rate: String(hint.value), quantity: "1" }],
-    }));
+    addOrFillService({ ...emptyService(), descriptionOfService: hint.label, rate: String(hint.value), quantity: "1" });
     const remaining = invoiceHints.filter((_, i) => i !== index);
     setInvoiceHints(remaining);
     if (trip) {
@@ -284,6 +300,27 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
           updated.gstRate = match ? (parseFloat(match.gstRate) > 0 ? match.gstRate : "") : "";
         }
         return updated;
+      });
+      return { ...prev, services };
+    });
+  }
+
+  // SAC combobox: on picking a code, auto-fill the GST rate AND the service description.
+  // While typing free text, only the code updates (description/rate are left untouched).
+  function handleSacChange(index: number, value: string) {
+    setForm((prev) => {
+      const services = prev.services.map((s, i) => {
+        if (i !== index) return s;
+        const match = sacCodes.find((sc) => sc.code === value);
+        if (match) {
+          return {
+            ...s,
+            sacCode: match.code,
+            gstRate: parseFloat(match.gstRate) > 0 ? match.gstRate : "",
+            descriptionOfService: match.description || s.descriptionOfService,
+          };
+        }
+        return { ...s, sacCode: value };
       });
       return { ...prev, services };
     });
@@ -587,18 +624,12 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                       />
                     </Field>
                     <Field label="SAC Code">
-                      <input
+                      <GlassCombobox
                         value={svc.sacCode}
-                        onChange={(e) => updateService(i, "sacCode", e.target.value)}
-                        className={inputClass}
-                        placeholder="e.g. 9965"
-                        list={`sac-list-${i}`}
+                        onChange={(val) => handleSacChange(i, val)}
+                        options={sacCodes.map((sc) => ({ value: sc.code, label: `${sc.code} — ${sc.description}` }))}
+                        placeholder="Select or type SAC code"
                       />
-                      <datalist id={`sac-list-${i}`}>
-                        {sacCodes.map((sc) => (
-                          <option key={sc.id} value={sc.code} label={sc.description} />
-                        ))}
-                      </datalist>
                     </Field>
                     <Field label={`GST Rate (%)${taxSelected ? ` — ${isIgst ? "IGST" : "GST"}` : ""}`}>
                       <div className="relative">
@@ -729,7 +760,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
               <input value={form.contactPerson} onChange={(e) => update("contactPerson", e.target.value)} className={inputClass} placeholder="e.g. Raju Kumar" />
             </Field>
             <Field label="Email">
-              <input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} className={inputClass} placeholder="e.g. accounts@canaan.in" />
+              <input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} className={inputClassLower} placeholder="e.g. accounts@canaan.in" />
             </Field>
             <Field label="Contact">
               <input value={form.contact} onChange={(e) => update("contact", e.target.value)} className={inputClass} placeholder="e.g. +91 98765 43210" />
@@ -804,19 +835,13 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                       <button
                         type="button"
                         onClick={() => {
-                          setForm((prev) => ({
-                            ...prev,
-                            services: [
-                              ...prev.services,
-                              {
-                                ...emptyService(),
-                                descriptionOfService: sc.description,
-                                sacCode: sc.code,
-                                gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
-                                quantity: "1",
-                              },
-                            ],
-                          }));
+                          addOrFillService({
+                            ...emptyService(),
+                            descriptionOfService: sc.description,
+                            sacCode: sc.code,
+                            gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
+                            quantity: "1",
+                          });
                           setShowSacTable(false);
                         }}
                         className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"

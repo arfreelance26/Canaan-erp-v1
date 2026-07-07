@@ -128,7 +128,15 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
 
 
 @router.patch("/{trip_id}/status", response_model=schemas.TripOut)
-def update_trip_status(trip_id: int, payload: schemas.TripStatusUpdate, db: Session = Depends(get_db)):
+def update_trip_status(
+    trip_id: int,
+    payload: schemas.TripStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    # Cancelling a trip is an Admin-only action
+    if payload.status == "Cancelled" and current_user.role != "Admin":
+        raise HTTPException(403, "Only an Admin can cancel a trip.")
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()

@@ -6,6 +6,7 @@ import { TripTable } from "@/components/trips/TripTable";
 import { TripFormDialog } from "@/components/trips/TripFormDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
+import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -18,6 +19,8 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function AssignTripsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -195,7 +198,7 @@ export default function AssignTripsPage() {
         customers={customers}
         onEdit={handleEdit}
         onMarkStarted={handleMarkStarted}
-        onCancel={handleCancel}
+        onCancel={isAdmin ? handleCancel : undefined}
       />
 
       <TripFormDialog
