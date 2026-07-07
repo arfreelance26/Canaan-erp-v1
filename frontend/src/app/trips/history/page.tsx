@@ -155,7 +155,7 @@ export default function TripHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
-  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks));
+  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -174,7 +174,7 @@ export default function TripHistoryPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search trips..."
+              placeholder="Search by truck no., driver, trip ID…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"

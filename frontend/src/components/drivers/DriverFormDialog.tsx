@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { FileText, Eye, EyeOff } from "lucide-react";
+import { FileText, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -62,6 +62,8 @@ export function DriverFormDialog({
   const [form, setForm] = useState<Omit<Driver, "id" | "driverId">>(emptyForm);
   const [files, setFiles] = useState<DriverFiles>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [changePassword, setChangePassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const lastAutoUsername = useRef<string>("");
 
   useEffect(() => {
@@ -71,8 +73,9 @@ export function DriverFormDialog({
         driverId: "",
         ...emptyForm,
       };
-      setForm(rest);
+      setForm({ ...rest, password: "" });
       setFiles({});
+      setChangePassword(false);
       lastAutoUsername.current = rest.username;
     }
   }, [open, initialData]);
@@ -195,7 +198,7 @@ export function DriverFormDialog({
               type="email"
               value={form.email}
               onChange={(e) => handleEmailChange(e.target.value)}
-              className={inputClass}
+              className={inputClassLower}
               placeholder="name@company.com"
             />
           </Field>
@@ -331,10 +334,10 @@ export function DriverFormDialog({
           />
         </Field>
 
-        <div className="rounded-lg border border-gray-200 p-4">
+        <div className="rounded-lg border border-gray-200 p-4 flex flex-col gap-4">
           <p className={sectionHeadingClass}>Software Credentials</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Username">
+            <Field label="Username (auto-filled from email)">
               <input
                 type="text"
                 value={form.username}
@@ -342,7 +345,7 @@ export function DriverFormDialog({
                   lastAutoUsername.current = "";
                   update("username", e.target.value);
                 }}
-                className={inputClass}
+                className={inputClassLower}
                 placeholder="Auto-filled from email"
               />
               {usernameIsSynced ? (
@@ -358,16 +361,57 @@ export function DriverFormDialog({
               ) : null}
             </Field>
 
-            <Field label="Password">
+            <Field label="Password" required={!initialData}>
               <input
                 type="password"
-                value={form.password}
-                onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
-                className={inputClassLower}
-                placeholder={initialData ? "Leave blank to keep current password" : "Set a login password"}
+                required={!initialData}
+                readOnly={!!initialData}
+                value={initialData ? "••••••••" : form.password}
+                onChange={(e) => !initialData && update("password", e.target.value)}
+                className={`${inputClassLower} ${initialData ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""}`}
+                placeholder="Set a login password"
               />
             </Field>
           </div>
+
+          {initialData && (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setChangePassword((v) => !v);
+                  update("password", "");
+                }}
+                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                <KeyRound className="w-4 h-4" />
+                {changePassword ? "Cancel password change" : "Change password"}
+              </button>
+              {changePassword && (
+                <div className="mt-3">
+                  <Field label="New Password" required>
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        required
+                        value={form.password}
+                        onChange={(e) => update("password", e.target.value)}
+                        className={`${inputClassLower} pr-10`}
+                        placeholder="Enter new password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </Field>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

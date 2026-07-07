@@ -75,8 +75,8 @@ function TruckCard({ truck, activeTrip }: { truck: TruckType; activeTrip?: Trip 
       {/* Status dot */}
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-bold text-gray-900">{truck.truckId}</p>
-          <p className="text-xs text-gray-500">{truck.registrationNumber}</p>
+          <p className="text-sm font-bold text-gray-900">{truck.registrationNumber}</p>
+          <p className="text-xs text-gray-500">{truck.truckId}</p>
         </div>
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
           onTrip ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"

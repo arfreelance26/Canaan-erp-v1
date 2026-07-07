@@ -1,4 +1,4 @@
-export type AttendanceStatus = "Present" | "Absent" | "On Leave" | "Not Marked";
+export type AttendanceStatus = "Present" | "Absent" | "On Leave" | "Not Marked" | "On Trip" | "On Halt" | "Leave" | "On Workshop";
 
 export type AttendanceSource = "Web" | "App";
 
@@ -21,6 +21,14 @@ export type StaffAttendanceRecord = {
   source: AttendanceSource;
 };
 
+export type DriverAttendanceRemark = {
+  id: string;
+  driverId: string;
+  date: string;
+  remark: string;
+  createdAt: string | null;
+};
+
 export type AttendanceSummaryRow = {
   id: string;
   code: string;
@@ -28,6 +36,10 @@ export type AttendanceSummaryRow = {
   present: number;
   absent: number;
   onLeave: number;
+  onTrip: number;
+  onHalt: number;
+  leave: number;
+  onWorkshop: number;
   notMarked: number;
   totalDays: number;
 };

@@ -14,7 +14,7 @@ import type { DriverAssignment } from "@/types/driver-assignment";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
-import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow } from "@/types/attendance";
+import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
@@ -1139,6 +1139,47 @@ export const attendanceApi = {
       body: JSON.stringify({ status, check_in_time: checkInTime ?? null }),
     }).then(toDriverAttendance),
 
+  listDriverRemarks: (driverId?: string, date?: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams();
+    if (driverId) params.set("driver_id", driverId);
+    if (date) params.set("date", date);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    return req<B[]>(`/attendance/drivers/remarks?${params}`).then((d) =>
+      d.map((b) => ({
+        id: String(b.id),
+        driverId: b.driver_id ?? "",
+        date: b.date ?? "",
+        remark: b.remark ?? "",
+        createdAt: b.created_at ?? null,
+      }))
+    );
+  },
+  addDriverRemark: (driverId: string, date: string, remark: string) =>
+    req<B>("/attendance/drivers/remarks", {
+      method: "POST",
+      body: JSON.stringify({ driver_id: driverId, date, remark }),
+    }).then((b) => ({
+      id: String(b.id),
+      driverId: b.driver_id ?? "",
+      date: b.date ?? "",
+      remark: b.remark ?? "",
+      createdAt: b.created_at ?? null,
+    })),
+  updateDriverRemark: (remarkId: string, remark: string) =>
+    req<B>(`/attendance/drivers/remarks/${remarkId}`, {
+      method: "PUT",
+      body: JSON.stringify({ remark }),
+    }).then((b) => ({
+      id: String(b.id),
+      driverId: b.driver_id ?? "",
+      date: b.date ?? "",
+      remark: b.remark ?? "",
+      createdAt: b.created_at ?? null,
+    })),
+  deleteDriverRemark: (remarkId: string) =>
+    req<void>(`/attendance/drivers/remarks/${remarkId}`, { method: "DELETE" }),
+
   listStaff: (date?: string, staffId?: number) => {
     const params = new URLSearchParams();
     if (date) params.set("date", date);
@@ -1188,6 +1229,10 @@ export const attendanceApi = {
         present: Number(b.present) || 0,
         absent: Number(b.absent) || 0,
         onLeave: Number(b.on_leave) || 0,
+        onTrip: Number(b.on_trip) || 0,
+        onHalt: Number(b.on_halt) || 0,
+        leave: Number(b.leave) || 0,
+        onWorkshop: Number(b.on_workshop) || 0,
         notMarked: Number(b.not_marked) || 0,
         totalDays: Number(b.total_days) || 0,
       }))

@@ -10,6 +10,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Circle } from "lucide-react";
+import { formatDate } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
@@ -49,8 +50,10 @@ export default function SheetCollectionPage() {
       trucksApi.list(),
       customersApi.list(),
     ]).then(([t, d, trks, c]) => {
-      // Only closed trips (hasClosure=true) proceed to sheet collection
-      const closed = t.filter((trip) => (trip as any).hasClosure === true);
+      // Only closed trips (hasClosure=true) that have NOT yet had their sheet entered
+      const closed = t.filter(
+        (trip) => (trip as any).hasClosure === true && !(trip as any).hasSheet
+      );
       setTrips(closed);
       setDrivers(d);
       setTrucks(trks);
@@ -78,6 +81,7 @@ export default function SheetCollectionPage() {
   useWebSocketEvent("sheet_collected", loadData);
   useWebSocketEvent("sheet_unmarked", loadData);
   useWebSocketEvent("trip_closed", loadData);
+  useWebSocketEvent("sheet_entered", loadData);
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
@@ -87,11 +91,13 @@ export default function SheetCollectionPage() {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     const truck = truckById.get(t.vehicleId);
+    const driver = driverById.get(t.driverId);
     return (
       t.tripId?.toLowerCase().includes(q) ||
       t.bookingReferenceNo?.toLowerCase().includes(q) ||
       t.vehicleId?.toLowerCase().includes(q) ||
-      (truck?.registrationNumber ?? "").toLowerCase().includes(q)
+      (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
+      (driver?.name ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -223,7 +229,7 @@ export default function SheetCollectionPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by truck no, trip ID, ref..."
+            placeholder="Search by truck no., driver, trip ID…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
@@ -291,7 +297,7 @@ export default function SheetCollectionPage() {
                     title="Select all pending"
                   />
                 </th>
-                {["Status", "Trip ID", "Booking Ref", "Vehicle", "Customer", "Route", "Driver", "Trip Sheet Status", "Delivered On (IST)", "Action"].map(
+                {["Status", "Trip ID", "Trip Date", "Booking Ref", "Vehicle", "Customer", "Route", "Driver", "Trip Sheet Status", "Delivered On (IST)", "Action"].map(
                   (col) => (
                     <th
                       key={col}
@@ -341,6 +347,7 @@ export default function SheetCollectionPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatDate(trip.scheduledDate) || "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{truck?.registrationNumber ?? trip.vehicleId ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>

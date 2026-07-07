@@ -1,23 +1,26 @@
 import { useEffect } from "react";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
+import type { Driver } from "@/types/driver";
 
 /**
  * Shared trip search predicate used by every trip listing page.
- * Matches trip ID, booking reference, origin/destination, truck ID and
- * truck registration number (so searching a truck number filters its trips).
+ * Matches trip ID, booking reference, origin/destination, truck registration
+ * number, truck internal ID, and driver name.
  */
-export function tripMatchesSearch(trip: Trip, query: string, trucks?: Truck[]): boolean {
+export function tripMatchesSearch(trip: Trip, query: string, trucks?: Truck[], drivers?: Driver[]): boolean {
   if (!query) return true;
   const q = query.toLowerCase();
   const truck = trucks?.find((t) => t.truckId === trip.vehicleId);
+  const driver = drivers?.find((d) => d.driverId === trip.driverId);
   return (
     (trip.tripId ?? "").toLowerCase().includes(q) ||
     (trip.bookingReferenceNo ?? "").toLowerCase().includes(q) ||
     (trip.origin ?? "").toLowerCase().includes(q) ||
     (trip.destination ?? "").toLowerCase().includes(q) ||
     (trip.vehicleId ?? "").toLowerCase().includes(q) ||
-    (truck?.registrationNumber ?? "").toLowerCase().includes(q)
+    (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
+    (driver?.name ?? "").toLowerCase().includes(q)
   );
 }
 

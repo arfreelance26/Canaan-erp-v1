@@ -57,6 +57,8 @@ def _run_schema_migrations():
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending'",
+        # Driver attendance — expand status enum with driver-specific statuses
+        "ALTER TABLE driver_attendance MODIFY COLUMN status ENUM('Present','Absent','On Leave','Not Marked','On Trip','On Halt','Leave','On Workshop') NOT NULL DEFAULT 'Not Marked'",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

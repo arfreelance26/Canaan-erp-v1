@@ -1076,7 +1076,7 @@ export default function DashboardPage() {
               return (
                 <span
                   key={truck.truckId}
-                  title={truck.registrationNumber}
+                  title={truck.truckId}
                   className={cn(
                     "rounded-full px-2.5 py-1 text-xs font-semibold",
                     onTrip
@@ -1084,7 +1084,7 @@ export default function DashboardPage() {
                       : "bg-emerald-100 text-emerald-700"
                   )}
                 >
-                  {truck.truckId}
+                  {truck.registrationNumber}
                 </span>
               );
             })}
@@ -1256,85 +1256,11 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Section 6: Maintenance Due ───────────────────────────────────── */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-amber-500" />
-            <h2 className="text-sm font-bold text-gray-900">Maintenance Due</h2>
-          </div>
-          <div className="flex gap-2 text-xs">
-            <span className="rounded-full bg-red-100 px-2.5 py-0.5 font-semibold text-red-700">
-              {maintenanceCounts.attention} Overdue
-            </span>
-            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-semibold text-amber-700">
-              {maintenanceCounts.upcoming} Upcoming
-            </span>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50">
-                {["Vehicle", "Category", "Item", "Remaining (km)", "Status"].map((col) => (
-                  <th
-                    key={col}
-                    className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {topMaintenanceItems.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-xs text-gray-400">
-                    No maintenance items due — fleet is in good shape.
-                  </td>
-                </tr>
-              ) : (
-                topMaintenanceItems.map((item, i) => (
-                  <tr
-                    key={`${item.truckId}-${item.item}-${i}`}
-                    className="transition-colors hover:bg-gray-50/70"
-                  >
-                    <td className="px-5 py-3 font-semibold text-gray-900">
-                      {item.registrationNumber}
-                    </td>
-                    <td className="px-5 py-3 text-gray-500">{item.category}</td>
-                    <td className="px-5 py-3 text-gray-700">{item.item}</td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={cn(
-                          "font-bold",
-                          item.remainingKm <= 0
-                            ? "text-red-600"
-                            : item.remainingKm <= 500
-                              ? "text-amber-600"
-                              : "text-gray-700"
-                        )}
-                      >
-                        {item.remainingKm.toLocaleString("en-IN")}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={cn(
-                          "rounded-full px-2.5 py-1 text-xs font-semibold",
-                          item.status === "attention"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700"
-                        )}
-                      >
-                        {item.status === "attention" ? "Overdue" : "Upcoming"}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      
+
+      {/* ── Section: Tyre Manager ──────────────────────────────────────────── */}
+      <div className="border-t border-gray-200 pt-6">
+        <TyreManagerDashboard embedded />
       </div>
     </div>
   );

@@ -602,7 +602,7 @@ class TripInvoiceOut(TripInvoiceCreate):
 # Attendance
 # ---------------------------------------------------------------------------
 
-AttendanceStatus = Literal["Present", "Absent", "On Leave", "Not Marked"]
+AttendanceStatus = Literal["Present", "Absent", "On Leave", "Not Marked", "On Trip", "On Halt", "Leave", "On Workshop"]
 
 
 class DriverAttendanceCreate(OrmBase):
@@ -626,6 +626,24 @@ class DriverAttendanceOut(OrmBase):
     status: AttendanceStatus
     check_in_time: Optional[str] = None
     marked_at: Optional[datetime] = None
+
+
+class DriverAttendanceRemarkCreate(OrmBase):
+    driver_id: str
+    date: date
+    remark: str
+
+
+class DriverAttendanceRemarkUpdate(OrmBase):
+    remark: str
+
+
+class DriverAttendanceRemarkOut(OrmBase):
+    id: int
+    driver_id: str
+    date: date
+    remark: str
+    created_at: Optional[datetime] = None
 
 
 class StaffAttendanceCreate(OrmBase):
@@ -658,9 +676,13 @@ class AttendanceSummaryOut(BaseModel):
     id: str
     code: str
     name: str
-    present: int
-    absent: int
-    on_leave: int
+    present: int = 0
+    absent: int = 0
+    on_leave: int = 0
+    on_trip: int = 0
+    on_halt: int = 0
+    leave: int = 0
+    on_workshop: int = 0
     not_marked: int
     total_days: int
 

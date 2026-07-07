@@ -85,7 +85,7 @@ function LifeBadge({ pct }: { pct: number }) {
   return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Good</span>;
 }
 
-export function TyreManagerDashboard() {
+export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean }) {
   const [inventory, setInventory]   = useState<TyreInventoryItem[]>([]);
   const [available, setAvailable]   = useState<TyreInventoryItem[]>([]);
   const [fitments, setFitments]     = useState<TyreFitmentRecord[]>([]);
@@ -169,18 +169,30 @@ export function TyreManagerDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tyre Manager Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
+      {embedded ? (
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Tyre &amp; Maintenance</h2>
+          {!loading && criticalTyres > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <span className="text-xs font-semibold text-red-700">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
+            </div>
+          )}
         </div>
-        {!loading && criticalTyres > 0 && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <span className="text-xs font-semibold text-red-700">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
+      ) : (
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Tyre Manager Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
           </div>
-        )}
-      </div>
+          {!loading && criticalTyres > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              <span className="text-xs font-semibold text-red-700">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -190,20 +202,22 @@ export function TyreManagerDashboard() {
         <StatCard icon={Wrench}       label="Maint. Overdue"    value={loading ? "—" : allAlerts.length} color="bg-red-100 text-red-600" alert={allAlerts.length > 0} sub={allAlerts.length > 0 ? "Needs attention" : "All clear"} />
       </div>
 
-      {/* Quick Access */}
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Quick Access</h2>
-        <div className="grid grid-cols-3 gap-3 sm:max-w-md">
-          {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
-            <Link key={href} href={href}
-              className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-xs font-semibold transition-all hover:-translate-y-1 hover:shadow-md ${color}`}
-            >
-              <Icon className="h-6 w-6" />
-              {label}
-            </Link>
-          ))}
+      {/* Quick Access — only shown on standalone tyre manager view */}
+      {!embedded && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Quick Access</h2>
+          <div className="grid grid-cols-3 gap-3 sm:max-w-md">
+            {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
+              <Link key={href} href={href}
+                className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-xs font-semibold transition-all hover:-translate-y-1 hover:shadow-md ${color}`}
+              >
+                <Icon className="h-6 w-6" />
+                {label}
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tyre Life + Inventory Breakdown */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

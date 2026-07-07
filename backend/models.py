@@ -502,11 +502,21 @@ class DriverAttendance(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     driver_id = Column(String(20), ForeignKey("drivers.driver_id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
-    status = Column(Enum("Present", "Absent", "On Leave", "Not Marked"), nullable=False, default="Not Marked")
+    status = Column(Enum("Present", "Absent", "On Leave", "Not Marked", "On Trip", "On Halt", "Leave", "On Workshop"), nullable=False, default="Not Marked")
     check_in_time = Column(String(20))
     marked_at = Column(DateTime)
 
     driver = relationship("Driver", back_populates="attendance_records")
+
+
+class DriverAttendanceRemark(Base):
+    __tablename__ = "driver_attendance_remarks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(String(20), ForeignKey("drivers.driver_id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, nullable=False)
+    remark = Column(String(1000), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class StaffAttendance(Base):

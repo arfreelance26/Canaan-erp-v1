@@ -44,14 +44,15 @@ def attendance_summary(
             by_person.setdefault(r.driver_id, []).append(r)
         for p in people:
             recs = by_person.get(p.driver_id, [])
-            counts = {"Present": 0, "Absent": 0, "On Leave": 0}
+            counts = {"On Trip": 0, "On Halt": 0, "Leave": 0, "On Workshop": 0}
             for r in recs:
                 if r.status in counts:
                     counts[r.status] += 1
             marked = sum(counts.values())
             result.append(schemas.AttendanceSummaryOut(
                 id=str(p.id), code=p.driver_id, name=p.name,
-                present=counts["Present"], absent=counts["Absent"], on_leave=counts["On Leave"],
+                on_trip=counts["On Trip"], on_halt=counts["On Halt"],
+                leave=counts["Leave"], on_workshop=counts["On Workshop"],
                 not_marked=max(total_days - marked, 0), total_days=total_days,
             ))
     else:
@@ -130,6 +131,62 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     db.refresh(record)
     emit("attendance_updated", {})
     return record
+
+
+# ---------------------------------------------------------------------------
+# Driver Attendance Remarks
+# ---------------------------------------------------------------------------
+
+@router.get("/drivers/remarks", response_model=list[schemas.DriverAttendanceRemarkOut])
+def list_driver_remarks(
+    driver_id: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.DriverAttendanceRemark)
+    if driver_id:
+        q = q.filter(models.DriverAttendanceRemark.driver_id == driver_id)
+    if date:
+        q = q.filter(models.DriverAttendanceRemark.date == date)
+    if date_from:
+        q = q.filter(models.DriverAttendanceRemark.date >= date_from)
+    if date_to:
+        q = q.filter(models.DriverAttendanceRemark.date <= date_to)
+    return q.order_by(models.DriverAttendanceRemark.date.asc(), models.DriverAttendanceRemark.created_at.asc()).all()
+
+
+@router.post("/drivers/remarks", response_model=schemas.DriverAttendanceRemarkOut, status_code=201)
+def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session = Depends(get_db)):
+    remark = models.DriverAttendanceRemark(**payload.model_dump())
+    db.add(remark)
+    db.commit()
+    db.refresh(remark)
+    emit("attendance_updated", {})
+    return remark
+
+
+@router.put("/drivers/remarks/{remark_id}", response_model=schemas.DriverAttendanceRemarkOut)
+def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemarkUpdate, db: Session = Depends(get_db)):
+    remark = db.get(models.DriverAttendanceRemark, remark_id)
+    if not remark:
+        raise HTTPException(404, "Remark not found")
+    remark.remark = payload.remark
+    db.commit()
+    db.refresh(remark)
+    emit("attendance_updated", {})
+    return remark
+
+
+@router.delete("/drivers/remarks/{remark_id}", status_code=204)
+def delete_driver_remark(remark_id: int, db: Session = Depends(get_db)):
+    remark = db.get(models.DriverAttendanceRemark, remark_id)
+    if not remark:
+        raise HTTPException(404, "Remark not found")
+    db.delete(remark)
+    db.commit()
+    emit("attendance_updated", {})
 
 
 # ---------------------------------------------------------------------------

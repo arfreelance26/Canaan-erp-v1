@@ -55,7 +55,7 @@ export default function CurrentTripsPage() {
   useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
 
   const trips = allTrips.filter((trip) => CURRENT_STATUSES.includes(trip.status));
-  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks));
+  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
 
   async function handleMarkCompleted(id: string) {
     try {
@@ -100,7 +100,7 @@ export default function CurrentTripsPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search trips..."
+              placeholder="Search by truck no., driver, trip ID…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"

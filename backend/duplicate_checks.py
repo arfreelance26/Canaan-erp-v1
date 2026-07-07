@@ -39,14 +39,20 @@ def check_truck_duplicates(db: Session, payload, exclude_id=None):
 
 def check_driver_duplicates(db: Session, payload, exclude_id=None):
     if getattr(payload, "email", None): check_duplicate(db, models.Driver, "email", payload.email, exclude_id)
-    if getattr(payload, "username", None): check_duplicate(db, models.Driver, "username", payload.username, exclude_id)
+    if getattr(payload, "username", None):
+        check_duplicate(db, models.Driver, "username", payload.username, exclude_id)
+        if db.query(models.Staff).filter(models.Staff.username == payload.username).first():
+            raise HTTPException(400, f"Username '{payload.username}' is already taken by a staff member.")
     if getattr(payload, "contact_number", None): check_duplicate(db, models.Driver, "contact_number", payload.contact_number, exclude_id)
     if getattr(payload, "aadhaar_number", None): check_duplicate(db, models.Driver, "aadhaar_number", payload.aadhaar_number, exclude_id)
     if getattr(payload, "license_number", None): check_duplicate(db, models.Driver, "license_number", payload.license_number, exclude_id)
 
 def check_staff_duplicates(db: Session, payload, exclude_id=None):
     if getattr(payload, "email", None): check_duplicate(db, models.Staff, "email", payload.email, exclude_id)
-    if getattr(payload, "username", None): check_duplicate(db, models.Staff, "username", payload.username, exclude_id)
+    if getattr(payload, "username", None):
+        check_duplicate(db, models.Staff, "username", payload.username, exclude_id)
+        if db.query(models.Driver).filter(models.Driver.username == payload.username).first():
+            raise HTTPException(400, f"Username '{payload.username}' is already taken by a driver.")
     if getattr(payload, "contact_number", None): check_duplicate(db, models.Staff, "contact_number", payload.contact_number, exclude_id)
 
 def check_branch_duplicates(db: Session, payload, exclude_id=None):

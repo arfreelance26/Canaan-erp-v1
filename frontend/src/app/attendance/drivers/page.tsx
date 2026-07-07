@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DriverAttendanceTable } from "@/components/attendance/DriverAttendanceTable";
 import { driversApi, attendanceApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
-import type { DriverAttendanceRecord } from "@/types/attendance";
+import type { DriverAttendanceRecord, DriverAttendanceRemark } from "@/types/attendance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { todayIst } from "@/lib/format-date";
@@ -27,30 +27,34 @@ export default function DriverAttendancePage() {
   const [search, setSearch] = useState("");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [records, setRecords] = useState<DriverAttendanceRecord[]>([]);
+  const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    Promise.all([driversApi.list(), attendanceApi.listDrivers()])
-      .then(([d, r]) => {
+    Promise.all([driversApi.list(), attendanceApi.listDrivers(), attendanceApi.listDriverRemarks()])
+      .then(([d, r, rm]) => {
         setDrivers(d);
         setRecords(r);
+        setRemarks(rm);
       })
       .finally(() => setLoading(false));
   }, []);
 
   useAutoRefresh(() => {
-    Promise.all([driversApi.list(), attendanceApi.listDrivers()])
-      .then(([d, r]) => {
+    Promise.all([driversApi.list(), attendanceApi.listDrivers(), attendanceApi.listDriverRemarks()])
+      .then(([d, r, rm]) => {
         setDrivers(d);
         setRecords(r);
+        setRemarks(rm);
       })
       .finally(() => setLoading(false));
   }, 5000);
 
-  // Reload records when date changes or WS event fires
+  // Reload records and remarks when date changes or WS event fires
   useEffect(() => {
-    attendanceApi.listDrivers(date).then(setRecords);
+    Promise.all([attendanceApi.listDrivers(date), attendanceApi.listDriverRemarks(undefined, date)])
+      .then(([r, rm]) => { setRecords(r); setRemarks(rm); });
   }, [date, refreshKey]);
 
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
@@ -76,12 +80,35 @@ export default function DriverAttendancePage() {
     [date]
   );
 
+  const handleAddRemark = useCallback(
+    async (driverId: string, remark: string) => {
+      const added = await attendanceApi.addDriverRemark(driverId, date, remark);
+      setRemarks((prev) => [...prev, added]);
+      return added;
+    },
+    [date]
+  );
+
+  const handleUpdateRemark = useCallback(async (id: string, remark: string) => {
+    const updated = await attendanceApi.updateDriverRemark(id, remark);
+    setRemarks((prev) => prev.map((r) => (r.id === id ? updated : r)));
+  }, []);
+
+  const handleDeleteRemark = useCallback(async (id: string) => {
+    await attendanceApi.deleteDriverRemark(id);
+    setRemarks((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   const summary = useMemo(() => {
-    const counts = { Present: 0, Absent: 0, "On Leave": 0, "Not Marked": 0 };
+    const counts = { "On Trip": 0, "On Halt": 0, "Leave": 0, "On Workshop": 0, "Not Marked": 0 };
     for (const driver of drivers) {
       const record = getAttendanceForDate(records, driver.driverId, date);
       const status = record?.status ?? "Not Marked";
-      counts[status as keyof typeof counts] += 1;
+      if (status in counts) {
+        counts[status as keyof typeof counts] += 1;
+      } else {
+        counts["Not Marked"] += 1;
+      }
     }
     return counts;
   }, [drivers, records, date]);
@@ -118,18 +145,22 @@ export default function DriverAttendancePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Present</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">{summary.Present}</p>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+          <p className="text-xs font-medium tracking-wider text-blue-500 uppercase">On Trip</p>
+          <p className="mt-1 text-2xl font-bold text-blue-700">{summary["On Trip"]}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Absent</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{summary.Absent}</p>
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+          <p className="text-xs font-medium tracking-wider text-orange-500 uppercase">On Halt</p>
+          <p className="mt-1 text-2xl font-bold text-orange-700">{summary["On Halt"]}</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">On Leave</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{summary["On Leave"]}</p>
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+          <p className="text-xs font-medium tracking-wider text-yellow-500 uppercase">Leave</p>
+          <p className="mt-1 text-2xl font-bold text-yellow-700">{summary["Leave"]}</p>
+        </div>
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+          <p className="text-xs font-medium tracking-wider text-purple-500 uppercase">On Workshop</p>
+          <p className="mt-1 text-2xl font-bold text-purple-700">{summary["On Workshop"]}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Not Marked</p>
@@ -151,8 +182,12 @@ export default function DriverAttendancePage() {
       <DriverAttendanceTable
         drivers={filteredDrivers}
         records={records}
+        remarks={remarks}
         date={date}
         onMark={handleMark}
+        onAddRemark={handleAddRemark}
+        onUpdateRemark={handleUpdateRemark}
+        onDeleteRemark={handleDeleteRemark}
       />
     </div>
   );
