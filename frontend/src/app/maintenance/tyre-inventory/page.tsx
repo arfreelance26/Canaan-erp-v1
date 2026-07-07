@@ -105,6 +105,13 @@ export default function TyreInventoryPage() {
     return matchesCondition && matchesSearch;
   });
 
+  const attachedIds = new Set(fitmentRecords.filter((f) => !f.removedDate).map((f) => f.tyreId));
+  const totalCount = tyres.length;
+  const availableCount = tyres.filter((t) => !attachedIds.has(t.id)).length;
+  const attachedCount = tyres.filter((t) => attachedIds.has(t.id)).length;
+  const newCount = tyres.filter((t) => t.condition === "New").length;
+  const rethreadedCount = tyres.filter((t) => t.condition === "Rethreaded").length;
+
   if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 
   return (
@@ -172,6 +179,21 @@ export default function TyreInventoryPage() {
             className="pl-9 pr-4 py-1.5 rounded-full border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full sm:w-64 transition-all bg-white/50 backdrop-blur-sm"
           />
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {[
+          { label: "Total Tyres", value: totalCount, color: "bg-gray-50 border-gray-200 text-gray-700" },
+          { label: "Available", value: availableCount, color: "bg-blue-50 border-blue-200 text-blue-700" },
+          { label: "Attached", value: attachedCount, color: "bg-purple-50 border-purple-200 text-purple-700" },
+          { label: "New", value: newCount, color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+          { label: "Rethreaded", value: rethreadedCount, color: "bg-amber-50 border-amber-200 text-amber-700" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className={`rounded-xl border px-4 py-3 flex flex-col gap-0.5 ${color}`}>
+            <span className="text-xs font-medium opacity-70">{label}</span>
+            <span className="text-2xl font-bold">{value}</span>
+          </div>
+        ))}
       </div>
 
       <div>

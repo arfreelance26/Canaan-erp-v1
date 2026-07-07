@@ -12,7 +12,7 @@ export const TYRE_BRAND_OPTIONS = [
   "Yokohama",
 ];
 
-export const TYRE_TYPE_OPTIONS = ["Radial", "Bias-Ply", "Tube", "Tubeless"];
+export const TYRE_TYPE_OPTIONS = ["Radial", "Bias-Ply", "Tube", "Tubeless", "Nylon"];
 
 export const TYRE_CONDITION_OPTIONS = ["New", "Rethreaded"];
 
