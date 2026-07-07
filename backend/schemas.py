@@ -344,7 +344,7 @@ class DriverAssignmentOut(OrmBase):
 # ---------------------------------------------------------------------------
 
 TripStatus = Literal["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded", "Completed", "Cancelled"]
-TripCategory = Literal["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING"]
+TripCategory = Literal["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"]
 MovementCategory = Literal["Own Fleet", "Third-Party Transporter"]
 CargoClassification = Literal["IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL"]
 ContainerSpecification = Literal["20 FT CONTAINER", "40 FT CONTAINER", "2 X 20 FEET CONTAINERS", "OPEN LOAD CARGO"]
@@ -393,6 +393,7 @@ class TripBase(OrmBase):
     transport_crossing_amount: Optional[Decimal] = None
     internal_remarks: Optional[str] = None
     booking_instructions: Optional[str] = None
+    invoice_required: bool = True
 
 
     @model_validator(mode="after")

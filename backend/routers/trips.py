@@ -310,6 +310,8 @@ def verify_trip(trip_id: int, db: Session = Depends(get_db)):
     if not trip.sheet:
         raise HTTPException(400, "Trip sheet must exist before verifying")
     trip.verification_status = "verified"
+    if trip.invoice_required is False:
+        trip.is_invoiced = True
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

@@ -108,6 +108,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   tripSheetReceivedAt: null,
   verificationStatus: "pending",
   isInvoiced: false,
+  invoiceRequired: true,
 };
 
 export function TripFormDialog({
@@ -164,6 +165,7 @@ export function TripFormDialog({
   useFormDraft(TRIP_DRAFT_KEY, open && !initialData, form, setForm);
 
   useEffect(() => {
+    if (form.tripCategory === "RETURN TRIP") return;
     const rule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
     if (rule) {
       setForm((prev) => ({
@@ -180,6 +182,7 @@ export function TripFormDialog({
   const compensationPct = selectedBranch ? parseFloat(selectedBranch.driverHaltDayPercentage || "0") : null;
   const isNormalComp = form.driverCompensationType === "Normal";
   const isShifting = form.tripCategory === "SHIFTING";
+  const isReturnTrip = form.tripCategory === "RETURN TRIP";
   const battaRule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
 
   const destinationOptions = customerDestinations
@@ -262,6 +265,7 @@ export function TripFormDialog({
 
   function handleCustomerChange(customerId: string) {
     const selectedCustomer = customers.find((c) => c.id === customerId);
+    const returnTrip = form.tripCategory === "RETURN TRIP";
     setForm((prev) => ({
       ...prev,
       customerId,
@@ -280,13 +284,13 @@ export function TripFormDialog({
       customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
       customersApi.listPricing(customerId).then((pricing) => {
         setCustomerPricing(pricing);
-        if (pricing.length > 0) {
+        if (pricing.length > 0 && !returnTrip) {
           setForm((prev) => ({ ...prev, ...applyPricingFields(pricing[0]) }));
         }
       }).catch(() => {});
       customersApi.listOrigins(customerId).then((origins) => {
         setCustomerOrigins(origins);
-        if (origins.length > 0) {
+        if (origins.length > 0 && !returnTrip) {
           setForm((prev) => ({ ...prev, origin: origins[0].originName }));
         }
       }).catch(() => {});
@@ -294,6 +298,10 @@ export function TripFormDialog({
   }
 
   function handleDestinationChange(destination: string) {
+    if (form.tripCategory === "RETURN TRIP") {
+      setForm((prev) => ({ ...prev, destination }));
+      return;
+    }
     const matchingPricing = customerPricing.find((p) => p.customerDestination === destination);
     setForm((prev) => ({
       ...prev,
@@ -303,6 +311,7 @@ export function TripFormDialog({
 
   function handleDriverChange(driverId: string) {
     setForm((prev) => {
+      if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId };
       const assignment = assignableDrivers.find((a) => a.driver.driverId === driverId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
@@ -316,6 +325,7 @@ export function TripFormDialog({
 
   function handleHireAmountChange(value: string) {
     setForm((prev) => {
+      if (prev.tripCategory === "RETURN TRIP") return { ...prev, transportHireAmount: value };
       const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
@@ -329,19 +339,19 @@ export function TripFormDialog({
 
   function handleCompensationTypeChange(val: string) {
     setForm((prev) => {
+      if (prev.tripCategory === "RETURN TRIP") {
+        return { ...prev, driverCompensationType: val as Trip["driverCompensationType"] };
+      }
       const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const rule = BATTA_RULES[prev.tripCategory]?.[prev.containerSpecification];
       let driverAdvanceAmount: string;
       if (val === "Normal") {
-        // Auto-calculated from hire amount and branch percentage
         driverAdvanceAmount = calcCompensation(prev.transportHireAmount, pct);
       } else if (rule) {
-        // FIXED with a known rule for this category/container → auto-set the fixed rate
         driverAdvanceAmount = rule.amount;
       } else {
-        // FIXED with no rule → keep whatever is there for the user to edit
         driverAdvanceAmount = prev.driverAdvanceAmount;
       }
       return { ...prev, driverCompensationType: val as Trip["driverCompensationType"], driverAdvanceAmount };
@@ -422,6 +432,12 @@ export function TripFormDialog({
                       customerFuelAdvanceAmount: "",
                       customerFuelAdvanceLitres: "",
                     }));
+                  } else if (val === "RETURN TRIP") {
+                    setForm((prev) => ({
+                      ...prev,
+                      tripCategory: val as Trip["tripCategory"],
+                      driverAdvance: "",
+                    }));
                   } else {
                     update("tripCategory", val as Trip["tripCategory"]);
                   }
@@ -453,7 +469,12 @@ export function TripFormDialog({
             <Field label="Customer Account" required>
               <GlassCombobox
                 value={form.customerId}
-                onChange={(val) => handleCustomerChange(val)}
+                onChange={(val) => {
+                  const byId = customers.find((c) => c.id === val);
+                  if (byId) { handleCustomerChange(byId.id); return; }
+                  const byName = customers.find((c) => c.name.toLowerCase() === val.toLowerCase());
+                  if (byName) handleCustomerChange(byName.id);
+                }}
                 options={customers.map(c => ({ value: c.id, label: c.name }))}
                 placeholder="Select a customer"
               />
@@ -803,6 +824,7 @@ export function TripFormDialog({
               />
             </Field>
 
+            {!isReturnTrip && (
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
                 min="0"
@@ -813,6 +835,7 @@ export function TripFormDialog({
                 placeholder="e.g. 1000"
               />
             </Field>
+            )}
 
             <Field label="Driver Batta Amount (₹)" required>
               <DecimalInput type="number"
@@ -820,17 +843,17 @@ export function TripFormDialog({
                 value={form.driverAdvanceAmount}
                 onChange={(e) => update("driverAdvanceAmount", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isNormalComp}
-                className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
-                placeholder={isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
+                readOnly={isNormalComp || isReturnTrip}
+                className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""} ${isReturnTrip ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                placeholder={isReturnTrip ? "Calculated Further in the Operation" : isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
               />
-              {battaRule && !isNormalComp && (
+              {!isReturnTrip && battaRule && !isNormalComp && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">
                   <Sparkles className="h-3 w-3" />
                   Auto-set to ₹{Number(battaRule.amount).toLocaleString("en-IN")} — {form.tripCategory} with {form.containerSpecification} ({battaRule.type} rate). Edit to override.
                 </span>
               )}
-              {isNormalComp && form.driverAdvanceAmount && (
+              {!isReturnTrip && isNormalComp && form.driverAdvanceAmount && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />
                   Auto-calculated: ₹{Number(form.driverAdvanceAmount).toLocaleString("en-IN")}
@@ -839,7 +862,7 @@ export function TripFormDialog({
                     : " — assign a vehicle with a configured branch to auto-calculate"}
                 </span>
               )}
-              {isNormalComp && !form.driverAdvanceAmount && (
+              {!isReturnTrip && isNormalComp && !form.driverAdvanceAmount && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
                   <Info className="h-3 w-3" />
                   {!form.driverId

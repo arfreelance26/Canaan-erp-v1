@@ -98,6 +98,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
   const [costPerKm, setCostPerKm] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [invoiceRequired, setInvoiceRequired] = useState(true);
   // Tracks which session has been initialized to prevent auto-refresh from resetting the form
   const initKeyRef = useRef<string>("");
 
@@ -127,6 +128,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     const key = `${trip.id}::${existingSheet?.tripSheetNo ?? "new"}`;
     if (initKeyRef.current === key) return;
     initKeyRef.current = key;
+    setInvoiceRequired(trip.invoiceRequired ?? true);
 
     const compHD  = closure ? Number(closure.companyHaltDays || 0) : 0;
     const partHD  = closure ? Number(closure.partyHaltDays   || 0) : 0;
@@ -203,6 +205,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           origin: form.from,
           destination: form.to,
           cargoWeight: form.cargoWeight,
+          invoiceRequired: form.tripType === "RETURN TRIP" ? invoiceRequired : true,
           ...(autoEditable ? {
             vehicleId: form.vehicleId,
             driverId: form.driverId,
@@ -236,13 +239,22 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
   }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-fill driver batta based on BATTA_RULES
+  // Auto-fill driver batta based on BATTA_RULES (non-RETURN TRIP categories)
   useEffect(() => {
+    if (form.tripType === "RETURN TRIP") return;
     const rule = BATTA_RULES[form.tripType]?.[form.containerType];
     if (rule) {
       setForm((prev) => recalcDerived({ ...prev, driverPay: rule.amount }, haltPay));
     }
   }, [form.tripType, form.containerType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // RETURN TRIP batta: 10% of (Hire Amount − Weight Sheet Expense)
+  useEffect(() => {
+    if (form.tripType !== "RETURN TRIP") return;
+    const base = n(form.hireAmount) - n(form.weightSheetExpense);
+    const batta = base > 0 ? String(Math.round(base * 0.10)) : "";
+    setForm((prev) => recalcDerived({ ...prev, driverPay: batta }, haltPay));
+  }, [form.tripType, form.hireAmount, form.weightSheetExpense]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!trip) return null;
 
@@ -563,9 +575,34 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         {/* ── 8. Driver Settlement ── */}
         <p className={sh}>Driver Settlement</p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {form.tripType === "RETURN TRIP" && (
+            <div className="sm:col-span-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+              <span className="mt-0.5 text-blue-500 text-sm">ℹ</span>
+              <p className="text-sm text-blue-800">
+                <span className="font-semibold">Return Trip Batta Rule — </span>
+                Driver Batta is automatically calculated as <span className="font-semibold">10% of (Hire Amount − Weight Sheet Expense)</span>. This field is locked and updates in real time as you fill in the hire amount and weight sheet expense above.
+              </p>
+            </div>
+          )}
           <Field label="Driver Batta Amount (₹)">
-            <DecimalInput type="number" min="0" className={fc} value={form.driverPay} readOnly={ro} onChange={(e) => set("driverPay", e.target.value)} placeholder="e.g. 1000" />
+            <DecimalInput
+              type="number"
+              min="0"
+              className={`${fc} ${form.tripType === "RETURN TRIP" ? "cursor-not-allowed bg-blue-50" : ""}`}
+              value={form.driverPay}
+              readOnly={ro || form.tripType === "RETURN TRIP"}
+              onChange={(e) => set("driverPay", e.target.value)}
+              placeholder="e.g. 1000"
+            />
             {(() => {
+              if (form.tripType === "RETURN TRIP") {
+                const base = n(form.hireAmount) - n(form.weightSheetExpense);
+                return (
+                  <p className="mt-1 text-xs text-blue-500">
+                    Auto-calculated: 10% of (Hire ₹{n(form.hireAmount).toLocaleString("en-IN")} − Weight Sheet ₹{n(form.weightSheetExpense).toLocaleString("en-IN")}) = ₹{Math.round(base > 0 ? base * 0.10 : 0).toLocaleString("en-IN")}
+                  </p>
+                );
+              }
               const rule = BATTA_RULES[form.tripType]?.[form.containerType];
               if (rule) return <p className="mt-1 text-xs text-blue-500">Auto-set to ₹{Number(rule.amount).toLocaleString("en-IN")} — {form.tripType} with {form.containerType} ({rule.type} rate). Edit to override.</p>;
               if (form.driverCompensationType === "FIXED") return <p className="mt-1 text-xs text-gray-400">Fixed batta amount based on compensation type.</p>;
@@ -642,7 +679,52 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </div>
         )}
 
-        {/* ── 10. Remarks ── */}
+        {/* ── 10. Invoicing (RETURN TRIP only) ── */}
+        {form.tripType === "RETURN TRIP" && !ro && (
+          <>
+            <p className={sh}>Invoicing</p>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium text-gray-700">Is this trip to be Invoiced?</span>
+                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceRequired(true)}
+                    className={`px-6 py-2 text-sm font-semibold transition-colors ${invoiceRequired ? "bg-blue-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceRequired(false)}
+                    className={`px-6 py-2 text-sm font-semibold transition-colors border-l border-gray-200 ${!invoiceRequired ? "bg-amber-500 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+              {invoiceRequired ? (
+                <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+                  <span className="mt-0.5 text-blue-500 text-sm">ℹ</span>
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">Invoice Required — </span>
+                    This trip will proceed through <span className="font-semibold">Trip Verification</span> and then to <span className="font-semibold">Invoicing</span> before going to Trip History.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                  <span className="mt-0.5 text-amber-500 text-sm">⚠</span>
+                  <p className="text-sm text-amber-800">
+                    <span className="font-semibold">No Invoice — </span>
+                    This trip will proceed through <span className="font-semibold">Trip Verification</span> but will <span className="font-semibold">skip Invoicing</span> and go directly to <span className="font-semibold">Trip History</span>.
+                  </p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── 11. Remarks ── */}
         <p className={sh}>Remarks</p>
         <Field label="Remarks *">
           <textarea rows={3} className={fc} value={form.remarks} readOnly={ro}

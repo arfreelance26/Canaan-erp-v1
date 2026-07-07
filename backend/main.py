@@ -49,6 +49,10 @@ def _run_schema_migrations():
         # Trip Sheet Register receive-confirmation workflow
         "ALTER TABLE trips ADD COLUMN trip_sheet_received BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_received_at DATETIME NULL",
+        # Trip category — add RETURN TRIP option
+        "ALTER TABLE trips MODIFY COLUMN trip_category ENUM('LOCAL','LOCAL CFS','OUTSTATION','SHIFTING','RETURN TRIP')",
+        # RETURN TRIP invoicing flag
+        "ALTER TABLE trips ADD COLUMN invoice_required BOOLEAN NOT NULL DEFAULT TRUE",
         # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",

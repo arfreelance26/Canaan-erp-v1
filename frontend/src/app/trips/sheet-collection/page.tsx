@@ -343,7 +343,7 @@ export default function SheetCollectionPage() {
                     <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
                     <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{truck?.registrationNumber ?? trip.vehicleId ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{customer?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
                     <td className="px-4 py-3 text-gray-600">
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>

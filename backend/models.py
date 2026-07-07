@@ -278,7 +278,7 @@ class Trip(Base):
     # Booking Information
     booking_reference_no = Column(String(50), unique=True, nullable=False)
     booking_created_date = Column(Date, nullable=False)
-    trip_category = Column(Enum("LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING"))
+    trip_category = Column(Enum("LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"))
     movement_category = Column(Enum("Own Fleet", "Third-Party Transporter"))
     # Customer Information
     customer_id = Column(Integer, ForeignKey("customers.id"))
@@ -325,6 +325,7 @@ class Trip(Base):
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged"), default="pending")
     is_invoiced = Column(Boolean, default=False)
+    invoice_required = Column(Boolean, default=True, nullable=False)
     trip_sheet_collected = Column(Boolean, default=False, nullable=False)
     trip_sheet_collected_at = Column(DateTime, nullable=True)
     trip_sheet_received = Column(Boolean, default=False, nullable=False)      # confirmed by Trip Sheet Register

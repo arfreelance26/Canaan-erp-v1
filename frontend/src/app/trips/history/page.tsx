@@ -284,7 +284,7 @@ export default function TripHistoryPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-3 text-gray-600">{customer?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
                     <td className="px-4 py-3 text-gray-500">
                       <span className="text-gray-800">{trip.origin}</span>
                       <span className="mx-1 text-gray-300">→</span>

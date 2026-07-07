@@ -8,7 +8,7 @@ export type TripStatus =
   | "Completed"
   | "Cancelled";
 
-export type TripCategory = "LOCAL" | "LOCAL CFS" | "OUTSTATION" | "SHIFTING";
+export type TripCategory = "LOCAL" | "LOCAL CFS" | "OUTSTATION" | "SHIFTING" | "RETURN TRIP";
 
 export type MovementCategory = "Own Fleet" | "Third-Party Transporter";
 
@@ -103,4 +103,5 @@ export type Trip = {
   tripSheetReceivedAt: string | null;
   verificationStatus: "pending" | "verified" | "flagged";
   isInvoiced: boolean;
+  invoiceRequired: boolean;
 };

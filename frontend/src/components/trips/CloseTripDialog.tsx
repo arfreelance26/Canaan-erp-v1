@@ -241,6 +241,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
             <Field label="Customer Advance Amount (₹)">
               <input readOnly disabled value={form.advanceAmount} className={readonlyClass} />
             </Field>
+            {trip?.tripCategory !== "RETURN TRIP" && (
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
                 value={form.driverAdvance}
@@ -249,6 +250,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 className={readonlyClass}
               />
             </Field>
+            )}
             <Field label="Additional Driver Advance (₹)">
               <DecimalInput type="number"
                 min="0"

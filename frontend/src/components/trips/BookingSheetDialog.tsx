@@ -453,6 +453,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 />
               )}
             </Field>
+            {tf?.tripCategory !== "RETURN TRIP" && (
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
@@ -462,6 +463,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 className={fc}
               />
             </Field>
+            )}
             <Field label="Driver Batta Amount (₹)">
               <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
@@ -598,9 +600,11 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 placeholder="e.g. 5000"
               />
             </Field>
+            {trip?.tripCategory !== "RETURN TRIP" && (
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number" value={form.driverAdvance} readOnly disabled className={roClass} />
             </Field>
+            )}
             <Field label="Additional Driver Advance (₹)">
               <DecimalInput type="number" min="0" step="0.01"
                 value={form.additionalDriverAdvance}

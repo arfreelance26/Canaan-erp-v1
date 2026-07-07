@@ -505,6 +505,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     tripSheetReceivedAt: b.trip_sheet_received_at ?? null,
     verificationStatus: b.verification_status ?? "pending",
     isInvoiced: b.is_invoiced ?? false,
+    invoiceRequired: b.invoice_required ?? true,
   };
 }
 
@@ -547,6 +548,7 @@ function fromTrip(f: Trip) {
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
     internal_remarks: f.internalRemarks || null,
     booking_instructions: f.bookingInstructions || null,
+    invoice_required: f.invoiceRequired ?? true,
   };
 }
 

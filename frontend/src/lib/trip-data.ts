@@ -55,7 +55,7 @@ export const TRIP_STATUS_OPTIONS: Trip["status"][] = [
   "Cancelled",
 ];
 
-export const TRIP_CATEGORY_OPTIONS: TripCategory[] = ["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING"];
+export const TRIP_CATEGORY_OPTIONS: TripCategory[] = ["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"];
 
 export const MOVEMENT_CATEGORY_OPTIONS: MovementCategory[] = ["Own Fleet", "Third-Party Transporter"];
 
@@ -147,6 +147,7 @@ export const initialTrips: Trip[] = [
     tripSheetReceivedAt: null,
     verificationStatus: "pending",
     isInvoiced: false,
+    invoiceRequired: true,
   },
   {
     id: "2",
@@ -195,6 +196,7 @@ export const initialTrips: Trip[] = [
     tripSheetReceivedAt: null,
     verificationStatus: "pending",
     isInvoiced: false,
+    invoiceRequired: true,
   },
   {
     id: "3",
@@ -243,5 +245,6 @@ export const initialTrips: Trip[] = [
     tripSheetReceivedAt: null,
     verificationStatus: "pending",
     isInvoiced: false,
+    invoiceRequired: true,
   },
 ];
