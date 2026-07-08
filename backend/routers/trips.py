@@ -97,6 +97,50 @@ def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
     return _enrich(trip)
 
 
+@router.get("/autocomplete-values")
+def get_autocomplete_values(db: Session = Depends(get_db)):
+    origins = (
+        db.query(models.Trip.origin)
+        .filter(models.Trip.origin.isnot(None), models.Trip.origin != "")
+        .distinct()
+        .all()
+    )
+    destinations = (
+        db.query(models.Trip.destination)
+        .filter(models.Trip.destination.isnot(None), models.Trip.destination != "")
+        .distinct()
+        .all()
+    )
+    return {
+        "origins": sorted({r[0] for r in origins}),
+        "destinations": sorted({r[0] for r in destinations}),
+    }
+
+
+@router.get("/invoices/next-seq")
+def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
+    from datetime import date
+    today = date.today()
+    start_year = today.year if today.month >= 4 else today.year - 1
+    fy = f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
+
+    if invoice_type == "Transport Memo":
+        count = db.query(models.TripInvoice).filter(
+            models.TripInvoice.invoice_type == "Transport Memo"
+        ).count()
+        next_num = str(count + 1).zfill(4)
+        invoice_no = f"CGI{fy}/TM{next_num}"
+    else:
+        # Bill of Supply and Tax Invoice share the same T-series counter
+        count = db.query(models.TripInvoice).filter(
+            models.TripInvoice.invoice_type.in_(["Bill of Supply", "Tax Invoice"])
+        ).count()
+        next_num = str(count + 1).zfill(4)
+        invoice_no = f"CGI{fy}/T{next_num}"
+
+    return {"invoice_no": invoice_no}
+
+
 @router.get("/{trip_id}", response_model=schemas.TripOut)
 def get_trip(trip_id: int, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(
@@ -505,49 +549,6 @@ def flag_sheet_missing(
     })
     return _enrich(trip)
 
-
-@router.get("/autocomplete-values")
-def get_autocomplete_values(db: Session = Depends(get_db)):
-    origins = (
-        db.query(models.Trip.origin)
-        .filter(models.Trip.origin.isnot(None), models.Trip.origin != "")
-        .distinct()
-        .all()
-    )
-    destinations = (
-        db.query(models.Trip.destination)
-        .filter(models.Trip.destination.isnot(None), models.Trip.destination != "")
-        .distinct()
-        .all()
-    )
-    return {
-        "origins": sorted({r[0] for r in origins}),
-        "destinations": sorted({r[0] for r in destinations}),
-    }
-
-
-@router.get("/invoices/next-seq")
-def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
-    from datetime import date
-    today = date.today()
-    start_year = today.year if today.month >= 4 else today.year - 1
-    fy = f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
-
-    if invoice_type == "Transport Memo":
-        count = db.query(models.TripInvoice).filter(
-            models.TripInvoice.invoice_type == "Transport Memo"
-        ).count()
-        next_num = str(count + 1).zfill(4)
-        invoice_no = f"CGI{fy}/TM{next_num}"
-    else:
-        # Bill of Supply and Tax Invoice share the same T-series counter
-        count = db.query(models.TripInvoice).filter(
-            models.TripInvoice.invoice_type.in_(["Bill of Supply", "Tax Invoice"])
-        ).count()
-        next_num = str(count + 1).zfill(4)
-        invoice_no = f"CGI{fy}/T{next_num}"
-
-    return {"invoice_no": invoice_no}
 
 @router.get("/{trip_id}/invoice", response_model=schemas.TripInvoiceOut)
 def get_invoice(trip_id: int, db: Session = Depends(get_db)):

@@ -392,6 +392,7 @@ class TripBase(OrmBase):
     transport_hire_amount: Optional[Decimal] = None
     transport_crossing_amount: Optional[Decimal] = None
     internal_remarks: Optional[str] = None
+    driver_change_remark: Optional[str] = None
     booking_instructions: Optional[str] = None
     invoice_required: bool = True
 

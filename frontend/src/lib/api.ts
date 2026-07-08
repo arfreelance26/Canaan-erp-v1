@@ -496,6 +496,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     transportHireAmount: String(b.transport_hire_amount ?? ""),
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
     internalRemarks: b.internal_remarks ?? "",
+  driverChangeRemark: b.driver_change_remark ?? "",
     bookingInstructions: b.booking_instructions ?? "",
     hasClosure: b.has_closure ?? false,
     hasSheet: b.has_sheet ?? false,
@@ -547,6 +548,7 @@ function fromTrip(f: Trip) {
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
     internal_remarks: f.internalRemarks || null,
+  driver_change_remark: f.driverChangeRemark || null,
     booking_instructions: f.bookingInstructions || null,
     invoice_required: f.invoiceRequired ?? true,
   };

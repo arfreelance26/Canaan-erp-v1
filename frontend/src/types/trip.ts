@@ -92,6 +92,7 @@ export type Trip = {
 
   // Operational Notes
   internalRemarks: string;
+  driverChangeRemark: string;
   bookingInstructions: string;
 
   // Workflow state (computed by backend)

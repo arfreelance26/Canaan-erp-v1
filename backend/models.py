@@ -321,6 +321,7 @@ class Trip(Base):
     transport_crossing_amount = Column(Numeric(10, 2), default=0)
     # Operational Notes
     internal_remarks = Column(Text)
+    driver_change_remark = Column(Text)
     booking_instructions = Column(Text)
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged"), default="pending")

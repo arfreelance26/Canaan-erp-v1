@@ -100,6 +100,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   transportHireAmount: "",
   transportCrossingAmount: "",
   internalRemarks: "",
+  driverChangeRemark: "",
   bookingInstructions: "",
   hasClosure: false,
   hasSheet: false,
@@ -370,6 +371,10 @@ export function TripFormDialog({
     const assigned = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
     if (!assigned) {
       alert("Please select a vehicle before assigning the trip.");
+      return;
+    }
+    if (vehicleAssignmentId && form.driverId !== vehicleAssignmentId && !form.driverChangeRemark.trim()) {
+      alert("Please provide a reason for changing the driver.");
       return;
     }
 
@@ -726,25 +731,44 @@ export function TripFormDialog({
               )}
             </Field>
 
-            <Field label="Vehicle Registration Number">
-              <input
-                type="text"
-                readOnly
-                disabled
-                value={selectedAssignment?.truck.registrationNumber ?? ""}
-                className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
-                placeholder="Auto-filled from vehicle selection"
-              />
-            </Field>
+            {vehicleAssignmentId && (
+              <Field label="Vehicle Registration Number">
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={selectedAssignment?.truck.registrationNumber ?? ""}
+                  className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+                />
+              </Field>
+            )}
 
-            <Field label="Driver" required>
-              <GlassCombobox
-                value={form.driverId}
-                onChange={(val) => update("driverId", val)}
-                options={drivers.map(d => ({ value: d.driverId, label: d.name }))}
-                placeholder="Select driver"
-              />
-            </Field>
+            {vehicleAssignmentId && (
+              <Field label="Driver" required>
+                <GlassCombobox
+                  value={form.driverId}
+                  onChange={(val) => {
+                    update("driverId", val);
+                    if (val === vehicleAssignmentId) update("driverChangeRemark", "");
+                  }}
+                  options={drivers.map(d => ({ value: d.driverId, label: d.name }))}
+                  placeholder="Select driver"
+                />
+              </Field>
+            )}
+
+            {vehicleAssignmentId && form.driverId && form.driverId !== vehicleAssignmentId && (
+              <Field label="Reason for Driver Change" required className="sm:col-span-2">
+                <textarea
+                  required
+                  rows={3}
+                  value={form.driverChangeRemark}
+                  onChange={(e) => update("driverChangeRemark", e.target.value)}
+                  placeholder="State the reason why the driver was changed from the default assigned driver..."
+                  className={`${inputClass} resize-none`}
+                />
+              </Field>
+            )}
           </div>
         </section>
 
