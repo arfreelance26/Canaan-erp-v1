@@ -18,6 +18,8 @@ const WS_URL = API_URL.replace(/^http/, "ws") + "/ws";
 
 const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
+const RECONNECT_GIVE_UP_MS = 5 * 60 * 1000; // after MAX_RETRIES failures, back off to 5 min
+const MAX_RETRIES = 5;
 const HEARTBEAT_MS = 30000;
 
 let socket: WebSocket | null = null;
@@ -26,6 +28,7 @@ let reconnectDelay = RECONNECT_MIN_MS;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let connected = false;
+let failCount = 0;
 
 function getToken(): string | null {
   try {
@@ -46,15 +49,20 @@ function cleanup() {
 
 function scheduleReconnect() {
   if (reconnectTimer) return;
+  failCount += 1;
+  const delay = failCount > MAX_RETRIES ? RECONNECT_GIVE_UP_MS : reconnectDelay;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connect();
-  }, reconnectDelay);
-  reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+  }, delay);
+  if (failCount <= MAX_RETRIES) {
+    reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
+  }
 }
 
 function connect() {
   if (typeof window === "undefined") return;
+  if (process.env.NEXT_PUBLIC_DISABLE_WEBSOCKET === "true") return;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   const token = getToken();
   if (!token) {
@@ -73,6 +81,7 @@ function connect() {
   socket.onopen = () => {
     connected = true;
     reconnectDelay = RECONNECT_MIN_MS;
+    failCount = 0;
     heartbeatTimer = setInterval(() => {
       if (socket?.readyState === WebSocket.OPEN) socket.send("ping");
     }, HEARTBEAT_MS);

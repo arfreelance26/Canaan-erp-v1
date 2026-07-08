@@ -35,6 +35,12 @@ import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 export const TRIP_DRAFT_KEY = "erp_trip_form_draft";
+const TRIP_VEHICLE_DRAFT_KEY = "erp_trip_form_draft_vehicle";
+
+export function clearTripDraft() {
+  clearFormDraft(TRIP_DRAFT_KEY);
+  try { sessionStorage.removeItem(TRIP_VEHICLE_DRAFT_KEY); } catch {}
+}
 
 const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
   "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
@@ -132,6 +138,7 @@ export function TripFormDialog({
   const [dbOrigins, setDbOrigins] = useState<string[]>([]);
   const [dbDestinations, setDbDestinations] = useState<string[]>([]);
   const wasOpenRef = useRef(false);
+  const vehicleRestoredRef = useRef(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
@@ -170,6 +177,38 @@ export function TripFormDialog({
   // Preserve unsaved "Add Trip" input across close/reopen — only for a genuinely new trip,
   // never when editing (editing always loads real data from initialData above).
   useFormDraft(TRIP_DRAFT_KEY, open && !initialData, form, setForm);
+
+  // vehicleAssignmentId is not part of `form`, so useFormDraft can't save/restore it.
+  // We persist it in a separate sessionStorage key using the same restoredRef pattern.
+  const draftActive = open && !initialData;
+
+  // Restore: runs when the form opens and assignableDrivers are available.
+  // Defined after the [open, initialData] effect so both fire in the same flush —
+  // React 18 batches the two setVehicleAssignmentId calls; restore wins as it runs last.
+  useEffect(() => {
+    if (!draftActive) {
+      vehicleRestoredRef.current = false;
+      return;
+    }
+    if (vehicleRestoredRef.current || assignableDrivers.length === 0) return;
+    vehicleRestoredRef.current = true;
+    try {
+      const stored = sessionStorage.getItem(TRIP_VEHICLE_DRAFT_KEY);
+      if (stored && assignableDrivers.some((a) => a.driver.driverId === stored)) {
+        setVehicleAssignmentId(stored);
+      }
+    } catch {}
+  }, [draftActive, assignableDrivers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save: only write non-empty values and only after restore has run.
+  useEffect(() => {
+    if (!draftActive || !vehicleRestoredRef.current) return;
+    try {
+      if (vehicleAssignmentId) {
+        sessionStorage.setItem(TRIP_VEHICLE_DRAFT_KEY, vehicleAssignmentId);
+      }
+    } catch {}
+  }, [draftActive, vehicleAssignmentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (form.tripCategory === "RETURN TRIP") return;
@@ -967,7 +1006,7 @@ export function TripFormDialog({
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => { clearFormDraft(TRIP_DRAFT_KEY); onClose(); }}
+            onClick={() => { clearTripDraft(); onClose(); }}
             className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
           >
             Cancel

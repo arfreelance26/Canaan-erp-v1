@@ -9,7 +9,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Circle } from "lucide-react";
+import { Search, CheckCircle2, Circle, Download } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -40,8 +40,7 @@ export default function SheetCollectionPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  // Tracks trips where the physical sheet has been confirmed received (local UI gate)
-  const [receivedSheetIds, setReceivedSheetIds] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState(false);
 
   function loadData() {
     return Promise.all([
@@ -59,14 +58,6 @@ export default function SheetCollectionPage() {
       setTrucks(trks);
       setCustomers(c);
       setSelected(new Set());
-      // Pre-populate: already-delivered trips are implicitly received
-      setReceivedSheetIds((prev) => {
-        const next = new Set(prev);
-        for (const trip of closed) {
-          if (trip.tripSheetCollected) next.add(trip.id);
-        }
-        return next;
-      });
     });
   }
 
@@ -108,8 +99,7 @@ export default function SheetCollectionPage() {
   const collected = filtered.filter((t) => t.tripSheetCollected);
   const pending = filtered.filter((t) => !t.tripSheetCollected);
 
-  // Select-all state: only pending trips where sheet has been confirmed received
-  const selectableIds = pending.filter((t) => !t.hasSheet && receivedSheetIds.has(t.id)).map((t) => t.id);
+  const selectableIds = pending.filter((t) => !t.hasSheet).map((t) => t.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0;
 
@@ -156,30 +146,12 @@ export default function SheetCollectionPage() {
     }
   }
 
-  function handleMarkReceived(id: string) {
-    setReceivedSheetIds((prev) => new Set([...prev, id]));
-  }
-
-  function handleMarkNotReceived(id: string) {
-    setReceivedSheetIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }
-
   async function handleFlagSheetMissing(trip: Trip) {
     if (toggling.has(trip.id)) return;
     setToggling((prev) => new Set([...prev, trip.id]));
     try {
       const updated = await tripsApi.flagSheetMissing(trip.id);
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
-      // Undo any local "received" state
-      setReceivedSheetIds((prev) => {
-        const next = new Set(prev);
-        next.delete(trip.id);
-        return next;
-      });
       showSuccess(`Alert sent — Admin and Fleet Manager notified for trip ${trip.tripId}.`);
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to send alert.");
@@ -218,6 +190,151 @@ export default function SheetCollectionPage() {
     }
   }
 
+  async function handleDownloadPDF() {
+    if (downloading || collected.length === 0) return;
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+
+      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const pageW = pdf.internal.pageSize.getWidth();   // 297mm landscape
+      const pageH = pdf.internal.pageSize.getHeight();  // 210mm landscape
+      const marginX = 10;
+      const marginY = 14;
+      const rowH = 8;
+      const headerH = 9;
+
+      // Column definitions: [label, width]
+      const cols: [string, number][] = [
+        ["Trip ID",      28],
+        ["Booking Ref",  42],
+        ["Trip Date",    22],
+        ["Vehicle",      26],
+        ["Customer",     36],
+        ["Route",        42],
+        ["Container No", 30],
+        ["Driver",       32],
+        ["Delivered On", 24],
+      ];
+
+      function drawPageHeader(pageNum: number, totalPages: number) {
+        // Title
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text("Trip Sheet Collection Report", marginX, marginY);
+
+        // Subtitle
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `Generated on ${today}  ·  ${collected.length} sheet${collected.length !== 1 ? "s" : ""} delivered`,
+          marginX, marginY + 5,
+        );
+
+        // Page number
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+
+        // Table header background
+        const tableTop = marginY + 10;
+        pdf.setFillColor(27, 43, 94);
+        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
+
+        // Header labels
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(255, 255, 255);
+        let x = marginX;
+        for (const [label, w] of cols) {
+          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          x += w;
+        }
+
+        return tableTop + headerH; // y position after header
+      }
+
+      // Pre-build row data
+      const rowData = collected.map((trip) => {
+        const truck = truckById.get(trip.vehicleId);
+        const driver = driverById.get(trip.driverId);
+        const customer = customerById.get(trip.customerId);
+        const deliveredOn = trip.tripSheetCollectedAt
+          ? (() => {
+              const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+")
+                ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
+              return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+            })()
+          : "—";
+        return [
+          trip.tripId,
+          trip.bookingReferenceNo,
+          formatDate(trip.scheduledDate) || "—",
+          truck?.registrationNumber ?? trip.vehicleId ?? "—",
+          customer?.name ?? trip.shipperConsignee ?? "—",
+          `${trip.origin} > ${trip.destination}`,
+          containerRef(trip),
+          driver?.name ?? "—",
+          deliveredOn,
+        ];
+      });
+
+      // Calculate total pages needed
+      const usableH = pageH - marginY - 20; // space below header block
+      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
+      const totalPages = Math.ceil(rowData.length / rowsPerPage);
+
+      let rowIndex = 0;
+      for (let page = 1; page <= totalPages; page++) {
+        if (page > 1) pdf.addPage();
+        let y = drawPageHeader(page, totalPages);
+
+        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
+        rowIndex += rowsPerPage;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7.5);
+
+        for (let r = 0; r < pageRows.length; r++) {
+          const rowY = y + r * rowH;
+          // Alternating row background
+          if (r % 2 === 1) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+          }
+          // Row bottom border
+          pdf.setDrawColor(229, 231, 235);
+          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+
+          // Cell text
+          pdf.setTextColor(30, 30, 30);
+          let x = marginX;
+          for (let c = 0; c < cols.length; c++) {
+            const [, w] = cols[c];
+            const text = String(pageRows[r][c] ?? "—");
+            // Clip text to column width
+            const clipped = pdf.splitTextToSize(text, w - 4)[0] ?? text;
+            pdf.text(clipped, x + 2, rowY + 5.5);
+            x += w;
+          }
+        }
+
+        // Outer border around table
+        const tableBodyH = pageRows.length * rowH;
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(marginX, y, pageW - marginX * 2, tableBodyH, "S");
+      }
+
+      pdf.save(`trip-sheet-collection-${today.replace(/ /g, "-")}.pdf`);
+    } catch {
+      showError("Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={8} />;
 
   return (
@@ -229,15 +346,27 @@ export default function SheetCollectionPage() {
             Mark trip sheets as delivered from drivers before reconciliation
           </p>
         </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by truck no., driver, trip ID…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-          />
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by truck no., driver, trip ID…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            disabled={downloading || collected.length === 0}
+            title={collected.length === 0 ? "No delivered sheets to export" : "Download delivered sheets as PDF"}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <Download className="h-4 w-4" />
+            {downloading ? "Generating..." : "Download PDF"}
+          </button>
         </div>
       </div>
 
@@ -301,7 +430,7 @@ export default function SheetCollectionPage() {
                     title="Select all pending"
                   />
                 </th>
-                {["Status", "Trip ID", "Trip Date", "Booking Ref", "Vehicle", "Customer", "Route", "Container No", "Driver", "Trip Sheet Status", "Delivered On (IST)", "Action"].map(
+                {["Status", "Trip ID", "Trip Date", "Booking Ref", "Vehicle", "Customer", "Route", "Container No", "Driver", "Sheet Status", "Delivered On", "Action"].map(
                   (col) => (
                     <th
                       key={col}
@@ -319,7 +448,6 @@ export default function SheetCollectionPage() {
                 const truck = truckById.get(trip.vehicleId);
                 const customer = customerById.get(trip.customerId);
                 const isCollected = trip.tripSheetCollected;
-                const isReceived = receivedSheetIds.has(trip.id);
                 const isBusy = toggling.has(trip.id);
                 const isChecked = selected.has(trip.id);
                 const sheetSubmitted = trip.hasSheet;
@@ -361,49 +489,31 @@ export default function SheetCollectionPage() {
                     <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
 
-                    {/* Trip Sheet Status toggle */}
+                    {/* Trip Sheet Status */}
                     <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1.5">
-                        {isCollected && sheetSubmitted ? (
-                          <>
-                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-not-allowed">
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Received Trip Sheet
-                            </span>
-                            <span className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed">
-                              Trip Sheet Not Yet Received
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => !isReceived && handleMarkReceived(trip.id)}
-                              className={
-                                isReceived
-                                  ? "inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white cursor-default"
-                                  : "inline-flex items-center gap-1.5 rounded-lg border border-emerald-400 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-                              }
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Received Trip Sheet
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isBusy}
-                              onClick={() => handleFlagSheetMissing(trip)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <Circle className="h-3.5 w-3.5" />
-                              Trip Sheet Not Yet Received
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      {isCollected || sheetSubmitted ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-not-allowed">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Sheet Delivered
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleFlagSheetMissing(trip)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Circle className="h-3.5 w-3.5" />
+                          Trip Sheet Not Yet Received
+                        </button>
+                      )}
                     </td>
 
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
+                      {trip.tripSheetCollectedAt ? (() => {
+                        const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+") ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
+                        return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+                      })() : "—"}
                     </td>
                     <td className="px-4 py-3">
                       {isCollected && sheetSubmitted ? (
@@ -416,9 +526,8 @@ export default function SheetCollectionPage() {
                       ) : (
                         <button
                           type="button"
-                          disabled={isBusy || (!isCollected && !isReceived)}
+                          disabled={isBusy}
                           onClick={() => handleToggleCollect(trip)}
-                          title={!isCollected && !isReceived ? "Confirm receipt of trip sheet first" : undefined}
                           className={
                             isCollected
                               ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"

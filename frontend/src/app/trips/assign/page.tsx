@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { TripTable } from "@/components/trips/TripTable";
-import { TripFormDialog, TRIP_DRAFT_KEY } from "@/components/trips/TripFormDialog";
-import { clearFormDraft } from "@/hooks/useFormDraft";
+import { TripFormDialog, clearTripDraft } from "@/components/trips/TripFormDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
@@ -121,7 +120,7 @@ export default function AssignTripsPage() {
       } else {
         const created = await tripsApi.create(trip);
         setTrips((prev) => [...prev, created]);
-        clearFormDraft(TRIP_DRAFT_KEY);
+        clearTripDraft();
         showSuccess("Trip assigned successfully.");
       }
       setDialogOpen(false);

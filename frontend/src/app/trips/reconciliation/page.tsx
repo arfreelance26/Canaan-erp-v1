@@ -16,7 +16,7 @@ import type { EditApprovalRequest, EditApprovalResourceType } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2 } from "lucide-react";
+import { Search, CheckCircle2, Download } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -61,12 +61,17 @@ export default function TripReconciliationPage() {
   } | null>(null);
 
   async function loadReconciliationData() {
-    const [t, d, tr, c] = await Promise.all([
-      tripsApi.list("Completed"),
-      driversApi.list(),
-      trucksApi.list(),
-      customersApi.list(),
-    ]);
+    let t: Trip[], d: Driver[], tr: Truck[], c: Customer[];
+    try {
+      [t, d, tr, c] = await Promise.all([
+        tripsApi.list("Completed"),
+        driversApi.list(),
+        trucksApi.list(),
+        customersApi.list(),
+      ]);
+    } catch {
+      return;
+    }
     setDrivers(d);
     setTrucks(tr);
     setCustomers(c);
@@ -255,8 +260,135 @@ export default function TripReconciliationPage() {
     }
   }
 
+  const [downloading, setDownloading] = useState(false);
+
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const receivedTrips = trips.filter((t) => t.tripSheetReceived === true);
+
+  async function handleDownloadPDF() {
+    if (downloading || receivedTrips.length === 0) return;
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+
+      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const marginX = 10;
+      const marginY = 14;
+      const rowH = 8;
+      const headerH = 9;
+
+      // Total: 277mm (297 - 10*2)
+      const cols: [string, number][] = [
+        ["Trip ID",       28],
+        ["Booking Ref",   35],
+        ["Customer",      38],
+        ["Route",         46],
+        ["Container No",  27],
+        ["Driver",        33],
+        ["Vehicle",       26],
+        ["Hire Amt",      22],
+        ["Total Exp",     22],
+      ];
+
+      function drawPageHeader(pageNum: number, totalPages: number) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text("Trip Reconciliation — Delivered & Received", marginX, marginY);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `Generated on ${today}  ·  ${receivedTrips.length} trip${receivedTrips.length !== 1 ? "s" : ""}`,
+          marginX, marginY + 5,
+        );
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+
+        const tableTop = marginY + 10;
+        pdf.setFillColor(27, 43, 94);
+        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(255, 255, 255);
+        let x = marginX;
+        for (const [label, w] of cols) {
+          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          x += w;
+        }
+        return tableTop + headerH;
+      }
+
+      const rowData = receivedTrips.map((trip) => {
+        const driver = driverById.get(trip.driverId);
+        const truck = truckById.get(trip.vehicleId);
+        const customer = customerById.get(trip.customerId);
+        const sheet = sheets.get(trip.id);
+        return [
+          trip.tripId,
+          trip.bookingReferenceNo ?? "—",
+          customer?.name ?? trip.shipperConsignee ?? "—",
+          `${trip.origin} > ${trip.destination}`,
+          containerRef(trip) || "—",
+          driver?.name ?? "—",
+          truck?.registrationNumber ?? "—",
+          sheet ? `Rs.${n(sheet.hireAmount).toLocaleString("en-IN")}` : "—",
+          sheet ? `Rs.${n(sheet.totalExpense).toLocaleString("en-IN")}` : "—",
+        ];
+      });
+
+      const usableH = pageH - marginY - 20;
+      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
+      const totalPages = Math.ceil(rowData.length / rowsPerPage);
+
+      let rowIndex = 0;
+      for (let page = 1; page <= totalPages; page++) {
+        if (page > 1) pdf.addPage();
+        const y = drawPageHeader(page, totalPages);
+
+        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
+        rowIndex += rowsPerPage;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7.5);
+
+        for (let r = 0; r < pageRows.length; r++) {
+          const rowY = y + r * rowH;
+          if (r % 2 === 1) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+          }
+          pdf.setDrawColor(229, 231, 235);
+          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+
+          pdf.setTextColor(30, 30, 30);
+          let x = marginX;
+          for (let c = 0; c < cols.length; c++) {
+            const [, w] = cols[c];
+            const clipped = pdf.splitTextToSize(String(pageRows[r][c] ?? "—"), w - 4)[0] ?? "";
+            pdf.text(clipped, x + 2, rowY + 5.5);
+            x += w;
+          }
+        }
+
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
+      }
+
+      pdf.save(`trip-reconciliation-${today.replace(/ /g, "-")}.pdf`);
+    } catch {
+      showError("Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
@@ -307,7 +439,17 @@ export default function TripReconciliationPage() {
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
+        {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
+        <button
+          type="button"
+          onClick={handleDownloadPDF}
+          disabled={downloading || receivedTrips.length === 0}
+          title={receivedTrips.length === 0 ? "No received trips to export" : "Download delivered & received trips as PDF"}
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        >
+          <Download className="h-4 w-4" />
+          {downloading ? "Generating..." : "Download PDF"}
+        </button>
         </div>
       </div>
 

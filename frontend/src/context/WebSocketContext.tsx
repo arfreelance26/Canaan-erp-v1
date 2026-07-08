@@ -20,6 +20,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const handlersRef  = useRef<Map<string, Set<EventHandler>>>(new Map());
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tokenRef     = useRef<string | undefined>(undefined);
+  const failCountRef = useRef(0);
 
   function subscribe(eventType: string, handler: EventHandler): Unsubscribe {
     if (!handlersRef.current.has(eventType)) {
@@ -40,6 +41,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
 
     function connect() {
+      if (process.env.NEXT_PUBLIC_DISABLE_WEBSOCKET === "true") return;
       const token = tokenRef.current;
       if (!token) return;
       const ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
@@ -52,12 +54,16 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         } catch {}
       };
 
+      ws.onopen = () => { failCountRef.current = 0; };
+
       ws.onclose = () => {
         wsRef.current = null;
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
+        failCountRef.current += 1;
+        const delay = failCountRef.current > 5 ? 5 * 60 * 1000 : 3000;
         reconnectRef.current = setTimeout(() => {
           if (tokenRef.current) connect();
-        }, 3000);
+        }, delay);
       };
 
       ws.onerror = () => ws.close();

@@ -9,7 +9,7 @@ import type { Truck } from "@/types/truck";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search } from "lucide-react";
+import { Search, Download } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -23,6 +23,7 @@ export default function AssignDriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
         Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
@@ -79,6 +80,118 @@ export default function AssignDriversPage() {
     }
   }
 
+  async function handleDownloadPDF() {
+    if (downloading || drivers.length === 0) return;
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+
+      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const marginX = 14;
+      const marginY = 14;
+      const rowH = 8;
+      const headerH = 9;
+
+      const cols: [string, number][] = [
+        ["Driver ID",       35],
+        ["Driver Name",     60],
+        ["Vehicle Reg No",  55],
+        ["Truck ID",        32],
+      ];
+
+      const truckById = new Map(trucks.map((t) => [t.truckId, t]));
+
+      function drawPageHeader(pageNum: number, totalPages: number) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text("Driver-Vehicle Assignments", marginX, marginY);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `Generated on ${today}  ·  ${drivers.length} driver${drivers.length !== 1 ? "s" : ""}`,
+          marginX, marginY + 5,
+        );
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+
+        const tableTop = marginY + 10;
+        pdf.setFillColor(27, 43, 94);
+        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(255, 255, 255);
+        let x = marginX;
+        for (const [label, w] of cols) {
+          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          x += w;
+        }
+        return tableTop + headerH;
+      }
+
+      const rowData = drivers.map((driver) => {
+        const vehicleId = vehicleByDriverId[driver.driverId];
+        const truck = vehicleId ? truckById.get(vehicleId) : undefined;
+        return [
+          driver.driverId,
+          driver.name ?? "—",
+          truck?.registrationNumber ?? "—",
+          vehicleId ?? "—",
+        ];
+      });
+
+      const usableH = pageH - marginY - 20;
+      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
+      const totalPages = Math.ceil(rowData.length / rowsPerPage);
+
+      let rowIndex = 0;
+      for (let page = 1; page <= totalPages; page++) {
+        if (page > 1) pdf.addPage();
+        const y = drawPageHeader(page, totalPages);
+
+        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
+        rowIndex += rowsPerPage;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+
+        for (let r = 0; r < pageRows.length; r++) {
+          const rowY = y + r * rowH;
+          if (r % 2 === 1) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+          }
+          pdf.setDrawColor(229, 231, 235);
+          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+
+          pdf.setTextColor(30, 30, 30);
+          let x = marginX;
+          for (let c = 0; c < cols.length; c++) {
+            const [, w] = cols[c];
+            const clipped = pdf.splitTextToSize(String(pageRows[r][c] ?? "—"), w - 4)[0] ?? "";
+            pdf.text(clipped, x + 2, rowY + 5.5);
+            x += w;
+          }
+        }
+
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
+      }
+
+      pdf.save(`driver-assignments-${today.replace(/ /g, "-")}.pdf`);
+    } catch {
+      showError("Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
 
   const filteredDrivers = drivers.filter((d) => !searchQuery || d.name?.toLowerCase().includes(searchQuery.toLowerCase()) || d.driverId?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -104,6 +217,15 @@ export default function AssignDriversPage() {
           />
         </div>
         <DownloadExcelButton path="/exports/driver-assignments" filename="driver_assignments.xlsx" />
+        <button
+          type="button"
+          onClick={handleDownloadPDF}
+          disabled={downloading || drivers.length === 0}
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        >
+          <Download className="h-4 w-4" />
+          {downloading ? "Generating..." : "Download PDF"}
+        </button>
         </div>
       </div>
 
