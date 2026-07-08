@@ -10,7 +10,7 @@ import type { Vendor } from "@/types/vendor";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
-const DRAFT_KEY = "erp_vendor_form_draft";
+export const DRAFT_KEY = "erp_vendor_form_draft";
 
 type VendorFormDialogProps = {
   open: boolean;
@@ -55,7 +55,6 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       createdAt: initialData?.createdAt ?? todayIst(),

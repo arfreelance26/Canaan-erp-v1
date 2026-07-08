@@ -7,7 +7,7 @@ import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
-const DRAFT_KEY = "erp_customer_destination_form_draft";
+export const DRAFT_KEY = "erp_customer_destination_form_draft";
 
 type CustomerDestinationFormDialogProps = {
   open: boolean;
@@ -99,7 +99,6 @@ export function CustomerDestinationFormDialog({
       setCustomerError(true);
       return;
     }
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form });
   }
 

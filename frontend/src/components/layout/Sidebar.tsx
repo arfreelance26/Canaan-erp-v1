@@ -20,6 +20,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/trips/current",
     "/trips/completed",
     "/trips/history",
+    "/resources/customers",
     "/resources/drivers",
     "/resources/fleet",
     "/attendance/drivers",

@@ -11,7 +11,7 @@ import type { EmiRecord } from "@/types/finance";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
-const DRAFT_KEY = "erp_emi_form_draft";
+export const DRAFT_KEY = "erp_emi_form_draft";
 
 type EmiFormDialogProps = {
   open: boolean;
@@ -98,7 +98,6 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
       finalPaymentDate = `${year}-${month}-${day}`;
     }
 
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,

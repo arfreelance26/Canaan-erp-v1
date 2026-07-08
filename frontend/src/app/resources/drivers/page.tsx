@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { DriverTable } from "@/components/drivers/DriverTable";
-import { DriverFormDialog } from "@/components/drivers/DriverFormDialog";
+import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { driversApi, uploadFile, fileUrl } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { generateDriverId } from "@/lib/driver-data";
@@ -68,6 +69,7 @@ export default function DriversPage() {
         const driverWithId = { ...driver, driverId: driver.driverId || generateDriverId(drivers) };
         saved = await driversApi.create(driverWithId, driver.password);
         setDrivers((prev) => [...prev, saved]);
+        clearFormDraft(DRIVER_DRAFT_KEY);
       }
       // Upload files to BLOB storage
       await Promise.all([

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
-import { useGlobalSearchQuery } from "@/lib/trip-search";
+import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -97,7 +97,11 @@ export default function SheetCollectionPage() {
       t.bookingReferenceNo?.toLowerCase().includes(q) ||
       t.vehicleId?.toLowerCase().includes(q) ||
       (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
-      (driver?.name ?? "").toLowerCase().includes(q)
+      (driver?.name ?? "").toLowerCase().includes(q) ||
+      (t.containerNumber ?? "").toLowerCase().includes(q) ||
+      (t.containerNumber1 ?? "").toLowerCase().includes(q) ||
+      (t.containerNumber2 ?? "").toLowerCase().includes(q) ||
+      (t.cargoReference ?? "").toLowerCase().includes(q)
     );
   });
 
@@ -297,7 +301,7 @@ export default function SheetCollectionPage() {
                     title="Select all pending"
                   />
                 </th>
-                {["Status", "Trip ID", "Trip Date", "Booking Ref", "Vehicle", "Customer", "Route", "Driver", "Trip Sheet Status", "Delivered On (IST)", "Action"].map(
+                {["Status", "Trip ID", "Trip Date", "Booking Ref", "Vehicle", "Customer", "Route", "Container No", "Driver", "Trip Sheet Status", "Delivered On (IST)", "Action"].map(
                   (col) => (
                     <th
                       key={col}
@@ -354,6 +358,7 @@ export default function SheetCollectionPage() {
                     <td className="px-4 py-3 text-gray-600">
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
+                    <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
 
                     {/* Trip Sheet Status toggle */}

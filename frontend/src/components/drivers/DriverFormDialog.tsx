@@ -12,7 +12,7 @@ import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
-const DRAFT_KEY = "erp_driver_form_draft";
+export const DRAFT_KEY = "erp_driver_form_draft";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -110,7 +110,6 @@ export function DriverFormDialog({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave(
       { id: initialData?.id ?? crypto.randomUUID(), driverId: initialData?.driverId ?? generateDriverId(existingDrivers), ...form },
       files,

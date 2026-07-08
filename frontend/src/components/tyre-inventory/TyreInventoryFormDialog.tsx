@@ -12,7 +12,7 @@ import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
-const DRAFT_KEY = "erp_tyre_inventory_form_draft";
+export const DRAFT_KEY = "erp_tyre_inventory_form_draft";
 
 type TyreInventoryFormDialogProps = {
   open: boolean;
@@ -76,7 +76,6 @@ export function TyreInventoryFormDialog({
       return;
     }
 
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,

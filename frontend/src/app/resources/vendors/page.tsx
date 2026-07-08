@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
-import { VendorFormDialog } from "@/components/vendors/VendorFormDialog";
+import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { vendorsApi, editApprovalsApi } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
@@ -124,6 +125,7 @@ export default function VendorsPage() {
       } else {
         const created = await vendorsApi.create(vendor);
         setVendors((prev) => [...prev, created]);
+        clearFormDraft(VENDOR_DRAFT_KEY);
         showSuccess("Vendor created successfully.");
       }
       setDialogOpen(false);

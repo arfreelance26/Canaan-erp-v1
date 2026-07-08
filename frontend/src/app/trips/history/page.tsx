@@ -5,7 +5,7 @@ import { History, FileText, ClipboardList, Receipt, Search } from "lucide-react"
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
-import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
+import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -155,7 +155,13 @@ export default function TripHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
-  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
+  const filteredTrips = trips
+    .filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers))
+    .sort((a, b) => {
+      const aInv = (a as any).isInvoiced === true ? 1 : 0;
+      const bInv = (b as any).isInvoiced === true ? 1 : 0;
+      return aInv - bInv;
+    });
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -185,7 +191,7 @@ export default function TripHistoryPage() {
       </div>
 
       {isAdmin && selected.size > 0 && (
-        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+        <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-2">
           <span className="text-sm font-medium text-red-800">
             {selected.size} trip{selected.size > 1 ? "s" : ""} selected
           </span>
@@ -219,7 +225,7 @@ export default function TripHistoryPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 {isAdmin && (
-                  <th className="px-4 py-3">
+                  <th className="px-4 py-2">
                     <input
                       type="checkbox"
                       checked={
@@ -239,8 +245,8 @@ export default function TripHistoryPage() {
                     />
                   </th>
                 )}
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
-                  <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                {["Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
+                  <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
                 ))}
@@ -262,7 +268,7 @@ export default function TripHistoryPage() {
                 return (
                   <tr key={trip.id} className={selected.has(trip.id) ? "bg-red-50/60" : "hover:bg-gray-50"}>
                     {isAdmin && (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         <input
                           type="checkbox"
                           checked={selected.has(trip.id)}
@@ -273,7 +279,7 @@ export default function TripHistoryPage() {
                         />
                       </td>
                     )}
-                    <td className="px-4 py-3 font-semibold text-gray-900">
+                    <td className="px-4 py-2 font-semibold text-gray-900">
                       <div className="flex items-center gap-2">
                         {trip.tripId}
                         {trip.status === "Cancelled" && (
@@ -283,29 +289,30 @@ export default function TripHistoryPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-3 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-2 text-gray-600">{trip.bookingReferenceNo}</td>
+                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
+                    <td className="px-4 py-2 text-gray-500">
                       <span className="text-gray-800">{trip.origin}</span>
                       <span className="mx-1 text-gray-300">→</span>
                       <span className="text-gray-800">{trip.destination}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{fmtDate(trip.scheduledDate)}</td>
+                    <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
+                    <td className="px-4 py-2 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-500">{fmtDate(trip.scheduledDate)}</td>
 
                     {/* Hire Amount */}
-                    <td className="px-4 py-3 font-medium text-blue-700">
+                    <td className="px-4 py-2 font-medium text-blue-700">
                       {hire !== null ? `₹${hire.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* Total Expenses */}
-                    <td className="px-4 py-3 font-medium text-gray-700">
+                    <td className="px-4 py-2 font-medium text-gray-700">
                       {expense !== null ? `₹${expense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span className="text-gray-300">—</span>}
                     </td>
 
                     {/* P&L */}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       {pl !== null ? (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
                           isProfit
@@ -324,7 +331,7 @@ export default function TripHistoryPage() {
                     </td>
 
                     {!isFleetManager && (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">
                         {trip.tripCategory === "SHIFTING" ? (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
                             N/A (Shifting)
@@ -340,7 +347,7 @@ export default function TripHistoryPage() {
                         )}
                       </td>
                     )}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       {!closures.has(trip.id) && trip.status === "Cancelled" ? (
                         <span className="text-xs text-gray-400">No documents (cancelled)</span>
                       ) : (
@@ -389,7 +396,7 @@ export default function TripHistoryPage() {
         </div>
       )}
 
-      {/* Booking Sheet — read-only */}
+      {/* Booking Sheet — read-only for non-admin, editable for admin */}
       <BookingSheetDialog
         open={bookingTrip !== null}
         trip={bookingTrip}
@@ -397,22 +404,42 @@ export default function TripHistoryPage() {
         driver={bookingTrip ? driverById.get(bookingTrip.driverId) : undefined}
         truck={bookingTrip ? truckById.get(bookingTrip.vehicleId) : undefined}
         customers={customers}
-        readOnly
+        readOnly={!isAdmin}
         onClose={() => setBookingTrip(null)}
-        onSubmit={() => {}}
+        onSubmit={async (data) => {
+          if (!bookingTrip) return;
+          try {
+            const updated = await tripsApi.close(bookingTrip.id, data);
+            setClosures((prev) => new Map(prev).set(bookingTrip.id, updated));
+            setBookingTrip(null);
+            showSuccess("Booking sheet updated.");
+          } catch (err: unknown) {
+            showError(err instanceof Error ? err.message : "Failed to update booking sheet.");
+          }
+        }}
       />
 
-      {/* Trip Sheet — read-only */}
+      {/* Trip Sheet — read-only for non-admin, editable for admin */}
       <TripSheetDialog
         open={sheetTrip !== null}
         trip={sheetTrip}
         closure={sheetTrip ? closures.get(sheetTrip.id) : undefined}
         existingSheet={sheetTrip ? sheets.get(sheetTrip.id) : undefined}
-        readOnly
+        readOnly={!isAdmin}
         drivers={drivers}
         trucks={trucks}
         onClose={() => setSheetTrip(null)}
-        onSubmit={() => {}}
+        onSubmit={async (data) => {
+          if (!sheetTrip) return;
+          try {
+            const updated = await tripsApi.upsertSheet(sheetTrip.id, data);
+            setSheets((prev) => new Map(prev).set(sheetTrip.id, updated));
+            setSheetTrip(null);
+            showSuccess("Trip sheet updated.");
+          } catch (err: unknown) {
+            showError(err instanceof Error ? err.message : "Failed to update trip sheet.");
+          }
+        }}
       />
 
       {/* Invoice Preview */}

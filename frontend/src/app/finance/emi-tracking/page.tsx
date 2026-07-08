@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, CheckCircle2, Search } from "lucide-react";
 import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
-import { EmiFormDialog } from "@/components/finance/EmiFormDialog";
+import { EmiFormDialog, DRAFT_KEY as EMI_DRAFT_KEY } from "@/components/finance/EmiFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { financeApi } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
@@ -112,6 +113,7 @@ export default function EmiTrackingPage() {
       } else {
         const created = await financeApi.createEmi(record);
         setRecords((prev) => [...prev, created]);
+        clearFormDraft(EMI_DRAFT_KEY);
         showSuccess("EMI entry created successfully.");
       }
       setDialogOpen(false);

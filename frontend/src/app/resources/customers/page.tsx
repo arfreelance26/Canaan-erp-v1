@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
-import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
+import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
-import { CustomerPricingFormDialog } from "@/components/customers/CustomerPricingFormDialog";
+import { CustomerPricingFormDialog, DRAFT_KEY as PRICING_DRAFT_KEY } from "@/components/customers/CustomerPricingFormDialog";
 import { CustomerDestinationTable } from "@/components/customers/CustomerDestinationTable";
-import { CustomerDestinationFormDialog } from "@/components/customers/CustomerDestinationFormDialog";
+import { CustomerDestinationFormDialog, DRAFT_KEY as DESTINATION_DRAFT_KEY } from "@/components/customers/CustomerDestinationFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { customersApi, editApprovalsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -48,10 +49,12 @@ export default function CustomersPage() {
   const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
 
   const [pricing, setPricing] = useState<CustomerPricing[]>([]);
+  const [loadingPricing, setLoadingPricing] = useState(false);
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
   const [editingPricing, setEditingPricing] = useState<CustomerPricing | null>(null);
 
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
+  const [loadingDestinations, setLoadingDestinations] = useState(false);
   const [destinationDialogOpen, setDestinationDialogOpen] = useState(false);
   const [editingDestination, setEditingDestination] = useState<CustomerDestination | null>(null);
 
@@ -118,14 +121,16 @@ export default function CustomersPage() {
   // Load pricing and destinations lazily when tab is opened
   useEffect(() => {
     if (activeTab === "pricing" && customers.length > 0 && pricing.length === 0) {
-      Promise.all(customers.map((c) => customersApi.listPricing(c.id))).then((results) =>
-        setPricing(results.flat())
-      );
+      setLoadingPricing(true);
+      Promise.all(customers.map((c) => customersApi.listPricing(c.id)))
+        .then((results) => setPricing(results.flat()))
+        .finally(() => setLoadingPricing(false));
     }
     if (activeTab === "destinations" && customers.length > 0 && destinations.length === 0) {
-      Promise.all(customers.map((c) => customersApi.listDestinations(c.id))).then((results) =>
-        setDestinations(results.flat())
-      );
+      setLoadingDestinations(true);
+      Promise.all(customers.map((c) => customersApi.listDestinations(c.id)))
+        .then((results) => setDestinations(results.flat()))
+        .finally(() => setLoadingDestinations(false));
     }
   }, [activeTab, customers, pricing.length, destinations.length]);
 
@@ -186,6 +191,7 @@ export default function CustomersPage() {
       } else {
         const created = await customersApi.create(customer);
         setCustomers((prev) => [...prev, created]);
+        clearFormDraft(CUSTOMER_DRAFT_KEY);
         showSuccess("Customer created successfully.");
       }
       setCustomerDialogOpen(false);
@@ -228,6 +234,7 @@ export default function CustomersPage() {
       } else {
         const created = await customersApi.createPricing(entry.customerId, entry);
         setPricing((prev) => [...prev, created]);
+        clearFormDraft(PRICING_DRAFT_KEY);
         showSuccess("Pricing entry created successfully.");
       }
       setPricingDialogOpen(false);
@@ -270,6 +277,7 @@ export default function CustomersPage() {
       } else {
         const created = await customersApi.createDestination(entry.customerId, entry);
         setDestinations((prev) => [...prev, created]);
+        clearFormDraft(DESTINATION_DRAFT_KEY);
         showSuccess("Destination created successfully.");
       }
       setDestinationDialogOpen(false);
@@ -352,7 +360,11 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {activeTab === "pricing" && (
+      {activeTab === "pricing" && loadingPricing && (
+        <PageSkeleton hasButton hasSearch columns={5} />
+      )}
+
+      {activeTab === "pricing" && !loadingPricing && (
         <div className="animate-stagger flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div className="relative w-64">
@@ -394,7 +406,11 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {activeTab === "destinations" && (
+      {activeTab === "destinations" && loadingDestinations && (
+        <PageSkeleton hasButton hasSearch columns={5} />
+      )}
+
+      {activeTab === "destinations" && !loadingDestinations && (
         <div className="animate-stagger flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div className="relative w-64">

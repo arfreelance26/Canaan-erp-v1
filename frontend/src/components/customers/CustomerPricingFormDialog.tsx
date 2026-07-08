@@ -11,7 +11,7 @@ import type { CustomerPricing } from "@/types/customer-pricing";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
-const DRAFT_KEY = "erp_customer_pricing_form_draft";
+export const DRAFT_KEY = "erp_customer_pricing_form_draft";
 
 type CustomerPricingFormDialogProps = {
   open: boolean;
@@ -131,7 +131,6 @@ export function CustomerPricingFormDialog({
       setCustomerError(true);
       return;
     }
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form });
   }
 

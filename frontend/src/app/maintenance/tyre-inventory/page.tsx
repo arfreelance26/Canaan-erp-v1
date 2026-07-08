@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTable";
-import { TyreInventoryFormDialog } from "@/components/tyre-inventory/TyreInventoryFormDialog";
+import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY } from "@/components/tyre-inventory/TyreInventoryFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
 import { tyreApi } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
@@ -80,6 +81,7 @@ export default function TyreInventoryPage() {
       } else {
         const created = await tyreApi.createTyre(tyre);
         setTyres((prev) => [...prev, created]);
+        clearFormDraft(TYRE_DRAFT_KEY);
         showSuccess("Tyre added successfully.");
       }
       setDialogOpen(false);

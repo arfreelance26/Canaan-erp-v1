@@ -34,7 +34,7 @@ import { AutocompleteInput, saveToAutocompleteHistory, getAutocompleteHistory } 
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
-const TRIP_DRAFT_KEY = "erp_trip_form_draft";
+export const TRIP_DRAFT_KEY = "erp_trip_form_draft";
 
 const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
   "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
@@ -64,6 +64,7 @@ type TripFormDialogProps = {
   existingTrips: Trip[];
   customers: Customer[];
   assignableDrivers: AssignableDriver[];
+  drivers: Driver[];
 };
 
 const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assignedDate"> = {
@@ -119,8 +120,10 @@ export function TripFormDialog({
   existingTrips,
   customers,
   assignableDrivers,
+  drivers,
 }: TripFormDialogProps) {
   const [form, setForm] = useState(emptyForm);
+  const [vehicleAssignmentId, setVehicleAssignmentId] = useState<string>("");
   const [branches, setBranches] = useState<Branch[]>([]);
   const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
   const [customerOrigins, setCustomerOrigins] = useState<CustomerOrigin[]>([]);
@@ -141,6 +144,8 @@ export function TripFormDialog({
       if (initialData) {
         const { id: _id, tripId: _tripId, status: _status, vehicleId: _vehicleId, ...rest } = initialData;
         setForm(rest);
+        const vehicleAssignment = assignableDrivers.find((a) => a.truck.truckId === initialData.vehicleId);
+        setVehicleAssignmentId(vehicleAssignment?.driver.driverId ?? "");
         if (initialData.customerId) {
           customersApi.listDestinations(initialData.customerId).then(setCustomerDestinations).catch(() => {});
           customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
@@ -148,6 +153,7 @@ export function TripFormDialog({
         }
       } else {
         const initialDate = todayIst();
+        setVehicleAssignmentId("");
         setCustomerDestinations([]);
         setCustomerPricing([]);
         setCustomerOrigins([]);
@@ -176,7 +182,7 @@ export function TripFormDialog({
     }
   }, [form.tripCategory, form.containerSpecification]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
+  const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
   const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
   const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
   const compensationPct = selectedBranch ? parseFloat(selectedBranch.driverHaltDayPercentage || "0") : null;
@@ -309,24 +315,25 @@ export function TripFormDialog({
     }));
   }
 
-  function handleDriverChange(driverId: string) {
+  function handleVehicleChange(assignmentDriverId: string) {
+    setVehicleAssignmentId(assignmentDriverId);
     setForm((prev) => {
-      if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId };
-      const assignment = assignableDrivers.find((a) => a.driver.driverId === driverId);
+      if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId: assignmentDriverId };
+      const assignment = assignableDrivers.find((a) => a.driver.driverId === assignmentDriverId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
           ? calcCompensation(prev.transportHireAmount, pct)
           : prev.driverAdvanceAmount;
-      return { ...prev, driverId, driverAdvanceAmount };
+      return { ...prev, driverId: assignmentDriverId, driverAdvanceAmount };
     });
   }
 
   function handleHireAmountChange(value: string) {
     setForm((prev) => {
       if (prev.tripCategory === "RETURN TRIP") return { ...prev, transportHireAmount: value };
-      const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
+      const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const driverAdvanceAmount =
@@ -342,7 +349,7 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP") {
         return { ...prev, driverCompensationType: val as Trip["driverCompensationType"] };
       }
-      const assignment = assignableDrivers.find((a) => a.driver.driverId === prev.driverId);
+      const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const rule = BATTA_RULES[prev.tripCategory]?.[prev.containerSpecification];
@@ -360,9 +367,9 @@ export function TripFormDialog({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const assigned = assignableDrivers.find((a) => a.driver.driverId === form.driverId);
+    const assigned = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
     if (!assigned) {
-      alert("Please select a driver and vehicle before assigning the trip.");
+      alert("Please select a vehicle before assigning the trip.");
       return;
     }
 
@@ -379,7 +386,6 @@ export function TripFormDialog({
         ...form,
       });
     } else {
-      clearFormDraft(TRIP_DRAFT_KEY);
       onSave({
         id: crypto.randomUUID(),
         tripId: generateTripId(existingTrips),
@@ -699,28 +705,45 @@ export function TripFormDialog({
 
             <Field label="Assigned Vehicle" className="sm:col-span-2">
               <GlassCombobox
-                value={form.driverId}
+                value={vehicleAssignmentId}
                 onChange={(val) => {
-                  if (assignableDrivers.some((a) => a.driver.driverId === val)) handleDriverChange(val);
+                  if (assignableDrivers.some((a) => a.driver.driverId === val)) handleVehicleChange(val);
                 }}
                 options={assignableDrivers.map(a => ({
                   value: a.driver.driverId,
-                  label: `${a.driver.name} — ${a.truck.registrationNumber} (${a.driver.driverId} / ${a.truck.truckId})`,
+                  label: `${a.truck.registrationNumber} — ${a.driver.name} (${a.truck.truckId})`,
                   disabled: a.isActive,
                 }))}
-                placeholder={assignableDrivers.length === 0 ? "No drivers with an assigned vehicle" : "Select a driver / vehicle"}
+                placeholder={assignableDrivers.length === 0 ? "No vehicles available" : "Select a vehicle"}
               />
               {selectedAssignment && (
                 <span className="text-xs text-gray-500">
-                  Vehicle: {selectedAssignment.truck.truckId} — {selectedAssignment.truck.registrationNumber}
-                  {selectedTruckBranch && (
-                    <> · Branch: <strong>{selectedTruckBranch}</strong></>
-                  )}
+                  {selectedTruckBranch && <>Branch: <strong>{selectedTruckBranch}</strong></>}
                   {compensationPct !== null && (
                     <> · Compensation: <strong>{compensationPct}%</strong></>
                   )}
                 </span>
               )}
+            </Field>
+
+            <Field label="Vehicle Registration Number">
+              <input
+                type="text"
+                readOnly
+                disabled
+                value={selectedAssignment?.truck.registrationNumber ?? ""}
+                className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+                placeholder="Auto-filled from vehicle selection"
+              />
+            </Field>
+
+            <Field label="Driver" required>
+              <GlassCombobox
+                value={form.driverId}
+                onChange={(val) => update("driverId", val)}
+                options={drivers.map(d => ({ value: d.driverId, label: d.name }))}
+                placeholder="Select driver"
+              />
             </Field>
           </div>
         </section>

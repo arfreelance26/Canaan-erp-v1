@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
-import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
+import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -262,7 +262,13 @@ export default function TripFinalizationPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
-  const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
+  const filteredTrips = trips
+    .filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers))
+    .sort((a, b) => {
+      const aInv = invoicedIds.has(a.id) ? 1 : 0;
+      const bInv = invoicedIds.has(b.id) ? 1 : 0;
+      return aInv - bInv;
+    });
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -298,7 +304,7 @@ export default function TripFinalizationPage() {
           <table className="w-full min-w-[1200px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle",
+                {["Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle",
                   "Bill To", "Invoice No / Date", "Invoice Type", "Invoice Amount", "Actions"].map((col) => (
                   <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
@@ -348,6 +354,7 @@ export default function TripFinalizationPage() {
                     <td className="px-4 py-3 text-gray-600">
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
+                    <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{closure?.billTo ?? "—"}</td>

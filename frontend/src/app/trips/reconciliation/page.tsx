@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
-import { useGlobalSearchQuery } from "@/lib/trip-search";
+import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
@@ -260,19 +260,32 @@ export default function TripReconciliationPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
-  const filteredTrips = trips.filter((t) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    const truck = truckById.get(t.vehicleId);
-    const driver = driverById.get(t.driverId);
-    return (
-      t.tripId?.toLowerCase().includes(q) ||
-      t.bookingReferenceNo?.toLowerCase().includes(q) ||
-      t.vehicleId?.toLowerCase().includes(q) ||
-      (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
-      (driver?.name ?? "").toLowerCase().includes(q)
-    );
-  });
+  const filteredTrips = trips
+    .filter((t) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      const truck = truckById.get(t.vehicleId);
+      const driver = driverById.get(t.driverId);
+      return (
+        t.tripId?.toLowerCase().includes(q) ||
+        t.bookingReferenceNo?.toLowerCase().includes(q) ||
+        t.vehicleId?.toLowerCase().includes(q) ||
+        (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
+        (driver?.name ?? "").toLowerCase().includes(q) ||
+        (t.containerNumber ?? "").toLowerCase().includes(q) ||
+        (t.containerNumber1 ?? "").toLowerCase().includes(q) ||
+        (t.containerNumber2 ?? "").toLowerCase().includes(q) ||
+        (t.cargoReference ?? "").toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      const priority = (t: typeof a) => {
+        if (!sheets.has(t.id)) return 0;
+        if (!t.tripSheetReceived) return 1;
+        return 2;
+      };
+      return priority(a) - priority(b);
+    });
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -307,9 +320,9 @@ export default function TripReconciliationPage() {
           <table className="w-full min-w-[1400px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle",
+                {["Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle",
                   "Hire Amount", "Total Expense", "Trip Sheet Status", "Actions"].map((col) => (
-                  <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
                 ))}
@@ -325,22 +338,23 @@ export default function TripReconciliationPage() {
 
                 return (
                   <tr key={trip.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
-                    <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-3 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-2 font-medium text-gray-900">{trip.tripId}</td>
+                    <td className="px-4 py-2 text-gray-600">{trip.bookingReferenceNo}</td>
+                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
-                    <td className="px-4 py-3 font-medium text-blue-700">
+                    <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
+                    <td className="px-4 py-2 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
+                    <td className="px-4 py-2 font-medium text-blue-700">
                       {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-4 py-3 font-medium text-emerald-700">
+                    <td className="px-4 py-2 font-medium text-emerald-700">
                       {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-gray-400">—</span>}
                     </td>
                     {/* Trip Sheet Status */}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <div className="flex flex-col gap-2">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 w-fit">
                           <CheckCircle2 className="h-3 w-3" />
@@ -408,7 +422,7 @@ export default function TripReconciliationPage() {
                     </td>
 
                     {/* Actions */}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <div className="flex flex-col gap-2">
                         {/* Booking Sheet */}
                         <div className="flex flex-col gap-0.5">

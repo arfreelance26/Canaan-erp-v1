@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
-import { TruckFormDialog } from "@/components/fleet/TruckFormDialog";
+import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { trucksApi, uploadFile, fileUrl } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { generateTruckId } from "@/lib/truck-data";
@@ -69,6 +70,7 @@ export default function FleetPage() {
         const truckWithId = { ...truck, truckId: truck.truckId || generateTruckId(trucks) };
         saved = await trucksApi.create(truckWithId);
         setTrucks((prev) => [...prev, saved]);
+        clearFormDraft(TRUCK_DRAFT_KEY);
       }
       const uploadMap: [File | null | undefined, string][] = [
         [files.photo,           "photo"],

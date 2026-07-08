@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
-import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
+import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { VerifyTripDialog } from "@/components/trips/VerifyTripDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
@@ -261,7 +261,7 @@ export default function TripVerificationPage() {
           <table className="w-full min-w-[1000px] text-left text-sm whitespace-nowrap">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Driver", "Vehicle",
+                {["Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle",
                   "Hire Amount", "Total Expense", "Status", "Actions"].map((col) => (
                   <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
@@ -290,6 +290,7 @@ export default function TripVerificationPage() {
                     <td className="px-4 py-3 text-gray-600">
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
+                    <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
                     <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-3 font-medium text-blue-700">{fmt(totalTransport)}</td>

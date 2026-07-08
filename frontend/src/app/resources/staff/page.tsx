@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { StaffTable } from "@/components/staff/StaffTable";
-import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
+import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
+import { clearFormDraft } from "@/hooks/useFormDraft";
 import { staffApi, uploadFile, fileUrl } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
@@ -70,6 +71,7 @@ export default function StaffPage() {
       } else {
         saved = await staffApi.create(member, member.password ?? "");
         setStaff((prev) => [...prev, saved]);
+        clearFormDraft(STAFF_DRAFT_KEY);
       }
       await Promise.all([
         files.photo  && uploadFile("staff", saved.id, "photo",  files.photo),

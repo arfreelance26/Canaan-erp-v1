@@ -51,7 +51,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
   return (
     <Dialog open={open} onClose={onClose} title={`Pay ${type} - ${personName}`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field label="Amount">
+        <Field label="Amount" required>
           <DecimalInput type="number"
             required
             min="0"
@@ -62,7 +62,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
           />
         </Field>
 
-        <Field label="Date">
+        <Field label="Date" required>
           <DatePickerInput
             required
             value={form.date}
@@ -72,7 +72,7 @@ export function PaymentDialog({ open, onClose, onSave, type, personName, tripNum
         </Field>
 
         {tripNumbers && (
-          <Field label="Trip Number">
+          <Field label="Trip Number" required>
             <GlassCombobox
               required
               value={form.tripNumber}

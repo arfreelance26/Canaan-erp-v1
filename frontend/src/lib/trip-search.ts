@@ -3,10 +3,25 @@ import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 import type { Driver } from "@/types/driver";
 
+/** Returns a display string for a trip's container / cargo reference. */
+export function containerRef(trip: Trip): string {
+  if (trip.containerSpecification === "2 X 20 FEET CONTAINERS") {
+    const both = [trip.containerNumber1, trip.containerNumber2].filter(Boolean).join(" / ");
+    return both || "—";
+  }
+  if (trip.containerSpecification === "20 FT CONTAINER" || trip.containerSpecification === "40 FT CONTAINER") {
+    return trip.containerNumber || "—";
+  }
+  if (trip.containerSpecification === "OPEN LOAD CARGO") {
+    return trip.cargoReference || "—";
+  }
+  return "—";
+}
+
 /**
  * Shared trip search predicate used by every trip listing page.
  * Matches trip ID, booking reference, origin/destination, truck registration
- * number, truck internal ID, and driver name.
+ * number, truck internal ID, driver name, and container/cargo reference.
  */
 export function tripMatchesSearch(trip: Trip, query: string, trucks?: Truck[], drivers?: Driver[]): boolean {
   if (!query) return true;
@@ -20,7 +35,11 @@ export function tripMatchesSearch(trip: Trip, query: string, trucks?: Truck[], d
     (trip.destination ?? "").toLowerCase().includes(q) ||
     (trip.vehicleId ?? "").toLowerCase().includes(q) ||
     (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
-    (driver?.name ?? "").toLowerCase().includes(q)
+    (driver?.name ?? "").toLowerCase().includes(q) ||
+    (trip.containerNumber ?? "").toLowerCase().includes(q) ||
+    (trip.containerNumber1 ?? "").toLowerCase().includes(q) ||
+    (trip.containerNumber2 ?? "").toLowerCase().includes(q) ||
+    (trip.cargoReference ?? "").toLowerCase().includes(q)
   );
 }
 

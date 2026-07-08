@@ -8,7 +8,7 @@ import { CUSTOMER_TYPE_OPTIONS } from "@/lib/customer-data";
 import type { Customer } from "@/types/customer";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
-const DRAFT_KEY = "erp_customer_form_draft";
+export const DRAFT_KEY = "erp_customer_form_draft";
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -50,7 +50,6 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!initialData) clearFormDraft(DRAFT_KEY);
     onSave({
       id: initialData?.id ?? crypto.randomUUID(),
       ...form,
