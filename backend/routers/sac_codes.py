@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
+from pydantic import BaseModel
+from typing import Optional
 import models, schemas
 
 router = APIRouter(prefix="/sac-codes", tags=["SAC Codes"])
@@ -33,6 +35,22 @@ def update_sac_code(sac_code_id: int, payload: schemas.SacCodeUpdate, db: Sessio
         )
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(record, field, value)
+    record.version = (record.version or 1) + 1
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+class _LinkExpenseBody(BaseModel):
+    expense: Optional[str] = None
+
+
+@router.patch("/{sac_code_id}/link-expense", response_model=schemas.SacCodeOut)
+def link_expense(sac_code_id: int, body: _LinkExpenseBody, db: Session = Depends(get_db)):
+    record = db.query(models.SacCode).with_for_update().filter(models.SacCode.id == sac_code_id).first()
+    if not record:
+        raise HTTPException(404, "SAC code not found")
+    record.linked_expense = body.expense if body.expense else None
     record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)

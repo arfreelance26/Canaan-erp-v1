@@ -3,5 +3,6 @@ export type SacCode = {
   description: string;
   code: string;
   gstRate: string;
+  linkedExpense?: string;
   version?: number;
 };

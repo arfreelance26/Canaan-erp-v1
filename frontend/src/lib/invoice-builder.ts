@@ -84,6 +84,7 @@ function buildServiceItems(closure: TripClosureData): ServiceItem[] {
       sacCode: "996791",
       qty: 1,
       rate: fmt(billingAmt),
+      gstRate: "",
       total: fmt(billingAmt),
     }];
   }
@@ -93,6 +94,7 @@ function buildServiceItems(closure: TripClosureData): ServiceItem[] {
     sacCode: "996791",
     qty: 1,
     rate: fmt(hireAmt),
+    gstRate: "",
     total: fmt(hireAmt),
   }];
 }
@@ -159,6 +161,7 @@ function commonFields(
         sacCode: s.sacCode,
         qty: n(s.quantity),
         rate: fmt(n(s.rate)),
+        gstRate: s.gstRate || "",
         total: fmt(base + gst),
       };
     }) : buildServiceItems(closure),

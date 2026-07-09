@@ -128,6 +128,29 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { INVOICE_HINTS_KEY, type InvoiceHint } from "@/components/trips/VerifyTripDialog";
 
+// Maps each admin-configured expense heading → the TripSheet field that holds its value
+const EXPENSE_TO_SHEET_FIELD: Partial<Record<string, keyof TripSheetData>> = {
+  "Hire Amount":                   "hireAmount",
+  "Lift On / Off (லிப்டான்)":    "liftOnOffExpense",
+  "Weight Sheet Expense":          "weightSheetExpense",
+  "Halt Pay":                      "haltPay",
+  "Port Pass Expense":             "portPassExpense",
+  "Mamol Expense":                 "mamolExpense",
+  "Claimable Mamol Expense":       "claimableMamolExpense",
+  "Crane Operator":                "craneOperatorExpense",
+  "Parking":                       "parkingExpense",
+  "Toll Charges":                  "tollCharges",
+  "Other Expenses (Additional)":   "otherExpenses",
+};
+
+function getLinkedExpenseValue(linkedExpense: string | undefined, sheet: TripSheetData | undefined): string {
+  if (!linkedExpense || !sheet) return "";
+  const field = EXPENSE_TO_SHEET_FIELD[linkedExpense];
+  if (!field) return "";
+  const val = sheet[field];
+  return typeof val === "string" ? val : "";
+}
+
 type Props = {
   open: boolean;
   trip: Trip | null;
@@ -323,19 +346,23 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   }
 
   // SAC combobox: value is the SAC record ID (unique) so duplicate codes are disambiguated.
-  // On picking an entry, auto-fill the actual code, GST rate, and service description.
+  // On picking an entry, auto-fill code, GST rate, description, and (if rate is blank) the
+  // linked expense value from the trip sheet.
   function handleSacChange(index: number, sacId: string) {
     setForm((prev) => {
       const services = prev.services.map((s, i) => {
         if (i !== index) return s;
         const match = sacCodes.find((sc) => String(sc.id) === sacId);
         if (match) {
+          const linkedVal = getLinkedExpenseValue(match.linkedExpense, sheet);
+          const shouldFillRate = !s.rate || parseFloat(s.rate) === 0;
           return {
             ...s,
             sacId,
             sacCode: match.code,
             gstRate: parseFloat(match.gstRate) > 0 ? match.gstRate : "",
             descriptionOfService: match.description || s.descriptionOfService,
+            rate: shouldFillRate && linkedVal && parseFloat(linkedVal) > 0 ? linkedVal : s.rate,
           };
         }
         return { ...s, sacId, sacCode: sacId };
@@ -827,51 +854,74 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                 <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Description of Service</th>
                 <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-28">SAC Code</th>
                 <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20">GST (%)</th>
+                <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-48">Retrieves From</th>
                 <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {sacCodes.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">Loading SAC codes…</td>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading SAC codes…</td>
                 </tr>
               ) : (
-                sacCodes.map((sc, i) => (
-                  <tr key={sc.id} className={`transition-colors ${i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
-                    <td className="px-4 py-2.5 text-gray-700 whitespace-normal break-words">{sc.description}</td>
-                    <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
-                    <td className="px-4 py-2.5 text-center">
-                      {parseFloat(sc.gstRate) > 0 ? (
-                        <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">
-                          {sc.gstRate}%
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          addOrFillService({
-                            ...emptyService(),
-                            descriptionOfService: sc.description,
-                            sacCode: sc.code,
-                            gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
-                            quantity: "1",
-                          });
-                          setShowSacTable(false);
-                        }}
-                        className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
-                      >
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                sacCodes.map((sc, i) => {
+                  const linkedVal = getLinkedExpenseValue(sc.linkedExpense, sheet);
+                  const hasValue = linkedVal && parseFloat(linkedVal) > 0;
+                  return (
+                    <tr key={sc.id} className={`transition-colors ${i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
+                      <td className="px-4 py-2.5 text-gray-700 whitespace-normal break-words">{sc.description}</td>
+                      <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {parseFloat(sc.gstRate) > 0 ? (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">
+                            {sc.gstRate}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {sc.linkedExpense ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-indigo-700 leading-tight">{sc.linkedExpense}</span>
+                            {hasValue ? (
+                              <span className="text-xs font-semibold text-emerald-700">
+                                ₹{parseFloat(linkedVal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">No data on sheet</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addOrFillService({
+                              ...emptyService(),
+                              descriptionOfService: sc.description,
+                              sacCode: sc.code,
+                              sacId: String(sc.id),
+                              gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
+                              quantity: "1",
+                              rate: hasValue ? linkedVal : "",
+                            });
+                            setShowSacTable(false);
+                          }}
+                          className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
+                        >
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -317,6 +317,7 @@ class Trip(Base):
     driver_advance = Column(Numeric(10, 2), nullable=True)
     driver_compensation_type = Column(Enum("Normal", "FIXED"))
     # Transport Cost
+    rate_per_ton = Column(Numeric(10, 2), nullable=True)
     transport_hire_amount = Column(Numeric(10, 2), default=0)
     transport_crossing_amount = Column(Numeric(10, 2), default=0)
     # Operational Notes
@@ -644,6 +645,7 @@ class SacCode(Base):
     description = Column(String(500), nullable=False)
     code = Column(String(20), nullable=False)
     gst_rate = Column(Numeric(5, 2), default=0)
+    linked_expense = Column(String(200), nullable=True)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

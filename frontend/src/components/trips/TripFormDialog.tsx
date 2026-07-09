@@ -103,6 +103,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   driverAdvancePaymentMethod: "",
   driverAdvance: "",
   driverCompensationType: "",
+  ratePerTon: "",
   transportHireAmount: "",
   transportCrossingAmount: "",
   internalRemarks: "",
@@ -176,7 +177,7 @@ export function TripFormDialog({
 
   // Preserve unsaved "Add Trip" input across close/reopen — only for a genuinely new trip,
   // never when editing (editing always loads real data from initialData above).
-  useFormDraft(TRIP_DRAFT_KEY, open && !initialData, form, setForm);
+  useFormDraft(TRIP_DRAFT_KEY, open && !initialData, form, (draft) => setForm({ ...emptyForm, ...draft }));
 
   // vehicleAssignmentId is not part of `form`, so useFormDraft can't save/restore it.
   // We persist it in a separate sessionStorage key using the same restoredRef pattern.
@@ -229,6 +230,7 @@ export function TripFormDialog({
   const isNormalComp = form.driverCompensationType === "Normal";
   const isShifting = form.tripCategory === "SHIFTING";
   const isReturnTrip = form.tripCategory === "RETURN TRIP";
+  const isOpenLoad = form.cargoClassification === "OPEN LOAD" || form.containerSpecification === "OPEN LOAD CARGO";
   const battaRule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
 
   const destinationOptions = customerDestinations
@@ -405,6 +407,28 @@ export function TripFormDialog({
     });
   }
 
+  function calcOpenLoadHire(weight: string, rate: string): string {
+    const w = parseFloat(weight);
+    const r = parseFloat(rate);
+    return !isNaN(w) && !isNaN(r) && w > 0 && r > 0 ? String(w * r) : "";
+  }
+
+  function handleOpenLoadWeightChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      cargoWeight: value,
+      transportHireAmount: calcOpenLoadHire(value, prev.ratePerTon),
+    }));
+  }
+
+  function handleRatePerTonChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      ratePerTon: value,
+      transportHireAmount: calcOpenLoadHire(prev.cargoWeight, value),
+    }));
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const assigned = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
@@ -517,17 +541,33 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Customer Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Customer Account" required>
-              <GlassCombobox
-                value={form.customerId}
-                onChange={(val) => {
-                  const byId = customers.find((c) => c.id === val);
-                  if (byId) { handleCustomerChange(byId.id); return; }
-                  const byName = customers.find((c) => c.name.toLowerCase() === val.toLowerCase());
-                  if (byName) handleCustomerChange(byName.id);
-                }}
-                options={customers.map(c => ({ value: c.id, label: c.name }))}
-                placeholder="Select a customer"
-              />
+              {isReturnTrip ? (
+                <GlassCombobox
+                  value={form.shipperConsignee}
+                  onChange={(val) => {
+                    const matched = customers.find((c) => c.name.toLowerCase() === val.toLowerCase());
+                    setForm((prev) => ({
+                      ...prev,
+                      shipperConsignee: val,
+                      customerId: matched?.id ?? prev.customerId,
+                    }));
+                  }}
+                  options={customers.map((c) => ({ value: c.name, label: c.name }))}
+                  placeholder="Type or select customer"
+                />
+              ) : (
+                <GlassCombobox
+                  value={form.customerId}
+                  onChange={(val) => {
+                    const byId = customers.find((c) => c.id === val);
+                    if (byId) { handleCustomerChange(byId.id); return; }
+                    const byName = customers.find((c) => c.name.toLowerCase() === val.toLowerCase());
+                    if (byName) handleCustomerChange(byName.id);
+                  }}
+                  options={customers.map((c) => ({ value: c.id, label: c.name }))}
+                  placeholder="Select a customer"
+                />
+              )}
             </Field>
 
             <Field label="Shipper / Consignee" required>
@@ -623,7 +663,10 @@ export function TripFormDialog({
             <Field label="Cargo Classification" required>
               <GlassSelect
                 value={form.cargoClassification}
-                onChange={(val) => update("cargoClassification", val as Trip["cargoClassification"])}
+                onChange={(val) => {
+                  const spec = val === "OPEN LOAD" ? "OPEN LOAD CARGO" : form.containerSpecification === "OPEN LOAD CARGO" ? "" : form.containerSpecification;
+                  setForm((prev) => ({ ...prev, cargoClassification: val as Trip["cargoClassification"], containerSpecification: spec as Trip["containerSpecification"] }));
+                }}
                 options={[
                   { value: "", label: "Select cargo classification" },
                   ...CARGO_CLASSIFICATION_OPTIONS.map(o => ({ value: o, label: o }))
@@ -634,7 +677,10 @@ export function TripFormDialog({
             <Field label="Container Specification" required>
               <GlassSelect
                 value={form.containerSpecification}
-                onChange={(val) => update("containerSpecification", val as Trip["containerSpecification"])}
+                onChange={(val) => {
+                  const cls = val === "OPEN LOAD CARGO" ? "OPEN LOAD" : form.cargoClassification === "OPEN LOAD" ? "" : form.cargoClassification;
+                  setForm((prev) => ({ ...prev, containerSpecification: val as Trip["containerSpecification"], cargoClassification: cls as Trip["cargoClassification"] }));
+                }}
                 options={[
                   { value: "", label: "Select container specification" },
                   ...CONTAINER_SPECIFICATION_OPTIONS.map(o => ({ value: o, label: o }))
@@ -643,15 +689,49 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Cargo Weight (tons)" required>
-              <GlassSelect
-                value={form.cargoWeight}
-                onChange={(val) => update("cargoWeight", val)}
-                options={[
-                  { value: "", label: "Select cargo weight" },
-                  ...CARGO_WEIGHT_OPTIONS.map(o => ({ value: o, label: o }))
-                ]}
-              />
+              {isOpenLoad ? (
+                <DecimalInput
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.cargoWeight}
+                  onChange={(e) => handleOpenLoadWeightChange(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={inputClass}
+                  placeholder="e.g. 18.5"
+                />
+              ) : (
+                <GlassSelect
+                  value={form.cargoWeight}
+                  onChange={(val) => update("cargoWeight", val)}
+                  options={[
+                    { value: "", label: "Select cargo weight" },
+                    ...CARGO_WEIGHT_OPTIONS.map(o => ({ value: o, label: o }))
+                  ]}
+                />
+              )}
             </Field>
+
+            {isOpenLoad && (
+              <Field label="Rate Per Ton (₹)" required>
+                <DecimalInput
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.ratePerTon}
+                  onChange={(e) => handleRatePerTonChange(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={inputClass}
+                  placeholder="e.g. 1200"
+                />
+                {form.cargoWeight && form.ratePerTon && (
+                  <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                    <Sparkles className="h-3 w-3" />
+                    Hire Amount auto-calculated: ₹{(parseFloat(form.cargoWeight) * parseFloat(form.ratePerTon)).toLocaleString("en-IN")}
+                  </span>
+                )}
+              </Field>
+            )}
           </div>
         </section>
 
@@ -974,6 +1054,12 @@ export function TripFormDialog({
                 className={inputClass}
                 placeholder="e.g. 32000"
               />
+              {isOpenLoad && form.cargoWeight && form.ratePerTon && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-calculated from Cargo Weight × Rate Per Ton — edit to override
+                </span>
+              )}
             </Field>
           </div>
         </section>

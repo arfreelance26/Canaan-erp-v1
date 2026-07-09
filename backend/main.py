@@ -5,6 +5,7 @@ import time
 
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
@@ -21,6 +22,9 @@ Base.metadata.create_all(bind=engine)
 def _run_schema_migrations():
     """Idempotent ALTER TABLE migrations that create_all cannot handle (enum changes)."""
     migrations = [
+        # Ensure bill_to exists before modifying its type (ADD is idempotent; MODIFY fails on missing column)
+        "ALTER TABLE trips ADD COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
+        "ALTER TABLE trip_closures ADD COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
         "ALTER TABLE trips MODIFY COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
         "ALTER TABLE trip_closures MODIFY COLUMN bill_to ENUM('CUSTOMER','CONSIGNEE','SELF/CGI')",
         "ALTER TABLE emi_records ADD COLUMN cost_per_month DECIMAL(10,2) DEFAULT 0",
@@ -49,10 +53,38 @@ def _run_schema_migrations():
         # Trip Sheet Register receive-confirmation workflow
         "ALTER TABLE trips ADD COLUMN trip_sheet_received BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN trip_sheet_received_at DATETIME NULL",
-        # Trip category — add RETURN TRIP option
+        # Trip category — ensure column exists before modifying enum
+        "ALTER TABLE trips ADD COLUMN trip_category ENUM('LOCAL','LOCAL CFS','OUTSTATION','SHIFTING','RETURN TRIP')",
         "ALTER TABLE trips MODIFY COLUMN trip_category ENUM('LOCAL','LOCAL CFS','OUTSTATION','SHIFTING','RETURN TRIP')",
         # RETURN TRIP invoicing flag
         "ALTER TABLE trips ADD COLUMN invoice_required BOOLEAN NOT NULL DEFAULT TRUE",
+        # Open Load cargo — rate per ton for hire amount calculation
+        "ALTER TABLE trips ADD COLUMN rate_per_ton DECIMAL(10,2) NULL",
+        # SAC code expense linkage — maps a SAC code to a trip expense field for invoice auto-fill
+        "ALTER TABLE sac_codes ADD COLUMN linked_expense VARCHAR(200) NULL",
+        # trips — columns added via one-off scripts, consolidated here for fresh DBs
+        "ALTER TABLE trips ADD COLUMN driver_change_remark TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN booking_instructions TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN verification_status ENUM('pending','verified','flagged') DEFAULT 'pending'",
+        "ALTER TABLE trips ADD COLUMN is_invoiced BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE trips ADD COLUMN container_number_1 VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN container_number_2 VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN cargo_reference VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN release_order_reference VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN driver_advance DECIMAL(10,2) NULL",
+        "ALTER TABLE trips ADD COLUMN customer_fuel_advance_amount DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE trips ADD COLUMN customer_fuel_advance_litres DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE trips ADD COLUMN transport_crossing_amount DECIMAL(10,2) DEFAULT 0",
+        # branches — halt day fees split into 20ft / 40ft rates
+        "ALTER TABLE branches ADD COLUMN halt_day_fee_20ft DECIMAL(10,2) DEFAULT 0",
+        "ALTER TABLE branches ADD COLUMN halt_day_fee_40ft DECIMAL(10,2) DEFAULT 0",
+        # trip_sheets — container columns and major_repairs JSON
+        "ALTER TABLE trip_sheets ADD COLUMN container_number_1 VARCHAR(100) NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN container_number_2 VARCHAR(100) NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN major_repairs JSON NULL",
+        # trip_closures — halt remarks and additional driver advance
+        "ALTER TABLE trip_closures ADD COLUMN halt_remarks TEXT NULL",
+        "ALTER TABLE trip_closures ADD COLUMN additional_driver_advance DECIMAL(10,2) NULL",
         # Edit Approval Requests — expand resource_type to include BookingSheet + TripSheet
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData') NOT NULL",
         "ALTER TABLE edit_approval_requests MODIFY COLUMN action ENUM('Edit','Delete') NOT NULL",
@@ -283,6 +315,21 @@ async def sqlalchemy_data_exception_handler(request: Request, exc: DataError):
             content={"detail": f"Invalid value for '{col}'. The value is not allowed by the database."},
         )
     return JSONResponse(status_code=422, content={"detail": f"Invalid data: {error_msg}"})
+
+@app.exception_handler(OperationalError)
+async def sqlalchemy_operational_exception_handler(request: Request, exc: OperationalError):
+    error_msg = str(exc.orig) if exc.orig else str(exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Database error: {error_msg}"},
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal error: {type(exc).__name__}: {exc}"},
+    )
 
 @app.get("/", tags=["Health"])
 def health_check():

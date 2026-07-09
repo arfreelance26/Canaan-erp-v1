@@ -493,6 +493,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     driverAdvancePaymentMethod: b.driver_advance_payment_method ?? "",
     driverAdvance: String(b.driver_advance ?? ""),
     driverCompensationType: b.driver_compensation_type ?? "",
+    ratePerTon: String(b.rate_per_ton ?? ""),
     transportHireAmount: String(b.transport_hire_amount ?? ""),
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
     internalRemarks: b.internal_remarks ?? "",
@@ -545,6 +546,7 @@ function fromTrip(f: Trip) {
     driver_advance_payment_method: f.driverAdvancePaymentMethod || null,
     driver_advance: f.driverAdvance ? parseFloat(f.driverAdvance) : null,
     driver_compensation_type: f.driverCompensationType || null,
+    rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
     internal_remarks: f.internalRemarks || null,
@@ -1432,6 +1434,7 @@ function toSacCode(b: B): SacCode {
     description: b.description ?? "",
     code: b.code ?? "",
     gstRate: String(b.gst_rate ?? "0"),
+    linkedExpense: b.linked_expense ?? undefined,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1467,8 +1470,14 @@ export const sacCodesApi = {
       body: JSON.stringify({
         description: payload.description, code: payload.code,
         gst_rate: payload.gstRate !== undefined ? parseFloat(payload.gstRate) || 0 : undefined,
+        linked_expense: payload.linkedExpense !== undefined ? payload.linkedExpense : undefined,
         client_version: payload.version,
       }),
+    }).then(toSacCode),
+  linkExpense: (id: string, expense: string) =>
+    req<B>(`/sac-codes/${id}/link-expense`, {
+      method: "PATCH",
+      body: JSON.stringify({ expense: expense || null }),
     }).then(toSacCode),
   delete: (id: string) => req<void>(`/sac-codes/${id}`, { method: "DELETE" }),
 };

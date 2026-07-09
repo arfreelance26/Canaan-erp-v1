@@ -186,7 +186,7 @@ def export_trips(db: Session = Depends(get_db)):
         "Bill To", "Payment Type",
         "Customer Cash Advance", "Customer Fuel Advance (Amount)", "Customer Fuel Advance (Litres)",
         "Driver Advance Amount", "Driver Compensation Type",
-        "Transport Hire Amount", "Transport Crossing Amount",
+        "Rate Per Ton", "Transport Hire Amount", "Transport Crossing Amount",
         "Internal Remarks", "Booking Instructions",
         "Verification Status", "Is Invoiced", "Invoice Required",
         "Trip Sheet Collected", "Trip Sheet Received", "Trip Sheet Received Date"
@@ -204,7 +204,7 @@ def export_trips(db: Session = Depends(get_db)):
             t.bill_to, t.payment_type,
             t.customer_cash_advance, t.customer_fuel_advance_amount, t.customer_fuel_advance_litres,
             t.driver_advance_amount, t.driver_compensation_type,
-            t.transport_hire_amount, t.transport_crossing_amount,
+            t.rate_per_ton, t.transport_hire_amount, t.transport_crossing_amount,
             t.internal_remarks, t.booking_instructions,
             t.verification_status,
             "Yes" if t.is_invoiced else "No",

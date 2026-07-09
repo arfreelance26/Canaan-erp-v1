@@ -17,6 +17,7 @@ export interface ServiceItem {
   sacCode: string;
   qty: number;
   rate: string;
+  gstRate?: string;
   total: string;
 }
 
@@ -217,11 +218,12 @@ export function InvoiceShell({
         <table className={s.itemsTable}>
           <thead>
             <tr>
-              <th style={{ width: "52%" }}>Description of Service</th>
-              <th style={{ width: "12%" }} className={s.center}>SAC Code</th>
-              <th style={{ width: "8%" }}  className={s.center}>QTY</th>
-              <th style={{ width: "14%" }} className={s.right}>Rate (INR)</th>
-              <th style={{ width: "14%" }} className={s.right}>Total (INR)</th>
+              <th style={{ width: "44%" }}>Description of Service</th>
+              <th style={{ width: "11%" }} className={s.center}>SAC Code</th>
+              <th style={{ width: "7%" }}  className={s.center}>QTY</th>
+              <th style={{ width: "12%" }} className={s.right}>Rate (INR)</th>
+              <th style={{ width: "10%" }} className={s.center}>GST %</th>
+              <th style={{ width: "16%" }} className={s.right}>Total (INR)</th>
             </tr>
           </thead>
           <tbody>
@@ -231,11 +233,12 @@ export function InvoiceShell({
                 <td className={s.center}>{item.sacCode}</td>
                 <td className={s.center}>{item.qty}</td>
                 <td className={s.right}>{item.rate}</td>
+                <td className={s.center}>{item.gstRate ? `${item.gstRate}%` : "—"}</td>
                 <td className={`${s.right} ${s.bold}`}>{item.total}</td>
               </tr>
             ))}
             <tr className={s.totalRow}>
-              <td colSpan={3} style={{ border: "none", background: "transparent" }}></td>
+              <td colSpan={4} style={{ border: "none", background: "transparent" }}></td>
               <td className={`${s.right} ${s.bold}`} style={{ fontSize: "10px", letterSpacing: "0.3px" }}>TOTAL</td>
               <td className={`${s.right} ${s.bold}`}>{subtotal}</td>
             </tr>

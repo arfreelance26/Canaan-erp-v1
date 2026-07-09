@@ -87,6 +87,7 @@ export type Trip = {
   driverCompensationType: DriverCompensationType | "";
 
   // Transport Cost Details
+  ratePerTon: string;
   transportHireAmount: string;
   transportCrossingAmount: string;
 

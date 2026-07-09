@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Tag, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Tag, Plus, Pencil, Trash2, Search, Link2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { sacCodesApi } from "@/lib/api";
@@ -16,6 +16,20 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const emptyForm = { description: "", code: "", gstRate: "" };
 
+const EXPENSE_HEADINGS = [
+  "Hire Amount",
+  "Lift On / Off (லிப்டான்)",
+  "Weight Sheet Expense",
+  "Halt Pay",
+  "Port Pass Expense",
+  "Mamol Expense",
+  "Claimable Mamol Expense",
+  "Crane Operator",
+  "Parking",
+  "Toll Charges",
+  "Other Expenses (Additional)",
+];
+
 export default function SacCodeManagementPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
@@ -26,6 +40,8 @@ export default function SacCodeManagementPage() {
   const [editing, setEditing] = useState<SacCode | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [searchQuery, setSearchQuery] = useState("");
+  const [retrieveDialog, setRetrieveDialog] = useState<{ open: boolean; sc: SacCode | null }>({ open: false, sc: null });
+  const [linking, setLinking] = useState(false);
 
   useEffect(() => {
     if (ready && user?.softwareDesignation !== "Admin") router.replace("/");
@@ -92,6 +108,23 @@ export default function SacCodeManagementPage() {
     }
   }
 
+  async function handleLinkExpense(expense: string) {
+    const sc = retrieveDialog.sc;
+    if (!sc) return;
+    setLinking(true);
+    try {
+      await sacCodesApi.linkExpense(sc.id, expense);
+      const fresh = await sacCodesApi.list();
+      setSacCodes(fresh);
+      setRetrieveDialog({ open: false, sc: null });
+      showSuccess(expense ? `Linked "${expense}" to ${sc.description}.` : "Linked expense removed.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to link expense.");
+    } finally {
+      setLinking(false);
+    }
+  }
+
   if (!ready || user?.softwareDesignation !== "Admin") return null;
   if (loading) return <PageSkeleton hasButton hasSearch columns={4} />;
 
@@ -139,13 +172,14 @@ export default function SacCodeManagementPage() {
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Description of Service</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SAC Code</th>
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GST (%)</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Linked Expense</th>
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredSacCodes.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
                   No SAC codes configured yet. Add one to get started.
                 </td>
               </tr>
@@ -158,7 +192,26 @@ export default function SacCodeManagementPage() {
                   {parseFloat(sc.gstRate) > 0 ? `${sc.gstRate}%` : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="px-4 py-3">
+                  {sc.linkedExpense ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-100">
+                      <Link2 className="h-3 w-3 flex-shrink-0" />
+                      {sc.linkedExpense}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">Not linked</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRetrieveDialog({ open: true, sc })}
+                      title="Retrieve Values From"
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50"
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                      Retrieve Values From
+                    </button>
                     <button
                       type="button"
                       onClick={() => openEdit(sc)}
@@ -181,6 +234,7 @@ export default function SacCodeManagementPage() {
         </table>
       </div>
 
+      {/* Add / Edit SAC Code dialog */}
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
@@ -234,6 +288,53 @@ export default function SacCodeManagementPage() {
             </button>
           </div>
         </form>
+      </Dialog>
+
+      {/* Retrieve Values From dialog */}
+      <Dialog
+        open={retrieveDialog.open}
+        onClose={() => setRetrieveDialog({ open: false, sc: null })}
+        title="Retrieve Values From"
+        className="max-w-sm"
+      >
+        <div className="flex flex-col gap-3">
+          {retrieveDialog.sc && (
+            <p className="text-sm text-gray-500">
+              Select an expense heading to link to <span className="font-semibold text-gray-700">{retrieveDialog.sc.description}</span>.
+            </p>
+          )}
+          <div className="flex flex-col gap-1.5">
+            {EXPENSE_HEADINGS.map((heading) => {
+              const isLinked = retrieveDialog.sc?.linkedExpense === heading;
+              return (
+                <button
+                  key={heading}
+                  type="button"
+                  disabled={linking}
+                  onClick={() => handleLinkExpense(heading)}
+                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm font-medium text-left transition-colors disabled:opacity-50 ${
+                    isLinked
+                      ? "border-blue-300 bg-blue-50 text-blue-700"
+                      : "border-gray-200 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  }`}
+                >
+                  <span>{heading}</span>
+                  {isLinked && <span className="text-xs text-blue-500 font-normal">Currently linked</span>}
+                </button>
+              );
+            })}
+          </div>
+          {retrieveDialog.sc?.linkedExpense && (
+            <button
+              type="button"
+              disabled={linking}
+              onClick={() => handleLinkExpense("")}
+              className="mt-1 text-xs text-gray-400 hover:text-red-500 text-center disabled:opacity-50"
+            >
+              Remove linked expense
+            </button>
+          )}
+        </div>
       </Dialog>
     </div>
   );

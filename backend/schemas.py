@@ -389,6 +389,7 @@ class TripBase(OrmBase):
     driver_advance_payment_method: Optional[DriverAdvancePaymentMethod] = None
     driver_advance: Optional[Decimal] = None
     driver_compensation_type: Optional[DriverCompensationType] = None
+    rate_per_ton: Optional[Decimal] = None
     transport_hire_amount: Optional[Decimal] = None
     transport_crossing_amount: Optional[Decimal] = None
     internal_remarks: Optional[str] = None
@@ -1096,6 +1097,7 @@ class SacCodeBase(OrmBase):
     description: str
     code: str
     gst_rate: Optional[Decimal] = Decimal("0")
+    linked_expense: Optional[str] = None
 
 
 class SacCodeCreate(SacCodeBase):
@@ -1107,6 +1109,7 @@ class SacCodeUpdate(OrmBase):
     description: Optional[str] = None
     code: Optional[str] = None
     gst_rate: Optional[Decimal] = None
+    linked_expense: Optional[str] = None
 
 
 class SacCodeOut(SacCodeBase):
