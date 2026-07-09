@@ -634,8 +634,8 @@ export default function DashboardPage() {
                 {sheetsDelivered.length === 0 ? (
                   <p className="text-xs text-gray-400">No trip sheets delivered yet.</p>
                 ) : (
-                  <ul className="flex flex-col gap-1.5">
-                    {sheetsDelivered.slice(0, 8).map((t) => (
+                  <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1">
+                    {sheetsDelivered.map((t) => (
                       <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
                         <span className="font-semibold text-gray-800">{t.tripId}</span>
                         <span className="text-gray-500">{t.bookingReferenceNo}</span>
@@ -646,9 +646,6 @@ export default function DashboardPage() {
                         )}
                       </li>
                     ))}
-                    {sheetsDelivered.length > 8 && (
-                      <li className="px-3 text-[11px] text-gray-400">+{sheetsDelivered.length - 8} more…</li>
-                    )}
                   </ul>
                 )}
               </div>
@@ -665,8 +662,8 @@ export default function DashboardPage() {
                 {sheetsReceived.length === 0 ? (
                   <p className="text-xs text-gray-400">No trip sheets received yet.</p>
                 ) : (
-                  <ul className="flex flex-col gap-1.5">
-                    {sheetsReceived.slice(0, 8).map((t) => (
+                  <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1">
+                    {sheetsReceived.map((t) => (
                       <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
                         <span className="font-semibold text-gray-800">{t.tripId}</span>
                         <span className="text-gray-500">{t.bookingReferenceNo}</span>
@@ -677,9 +674,6 @@ export default function DashboardPage() {
                         )}
                       </li>
                     ))}
-                    {sheetsReceived.length > 8 && (
-                      <li className="px-3 text-[11px] text-gray-400">+{sheetsReceived.length - 8} more…</li>
-                    )}
                   </ul>
                 )}
               </div>
@@ -1202,9 +1196,9 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-80 overflow-x-auto overflow-y-auto custom-scrollbar">
           <table className="w-full min-w-[680px] text-left text-sm whitespace-nowrap">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
                   Truck

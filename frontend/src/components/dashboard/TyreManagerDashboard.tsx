@@ -230,9 +230,9 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
           ) : tyreLifeRows.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-400">No tyres currently fitted.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-98 overflow-x-auto overflow-y-auto custom-scrollbar">
               <table className="w-full min-w-[520px] text-left text-xs">
-                <thead>
+                <thead className="sticky top-0 bg-white z-10">
                   <tr className="border-b border-gray-100">
                     {["Truck", "Position", "Tyre No.", "Brand", "Km Driven", "Remaining", "Status"].map((h) => (
                       <th key={h} className="pb-2 pr-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{h}</th>
@@ -322,8 +322,8 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
               <p className="text-xs text-gray-400">No overdue items across the fleet</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
-              {allAlerts.slice(0, 6).map((a, i) => {
+            <ul className="max-h-64 divide-y divide-gray-50 overflow-y-auto custom-scrollbar pr-1">
+              {allAlerts.map((a, i) => {
                 const truck = truckByDbId.get(a.truckId);
                 return (
                   <li key={i} className="flex items-start gap-3 py-2.5">
@@ -341,9 +341,6 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                   </li>
                 );
               })}
-              {allAlerts.length > 6 && (
-                <li className="pt-2 text-center text-xs text-gray-400">+{allAlerts.length - 6} more overdue items</li>
-              )}
             </ul>
           )}
         </div>
