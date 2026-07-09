@@ -161,7 +161,16 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
     update_data = payload.model_dump(exclude_unset=True)
     effective_driver = update_data.get("driver_id", trip.driver_id)
     effective_vehicle = update_data.get("vehicle_id", trip.vehicle_id)
-    _check_driver_truck_conflict(db, effective_driver, effective_vehicle, exclude_trip_id=trip_id)
+    # Only check conflict when driver or vehicle is actually changing
+    driver_changing = effective_driver != trip.driver_id
+    vehicle_changing = effective_vehicle != trip.vehicle_id
+    if driver_changing or vehicle_changing:
+        _check_driver_truck_conflict(
+            db,
+            effective_driver if driver_changing else None,
+            effective_vehicle if vehicle_changing else None,
+            exclude_trip_id=trip_id,
+        )
     for field, value in update_data.items():
         setattr(trip, field, value)
     db.commit()

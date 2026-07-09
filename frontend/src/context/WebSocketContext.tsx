@@ -13,6 +13,7 @@ type WSContextType = {
 const WebSocketContext = createContext<WSContextType | null>(null);
 
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/^http/, "ws");
+const MAX_RETRIES = 5;
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -42,9 +43,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     function connect() {
       if (process.env.NEXT_PUBLIC_DISABLE_WEBSOCKET === "true") return;
+      if (failCountRef.current > MAX_RETRIES) return; // server doesn't support WS — polling takes over
       const token = tokenRef.current;
       if (!token) return;
-      const ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
+      const ws = new WebSocket(`${WS_BASE}/ws?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
 
       ws.onmessage = (e) => {
@@ -60,10 +62,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         wsRef.current = null;
         if (reconnectRef.current) clearTimeout(reconnectRef.current);
         failCountRef.current += 1;
-        const delay = failCountRef.current > 5 ? 5 * 60 * 1000 : 3000;
+        if (failCountRef.current > MAX_RETRIES) return; // give up — no more retries
         reconnectRef.current = setTimeout(() => {
           if (tokenRef.current) connect();
-        }, delay);
+        }, 3000);
       };
 
       ws.onerror = () => ws.close();

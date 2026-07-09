@@ -5,6 +5,8 @@ export type TripSheetData = {
   tripSheetNo: string;
   bookingReferenceNo: string;   // auto-fetched from trip (replaces serialNo)
   containerNumber: string;      // auto-fetched from trip (was containerNo)
+  containerNumber1: string;     // auto-fetched for 2 X 20 FEET CONTAINERS
+  containerNumber2: string;     // auto-fetched for 2 X 20 FEET CONTAINERS
   containerType: string;        // label: "Container Specification" — auto-fetched
   line: string;                 // label: "Shipping Line" — auto-fetched
   tripType: string;             // label: "Trip Category" — auto-fetched

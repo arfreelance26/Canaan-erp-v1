@@ -498,6 +498,8 @@ class TripSheetCreate(OrmBase):
     trip_sheet_no: Optional[str] = None
     booking_reference_no: Optional[str] = None
     container_number: Optional[str] = None
+    container_number_1: Optional[str] = None
+    container_number_2: Optional[str] = None
     container_type: Optional[str] = None
     line: Optional[str] = None
     trip_type: Optional[str] = None

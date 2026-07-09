@@ -297,7 +297,14 @@ export default function TripHistoryPage() {
                       <span className="text-gray-800">{trip.destination}</span>
                     </td>
                     <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-2 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      <span>{driver?.name ?? "—"}</span>
+                      {trip.driverChangeRemark && (
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                          Remark: {trip.driverChangeRemark}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-2 text-gray-500">{fmtDate(trip.scheduledDate)}</td>
 

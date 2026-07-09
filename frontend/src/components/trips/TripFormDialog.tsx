@@ -30,7 +30,7 @@ import type { CustomerPricing } from "@/types/customer-pricing";
 import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, tripsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
-import { AutocompleteInput, saveToAutocompleteHistory, getAutocompleteHistory } from "@/components/ui/AutocompleteInput";
+import { saveToAutocompleteHistory, getAutocompleteHistory }from "@/components/ui/AutocompleteInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
@@ -249,7 +249,7 @@ export function TripFormDialog({
     return [
       ...customerOriginNames,
       ...historyPool.filter((h) => !existing.has(h.toLowerCase())),
-    ];
+    ].map((o) => ({ value: o, label: o }));
   })();
 
   const allDestinationOptions = (() => {
@@ -660,13 +660,12 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Route Information</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Origin Location" required>
-              <AutocompleteInput
+              <GlassCombobox
                 required
                 value={form.origin}
                 onChange={(v) => update("origin", v)}
-                storageKey="erp_origin_history"
-                suggestions={allOriginOptions}
-                placeholder="e.g. Coimbatore"
+                placeholder={allOriginOptions.length > 0 ? "Select or type origin" : "e.g. Coimbatore"}
+                options={allOriginOptions}
               />
               {customerOriginNames.some((o) => o.toLowerCase() === form.origin.toLowerCase()) && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">

@@ -2,12 +2,8 @@
 
 /**
  * Singleton WebSocket client for realtime updates.
- *
- * - Connects to the backend /ws endpoint with the JWT from sessionStorage (per-tab session)
- * - Auto-reconnects with exponential backoff (1s → 30s max)
- * - Sends a "ping" heartbeat every 30s to keep proxies (cPanel/LiteSpeed) from
- *   dropping the idle connection
- * - Dispatches "data_changed" events to subscribers; pages refetch instantly
+ * Gives up after MAX_RETRIES consecutive failures (e.g. hosting doesn't support WS).
+ * Pages fall back to useAutoRefresh polling automatically.
  */
 
 type RealtimeEvent = { type: string; payload: Record<string, unknown> };
@@ -18,7 +14,6 @@ const WS_URL = API_URL.replace(/^http/, "ws") + "/ws";
 
 const RECONNECT_MIN_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
-const RECONNECT_GIVE_UP_MS = 5 * 60 * 1000; // after MAX_RETRIES failures, back off to 5 min
 const MAX_RETRIES = 5;
 const HEARTBEAT_MS = 30000;
 
@@ -50,14 +45,12 @@ function cleanup() {
 function scheduleReconnect() {
   if (reconnectTimer) return;
   failCount += 1;
-  const delay = failCount > MAX_RETRIES ? RECONNECT_GIVE_UP_MS : reconnectDelay;
+  if (failCount > MAX_RETRIES) return; // server doesn't support WS — give up, polling takes over
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connect();
-  }, delay);
-  if (failCount <= MAX_RETRIES) {
-    reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
-  }
+  }, reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
 }
 
 function connect() {

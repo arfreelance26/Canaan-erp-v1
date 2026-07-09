@@ -61,6 +61,16 @@ export const TYRE_LAYOUT_OPTIONS: TyreLayout[] = [
     ],
   },
   {
+    id: "10+1-tractor-trailer",
+    label: "10+1 Tractor Head + Trailer",
+    description:
+      "Tractor Head (6 wheeler): 2 front + 4 rear (2 per side). Trailer: 4 wheels (2 per side). Plus 1 spare.",
+    units: [
+      { label: "Tractor Head", axles: [{ wheelsPerSide: 1 }, { wheelsPerSide: 2 }] },
+      { label: "Trailer", axles: [{ wheelsPerSide: 2 }] },
+    ],
+  },
+  {
     id: "14+1-tractor-trailer",
     label: "14+1 Tractor Head + Trailer",
     description:

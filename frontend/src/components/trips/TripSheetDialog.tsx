@@ -47,6 +47,8 @@ const emptySheet = (tripId: string): TripSheetData => ({
   tripSheetNo: "",
   bookingReferenceNo: "",
   containerNumber: "",
+  containerNumber1: "",
+  containerNumber2: "",
   containerType: "",
   line: "",
   tripType: "",
@@ -150,6 +152,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.bookingReferenceNo  = trip.bookingReferenceNo ?? "";
       sheet.tripSheetNo         = (trip.bookingReferenceNo ?? "").replace(/^CGI/, "TS");
       sheet.containerNumber     = trip.containerNumber ?? "";
+      sheet.containerNumber1    = trip.containerNumber1 ?? "";
+      sheet.containerNumber2    = trip.containerNumber2 ?? "";
       sheet.containerType       = trip.containerSpecification ?? "";
       sheet.line                = trip.shippingLine ?? "";
       sheet.tripType            = trip.tripCategory ?? "";
@@ -197,6 +201,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         await tripsApi.update(trip.id, {
           ...trip,
           containerNumber: form.containerNumber,
+          containerNumber1: form.containerNumber1,
+          containerNumber2: form.containerNumber2,
           containerSpecification: form.containerType as Trip["containerSpecification"],
           shippingLine: form.line,
           tripCategory: form.tripType as Trip["tripCategory"],
@@ -286,9 +292,20 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Booking Reference Number">
             <input className={roClass} value={form.bookingReferenceNo} readOnly disabled />
           </Field>
-          <Field label="Container Number">
-            <input className={ac} value={form.containerNumber} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerNumber", e.target.value)} />
-          </Field>
+          {form.containerType === "2 X 20 FEET CONTAINERS" ? (
+            <>
+              <Field label="Container Number 1">
+                <input className={ac} value={form.containerNumber1} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerNumber1", e.target.value)} />
+              </Field>
+              <Field label="Container Number 2">
+                <input className={ac} value={form.containerNumber2} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerNumber2", e.target.value)} />
+              </Field>
+            </>
+          ) : (
+            <Field label="Container Number">
+              <input className={ac} value={form.containerNumber} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerNumber", e.target.value)} />
+            </Field>
+          )}
           <Field label="Container Specification">
             <input className={ac} value={form.containerType} readOnly={!auto} disabled={!auto} onChange={(e) => set("containerType", e.target.value)} />
           </Field>

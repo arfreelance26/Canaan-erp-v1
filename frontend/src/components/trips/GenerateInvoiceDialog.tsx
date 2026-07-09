@@ -21,6 +21,7 @@ export type InvoiceType = (typeof INVOICE_TYPES)[number];
 export type ServiceLine = {
   descriptionOfService: string;
   sacCode: string;
+  sacId: string;   // unique ID of the selected SAC record (disambiguates duplicate codes)
   gstRate: string;
   quantity: string;
   rate: string;
@@ -84,7 +85,7 @@ function numberToWords(amount: number): string {
 }
 
 const emptyService = (): ServiceLine => ({
-  descriptionOfService: "", sacCode: "", gstRate: "", quantity: "", rate: "",
+  descriptionOfService: "", sacCode: "", sacId: "", gstRate: "", quantity: "", rate: "",
 });
 
 // A service line the user hasn't touched yet — used so newly added SAC/hint lines
@@ -207,6 +208,22 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     sacCodesApi.list().then(setSacCodes).catch(() => {});
   }, []);
 
+  // Once SAC codes load, back-fill sacId for any services that only have sacCode stored
+  useEffect(() => {
+    if (!sacCodes.length) return;
+    setForm((prev) => ({
+      ...prev,
+      services: prev.services.map((s) => {
+        if (s.sacId || !s.sacCode) return s;
+        // Match by code + description first (handles duplicate codes), then code alone
+        const match =
+          sacCodes.find((sc) => sc.code === s.sacCode && sc.description === s.descriptionOfService) ??
+          sacCodes.find((sc) => sc.code === s.sacCode);
+        return match ? { ...s, sacId: String(match.id) } : s;
+      }),
+    }));
+  }, [sacCodes]);
+
   useEffect(() => {
     if (!open || !trip) return;
     try {
@@ -305,22 +322,23 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     });
   }
 
-  // SAC combobox: on picking a code, auto-fill the GST rate AND the service description.
-  // While typing free text, only the code updates (description/rate are left untouched).
-  function handleSacChange(index: number, value: string) {
+  // SAC combobox: value is the SAC record ID (unique) so duplicate codes are disambiguated.
+  // On picking an entry, auto-fill the actual code, GST rate, and service description.
+  function handleSacChange(index: number, sacId: string) {
     setForm((prev) => {
       const services = prev.services.map((s, i) => {
         if (i !== index) return s;
-        const match = sacCodes.find((sc) => sc.code === value);
+        const match = sacCodes.find((sc) => String(sc.id) === sacId);
         if (match) {
           return {
             ...s,
+            sacId,
             sacCode: match.code,
             gstRate: parseFloat(match.gstRate) > 0 ? match.gstRate : "",
             descriptionOfService: match.description || s.descriptionOfService,
           };
         }
-        return { ...s, sacCode: value };
+        return { ...s, sacId, sacCode: sacId };
       });
       return { ...prev, services };
     });
@@ -625,9 +643,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                     </Field>
                     <Field label="SAC Code">
                       <GlassCombobox
-                        value={svc.sacCode}
+                        value={svc.sacId}
                         onChange={(val) => handleSacChange(i, val)}
-                        options={sacCodes.map((sc) => ({ value: sc.code, label: `${sc.code} — ${sc.description}` }))}
+                        options={sacCodes.map((sc) => ({ value: String(sc.id), label: `${sc.code} — ${sc.description}` }))}
                         placeholder="Select or type SAC code"
                       />
                     </Field>

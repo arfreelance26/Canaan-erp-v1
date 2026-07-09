@@ -614,7 +614,7 @@ export default function DashboardPage() {
       {/* ── Trip Sheet Tracking ─────────────────────────────────────────── */}
       {(() => {
         const completedTrips  = trips.filter((t) => t.status === "Completed");
-        const sheetsDelivered = completedTrips.filter((t) => t.tripSheetCollected && !t.hasSheet);
+        const sheetsDelivered = completedTrips.filter((t) => t.tripSheetCollected);
         const sheetsReceived  = sheetsDelivered.filter((t) => t.tripSheetReceived);
         const awaitingReceipt = sheetsDelivered.filter((t) => !t.tripSheetReceived);
         return (
@@ -670,9 +670,11 @@ export default function DashboardPage() {
                       <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
                         <span className="font-semibold text-gray-800">{t.tripId}</span>
                         <span className="text-gray-500">{t.bookingReferenceNo}</span>
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
-                          Pending Entry
-                        </span>
+                        {t.hasSheet ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Entered</span>
+                        ) : (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Pending Entry</span>
+                        )}
                       </li>
                     ))}
                     {sheetsReceived.length > 8 && (
@@ -738,7 +740,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Section 2: Visual Charts ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Row 1: Trip Distribution + Fleet Utilization */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Trip Status Donut */}
         <div className="rounded-xl border border-gray-200 bg-white p-5">
@@ -763,17 +766,17 @@ export default function DashboardPage() {
             <FleetUtilizationChart onTrip={trucksOnTripCount} available={trucksAvailableCount} />
           </div>
         </div>
+      </div>
 
-        {/* 6-Month Trip Trend */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-blue-500" />
-            <h2 className="text-sm font-bold text-gray-900">Trip Trend</h2>
-          </div>
-          <p className="mt-0.5 text-xs text-gray-400">Total vs completed — last 6 months</p>
-          <div className="mt-3">
-            <TripTrendChart trips={trips} />
-          </div>
+      {/* Row 2: Trip Trend (full width) */}
+      <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-blue-500" />
+          <h2 className="text-sm font-bold text-gray-900">Trip Trend</h2>
+        </div>
+        <p className="mt-0.5 text-xs text-gray-400">Total vs completed trips over time</p>
+        <div className="mt-3">
+          <TripTrendChart trips={trips} />
         </div>
       </div>
 

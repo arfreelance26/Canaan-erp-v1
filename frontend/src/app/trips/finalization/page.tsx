@@ -193,7 +193,7 @@ export default function TripFinalizationPage() {
       consignee:      (raw.consignee as string)          ?? "",
       services: Array.isArray(raw.services) && raw.services.length > 0
         ? raw.services as InvoiceFormData["services"]
-        : [{ descriptionOfService: "", sacCode: "", gstRate: "", quantity: "", rate: "" }],
+        : [{ descriptionOfService: "", sacCode: "", sacId: "", gstRate: "", quantity: "", rate: "" }],
       bankName:       (raw.bank_name as string)          ?? "",
       branchName:     (raw.branch_name as string)        ?? "",
       accountNumber:  (raw.account_number as string)     ?? "",
@@ -232,7 +232,7 @@ export default function TripFinalizationPage() {
         consignee:      (raw.consignee as string)          ?? "",
         services: Array.isArray(raw.services) && raw.services.length > 0
           ? raw.services as InvoiceFormData["services"]
-          : [{ descriptionOfService: "", sacCode: "", gstRate: "", quantity: "", rate: "" }],
+          : [{ descriptionOfService: "", sacCode: "", sacId: "", gstRate: "", quantity: "", rate: "" }],
         bankName:       (raw.bank_name as string)          ?? "",
         branchName:     (raw.branch_name as string)        ?? "",
         accountNumber:  (raw.account_number as string)     ?? "",
@@ -355,7 +355,14 @@ export default function TripFinalizationPage() {
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      <span>{driver?.name ?? "—"}</span>
+                      {trip.driverChangeRemark && (
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                          Remark: {trip.driverChangeRemark}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{closure?.billTo ?? "—"}</td>
                     <td className="px-4 py-3">

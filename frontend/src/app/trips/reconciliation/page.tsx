@@ -50,6 +50,7 @@ export default function TripReconciliationPage() {
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
 
   // Edit approval state (Staff only)
@@ -286,14 +287,15 @@ export default function TripReconciliationPage() {
       // Total: 277mm (297 - 10*2)
       const cols: [string, number][] = [
         ["Trip ID",       28],
-        ["Booking Ref",   35],
-        ["Customer",      38],
-        ["Route",         46],
-        ["Container No",  27],
-        ["Driver",        33],
-        ["Vehicle",       26],
-        ["Hire Amt",      22],
-        ["Total Exp",     22],
+        ["Booking Ref",   33],
+        ["Customer",      34],
+        ["Route",         40],
+        ["Container No",  25],
+        ["Driver",        29],
+        ["Vehicle",       24],
+        ["Hire Amt",      20],
+        ["Total Exp",     20],
+        ["Received On",   24],
       ];
 
       function drawPageHeader(pageNum: number, totalPages: number) {
@@ -331,6 +333,13 @@ export default function TripReconciliationPage() {
         const truck = truckById.get(trip.vehicleId);
         const customer = customerById.get(trip.customerId);
         const sheet = sheets.get(trip.id);
+        const receivedOn = trip.tripSheetReceivedAt
+          ? (() => {
+              const utc = trip.tripSheetReceivedAt.endsWith("Z") || trip.tripSheetReceivedAt.includes("+")
+                ? trip.tripSheetReceivedAt : trip.tripSheetReceivedAt + "Z";
+              return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+            })()
+          : "—";
         return [
           trip.tripId,
           trip.bookingReferenceNo ?? "—",
@@ -341,6 +350,7 @@ export default function TripReconciliationPage() {
           truck?.registrationNumber ?? "—",
           sheet ? `Rs.${n(sheet.hireAmount).toLocaleString("en-IN")}` : "—",
           sheet ? `Rs.${n(sheet.totalExpense).toLocaleString("en-IN")}` : "—",
+          receivedOn,
         ];
       });
 
@@ -394,6 +404,10 @@ export default function TripReconciliationPage() {
 
   const filteredTrips = trips
     .filter((t) => {
+      if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
+      if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || sheets.has(t.id))) return false;
+      if (statusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
+
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       const truck = truckById.get(t.vehicleId);
@@ -439,6 +453,16 @@ export default function TripReconciliationPage() {
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="rounded-lg border border-gray-200 bg-white/50 py-2 pl-3 pr-8 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+        >
+          <option value="All">All Statuses</option>
+          <option value="Pending Receive">Pending Receive</option>
+          <option value="Pending Sheet Entry">Pending Sheet Entry</option>
+          <option value="Sheet Entered">Sheet Entered</option>
+        </select>
         {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
         <button
           type="button"
@@ -487,7 +511,14 @@ export default function TripReconciliationPage() {
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
                     <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-2 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      <span>{driver?.name ?? "—"}</span>
+                      {trip.driverChangeRemark && (
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                          Remark: {trip.driverChangeRemark}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-2 font-medium text-blue-700">
                       {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-gray-400">—</span>}

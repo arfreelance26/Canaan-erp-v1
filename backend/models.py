@@ -398,6 +398,8 @@ class TripSheet(Base):
     trip_sheet_no = Column(String(50))
     booking_reference_no = Column(String(100))
     container_number = Column(String(100))
+    container_number_1 = Column(String(100))
+    container_number_2 = Column(String(100))
     container_type = Column(String(100))
     line = Column(String(200))
     trip_type = Column(String(100))
@@ -620,7 +622,7 @@ class TyreFitmentRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tyre_id = Column(Integer, ForeignKey("tyre_inventory.id", ondelete="CASCADE"), nullable=False)
     truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
-    position = Column(String(20), nullable=False)                       # "F1", "R1L", "S1" etc.
+    position = Column(String(60), nullable=False)
     fitted_odometer = Column(Integer, nullable=False)
     fitted_date = Column(Date, nullable=False)
     removed_odometer = Column(Integer)

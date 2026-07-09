@@ -189,7 +189,7 @@ def export_trips(db: Session = Depends(get_db)):
         "Transport Hire Amount", "Transport Crossing Amount",
         "Internal Remarks", "Booking Instructions",
         "Verification Status", "Is Invoiced", "Invoice Required",
-        "Trip Sheet Collected", "Trip Sheet Received",
+        "Trip Sheet Collected", "Trip Sheet Received", "Trip Sheet Received Date"
     ]
     data = [
         [
@@ -211,6 +211,7 @@ def export_trips(db: Session = Depends(get_db)):
             "Yes" if t.invoice_required else "No",
             "Yes" if t.trip_sheet_collected else "No",
             "Yes" if t.trip_sheet_received else "No",
+            t.trip_sheet_received_at.strftime("%d-%m-%Y %H:%M:%S") if t.trip_sheet_received_at else "",
         ]
         for t in trips
     ]

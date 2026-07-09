@@ -37,6 +37,7 @@ export default function SheetCollectionPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Delivered">("All");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -49,10 +50,7 @@ export default function SheetCollectionPage() {
       trucksApi.list(),
       customersApi.list(),
     ]).then(([t, d, trks, c]) => {
-      // Only closed trips (hasClosure=true) that have NOT yet had their sheet entered
-      const closed = t.filter(
-        (trip) => (trip as any).hasClosure === true && !(trip as any).hasSheet
-      );
+      const closed = t.filter((trip) => (trip as any).hasClosure === true);
       setTrips(closed);
       setDrivers(d);
       setTrucks(trks);
@@ -79,6 +77,7 @@ export default function SheetCollectionPage() {
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
   const filtered = trips.filter((t) => {
+
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     const truck = truckById.get(t.vehicleId);
@@ -99,7 +98,13 @@ export default function SheetCollectionPage() {
   const collected = filtered.filter((t) => t.tripSheetCollected);
   const pending = filtered.filter((t) => !t.tripSheetCollected);
 
-  const selectableIds = pending.filter((t) => !t.hasSheet).map((t) => t.id);
+  const tableTrips = filtered.filter((t) => {
+    if (statusFilter === "Pending" && t.tripSheetCollected) return false;
+    if (statusFilter === "Delivered" && !t.tripSheetCollected) return false;
+    return true;
+  });
+
+  const selectableIds = tableTrips.filter((t) => !t.tripSheetCollected && !t.hasSheet).map((t) => t.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0;
 
@@ -208,15 +213,15 @@ export default function SheetCollectionPage() {
 
       // Column definitions: [label, width]
       const cols: [string, number][] = [
-        ["Trip ID",      28],
-        ["Booking Ref",  42],
+        ["Trip ID",      26],
+        ["Booking Ref",  40],
         ["Trip Date",    22],
         ["Vehicle",      26],
-        ["Customer",     36],
-        ["Route",        42],
+        ["Customer",     34],
+        ["Route",        40],
         ["Container No", 30],
         ["Driver",       32],
-        ["Delivered On", 24],
+        ["Delivered On", 27],
       ];
 
       function drawPageHeader(pageNum: number, totalPages: number) {
@@ -357,6 +362,15 @@ export default function SheetCollectionPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="rounded-lg border border-gray-200 bg-white/50 py-2 pl-3 pr-8 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          >
+            <option value="All">All Sheets</option>
+            <option value="Pending">Pending</option>
+            <option value="Delivered">Delivered</option>
+          </select>
           <button
             type="button"
             onClick={handleDownloadPDF}
@@ -412,7 +426,7 @@ export default function SheetCollectionPage() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {tableTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           No completed trips found.
         </div>
@@ -443,7 +457,7 @@ export default function SheetCollectionPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((trip) => {
+              {tableTrips.map((trip) => {
                 const driver = driverById.get(trip.driverId);
                 const truck = truckById.get(trip.vehicleId);
                 const customer = customerById.get(trip.customerId);
@@ -487,7 +501,14 @@ export default function SheetCollectionPage() {
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      <span>{driver?.name ?? "—"}</span>
+                      {trip.driverChangeRemark && (
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                          Remark: {trip.driverChangeRemark}
+                        </p>
+                      )}
+                    </td>
 
                     {/* Trip Sheet Status */}
                     <td className="px-4 py-3">

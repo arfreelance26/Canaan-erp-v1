@@ -291,7 +291,14 @@ export default function TripVerificationPage() {
                       {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-3 text-gray-600">{driver?.name ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      <span>{driver?.name ?? "—"}</span>
+                      {trip.driverChangeRemark && (
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                          Remark: {trip.driverChangeRemark}
+                        </p>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
                     <td className="px-4 py-3 font-medium text-blue-700">{fmt(totalTransport)}</td>
                     <td className="px-4 py-3 font-medium text-emerald-700">{fmt(totalBilling)}</td>
