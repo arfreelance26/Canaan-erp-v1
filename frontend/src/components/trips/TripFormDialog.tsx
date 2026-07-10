@@ -417,7 +417,7 @@ export function TripFormDialog({
     setForm((prev) => ({
       ...prev,
       cargoWeight: value,
-      transportHireAmount: calcOpenLoadHire(value, prev.ratePerTon),
+      transportHireAmount: calcOpenLoadHire(value, prev.ratePerTon ?? ""),
     }));
   }
 

@@ -18,7 +18,7 @@ const emptyForm = { description: "", code: "", gstRate: "" };
 
 const EXPENSE_HEADINGS = [
   "Hire Amount",
-  "Lift On / Off (லிப்டான்)",
+  "Lift On / Off",
   "Weight Sheet Expense",
   "Halt Pay",
   "Port Pass Expense",
