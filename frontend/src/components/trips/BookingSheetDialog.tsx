@@ -25,6 +25,7 @@ import {
   BILL_TO_OPTIONS as TRIP_BILL_TO_OPTIONS,
 } from "@/lib/trip-data";
 import { branchesApi, tripsApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { showError } from "@/lib/swal";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
@@ -81,7 +82,8 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
       setTripForm({ ...trip });
     }
     if (!open) { setForm(null); setTripForm(null); }
-  }, [open, closure, trip, truck, driver]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, closure, trip]);
 
   useEffect(() => {
     if (readOnly || !tripForm) return;
@@ -282,7 +284,13 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               ) : (
                 <GlassSelect
                   value={tf.cargoWeight ?? ""}
-                  onChange={(val) => updateTrip("cargoWeight", val)}
+                  onChange={(val) => {
+                    updateTrip("cargoWeight", val);
+                    if (containerSpec === "OPEN LOAD CARGO" && tf.ratePerTon) {
+                      const hire = parseFloat(val) * parseFloat(tf.ratePerTon);
+                      if (!isNaN(hire) && hire > 0) updateTrip("transportHireAmount", String(hire));
+                    }
+                  }}
                   options={[{ value: "", label: "Select cargo weight" }, ...CARGO_WEIGHT_OPTIONS.map((o) => ({ value: o, label: o }))]}
                 />
               )}
@@ -458,7 +466,10 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.driverAdvance ?? ""}
-                onChange={(e) => updateTrip("driverAdvance", e.target.value)}
+                onChange={(e) => {
+                  updateTrip("driverAdvance", e.target.value);
+                  update("driverAdvance", e.target.value);
+                }}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={fc}
               />
@@ -486,6 +497,32 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
         <section className="flex flex-col gap-4">
           <p className={sh}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {containerSpec === "OPEN LOAD CARGO" && (
+              <Field label="Open Load Hire Type">
+                <input readOnly disabled value={tf.openLoadHireType || "Ton Based"} className={roClass} />
+              </Field>
+            )}
+            {containerSpec === "OPEN LOAD CARGO" && (tf.openLoadHireType === "Ton Based" || !tf.openLoadHireType) && (
+              <Field label="Rate per Ton (₹)">
+                <DecimalInput type="number" min="0"
+                  readOnly={readOnly} disabled={readOnly}
+                  value={tf.ratePerTon ?? ""}
+                  onChange={(e) => {
+                    const rate = e.target.value;
+                    updateTrip("ratePerTon", rate);
+                    const hire = parseFloat(tf.cargoWeight ?? "") * parseFloat(rate);
+                    if (!isNaN(hire) && hire > 0) updateTrip("transportHireAmount", String(hire));
+                  }}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={fc}
+                />
+                {tf.cargoWeight && tf.ratePerTon && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    {tf.cargoWeight} tons × ₹{tf.ratePerTon}/ton = ₹{(parseFloat(tf.cargoWeight) * parseFloat(tf.ratePerTon)).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </Field>
+            )}
             <Field label="Transport Hire Amount (₹)">
               <DecimalInput type="number" min="0"
                 readOnly={readOnly} disabled={readOnly}
@@ -602,7 +639,17 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
             </Field>
             {trip?.tripCategory !== "RETURN TRIP" && (
             <Field label="Driver Advance (₹)">
-              <DecimalInput type="number" value={form.driverAdvance} readOnly disabled className={roClass} />
+              <DecimalInput type="number" min="0" step="0.01"
+                value={form.driverAdvance}
+                readOnly={readOnly} disabled={readOnly}
+                onChange={(e) => {
+                  update("driverAdvance", e.target.value);
+                  updateTrip("driverAdvance", e.target.value);
+                }}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={fc}
+                placeholder="e.g. 2000"
+              />
             </Field>
             )}
             <Field label="Additional Driver Advance (₹)">

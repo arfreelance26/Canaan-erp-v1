@@ -346,7 +346,7 @@ class DriverAssignmentOut(OrmBase):
 TripStatus = Literal["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded", "Completed", "Cancelled"]
 TripCategory = Literal["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"]
 MovementCategory = Literal["Own Fleet", "Third-Party Transporter"]
-CargoClassification = Literal["IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL"]
+CargoClassification = Literal["IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL", "RETURN TRIP"]
 ContainerSpecification = Literal["20 FT CONTAINER", "40 FT CONTAINER", "2 X 20 FEET CONTAINERS", "OPEN LOAD CARGO"]
 BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
 PaymentType = Literal["Credit", "Cash", "Fuel"]
@@ -389,6 +389,7 @@ class TripBase(OrmBase):
     driver_advance_payment_method: Optional[DriverAdvancePaymentMethod] = None
     driver_advance: Optional[Decimal] = None
     driver_compensation_type: Optional[DriverCompensationType] = None
+    open_load_hire_type: Optional[Literal["Ton Based", "Fixed"]] = None
     rate_per_ton: Optional[Decimal] = None
     transport_hire_amount: Optional[Decimal] = None
     transport_crossing_amount: Optional[Decimal] = None
@@ -515,6 +516,8 @@ class TripSheetCreate(OrmBase):
     to_location: Optional[str] = None
     clearing_agent: Optional[str] = None
     hire_amount: Optional[Decimal] = None
+    open_load_hire_type: Optional[Literal["Ton Based", "Fixed"]] = None
+    rate_per_ton: Optional[Decimal] = None
     start_km: Optional[Decimal] = None
     end_km: Optional[Decimal] = None
     total_km: Optional[Decimal] = None
@@ -909,6 +912,7 @@ class TyreFitmentCreate(OrmBase):
 class TyreFitmentRemove(OrmBase):
     removed_odometer: int
     removed_date: date
+    removal_remark: str
 
 
 class TyreFitmentOut(OrmBase):
@@ -920,6 +924,7 @@ class TyreFitmentOut(OrmBase):
     fitted_date: date
     removed_odometer: Optional[int] = None
     removed_date: Optional[date] = None
+    removal_remark: Optional[str] = None
     created_at: Optional[datetime] = None
 
 

@@ -37,15 +37,7 @@ export default function TyreInventoryPage() {
       })
       .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([tyreApi.listInventory(), tyreApi.listFitments(), trucksApi.list()])
-      .then(([t, f, tr]) => {
-        setTyres(t);
-        setFitmentRecords(f);
-        setTrucks(tr);
-      })
-      .finally(() => setLoading(false));
-  }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
 

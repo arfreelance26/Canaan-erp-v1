@@ -103,6 +103,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   driverAdvancePaymentMethod: "",
   driverAdvance: "",
   driverCompensationType: "",
+  openLoadHireType: "",
   ratePerTon: "",
   transportHireAmount: "",
   transportCrossingAmount: "",
@@ -231,6 +232,8 @@ export function TripFormDialog({
   const isShifting = form.tripCategory === "SHIFTING";
   const isReturnTrip = form.tripCategory === "RETURN TRIP";
   const isOpenLoad = form.cargoClassification === "OPEN LOAD" || form.containerSpecification === "OPEN LOAD CARGO";
+  const isTonBased = isOpenLoad && (form.openLoadHireType === "Ton Based" || form.openLoadHireType === "");
+  const isFixedHire = isOpenLoad && form.openLoadHireType === "Fixed";
   const battaRule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
 
   const destinationOptions = customerDestinations
@@ -358,10 +361,24 @@ export function TripFormDialog({
   }
 
   function handleVehicleChange(assignmentDriverId: string) {
+    const assignment = assignableDrivers.find((a) => a.driver.driverId === assignmentDriverId);
+    if (assignment) {
+      const truckId = assignment.truck.truckId;
+      const today = todayIst();
+      const sameDayTrips = existingTrips.filter(
+        (t) => t.vehicleId === truckId && t.assignedDate === today && (!initialData || t.id !== initialData.id)
+      );
+      if (sameDayTrips.length > 0) {
+        const refs = sameDayTrips.map((t) => t.bookingReferenceNo || t.tripId).join(", ");
+        const proceed = window.confirm(
+          `Warning: ${assignment.truck.registrationNumber} already has ${sameDayTrips.length} trip(s) assigned today (${refs}).\n\nThis truck is being assigned sequentially. Do you want to continue?`
+        );
+        if (!proceed) return;
+      }
+    }
     setVehicleAssignmentId(assignmentDriverId);
     setForm((prev) => {
       if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId: assignmentDriverId };
-      const assignment = assignableDrivers.find((a) => a.driver.driverId === assignmentDriverId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const driverAdvanceAmount =
@@ -417,7 +434,9 @@ export function TripFormDialog({
     setForm((prev) => ({
       ...prev,
       cargoWeight: value,
-      transportHireAmount: calcOpenLoadHire(value, prev.ratePerTon ?? ""),
+      transportHireAmount: prev.openLoadHireType === "Fixed"
+        ? prev.transportHireAmount
+        : calcOpenLoadHire(value, prev.ratePerTon ?? ""),
     }));
   }
 
@@ -426,6 +445,16 @@ export function TripFormDialog({
       ...prev,
       ratePerTon: value,
       transportHireAmount: calcOpenLoadHire(prev.cargoWeight, value),
+    }));
+  }
+
+  function handleOpenLoadHireTypeChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      openLoadHireType: value as Trip["openLoadHireType"],
+      // Reset calculated fields when switching modes
+      ratePerTon: value === "Fixed" ? "" : prev.ratePerTon,
+      transportHireAmount: value === "Fixed" ? "" : calcOpenLoadHire(prev.cargoWeight, prev.ratePerTon ?? ""),
     }));
   }
 
@@ -688,7 +717,21 @@ export function TripFormDialog({
               />
             </Field>
 
-            <Field label="Cargo Weight (tons)" required>
+            {isOpenLoad && (
+              <Field label="Open Load Hire Type" required>
+                <GlassSelect
+                  value={form.openLoadHireType ?? ""}
+                  onChange={handleOpenLoadHireTypeChange}
+                  options={[
+                    { value: "", label: "Select hire type" },
+                    { value: "Ton Based", label: "Ton Based — Cargo Weight × Rate per Ton" },
+                    { value: "Fixed", label: "Fixed — Enter Hire Amount Directly" },
+                  ]}
+                />
+              </Field>
+            )}
+
+            <Field label="Cargo Weight (tons)" required={isOpenLoad && isTonBased}>
               {isOpenLoad ? (
                 <DecimalInput
                   type="number"
@@ -712,7 +755,7 @@ export function TripFormDialog({
               )}
             </Field>
 
-            {isOpenLoad && (
+            {isTonBased && (
               <Field label="Rate Per Ton (₹)" required>
                 <DecimalInput
                   type="number"
@@ -1051,14 +1094,18 @@ export function TripFormDialog({
                 value={form.transportHireAmount}
                 onChange={(e) => handleHireAmountChange(e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="e.g. 32000"
+                readOnly={isTonBased && !!(form.cargoWeight && form.ratePerTon)}
+                className={`${inputClass} ${isTonBased && form.cargoWeight && form.ratePerTon ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+                placeholder={isFixedHire ? "Enter hire amount" : "e.g. 32000"}
               />
-              {isOpenLoad && form.cargoWeight && form.ratePerTon && (
+              {isTonBased && form.cargoWeight && form.ratePerTon && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />
-                  Auto-calculated from Cargo Weight × Rate Per Ton — edit to override
+                  Auto-calculated from Cargo Weight × Rate Per Ton
                 </span>
+              )}
+              {isFixedHire && (
+                <span className="mt-1 text-xs text-gray-500">Fixed hire — enter the agreed amount directly</span>
               )}
             </Field>
           </div>

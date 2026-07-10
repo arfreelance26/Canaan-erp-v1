@@ -57,7 +57,8 @@ export function CustomerPricingFormDialog({
       setDropdownOpen(false);
       setCustomerError(false);
     }
-  }, [open, initialData, customers]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialData]);
 
   useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
 

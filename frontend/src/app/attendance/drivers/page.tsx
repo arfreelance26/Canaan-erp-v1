@@ -39,17 +39,9 @@ export default function DriverAttendancePage() {
         setRemarks(rm);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
-  useAutoRefresh(() => {
-    Promise.all([driversApi.list(), attendanceApi.listDrivers(), attendanceApi.listDriverRemarks()])
-      .then(([d, r, rm]) => {
-        setDrivers(d);
-        setRecords(r);
-        setRemarks(rm);
-      })
-      .finally(() => setLoading(false));
-  }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   // Reload records and remarks when date changes or WS event fires
   useEffect(() => {

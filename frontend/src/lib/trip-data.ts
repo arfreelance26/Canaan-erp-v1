@@ -74,6 +74,7 @@ export const CARGO_CLASSIFICATION_OPTIONS: CargoClassification[] = [
   "CFS LADEN",
   "OPEN LOAD",
   "COASTAL",
+  "RETURN TRIP",
 ];
 
 export const CONTAINER_SPECIFICATION_OPTIONS: ContainerSpecification[] = [

@@ -39,6 +39,7 @@ export default function TripHistoryPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
@@ -87,12 +88,12 @@ export default function TripHistoryPage() {
     setSheets(sheetMap);
   }
 
-  useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
-  useAutoRefresh(() => { loadAll(); }, 10000);
+  useEffect(() => { loadAll().finally(() => setLoading(false)); }, [refreshKey]);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);
 
-  useWebSocketEvent("trip_updated", loadAll);
-  useWebSocketEvent("trip_closed", loadAll);
-  useWebSocketEvent("trip_deleted", loadAll);
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_deleted", () => setRefreshKey(k => k + 1));
 
   const driverById   = useMemo(() => new Map(drivers.map((d) => [d.driverId, d])), [drivers]);
   const truckById    = useMemo(() => new Map(trucks.map((t) => [t.truckId, t])), [trucks]);

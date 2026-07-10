@@ -40,16 +40,7 @@ export default function CurrentTripsPage() {
           })
           .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
-    .then(([t, d, tr, c]) => {
-    setAllTrips(t);
-    setDrivers(d);
-    setTrucks(tr);
-    setCustomers(c);
-    })
-    .finally(() => setLoading(false));
-      }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));

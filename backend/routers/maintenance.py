@@ -402,6 +402,7 @@ def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session
         raise HTTPException(400, "Tyre already removed")
     record.removed_odometer = payload.removed_odometer
     record.removed_date = payload.removed_date
+    record.removal_remark = payload.removal_remark
     db.commit()
     db.refresh(record)
     emit("tyre_updated", {})

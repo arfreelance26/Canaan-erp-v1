@@ -34,15 +34,7 @@ export default function AssignDriversPage() {
           })
           .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
-    .then(([d, t, a]) => {
-    setDrivers(d);
-    setTrucks(t);
-    setAssignments(a);
-    })
-    .finally(() => setLoading(false));
-      }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));

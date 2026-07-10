@@ -31,14 +31,7 @@ export default function StaffCompensationPage() {
           })
           .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([staffApi.list(), financeApi.listStaffCompensation()])
-    .then(([s, tx]) => {
-    setStaffList(s);
-    setTransactions(tx);
-    })
-    .finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 

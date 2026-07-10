@@ -7,4 +7,5 @@ export type TyreFitmentRecord = {
   fittedDate: string;
   removedOdometer: number | null;
   removedDate: string | null;
+  removalRemark: string | null;
 };

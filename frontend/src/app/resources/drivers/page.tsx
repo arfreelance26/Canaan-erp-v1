@@ -31,9 +31,7 @@ export default function DriversPage() {
   useEffect(() => {
         driversApi.list().then(setDrivers).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    driversApi.list().then(setDrivers).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 

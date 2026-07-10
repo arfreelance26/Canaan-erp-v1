@@ -58,10 +58,10 @@ export default function EditApprovalsPage() {
   }
 
   useEffect(() => { loadData(); }, [refreshKey]);
-  useAutoRefresh(loadData, 5000);
-  useWebSocketEvent("edit_approval_created", loadData);
-  useWebSocketEvent("edit_approval_updated", loadData);
-  useWebSocketEvent("edit_approval_deleted", loadData);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
+  useWebSocketEvent("edit_approval_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));
 
   const summary = useMemo(() => {
     return requests.reduce(

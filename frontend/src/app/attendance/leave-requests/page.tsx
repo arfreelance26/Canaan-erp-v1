@@ -14,6 +14,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 export default function LeaveRequestsPage() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -30,12 +31,12 @@ export default function LeaveRequestsPage() {
 
   useEffect(() => {
     loadRequests();
-  }, []);
+  }, [refreshKey]);
 
-  useAutoRefresh(loadRequests, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
-  useWebSocketEvent("leave_request_created", loadRequests);
-  useWebSocketEvent("leave_request_updated", loadRequests);
+  useWebSocketEvent("leave_request_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));
 
   async function handleSave(payload: Omit<LeaveRequest, "id" | "status" | "appliedAt">) {
     try {

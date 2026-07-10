@@ -49,26 +49,7 @@ export default function CompletedTripsPage() {
           })
           .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([
-      tripsApi.list("Completed"),
-      driversApi.list(),
-      trucksApi.list(),
-      customersApi.list(),
-    ])
-      .then(([t, d, tr, c]) => {
-        setTrips(t);
-        setDrivers(d);
-        setTrucks(tr);
-        setCustomers(c);
-        // Pre-populate closed IDs from trips that already have a closure
-        const closed = new Set<string>(
-          t.filter((trip) => (trip as any).hasClosure === true).map((trip) => trip.id)
-        );
-        setClosedTripIds(closed);
-      })
-      .finally(() => setLoading(false));
-      }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));

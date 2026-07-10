@@ -92,9 +92,7 @@ export default function CustomersPage() {
   useEffect(() => {
         customersApi.list().then(setCustomers).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    customersApi.list().then(setCustomers).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("customer_updated", () => setRefreshKey(k => k + 1));
 

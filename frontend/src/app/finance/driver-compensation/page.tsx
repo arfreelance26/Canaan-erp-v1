@@ -20,6 +20,7 @@ export default function DriverCompensationPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [transactions, setTransactions] = useState<CompensationTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [advanceRecordTarget, setAdvanceRecordTarget] = useState<CompensationPerson | null>(null);
   const [salaryRecordTarget, setSalaryRecordTarget] = useState<CompensationPerson | null>(null);
@@ -34,12 +35,12 @@ export default function DriverCompensationPage() {
     });
   }
 
-  useEffect(() => { loadData().finally(() => setLoading(false)); }, []);
-  useAutoRefresh(() => { loadData(); }, 5000);
+  useEffect(() => { loadData().finally(() => setLoading(false)); }, [refreshKey]);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
-  useWebSocketEvent("finance_updated", loadData);
-  useWebSocketEvent("trip_updated", loadData);
-  useWebSocketEvent("driver_updated", loadData);
+  useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
   const people: CompensationPerson[] = useMemo(
     () =>

@@ -18,7 +18,8 @@ export type CargoClassification =
   | "EMPTY"
   | "CFS LADEN"
   | "OPEN LOAD"
-  | "COASTAL";
+  | "COASTAL"
+  | "RETURN TRIP";
 
 export type ContainerSpecification =
   | "20 FT CONTAINER"
@@ -87,6 +88,7 @@ export type Trip = {
   driverCompensationType: DriverCompensationType | "";
 
   // Transport Cost Details
+  openLoadHireType?: "Ton Based" | "Fixed" | "";
   ratePerTon?: string;
   transportHireAmount: string;
   transportCrossingAmount: string;

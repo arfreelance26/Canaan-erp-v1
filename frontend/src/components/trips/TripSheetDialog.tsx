@@ -62,7 +62,7 @@ const emptySheet = (tripId: string): TripSheetData => ({
   from: "",
   to: "",
   clearingAgent: "",
-  hireAmount: "",
+  hireAmount: "", openLoadHireType: "", ratePerTon: "",
   startKm: "", endKm: "", totalKm: "", cargoWeight: "",
   driverCompensationType: "",
   driverPay: "",
@@ -164,6 +164,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.from                = trip.origin ?? "";
       sheet.to                  = trip.destination ?? "";
       sheet.cargoWeight         = trip.cargoWeight ?? "";
+      sheet.openLoadHireType    = trip.openLoadHireType ?? "";
+      sheet.ratePerTon          = trip.ratePerTon ?? "";
       sheet.hireAmount              = trip.transportHireAmount ?? "";
       sheet.driverCompensationType  = trip.driverCompensationType || battaCompType;
       sheet.driverPay               = trip.driverAdvanceAmount ?? "";
@@ -429,6 +431,21 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Cargo Weight (tons)">
             <input className={ac} value={form.cargoWeight} readOnly={!auto} disabled={!auto} onChange={(e) => set("cargoWeight", e.target.value)} placeholder="Auto-fetched from trip" />
           </Field>
+          {form.containerType === "OPEN LOAD CARGO" && (
+            <Field label="Open Load Hire Type">
+              <input className={roClass} value={form.openLoadHireType || "Ton Based"} readOnly disabled placeholder="Auto-fetched from trip" />
+            </Field>
+          )}
+          {form.containerType === "OPEN LOAD CARGO" && (form.openLoadHireType === "Ton Based" || !form.openLoadHireType) && (
+            <Field label="Rate per Ton (₹)">
+              <input className={roClass} value={form.ratePerTon} readOnly disabled placeholder="Auto-fetched from trip" />
+              {form.ratePerTon && form.cargoWeight && (
+                <p className="mt-1 text-xs text-gray-400">
+                  {form.cargoWeight} tons × ₹{form.ratePerTon}/ton = ₹{(parseFloat(form.cargoWeight) * parseFloat(form.ratePerTon)).toLocaleString("en-IN")}
+                </p>
+              )}
+            </Field>
+          )}
         </div>
 
         {/* ── 5. Halt Information ── */}

@@ -91,6 +91,26 @@ def _run_schema_migrations():
         "ALTER TABLE edit_approval_requests MODIFY COLUMN status ENUM('Pending','Approved','Rejected') NOT NULL DEFAULT 'Pending'",
         # Driver attendance — expand status enum with driver-specific statuses
         "ALTER TABLE driver_attendance MODIFY COLUMN status ENUM('Present','Absent','On Leave','Not Marked','On Trip','On Halt','Leave','On Workshop') NOT NULL DEFAULT 'Not Marked'",
+        # tyre_fitment_records — removal remark text (required before removal is confirmed)
+        "ALTER TABLE tyre_fitment_records ADD COLUMN removal_remark VARCHAR(500) NULL",
+        # trip_sheets — rate per ton for open load hire amount calculation
+        "ALTER TABLE trip_sheets ADD COLUMN rate_per_ton DECIMAL(10,2) NULL",
+        # trips — add RETURN TRIP to cargo_classification enum
+        "ALTER TABLE trips MODIFY COLUMN cargo_classification ENUM('IMPORT','EXPORT','EMPTY','CFS LADEN','OPEN LOAD','COASTAL','RETURN TRIP')",
+        # open load hire type: Ton Based (weight × rate) vs Fixed (user-entered amount)
+        "ALTER TABLE trips ADD COLUMN open_load_hire_type ENUM('Ton Based','Fixed') NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN open_load_hire_type ENUM('Ton Based','Fixed') NULL",
+        # Performance indexes — CREATE INDEX IF NOT EXISTS is idempotent
+        "CREATE INDEX IF NOT EXISTS idx_trips_status ON trips (status)",
+        "CREATE INDEX IF NOT EXISTS idx_trips_driver_id ON trips (driver_id)",
+        "CREATE INDEX IF NOT EXISTS idx_trips_vehicle_id ON trips (vehicle_id)",
+        "CREATE INDEX IF NOT EXISTS idx_trips_assigned_date ON trips (assigned_date)",
+        "CREATE INDEX IF NOT EXISTS idx_maintenance_truck_type ON maintenance_records (truck_id, maintenance_type)",
+        "CREATE INDEX IF NOT EXISTS idx_fuel_logs_truck_id ON fuel_logs (truck_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tyre_fitment_truck_id ON tyre_fitment_records (truck_id)",
+        "CREATE INDEX IF NOT EXISTS idx_customer_pricing_customer_id ON customer_pricing (customer_id)",
+        "CREATE INDEX IF NOT EXISTS idx_customer_origins_customer_id ON customer_origins (customer_id)",
+        "CREATE INDEX IF NOT EXISTS idx_customer_destinations_customer_id ON customer_destinations (customer_id)",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

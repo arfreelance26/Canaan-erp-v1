@@ -284,7 +284,7 @@ class Trip(Base):
     customer_id = Column(Integer, ForeignKey("customers.id"))
     shipper_consignee = Column(String(200))
     # Cargo Information
-    cargo_classification = Column(Enum("IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL"))
+    cargo_classification = Column(Enum("IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL", "RETURN TRIP"))
     container_specification = Column(
         Enum("20 FT CONTAINER", "40 FT CONTAINER", "2 X 20 FEET CONTAINERS", "OPEN LOAD CARGO")
     )
@@ -317,6 +317,7 @@ class Trip(Base):
     driver_advance = Column(Numeric(10, 2), nullable=True)
     driver_compensation_type = Column(Enum("Normal", "FIXED"))
     # Transport Cost
+    open_load_hire_type = Column(Enum("Ton Based", "Fixed"), nullable=True)
     rate_per_ton = Column(Numeric(10, 2), nullable=True)
     transport_hire_amount = Column(Numeric(10, 2), default=0)
     transport_crossing_amount = Column(Numeric(10, 2), default=0)
@@ -417,6 +418,8 @@ class TripSheet(Base):
     clearing_agent = Column(String(200))
     # Hire
     hire_amount = Column(Numeric(10, 2), default=0)
+    open_load_hire_type = Column(Enum("Ton Based", "Fixed"), nullable=True)
+    rate_per_ton = Column(Numeric(10, 2), nullable=True)
     # Distance & Cargo
     start_km = Column(Numeric(10, 2), default=0)
     end_km = Column(Numeric(10, 2), default=0)
@@ -628,6 +631,7 @@ class TyreFitmentRecord(Base):
     fitted_date = Column(Date, nullable=False)
     removed_odometer = Column(Integer)
     removed_date = Column(Date)
+    removal_remark = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     tyre = relationship("TyreInventory", back_populates="fitment_records")

@@ -42,9 +42,7 @@ export default function VendorsPage() {
   useEffect(() => {
         vendorsApi.list().then(setVendors).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    vendorsApi.list().then(setVendors).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("vendor_updated", () => setRefreshKey(k => k + 1));
 

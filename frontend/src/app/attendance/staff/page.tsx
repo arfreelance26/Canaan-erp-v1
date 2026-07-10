@@ -37,16 +37,9 @@ export default function StaffAttendancePage() {
         setRecords(r);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
-  useAutoRefresh(() => {
-    Promise.all([staffApi.list(), attendanceApi.listStaff()])
-      .then(([s, r]) => {
-        setStaff(s);
-        setRecords(r);
-      })
-      .finally(() => setLoading(false));
-  }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   // Reload records when date changes or WS event fires
   useEffect(() => {

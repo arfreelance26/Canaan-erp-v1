@@ -32,9 +32,7 @@ export default function FleetPage() {
   useEffect(() => {
         trucksApi.list().then(setTrucks).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    trucksApi.list().then(setTrucks).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 

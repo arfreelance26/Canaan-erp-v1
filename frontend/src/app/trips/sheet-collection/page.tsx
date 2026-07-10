@@ -35,6 +35,7 @@ export default function SheetCollectionPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Delivered">("All");
@@ -61,16 +62,14 @@ export default function SheetCollectionPage() {
 
   useEffect(() => {
     loadData().finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
 
-  useAutoRefresh(() => {
-    loadData();
-  }, 10000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);
 
-  useWebSocketEvent("sheet_collected", loadData);
-  useWebSocketEvent("sheet_unmarked", loadData);
-  useWebSocketEvent("trip_closed", loadData);
-  useWebSocketEvent("sheet_entered", loadData);
+  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));

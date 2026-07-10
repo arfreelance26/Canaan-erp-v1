@@ -36,14 +36,7 @@ export default function TruckMaintenancePage() {
           })
           .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([trucksApi.list(), maintenanceApi.listRecords()])
-    .then(([t, r]) => {
-    setTrucks(t);
-    setRecords(r);
-    })
-    .finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));

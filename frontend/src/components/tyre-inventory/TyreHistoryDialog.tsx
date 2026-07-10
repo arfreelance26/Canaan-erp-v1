@@ -49,9 +49,14 @@ export function TyreHistoryDialog({ open, onClose, tyre, records }: TyreHistoryD
                   Fitted at {record.fittedOdometer.toLocaleString()} km on {formatDate(record.fittedDate)}
                 </p>
                 {record.removedOdometer !== null ? (
-                  <p className="mt-1 text-xs text-gray-600">
-                    Removed at {record.removedOdometer.toLocaleString()} km on {formatDate(record.removedDate)}
-                  </p>
+                  <>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Removed at {record.removedOdometer.toLocaleString()} km on {formatDate(record.removedDate)}
+                    </p>
+                    {record.removalRemark && (
+                      <p className="mt-1 text-xs text-gray-500 italic">Remark: {record.removalRemark}</p>
+                    )}
+                  </>
                 ) : (
                   <p className="mt-1 text-xs text-gray-600">Still in service on this truck</p>
                 )}

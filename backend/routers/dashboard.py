@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
 import models
@@ -45,54 +46,72 @@ def get_overview(db: Session = Depends(get_db)):
     today = date.today()
 
     trucks = db.query(models.Truck).all()
-    trips = db.query(models.Trip).all()
-    drivers = db.query(models.Driver).all()
-    staff_list = db.query(models.Staff).all()
-    maintenance_records = db.query(models.MaintenanceRecord).all()
-    emi_records = db.query(models.EmiRecord).all()
-    recurring = db.query(models.RecurringPayment).all()
 
-    active_trips = sum(1 for t in trips if t.status in ACTIVE_TRIP_STATUSES)
+    # Aggregate counts via SQL — avoid loading full rows into Python
+    active_trips    = db.query(func.count(models.Trip.id)).filter(models.Trip.status.in_(ACTIVE_TRIP_STATUSES)).scalar() or 0
+    total_trips     = db.query(func.count(models.Trip.id)).scalar() or 0
+    total_drivers   = db.query(func.count(models.Driver.id)).scalar() or 0
+    total_staff     = db.query(func.count(models.Staff.id)).scalar() or 0
+    pending_leave   = db.query(func.count(models.LeaveRequest.id)).filter(models.LeaveRequest.status == "Pending").scalar() or 0
+    active_recurring = db.query(func.count(models.RecurringPayment.id)).filter(models.RecurringPayment.status == "Active").scalar() or 0
 
-    pending_leave = db.query(models.LeaveRequest).filter(models.LeaveRequest.status == "Pending").count()
+    trip_status_counts = dict(
+        db.query(models.Trip.status, func.count(models.Trip.id))
+          .group_by(models.Trip.status)
+          .all()
+    )
 
-    # Maintenance alerts
+    monthly_emi_total = float(
+        db.query(func.coalesce(func.sum(models.EmiRecord.emi_amount), 0)).scalar() or 0
+    )
+
+    # Single aggregate query: max odometer per (truck_id, maintenance_type)
+    maint_agg = {
+        (row.truck_id, row.maintenance_type): int(row.last_km or 0)
+        for row in db.query(
+            models.MaintenanceRecord.truck_id,
+            models.MaintenanceRecord.maintenance_type,
+            func.max(models.MaintenanceRecord.odometer).label("last_km"),
+        ).group_by(
+            models.MaintenanceRecord.truck_id,
+            models.MaintenanceRecord.maintenance_type,
+        ).all()
+    }
+
     maintenance_alerts = 0
-    for truck in trucks:
-        current_odometer = int(truck.odometer or 0)
-        for group in MAINTENANCE_SCHEDULE:
-            for item in group["items"]:
-                matching = [r for r in maintenance_records if r.truck_id == truck.id and r.maintenance_type == item]
-                last_odometer = max((r.odometer for r in matching), default=0) if matching else 0
-                remaining = (last_odometer + group["interval_km"]) - current_odometer
-                if remaining <= 0:
-                    maintenance_alerts += 1
-
-    # Compliance
     compliance_expired = 0
     compliance_expiring_soon = 0
+
     for truck in trucks:
-        for expiry_date in [truck.fc_expiry_date, truck.road_tax_date, truck.national_permit_date, truck.pollution_certificate_date]:
+        current_km = int(truck.odometer or 0)
+
+        # Maintenance alerts — O(trucks × items), dict lookup instead of list scan
+        for group in MAINTENANCE_SCHEDULE:
+            for item in group["items"]:
+                last_km = maint_agg.get((truck.id, item), 0)
+                if (last_km + group["interval_km"]) - current_km <= 0:
+                    maintenance_alerts += 1
+
+        # Compliance
+        for expiry_date in [
+            truck.fc_expiry_date,
+            truck.road_tax_date,
+            truck.national_permit_date,
+            truck.pollution_certificate_date,
+        ]:
             status = _compliance_status(expiry_date)
             if status == "Expired":
                 compliance_expired += 1
             elif status == "Expiring Soon":
                 compliance_expiring_soon += 1
 
-    monthly_emi_total = sum(float(r.emi_amount or 0) for r in emi_records)
-    active_recurring = sum(1 for r in recurring if r.status == "Active")
-
-    trip_status_counts = {}
-    for t in trips:
-        trip_status_counts[t.status] = trip_status_counts.get(t.status, 0) + 1
-
     return {
         "total_trucks": len(trucks),
         "active_trips": active_trips,
-        "total_trips": len(trips),
+        "total_trips": total_trips,
         "trip_status_counts": trip_status_counts,
-        "total_drivers": len(drivers),
-        "total_staff": len(staff_list),
+        "total_drivers": total_drivers,
+        "total_staff": total_staff,
         "pending_leave_requests": pending_leave,
         "maintenance_alerts": maintenance_alerts,
         "compliance_expired": compliance_expired,

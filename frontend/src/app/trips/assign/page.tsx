@@ -50,23 +50,7 @@ export default function AssignTripsPage() {
           })
           .finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    Promise.all([
-      tripsApi.list(),
-      driversApi.list(),
-      trucksApi.list(),
-      customersApi.list(),
-      assignmentsApi.list(),
-    ])
-      .then(([t, d, tr, c, a]) => {
-        setTrips(t);
-        setDrivers(d);
-        setTrucks(tr);
-        setCustomers(c);
-        setAssignments(a);
-      })
-      .finally(() => setLoading(false));
-      }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));

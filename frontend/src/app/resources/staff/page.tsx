@@ -31,9 +31,7 @@ export default function StaffPage() {
   useEffect(() => {
         staffApi.list().then(setStaff).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    staffApi.list().then(setStaff).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("staff_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));

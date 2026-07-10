@@ -27,9 +27,7 @@ export default function RecurringPaymentsPage() {
   useEffect(() => {
         financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 

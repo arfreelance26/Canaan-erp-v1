@@ -493,6 +493,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     driverAdvancePaymentMethod: b.driver_advance_payment_method ?? "",
     driverAdvance: String(b.driver_advance ?? ""),
     driverCompensationType: b.driver_compensation_type ?? "",
+    openLoadHireType: b.open_load_hire_type ?? "",
     ratePerTon: String(b.rate_per_ton ?? ""),
     transportHireAmount: String(b.transport_hire_amount ?? ""),
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
@@ -546,6 +547,7 @@ function fromTrip(f: Trip) {
     driver_advance_payment_method: f.driverAdvancePaymentMethod || null,
     driver_advance: f.driverAdvance ? parseFloat(f.driverAdvance) : null,
     driver_compensation_type: f.driverCompensationType || null,
+    open_load_hire_type: f.openLoadHireType || null,
     rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
@@ -654,6 +656,8 @@ function toSheet(b: B): TripSheetData {
     to: b.to_location ?? "",
     clearingAgent: b.clearing_agent ?? "",
     hireAmount: String(b.hire_amount ?? ""),
+    openLoadHireType: b.open_load_hire_type ?? "",
+    ratePerTon: String(b.rate_per_ton ?? ""),
     startKm: String(b.start_km ?? ""),
     endKm: String(b.end_km ?? ""),
     totalKm: String(b.total_km ?? ""),
@@ -709,6 +713,8 @@ function fromSheet(f: TripSheetData) {
     to_location: f.to || null,
     clearing_agent: f.clearingAgent || null,
     hire_amount: n(f.hireAmount),
+    open_load_hire_type: f.openLoadHireType || null,
+    rate_per_ton: f.ratePerTon ? n(f.ratePerTon) : null,
     start_km: n(f.startKm),
     end_km: n(f.endKm),
     total_km: n(f.totalKm),
@@ -867,6 +873,7 @@ function toTyreFitment(b: B): TyreFitmentRecord {
     fittedDate: b.fitted_date ?? "",
     removedOdometer: b.removed_odometer ?? null,
     removedDate: b.removed_date ?? null,
+    removalRemark: b.removal_remark ?? null,
   };
 }
 
@@ -1345,10 +1352,10 @@ export const tyreApi = {
       method: "POST",
       body: JSON.stringify({ tyre_id: parseInt(tyreDbId), truck_id: parseInt(truckDbId), position, fitted_odometer: fittedOdometer, fitted_date: fittedDate }),
     }).then(toTyreFitment),
-  removeTyre: (fitmentId: string, removedOdometer: number, removedDate: string) =>
+  removeTyre: (fitmentId: string, removedOdometer: number, removedDate: string, removalRemark: string) =>
     req<B>(`/tyre-fitment/${fitmentId}/remove`, {
       method: "PATCH",
-      body: JSON.stringify({ removed_odometer: removedOdometer, removed_date: removedDate }),
+      body: JSON.stringify({ removed_odometer: removedOdometer, removed_date: removedDate, removal_remark: removalRemark }),
     }).then(toTyreFitment),
 };
 

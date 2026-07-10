@@ -30,10 +30,7 @@ export default function FuelHistoryPage() {
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
-  useAutoRefresh(() => {
-    trucksApi.list()
-      .then(setTrucks);
-  }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("fuel_updated", () => setRefreshKey(k => k + 1));
 

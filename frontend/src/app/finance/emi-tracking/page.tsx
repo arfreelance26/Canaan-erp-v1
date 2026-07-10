@@ -33,9 +33,7 @@ export default function EmiTrackingPage() {
   useEffect(() => {
     financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
   }, [refreshKey]);
-  useAutoRefresh(() => {
-    financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
-  }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 

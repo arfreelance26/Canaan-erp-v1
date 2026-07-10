@@ -35,6 +35,7 @@ export default function TripFinalizationPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
@@ -102,12 +103,12 @@ export default function TripFinalizationPage() {
     setInvoiceData(invMap);
   }
 
-  useEffect(() => { loadAll().finally(() => setLoading(false)); }, []);
-  useAutoRefresh(() => { loadAll(); }, 5000);
+  useEffect(() => { loadAll().finally(() => setLoading(false)); }, [refreshKey]);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
-  useWebSocketEvent("trip_updated", loadAll);
-  useWebSocketEvent("trip_closed", loadAll);
-  useWebSocketEvent("sheet_collected", loadAll);
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
 
   const driverById   = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById    = new Map(trucks.map((t) => [t.truckId, t]));

@@ -36,6 +36,7 @@ export default function TripReconciliationPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Local cache: tripId -> closure data and sheet data
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
@@ -110,16 +111,14 @@ export default function TripReconciliationPage() {
   useEffect(() => {
     loadReconciliationData().finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshKey]);
 
-  useAutoRefresh(() => {
-    loadReconciliationData();
-  }, 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
-  useWebSocketEvent("sheet_collected", loadReconciliationData);
-  useWebSocketEvent("sheet_unmarked", loadReconciliationData);
-  useWebSocketEvent("sheet_received", loadReconciliationData);
-  useWebSocketEvent("trip_updated", loadReconciliationData);
+  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
 
   // Admin alert: someone in reconciliation reported a missing physical sheet
   useWebSocketEvent("sheet_not_received_alert", (payload) => {
@@ -132,7 +131,7 @@ export default function TripReconciliationPage() {
     showError(
       `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Yard Staff but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
     );
-    loadReconciliationData();
+    setRefreshKey(k => k + 1);
   });
 
   // Load and refresh active edit approvals for all non-admin users

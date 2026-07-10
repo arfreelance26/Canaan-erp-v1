@@ -25,6 +25,8 @@ export type TripSheetData = {
 
   // Hire
   hireAmount: string;
+  openLoadHireType: string;  // "Ton Based" | "Fixed" | "" — auto-fetched from trip
+  ratePerTon: string;        // open load Ton Based only — auto-fetched from trip.ratePerTon
 
   // Trip Distance & Cargo
   startKm: string;

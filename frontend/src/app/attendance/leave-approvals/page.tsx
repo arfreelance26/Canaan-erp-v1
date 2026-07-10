@@ -33,9 +33,7 @@ export default function LeaveApprovalsPage() {
   useEffect(() => {
         attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
       }, [refreshKey]);
-      useAutoRefresh(() => {
-    attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
-      }, 5000);
+      useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("leave_request_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));

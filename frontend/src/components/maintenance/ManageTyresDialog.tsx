@@ -36,11 +36,13 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   const [animatingPosition, setAnimatingPosition] = useState<string | null>(null);
   const [selectedTyreId, setSelectedTyreId] = useState("");
   const [odometerInput, setOdometerInput] = useState("");
+  const [removalRemark, setRemovalRemark] = useState("");
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setOdometerInput(truck ? truck.odometer : "");
+    setRemovalRemark("");
     setError("");
   }, [selectedPosition, truck]);
 
@@ -107,7 +109,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
     try {
       const removedDate = todayIst();
-      const updatedFitment = await tyreApi.removeTyre(fitment.id, odometer, removedDate);
+      const updatedFitment = await tyreApi.removeTyre(fitment.id, odometer, removedDate, removalRemark);
         setFitmentRecords((prev) => (prev.map((f) => (f.id === updatedFitment.id ? updatedFitment : f))));
         setSelectedPosition(null);
         showSuccess("Tyre removed successfully.");
@@ -183,11 +185,19 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                         placeholder="Odometer reading at removal (km)"
                         className={inputClass}
                       />
+                      <textarea
+                        value={removalRemark}
+                        onChange={(e) => setRemovalRemark(e.target.value)}
+                        placeholder="Removal remark (required) — e.g. Tyre worn out, sent for retreading"
+                        rows={2}
+                        className={cn(inputClass, "resize-none")}
+                      />
                       {error && <p className="text-xs text-red-600">{error}</p>}
                       <button
                         type="button"
                         onClick={confirmRemove}
-                        className="mt-1 w-full rounded-lg bg-red-600 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                        disabled={!removalRemark.trim()}
+                        className="mt-1 w-full rounded-lg bg-red-600 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Confirm Removal
                       </button>
