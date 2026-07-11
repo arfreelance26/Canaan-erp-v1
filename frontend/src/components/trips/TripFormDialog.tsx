@@ -116,6 +116,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   tripSheetCollectedAt: null,
   tripSheetReceived: false,
   tripSheetReceivedAt: null,
+  tripSheetDate: null,
   verificationStatus: "pending",
   isInvoiced: false,
   invoiceRequired: true,
@@ -540,6 +541,7 @@ export function TripFormDialog({
                       ...prev,
                       tripCategory: val as Trip["tripCategory"],
                       driverAdvance: "",
+                      driverCompensationType: "FIXED",
                     }));
                   } else {
                     update("tripCategory", val as Trip["tripCategory"]);
@@ -1015,11 +1017,15 @@ export function TripFormDialog({
               <GlassSelect
                 value={form.driverCompensationType}
                 onChange={handleCompensationTypeChange}
+                disabled={isReturnTrip}
                 options={[
                   { value: "", label: "Select compensation type" },
                   ...DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt })),
                 ]}
               />
+              {isReturnTrip && (
+                <span className="mt-1 text-xs text-blue-600">Fixed for Return Trip</span>
+              )}
             </Field>
 
             <Field label="Driver Advance Payment Method" required>
@@ -1051,9 +1057,9 @@ export function TripFormDialog({
                 value={form.driverAdvanceAmount}
                 onChange={(e) => update("driverAdvanceAmount", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isNormalComp || isReturnTrip}
-                className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""} ${isReturnTrip ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                placeholder={isReturnTrip ? "Calculated Further in the Operation" : isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
+                readOnly={isNormalComp}
+                className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+                placeholder={isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
               />
               {!isReturnTrip && battaRule && !isNormalComp && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">

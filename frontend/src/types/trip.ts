@@ -105,6 +105,7 @@ export type Trip = {
   tripSheetCollectedAt: string | null;
   tripSheetReceived: boolean;
   tripSheetReceivedAt: string | null;
+  tripSheetDate: string | null;
   verificationStatus: "pending" | "verified" | "flagged";
   isInvoiced: boolean;
   invoiceRequired: boolean;

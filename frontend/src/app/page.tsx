@@ -198,6 +198,11 @@ export default function DashboardPage() {
   const [driverTransactions, setDriverTransactions] = useState<CompensationTransaction[]>([]);
   const [staffTransactions, setStaffTransactions] = useState<CompensationTransaction[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sheetDeliveredFilter, setSheetDeliveredFilter] = useState<"All" | "Awaiting Receipt" | "Received">("All");
+  const [sheetDeliveredDate, setSheetDeliveredDate] = useState("");
+  const [sheetReceivedFilter, setSheetReceivedFilter] = useState<"All" | "Pending Entry" | "Entered">("All");
+  const [sheetReceivedDate, setSheetReceivedDate] = useState("");
+  const [sheetEnteredDate, setSheetEnteredDate] = useState("");
 
   const today = todayIst();
 
@@ -613,14 +618,63 @@ export default function DashboardPage() {
 
       {/* ── Trip Sheet Tracking ─────────────────────────────────────────── */}
       {(() => {
-        const completedTrips  = trips.filter((t) => t.status === "Completed");
-        const sheetsDelivered = completedTrips.filter((t) => t.tripSheetCollected);
-        const sheetsReceived  = sheetsDelivered.filter((t) => t.tripSheetReceived);
-        const awaitingReceipt = sheetsDelivered.filter((t) => !t.tripSheetReceived);
+        const fmtDate = (d: string | null) => {
+          if (!d) return "—";
+          let dt: Date;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+            const [y, m, day] = d.split("-").map(Number);
+            dt = new Date(y, m - 1, day);
+          } else {
+            const s = d.endsWith("Z") || d.includes("+") ? d : d + "Z";
+            dt = new Date(s);
+          }
+          return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+        };
+
+        const completedTrips    = trips.filter((t) => t.status === "Completed");
+        const sheetsDelivered   = completedTrips.filter((t) => t.tripSheetCollected);
+        const sheetsReceived    = sheetsDelivered.filter((t) => t.tripSheetReceived);
+        const awaitingReceipt   = sheetsDelivered.filter((t) => !t.tripSheetReceived);
+        // Register card: any completed trip that was received OR already entered
+        const receivedOrEntered = completedTrips.filter((t) => t.tripSheetReceived || !!t.tripSheetDate);
+        const pendingEntry      = receivedOrEntered.filter((t) => !t.tripSheetDate);
+        const entered           = receivedOrEntered.filter((t) => !!t.tripSheetDate);
+
+        // Delivered card: filter by status tab + delivered date
+        let deliveredVisible = sheetDeliveredFilter === "Awaiting Receipt"
+          ? awaitingReceipt
+          : sheetDeliveredFilter === "Received"
+          ? sheetsReceived
+          : sheetsDelivered;
+        if (sheetDeliveredDate) {
+          deliveredVisible = deliveredVisible.filter((t) =>
+            t.tripSheetCollectedAt?.slice(0, 10) === sheetDeliveredDate
+          );
+        }
+
+        // Received card: filter by status tab + received date + entry date
+        let receivedVisible = sheetReceivedFilter === "Pending Entry"
+          ? pendingEntry
+          : sheetReceivedFilter === "Entered"
+          ? entered
+          : receivedOrEntered;
+        if (sheetReceivedDate) {
+          receivedVisible = receivedVisible.filter((t) =>
+            t.tripSheetReceivedAt?.slice(0, 10) === sheetReceivedDate
+          );
+        }
+        if (sheetEnteredDate) {
+          receivedVisible = receivedVisible.filter((t) =>
+            t.tripSheetDate === sheetEnteredDate
+          );
+        }
+
         return (
           <div>
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Trip Sheet Tracking</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+              {/* Delivered by Yard Staff */}
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-600">
@@ -631,24 +685,53 @@ export default function DashboardPage() {
                     {sheetsDelivered.length}
                   </span>
                 </div>
-                {sheetsDelivered.length === 0 ? (
-                  <p className="text-xs text-gray-400">No trip sheets delivered yet.</p>
+                {/* Status filter tabs */}
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {(["All", "Awaiting Receipt", "Received"] as const).map((f) => (
+                    <button key={f} type="button" onClick={() => setSheetDeliveredFilter(f)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${sheetDeliveredFilter === f ? "bg-emerald-600 text-white" : "bg-white text-gray-500 hover:bg-emerald-100"}`}>
+                      {f} ({f === "All" ? sheetsDelivered.length : f === "Awaiting Receipt" ? awaitingReceipt.length : sheetsReceived.length})
+                    </button>
+                  ))}
+                </div>
+                {/* Date filter */}
+                <div className="mb-3 flex items-center gap-2">
+                  <label className="text-[11px] font-medium text-gray-500 whitespace-nowrap">Delivered on</label>
+                  <input
+                    type="date"
+                    value={sheetDeliveredDate}
+                    onChange={(e) => setSheetDeliveredDate(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                  />
+                  {sheetDeliveredDate && (
+                    <button type="button" onClick={() => setSheetDeliveredDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>
+                  )}
+                </div>
+                {deliveredVisible.length === 0 ? (
+                  <p className="text-xs text-gray-400">No trips in this filter.</p>
                 ) : (
                   <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1">
-                    {sheetsDelivered.map((t) => (
-                      <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
-                        <span className="font-semibold text-gray-800">{t.tripId}</span>
-                        <span className="text-gray-500">{t.bookingReferenceNo}</span>
-                        {t.tripSheetReceived ? (
-                          <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">Received</span>
-                        ) : (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Awaiting Receipt</span>
-                        )}
+                    {deliveredVisible.map((t) => (
+                      <li key={t.id} className="rounded-lg bg-white/80 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-gray-800">{t.tripId}</span>
+                          <span className="text-gray-500">{t.bookingReferenceNo}</span>
+                          {t.tripSheetReceived ? (
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">Received</span>
+                          ) : (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Awaiting Receipt</span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-gray-400">
+                          Delivered: <span className="text-gray-600">{fmtDate(t.tripSheetCollectedAt)}</span>
+                        </div>
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
+
+              {/* Received by Trip Sheet Register */}
               <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-600">
@@ -656,22 +739,52 @@ export default function DashboardPage() {
                     Received by Trip Sheet Register
                   </p>
                   <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-bold text-blue-700">
-                    {sheetsReceived.length}
+                    {receivedOrEntered.length}
                   </span>
                 </div>
-                {sheetsReceived.length === 0 ? (
-                  <p className="text-xs text-gray-400">No trip sheets received yet.</p>
+                {/* Status filter tabs */}
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {(["All", "Pending Entry", "Entered"] as const).map((f) => (
+                    <button key={f} type="button" onClick={() => setSheetReceivedFilter(f)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${sheetReceivedFilter === f ? "bg-blue-600 text-white" : "bg-white text-gray-500 hover:bg-blue-100"}`}>
+                      {f} ({f === "All" ? receivedOrEntered.length : f === "Pending Entry" ? pendingEntry.length : entered.length})
+                    </button>
+                  ))}
+                </div>
+                {/* Date filters */}
+                <div className="mb-3 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <label className="w-24 text-[11px] font-medium text-gray-500">Received on</label>
+                    <input type="date" value={sheetReceivedDate} onChange={(e) => setSheetReceivedDate(e.target.value)}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                    {sheetReceivedDate && <button type="button" onClick={() => setSheetReceivedDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="w-24 text-[11px] font-medium text-gray-500">Entered on</label>
+                    <input type="date" value={sheetEnteredDate} onChange={(e) => setSheetEnteredDate(e.target.value)}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                    {sheetEnteredDate && <button type="button" onClick={() => setSheetEnteredDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>}
+                  </div>
+                </div>
+                {receivedVisible.length === 0 ? (
+                  <p className="text-xs text-gray-400">No trips in this filter.</p>
                 ) : (
                   <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1">
-                    {sheetsReceived.map((t) => (
-                      <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
-                        <span className="font-semibold text-gray-800">{t.tripId}</span>
-                        <span className="text-gray-500">{t.bookingReferenceNo}</span>
-                        {t.hasSheet ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Entered</span>
-                        ) : (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Pending Entry</span>
-                        )}
+                    {receivedVisible.map((t) => (
+                      <li key={t.id} className="rounded-lg bg-white/80 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-gray-800">{t.tripId}</span>
+                          <span className="text-gray-500">{t.bookingReferenceNo}</span>
+                          {t.tripSheetDate ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">Entered</span>
+                          ) : (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">Pending Entry</span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex gap-3 text-[11px] text-gray-400">
+                          <span>Received: <span className="text-gray-600">{fmtDate(t.tripSheetReceivedAt)}</span></span>
+                          {t.tripSheetDate && <span>Entered: <span className="text-gray-600">{fmtDate(t.tripSheetDate)}</span></span>}
+                        </div>
                       </li>
                     ))}
                   </ul>

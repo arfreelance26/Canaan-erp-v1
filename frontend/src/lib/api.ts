@@ -506,6 +506,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     tripSheetCollectedAt: b.trip_sheet_collected_at ?? null,
     tripSheetReceived: b.trip_sheet_received ?? false,
     tripSheetReceivedAt: b.trip_sheet_received_at ?? null,
+    tripSheetDate: b.trip_sheet_date ?? null,
     verificationStatus: b.verification_status ?? "pending",
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,

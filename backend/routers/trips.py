@@ -56,6 +56,7 @@ def _enrich(trip: models.Trip) -> dict:
     data = {c.name: getattr(trip, c.name) for c in trip.__table__.columns}
     data["has_closure"] = trip.closure is not None
     data["has_sheet"] = trip.sheet is not None
+    data["trip_sheet_date"] = trip.sheet.trip_sheet_date if trip.sheet else None
     return data
 
 

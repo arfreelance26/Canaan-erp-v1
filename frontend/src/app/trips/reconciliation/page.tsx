@@ -401,6 +401,13 @@ export default function TripReconciliationPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
+  const counts = {
+    All:                trips.length,
+    "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
+    "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !sheets.has(t.id)).length,
+    "Sheet Entered":    trips.filter((t) => sheets.has(t.id)).length,
+  };
+
   const filteredTrips = trips
     .filter((t) => {
       if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
@@ -452,16 +459,6 @@ export default function TripReconciliationPage() {
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="rounded-lg border border-gray-200 bg-white/50 py-2 pl-3 pr-8 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-        >
-          <option value="All">All Statuses</option>
-          <option value="Pending Receive">Pending Receive</option>
-          <option value="Pending Sheet Entry">Pending Sheet Entry</option>
-          <option value="Sheet Entered">Sheet Entered</option>
-        </select>
         {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
         <button
           type="button"
@@ -474,6 +471,55 @@ export default function TripReconciliationPage() {
           {downloading ? "Generating..." : "Download PDF"}
         </button>
         </div>
+      </div>
+
+      {/* Status filter count cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered"] as const).map((f) => {
+          const colors: Record<string, string> = {
+            "All":                  "border-gray-200 bg-white text-gray-700",
+            "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
+            "Pending Sheet Entry":  "border-blue-200 bg-blue-50 text-blue-700",
+            "Sheet Entered":        "border-emerald-200 bg-emerald-50 text-emerald-700",
+          };
+          const activeRing: Record<string, string> = {
+            "All":                  "ring-2 ring-gray-400",
+            "Pending Receive":      "ring-2 ring-amber-400",
+            "Pending Sheet Entry":  "ring-2 ring-blue-400",
+            "Sheet Entered":        "ring-2 ring-emerald-400",
+          };
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setStatusFilter(f)}
+              className={`flex flex-col items-center rounded-xl border px-3 py-3 transition-all ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
+            >
+              <span className="text-xl font-bold">{counts[f]}</span>
+              <span className="text-xs font-medium text-center">{f}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active filter label */}
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <span>
+          Showing <span className="font-semibold text-gray-800">{filteredTrips.length}</span> of{" "}
+          <span className="font-semibold text-gray-800">{trips.length}</span> trips
+          {statusFilter !== "All" && (
+            <> — filtered by <span className="font-semibold text-gray-800">{statusFilter}</span></>
+          )}
+        </span>
+        {statusFilter !== "All" && (
+          <button
+            type="button"
+            onClick={() => setStatusFilter("All")}
+            className="ml-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {filteredTrips.length === 0 ? (
