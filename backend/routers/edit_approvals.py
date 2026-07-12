@@ -73,15 +73,29 @@ def get_my_active_approvals(
 @router.patch("/{request_id}/approve", response_model=schemas.EditApprovalRequestOut)
 def approve_edit_request(
     request_id: int,
+    payload: Optional[schemas.ApproveDeletePayload] = None,
     db: Session = Depends(get_db),
     _: TokenUser = Depends(require_roles("Admin")),
 ):
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:
         raise HTTPException(404, "Edit approval request not found")
+
     req.status = "Approved"
     req.approved_at = datetime.now(timezone.utc)
-    req.expires_at = req.approved_at + timedelta(hours=1)
+    req.admin_note = (payload.admin_note or "").strip() if payload else None
+
+    if req.action == "Delete" and req.resource_type == "Trip":
+        # Admin approves deletion — cascade-delete the trip immediately
+        trip = db.query(models.Trip).filter(models.Trip.id == req.resource_id).first()
+        if trip:
+            db.delete(trip)
+            db.commit()
+            emit("trip_deleted", {"trip_id": req.resource_id, "trip_id_str": req.resource_name})
+        req.expires_at = None
+    else:
+        req.expires_at = req.approved_at + timedelta(hours=1)
+
     db.commit()
     db.refresh(req)
     emit("edit_approval_updated", {

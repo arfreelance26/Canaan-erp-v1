@@ -9,7 +9,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Circle, Download } from "lucide-react";
+import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -38,11 +38,20 @@ export default function SheetCollectionPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Delivered">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Delivered" | "Overdue">("All");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+  // Date range for PDF export
+  const [pdfDateFrom, setPdfDateFrom] = useState("");
+  const [pdfDateTo, setPdfDateTo] = useState("");
+  // Advance verification panel state
+  const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
+  const [advanceRemark, setAdvanceRemark] = useState("");
+  const [advanceCorrected, setAdvanceCorrected] = useState("");
 
   function loadData() {
     return Promise.all([
@@ -62,7 +71,7 @@ export default function SheetCollectionPage() {
 
   useEffect(() => {
     loadData().finally(() => setLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);
 
@@ -79,14 +88,12 @@ export default function SheetCollectionPage() {
 
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    const truck = truckById.get(t.vehicleId);
-    const driver = driverById.get(t.driverId);
     return (
       t.tripId?.toLowerCase().includes(q) ||
       t.bookingReferenceNo?.toLowerCase().includes(q) ||
       t.vehicleId?.toLowerCase().includes(q) ||
-      (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
-      (driver?.name ?? "").toLowerCase().includes(q) ||
+      (t.truckRegistration ?? "").toLowerCase().includes(q) ||
+      (t.driverName ?? "").toLowerCase().includes(q) ||
       (t.containerNumber ?? "").toLowerCase().includes(q) ||
       (t.containerNumber1 ?? "").toLowerCase().includes(q) ||
       (t.containerNumber2 ?? "").toLowerCase().includes(q) ||
@@ -97,11 +104,31 @@ export default function SheetCollectionPage() {
   const collected = filtered.filter((t) => t.tripSheetCollected);
   const pending = filtered.filter((t) => !t.tripSheetCollected);
 
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const overdueIds = new Set(
+    filtered
+      .filter((t) => {
+        if (!t.tripSheetReceived || t.hasSheet) return false;
+        if (!t.tripSheetReceivedAt) return false;
+        const utc = t.tripSheetReceivedAt.endsWith("Z") || t.tripSheetReceivedAt.includes("+")
+          ? t.tripSheetReceivedAt
+          : t.tripSheetReceivedAt + "Z";
+        return now - new Date(utc).getTime() > oneDayMs;
+      })
+      .map((t) => t.id)
+  );
+
   const tableTrips = filtered.filter((t) => {
     if (statusFilter === "Pending" && t.tripSheetCollected) return false;
     if (statusFilter === "Delivered" && !t.tripSheetCollected) return false;
+    if (statusFilter === "Overdue" && !overdueIds.has(t.id)) return false;
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(tableTrips.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedTrips = tableTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const selectableIds = tableTrips.filter((t) => !t.tripSheetCollected && !t.hasSheet).map((t) => t.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
@@ -156,7 +183,7 @@ export default function SheetCollectionPage() {
     try {
       const updated = await tripsApi.flagSheetMissing(trip.id);
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
-      showSuccess(`Alert sent — Admin and Fleet Manager notified for trip ${trip.tripId}.`);
+      showSuccess(`Alert sent — Admin and Commercial Manager notified for trip ${trip.tripId}.`);
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to send alert.");
     } finally {
@@ -194,8 +221,41 @@ export default function SheetCollectionPage() {
     }
   }
 
+  async function handleVerifyAdvance(trip: Trip, verified: boolean) {
+    try {
+      const remark = advanceRemark.trim();
+      const corrected = advanceCorrected ? parseFloat(advanceCorrected) : null;
+      const updated = await tripsApi.verifyAdvance(trip.id, verified, remark, corrected);
+      setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+      setAdvanceOpen(null);
+      setAdvanceRemark("");
+      setAdvanceCorrected("");
+      showSuccess(verified ? `Advance verified as correct for ${trip.tripId}.` : `Advance mismatch recorded for ${trip.tripId}.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save advance verification.");
+    }
+  }
+
   async function handleDownloadPDF() {
     if (downloading || collected.length === 0) return;
+
+    // Filter by date range if set
+    const fromMs = pdfDateFrom ? new Date(pdfDateFrom).setHours(0, 0, 0, 0) : null;
+    const toMs   = pdfDateTo   ? new Date(pdfDateTo).setHours(23, 59, 59, 999) : null;
+    const pdfTrips = collected.filter((t) => {
+      const colAt = t.tripSheetCollectedAt;
+      if (!colAt) return true;
+      const utc = colAt.endsWith("Z") || colAt.includes("+") ? colAt : colAt + "Z";
+      const ms = new Date(utc).getTime();
+      if (fromMs && ms < fromMs) return false;
+      if (toMs   && ms > toMs)   return false;
+      return true;
+    });
+    if (pdfTrips.length === 0) {
+      showError("No delivered trips match the selected date range.");
+      return;
+    }
+
     setDownloading(true);
     try {
       const { default: jsPDF } = await import("jspdf");
@@ -235,7 +295,7 @@ export default function SheetCollectionPage() {
         pdf.setFontSize(8);
         pdf.setTextColor(100, 100, 100);
         pdf.text(
-          `Generated on ${today}  ·  ${collected.length} sheet${collected.length !== 1 ? "s" : ""} delivered`,
+          `Generated on ${today}  ·  ${pdfTrips.length} sheet${pdfTrips.length !== 1 ? "s" : ""} delivered${pdfDateFrom || pdfDateTo ? ` · ${pdfDateFrom || "start"} to ${pdfDateTo || "today"}` : ""}`,
           marginX, marginY + 5,
         );
 
@@ -261,9 +321,7 @@ export default function SheetCollectionPage() {
       }
 
       // Pre-build row data
-      const rowData = collected.map((trip) => {
-        const truck = truckById.get(trip.vehicleId);
-        const driver = driverById.get(trip.driverId);
+      const rowData = pdfTrips.map((trip) => {
         const customer = customerById.get(trip.customerId);
         const deliveredOn = trip.tripSheetCollectedAt
           ? (() => {
@@ -276,11 +334,11 @@ export default function SheetCollectionPage() {
           trip.tripId,
           trip.bookingReferenceNo,
           formatDate(trip.scheduledDate) || "—",
-          truck?.registrationNumber ?? trip.vehicleId ?? "—",
+          trip.truckRegistration ?? trip.vehicleId ?? "—",
           customer?.name ?? trip.shipperConsignee ?? "—",
           `${trip.origin} > ${trip.destination}`,
           containerRef(trip),
-          driver?.name ?? "—",
+          trip.driverName ?? "—",
           deliveredOn,
         ];
       });
@@ -343,13 +401,14 @@ export default function SheetCollectionPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Trip Sheet Collection</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Mark trip sheets as delivered from drivers before reconciliation
+        </p>
+      </div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trip Sheet Collection</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Mark trip sheets as delivered from drivers before reconciliation
-          </p>
-        </div>
+        
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -363,13 +422,31 @@ export default function SheetCollectionPage() {
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
             className="rounded-lg border border-gray-200 bg-white/50 py-2 pl-3 pr-8 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           >
             <option value="All">All Sheets</option>
             <option value="Pending">Pending</option>
             <option value="Delivered">Delivered</option>
+            <option value="Overdue">Entry Overdue</option>
           </select>
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={pdfDateFrom}
+              onChange={(e) => setPdfDateFrom(e.target.value)}
+              title="PDF export: from date"
+              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <input
+              type="date"
+              value={pdfDateTo}
+              onChange={(e) => setPdfDateTo(e.target.value)}
+              title="PDF export: to date"
+              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            />
+          </div>
           <button
             type="button"
             onClick={handleDownloadPDF}
@@ -384,19 +461,56 @@ export default function SheetCollectionPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => { setStatusFilter("All"); setPage(1); }}
+          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${statusFilter === "All" ? "border-blue-400 bg-blue-50 ring-2 ring-blue-400" : "border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40"}`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Closed</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{filtered.length}</p>
-        </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => { setStatusFilter("Delivered"); setPage(1); }}
+          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 ${statusFilter === "Delivered" ? "border-emerald-400 bg-emerald-100 ring-2 ring-emerald-400" : "border-emerald-200 bg-emerald-50 hover:border-emerald-300 hover:bg-emerald-100/70"}`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Sheets Delivered</p>
           <p className="mt-1 text-2xl font-bold text-emerald-700">{collected.length}</p>
-        </div>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => { setStatusFilter("Pending"); setPage(1); }}
+          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-amber-400 ${statusFilter === "Pending" ? "border-amber-400 bg-amber-100 ring-2 ring-amber-400" : "border-amber-200 bg-amber-50 hover:border-amber-300 hover:bg-amber-100/70"}`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Pending Delivery</p>
           <p className="mt-1 text-2xl font-bold text-amber-700">{pending.length}</p>
-        </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setStatusFilter("Overdue"); setPage(1); }}
+          className={`rounded-xl border px-5 py-4 text-left transition-all focus:outline-none focus:ring-2 focus:ring-rose-400 ${statusFilter === "Overdue" ? "border-rose-400 bg-rose-100 ring-2 ring-rose-400" : overdueIds.size > 0 ? "border-rose-200 bg-rose-50 hover:border-rose-300 hover:bg-rose-100/70" : "border-gray-200 bg-white opacity-60 cursor-default"}`}
+          disabled={overdueIds.size === 0}
+        >
+          <div className="flex items-center gap-1.5">
+            {overdueIds.size > 0 && <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />}
+            <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">Entry Overdue</p>
+          </div>
+          <p className="mt-1 text-2xl font-bold text-rose-700">{overdueIds.size}</p>
+          <p className="mt-0.5 text-[11px] text-rose-500">Received &gt; 1 day, not entered</p>
+        </button>
+      </div>
+
+      {/* Workflow legend */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
+        <span className="font-semibold text-gray-600">Workflow:</span>
+        <span className="flex items-center gap-1"><Circle className="h-3.5 w-3.5 text-amber-500" /> Trip closed → pending sheet delivery</span>
+        <span className="text-gray-300">›</span>
+        <span className="flex items-center gap-1"><ArrowRightCircle className="h-3.5 w-3.5 text-emerald-500" /> Yard marks sheet delivered to Docs</span>
+        <span className="text-gray-300">›</span>
+        <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-blue-500" /> Docs receive sheet</span>
+        <span className="text-gray-300">›</span>
+        <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-purple-500" /> Sheet entered in Reconciliation</span>
       </div>
 
       {/* Bulk action bar */}
@@ -430,140 +544,295 @@ export default function SheetCollectionPage() {
           No completed trips found.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[1150px] text-left text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                    className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
-                    title="Select all pending"
-                  />
-                </th>
-                {["Status", "Trip ID", "Trip Date", "Booking Ref", "Vehicle", "Customer", "Route", "Container No", "Driver", "Sheet Status", "Delivered On", "Action"].map(
-                  (col) => (
-                    <th
-                      key={col}
-                      className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500"
+        <>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[1100px] text-left text-sm whitespace-nowrap">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
+                      title="Select all pending"
+                    />
+                  </th>
+                  {["Vehicle", "Driver", "Container No", "From → To", "Status", "Trip ID", "Booking Ref", "Trip Date", "Delivered On", "Advance Paid", "Sheet Status", "Action"].map(
+                    (col) => (
+                      <th
+                        key={col}
+                        className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500"
+                      >
+                        {col}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedTrips.map((trip) => {
+                  const isCollected = trip.tripSheetCollected;
+                  const isBusy = toggling.has(trip.id);
+                  const isChecked = selected.has(trip.id);
+                  const sheetSubmitted = trip.hasSheet;
+                  const isOverdue = overdueIds.has(trip.id);
+
+                  return (
+                    <tr
+                      key={trip.id}
+                      className={isChecked ? "bg-blue-50/60" : isOverdue ? "bg-rose-50/50 hover:bg-rose-50" : "hover:bg-gray-50"}
                     >
-                      {col}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {tableTrips.map((trip) => {
-                const driver = driverById.get(trip.driverId);
-                const truck = truckById.get(trip.vehicleId);
-                const customer = customerById.get(trip.customerId);
-                const isCollected = trip.tripSheetCollected;
-                const isBusy = toggling.has(trip.id);
-                const isChecked = selected.has(trip.id);
-                const sheetSubmitted = trip.hasSheet;
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleRow(trip.id)}
+                          className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? trip.vehicleId ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        <span>{trip.driverName ?? "—"}</span>
+                        {trip.driverChangeRemark && (
+                          <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[140px] whitespace-normal">
+                            Remark: {trip.driverChangeRemark}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          {isCollected ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Delivered
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                              <Circle className="h-3 w-3" />
+                              Pending
+                            </span>
+                          )}
+                          {isOverdue && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700">
+                              <AlertTriangle className="h-3 w-3" />
+                              Entry Overdue
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(trip.scheduledDate) || "—"}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">
+                        {trip.tripSheetCollectedAt ? (() => {
+                          const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+") ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
+                          return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+                        })() : "—"}
+                      </td>
 
-                return (
-                  <tr
-                    key={trip.id}
-                    className={isChecked ? "bg-blue-50/60" : "hover:bg-gray-50"}
-                  >
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleRow(trip.id)}
-                        className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      {isCollected ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Delivered
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
-                          <Circle className="h-3 w-3" />
-                          Pending
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
-                    <td className="px-4 py-3 text-gray-600">{formatDate(trip.scheduledDate) || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{truck?.registrationNumber ?? trip.vehicleId ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      <span>{driver?.name ?? "—"}</span>
-                      {trip.driverChangeRemark && (
-                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
-                          Remark: {trip.driverChangeRemark}
-                        </p>
-                      )}
-                    </td>
-
-                    {/* Trip Sheet Status */}
-                    <td className="px-4 py-3">
-                      {isCollected || sheetSubmitted ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-not-allowed">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Sheet Delivered
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => handleFlagSheetMissing(trip)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Circle className="h-3.5 w-3.5" />
-                          Trip Sheet Not Yet Received
-                        </button>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3 text-gray-500 text-xs">
-                      {trip.tripSheetCollectedAt ? (() => {
-                        const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+") ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
-                        return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
-                      })() : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {isCollected && sheetSubmitted ? (
-                        <span
-                          title="Trip sheet already submitted in reconciliation — cannot undo delivery"
-                          className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed"
-                        >
-                          Locked
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => handleToggleCollect(trip)}
-                          className={
-                            isCollected
-                              ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                              : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      {/* Advance Paid to Driver Verification */}
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const adv = Number(trip.driverAdvanceAmount || 0) + Number(trip.driverAdvance || 0);
+                          const advStr = adv > 0 ? `₹${adv.toLocaleString("en-IN")}` : "—";
+                          if (trip.advanceVerified === true) {
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 w-fit">
+                                  <ThumbsUp className="h-3 w-3" /> Correct
+                                </span>
+                                <button type="button" onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(""); setAdvanceCorrected(""); }} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Change</button>
+                              </div>
+                            );
                           }
-                        >
-                          {isBusy ? "..." : isCollected ? "Undo" : "Mark as Delivered"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          if (trip.advanceVerified === false) {
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 w-fit">
+                                  <ThumbsDown className="h-3 w-3" /> Mismatch
+                                </span>
+                                {trip.advanceCorrectedAmount && (
+                                  <p className="text-[10px] text-rose-600">Correct: ₹{Number(trip.advanceCorrectedAmount).toLocaleString("en-IN")}</p>
+                                )}
+                                {trip.advanceVerificationRemark && (
+                                  <p className="text-[10px] text-gray-500 max-w-[130px] whitespace-normal leading-snug">{trip.advanceVerificationRemark}</p>
+                                )}
+                                <button type="button" onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(trip.advanceVerificationRemark ?? ""); setAdvanceCorrected(trip.advanceCorrectedAmount ?? ""); }} className="text-[10px] text-gray-400 hover:text-gray-600 underline">Edit</button>
+                              </div>
+                            );
+                          }
+                          if (advanceOpen === trip.id) {
+                            return (
+                              <div className="flex flex-col gap-1.5 min-w-[160px]">
+                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                                <p className="text-[10px] text-gray-500">Verify advance paid to driver</p>
+                                <div className="flex gap-1">
+                                  <button type="button" onClick={() => handleVerifyAdvance(trip, true)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+                                    <ThumbsUp className="h-3 w-3" /> Correct
+                                  </button>
+                                  <button type="button" onClick={() => setAdvanceOpen(`${trip.id}_wrong`)} className="inline-flex items-center gap-1 rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                                    <ThumbsDown className="h-3 w-3" /> Wrong
+                                  </button>
+                                </div>
+                                <button type="button" onClick={() => setAdvanceOpen(null)} className="text-[10px] text-gray-400 hover:text-gray-600">Cancel</button>
+                              </div>
+                            );
+                          }
+                          if (advanceOpen === `${trip.id}_wrong`) {
+                            return (
+                              <div className="flex flex-col gap-1 min-w-[160px]">
+                                <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Correct amount (₹)"
+                                  value={advanceCorrected}
+                                  onChange={(e) => setAdvanceCorrected(e.target.value)}
+                                  className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                />
+                                <textarea
+                                  rows={2}
+                                  placeholder="Remarks (required)"
+                                  value={advanceRemark}
+                                  onChange={(e) => setAdvanceRemark(e.target.value)}
+                                  className="rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-rose-300"
+                                />
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={!advanceRemark.trim()}
+                                    onClick={() => handleVerifyAdvance(trip, false)}
+                                    className="rounded-lg bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-40"
+                                  >
+                                    Save
+                                  </button>
+                                  <button type="button" onClick={() => { setAdvanceOpen(null); setAdvanceRemark(""); setAdvanceCorrected(""); }} className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100">Cancel</button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-semibold text-gray-700">{advStr}</span>
+                              <button
+                                type="button"
+                                onClick={() => { setAdvanceOpen(trip.id); setAdvanceRemark(""); setAdvanceCorrected(""); }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 w-fit"
+                              >
+                                Verify
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {isCollected || sheetSubmitted ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700 cursor-not-allowed">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Sheet Delivered
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleFlagSheetMissing(trip)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 hover:border-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Circle className="h-3.5 w-3.5" />
+                            Not Received
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isCollected && sheetSubmitted ? (
+                          <span
+                            title="Trip sheet already submitted in reconciliation — cannot undo delivery"
+                            className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed"
+                          >
+                            Locked
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleToggleCollect(trip)}
+                            className={
+                              isCollected
+                                ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                                : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                            }
+                          >
+                            {isBusy ? "..." : isCollected ? "Undo" : "Mark Delivered"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+              <p className="text-sm text-gray-500">
+                Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, tableTrips.length)} of {tableTrips.length} trips
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((n) => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
+                  .reduce<(number | "...")[]>((acc, n, i, arr) => {
+                    if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("...");
+                    acc.push(n);
+                    return acc;
+                  }, [])
+                  .map((item, i) =>
+                    item === "..." ? (
+                      <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setPage(item as number)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                          safePage === item
+                            ? "bg-blue-600 text-white"
+                            : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

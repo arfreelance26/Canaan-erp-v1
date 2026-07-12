@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { History, FileText, ClipboardList, Receipt, Search, Trash2 } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
@@ -14,6 +14,7 @@ import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { n } from "@/types/trip-sheet";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
@@ -32,7 +33,7 @@ type InvoicePreviewState = {
 
 export default function TripHistoryPage() {
   const { user } = useAuth();
-  const isFleetManager = user?.softwareDesignation === "Fleet Manager";
+  const isFleetManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
   const isAdmin = user?.softwareDesignation === "Admin";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -52,6 +53,9 @@ export default function TripHistoryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"All" | "Assigned" | "Current" | "Completed" | "Invoiced" | "Cancelled">("All");
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
@@ -170,6 +174,18 @@ export default function TripHistoryPage() {
     }
   }
 
+  async function handleDeleteRequest(trip: Trip, reason: string) {
+    await editApprovalsApi.create({
+      resourceType: "Trip",
+      resourceId: parseInt(trip.id),
+      resourceName: trip.bookingReferenceNo || trip.tripId,
+      action: "Delete",
+      reason,
+    });
+    showSuccess("Delete request sent to Admin.");
+    setDeleteRequestTrip(null);
+  }
+
   function fmtDate(d?: string) {
     if (!d) return "—";
     const [y, m, day] = d.split("-");
@@ -205,6 +221,10 @@ export default function TripHistoryPage() {
       return aInv - bInv;
     });
 
+  const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedTrips = filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -224,7 +244,7 @@ export default function TripHistoryPage() {
               type="text"
               placeholder="Search by truck no., driver, trip ID…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
@@ -255,7 +275,7 @@ export default function TripHistoryPage() {
             <button
               key={f}
               type="button"
-              onClick={() => setStatusFilter(f)}
+              onClick={() => { setStatusFilter(f); setPage(1); }}
               className={`flex flex-col items-center rounded-xl border px-3 py-3 transition-all ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
             >
               <span className="text-xl font-bold">{counts[f]}</span>
@@ -315,9 +335,10 @@ export default function TripHistoryPage() {
           No closed trips found.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <>
+        <div className="overflow-auto max-h-[65vh] rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[1500px] text-left text-sm whitespace-nowrap">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-50">
                 {isAdmin && (
                   <th className="px-4 py-2">
@@ -344,9 +365,7 @@ export default function TripHistoryPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTrips.map((trip) => {
-                const driver     = driverById.get(trip.driverId);
-                const truck      = truckById.get(trip.vehicleId);
+              {paginatedTrips.map((trip) => {
                 const customer   = customerById.get(trip.customerId);
                 const isInvoiced = (trip as any).isInvoiced === true;
                 const hasSheet   = sheets.has(trip.id);
@@ -391,14 +410,14 @@ export default function TripHistoryPage() {
                     </td>
                     <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
                     <td className="px-4 py-2 text-gray-600">
-                      <span>{driver?.name ?? "—"}</span>
+                      <span>{trip.driverName ?? "—"}</span>
                       {trip.driverChangeRemark && (
                         <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
                           Remark: {trip.driverChangeRemark}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">{trip.truckRegistration ?? "—"}</td>
                     <td className="px-4 py-2 text-gray-500">{fmtDate(trip.scheduledDate)}</td>
 
                     {/* Hire Amount */}
@@ -459,6 +478,17 @@ export default function TripHistoryPage() {
                           Delete
                         </button>
                       )}
+                      {isFleetManager && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteRequestTrip(trip)}
+                          className="mb-1.5 flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                          title="Request Admin to delete this trip"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Request Delete
+                        </button>
+                      )}
                       {!closures.has(trip.id) && trip.status === "Cancelled" ? (
                         <span className="text-xs text-gray-400">No documents (cancelled)</span>
                       ) : (
@@ -505,6 +535,36 @@ export default function TripHistoryPage() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+            <p className="text-sm text-gray-500">
+              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredTrips.length)} of {filteredTrips.length} trips
+            </p>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((n) => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
+                .reduce<(number | "...")[]>((acc, n, i, arr) => { if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("..."); acc.push(n); return acc; }, [])
+                .map((item, i) => item === "..." ? (
+                  <span key={`e${i}`} className="px-2 text-xs text-gray-400">…</span>
+                ) : (
+                  <button key={item} type="button" onClick={() => setPage(item as number)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${safePage === item ? "bg-blue-600 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                    {item}
+                  </button>
+                ))}
+              <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* Booking Sheet — read-only for non-admin, editable for admin */}
@@ -552,6 +612,18 @@ export default function TripHistoryPage() {
           }
         }}
       />
+
+      {/* Fleet Manager delete request dialog */}
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          onSubmit={(reason) => handleDeleteRequest(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
+        />
+      )}
 
       {/* Invoice Preview */}
       <InvoicePreviewDialog

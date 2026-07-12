@@ -89,12 +89,12 @@ def list_reminders(
     current_user: TokenUser = Depends(get_current_user),
 ):
     """Upcoming/overdue reminders, split by role:
-    - Renewals (vehicle & driver documents): Admin + Fleet Manager
-    - Payments (EMI & recurring): Admin + Finance Manager
+    - Renewals (vehicle & driver documents): Admin + Commercial Manager + Assistant Commercial Manager
+    - Payments (EMI & recurring): Admin + Accounts
     Admin sees both."""
     role = current_user.role
-    show_renewals = role in ("Admin", "Fleet Manager")
-    show_payments = role in ("Admin", "Finance Manager")
+    show_renewals = role in ("Admin", "Commercial Manager", "Assistant Commercial Manager")
+    show_payments = role in ("Admin", "Accounts")
     if not show_renewals and not show_payments:
         return []
 

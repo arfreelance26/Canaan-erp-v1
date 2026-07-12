@@ -15,10 +15,12 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
-  "Fleet Manager": "Fleet Managers",
-  "Tyre Manager": "Tyre Managers",
+  "Commercial Manager": "Commercial Managers",
+  "Assistant Commercial Manager": "Asst. Commercial Managers",
+  Accounts: "Accounts",
+  Maintenance: "Maintenance",
   "Trip Sheet Register": "Trip Sheet Registers",
-  "Yard Staff": "Yard Staff",
+  "Yard Supervisor": "Yard Supervisors",
 };
 
 type FilterValue = "All" | LeaveApplicantCategory;
@@ -63,10 +65,12 @@ export default function LeaveApprovalsPage() {
     const counts: Record<FilterValue, number> = {
       All: 0,
       Driver: 0,
-      "Fleet Manager": 0,
-      "Tyre Manager": 0,
+      "Commercial Manager": 0,
+      "Assistant Commercial Manager": 0,
+      Accounts: 0,
+      Maintenance: 0,
       "Trip Sheet Register": 0,
-      "Yard Staff": 0,
+      "Yard Supervisor": 0,
     };
     for (const request of requests) {
       if (request.status !== "Pending") continue;
@@ -108,7 +112,7 @@ export default function LeaveApprovalsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Review and respond to leave requests from drivers, fleet managers, tyre managers, and staff
+            Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
           </p>
         </div>
         <DownloadExcelButton path="/exports/leave-requests" filename="leave_requests.xlsx" />

@@ -104,6 +104,7 @@ async def upload_file(
     if name_col and hasattr(record, name_col):
         setattr(record, name_col, file.filename)
     db.commit()
+    db.refresh(record)
 
 
 # ---------------------------------------------------------------------------

@@ -111,6 +111,29 @@ def _run_schema_migrations():
         "CREATE INDEX IF NOT EXISTS idx_customer_pricing_customer_id ON customer_pricing (customer_id)",
         "CREATE INDEX IF NOT EXISTS idx_customer_origins_customer_id ON customer_origins (customer_id)",
         "CREATE INDEX IF NOT EXISTS idx_customer_destinations_customer_id ON customer_destinations (customer_id)",
+        # Delete request workflow — add Trip to resource_type enum + admin_note column
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip') NOT NULL",
+        "ALTER TABLE edit_approval_requests ADD COLUMN admin_note TEXT NULL",
+        # Approximate KM entered by Commercial Manager at assignment (used for ±10% variance check in trip sheet)
+        "ALTER TABLE trips ADD COLUMN approx_km DECIMAL(10,2) NULL",
+        # Lift-on amount and remarks (0 for COASTAL, manual for SHIFTING/EMPTY/OPEN, rate-table for others)
+        "ALTER TABLE trips ADD COLUMN lift_on_amount DECIMAL(10,2) NULL",
+        "ALTER TABLE trips ADD COLUMN lift_on_remarks TEXT NULL",
+        # CHA (Customs House Agent) name — auto-filled as CGI when customer is Self
+        "ALTER TABLE trips ADD COLUMN cha_name VARCHAR(200) NULL",
+        # Flagged for re-checking by Docs staff — trip stays pending until unflagged
+        "ALTER TABLE trips ADD COLUMN flagged_for_recheck BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE trips ADD COLUMN flagged_remark TEXT NULL",
+        # Advance paid to driver verification by Yard Supervisor
+        "ALTER TABLE trips ADD COLUMN advance_verified TINYINT(1) NULL",
+        "ALTER TABLE trips ADD COLUMN advance_verification_remark TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN advance_corrected_amount DECIMAL(10,2) NULL",
+        # Diesel entry in trip sheet
+        "ALTER TABLE trip_sheets ADD COLUMN diesel_litres DECIMAL(10,2) NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN diesel_rate DECIMAL(10,2) NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN diesel_total DECIMAL(10,2) NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN diesel_remarks TEXT NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN km_variance_remark TEXT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -150,54 +173,110 @@ def _run_schema_migrations():
                 pass
         conn.commit()
 
-    if _rename_done:
-        return  # DB already fully migrated — restarts never touch data
-
-    # Role rename, step 2: data migration. Must be state-aware because a DB may
-    # already have run the intermediate rename (Staff → 'Trip Sheet Coordinator'),
-    # in which case remaining 'Trip Sheet Coordinator' rows are ex-Staff, not yard people.
-    _rename_map_fresh = [  # DB still on original names
-        ("Trip Sheet Coordinator", "Yard Staff"),
-        ("Staff", "Trip Sheet Register"),
-    ]
-    _rename_map_intermediate = [  # DB already ran the previous rename
-        ("Trip Sheet Coordinator", "Trip Sheet Register"),
-    ]
-    rename_map = _rename_map_intermediate if _was_intermediate else _rename_map_fresh
-    with engine.connect() as conn:
-        for table, col in (("staff", "software_designation"), ("leave_requests", "category")):
-            for old, new in rename_map:
+    if not _rename_done:
+        # Role rename, step 2: data migration. Must be state-aware because a DB may
+        # already have run the intermediate rename (Staff → 'Trip Sheet Coordinator'),
+        # in which case remaining 'Trip Sheet Coordinator' rows are ex-Staff, not yard people.
+        _rename_map_fresh = [  # DB still on original names
+            ("Trip Sheet Coordinator", "Yard Staff"),
+            ("Staff", "Trip Sheet Register"),
+        ]
+        _rename_map_intermediate = [  # DB already ran the previous rename
+            ("Trip Sheet Coordinator", "Trip Sheet Register"),
+        ]
+        rename_map = _rename_map_intermediate if _was_intermediate else _rename_map_fresh
+        with engine.connect() as conn:
+            for table, col in (("staff", "software_designation"), ("leave_requests", "category")):
+                for old, new in rename_map:
+                    try:
+                        conn.execute(text(
+                            f"UPDATE {table} SET {col} = :new WHERE {col} = :old"
+                        ), {"new": new, "old": old})
+                    except Exception:
+                        pass
+            # Repair rows blanked by an earlier enum truncation (value not in enum → '')
+            for table, col, fallback in (
+                ("staff", "software_designation", "Trip Sheet Register"),
+                ("leave_requests", "category", "Trip Sheet Register"),
+            ):
                 try:
                     conn.execute(text(
-                        f"UPDATE {table} SET {col} = :new WHERE {col} = :old"
-                    ), {"new": new, "old": old})
+                        f"UPDATE {table} SET {col} = :fb WHERE {col} = ''"
+                    ), {"fb": fallback})
                 except Exception:
                     pass
-        # Repair rows blanked by an earlier enum truncation (value not in enum → '')
-        for table, col, fallback in (
-            ("staff", "software_designation", "Trip Sheet Register"),
-            ("leave_requests", "category", "Trip Sheet Register"),
-        ):
-            try:
-                conn.execute(text(
-                    f"UPDATE {table} SET {col} = :fb WHERE {col} = ''"
-                ), {"fb": fallback})
-            except Exception:
-                pass
-        conn.commit()
+            conn.commit()
 
-    # Role rename, step 3: finalize enums to only the current role names
-    _final_enums = [
-        "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Register','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Register'",
-        "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Register','Yard Staff') NOT NULL",
-    ]
+        # Role rename, step 3: finalize enums to only the round-1 names
+        # (round-2 migration below will update further to the final names)
+        _final_enums = [
+            "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Register','Yard Staff') NOT NULL DEFAULT 'Trip Sheet Register'",
+            "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Trip Sheet Register','Yard Staff') NOT NULL",
+        ]
+        with engine.connect() as conn:
+            for stmt in _final_enums:
+                try:
+                    conn.execute(text(stmt))
+                except Exception:
+                    pass
+            conn.commit()
+
+    # ── Role rename round 2 ──────────────────────────────────────────────────
+    # Fleet Manager → Commercial Manager / Assistant Commercial Manager
+    # Finance Manager → Accounts
+    # Tyre Manager → Maintenance
+    # Yard Staff → Yard Supervisor
+    _r2_done = False
     with engine.connect() as conn:
-        for stmt in _final_enums:
-            try:
-                conn.execute(text(stmt))
-            except Exception:
-                pass
-        conn.commit()
+        try:
+            coltype2 = conn.execute(text(
+                "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff' "
+                "AND COLUMN_NAME = 'software_designation'"
+            )).scalar() or ""
+            _r2_done = "'Commercial Manager'" in coltype2 and "'Fleet Manager'" not in coltype2
+        except Exception:
+            pass
+
+    if not _r2_done:
+        _r2_expand = [
+            "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Register','Yard Staff','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Yard Supervisor') NOT NULL DEFAULT 'Trip Sheet Register'",
+            "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Finance Manager','Tyre Manager','Trip Sheet Register','Yard Staff','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Yard Supervisor') NOT NULL",
+        ]
+        with engine.connect() as conn:
+            for stmt in _r2_expand:
+                try:
+                    conn.execute(text(stmt))
+                except Exception:
+                    pass
+            conn.commit()
+
+        _r2_renames = [
+            ("Fleet Manager",    "Commercial Manager"),
+            ("Finance Manager",  "Accounts"),
+            ("Tyre Manager",     "Maintenance"),
+            ("Yard Staff",       "Yard Supervisor"),
+        ]
+        with engine.connect() as conn:
+            for table, col in (("staff", "software_designation"), ("leave_requests", "category")):
+                for old, new in _r2_renames:
+                    try:
+                        conn.execute(text(f"UPDATE {table} SET {col} = :new WHERE {col} = :old"), {"new": new, "old": old})
+                    except Exception:
+                        pass
+            conn.commit()
+
+        _r2_final = [
+            "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Trip Sheet Register','Yard Supervisor') NOT NULL DEFAULT 'Trip Sheet Register'",
+            "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Trip Sheet Register','Yard Supervisor') NOT NULL",
+        ]
+        with engine.connect() as conn:
+            for stmt in _r2_final:
+                try:
+                    conn.execute(text(stmt))
+                except Exception:
+                    pass
+            conn.commit()
 
 _run_schema_migrations()
 
@@ -275,8 +354,8 @@ async def realtime_broadcast(request: Request, call_next):
 
 # All business routers require a valid JWT (see security.py).
 AUTH = [Depends(get_current_user)]
-# Finance data additionally requires the Finance Manager (or Admin) role.
-FINANCE = [Depends(require_roles("Finance Manager"))]
+# Finance data additionally requires the Accounts (or Admin) role.
+FINANCE = [Depends(require_roles("Accounts"))]
 
 app.include_router(auth.router)                              # public: /auth/login
 app.include_router(files.router)                             # GET public (img tags), POST guarded inside

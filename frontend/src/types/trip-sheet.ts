@@ -33,6 +33,13 @@ export type TripSheetData = {
   endKm: string;
   totalKm: string;
   cargoWeight: string;  // auto-fetched from trip.cargoWeight
+  kmVarianceRemark: string;
+
+  // Diesel Entry (after KM section)
+  dieselLitres: string;
+  dieselRate: string;
+  dieselTotal: string;
+  dieselRemarks: string;
 
   // Driver Settlement
   driverCompensationType: string;

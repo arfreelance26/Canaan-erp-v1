@@ -34,15 +34,15 @@ export function TyreReportDialog({ open, onClose, tyre, records }: TyreReportDia
 
         <div className="rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">Remaining Tread %</p>
-          <p className="mt-1 text-lg font-semibold text-gray-400">Pending Tyre Manager Data</p>
+          <p className="mt-1 text-lg font-semibold text-gray-400">Pending Maintenance Data</p>
           <p className="mt-1 text-xs text-gray-500">
-            Calculated from the latest tread depth inspection once the Tyre Manager app is live
+            Calculated from the latest tread depth inspection once the Maintenance app is live
           </p>
         </div>
 
         <div className="rounded-lg border border-gray-200 p-3">
           <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">Estimated Remaining Life</p>
-          <p className="mt-1 text-lg font-semibold text-gray-400">Pending Tyre Manager Data</p>
+          <p className="mt-1 text-lg font-semibold text-gray-400">Pending Maintenance Data</p>
           <p className="mt-1 text-xs text-gray-500">
             Predicted from tread wear rate vs. kilometers travelled once tread inspections are recorded
           </p>

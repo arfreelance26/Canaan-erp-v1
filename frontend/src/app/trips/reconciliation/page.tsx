@@ -12,11 +12,11 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
-import type { EditApprovalRequest, EditApprovalResourceType } from "@/types/edit-approval";
+import type { EditApprovalResourceType } from "@/types/edit-approval";
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Download } from "lucide-react";
+import { Search, CheckCircle2, Download, Flag, Inbox, ClipboardList, AlertTriangle } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -51,11 +51,14 @@ export default function TripReconciliationPage() {
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Flagged">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
+  const [recheckOpen, setRecheckOpen] = useState<string | null>(null); // trip.id
+  const [recheckRemark, setRecheckRemark] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Edit approval state (Staff only)
-  const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
   const [editRequestOpen, setEditRequestOpen] = useState(false);
   const [pendingEditAction, setPendingEditAction] = useState<{
     resourceType: EditApprovalResourceType;
@@ -124,42 +127,25 @@ export default function TripReconciliationPage() {
   useWebSocketEvent("sheet_not_received_alert", (payload) => {
     const isAdminOrManager =
       user?.softwareDesignation === "Admin" ||
-      user?.softwareDesignation === "Fleet Manager" ||
-      user?.softwareDesignation === "Finance Manager";
+      user?.softwareDesignation === "Commercial Manager" ||
+      user?.softwareDesignation === "Assistant Commercial Manager" ||
+      user?.softwareDesignation === "Accounts";
     if (!isAdminOrManager) return;
     const p = payload as { trip_id_str?: string; booking_reference_no?: string; reported_by?: string };
     showError(
-      `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Yard Staff but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
+      `⚠️ Trip Sheet Not Received\n\nTrip ${p.trip_id_str ?? ""} (${p.booking_reference_no ?? ""}) was marked as delivered by the Yard Supervisor but was NOT received in reconciliation.\n\nReported by: ${p.reported_by ?? "Unknown"}`
     );
     setRefreshKey(k => k + 1);
   });
 
-  // Load and refresh active edit approvals for all non-admin users
-  useEffect(() => {
-    if (isAdmin || !user) return;
-    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
-  }, [isAdmin, user]);
-  useWebSocketEvent("edit_approval_updated", () => {
-    if (isAdmin || !user) return;
-    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
-  });
-
-  function hasActiveApproval(resourceType: EditApprovalResourceType, tripId: string): boolean {
-    return activeApprovals.some((a) =>
-      a.resourceType === resourceType &&
-      String(a.resourceId) === tripId &&
-      a.action === "Edit" &&
-      a.expiresAt != null &&
-      new Date(a.expiresAt.endsWith("Z") ? a.expiresAt : a.expiresAt + "Z") > new Date()
-    );
-  }
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
   function openDialog(trip: Trip, mode: DialogMode) {
-    if (mode === "edit" && isStaff && !hasActiveApproval("TripSheet", trip.id)) {
+    // Staff can never edit directly — always raises a request; admin acts on it
+    if (mode === "edit" && isStaff) {
       setPendingEditAction({ resourceType: "TripSheet", trip });
       setEditRequestOpen(true);
       return;
@@ -169,7 +155,8 @@ export default function TripReconciliationPage() {
   }
 
   function openBookingSheet(trip: Trip, readOnly: boolean) {
-    if (!readOnly && isStaff && !hasActiveApproval("BookingSheet", trip.id)) {
+    // Staff can never edit directly — always raises a request; admin acts on it
+    if (!readOnly && isStaff) {
       setPendingEditAction({ resourceType: "BookingSheet", trip });
       setEditRequestOpen(true);
       return;
@@ -260,6 +247,19 @@ export default function TripReconciliationPage() {
     }
   }
 
+  async function handleToggleRecheck(trip: Trip, flagged: boolean) {
+    try {
+      const remark = flagged ? recheckRemark.trim() : "";
+      const updated = await tripsApi.setRecheckFlag(trip.id, flagged, remark);
+      setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+      setRecheckOpen(null);
+      setRecheckRemark("");
+      showSuccess(flagged ? `Trip ${trip.tripId} flagged for re-checking.` : `Flag cleared for ${trip.tripId}.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update re-check flag.");
+    }
+  }
+
   const [downloading, setDownloading] = useState(false);
 
   const fmt = (v: number) =>
@@ -328,8 +328,6 @@ export default function TripReconciliationPage() {
       }
 
       const rowData = receivedTrips.map((trip) => {
-        const driver = driverById.get(trip.driverId);
-        const truck = truckById.get(trip.vehicleId);
         const customer = customerById.get(trip.customerId);
         const sheet = sheets.get(trip.id);
         const receivedOn = trip.tripSheetReceivedAt
@@ -345,8 +343,8 @@ export default function TripReconciliationPage() {
           customer?.name ?? trip.shipperConsignee ?? "—",
           `${trip.origin} > ${trip.destination}`,
           containerRef(trip) || "—",
-          driver?.name ?? "—",
-          truck?.registrationNumber ?? "—",
+          trip.driverName ?? "—",
+          trip.truckRegistration ?? "—",
           sheet ? `Rs.${n(sheet.hireAmount).toLocaleString("en-IN")}` : "—",
           sheet ? `Rs.${n(sheet.totalExpense).toLocaleString("en-IN")}` : "—",
           receivedOn,
@@ -406,6 +404,7 @@ export default function TripReconciliationPage() {
     "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
     "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !sheets.has(t.id)).length,
     "Sheet Entered":    trips.filter((t) => sheets.has(t.id)).length,
+    "Flagged":          trips.filter((t) => t.flaggedForRecheck).length,
   };
 
   const filteredTrips = trips
@@ -413,17 +412,16 @@ export default function TripReconciliationPage() {
       if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
       if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || sheets.has(t.id))) return false;
       if (statusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
+      if (statusFilter === "Flagged" && !t.flaggedForRecheck) return false;
 
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
-      const truck = truckById.get(t.vehicleId);
-      const driver = driverById.get(t.driverId);
       return (
         t.tripId?.toLowerCase().includes(q) ||
         t.bookingReferenceNo?.toLowerCase().includes(q) ||
         t.vehicleId?.toLowerCase().includes(q) ||
-        (truck?.registrationNumber ?? "").toLowerCase().includes(q) ||
-        (driver?.name ?? "").toLowerCase().includes(q) ||
+        (t.truckRegistration ?? "").toLowerCase().includes(q) ||
+        (t.driverName ?? "").toLowerCase().includes(q) ||
         (t.containerNumber ?? "").toLowerCase().includes(q) ||
         (t.containerNumber1 ?? "").toLowerCase().includes(q) ||
         (t.containerNumber2 ?? "").toLowerCase().includes(q) ||
@@ -438,6 +436,10 @@ export default function TripReconciliationPage() {
       };
       return priority(a) - priority(b);
     });
+
+  const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedTrips = filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -455,7 +457,7 @@ export default function TripReconciliationPage() {
             type="text"
             placeholder="Search by truck no., driver, trip ID…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
@@ -474,25 +476,27 @@ export default function TripReconciliationPage() {
       </div>
 
       {/* Status filter count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered"] as const).map((f) => {
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Flagged"] as const).map((f) => {
           const colors: Record<string, string> = {
             "All":                  "border-gray-200 bg-white text-gray-700",
             "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
             "Pending Sheet Entry":  "border-blue-200 bg-blue-50 text-blue-700",
             "Sheet Entered":        "border-emerald-200 bg-emerald-50 text-emerald-700",
+            "Flagged":              "border-orange-200 bg-orange-50 text-orange-700",
           };
           const activeRing: Record<string, string> = {
             "All":                  "ring-2 ring-gray-400",
             "Pending Receive":      "ring-2 ring-amber-400",
             "Pending Sheet Entry":  "ring-2 ring-blue-400",
             "Sheet Entered":        "ring-2 ring-emerald-400",
+            "Flagged":              "ring-2 ring-orange-400",
           };
           return (
             <button
               key={f}
               type="button"
-              onClick={() => setStatusFilter(f)}
+              onClick={() => { setStatusFilter(f); setPage(1); }}
               className={`flex flex-col items-center rounded-xl border px-3 py-3 transition-all ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
             >
               <span className="text-xl font-bold">{counts[f]}</span>
@@ -500,6 +504,18 @@ export default function TripReconciliationPage() {
             </button>
           );
         })}
+      </div>
+
+      {/* Workflow legend */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
+        <span className="font-semibold text-gray-600">Workflow:</span>
+        <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5 text-amber-500" /> Sheet delivered by Yard → pending receive</span>
+        <span className="text-gray-300">›</span>
+        <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-blue-500" /> Received → pending sheet entry</span>
+        <span className="text-gray-300">›</span>
+        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Sheet entered → moves to Verification</span>
+        <span className="text-gray-300">›</span>
+        <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 text-orange-500" /> Flagged = needs re-check before entry</span>
       </div>
 
       {/* Active filter label */}
@@ -514,7 +530,7 @@ export default function TripReconciliationPage() {
         {statusFilter !== "All" && (
           <button
             type="button"
-            onClick={() => setStatusFilter("All")}
+            onClick={() => { setStatusFilter("All"); setPage(1); }}
             className="ml-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
           >
             Clear
@@ -527,11 +543,12 @@ export default function TripReconciliationPage() {
           No closed trips yet.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full min-w-[1400px] text-left text-sm whitespace-nowrap">
-            <thead>
+        <>
+        <div className="overflow-auto max-h-[65vh] rounded-xl border border-gray-200 bg-white">
+          <table className="w-full min-w-[1300px] text-left text-sm whitespace-nowrap">
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle",
+                {["Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref", "Customer",
                   "Hire Amount", "Total Expense", "Trip Sheet Status", "Actions"].map((col) => (
                   <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
@@ -540,31 +557,35 @@ export default function TripReconciliationPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredTrips.map((trip) => {
-                const closure = closures.get(trip.id);
+              {paginatedTrips.map((trip) => {
                 const sheet = sheets.get(trip.id);
-                const driver = driverById.get(trip.driverId);
-                const truck = truckById.get(trip.vehicleId);
                 const customer = customerById.get(trip.customerId);
 
                 return (
-                  <tr key={trip.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-medium text-gray-900">{trip.tripId}</td>
-                    <td className="px-4 py-2 text-gray-600">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-2 text-gray-600">
-                      {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                  <tr key={trip.id} className={`hover:bg-gray-50 ${trip.flaggedForRecheck ? "bg-orange-50/40" : ""}`}>
+                    <td className="px-4 py-2 font-medium text-gray-800">
+                      {trip.truckRegistration ?? "—"}
+                      {trip.flaggedForRecheck && (
+                        <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
+                          <Flag className="h-2.5 w-2.5" /> Re-check
+                        </span>
+                      )}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{containerRef(trip)}</td>
-                    <td className="px-4 py-2 text-gray-600">
-                      <span>{driver?.name ?? "—"}</span>
+                    <td className="px-4 py-2 text-gray-700">
+                      <span>{trip.driverName ?? "—"}</span>
                       {trip.driverChangeRemark && (
-                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[160px] whitespace-normal">
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[140px] whitespace-normal">
                           Remark: {trip.driverChangeRemark}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{truck?.registrationNumber ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                    </td>
+                    <td className="px-4 py-2 font-medium text-gray-900">{trip.tripId}</td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
+                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
                     <td className="px-4 py-2 font-medium text-blue-700">
                       {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-gray-400">—</span>}
                     </td>
@@ -658,7 +679,7 @@ export default function TripReconciliationPage() {
                               onClick={() => openBookingSheet(trip, false)}
                               className="rounded-lg border border-purple-300 px-2.5 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-50"
                             >
-                              Edit
+                              {isStaff ? "Request Edit" : "Edit"}
                             </button>
                           </div>
                         </div>
@@ -680,7 +701,7 @@ export default function TripReconciliationPage() {
                                 onClick={() => openDialog(trip, "edit")}
                                 className="rounded-lg border border-blue-300 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
                               >
-                                Edit
+                                {isStaff ? "Request Edit" : "Edit"}
                               </button>
                             </div>
                           ) : (
@@ -695,6 +716,61 @@ export default function TripReconciliationPage() {
                             </button>
                           )}
                         </div>
+
+                        {/* Re-check Flag */}
+                        <div className="flex flex-col gap-0.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Re-check</p>
+                          {trip.flaggedForRecheck ? (
+                            <div className="flex flex-col gap-1">
+                              {trip.flaggedRemark && (
+                                <p className="text-[10px] text-orange-600 italic max-w-[160px] whitespace-normal leading-snug">
+                                  {trip.flaggedRemark}
+                                </p>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleToggleRecheck(trip, false)}
+                                className="rounded-lg border border-orange-300 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100 w-fit"
+                              >
+                                Clear Flag
+                              </button>
+                            </div>
+                          ) : recheckOpen === trip.id ? (
+                            <div className="flex flex-col gap-1">
+                              <textarea
+                                value={recheckRemark}
+                                onChange={(e) => setRecheckRemark(e.target.value)}
+                                placeholder="Reason for re-check (optional)"
+                                rows={2}
+                                className="w-40 rounded border border-orange-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-300"
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleRecheck(trip, true)}
+                                  className="rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-600"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setRecheckOpen(null); setRecheckRemark(""); }}
+                                  className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => { setRecheckOpen(trip.id); setRecheckRemark(""); }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100 w-fit"
+                            >
+                              <Flag className="h-3 w-3" /> Flag
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -703,6 +779,59 @@ export default function TripReconciliationPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+            <p className="text-sm text-gray-500">
+              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredTrips.length)} of {filteredTrips.length} trips
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((n) => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
+                .reduce<(number | "...")[]>((acc, n, i, arr) => {
+                  if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push("...");
+                  acc.push(n);
+                  return acc;
+                }, [])
+                .map((item, i) =>
+                  item === "..." ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-xs text-gray-400">…</span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item as number)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        safePage === item
+                          ? "bg-blue-600 text-white"
+                          : "border border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       <TripSheetDialog
@@ -711,7 +840,7 @@ export default function TripReconciliationPage() {
         closure={selectedTrip ? closures.get(selectedTrip.id) : undefined}
         existingSheet={selectedTrip ? sheets.get(selectedTrip.id) : undefined}
         readOnly={dialogMode === "view"}
-        autoEditable={isAdmin || (selectedTrip ? hasActiveApproval("TripData", selectedTrip.id) : false)}
+        autoEditable={isAdmin}
         onRequestAutoEdit={
           isAdmin || !selectedTrip
             ? undefined

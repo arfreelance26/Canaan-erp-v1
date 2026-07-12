@@ -241,7 +241,7 @@ function DetailPanel({ entry }: { entry: TruckPLEntry }) {
           </p>
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full min-w-[700px] text-xs whitespace-nowrap">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {["Date", "Sheet No", "Booking Ref", "Route", "Hire Amount", "Trip Expenses", "Trip P&L"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-gray-400">
@@ -319,7 +319,7 @@ function DetailPanel({ entry }: { entry: TruckPLEntry }) {
           </p>
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full min-w-[500px] text-xs whitespace-nowrap">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {["Date", "Type", "Description", "Cost"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left font-semibold uppercase tracking-wider text-gray-400">
@@ -612,9 +612,9 @@ export default function PLSummaryPage() {
               No data found for the selected period.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <div className="overflow-auto max-h-[65vh] rounded-xl border border-gray-200 bg-white">
               <table className="w-full min-w-[1100px] text-left text-sm whitespace-nowrap">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200 bg-gray-50">
                     {["Truck", "Trips", "Hire Income", "Trip Expenses", "Maintenance", "EMI", "Doc Share", "Total Cost", "Net P&L", ""].map((col, i) => (
                       <th key={i} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">

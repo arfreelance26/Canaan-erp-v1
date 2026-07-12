@@ -29,9 +29,9 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+    <div className="overflow-auto max-h-[65vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
       <table className="w-full min-w-[900px] text-left text-sm whitespace-nowrap">
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr className="border-b border-gray-200 bg-gray-50">
             {hasData.name && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>}
             {hasData.gstin && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">GSTIN</th>}

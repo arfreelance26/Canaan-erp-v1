@@ -135,7 +135,7 @@ export function VerifyTripDialog({
           </span>
           <div>
             <p className="text-sm font-semibold text-gray-800">Trip sheet pending verification</p>
-            <p className="text-xs text-gray-500">Uploaded by Fleet Manager · Review all details before confirming.</p>
+            <p className="text-xs text-gray-500">Uploaded by Commercial Manager · Review all details before confirming.</p>
           </div>
         </div>
 

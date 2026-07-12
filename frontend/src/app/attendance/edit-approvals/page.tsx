@@ -47,6 +47,8 @@ export default function EditApprovalsPage() {
   const [viewing, setViewing] = useState<EditApprovalRequest | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [deleteApproveReq, setDeleteApproveReq] = useState<EditApprovalRequest | null>(null);
+  const [deleteApproveNote, setDeleteApproveNote] = useState("");
 
   async function loadData() {
     try {
@@ -81,14 +83,27 @@ export default function EditApprovalsPage() {
     return result;
   }, [requests, filter, search]);
 
-  async function handleApprove(id: string) {
+  async function handleApprove(id: string, adminNote?: string) {
     try {
-      const updated = await editApprovalsApi.approve(id);
-      setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      showSuccess("Edit access approved — Staff has 1 hour to make changes.");
+      const updated = await editApprovalsApi.approve(id, adminNote);
+      if (updated.action === "Delete" && updated.resourceType === "Trip") {
+        setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        showSuccess(`Trip "${updated.resourceName}" has been deleted.`);
+      } else {
+        setRequests((prev) => prev.map((r) => (r.id === id ? updated : r)));
+        showSuccess("Edit access approved — Staff has 1 hour to make changes.");
+      }
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to approve request.");
     }
+  }
+
+  async function handleApproveDelete() {
+    if (!deleteApproveReq) return;
+    await handleApprove(deleteApproveReq.id, deleteApproveNote.trim());
+    setDeleteApproveReq(null);
+    setDeleteApproveNote("");
+    setViewing(null);
   }
 
   async function handleReject(id: string) {
@@ -236,8 +251,8 @@ export default function EditApprovalsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-100 bg-gray-50/50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   <th className="px-4 py-3">
                     <input
@@ -307,7 +322,7 @@ export default function EditApprovalsPage() {
                         <button
                           type="button"
                           onClick={() => setViewing(req)}
-                          className="truncate text-left text-blue-600 hover:text-blue-800 hover:underline"
+                          className="block max-w-[220px] truncate text-left text-blue-600 hover:text-blue-800 hover:underline"
                           title="Click to view full request"
                         >
                           {req.reason}
@@ -354,7 +369,14 @@ export default function EditApprovalsPage() {
                             <>
                               <button
                                 type="button"
-                                onClick={() => handleApprove(req.id)}
+                                onClick={() => {
+                                  if (req.action === "Delete" && req.resourceType === "Trip") {
+                                    setDeleteApproveNote("");
+                                    setDeleteApproveReq(req);
+                                  } else {
+                                    handleApprove(req.id);
+                                  }
+                                }}
                                 className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
                               >
                                 Approve
@@ -378,6 +400,59 @@ export default function EditApprovalsPage() {
           </div>
         )}
       </div>
+
+      {/* Approve Trip Delete confirmation — admin must enter a note */}
+      <Dialog
+        open={deleteApproveReq !== null}
+        onClose={() => { setDeleteApproveReq(null); setDeleteApproveNote(""); }}
+        title="Confirm Trip Deletion"
+        className="max-w-md"
+      >
+        {deleteApproveReq && (
+          <div className="flex flex-col gap-4 text-sm">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+              <p className="font-semibold">This will permanently delete trip:</p>
+              <p className="mt-0.5 font-bold">{deleteApproveReq.resourceName}</p>
+              <p className="mt-1 text-xs text-red-600">All related data (booking sheet, trip sheet, invoice) will be deleted. This cannot be undone.</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Commercial Manager&apos;s Reason</p>
+              <p className="mt-1 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-gray-700">
+                {deleteApproveReq.reason}
+              </p>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                Admin Note <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={deleteApproveNote}
+                onChange={(e) => setDeleteApproveNote(e.target.value)}
+                placeholder="Enter the reason for approving this deletion…"
+                rows={3}
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              />
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-100 pt-2">
+              <button
+                type="button"
+                onClick={() => { setDeleteApproveReq(null); setDeleteApproveNote(""); }}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!deleteApproveNote.trim()}
+                onClick={handleApproveDelete}
+                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        )}
+      </Dialog>
 
       {/* Request detail modal */}
       <Dialog open={viewing !== null} onClose={() => setViewing(null)} title="Edit Request Details" className="max-w-lg">
@@ -416,6 +491,15 @@ export default function EditApprovalsPage() {
               </p>
             </div>
 
+            {viewing.adminNote && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Admin Note</p>
+                <p className="mt-1 whitespace-pre-wrap rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-amber-800">
+                  {viewing.adminNote}
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between border-t border-gray-100 pt-4">
               <span className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
@@ -436,7 +520,15 @@ export default function EditApprovalsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { handleApprove(viewing.id); setViewing(null); }}
+                    onClick={() => {
+                      if (viewing.action === "Delete" && viewing.resourceType === "Trip") {
+                        setDeleteApproveNote("");
+                        setDeleteApproveReq(viewing);
+                      } else {
+                        handleApprove(viewing.id);
+                        setViewing(null);
+                      }
+                    }}
                     className="rounded-lg bg-green-600 px-4 py-2 text-xs font-medium text-white hover:bg-green-700 transition-colors"
                   >
                     Approve

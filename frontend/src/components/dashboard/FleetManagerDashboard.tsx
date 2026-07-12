@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Truck,
@@ -21,6 +22,8 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import type { Trip } from "@/types/trip";
 import type { Truck as TruckType } from "@/types/truck";
+import type { TripSheetData } from "@/types/trip-sheet";
+import { n } from "@/types/trip-sheet";
 
 interface OverviewData {
   total_trucks: number;
@@ -49,9 +52,15 @@ const QUICK_LINKS = [
   { label: "Trip History",      href: "/trips/history",      icon: History,       color: "bg-amber-50 text-amber-600 border-amber-200" },
 ];
 
-function StatCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color: string }) {
+function StatCard({ icon: Icon, label, value, color, onClick }: { icon: React.ElementType; label: string; value: string | number; color: string; onClick?: () => void }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div
+      className={`flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm${onClick ? " cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-blue-300 hover:ring-offset-1" : ""}`}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
+    >
       <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color}`}>
         <Icon className="h-5 w-5" />
       </div>
@@ -116,11 +125,13 @@ function TruckCard({ truck, activeTrip }: { truck: TruckType; activeTrip?: Trip 
 }
 
 export function FleetManagerDashboard() {
+  const router = useRouter();
   const [overview, setOverview]     = useState<OverviewData | null>(null);
   const [allTrips, setAllTrips]     = useState<Trip[]>([]);
   const [trucks, setTrucks]         = useState<TruckType[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sheets, setSheets]         = useState<Map<string, TripSheetData>>(new Map());
 
   useEffect(() => {
     Promise.all([
@@ -132,6 +143,17 @@ export function FleetManagerDashboard() {
         setOverview(ov as unknown as OverviewData);
         setAllTrips(trips);
         setTrucks(trks);
+        // Fetch sheets for completed trips to enable P&L calculation
+        const completed = (trips as Trip[]).filter((t) => t.hasSheet);
+        Promise.all(
+          completed.map((t) =>
+            tripsApi.getSheet(t.id).then((s) => s ? ({ id: t.id, sheet: s }) : null).catch(() => null)
+          )
+        ).then((results) => {
+          const m = new Map<string, TripSheetData>();
+          for (const r of results) { if (r) m.set(r.id, r.sheet); }
+          setSheets(m);
+        });
       })
       .finally(() => setLoading(false));
   }, [refreshKey]);
@@ -171,15 +193,15 @@ export function FleetManagerDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Fleet Manager Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Commercial Manager Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">Real-time fleet status, active trips, and operational overview</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Truck}        label="Total Fleet"      value={loading ? "—" : trucks.length}   color="bg-blue-100 text-blue-600" />
-        <StatCard icon={Activity}     label="Active Trips"     value={loading ? "—" : activeCount}      color="bg-indigo-100 text-indigo-600" />
-        <StatCard icon={CheckCircle2} label="Completed Trips"  value={loading ? "—" : completedCount}   color="bg-teal-100 text-teal-600" />
+        <StatCard icon={Truck}        label="Total Fleet"      value={loading ? "—" : trucks.length}   color="bg-blue-100 text-blue-600" onClick={() => router.push("/trips/assign")} />
+        <StatCard icon={Activity}     label="Active Trips"     value={loading ? "—" : activeCount}      color="bg-indigo-100 text-indigo-600" onClick={() => router.push("/trips/current")} />
+        <StatCard icon={CheckCircle2} label="Completed Trips"  value={loading ? "—" : completedCount}   color="bg-teal-100 text-teal-600" onClick={() => router.push("/trips/completed")} />
         <StatCard icon={Users}        label="Total Drivers"    value={loading ? "—" : (overview?.total_drivers ?? 0)} color="bg-violet-100 text-violet-600" />
       </div>
 
@@ -191,7 +213,7 @@ export function FleetManagerDashboard() {
             <div className="mb-2 flex items-center justify-between">
               <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-600">
                 <FileCheck2 className="h-4 w-4" />
-                Delivered by Yard Staff
+                Delivered by Yard Supervisor
               </p>
               <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold text-emerald-700">
                 {sheetsDelivered.length}
@@ -200,7 +222,7 @@ export function FleetManagerDashboard() {
             {sheetsDelivered.length === 0 ? (
               <p className="text-xs text-gray-400">No trip sheets delivered yet.</p>
             ) : (
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-1.5 max-h-72 overflow-y-auto">
                 {sheetsDelivered.slice(0, 8).map((t) => (
                   <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
                     <span className="font-semibold text-gray-800">{t.tripId}</span>
@@ -231,7 +253,7 @@ export function FleetManagerDashboard() {
             {sheetsReceived.length === 0 ? (
               <p className="text-xs text-gray-400">No trip sheets received yet.</p>
             ) : (
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-1.5 max-h-72 overflow-y-auto">
                 {sheetsReceived.slice(0, 8).map((t) => (
                   <li key={t.id} className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-1.5 text-xs">
                     <span className="font-semibold text-gray-800">{t.tripId}</span>
@@ -254,6 +276,64 @@ export function FleetManagerDashboard() {
           </p>
         )}
       </div>
+
+      {/* P&L — top 10 preview */}
+      {sheets.size > 0 && (() => {
+        const rows = allTrips
+          .filter((t) => sheets.has(t.id))
+          .map((t) => {
+            const s = sheets.get(t.id)!;
+            const hire = n(s.hireAmount);
+            const expense = n(s.totalExpense);
+            const pnl = hire - expense;
+            const km = n(s.totalKm);
+            return { t, hire, expense, pnl, km };
+          })
+          .sort((a, b) => b.pnl - a.pnl)
+          .slice(0, 10);
+
+        const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
+        const fmtAmt = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")}`;
+
+        return (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">P&L — Per Trip</h2>
+              <div className="flex items-center gap-3">
+                <span className={`rounded-full px-3 py-1 text-xs font-bold ${totalPnl >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                  Net: {fmtAmt(totalPnl)}
+                </span>
+                <Link href="/trips/pnl-mileage" className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                  View all →
+                </Link>
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full min-w-[600px] text-left text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    {["Trip ID", "Route", "Hire Amount", "Total Expense", "P&L", "KM"].map((h) => (
+                      <th key={h} className="whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.map(({ t, hire, expense, pnl, km }) => (
+                    <tr key={t.id} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-4 py-2 font-medium text-gray-900">{t.tripId}</td>
+                      <td className="px-4 py-2 text-gray-500 text-xs">{t.origin} → {t.destination}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-blue-700 font-medium">{fmtAmt(hire)}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-gray-600">{fmtAmt(expense)}</td>
+                      <td className={`whitespace-nowrap px-4 py-2 font-bold ${pnl >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmtAmt(pnl)}</td>
+                      <td className="whitespace-nowrap px-4 py-2 text-gray-600">{km > 0 ? `${km} km` : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Quick Links */}
       <div>

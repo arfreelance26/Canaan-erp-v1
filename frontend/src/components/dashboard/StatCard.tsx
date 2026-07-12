@@ -9,6 +9,7 @@ type StatCardProps = {
   caption: string;
   icon: LucideIcon;
   variant?: StatCardVariant;
+  onClick?: () => void;
 };
 
 const VARIANTS: Record<
@@ -65,10 +66,27 @@ export function StatCard({
   caption,
   icon: Icon,
   variant = "default",
+  onClick,
 }: StatCardProps) {
   const s = VARIANTS[variant];
   return (
-    <div className={cn("rounded-xl border p-5", s.card)}>
+    <div
+      className={cn(
+        "rounded-xl border p-5",
+        s.card,
+        onClick ? "cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-offset-1" : "",
+        onClick && variant === "blue" ? "hover:ring-blue-400" : "",
+        onClick && variant === "emerald" ? "hover:ring-emerald-400" : "",
+        onClick && variant === "amber" ? "hover:ring-amber-400" : "",
+        onClick && variant === "red" ? "hover:ring-red-400" : "",
+        onClick && variant === "purple" ? "hover:ring-purple-400" : "",
+        onClick && variant === "default" ? "hover:ring-gray-400" : "",
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
+    >
       <div className="flex items-center justify-between">
         <p className={cn("text-xs font-semibold tracking-wider uppercase", s.label)}>
           {label}

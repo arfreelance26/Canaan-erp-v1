@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else if (user) {
       // Roles without a dashboard land on their dedicated workspace instead of "/"
       const roleHome =
-        user.softwareDesignation === "Yard Staff"
+        user.softwareDesignation === "Yard Supervisor"
           ? "/trips/sheet-collection"
           : user.softwareDesignation === "Trip Sheet Register"
             ? "/trips/reconciliation"
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
     const home =
-      authUser.softwareDesignation === "Yard Staff"
+      authUser.softwareDesignation === "Yard Supervisor"
         ? "/trips/sheet-collection"
         : authUser.softwareDesignation === "Trip Sheet Register"
           ? "/trips/reconciliation"

@@ -145,7 +145,7 @@ class Staff(Base):
     department = Column(String(100))
     designation = Column(String(100))
     software_designation = Column(
-        Enum("Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"),
+        Enum("Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"),
         nullable=False,
         default="Trip Sheet Register",
     )
@@ -321,6 +321,18 @@ class Trip(Base):
     rate_per_ton = Column(Numeric(10, 2), nullable=True)
     transport_hire_amount = Column(Numeric(10, 2), default=0)
     transport_crossing_amount = Column(Numeric(10, 2), default=0)
+    # Commercial Manager inputs at assignment
+    approx_km = Column(Numeric(10, 2), nullable=True)
+    lift_on_amount = Column(Numeric(10, 2), nullable=True)
+    lift_on_remarks = Column(Text, nullable=True)
+    cha_name = Column(String(200), nullable=True)
+    # Docs staff flagging
+    flagged_for_recheck = Column(Boolean, default=False, nullable=False)
+    flagged_remark = Column(Text, nullable=True)
+    # Yard Supervisor: advance paid to driver verification
+    advance_verified = Column(Boolean, nullable=True)
+    advance_verification_remark = Column(Text, nullable=True)
+    advance_corrected_amount = Column(Numeric(10, 2), nullable=True)
     # Operational Notes
     internal_remarks = Column(Text)
     driver_change_remark = Column(Text)
@@ -451,6 +463,12 @@ class TripSheet(Base):
     driver_expenses_total = Column(Numeric(10, 2), default=0)
     total_expense = Column(Numeric(10, 2), default=0)
     fuel_cost_approx = Column(Numeric(10, 2), default=0)
+    # Diesel entry (Docs staff) — syncs to FuelLog on save
+    diesel_litres = Column(Numeric(10, 2), nullable=True)
+    diesel_rate = Column(Numeric(10, 2), nullable=True)
+    diesel_total = Column(Numeric(10, 2), nullable=True)
+    diesel_remarks = Column(Text, nullable=True)
+    km_variance_remark = Column(Text, nullable=True)
     # Toll
     toll_charges = Column(Numeric(10, 2), default=0)
     toll_count = Column(Integer, default=0)
@@ -545,7 +563,7 @@ class LeaveRequest(Base):
     __tablename__ = "leave_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(Enum("Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"), nullable=False)
+    category = Column(Enum("Driver", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"), nullable=False)
     applicant_id = Column(Integer, nullable=False)                      # driver.id or staff.id
     applicant_name = Column(String(100), nullable=False)
     applicant_code = Column(String(20))                                 # CGI-D001 / STF-1001
@@ -712,12 +730,13 @@ class EditApprovalRequest(Base):
     staff_db_id = Column(Integer, nullable=False)        # staff.id (numeric)
     staff_name = Column(String(100), nullable=False)
     staff_code = Column(String(20))                      # STF-1001
-    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData"), nullable=False)
+    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(200), nullable=False)
     action = Column(Enum("Edit", "Delete"), nullable=False)
     reason = Column(Text, nullable=False)
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
+    admin_note = Column(Text, nullable=True)
     approved_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)         # approved_at + 1 hour
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

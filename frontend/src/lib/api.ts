@@ -325,7 +325,7 @@ function toStaff(b: B): Staff {
     name: b.name ?? "",
     department: b.department ?? "",
     designation: b.designation ?? "",
-    softwareDesignation: b.software_designation ?? "Trip Sheet Register",
+    softwareDesignation: b.software_designation || "Trip Sheet Register",
     dateOfBirth: b.date_of_birth ?? "",
     dateOfJoining: b.date_of_joining ?? "",
     email: b.email ?? "",
@@ -497,8 +497,17 @@ function toTrip(b: B): Trip & { _dbId: number } {
     ratePerTon: String(b.rate_per_ton ?? ""),
     transportHireAmount: String(b.transport_hire_amount ?? ""),
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
+    approxKm: b.approx_km != null ? String(b.approx_km) : undefined,
+    liftOnAmount: b.lift_on_amount != null ? String(b.lift_on_amount) : undefined,
+    liftOnRemarks: b.lift_on_remarks ?? undefined,
+    chaName: b.cha_name ?? undefined,
+    flaggedForRecheck: b.flagged_for_recheck ?? undefined,
+    flaggedRemark: b.flagged_remark ?? undefined,
+    advanceVerified: b.advance_verified ?? undefined,
+    advanceVerificationRemark: b.advance_verification_remark ?? undefined,
+    advanceCorrectedAmount: b.advance_corrected_amount != null ? String(b.advance_corrected_amount) : undefined,
     internalRemarks: b.internal_remarks ?? "",
-  driverChangeRemark: b.driver_change_remark ?? "",
+    driverChangeRemark: b.driver_change_remark ?? "",
     bookingInstructions: b.booking_instructions ?? "",
     hasClosure: b.has_closure ?? false,
     hasSheet: b.has_sheet ?? false,
@@ -510,6 +519,8 @@ function toTrip(b: B): Trip & { _dbId: number } {
     verificationStatus: b.verification_status ?? "pending",
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,
+    driverName: b.driver_name ?? null,
+    truckRegistration: b.truck_registration ?? null,
   };
 }
 
@@ -552,8 +563,17 @@ function fromTrip(f: Trip) {
     rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
+    approx_km: f.approxKm ? parseFloat(f.approxKm) : null,
+    lift_on_amount: f.liftOnAmount ? parseFloat(f.liftOnAmount) : null,
+    lift_on_remarks: f.liftOnRemarks || null,
+    cha_name: f.chaName || null,
+    flagged_for_recheck: f.flaggedForRecheck ?? false,
+    flagged_remark: f.flaggedRemark || null,
+    advance_verified: f.advanceVerified ?? null,
+    advance_verification_remark: f.advanceVerificationRemark || null,
+    advance_corrected_amount: f.advanceCorrectedAmount ? parseFloat(f.advanceCorrectedAmount) : null,
     internal_remarks: f.internalRemarks || null,
-  driver_change_remark: f.driverChangeRemark || null,
+    driver_change_remark: f.driverChangeRemark || null,
     booking_instructions: f.bookingInstructions || null,
     invoice_required: f.invoiceRequired ?? true,
   };
@@ -686,6 +706,11 @@ function toSheet(b: B): TripSheetData {
     driverExpensesTotal: String(b.driver_expenses_total ?? ""),
     totalExpense: String(b.total_expense ?? ""),
     fuelCostApprox: String(b.fuel_cost_approx ?? ""),
+    dieselLitres: String(b.diesel_litres ?? ""),
+    dieselRate: String(b.diesel_rate ?? ""),
+    dieselTotal: String(b.diesel_total ?? ""),
+    dieselRemarks: b.diesel_remarks ?? "",
+    kmVarianceRemark: b.km_variance_remark ?? "",
     tollCharges: String(b.toll_charges ?? ""),
     remarks: b.remarks ?? "",
     version: typeof b.version === "number" ? b.version : undefined,
@@ -741,6 +766,11 @@ function fromSheet(f: TripSheetData) {
     driver_expenses_total: n(f.driverExpensesTotal),
     total_expense: n(f.totalExpense),
     fuel_cost_approx: n(f.fuelCostApprox),
+    diesel_litres: f.dieselLitres ? n(f.dieselLitres) : null,
+    diesel_rate: f.dieselRate ? n(f.dieselRate) : null,
+    diesel_total: f.dieselTotal ? n(f.dieselTotal) : null,
+    diesel_remarks: f.dieselRemarks || null,
+    km_variance_remark: f.kmVarianceRemark || null,
     toll_charges: n(f.tollCharges),
     remarks: f.remarks || null,
     client_version: f.version,  // echo version back for optimistic locking
@@ -1131,6 +1161,10 @@ export const tripsApi = {
     req<B>(`/trips/${dbId}/unmark-sheet`, { method: "POST" }).then(toTrip),
   flagSheetMissing: (dbId: string) =>
     req<B>(`/trips/${dbId}/flag-sheet-missing`, { method: "POST" }).then(toTrip),
+  setRecheckFlag: (dbId: string, flagged: boolean, remark: string) =>
+    req<B>(`/trips/${dbId}/recheck-flag`, { method: "POST", body: JSON.stringify({ flagged, remark }) }).then(toTrip),
+  verifyAdvance: (dbId: string, verified: boolean, remark: string, correctedAmount: number | null) =>
+    req<B>(`/trips/${dbId}/verify-advance`, { method: "POST", body: JSON.stringify({ verified, remark, corrected_amount: correctedAmount }) }).then(toTrip),
 };
 
 // ---------------------------------------------------------------------------
@@ -1138,6 +1172,8 @@ export const tripsApi = {
 // ---------------------------------------------------------------------------
 
 export const attendanceApi = {
+  getLatestDate: (category: "driver" | "staff") =>
+    req<{ latest_date: string | null }>(`/attendance/latest-date?category=${category}`).then((d) => d.latest_date),
   listDrivers: (date?: string, driverId?: string) => {
     const params = new URLSearchParams();
     if (date) params.set("date", date);
@@ -1633,6 +1669,7 @@ function toEditApproval(b: B): EditApprovalRequest {
     resourceName: String(b.resource_name ?? ""),
     action: b.action as EditApprovalAction,
     reason: String(b.reason ?? ""),
+    adminNote: b.admin_note ?? null,
     status: (b.status ?? "Pending") as EditApprovalRequest["status"],
     approvedAt: b.approved_at ?? null,
     expiresAt: b.expires_at ?? null,
@@ -1662,8 +1699,11 @@ export const editApprovalsApi = {
         reason: payload.reason,
       }),
     }).then(toEditApproval),
-  approve: (id: string) =>
-    req<B>(`/edit-approvals/${id}/approve`, { method: "PATCH" }).then(toEditApproval),
+  approve: (id: string, adminNote?: string) =>
+    req<B>(`/edit-approvals/${id}/approve`, {
+      method: "PATCH",
+      body: adminNote !== undefined ? JSON.stringify({ admin_note: adminNote }) : undefined,
+    }).then(toEditApproval),
   reject: (id: string) =>
     req<B>(`/edit-approvals/${id}/reject`, { method: "PATCH" }).then(toEditApproval),
   remove: (id: string) =>

@@ -23,7 +23,6 @@ const SEARCHABLE_TRIP_PATHS = new Set([
   "/trips/current",
   "/trips/completed",
   "/trips/history",
-  "/trips/finalization",
   "/trips/verification",
   "/trips/sheet-collection",
   "/trips/reconciliation",
@@ -32,9 +31,10 @@ const SEARCHABLE_TRIP_PATHS = new Set([
 // Where the global search lands per role (their main trips page)
 const SEARCH_TARGET_BY_ROLE: Record<string, string> = {
   Admin: "/trips/history",
-  "Fleet Manager": "/trips/current",
-  "Finance Manager": "/trips/finalization",
-  "Yard Staff": "/trips/sheet-collection",
+  "Commercial Manager": "/trips/current",
+  "Assistant Commercial Manager": "/trips/current",
+  Accounts: "/trips/verification",
+  "Yard Supervisor": "/trips/sheet-collection",
   "Trip Sheet Register": "/trips/reconciliation",
 };
 
@@ -109,8 +109,8 @@ export function Topbar() {
   const { user, logout } = useAuth();
 
   const isAdmin          = user?.softwareDesignation === "Admin";
-  const isFleetManager   = user?.softwareDesignation === "Fleet Manager";
-  const isFinanceManager = user?.softwareDesignation === "Finance Manager";
+  const isFleetManager   = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
+  const isFinanceManager = user?.softwareDesignation === "Accounts";
   const isStaff          = user?.softwareDesignation === "Trip Sheet Register";
   // Header for the reminders block depends on what the role actually receives
   const remindersHeading = isAdmin
@@ -308,8 +308,8 @@ export function Topbar() {
           </span>
         )} */}
 
-        {/* Notification bell — hidden for Yard Staff */}
-        {user?.softwareDesignation !== "Yard Staff" && <div className="relative" ref={notifRef}>
+        {/* Notification bell — hidden for Yard Supervisor */}
+        {user?.softwareDesignation !== "Yard Supervisor" && <div className="relative" ref={notifRef}>
           {(() => {
             const totalBadge =
               sheetAlerts.length +

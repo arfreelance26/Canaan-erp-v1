@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -160,7 +160,10 @@ class DriverOut(DriverBase):
 # Staff
 # ---------------------------------------------------------------------------
 
-SoftwareDesignation = Literal["Admin", "Fleet Manager", "Finance Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"]
+SoftwareDesignation = Literal["Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"]
+
+
+VALID_DESIGNATIONS = {"Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"}
 
 
 class StaffBase(OrmBase):
@@ -169,6 +172,13 @@ class StaffBase(OrmBase):
     department: Optional[str] = None
     designation: Optional[str] = None
     software_designation: SoftwareDesignation = "Trip Sheet Register"
+
+    @field_validator("software_designation", mode="before")
+    @classmethod
+    def coerce_designation(cls, v: object) -> object:
+        if not v or v not in VALID_DESIGNATIONS:
+            return "Trip Sheet Register"
+        return v
     date_of_birth: Optional[date] = None
     date_of_joining: Optional[date] = None
     email: Optional[str] = None
@@ -191,6 +201,15 @@ class StaffUpdate(OrmBase):
     department: Optional[str] = None
     designation: Optional[str] = None
     software_designation: Optional[SoftwareDesignation] = None
+
+    @field_validator("software_designation", mode="before")
+    @classmethod
+    def coerce_designation(cls, v: object) -> object:
+        if v is None:
+            return None  # unset = don't update
+        if not v or v not in VALID_DESIGNATIONS:
+            return "Trip Sheet Register"
+        return v
     date_of_birth: Optional[date] = None
     date_of_joining: Optional[date] = None
     email: Optional[str] = None
@@ -393,6 +412,15 @@ class TripBase(OrmBase):
     rate_per_ton: Optional[Decimal] = None
     transport_hire_amount: Optional[Decimal] = None
     transport_crossing_amount: Optional[Decimal] = None
+    approx_km: Optional[Decimal] = None
+    lift_on_amount: Optional[Decimal] = None
+    lift_on_remarks: Optional[str] = None
+    cha_name: Optional[str] = None
+    flagged_for_recheck: bool = False
+    flagged_remark: Optional[str] = None
+    advance_verified: Optional[bool] = None
+    advance_verification_remark: Optional[str] = None
+    advance_corrected_amount: Optional[Decimal] = None
     internal_remarks: Optional[str] = None
     driver_change_remark: Optional[str] = None
     booking_instructions: Optional[str] = None
@@ -431,6 +459,8 @@ class TripOut(TripBase):
     trip_sheet_date: Optional[date] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    driver_name: Optional[str] = None
+    truck_registration: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -546,7 +576,13 @@ class TripSheetCreate(OrmBase):
     driver_expenses_total: Optional[Decimal] = None
     total_expense: Optional[Decimal] = None
     fuel_cost_approx: Optional[Decimal] = None
+    diesel_litres: Optional[Decimal] = None
+    diesel_rate: Optional[Decimal] = None
+    diesel_total: Optional[Decimal] = None
+    diesel_remarks: Optional[str] = None
+    km_variance_remark: Optional[str] = None
     toll_charges: Optional[Decimal] = None
+    toll_count: Optional[int] = 0
     remarks: Optional[str] = None
 
 
@@ -700,7 +736,7 @@ class AttendanceSummaryOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 EditApprovalAction = Literal["Edit", "Delete"]
-EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip"]
 EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
 
 
@@ -722,17 +758,22 @@ class EditApprovalRequestOut(OrmBase):
     resource_name: str
     action: EditApprovalAction
     reason: str
+    admin_note: Optional[str] = None
     status: EditApprovalStatus
     approved_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
 
+class ApproveDeletePayload(OrmBase):
+    admin_note: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Leave Requests
 # ---------------------------------------------------------------------------
 
-LeaveCategory = Literal["Driver", "Fleet Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"]
+LeaveCategory = Literal["Driver", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"]
 LeaveStatus = Literal["Pending", "Approved", "Rejected"]
 
 class ApplicantLookupOut(OrmBase):

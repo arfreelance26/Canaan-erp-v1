@@ -151,6 +151,8 @@ export const initialTrips: Trip[] = [
     verificationStatus: "pending",
     isInvoiced: false,
     invoiceRequired: true,
+    driverName: null,
+    truckRegistration: null,
   },
   {
     id: "2",
@@ -202,6 +204,8 @@ export const initialTrips: Trip[] = [
     verificationStatus: "pending",
     isInvoiced: false,
     invoiceRequired: true,
+    driverName: null,
+    truckRegistration: null,
   },
   {
     id: "3",
@@ -253,5 +257,7 @@ export const initialTrips: Trip[] = [
     verificationStatus: "pending",
     isInvoiced: false,
     invoiceRequired: true,
+    driverName: null,
+    truckRegistration: null,
   },
 ];

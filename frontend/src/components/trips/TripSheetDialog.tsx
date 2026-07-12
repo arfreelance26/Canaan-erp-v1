@@ -11,7 +11,8 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
 import { repairTypesApi, fuelLogsApi, tripsApi } from "@/lib/api";
-import { showError } from "@/lib/swal";
+import { showError, MySwal } from "@/lib/swal";
+import { todayIst } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 // Auto-fill rules: tripType → containerType → { type, amount }
@@ -63,7 +64,8 @@ const emptySheet = (tripId: string): TripSheetData => ({
   to: "",
   clearingAgent: "",
   hireAmount: "", openLoadHireType: "", ratePerTon: "",
-  startKm: "", endKm: "", totalKm: "", cargoWeight: "",
+  startKm: "", endKm: "", totalKm: "", cargoWeight: "", kmVarianceRemark: "",
+  dieselLitres: "", dieselRate: "", dieselTotal: "", dieselRemarks: "",
   driverCompensationType: "",
   driverPay: "",
   driverAdvanceAmount: "",
@@ -163,18 +165,21 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.tripScheduledDate   = trip.scheduledDate ?? "";
       sheet.from                = trip.origin ?? "";
       sheet.to                  = trip.destination ?? "";
+      sheet.clearingAgent       = trip.chaName ?? "";
       sheet.cargoWeight         = trip.cargoWeight ?? "";
       sheet.openLoadHireType    = trip.openLoadHireType ?? "";
       sheet.ratePerTon          = trip.ratePerTon ?? "";
       sheet.hireAmount              = trip.transportHireAmount ?? "";
       sheet.driverCompensationType  = trip.driverCompensationType || battaCompType;
-      sheet.driverPay               = trip.driverAdvanceAmount ?? "";
+      sheet.driverPay               = "";
       sheet.driverAdvanceAmount = String(
         (Number(closure?.driverAdvance || 0) + Number(closure?.additionalDriverAdvance || 0)).toFixed(2)
       );
       if (closure) {
         sheet.tripCompletedDate = closure.tripCompletedDate ?? "";
       }
+      // Auto-set entry date to today (non-editable once set)
+      sheet.tripSheetDate = todayIst();
       setForm(recalcDerived(sheet, hp));
     }
   }, [open, trip, existingSheet, closure]);
@@ -228,8 +233,54 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       }
       setSaving(false);
     }
+    // ±10% KM variance check (compare totalKm to trip.approxKm)
+    let kmRemark = form.kmVarianceRemark;
+    const approxKm = n(trip?.approxKm ?? "0");
+    const actualKm = n(form.totalKm);
+    if (!ro && approxKm > 0 && actualKm > 0 && !kmRemark) {
+      const pct = Math.abs((actualKm - approxKm) / approxKm) * 100;
+      if (pct > 10) {
+        const res = await MySwal.fire({
+          title: "KM Variance Alert",
+          html: `<p>Actual KM (<b>${actualKm}</b>) differs from approximate KM (<b>${approxKm}</b>) by <b>${pct.toFixed(1)}%</b> — outside the ±10% limit.</p><p class="mt-2 text-sm text-gray-500">Please enter a reason to proceed.</p>`,
+          input: "textarea",
+          inputPlaceholder: "Enter reason for KM variance...",
+          inputAttributes: { required: "true" },
+          showCancelButton: true,
+          confirmButtonText: "Save with Remark",
+          preConfirm: (val: string) => { if (!val?.trim()) { MySwal.showValidationMessage("Remark is required"); return false; } return val.trim(); },
+        });
+        if (res.isDismissed) { setSaving(false); return; }
+        kmRemark = res.value as string;
+      }
+    }
+
+    // ±5% diesel variance check (compare diesel_total to fuel_cost_approx as baseline)
+    let dieselRemark = form.dieselRemarks;
+    const dieselTotal = n(form.dieselTotal);
+    const fuelCostBase = n(form.fuelCostApprox);
+    if (!ro && dieselTotal > 0 && fuelCostBase > 0 && !dieselRemark) {
+      const pct = Math.abs((dieselTotal - fuelCostBase) / fuelCostBase) * 100;
+      if (pct > 5) {
+        const res = await MySwal.fire({
+          title: "Diesel Cost Variance Alert",
+          html: `<p>Diesel total (<b>₹${dieselTotal.toLocaleString("en-IN")}</b>) differs from expected fuel cost (<b>₹${fuelCostBase.toLocaleString("en-IN")}</b>) by <b>${pct.toFixed(1)}%</b> — outside the ±5% limit.</p><p class="mt-2 text-sm text-gray-500">Please enter a reason to proceed.</p>`,
+          input: "textarea",
+          inputPlaceholder: "Enter reason for diesel variance...",
+          inputAttributes: { required: "true" },
+          showCancelButton: true,
+          confirmButtonText: "Save with Remark",
+          preConfirm: (val: string) => { if (!val?.trim()) { MySwal.showValidationMessage("Remark is required"); return false; } return val.trim(); },
+        });
+        if (res.isDismissed) { setSaving(false); return; }
+        dieselRemark = res.value as string;
+      }
+    }
+
     onSubmit({
       ...form,
+      kmVarianceRemark: kmRemark,
+      dieselRemarks: dieselRemark,
       tripClosedDate:  closure?.closedAt ?? "",
       totalHaltDays:   haltTotalDays > 0   ? String(haltTotalDays)               : "",
       haltPay:         companyHaltPay > 0  ? companyHaltPay.toFixed(2)           : "",
@@ -246,6 +297,15 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   useEffect(() => {
     setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
   }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-calculate diesel total when litres or rate changes
+  useEffect(() => {
+    const litres = n(form.dieselLitres);
+    const rate = n(form.dieselRate);
+    if (litres > 0 && rate > 0) {
+      setForm((prev) => ({ ...prev, dieselTotal: (litres * rate).toFixed(2) }));
+    }
+  }, [form.dieselLitres, form.dieselRate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-fill driver batta based on BATTA_RULES (non-RETURN TRIP categories)
   useEffect(() => {
@@ -365,8 +425,16 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Trip Closed Date">
             <input className={roClass} value={closure?.closedAt ? closure.closedAt.split("-").reverse().join("-") : ""} readOnly disabled placeholder="Auto-fetched on close" />
           </Field>
-          <Field label="Date of Trip Sheet Entry *">
-            <DatePickerInput value={form.tripSheetDate} onChange={(v) => set("tripSheetDate", v)} disabled={ro} />
+          <Field label="Date of Trip Sheet Entry">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={form.tripSheetDate ? form.tripSheetDate.split("-").reverse().join("-") : "—"}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-600`}
+              title="Auto-set to today when first opened — cannot be changed"
+            />
+            <span className="mt-1 text-xs text-gray-400">Auto-set to today. Non-editable.</span>
           </Field>
         </div>
 
@@ -447,6 +515,53 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             </Field>
           )}
         </div>
+
+        {/* ── 4b. Diesel Entry ── */}
+        <p className={sh}>Diesel Entry</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Diesel Quantity (litres)">
+            <DecimalInput
+              type="number" min="0" step="0.01"
+              className={fc}
+              value={form.dieselLitres}
+              readOnly={ro}
+              onChange={(e) => set("dieselLitres", e.target.value)}
+              placeholder="e.g. 80"
+            />
+          </Field>
+          <Field label="Diesel Rate (₹/litre)">
+            <DecimalInput
+              type="number" min="0" step="0.01"
+              className={fc}
+              value={form.dieselRate}
+              readOnly={ro}
+              onChange={(e) => set("dieselRate", e.target.value)}
+              placeholder="e.g. 92.50"
+            />
+          </Field>
+          <Field label="Diesel Total (₹)">
+            <DecimalInput
+              type="number" min="0"
+              className={`${fc} bg-gray-50`}
+              value={form.dieselTotal}
+              readOnly
+              placeholder="Auto-calculated"
+            />
+            {n(form.dieselLitres) > 0 && n(form.dieselRate) > 0 && (
+              <p className="mt-1 text-xs text-gray-400">
+                {form.dieselLitres} L × ₹{form.dieselRate}/L = ₹{n(form.dieselTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </p>
+            )}
+          </Field>
+        </div>
+        {n(form.dieselTotal) > 0 && n(form.fuelCostApprox) > 0 && (() => {
+          const pct = Math.abs((n(form.dieselTotal) - n(form.fuelCostApprox)) / n(form.fuelCostApprox)) * 100;
+          return pct > 5 ? (
+            <p className="text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+              ⚠ Diesel total (₹{n(form.dieselTotal).toLocaleString("en-IN")}) differs from expected fuel cost (₹{n(form.fuelCostApprox).toLocaleString("en-IN")}) by {pct.toFixed(1)}% — a remark will be required on save.
+            </p>
+          ) : null;
+        })()}
 
         {/* ── 5. Halt Information ── */}
         <p className={sh}>Halt Information</p>
@@ -742,7 +857,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   <span className="mt-0.5 text-blue-500 text-sm">ℹ</span>
                   <p className="text-sm text-blue-800">
                     <span className="font-semibold">Invoice Required — </span>
-                    This trip will proceed through <span className="font-semibold">Trip Verification</span> and then to <span className="font-semibold">Invoicing</span> before going to Trip History.
+                    After verification this trip will be available for invoicing on the <span className="font-semibold">Verification &amp; Invoicing</span> page before going to Trip History.
                   </p>
                 </div>
               ) : (
@@ -750,7 +865,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   <span className="mt-0.5 text-amber-500 text-sm">⚠</span>
                   <p className="text-sm text-amber-800">
                     <span className="font-semibold">No Invoice — </span>
-                    This trip will proceed through <span className="font-semibold">Trip Verification</span> but will <span className="font-semibold">skip Invoicing</span> and go directly to <span className="font-semibold">Trip History</span>.
+                    This trip will be verified on the <span className="font-semibold">Verification &amp; Invoicing</span> page but will <span className="font-semibold">skip invoicing</span> and go directly to <span className="font-semibold">Trip History</span>.
                   </p>
                 </div>
               )}

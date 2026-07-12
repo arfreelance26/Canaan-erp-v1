@@ -25,6 +25,7 @@ import {
   BarChart3,
   FileCheck,
   ShieldAlert,
+  BarChart2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -68,9 +69,9 @@ export const sidebarSections: NavSection[] = [
       { label: "Completed Trips", href: "/trips/completed", icon: Route },
       { label: "Sheet Collection", href: "/trips/sheet-collection", icon: FileCheck },
       { label: "Trip Reconciliation", href: "/trips/reconciliation", icon: ClipboardList },
-      { label: "Trip Verification", href: "/trips/verification", icon: ClipboardCheck },
-      { label: "Trip Finalization", href: "/trips/finalization", icon: CalendarCheck },
+      { label: "Verification & Invoicing", href: "/trips/verification", icon: ClipboardCheck },
       { label: "Trip History", href: "/trips/history", icon: History },
+      { label: "P&L & Mileage", href: "/trips/pnl-mileage", icon: BarChart2 },
     ],
   },
   {

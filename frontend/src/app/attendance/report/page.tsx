@@ -71,7 +71,12 @@ export default function AttendanceReportPage() {
   const [toDate, setToDate] = useState(todayIst());
   const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
   const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
+  const [latestDate, setLatestDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
+  }, [category]);
 
   useEffect(() => {
     if (ready && user?.softwareDesignation !== "Admin") {
@@ -138,6 +143,16 @@ export default function AttendanceReportPage() {
               : "Present, Absent, and On Leave day counts for staff over any date range"}
           </p>
         </div>
+        {latestDate && (
+          <div className="flex flex-col items-end sm:text-right">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Latest {isDriver ? "Driver" : "Staff"} Attendance Marked
+            </span>
+            <span className="mt-0.5 inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-sm font-medium text-blue-700 border border-blue-100">
+              {formatDate(latestDate)}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
@@ -225,9 +240,9 @@ export default function AttendanceReportPage() {
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-[65vh] rounded-xl border border-gray-200 bg-white">
             <table className="w-full text-left text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {(isDriver ? driverColumns : staffColumns).map((col) => (
                     <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">

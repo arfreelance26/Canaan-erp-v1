@@ -24,6 +24,7 @@ import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 
+
 const QUICK_LINKS = [
   { label: "Trip Finalization",   href: "/trips/finalization",         icon: CalendarCheck, color: "bg-blue-50 text-blue-600 border-blue-200" },
   { label: "Trip History",        href: "/trips/history",              icon: History,       color: "bg-violet-50 text-violet-600 border-violet-200" },
@@ -171,7 +172,7 @@ export function FinanceManagerDashboard() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Finance Manager Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h1>
           <p className="mt-1 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
         </div>
         {!loading && overdueEmis.length > 0 && (
@@ -219,7 +220,7 @@ export function FinanceManagerDashboard() {
               <p className="text-sm font-medium text-gray-600">No EMI payments due</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {/* Overdue first */}
               {overdueEmis.slice(0, 3).map((e) => {
                 const daysOv = -daysBetween(e.emiPaymentDate);
@@ -276,7 +277,7 @@ export function FinanceManagerDashboard() {
               <p className="text-xs text-gray-400">No pending finalization</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {pendingFinalization.slice(0, 6).map((trip) => (
                 <li key={trip.id} className="flex items-center gap-3 py-2.5">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50">
@@ -323,7 +324,7 @@ export function FinanceManagerDashboard() {
               <p className="text-sm font-medium text-gray-600">All documents valid</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {complianceAlerts.slice(0, 6).map((a, i) => {
                 const days = daysBetween(a.date);
                 const isExpired = a.status === "Expired";
@@ -366,7 +367,7 @@ export function FinanceManagerDashboard() {
               <p className="text-sm font-medium text-gray-600">No payments due in 7 days</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {dueSoonRecurring.map((r) => {
                 const days = daysBetween(r.nextDueDate);
                 return (
@@ -391,6 +392,7 @@ export function FinanceManagerDashboard() {
           )}
         </div>
       </div>
+
     </div>
   );
 }

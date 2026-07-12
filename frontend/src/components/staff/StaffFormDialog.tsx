@@ -42,7 +42,7 @@ const emptyForm: Omit<Staff, "id"> = {
   address: "",
   aadharNumber: null,
   aadharFileName: null,
-  softwareDesignation: "",
+  softwareDesignation: "Trip Sheet Register",
   username: "",
   password: "",
 };
@@ -204,10 +204,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
             <GlassSelect
               value={form.softwareDesignation}
               onChange={(val) => update("softwareDesignation", val)}
-              options={[
-                { value: "", label: "Select a role" },
-                ...SOFTWARE_DESIGNATION_OPTIONS.map(o => ({ value: o, label: o }))
-              ]}
+              options={SOFTWARE_DESIGNATION_OPTIONS.map(o => ({ value: o, label: o }))}
             />
           </Field>
         </div>

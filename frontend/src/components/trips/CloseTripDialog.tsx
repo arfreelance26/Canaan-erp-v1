@@ -184,7 +184,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               <input
                 readOnly
                 disabled
-                value={truck ? `${truck.registrationNumber} (${form.vehicleId})` : form.vehicleId}
+                value={trip.truckRegistration ?? (truck ? `${truck.registrationNumber} (${form.vehicleId})` : form.vehicleId)}
                 className={readonlyClass}
               />
             </Field>
@@ -192,7 +192,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               <input
                 readOnly
                 disabled
-                value={driver ? driver.name : form.driverId}
+                value={trip.driverName ?? driver?.name ?? form.driverId}
                 className={readonlyClass}
               />
             </Field>

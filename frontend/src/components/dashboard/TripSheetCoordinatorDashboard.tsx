@@ -13,6 +13,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { tripsApi } from "@/lib/api";
+
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import type { Trip } from "@/types/trip";
 
@@ -122,7 +123,7 @@ export function TripSheetCoordinatorDashboard() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Yard Staff</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Yard Supervisor</h1>
           <p className="mt-1 text-sm text-gray-500">Sheet collection status across all closed trips</p>
         </div>
         {!loading && pending.length > 0 && (
@@ -171,7 +172,7 @@ export function TripSheetCoordinatorDashboard() {
               <p className="text-xs text-gray-400">No pending trips</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {urgentPending.map((trip) => (
                 <li key={trip.id} className="flex items-center gap-3 py-2.5">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50">
@@ -208,7 +209,7 @@ export function TripSheetCoordinatorDashboard() {
               <p className="text-sm text-gray-400">No sheets delivered yet</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {recentDelivered.map((trip) => (
                 <li key={trip.id} className="flex items-center gap-3 py-2.5">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
@@ -227,6 +228,7 @@ export function TripSheetCoordinatorDashboard() {
           )}
         </div>
       </div>
+
     </div>
   );
 }

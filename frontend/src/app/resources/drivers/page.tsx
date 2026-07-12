@@ -13,6 +13,7 @@ import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -88,7 +89,7 @@ export default function DriversPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading drivers...</div>;
+  if (loading) return <PageSkeleton hasButton hasSearch columns={11} rows={8} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

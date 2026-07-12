@@ -77,6 +77,20 @@ def attendance_summary(
                 not_marked=max(total_days - marked, 0), total_days=total_days,
             ))
     return result
+@router.get("/latest-date")
+def get_latest_attendance_date(
+    category: str = Query(..., description="'driver' or 'staff'"),
+    db: Session = Depends(get_db)
+):
+    if category == "driver":
+        latest = db.query(models.DriverAttendance.date).order_by(models.DriverAttendance.date.desc()).first()
+    elif category == "staff":
+        latest = db.query(models.StaffAttendance.date).order_by(models.StaffAttendance.date.desc()).first()
+    else:
+        raise HTTPException(400, "category must be 'driver' or 'staff'")
+    
+    return {"latest_date": latest[0] if latest else None}
+
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +276,7 @@ def lookup_applicant(code: str, db: Session = Depends(get_db)):
     staff = db.query(models.Staff).filter(models.Staff.staff_id == code_upper).first()
     if staff:
         return schemas.ApplicantLookupOut(
-            category=staff.software_designation if staff.software_designation in ["Fleet Manager", "Tyre Manager", "Trip Sheet Register", "Yard Staff"] else "Trip Sheet Register",
+            category=staff.software_designation if staff.software_designation in ["Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"] else "Trip Sheet Register",
             applicant_id=staff.id,
             applicant_name=staff.name,
             applicant_code=staff.staff_id

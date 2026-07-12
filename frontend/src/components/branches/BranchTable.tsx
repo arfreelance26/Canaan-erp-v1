@@ -24,9 +24,9 @@ export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+    <div className="overflow-auto max-h-[65vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
       <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr className="border-b border-gray-200 bg-gray-50">
             {columns.map((col) => (
               <th

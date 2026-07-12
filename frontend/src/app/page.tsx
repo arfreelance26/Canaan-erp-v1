@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { FleetManagerDashboard } from "@/components/dashboard/FleetManagerDashboard";
 import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboard";
@@ -160,15 +161,15 @@ function AttendanceBar({
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  if (user?.softwareDesignation === "Fleet Manager") {
+  if (user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager") {
     return <FleetManagerDashboard />;
   }
 
-  if (user?.softwareDesignation === "Tyre Manager") {
+  if (user?.softwareDesignation === "Maintenance") {
     return <TyreManagerDashboard />;
   }
 
-  if (user?.softwareDesignation === "Finance Manager") {
+  if (user?.softwareDesignation === "Accounts") {
     return <FinanceManagerDashboard />;
   }
 
@@ -176,10 +177,11 @@ export default function DashboardPage() {
     return <StaffDashboard />;
   }
 
-  if (user?.softwareDesignation === "Yard Staff") {
+  if (user?.softwareDesignation === "Yard Supervisor") {
     return <TripSheetCoordinatorDashboard />;
   }
 
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [trucks, setTrucks] = useState<TruckType[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -198,6 +200,7 @@ export default function DashboardPage() {
   const [driverTransactions, setDriverTransactions] = useState<CompensationTransaction[]>([]);
   const [staffTransactions, setStaffTransactions] = useState<CompensationTransaction[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<"overview" | "commercial" | "accounts" | "yard" | "tripsheet" | "maintenance">("overview");
   const [sheetDeliveredFilter, setSheetDeliveredFilter] = useState<"All" | "Awaiting Receipt" | "Received">("All");
   const [sheetDeliveredDate, setSheetDeliveredDate] = useState("");
   const [sheetReceivedFilter, setSheetReceivedFilter] = useState<"All" | "Pending Entry" | "Entered">("All");
@@ -495,7 +498,37 @@ export default function DashboardPage() {
     });
   }, [trucks]);
 
-  if (loading) {
+  const ADMIN_TABS = [
+    { key: "overview"     as const, label: "Admin Overview",  icon: Activity },
+    { key: "commercial"   as const, label: "Commercial Mgr",  icon: Navigation },
+    { key: "accounts"     as const, label: "Accounts",        icon: Wallet },
+    { key: "yard"         as const, label: "Yard Supervisor", icon: CheckCircle2 },
+    { key: "tripsheet"    as const, label: "Trip Sheet Reg.", icon: Inbox },
+    { key: "maintenance"  as const, label: "Maintenance",     icon: Wrench },
+  ];
+
+  const tabBar = (
+    <div className="flex flex-wrap items-center gap-2.5">
+      {ADMIN_TABS.map(({ key, label, icon: Icon }) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setActiveTab(key)}
+          className={cn(
+            "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-sm transition-all",
+            activeTab === key
+              ? "bg-blue-600 text-white shadow-blue-200"
+              : "border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+          )}
+        >
+          <Icon className="h-4 w-4" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (loading && activeTab === "overview") {
     return (
       <div className="flex flex-col gap-6 animate-pulse">
         <div className="flex items-end justify-between">
@@ -538,7 +571,15 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
+      {tabBar}
 
+      {activeTab === "commercial" && <FleetManagerDashboard />}
+      {activeTab === "accounts" && <FinanceManagerDashboard />}
+      {activeTab === "yard" && <TripSheetCoordinatorDashboard />}
+      {activeTab === "tripsheet" && <StaffDashboard />}
+      {activeTab === "maintenance" && <TyreManagerDashboard />}
+
+      {activeTab === "overview" && <>
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-end justify-between">
         <div>
@@ -559,6 +600,7 @@ export default function DashboardPage() {
           caption={`${tripStatusCounts.Completed} completed · ${trips.length} total`}
           icon={Navigation}
           variant="blue"
+          onClick={() => router.push("/trips/current")}
         />
         <StatCard
           label="Fleet on Road"
@@ -566,6 +608,7 @@ export default function DashboardPage() {
           caption={`${trucksAvailableCount} truck${trucksAvailableCount !== 1 ? "s" : ""} available`}
           icon={Truck}
           variant={trucksOnTripCount > 0 ? "default" : "emerald"}
+          onClick={() => router.push("/trips/current")}
         />
         <StatCard
           label="Urgent Alerts"
@@ -674,12 +717,12 @@ export default function DashboardPage() {
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Trip Sheet Tracking</h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-              {/* Delivered by Yard Staff */}
+              {/* Delivered by Yard Supervisor */}
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-600">
                     <FileCheck2 className="h-4 w-4" />
-                    Delivered by Yard Staff
+                    Delivered by Yard Supervisor
                   </p>
                   <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-bold text-emerald-700">
                     {sheetsDelivered.length}
@@ -704,7 +747,12 @@ export default function DashboardPage() {
                     className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                   />
                   {sheetDeliveredDate && (
-                    <button type="button" onClick={() => setSheetDeliveredDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>
+                    <>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                        {deliveredVisible.length}
+                      </span>
+                      <button type="button" onClick={() => setSheetDeliveredDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>
+                    </>
                   )}
                 </div>
                 {deliveredVisible.length === 0 ? (
@@ -757,13 +805,27 @@ export default function DashboardPage() {
                     <label className="w-24 text-[11px] font-medium text-gray-500">Received on</label>
                     <input type="date" value={sheetReceivedDate} onChange={(e) => setSheetReceivedDate(e.target.value)}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-                    {sheetReceivedDate && <button type="button" onClick={() => setSheetReceivedDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>}
+                    {sheetReceivedDate && (
+                      <>
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                          {receivedVisible.length}
+                        </span>
+                        <button type="button" onClick={() => setSheetReceivedDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="w-24 text-[11px] font-medium text-gray-500">Entered on</label>
                     <input type="date" value={sheetEnteredDate} onChange={(e) => setSheetEnteredDate(e.target.value)}
                       className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-                    {sheetEnteredDate && <button type="button" onClick={() => setSheetEnteredDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>}
+                    {sheetEnteredDate && (
+                      <>
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                          {receivedVisible.length}
+                        </span>
+                        <button type="button" onClick={() => setSheetEnteredDate("")} className="text-[11px] text-gray-400 hover:text-gray-600">✕</button>
+                      </>
+                    )}
                   </div>
                 </div>
                 {receivedVisible.length === 0 ? (
@@ -846,6 +908,120 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Booking Horizon ─────────────────────────────────────────────── */}
+      {(() => {
+        const ACTIVE = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+        const activeTrips = trips.filter((t) => ACTIVE.has(t.status));
+
+        // Group by scheduledDate — shows how many trips are booked per day
+        const byDate = new Map<string, Trip[]>();
+        for (const t of activeTrips) {
+          const d = t.scheduledDate || t.assignedDate;
+          if (!d) continue;
+          if (!byDate.has(d)) byDate.set(d, []);
+          byDate.get(d)!.push(t);
+        }
+        const sortedDates = [...byDate.keys()].sort();
+        const latestDate = sortedDates[sortedDates.length - 1] ?? null;
+
+        const fmtD = (d: string) => {
+          const [y, m, day] = d.split("-").map(Number);
+          return new Date(y, m - 1, day).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        };
+        const dayName = (d: string) => {
+          const [y, m, day] = d.split("-").map(Number);
+          return new Date(y, m - 1, day).toLocaleDateString("en-IN", { weekday: "short" });
+        };
+
+        const past   = sortedDates.filter((d) => d < today);
+        const upcoming = sortedDates.filter((d) => d >= today);
+
+        return (
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Booking Horizon</h2>
+              {latestDate && (
+                <span className="text-xs font-medium text-gray-500">
+                  Bookings made up to <span className="font-semibold text-gray-800">{fmtD(latestDate)}</span>
+                </span>
+              )}
+            </div>
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+              {sortedDates.length === 0 ? (
+                <p className="text-xs text-gray-400">No active bookings found.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {/* Summary strip */}
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    <span className="rounded-full bg-indigo-100 px-3 py-1 font-semibold text-indigo-700">
+                      {activeTrips.length} active trip{activeTrips.length !== 1 ? "s" : ""}
+                    </span>
+                    <span className="rounded-full bg-white border border-gray-200 px-3 py-1 font-semibold text-gray-600">
+                      {sortedDates.length} date{sortedDates.length !== 1 ? "s" : ""} booked
+                    </span>
+                    {past.length > 0 && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-700">
+                        {past.reduce((s, d) => s + byDate.get(d)!.length, 0)} trip{past.reduce((s, d) => s + byDate.get(d)!.length, 0) !== 1 ? "s" : ""} on past dates still active
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Date rows */}
+                  <div className="flex max-h-64 flex-col gap-1 overflow-y-auto custom-scrollbar pr-1">
+                    {sortedDates.map((d) => {
+                      const tripsOnDay = byDate.get(d)!;
+                      const isPast = d < today;
+                      const isToday = d === today;
+                      return (
+                        <div
+                          key={d}
+                          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs ${
+                            isToday
+                              ? "bg-indigo-100 border border-indigo-200"
+                              : isPast
+                              ? "bg-amber-50 border border-amber-100"
+                              : "bg-white/80"
+                          }`}
+                        >
+                          <span className={`w-8 shrink-0 font-semibold ${isPast ? "text-amber-600" : isToday ? "text-indigo-700" : "text-gray-500"}`}>
+                            {dayName(d)}
+                          </span>
+                          <span className={`w-28 shrink-0 font-medium ${isPast ? "text-amber-700" : isToday ? "text-indigo-800" : "text-gray-700"}`}>
+                            {fmtD(d)}
+                            {isToday && <span className="ml-1.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-bold text-white">Today</span>}
+                            {isPast && <span className="ml-1.5 text-[10px] text-amber-500">(past)</span>}
+                          </span>
+                          <div className="flex flex-1 flex-wrap gap-1">
+                            {tripsOnDay.slice(0, 8).map((t) => (
+                              <span key={t.id} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+                                {t.tripId}
+                              </span>
+                            ))}
+                            {tripsOnDay.length > 8 && (
+                              <span className="text-[10px] text-gray-400">+{tripsOnDay.length - 8} more</span>
+                            )}
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 font-bold ${isPast ? "bg-amber-100 text-amber-700" : isToday ? "bg-indigo-200 text-indigo-800" : "bg-emerald-100 text-emerald-700"}`}>
+                            {tripsOnDay.length}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {upcoming.length > 0 && (
+                    <p className="text-[11px] text-gray-400">
+                      Next booking: <span className="font-semibold text-gray-600">{fmtD(upcoming[0])}</span>
+                      {" · "}Furthest booking: <span className="font-semibold text-gray-600">{fmtD(latestDate!)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Section 2: Visual Charts ────────────────────────────────────── */}
       {/* Row 1: Trip Distribution + Fleet Utilization */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -906,10 +1082,8 @@ export default function DashboardPage() {
               No active trips right now.
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {liveTrips.map((trip) => {
-                const driver = driverById.get(trip.driverId);
-                const truck = truckByVehicleId.get(trip.vehicleId);
                 return (
                   <div
                     key={trip.id}
@@ -938,10 +1112,10 @@ export default function DashboardPage() {
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-xs font-semibold text-gray-700">
-                        {driver?.name ?? "—"}
+                        {trip.driverName ?? "—"}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {truck?.registrationNumber ?? trip.vehicleId ?? "—"}
+                        {trip.truckRegistration ?? trip.vehicleId ?? "—"}
                       </p>
                     </div>
                   </div>
@@ -1180,7 +1354,7 @@ export default function DashboardPage() {
               />
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2 max-h-48 overflow-y-auto">
             {trucks.map((truck) => {
               const onTrip = trucksOnTripIds.has(truck.truckId);
               return (
@@ -1372,6 +1546,7 @@ export default function DashboardPage() {
       <div className="border-t border-gray-200 pt-6">
         <TyreManagerDashboard embedded />
       </div>
+      </>}
     </div>
   );
 }

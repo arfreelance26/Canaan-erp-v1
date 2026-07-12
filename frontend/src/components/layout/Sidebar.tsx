@@ -13,37 +13,51 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 // Allowed hrefs per software designation (Admin gets everything)
 const ROLE_HREFS: Record<string, string[] | "all"> = {
   Admin: "all",
-  "Fleet Manager": [
+  "Commercial Manager": [
     "/",
     "/trips/assign-drivers",
     "/trips/assign",
     "/trips/current",
     "/trips/completed",
     "/trips/history",
+    "/trips/pnl-mileage",
     "/resources/customers",
     "/resources/drivers",
     "/resources/fleet",
     "/attendance/drivers",
     "/attendance/leave-requests",
   ],
-  "Finance Manager": [
+  "Assistant Commercial Manager": [
+    "/",
+    "/trips/assign-drivers",
+    "/trips/assign",
+    "/trips/current",
+    "/trips/completed",
+    "/trips/history",
+    "/trips/pnl-mileage",
+    "/resources/customers",
+    "/resources/drivers",
+    "/resources/fleet",
+    "/attendance/drivers",
+    "/attendance/leave-requests",
+  ],
+  Accounts: [
     "/",
     "/trips/verification",
-    "/trips/finalization",
     "/trips/history",
     "/finance/driver-compensation",
     "/finance/emi-tracking",
     "/maintenance/compliance",
     "/attendance/leave-requests",
   ],
-  "Tyre Manager": [
+  Maintenance: [
     "/",
     "/maintenance/tyre-management",
     "/maintenance/tyre-inventory",
     "/maintenance/trucks",
     "/attendance/leave-requests",
   ],
-  "Yard Staff": [
+  "Yard Supervisor": [
     "/trips/sheet-collection",
     "/attendance/leave-requests",
   ],

@@ -24,6 +24,7 @@ import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck as TruckType } from "@/types/truck";
 import type { MaintenanceRecord, MaintenanceStatusItem } from "@/types/truck-maintenance";
 
+
 const QUICK_LINKS = [
   { label: "Tyre Management",  href: "/maintenance/tyre-management",  icon: CircleDot, color: "bg-blue-50 text-blue-600 border-blue-200" },
   { label: "Tyre Inventory",   href: "/maintenance/tyre-inventory",   icon: Boxes,     color: "bg-violet-50 text-violet-600 border-violet-200" },
@@ -182,7 +183,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       ) : (
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tyre Manager Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Maintenance Dashboard</h1>
             <p className="mt-1 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
           </div>
           {!loading && criticalTyres > 0 && (
@@ -356,7 +357,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
               <p className="text-sm text-gray-400">No maintenance records yet</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50">
+            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
               {recentRecords.map((r) => {
                 const truck = truckByDbId.get(r.truckId);
                 return (
@@ -383,6 +384,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
           )}
         </div>
       </div>
+
     </div>
   );
 }

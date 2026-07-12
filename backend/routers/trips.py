@@ -1,6 +1,7 @@
 from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
@@ -51,16 +52,18 @@ def _check_driver_truck_conflict(db: Session, driver_id, vehicle_id, exclude_tri
             )
 
 
-def _enrich(trip: models.Trip) -> dict:
+def _enrich(trip: models.Trip, driver_names: dict = {}, truck_regs: dict = {}) -> dict:
     """Return a dict matching TripOut, including computed has_closure / has_sheet."""
     data = {c.name: getattr(trip, c.name) for c in trip.__table__.columns}
     data["has_closure"] = trip.closure is not None
     data["has_sheet"] = trip.sheet is not None
     data["trip_sheet_date"] = trip.sheet.trip_sheet_date if trip.sheet else None
+    data["driver_name"] = driver_names.get(trip.driver_id)
+    data["truck_registration"] = truck_regs.get(trip.vehicle_id)
     return data
 
 
-SHEET_COLLECTOR_ROLES = ("Yard Staff",)
+SHEET_COLLECTOR_ROLES = ("Yard Supervisor",)
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +81,12 @@ def list_trips(
     )
     if status:
         q = q.filter(models.Trip.status == status)
-    return [_enrich(t) for t in q.order_by(models.Trip.booking_created_date.desc()).all()]
+    trips = q.order_by(models.Trip.booking_created_date.desc()).all()
+
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
+    truck_regs = {t.truck_id: t.registration_number for t in db.query(models.Truck.truck_id, models.Truck.registration_number).all()}
+
+    return [_enrich(t, driver_names, truck_regs) for t in trips]
 
 
 @router.post("", response_model=schemas.TripOut, status_code=201)
@@ -314,6 +322,37 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
             truck.odometer = end_km_val
             db.commit()
 
+    # Auto-sync diesel entry to FuelLog (upsert by trip_id marker)
+    if truck and payload.diesel_litres and payload.diesel_rate:
+        diesel_litres = float(payload.diesel_litres)
+        diesel_rate = float(payload.diesel_rate)
+        diesel_total = float(payload.diesel_total or diesel_litres * diesel_rate)
+        odometer_val = int(payload.end_km or 0)
+        log_date = payload.trip_sheet_date or date_type.today()
+
+        existing_log = db.query(models.FuelLog).filter(
+            models.FuelLog.truck_id == truck.id,
+            models.FuelLog.logged_by == f"trip:{trip_id}",
+        ).first()
+        if existing_log:
+            existing_log.date = log_date
+            existing_log.odometer = odometer_val
+            existing_log.litres = diesel_litres
+            existing_log.price_per_litre = diesel_rate
+            existing_log.total_cost = diesel_total
+        else:
+            db.add(models.FuelLog(
+                truck_id=truck.id,
+                date=log_date,
+                odometer=odometer_val,
+                litres=diesel_litres,
+                price_per_litre=diesel_rate,
+                total_cost=diesel_total,
+                fuel_station="Trip Sheet",
+                logged_by=f"trip:{trip_id}",
+            ))
+        db.commit()
+
     # On first save, auto-create a maintenance record for each major repair
     if is_new and truck:
         record_date = payload.trip_sheet_date or date_type.today()
@@ -383,6 +422,48 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     db.refresh(trip)
     return _enrich(trip)
 
+class RecheckFlagBody(BaseModel):
+    flagged: bool
+    remark: str = ""
+
+
+@router.post("/{trip_id}/recheck-flag", response_model=schemas.TripOut)
+def toggle_recheck_flag(trip_id: int, body: RecheckFlagBody, db: Session = Depends(get_db)):
+    """Docs staff toggle: flag a trip for re-checking before confirming sheet entry."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    trip.flagged_for_recheck = body.flagged
+    trip.flagged_remark = body.remark if body.flagged else None
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+class AdvanceVerifyBody(BaseModel):
+    verified: bool                        # True = correct, False = incorrect
+    remark: str = ""
+    corrected_amount: Optional[float] = None
+
+
+@router.post("/{trip_id}/verify-advance", response_model=schemas.TripOut)
+def verify_driver_advance(trip_id: int, body: AdvanceVerifyBody, db: Session = Depends(get_db)):
+    """Yard Supervisor verifies whether the advance paid to driver matches records."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    trip.advance_verified = body.verified
+    trip.advance_verification_remark = body.remark if not body.verified else None
+    trip.advance_corrected_amount = body.corrected_amount if not body.verified else None
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
 @router.post(
     "/{trip_id}/collect-sheet",
     response_model=schemas.TripOut,
@@ -428,7 +509,7 @@ def receive_trip_sheet(
     if not trip:
         raise HTTPException(404, "Trip not found")
     if not trip.trip_sheet_collected:
-        raise HTTPException(400, "Trip sheet must be marked as delivered by the Yard Staff first")
+        raise HTTPException(400, "Trip sheet must be marked as delivered by the Yard Supervisor first")
     if trip.trip_sheet_received:
         raise HTTPException(400, "Trip sheet is already marked as received")
     trip.trip_sheet_received = True
@@ -479,7 +560,7 @@ def unmark_trip_sheet(
         ),
         trip_id_str=trip.trip_id,
         booking_reference_no=trip.booking_reference_no,
-        target_roles="Admin,Fleet Manager",
+        target_roles="Admin,Commercial Manager,Assistant Commercial Manager",
         created_by=current_user.name,
         created_by_role=current_user.role,
     ))
@@ -500,7 +581,7 @@ def unmark_trip_sheet(
         "reported_by_role": current_user.role,
         "message": (
             f"Trip sheet for {trip.trip_id} ({trip.booking_reference_no}) was marked as "
-            f"delivered by the Yard Staff but was NOT received in reconciliation. "
+            f"delivered by the Yard Supervisor but was NOT received in reconciliation. "
             f"Reported by {current_user.name} ({current_user.role})."
         ),
     })
@@ -546,7 +627,7 @@ def flag_sheet_missing(
         ),
         trip_id_str=trip.trip_id,
         booking_reference_no=trip.booking_reference_no,
-        target_roles="Admin,Fleet Manager",
+        target_roles="Admin,Commercial Manager,Assistant Commercial Manager",
         created_by=current_user.name,
         created_by_role=current_user.role,
     ))

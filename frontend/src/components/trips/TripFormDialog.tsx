@@ -29,6 +29,7 @@ import type { CustomerOrigin } from "@/types/customer-origin";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, tripsApi } from "@/lib/api";
+import { confirmAction } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { saveToAutocompleteHistory, getAutocompleteHistory }from "@/components/ui/AutocompleteInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -107,6 +108,10 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   ratePerTon: "",
   transportHireAmount: "",
   transportCrossingAmount: "",
+  approxKm: "",
+  liftOnAmount: "",
+  liftOnRemarks: "",
+  chaName: "",
   internalRemarks: "",
   driverChangeRemark: "",
   bookingInstructions: "",
@@ -120,6 +125,8 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   verificationStatus: "pending",
   isInvoiced: false,
   invoiceRequired: true,
+  driverName: null,
+  truckRegistration: null,
 };
 
 export function TripFormDialog({
@@ -164,6 +171,14 @@ export function TripFormDialog({
         }
       } else {
         const initialDate = todayIst();
+        // Default trip date to tomorrow (booking same day → trip next day)
+        const [y, m, d] = initialDate.split("-").map(Number);
+        const tmr = new Date(y, m - 1, d + 1);
+        const tomorrowStr = [
+          tmr.getFullYear(),
+          String(tmr.getMonth() + 1).padStart(2, "0"),
+          String(tmr.getDate()).padStart(2, "0"),
+        ].join("-");
         setVehicleAssignmentId("");
         setCustomerDestinations([]);
         setCustomerPricing([]);
@@ -171,6 +186,7 @@ export function TripFormDialog({
         setForm({
           ...emptyForm,
           bookingCreatedDate: initialDate,
+          scheduledDate: tomorrowStr,
           bookingReferenceNo: generateBookingReferenceNo(existingTrips, initialDate),
         });
       }
@@ -225,6 +241,24 @@ export function TripFormDialog({
     }
   }, [form.tripCategory, form.containerSpecification]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // When switching away from Return Trip with a customer already selected, re-apply auto-fetch
+  useEffect(() => {
+    if (form.tripCategory === "RETURN TRIP" || !form.customerId) return;
+    if (customerPricing.length > 0) {
+      setForm((prev) => ({ ...prev, ...applyPricingFields(customerPricing[0]) }));
+    }
+    if (customerOrigins.length > 0) {
+      setForm((prev) => ({ ...prev, origin: customerOrigins[0].originName }));
+    }
+  }, [form.tripCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-zero lift-on for Coastal trips
+  useEffect(() => {
+    if (form.cargoClassification === "COASTAL") {
+      setForm((prev) => ({ ...prev, liftOnAmount: "0" }));
+    }
+  }, [form.cargoClassification]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
   const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
   const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
@@ -233,9 +267,19 @@ export function TripFormDialog({
   const isShifting = form.tripCategory === "SHIFTING";
   const isReturnTrip = form.tripCategory === "RETURN TRIP";
   const isOpenLoad = form.cargoClassification === "OPEN LOAD" || form.containerSpecification === "OPEN LOAD CARGO";
+  const isCoastal = form.cargoClassification === "COASTAL";
   const isTonBased = isOpenLoad && (form.openLoadHireType === "Ton Based" || form.openLoadHireType === "");
   const isFixedHire = isOpenLoad && form.openLoadHireType === "Fixed";
   const battaRule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
+  // "Self" customer: CGI is the shipper — billing, advances, and CHA are locked
+  const isSelf = (() => {
+    const c = customers.find((c) => c.id === form.customerId);
+    const name = (c?.name ?? form.shipperConsignee ?? "").trim().toLowerCase();
+    return name === "self" || name === "cgi";
+  })();
+  // Lift-on: manual entry for Shifting/Empty/Open, locked at 0 for Coastal, editable for others
+  const isLiftOnLocked = isCoastal;
+  const isLiftOnManual = isShifting || form.cargoClassification === "EMPTY" || isOpenLoad;
 
   const destinationOptions = customerDestinations
     .map((d) => {
@@ -246,15 +290,46 @@ export function TripFormDialog({
 
   const customerOriginNames = customerOrigins.map((o) => o.originName).filter(Boolean);
 
+  // Predefined standard port/logistics locations (always available in dropdowns)
+  const PREDEFINED_LOCATIONS = [
+    "Chennai Port",
+    "Chennai Port Trust",
+    "Kattupalli Port",
+    "Ennore Port",
+    "Kamarajar Port",
+    "Chennai CFS",
+    "CONCOR CFS Chennai",
+    "Gateway Distriparks Chennai",
+    "Customs Bonded Warehouse Chennai",
+    "Manali",
+    "Ambattur",
+    "Irungattukottai",
+    "Sriperumbudur",
+    "Oragadam",
+    "Mahindra World City",
+    "Ponneri",
+    "Thiruvallur",
+    "Gummidipoondi",
+    "Tada (AP)",
+    "Pondicherry",
+    "Bangalore",
+    "Krishnapatnam Port",
+    "Tuticorin Port",
+    "Coimbatore",
+    "Madurai",
+  ];
+
   const allOriginOptions = (() => {
     const existing = new Set(customerOriginNames.map((o) => o.toLowerCase()));
     const historyPool = [
       ...getAutocompleteHistory("erp_origin_history"),
       ...dbOrigins,
     ].filter((h, i, arr) => arr.indexOf(h) === i);
+    const predefined = PREDEFINED_LOCATIONS.filter((l) => !existing.has(l.toLowerCase()));
     return [
       ...customerOriginNames,
       ...historyPool.filter((h) => !existing.has(h.toLowerCase())),
+      ...predefined.filter((l) => !historyPool.map((h) => h.toLowerCase()).includes(l.toLowerCase())),
     ].map((o) => ({ value: o, label: o }));
   })();
 
@@ -264,11 +339,15 @@ export function TripFormDialog({
       ...getAutocompleteHistory("erp_destination_history"),
       ...dbDestinations,
     ].filter((h, i, arr) => arr.indexOf(h) === i); // dedupe
+    const predefined = PREDEFINED_LOCATIONS.filter((l) => !existing.has(l.toLowerCase()));
     return [
       ...destinationOptions,
       ...historyPool
         .filter((h) => !existing.has(h.toLowerCase()))
         .map((h) => ({ value: h, label: h })),
+      ...predefined
+        .filter((l) => !historyPool.map((h) => h.toLowerCase()).includes(l.toLowerCase()))
+        .map((l) => ({ value: l, label: l })),
     ];
   })();
 
@@ -318,6 +397,8 @@ export function TripFormDialog({
   function handleCustomerChange(customerId: string) {
     const selectedCustomer = customers.find((c) => c.id === customerId);
     const returnTrip = form.tripCategory === "RETURN TRIP";
+    const name = (selectedCustomer?.name ?? "").trim().toLowerCase();
+    const selfCustomer = name === "self" || name === "cgi";
     setForm((prev) => ({
       ...prev,
       customerId,
@@ -328,6 +409,14 @@ export function TripFormDialog({
       containerSpecification: "",
       cargoWeight: "",
       transportHireAmount: "",
+      // Self/CGI customer — lock billing and CHA
+      ...(selfCustomer ? {
+        paymentType: "Credit",
+        customerCashAdvance: "",
+        customerFuelAdvanceAmount: "",
+        customerFuelAdvanceLitres: "",
+        chaName: "CGI",
+      } : {}),
     }));
     setCustomerDestinations([]);
     setCustomerPricing([]);
@@ -459,7 +548,7 @@ export function TripFormDialog({
     }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const assigned = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
     if (!assigned) {
@@ -469,6 +558,75 @@ export function TripFormDialog({
     if (vehicleAssignmentId && form.driverId !== vehicleAssignmentId && !form.driverChangeRemark.trim()) {
       alert("Please provide a reason for changing the driver.");
       return;
+    }
+
+    // Container number validation: must be 4 uppercase letters + 7 digits (e.g. ABCD1234567)
+    const CONTAINER_REGEX = /^[A-Z]{4}[0-9]{7}$/;
+    const containersToValidate: { label: string; value: string }[] = [];
+    if (form.containerSpecification === "2 X 20 FEET CONTAINERS") {
+      containersToValidate.push({ label: "Container 1", value: form.containerNumber1 ?? "" });
+      containersToValidate.push({ label: "Container 2", value: form.containerNumber2 ?? "" });
+    } else if (
+      form.containerSpecification === "20 FT CONTAINER" ||
+      form.containerSpecification === "40 FT CONTAINER"
+    ) {
+      containersToValidate.push({ label: "Container Number", value: form.containerNumber ?? "" });
+    }
+    for (const c of containersToValidate) {
+      const normalized = c.value.trim().toUpperCase().replace(/\s/g, "");
+      if (normalized && !CONTAINER_REGEX.test(normalized)) {
+        alert(
+          `Invalid ${c.label}: "${c.value}"\n\nContainer numbers must be exactly 4 letters followed by 7 digits.\nExample: ABCD1234567`
+        );
+        return;
+      }
+    }
+
+    // Duplicate detection: same truck or same container on any active trip
+    const ACTIVE = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+    const targetVehicleId = initialData ? initialData.vehicleId : assigned.truck.truckId;
+    const editingId = initialData?.id;
+
+    const truckConflicts = existingTrips.filter(
+      (t) => t.vehicleId === targetVehicleId && ACTIVE.has(t.status) && t.id !== editingId
+    );
+
+    const formContainers = [form.containerNumber, form.containerNumber1, form.containerNumber2]
+      .map((c) => (c ?? "").trim().toUpperCase())
+      .filter(Boolean);
+    const containerConflicts = formContainers.length > 0
+      ? existingTrips.filter((t) => {
+          if (!ACTIVE.has(t.status) || t.id === editingId) return false;
+          const existing = [t.containerNumber, t.containerNumber1, t.containerNumber2]
+            .map((c) => (c ?? "").trim().toUpperCase())
+            .filter(Boolean);
+          return formContainers.some((c) => existing.includes(c));
+        })
+      : [];
+
+    if (truckConflicts.length > 0 || containerConflicts.length > 0) {
+      const lines: string[] = [];
+      if (truckConflicts.length > 0) {
+        const refs = truckConflicts.map((t) => t.bookingReferenceNo || t.tripId).join(", ");
+        lines.push(`Truck ${assigned.truck.registrationNumber} is already on active trip(s): ${refs}`);
+      }
+      if (containerConflicts.length > 0) {
+        const refs = containerConflicts.map((t) => t.bookingReferenceNo || t.tripId).join(", ");
+        const dupeContainers = formContainers.filter((c) =>
+          containerConflicts.some((t) =>
+            [t.containerNumber, t.containerNumber1, t.containerNumber2]
+              .map((x) => (x ?? "").trim().toUpperCase())
+              .includes(c)
+          )
+        );
+        lines.push(`Container ${dupeContainers.join(", ")} already exists in active trip(s): ${refs}`);
+      }
+      const result = await confirmAction(
+        "Duplicate Warning",
+        lines.join("\n\n") + "\n\nDo you want to assign this trip anyway?",
+        "Yes, Continue"
+      );
+      if (!result.isConfirmed) return;
     }
 
     saveToAutocompleteHistory("erp_origin_history", form.origin);
@@ -570,6 +728,14 @@ export function TripFormDialog({
         {/* Customer Information */}
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Customer Information</p>
+          {isSelf && (
+            <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+              <p className="text-sm text-blue-800">
+                <span className="font-semibold">Self / CGI customer</span> — billing to customer is not applicable. Payment type is locked to Credit, advances are disabled, and CHA is auto-set to CGI.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Customer Account" required>
               {isReturnTrip ? (
@@ -610,6 +776,20 @@ export function TripFormDialog({
                 className={inputClass}
                 placeholder="e.g. Sri Lakshmi Traders"
               />
+            </Field>
+
+            <Field label="CHA Name">
+              <input
+                type="text"
+                value={form.chaName ?? ""}
+                onChange={(e) => update("chaName", e.target.value)}
+                readOnly={isSelf}
+                className={`${inputClass} ${isSelf ? "cursor-not-allowed bg-gray-50 text-gray-500" : ""}`}
+                placeholder={isSelf ? "CGI (auto-filled)" : "e.g. Sri Ram CHA Services"}
+              />
+              {isSelf && (
+                <span className="mt-1 text-xs text-blue-600">Auto-set to CGI for Self customer</span>
+              )}
             </Field>
           </div>
 
@@ -871,6 +1051,22 @@ export function TripFormDialog({
               />
             </Field>
 
+            <Field label="Approximate KM">
+              <DecimalInput
+                type="number"
+                min="0"
+                step="1"
+                value={form.approxKm ?? ""}
+                onChange={(e) => update("approxKm", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={inputClass}
+                placeholder="e.g. 120"
+              />
+              <span className="mt-1 text-xs text-gray-400">
+                Used as baseline for ±10% KM variance check in trip sheet
+              </span>
+            </Field>
+
             <Field label="Assigned Vehicle" className="sm:col-span-2">
               <GlassCombobox
                 value={vehicleAssignmentId}
@@ -946,67 +1142,75 @@ export function TripFormDialog({
               </p>
             </div>
           )}
-          <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${isShifting ? "pointer-events-none opacity-50" : ""}`}>
-            <Field label="Bill To" required={!isShifting}>
-              <GlassSelect
-                value={form.billTo}
-                onChange={(val) => update("billTo", val as Trip["billTo"])}
-                disabled={isShifting}
-                options={[
-                  { value: "", label: "Select bill to" },
-                  ...BILL_TO_OPTIONS.map(o => ({ value: o, label: o }))
-                ]}
-              />
-            </Field>
+          {(() => {
+            const locked = isShifting || isSelf;
+            return (
+              <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${locked ? "pointer-events-none opacity-50" : ""}`}>
+                <Field label="Bill To" required={!locked}>
+                  <GlassSelect
+                    value={form.billTo}
+                    onChange={(val) => update("billTo", val as Trip["billTo"])}
+                    disabled={locked}
+                    options={[
+                      { value: "", label: isSelf ? "Not applicable (Self customer)" : "Select bill to" },
+                      ...BILL_TO_OPTIONS.map(o => ({ value: o, label: o }))
+                    ]}
+                  />
+                </Field>
 
-            <Field label="Payment Type" required={!isShifting}>
-              <GlassSelect
-                value={form.paymentType}
-                onChange={(val) => update("paymentType", val as Trip["paymentType"])}
-                disabled={isShifting}
-                options={[
-                  { value: "", label: "Select payment type" },
-                  ...PAYMENT_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
-                ]}
-              />
-            </Field>
+                <Field label="Payment Type" required={!locked}>
+                  <GlassSelect
+                    value={isSelf ? "Credit" : form.paymentType}
+                    onChange={(val) => update("paymentType", val as Trip["paymentType"])}
+                    disabled={locked}
+                    options={[
+                      { value: "", label: "Select payment type" },
+                      ...PAYMENT_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
+                    ]}
+                  />
+                  {isSelf && (
+                    <span className="mt-1 text-xs text-blue-600">Locked to Credit for Self customer</span>
+                  )}
+                </Field>
 
-            <Field label="Customer Cash Advance (₹)" required={!isShifting}>
-              <DecimalInput type="number"
-                min="0"
-                value={form.customerCashAdvance}
-                onChange={(e) => update("customerCashAdvance", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isShifting}
-                className={`${inputClass} ${isShifting ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                placeholder="e.g. 5000"
-              />
-            </Field>
+                <Field label="Customer Cash Advance (₹)" required={!locked}>
+                  <DecimalInput type="number"
+                    min="0"
+                    value={form.customerCashAdvance}
+                    onChange={(e) => update("customerCashAdvance", e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    readOnly={locked}
+                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                    placeholder="e.g. 5000"
+                  />
+                </Field>
 
-            <Field label="Customer Fuel Advance (₹)" required={!isShifting}>
-              <DecimalInput type="number"
-                min="0"
-                value={form.customerFuelAdvanceAmount}
-                onChange={(e) => update("customerFuelAdvanceAmount", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isShifting}
-                className={`${inputClass} ${isShifting ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                placeholder="e.g. 8000"
-              />
-            </Field>
+                <Field label="Customer Fuel Advance (₹)" required={!locked}>
+                  <DecimalInput type="number"
+                    min="0"
+                    value={form.customerFuelAdvanceAmount}
+                    onChange={(e) => update("customerFuelAdvanceAmount", e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    readOnly={locked}
+                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                    placeholder="e.g. 8000"
+                  />
+                </Field>
 
-            <Field label="Customer Fuel Advance (Litres)" required={!isShifting}>
-              <DecimalInput type="number"
-                min="0"
-                value={form.customerFuelAdvanceLitres}
-                onChange={(e) => update("customerFuelAdvanceLitres", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isShifting}
-                className={`${inputClass} ${isShifting ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                placeholder="e.g. 85"
-              />
-            </Field>
-          </div>
+                <Field label="Customer Fuel Advance (Litres)" required={!locked}>
+                  <DecimalInput type="number"
+                    min="0"
+                    value={form.customerFuelAdvanceLitres}
+                    onChange={(e) => update("customerFuelAdvanceLitres", e.target.value)}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    readOnly={locked}
+                    className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
+                    placeholder="e.g. 85"
+                  />
+                </Field>
+              </div>
+            );
+          })()}
         </section>
 
         {/* Driver Compensation */}
@@ -1094,16 +1298,51 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Lift-on Amount (₹)">
+              <DecimalInput
+                type="number"
+                min="0"
+                value={form.liftOnAmount ?? ""}
+                onChange={(e) => update("liftOnAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                readOnly={isLiftOnLocked}
+                className={`${inputClass} ${isLiftOnLocked ? "cursor-not-allowed bg-gray-50 text-gray-500" : ""}`}
+                placeholder={isLiftOnLocked ? "0 (Coastal — locked)" : "e.g. 3500"}
+              />
+              {isLiftOnLocked && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">
+                  <Info className="h-3 w-3" />
+                  Lift-on is always zero for Coastal trips
+                </span>
+              )}
+              {!isLiftOnLocked && isLiftOnManual && (
+                <span className="mt-1 text-xs text-gray-400">Manual entry — enter actual lift-on amount</span>
+              )}
+            </Field>
+
             <Field label="Hire Amount (₹)" required>
               <DecimalInput type="number"
                 min="0"
                 value={form.transportHireAmount}
                 onChange={(e) => handleHireAmountChange(e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isTonBased && !!(form.cargoWeight && form.ratePerTon)}
-                className={`${inputClass} ${isTonBased && form.cargoWeight && form.ratePerTon ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+                readOnly={
+                  (!isReturnTrip && !isOpenLoad) ||
+                  (isTonBased && !!(form.cargoWeight && form.ratePerTon))
+                }
+                className={`${inputClass} ${
+                  (!isReturnTrip && !isOpenLoad) || (isTonBased && form.cargoWeight && form.ratePerTon)
+                    ? "cursor-not-allowed bg-gray-50 text-gray-500"
+                    : ""
+                }`}
                 placeholder={isFixedHire ? "Enter hire amount" : "e.g. 32000"}
               />
+              {!isReturnTrip && !isOpenLoad && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                  <Info className="h-3 w-3" />
+                  Hire amount is set from customer pricing and is locked. Only editable for Return and Open Load trips.
+                </span>
+              )}
               {isTonBased && form.cargoWeight && form.ratePerTon && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />

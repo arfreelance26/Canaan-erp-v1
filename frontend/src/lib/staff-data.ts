@@ -9,10 +9,11 @@ export const DEPARTMENT_OPTIONS = [
 
 export const SOFTWARE_DESIGNATION_OPTIONS = [
   "Admin",
-  "Fleet Manager",
-  "Finance Manager",
-  "Tyre Manager",
-  "Yard Staff",
+  "Commercial Manager",
+  "Assistant Commercial Manager",
+  "Accounts",
+  "Maintenance",
+  "Yard Supervisor",
   "Trip Sheet Register",
 ];
 
@@ -51,7 +52,7 @@ export const initialStaff: Staff[] = [
     aadharNumber: null,
     aadharFileName: "rahul_verma_aadhar.pdf",
 
-    softwareDesignation: "Fleet Manager",
+    softwareDesignation: "Commercial Manager",
     username: "rahul.verma@canaanglobal.com",
     password: "Rahul@1234",
   },
@@ -70,7 +71,7 @@ export const initialStaff: Staff[] = [
     aadharNumber: null,
     aadharFileName: "karthik_raja_aadhar.pdf",
 
-    softwareDesignation: "Tyre Manager",
+    softwareDesignation: "Maintenance",
     username: "karthik.raja@canaanglobal.com",
     password: "Karthik@1234",
   },

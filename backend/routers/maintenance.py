@@ -187,15 +187,27 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
     if not db.get(models.Truck, payload.truck_id):
         raise HTTPException(404, "Truck not found")
         
-    prev_log = db.query(models.FuelLog)\
-        .filter(models.FuelLog.truck_id == payload.truck_id, models.FuelLog.odometer <= payload.odometer)\
+    duplicate = db.query(models.FuelLog).filter(
+        models.FuelLog.truck_id == payload.truck_id,
+        models.FuelLog.date == payload.date,
+        models.FuelLog.litres == payload.litres,
+        models.FuelLog.odometer == payload.odometer
+    ).first()
+    if duplicate:
+        raise HTTPException(400, "Duplicate entry: A fuel log with the same date, quantity, and odometer already exists.")
+        
+    latest_log = db.query(models.FuelLog)\
+        .filter(models.FuelLog.truck_id == payload.truck_id)\
         .order_by(models.FuelLog.odometer.desc())\
         .first()
         
+    if latest_log and payload.odometer <= latest_log.odometer:
+        raise HTTPException(400, f"Odometer ({payload.odometer}) must be greater than the previous reading ({latest_log.odometer}).")
+        
     distance = 0
     mileage = 0
-    if prev_log:
-        distance = payload.odometer - prev_log.odometer
+    if latest_log:
+        distance = payload.odometer - latest_log.odometer
         if float(payload.litres) > 0:
             mileage = float(distance) / float(payload.litres)
             
@@ -257,6 +269,22 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
             "This fuel log was modified by someone else while you were editing. "
             "Please refresh the page to get the latest data and try again."
         )
+
+    new_date = payload.date if payload.date is not None else log.date
+    new_litres = payload.litres if payload.litres is not None else log.litres
+    new_odometer = payload.odometer if payload.odometer is not None else log.odometer
+    
+    duplicate = db.query(models.FuelLog).filter(
+        models.FuelLog.id != log_id,
+        models.FuelLog.truck_id == log.truck_id,
+        models.FuelLog.date == new_date,
+        models.FuelLog.litres == new_litres,
+        models.FuelLog.odometer == new_odometer
+    ).first()
+    
+    if duplicate:
+        raise HTTPException(400, "Duplicate entry: A fuel log with the same date, quantity, and odometer already exists.")
+
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(log, field, value)
     prev_log = db.query(models.FuelLog)\

@@ -2,10 +2,12 @@ import type { LeaveApplicantCategory, LeaveRequest } from "@/types/leave-request
 
 export const LEAVE_CATEGORIES: LeaveApplicantCategory[] = [
   "Driver",
-  "Fleet Manager",
-  "Tyre Manager",
+  "Commercial Manager",
+  "Assistant Commercial Manager",
+  "Accounts",
+  "Maintenance",
   "Trip Sheet Register",
-  "Yard Staff",
+  "Yard Supervisor",
 ];
 
 export const initialLeaveRequests: LeaveRequest[] = [
@@ -59,7 +61,7 @@ export const initialLeaveRequests: LeaveRequest[] = [
   },
   {
     id: "5",
-    category: "Fleet Manager",
+    category: "Commercial Manager",
     applicantId: "2",
     applicantName: "Rahul Verma",
     applicantCode: "STF-1002",
@@ -71,7 +73,7 @@ export const initialLeaveRequests: LeaveRequest[] = [
   },
   {
     id: "6",
-    category: "Tyre Manager",
+    category: "Maintenance",
     applicantId: "3",
     applicantName: "Karthik Raja",
     applicantCode: "STF-1003",

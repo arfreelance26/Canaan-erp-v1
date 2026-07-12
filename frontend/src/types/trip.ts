@@ -93,6 +93,20 @@ export type Trip = {
   transportHireAmount: string;
   transportCrossingAmount: string;
 
+  // Commercial Manager inputs at assignment
+  approxKm?: string;
+  liftOnAmount?: string;
+  liftOnRemarks?: string;
+  chaName?: string;
+
+  // Docs staff re-check flag
+  flaggedForRecheck?: boolean;
+  flaggedRemark?: string;
+  // Yard Supervisor: advance paid to driver verification
+  advanceVerified?: boolean | null;
+  advanceVerificationRemark?: string;
+  advanceCorrectedAmount?: string;
+
   // Operational Notes
   internalRemarks: string;
   driverChangeRemark: string;
@@ -109,4 +123,6 @@ export type Trip = {
   verificationStatus: "pending" | "verified" | "flagged";
   isInvoiced: boolean;
   invoiceRequired: boolean;
+  driverName: string | null;
+  truckRegistration: string | null;
 };
