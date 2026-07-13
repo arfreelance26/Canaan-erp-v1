@@ -581,6 +581,7 @@ class TripSheetCreate(OrmBase):
     diesel_rate: Optional[Decimal] = None
     diesel_total: Optional[Decimal] = None
     diesel_remarks: Optional[str] = None
+    diesel_entries: Optional[list] = None  # [{date, odometer, litres, costPerLitre, totalCost, fuelStation}]
     km_variance_remark: Optional[str] = None
     toll_charges: Optional[Decimal] = None
     toll_count: Optional[int] = 0

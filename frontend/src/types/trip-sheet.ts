@@ -1,3 +1,16 @@
+export type DieselEntry = {
+  date: string;
+  odometer: string;
+  litres: string;
+  costPerLitre: string;
+  totalCost: string;
+  fuelStation: string;
+};
+
+export function emptyDieselEntry(date = ""): DieselEntry {
+  return { date, odometer: "", litres: "", costPerLitre: "", totalCost: "", fuelStation: "" };
+}
+
 export type TripSheetData = {
   tripId: string;
 
@@ -35,7 +48,9 @@ export type TripSheetData = {
   cargoWeight: string;  // auto-fetched from trip.cargoWeight
   kmVarianceRemark: string;
 
-  // Diesel Entry (after KM section)
+  // Diesel Entries (after KM section) — multiple fills per trip
+  dieselEntries: DieselEntry[];
+  // Legacy single-entry fields (kept for backward compat; superseded by dieselEntries)
   dieselLitres: string;
   dieselRate: string;
   dieselTotal: string;

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import { type TripSheetData, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
+import { type TripSheetData, type DieselEntry, emptyDieselEntry, n, calcTripExpenses, calcDriverExpenses } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
@@ -14,6 +14,8 @@ import { repairTypesApi, fuelLogsApi, tripsApi } from "@/lib/api";
 import { showError, MySwal } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
+import { Trash2, PlusCircle } from "lucide-react";
 
 // Auto-fill rules: tripType → containerType → { type, amount }
 const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
@@ -65,6 +67,7 @@ const emptySheet = (tripId: string): TripSheetData => ({
   clearingAgent: "",
   hireAmount: "", openLoadHireType: "", ratePerTon: "",
   startKm: "", endKm: "", totalKm: "", cargoWeight: "", kmVarianceRemark: "",
+  dieselEntries: [emptyDieselEntry()],
   dieselLitres: "", dieselRate: "", dieselTotal: "", dieselRemarks: "",
   driverCompensationType: "",
   driverPay: "",
@@ -100,6 +103,7 @@ type Props = {
 export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, autoEditable, onRequestAutoEdit, drivers, trucks, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripSheetData>(emptySheet(""));
   const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
+  const [fuelStations, setFuelStations] = useState<string[]>([]);
   const [costPerKm, setCostPerKm] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [invoiceRequired, setInvoiceRequired] = useState(true);
@@ -108,6 +112,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
   useEffect(() => {
     repairTypesApi.list().then(setRepairTypes).catch(() => setRepairTypes([]));
+    fuelLogsApi.listFuelStations().then(setFuelStations).catch(() => setFuelStations([]));
   }, []);
 
   const truckDbId = useMemo(
@@ -147,6 +152,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     if (existingSheet) {
       setForm(recalcDerived({
         ...existingSheet,
+        dieselEntries: existingSheet.dieselEntries?.length
+          ? existingSheet.dieselEntries
+          : [emptyDieselEntry(existingSheet.tripSheetDate || todayIst())],
         driverCompensationType: existingSheet.driverCompensationType || trip.driverCompensationType || battaCompType,
       }, hp));
     } else {
@@ -269,14 +277,33 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     });
   }
 
-  // Auto-calculate diesel total when litres or rate changes
-  useEffect(() => {
-    const litres = n(form.dieselLitres);
-    const rate = n(form.dieselRate);
-    if (litres > 0 && rate > 0) {
-      setForm((prev) => ({ ...prev, dieselTotal: (litres * rate).toFixed(2) }));
-    }
-  }, [form.dieselLitres, form.dieselRate]); // eslint-disable-line react-hooks/exhaustive-deps
+  function updateDieselEntry(index: number, field: keyof DieselEntry, value: string) {
+    setForm((prev) => {
+      const entries = prev.dieselEntries.map((e, i) => {
+        if (i !== index) return e;
+        const updated = { ...e, [field]: value };
+        const litres = n(field === "litres" ? value : updated.litres);
+        const rate = n(field === "costPerLitre" ? value : updated.costPerLitre);
+        if (litres > 0 && rate > 0) updated.totalCost = (litres * rate).toFixed(2);
+        return updated;
+      });
+      return { ...prev, dieselEntries: entries };
+    });
+  }
+
+  function addDieselEntry() {
+    setForm((prev) => ({
+      ...prev,
+      dieselEntries: [...prev.dieselEntries, emptyDieselEntry(todayIst())],
+    }));
+  }
+
+  function removeDieselEntry(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      dieselEntries: prev.dieselEntries.filter((_, i) => i !== index),
+    }));
+  }
 
   // Auto-fill driver batta based on BATTA_RULES (non-RETURN TRIP categories)
   useEffect(() => {
@@ -472,42 +499,108 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         </div>
 
         {/* ── 4b. Diesel Entry ── */}
-        <p className={sh}>Diesel Entry</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Diesel Quantity (litres)">
-            <DecimalInput
-              type="number" min="0" step="0.01"
-              className={fc}
-              value={form.dieselLitres}
-              readOnly={ro}
-              onChange={(e) => set("dieselLitres", e.target.value)}
-              placeholder="e.g. 80"
-            />
-          </Field>
-          <Field label="Diesel Rate (₹/litre)">
-            <DecimalInput
-              type="number" min="0" step="0.01"
-              className={fc}
-              value={form.dieselRate}
-              readOnly={ro}
-              onChange={(e) => set("dieselRate", e.target.value)}
-              placeholder="e.g. 92.50"
-            />
-          </Field>
-          <Field label="Diesel Total (₹)">
-            <DecimalInput
-              type="number" min="0"
-              className={`${fc} bg-gray-50`}
-              value={form.dieselTotal}
-              readOnly
-              placeholder="Auto-calculated"
-            />
-            {n(form.dieselLitres) > 0 && n(form.dieselRate) > 0 && (
-              <p className="mt-1 text-xs text-gray-400">
-                {form.dieselLitres} L × ₹{form.dieselRate}/L = ₹{n(form.dieselTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </p>
-            )}
-          </Field>
+        <div className="flex items-center justify-between">
+          <p className={sh}>Diesel Entry</p>
+          {!ro && (
+            <button
+              type="button"
+              onClick={addDieselEntry}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              <PlusCircle className="h-3.5 w-3.5" /> Add Fill
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col gap-4">
+          {form.dieselEntries.map((entry, idx) => (
+            <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Fill #{idx + 1}
+                </span>
+                {!ro && form.dieselEntries.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeDieselEntry(idx)}
+                    className="inline-flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Field label="Date">
+                  <DatePickerInput
+                    value={entry.date}
+                    onChange={(v) => updateDieselEntry(idx, "date", v)}
+                    disabled={ro}
+                  />
+                </Field>
+                <Field label="Odometer Reading">
+                  <DecimalInput
+                    type="number" min="0"
+                    className={fc}
+                    value={entry.odometer}
+                    readOnly={ro}
+                    onChange={(e) => updateDieselEntry(idx, "odometer", e.target.value)}
+                    placeholder="e.g. 102500"
+                  />
+                </Field>
+                <Field label="Quantity (Litres)">
+                  <DecimalInput
+                    type="number" min="0" step="0.01"
+                    className={fc}
+                    value={entry.litres}
+                    readOnly={ro}
+                    onChange={(e) => updateDieselEntry(idx, "litres", e.target.value)}
+                    placeholder="e.g. 80.00"
+                  />
+                </Field>
+                <Field label="Cost Per Litre (₹)">
+                  <DecimalInput
+                    type="number" min="0" step="0.01"
+                    className={fc}
+                    value={entry.costPerLitre}
+                    readOnly={ro}
+                    onChange={(e) => updateDieselEntry(idx, "costPerLitre", e.target.value)}
+                    placeholder="e.g. 96.50"
+                  />
+                </Field>
+                <Field label="Total Fuel Cost (₹)">
+                  <DecimalInput
+                    type="number" min="0"
+                    className={`${fc} bg-white`}
+                    value={entry.totalCost}
+                    readOnly={!!(entry.litres && entry.costPerLitre) || ro}
+                    onChange={(e) => updateDieselEntry(idx, "totalCost", e.target.value)}
+                    placeholder="Auto-calculated"
+                  />
+                  {n(entry.litres) > 0 && n(entry.costPerLitre) > 0 && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      {entry.litres} L × ₹{entry.costPerLitre}/L = ₹{n(entry.totalCost).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </Field>
+                <Field label="Fuel Station">
+                  {ro ? (
+                    <input className={fc} value={entry.fuelStation} readOnly />
+                  ) : (
+                    <GlassCombobox
+                      value={entry.fuelStation}
+                      onChange={(v) => updateDieselEntry(idx, "fuelStation", v)}
+                      options={fuelStations.map((s) => ({ value: s, label: s }))}
+                      placeholder="e.g. Reliance Petrol Pump"
+                    />
+                  )}
+                </Field>
+              </div>
+            </div>
+          ))}
+          {form.dieselEntries.length > 1 && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800">
+              Total Diesel Cost: ₹{form.dieselEntries.reduce((sum, e) => sum + n(e.totalCost), 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </div>
+          )}
         </div>
 
         {/* ── 5. Halt Information ── */}

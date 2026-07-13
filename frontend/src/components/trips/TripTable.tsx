@@ -151,15 +151,15 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}
-                        {/* LR / Consignment Note */}
-                        <button
+                        {/* LR / Consignment Note — hidden pending client clarification */}
+                        {/* <button
                           type="button"
                           title="Download Lorry Receipt (LR)"
                           onClick={() => generateLR(trip, driver, truck, customer)}
                           className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700"
                         >
                           <FileText className="h-4 w-4" />
-                        </button>
+                        </button> */}
                         {onCloseTrip && trip.status === "Completed" && (
                           closedTripIds?.has(trip.id) ? (
                             <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">

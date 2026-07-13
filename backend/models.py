@@ -469,6 +469,7 @@ class TripSheet(Base):
     diesel_rate = Column(Numeric(10, 2), nullable=True)
     diesel_total = Column(Numeric(10, 2), nullable=True)
     diesel_remarks = Column(Text, nullable=True)
+    diesel_entries = Column(JSON, nullable=True)  # [{date, odometer, litres, costPerLitre, totalCost, fuelStation}]
     km_variance_remark = Column(Text, nullable=True)
     # Toll
     toll_charges = Column(Numeric(10, 2), default=0)

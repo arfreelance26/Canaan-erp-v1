@@ -328,14 +328,58 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
             truck.odometer = end_km_val
             db.commit()
 
-    # Auto-sync diesel entry to FuelLog (upsert by trip_id marker)
-    if truck and payload.diesel_litres and payload.diesel_rate:
+    # Auto-sync diesel entries to FuelLog
+    if truck and payload.diesel_entries:
+        entries = payload.diesel_entries or []
+        for i, entry in enumerate(entries):
+            litres = float(entry.get("litres") or 0)
+            cost_per_litre = float(entry.get("costPerLitre") or 0)
+            total_cost = float(entry.get("totalCost") or (litres * cost_per_litre))
+            if litres <= 0:
+                continue
+            odometer_val = int(entry.get("odometer") or payload.end_km or 0)
+            log_date = entry.get("date") or payload.trip_sheet_date or date_type.today()
+            fuel_station = entry.get("fuelStation") or "Trip Sheet"
+            marker = f"trip:{trip_id}:{i}"
+            existing_log = db.query(models.FuelLog).filter(
+                models.FuelLog.truck_id == truck.id,
+                models.FuelLog.logged_by == marker,
+            ).first()
+            if existing_log:
+                existing_log.date = log_date
+                existing_log.odometer = odometer_val
+                existing_log.litres = litres
+                existing_log.price_per_litre = cost_per_litre
+                existing_log.total_cost = total_cost
+                existing_log.fuel_station = fuel_station
+            else:
+                db.add(models.FuelLog(
+                    truck_id=truck.id,
+                    date=log_date,
+                    odometer=odometer_val,
+                    litres=litres,
+                    price_per_litre=cost_per_litre,
+                    total_cost=total_cost,
+                    fuel_station=fuel_station,
+                    logged_by=marker,
+                ))
+        # Remove stale entries (e.g. user deleted one)
+        stale = db.query(models.FuelLog).filter(
+            models.FuelLog.truck_id == truck.id,
+            models.FuelLog.logged_by.like(f"trip:{trip_id}:%"),
+        ).all()
+        valid_markers = {f"trip:{trip_id}:{i}" for i in range(len(entries))}
+        for log in stale:
+            if log.logged_by not in valid_markers:
+                db.delete(log)
+        db.commit()
+    elif truck and payload.diesel_litres and payload.diesel_rate:
+        # Legacy single-entry fallback
         diesel_litres = float(payload.diesel_litres)
         diesel_rate = float(payload.diesel_rate)
         diesel_total = float(payload.diesel_total or diesel_litres * diesel_rate)
         odometer_val = int(payload.end_km or 0)
         log_date = payload.trip_sheet_date or date_type.today()
-
         existing_log = db.query(models.FuelLog).filter(
             models.FuelLog.truck_id == truck.id,
             models.FuelLog.logged_by == f"trip:{trip_id}",

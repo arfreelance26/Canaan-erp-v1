@@ -137,6 +137,8 @@ def _run_schema_migrations():
         # Verification rejection — Accounts rejects trip sheet back to Docs with a reason
         "ALTER TABLE trips ADD COLUMN verification_rejection_reason TEXT NULL",
         "ALTER TABLE trips MODIFY COLUMN verification_status ENUM('pending','verified','flagged','rejected') DEFAULT 'pending'",
+        # Multiple diesel entries per trip sheet (replaces single diesel_litres/rate/total)
+        "ALTER TABLE trip_sheets ADD COLUMN diesel_entries JSON NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
