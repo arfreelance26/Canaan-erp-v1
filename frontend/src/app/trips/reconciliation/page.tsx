@@ -12,7 +12,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
-import type { EditApprovalResourceType } from "@/types/edit-approval";
+import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit-approval";
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -51,7 +51,7 @@ export default function TripReconciliationPage() {
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Flagged">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Flagged" | "Rejected">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [recheckOpen, setRecheckOpen] = useState<string | null>(null); // trip.id
   const [recheckRemark, setRecheckRemark] = useState("");
@@ -63,7 +63,10 @@ export default function TripReconciliationPage() {
   const [pendingEditAction, setPendingEditAction] = useState<{
     resourceType: EditApprovalResourceType;
     trip: Trip;
+    rejectionContext?: string;
   } | null>(null);
+  const [myActiveApprovals, setMyActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [resubmitting, setResubmitting] = useState<Set<string>>(new Set());
 
   async function loadReconciliationData() {
     let t: Trip[], d: Driver[], tr: Truck[], c: Customer[];
@@ -113,6 +116,7 @@ export default function TripReconciliationPage() {
 
   useEffect(() => {
     loadReconciliationData().finally(() => setLoading(false));
+    editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
@@ -122,6 +126,9 @@ export default function TripReconciliationPage() {
   useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_updated", () => {
+    editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
+  });
 
   // Admin alert: someone in reconciliation reported a missing physical sheet
   useWebSocketEvent("sheet_not_received_alert", (payload) => {
@@ -143,9 +150,20 @@ export default function TripReconciliationPage() {
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
+  function hasTripSheetApproval(trip: Trip): boolean {
+    return myActiveApprovals.some(
+      (a) => a.resourceType === "TripSheet" && String(a.resourceId) === trip.id,
+    );
+  }
+
   function openDialog(trip: Trip, mode: DialogMode) {
-    // Staff can never edit directly — always raises a request; admin acts on it
     if (mode === "edit" && isStaff) {
+      // Rejected trip with active approval from Kumar — allow editing directly
+      if (trip.verificationStatus === "rejected" && hasTripSheetApproval(trip)) {
+        setSelectedTrip(trip);
+        setDialogMode("edit");
+        return;
+      }
       setPendingEditAction({ resourceType: "TripSheet", trip });
       setEditRequestOpen(true);
       return;
@@ -167,18 +185,35 @@ export default function TripReconciliationPage() {
 
   async function handleEditRequestSubmit(reason: string) {
     if (!pendingEditAction) return;
-    const { resourceType, trip } = pendingEditAction;
+    const { resourceType, trip, rejectionContext } = pendingEditAction;
     const resourceName = trip.bookingReferenceNo || trip.tripId;
+    const fullReason = rejectionContext
+      ? `[Accounts Rejection Reason: ${rejectionContext}]\n\nDocs Request: ${reason}`
+      : reason;
     await editApprovalsApi.create({
       resourceType,
       resourceId: parseInt(trip.id),
       resourceName,
       action: "Edit",
-      reason,
+      reason: fullReason,
     });
-    showSuccess("Edit request has been sent.");
+    showSuccess("Edit request has been sent to Kumar (Commercial Manager) for approval.");
     setEditRequestOpen(false);
     setPendingEditAction(null);
+  }
+
+  async function handleResubmitVerification(trip: Trip) {
+    if (resubmitting.has(trip.id)) return;
+    setResubmitting((prev) => new Set([...prev, trip.id]));
+    try {
+      const updated = await tripsApi.resubmitVerification(trip.id);
+      setTrips((prev) => prev.map((t) => t.id === trip.id ? updated : t));
+      showSuccess(`Trip ${trip.tripId} re-submitted for Accounts verification.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to re-submit trip.");
+    } finally {
+      setResubmitting((prev) => { const s = new Set(prev); s.delete(trip.id); return s; });
+    }
   }
 
   async function handleSubmitSheet(data: TripSheetData) {
@@ -405,6 +440,7 @@ export default function TripReconciliationPage() {
     "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !sheets.has(t.id)).length,
     "Sheet Entered":    trips.filter((t) => sheets.has(t.id)).length,
     "Flagged":          trips.filter((t) => t.flaggedForRecheck).length,
+    "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
   };
 
   const filteredTrips = trips
@@ -413,6 +449,7 @@ export default function TripReconciliationPage() {
       if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || sheets.has(t.id))) return false;
       if (statusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
       if (statusFilter === "Flagged" && !t.flaggedForRecheck) return false;
+      if (statusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
 
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -476,14 +513,15 @@ export default function TripReconciliationPage() {
       </div>
 
       {/* Status filter count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Flagged"] as const).map((f) => {
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Flagged", "Rejected"] as const).map((f) => {
           const colors: Record<string, string> = {
             "All":                  "border-gray-200 bg-white text-gray-700",
             "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
             "Pending Sheet Entry":  "border-blue-200 bg-blue-50 text-blue-700",
             "Sheet Entered":        "border-emerald-200 bg-emerald-50 text-emerald-700",
             "Flagged":              "border-orange-200 bg-orange-50 text-orange-700",
+            "Rejected":             "border-rose-200 bg-rose-50 text-rose-700",
           };
           const activeRing: Record<string, string> = {
             "All":                  "ring-2 ring-gray-400",
@@ -491,6 +529,7 @@ export default function TripReconciliationPage() {
             "Pending Sheet Entry":  "ring-2 ring-blue-400",
             "Sheet Entered":        "ring-2 ring-emerald-400",
             "Flagged":              "ring-2 ring-orange-400",
+            "Rejected":             "ring-2 ring-rose-400",
           };
           return (
             <button
@@ -562,7 +601,7 @@ export default function TripReconciliationPage() {
                 const customer = customerById.get(trip.customerId);
 
                 return (
-                  <tr key={trip.id} className={`hover:bg-gray-50 ${trip.flaggedForRecheck ? "bg-orange-50/40" : ""}`}>
+                  <tr key={trip.id} className={`hover:bg-gray-50 ${trip.verificationStatus === "rejected" ? "bg-rose-50/50" : trip.flaggedForRecheck ? "bg-orange-50/40" : ""}`}>
                     <td className="px-4 py-2 font-medium text-gray-800">
                       {trip.truckRegistration ?? "—"}
                       {trip.flaggedForRecheck && (
@@ -687,6 +726,46 @@ export default function TripReconciliationPage() {
                         {/* Trip Sheet */}
                         <div className="flex flex-col gap-0.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Trip Sheet</p>
+                          {trip.verificationStatus === "rejected" && (
+                            <div className="mb-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 flex flex-col gap-1.5">
+                              <p className="text-[11px] font-bold text-rose-700">✗ Rejected by Accounts</p>
+                              {trip.verificationRejectionReason && (
+                                <p className="text-[10px] text-rose-600 max-w-[200px] whitespace-normal leading-snug">
+                                  {trip.verificationRejectionReason}
+                                </p>
+                              )}
+                              {hasTripSheetApproval(trip) ? (
+                                <p className="text-[10px] font-semibold text-emerald-700">
+                                  ✓ Kumar approved your edit request — you can now edit the trip sheet.
+                                </p>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPendingEditAction({
+                                      resourceType: "TripSheet",
+                                      trip,
+                                      rejectionContext: trip.verificationRejectionReason ?? undefined,
+                                    });
+                                    setEditRequestOpen(true);
+                                  }}
+                                  className="self-start rounded-lg border border-rose-400 bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                                >
+                                  Request Edit Approval from Kumar
+                                </button>
+                              )}
+                              {sheets.has(trip.id) && (
+                                <button
+                                  type="button"
+                                  disabled={resubmitting.has(trip.id)}
+                                  onClick={() => handleResubmitVerification(trip)}
+                                  className="self-start rounded-lg bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                                >
+                                  {resubmitting.has(trip.id) ? "Re-submitting..." : "Re-submit for Verification"}
+                                </button>
+                              )}
+                            </div>
+                          )}
                           {sheet ? (
                             <div className="flex gap-1.5">
                               <button
@@ -878,6 +957,7 @@ export default function TripReconciliationPage() {
           action="Edit"
           onSubmit={handleEditRequestSubmit}
           onClose={() => { setEditRequestOpen(false); setPendingEditAction(null); }}
+          rejectionContext={pendingEditAction.rejectionContext}
         />
       )}
     </div>

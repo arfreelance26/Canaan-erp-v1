@@ -371,7 +371,7 @@ BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
 PaymentType = Literal["Credit", "Cash", "Fuel"]
 DriverAdvancePaymentMethod = Literal["None", "CASH", "NEFT/IMPS/UPI", "Both"]
 DriverCompensationType = Literal["Normal", "FIXED"]
-VerificationStatus = Literal["pending", "verified", "flagged"]
+VerificationStatus = Literal["pending", "verified", "flagged", "rejected"]
 
 
 class TripBase(OrmBase):
@@ -449,6 +449,7 @@ class TripStatusUpdate(OrmBase):
 class TripOut(TripBase):
     id: int
     verification_status: VerificationStatus = "pending"
+    verification_rejection_reason: Optional[str] = None
     is_invoiced: bool = False
     has_closure: bool = False
     has_sheet: bool = False

@@ -123,6 +123,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   tripSheetReceivedAt: null,
   tripSheetDate: null,
   verificationStatus: "pending",
+  verificationRejectionReason: null,
   isInvoiced: false,
   invoiceRequired: true,
   driverName: null,

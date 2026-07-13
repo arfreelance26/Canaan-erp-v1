@@ -20,8 +20,8 @@ type VerifyTripDialogProps = {
   onEditSheet: () => void;
   onViewBookingSheet: () => void;
   onEditBookingSheet: () => void;
-  onFlag: () => void;
   onConfirm: () => void;
+  onReject: (reason: string) => void;
 };
 
 function SectionCard({ title, accent, children }: { title: string; accent: string; children: React.ReactNode }) {
@@ -48,9 +48,11 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 
 export function VerifyTripDialog({
   open, trip, closure, sheet,
-  onClose, onViewSheet, onEditSheet, onViewBookingSheet, onEditBookingSheet, onFlag, onConfirm,
+  onClose, onViewSheet, onEditSheet, onViewBookingSheet, onEditBookingSheet, onConfirm, onReject,
 }: VerifyTripDialogProps) {
   const [markedLabels, setMarkedLabels] = useState<Set<string>>(new Set());
+  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   useEffect(() => {
     if (!trip) return;
@@ -64,6 +66,13 @@ export function VerifyTripDialog({
       }
     } catch {}
   }, [trip?.id, open]);
+
+  useEffect(() => {
+    if (!open) {
+      setDecision(null);
+      setRejectionReason("");
+    }
+  }, [open]);
 
   if (!trip) return null;
 
@@ -310,21 +319,81 @@ export function VerifyTripDialog({
               Edit Booking Sheet
             </button>
           </div>
-          <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-            <button type="button" onClick={onFlag}
-              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-500 shadow-sm hover:bg-red-50 transition-colors">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6H11.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-              </svg>
-              Flag for Rechecking
-            </button>
-            <button type="button" onClick={onConfirm}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Confirm Verification
-            </button>
+
+          {/* Verification Decision */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Verification Decision</p>
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                type="button"
+                onClick={() => setDecision("approve")}
+                className={[
+                  "flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition-all",
+                  decision === "approve"
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-md"
+                    : "border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50",
+                ].join(" ")}
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => setDecision("reject")}
+                className={[
+                  "flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition-all",
+                  decision === "reject"
+                    ? "border-red-500 bg-red-500 text-white shadow-md"
+                    : "border-red-200 bg-white text-red-500 hover:bg-red-50",
+                ].join(" ")}
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Reject
+              </button>
+            </div>
+
+            {decision === "reject" && (
+              <div className="mb-3 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 p-3">
+                <label className="text-xs font-semibold text-red-600">Rejection Reason (required — sent back to Docs team)</label>
+                <textarea
+                  rows={3}
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Describe what needs to be corrected..."
+                  className="w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-300"
+                />
+              </div>
+            )}
+
+            {decision === "approve" && (
+              <button
+                type="button"
+                onClick={onConfirm}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Confirm Verification
+              </button>
+            )}
+            {decision === "reject" && (
+              <button
+                type="button"
+                disabled={!rejectionReason.trim()}
+                onClick={() => onReject(rejectionReason.trim())}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Send Back to Docs
+              </button>
+            )}
           </div>
         </div>
 

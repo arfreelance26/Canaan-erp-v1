@@ -338,7 +338,8 @@ class Trip(Base):
     driver_change_remark = Column(Text)
     booking_instructions = Column(Text)
     # Workflow state
-    verification_status = Column(Enum("pending", "verified", "flagged"), default="pending")
+    verification_status = Column(Enum("pending", "verified", "flagged", "rejected"), default="pending")
+    verification_rejection_reason = Column(Text, nullable=True)
     is_invoiced = Column(Boolean, default=False)
     invoice_required = Column(Boolean, default=True, nullable=False)
     trip_sheet_collected = Column(Boolean, default=False, nullable=False)

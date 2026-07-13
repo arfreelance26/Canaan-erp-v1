@@ -17,6 +17,8 @@ export type SheetAlertNotif = {
 type NotificationCtx = {
   sheetAlerts: SheetAlertNotif[];
   reminders: Reminder[];
+  complianceAlertCount: number;
+  setComplianceAlertCount: (n: number) => void;
   pushSheetAlert: (alert: Omit<SheetAlertNotif, "alertedAt">) => void;
   dismissSheetAlert: (index: number) => void;
   clearSheetAlerts: () => void;
@@ -31,6 +33,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [sheetAlerts, setSheetAlerts] = useState<SheetAlertNotif[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [complianceAlertCount, setComplianceAlertCount] = useState(0);
   const alertsRef = useRef(sheetAlerts);
   alertsRef.current = sheetAlerts;
 
@@ -132,7 +135,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotificationContext.Provider
-      value={{ sheetAlerts, reminders, pushSheetAlert, dismissSheetAlert, clearSheetAlerts }}
+      value={{ sheetAlerts, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts }}
     >
       {children}
     </NotificationContext.Provider>

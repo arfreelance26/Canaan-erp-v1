@@ -224,6 +224,17 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const [saving, setSaving] = useState(false);
   const [taxWarning, setTaxWarning] = useState(false);
 
+  type ExtraChargeLine = { label: string; enabled: boolean; amount: string };
+  const buildExtraCharges = (): ExtraChargeLine[] => [
+    { label: "Weighment",    enabled: false, amount: sheet ? String(sheet.weightSheetExpense ?? "") : "" },
+    { label: "Lift On / Off", enabled: false, amount: sheet ? String(sheet.liftOnOffExpense ?? "") : "" },
+    { label: "Mamool",       enabled: false, amount: sheet ? String((Number(sheet.mamolExpense || 0) + Number(sheet.claimableMamolExpense || 0)) || "") : "" },
+    { label: "Port Pass",    enabled: false, amount: sheet ? String(sheet.portPassExpense ?? "") : "" },
+    { label: "Crane Operator", enabled: false, amount: sheet ? String(sheet.craneOperatorExpense ?? "") : "" },
+    { label: "Other",        enabled: false, amount: "" },
+  ];
+  const [extraCharges, setExtraCharges] = useState<ExtraChargeLine[]>(buildExtraCharges);
+
   const draftKey = `erp_invoice_draft_${trip?.id ?? "none"}`;
   useFormDraft(draftKey, open && !savedInvoice, form, setForm);
 
@@ -300,6 +311,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const taxSelected = form.gstApplicable === "Yes" || form.igstApplicable === "Yes";
   const isSelf = trip?.billTo === "SELF/CGI";
   const isBillOfSupplyLocked = !isSelf && (customer?.isGta === "Yes" || customer?.customerType === "Transports");
+  const isRateEditable = trip?.cargoClassification === "OPEN LOAD" || trip?.tripCategory === "RETURN TRIP";
 
   const originalBillTo = customer?.name ?? trip?.billTo ?? "";
   const originalGstNumber = customer?.gstin ?? "";
@@ -412,7 +424,11 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     }),
   [form.services]);
 
-  const subtotalAll = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.subtotal, 0), [serviceCalcs]);
+  const extraChargesTotal = useMemo(
+    () => extraCharges.filter((e) => e.enabled).reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0),
+    [extraCharges],
+  );
+  const subtotalAll = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.subtotal, 0) + extraChargesTotal, [serviceCalcs, extraChargesTotal]);
   const totalGst = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.gstAmount, 0), [serviceCalcs]);
   const grandTotal = useMemo(() => subtotalAll + totalGst, [subtotalAll, totalGst]);
   const amountInWords = useMemo(() => numberToWords(grandTotal), [grandTotal]);
@@ -423,7 +439,18 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     e.preventDefault();
     setSaving(true);
     try {
-      await onSubmit({ ...form, invoiceNo: autoInvoiceNo }, form.invoiceType);
+      const enabledExtra = extraCharges.filter((e) => e.enabled && parseFloat(e.amount) > 0);
+      const mergedServices = [
+        ...form.services,
+        ...enabledExtra.map((e) => ({
+          ...emptyService(),
+          descriptionOfService: e.label,
+          quantity: "1",
+          rate: e.amount,
+          gstRate: "",
+        })),
+      ];
+      await onSubmit({ ...form, invoiceNo: autoInvoiceNo, services: mergedServices }, form.invoiceType);
       if (!savedInvoice) clearFormDraft(draftKey);
     } finally {
       setSaving(false);
@@ -554,8 +581,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <Field label="Invoice No">
               <input readOnly disabled value={autoInvoiceNo} className={roClass} placeholder={open ? "Fetching next number…" : ""} />
             </Field>
-            <Field label="Invoice Date" required>
-              <DatePickerInput value={form.invoiceDate} onChange={(v) => update("invoiceDate", v)} required />
+            <Field label="Invoice Date">
+              <input readOnly disabled value={form.invoiceDate} className={roClass} />
+              <p className="mt-1 text-xs text-gray-400">Auto-set to today — backdating not permitted.</p>
             </Field>
             <Field label="Booking Reference No">
               <input readOnly disabled value={form.bookingReferenceNo} className={roClass} />
@@ -649,6 +677,48 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                 ))}
               </div>
             )}
+            {/* Extra charges — shown for Bill of Supply (GTA) only */}
+            {form.invoiceType === "Bill of Supply" && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 flex flex-col gap-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Extra Charges (optional — for Bill of Supply)</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {extraCharges.map((charge, idx) => (
+                    <div key={charge.label} className="flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+                      <input
+                        type="checkbox"
+                        id={`ec-${idx}`}
+                        checked={charge.enabled}
+                        onChange={(e) => setExtraCharges((prev) => prev.map((c, i) => i === idx ? { ...c, enabled: e.target.checked } : c))}
+                        className="h-4 w-4 accent-amber-600 shrink-0"
+                      />
+                      <label htmlFor={`ec-${idx}`} className="text-xs font-medium text-gray-700 shrink-0 w-28">{charge.label}</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={charge.amount}
+                        disabled={!charge.enabled}
+                        onChange={(e) => setExtraCharges((prev) => prev.map((c, i) => i === idx ? { ...c, amount: e.target.value } : c))}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        placeholder="₹ amount"
+                        className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:text-gray-300 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  ))}
+                </div>
+                {extraChargesTotal > 0 && (
+                  <p className="text-xs font-semibold text-amber-700">Extra charges total: ₹{fmt(extraChargesTotal)}</p>
+                )}
+              </div>
+            )}
+
+            {/* Rate lock notice for non-Open/Return trips */}
+            {!isRateEditable && (
+              <p className="text-xs text-amber-600 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                Rate fields are locked — charges are editable only for <strong>Open Load</strong> and <strong>Return Trip</strong> types.
+              </p>
+            )}
+
             {form.services.map((svc, i) => {
               const calc = serviceCalcs[i];
               return (
@@ -701,12 +771,13 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                         placeholder="e.g. 1"
                       />
                     </Field>
-                    <Field label="Rate (INR)">
+                    <Field label={`Rate (INR)${!isRateEditable ? " — locked" : ""}`}>
                       <DecimalInput type="number" min="0" step="0.01"
                         value={svc.rate}
-                        onChange={(e) => updateService(i, "rate", e.target.value)}
+                        readOnly={!isRateEditable}
+                        onChange={(e) => isRateEditable && updateService(i, "rate", e.target.value)}
                         onWheel={(e) => e.currentTarget.blur()}
-                        className={inputClass}
+                        className={!isRateEditable ? `${inputClass} bg-gray-100 cursor-not-allowed text-gray-500` : inputClass}
                         placeholder="e.g. 32000"
                       />
                     </Field>

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { getComplianceStatus } from "@/lib/compliance";
+import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
 
@@ -27,8 +27,8 @@ const statusStyles: Record<string, string> = {
   Expired: "bg-red-50 text-red-700",
 };
 
-function ComplianceCell({ date }: { date: string }) {
-  const status = getComplianceStatus(date);
+function ComplianceCell({ date, field = "default" }: { date: string; field?: ComplianceField }) {
+  const status = getComplianceStatus(date, field);
   return (
     <div className="flex flex-col gap-1">
       <span className="text-gray-600 whitespace-nowrap">{formatDate(date)}</span>
@@ -74,25 +74,25 @@ export function ComplianceTable({ trucks }: ComplianceTableProps) {
               <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{truck.truckId}</td>
               <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{truck.registrationNumber}</td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.rcValidityDate} />
+                <ComplianceCell date={truck.rcValidityDate} field="rc" />
               </td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.fcExpiryDate} />
+                <ComplianceCell date={truck.fcExpiryDate} field="fc" />
               </td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.roadTaxDate} />
+                <ComplianceCell date={truck.roadTaxDate} field="roadTax" />
               </td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.nationalPermitDate} />
+                <ComplianceCell date={truck.nationalPermitDate} field="nationalPermit" />
               </td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.localPermitDate} />
+                <ComplianceCell date={truck.localPermitDate} field="localPermit" />
               </td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.pollutionCertificateDate} />
+                <ComplianceCell date={truck.pollutionCertificateDate} field="pollution" />
               </td>
               <td className="px-4 py-3">
-                <ComplianceCell date={truck.insuranceExpiryDate} />
+                <ComplianceCell date={truck.insuranceExpiryDate} field="insurance" />
               </td>
             </tr>
           ))}

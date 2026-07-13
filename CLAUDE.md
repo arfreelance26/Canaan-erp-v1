@@ -112,7 +112,6 @@ This file tracks all client-requested features from the WhatsApp brief (canaan.m
 **Diesel Entry in Trip Sheet**
 - Add diesel quantity (litres), diesel rate (₹/litre), diesel total fields inside trip sheet — placed after the KM section
 - This data must auto-replicate to the Fuel Log (vehicle-wise, KM, date, litres, rate, total)
-- If diesel entered is ±5% of the approximate expected value → show popup requiring a remarks box entry before saving
 - If KM between locations is ±10% of the `approx_km` set by Kumar → show popup requiring a remarks box entry before saving
 
 **Edit/Correction Flow**
@@ -125,7 +124,38 @@ This file tracks all client-requested features from the WhatsApp brief (canaan.m
 
 ---
 
-### 4. Assistant Commercial Manager — Shibu
+### 4. Accounts — Sunder / Thanamani
+
+**Verification Screen**
+- Add a tick (✓) / X (✗) selection UI on each trip row in the verification screen
+- If accounts selects ✓ (ok): approve and proceed to invoice generation
+- If accounts selects ✗ (reject): open a reason box; trip sheet is rejected and sent back to Trip Sheet Register (Docs team — Latha/Siva) with the reason displayed
+
+**Rejection → Edit Request Flow**
+- When Docs team sees a rejected trip sheet with the reason, they must be able to send an edit request to Kumar (Commercial Manager) along with a reason box explaining the required change
+- Kumar (Commercial Manager) reviews and approves or denies the edit request
+- Upon Kumar's approval, Docs team can edit the trip sheet and re-submit it for accounts verification
+
+**Invoice Generation Rules**
+- Invoice date must be the date of raising the invoice — auto-set to today, non-editable, no backdated invoices/bill of supply/transport memo allowed
+- GST number must remain editable under the Accounts user (must NOT be frozen)
+- Invoice generation must be fully automated based on billing party:
+  - **Self (CGI)** → Transport Memo, no GST; show freight and halt charges only *(cross-check final charge list with Sunder)*
+  - **Customer + GTA** → Bill of Supply, no GST; provision for accounts to manually add extra charges (e.g. weighment, lift-on, mamool, etc.); remove "Consignee" from billing party options
+  - **Customer + non-GTA** → Tax Invoice with GST; accounts can choose which charges to include
+  - Charges must be editable only for Open Load and Return Trip types
+- Separate running number sequences for each invoice type:
+  - Transport Memo: own counter (e.g. CGI{FY}/TM{0001})
+  - Bill of Supply: own counter
+  - Tax Invoice: own counter
+
+**Booking Edit Request**
+- Any correction to booking details must go to Admin (Sir) for approval before the change is made
+- (Covered by existing EditApprovalRequest system — confirm it applies to booking edits too)
+
+---
+
+### 6. Assistant Commercial Manager — Shibu
 
 - Must be able to view and calculate P&L per trip
 - Must be able to view and calculate Mileage per trip
@@ -134,7 +164,7 @@ This file tracks all client-requested features from the WhatsApp brief (canaan.m
 
 ---
 
-### 5. Dashboard — All Users
+### 7. Dashboard — All Users
 
 **Clickable Stat Cards**
 - Clicking a number on any stat card (e.g. "12 Active Trips") must open the filtered trip list showing those trips
@@ -146,7 +176,21 @@ This file tracks all client-requested features from the WhatsApp brief (canaan.m
 
 ---
 
-### 6. Global UI Changes
+### 7. Truck Master — Compliance Expiry Popup Alerts
+
+Popup alerts must fire before document expiry (shown on dashboard or fleet screen):
+- **FC (Fitness Certificate)**: alert 1 month (30 days) before expiry
+- **National Permit**: alert 10 days before expiry
+- **Local Permit**: alert 10 days before expiry
+- **Pollution Under Control Certificate (PUC)**: alert 7 days before expiry
+- **Road Tax**: alert 10 days before expiry
+- **Insurance**: alert 7 days before expiry
+
+*Current state: `compliance.ts` uses a single 30-day window for all fields — needs per-field thresholds.*
+
+---
+
+### 8. Global UI Changes
 
 **Pagination — 10 per page**
 - ALL trip list screens must show 10 trips per page with page navigation controls
@@ -187,10 +231,23 @@ This file tracks all client-requested features from the WhatsApp brief (canaan.m
 | Clickable stat cards (Admin + Commercial Mgr dashboard) | ✅ Implemented — Admin Active Trips/Fleet on Road → /trips/current; Commercial Mgr cards → respective trip list pages |
 | Diesel entry in trip sheet (litres, rate, total) | ✅ Implemented — Diesel Entry section in TripSheetDialog after KM section |
 | Diesel → Fuel log auto-sync | ✅ Implemented — upsert FuelLog record on trip sheet save (keyed by trip_id) |
-| ±5% diesel variance popup | ✅ Implemented — SweetAlert with mandatory remark before save |
+| ±5% diesel variance popup | ❌ Removed by client request — feature disabled |
 | ±10% KM variance popup | ✅ Implemented — SweetAlert with mandatory remark before save (compares totalKm to approxKm) |
 | Download by date range (Yard PDF) | ✅ Implemented — date-from/to inputs beside Download PDF button; PDF filters by tripSheetCollectedAt |
 | Active bookings visible on all user dashboards | ✅ Implemented — ActiveBookingsWidget added to Staff, Yard Supervisor, Maintenance, Accounts dashboards; shows all non-invoiced trips with live status |
 | From/To predefined dropdown list (replace free-text) | ✅ Implemented — 25 standard Chennai port/logistics locations always appear in origin/destination dropdowns (merged with customer-specific and history options) |
 | LR / Consignment Note generation | ✅ Implemented — "LR" button (FileText icon) in every trip row; generates professional A4 PDF via jsPDF with all trip/cargo/driver/freight details |
 | P&L and Mileage per-trip calc for Shibu | ✅ Implemented — P&L & Mileage table visible only to Assistant Commercial Manager; shows Hire − Expense = P&L and km/L mileage per trip |
+| Verification tick (✓) / X (✗) UI for Accounts | ✅ Implemented — Approve/Reject buttons in VerifyTripDialog; Approve → Confirm Verification, Reject → reason box + Send Back to Docs |
+| Verification rejection flow (X → reason → back to Docs) | ✅ Implemented — POST /trips/{id}/reject-verification; "rejected" status + verificationRejectionReason stored on Trip; reconciliation page shows rejection reason banner to Docs |
+| Docs edit request to Kumar (commercial manager) after rejection | ✅ Implemented — "Request Edit Approval from Kumar" button on rejected trips; EditRequestDialog shows accounts rejection reason; sends EditApprovalRequest to Kumar; Commercial Manager can approve/reject via edit-approvals page (now in sidebar); WS event refreshes active approvals |
+| Docs re-submit trip sheet after Kumar approval | ✅ Implemented — "Re-submit for Verification" button on rejected trips with a sheet; POST /trips/{id}/resubmit-verification resets status to pending; trip returns to Accounts queue |
+| Invoice date auto-set, non-editable, no backdating | ✅ Implemented — read-only input auto-set to today (IST); backdating not permitted |
+| GST number editable under Accounts user | ✅ Already implemented |
+| Invoice type automation (Self / GTA / non-GTA) | ✅ Already implemented — Self→Transport Memo, GTA→Bill of Supply, other→Tax Invoice |
+| Consignee removed from bill_to options | ✅ Partial — bill_to is read-only pre-filled field, not a dropdown; Consignee is not selectable |
+| Extra charge selection for Bill of Supply (GTA) | ✅ Implemented — Extra Charges panel (weighment, lift-on, mamool, port pass, crane, other) shown only for Bill of Supply; pre-filled from trip sheet values; merged into services on submit |
+| Charges editable only for Open Load / Return Trip | ✅ Implemented — Rate field locked for all trip types except OPEN LOAD (cargoClassification) and RETURN TRIP (tripCategory); lock notice shown to user |
+| Separate running numbers: TM / Bill of Supply / Tax Invoice | ✅ Implemented — TM→CGI{FY}/TM{nnnn}, Bill of Supply→CGI{FY}/BS{nnnn}, Tax Invoice→CGI{FY}/T{nnnn} each with own counter |
+| Truck compliance per-field expiry thresholds | ✅ Implemented — compliance.ts uses per-field WARNING_DAYS: FC=30d, permits=10d, PUC=7d, road tax=10d, insurance=7d |
+| Truck compliance popup alerts (dashboard/fleet) | ✅ Implemented — useComplianceAlerts hook fires SweetAlert on fleet page and admin dashboard load; groups expired vs expiring soon with truck ID and document type |

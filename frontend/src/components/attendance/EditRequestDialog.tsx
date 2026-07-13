@@ -11,9 +11,10 @@ type Props = {
   action: EditApprovalAction;
   onSubmit: (reason: string) => Promise<void>;
   onClose: () => void;
+  rejectionContext?: string;
 };
 
-export function EditRequestDialog({ open, resourceType, resourceName, action, onSubmit, onClose }: Props) {
+export function EditRequestDialog({ open, resourceType, resourceName, action, onSubmit, onClose, rejectionContext }: Props) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,7 +48,7 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
             </div>
             <div>
               <h2 className="text-[15px] font-semibold text-gray-900">Request {action} Access</h2>
-              <p className="text-[11px] text-gray-500">Admin approval required</p>
+              <p className="text-[11px] text-gray-500">{rejectionContext ? "Kumar (Commercial Manager) approval required" : "Admin approval required"}</p>
             </div>
           </div>
           <button
@@ -60,10 +61,19 @@ export function EditRequestDialog({ open, resourceType, resourceName, action, on
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
+          {rejectionContext && (
+            <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3">
+              <p className="text-[11px] font-bold text-rose-700 mb-1">Accounts Rejection Reason:</p>
+              <p className="text-sm text-rose-700">{rejectionContext}</p>
+            </div>
+          )}
           <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-            You are requesting <span className="font-semibold">{action}</span> access for:{" "}
-            <span className="font-semibold">{resourceName}</span>
-            <span className="ml-1 text-amber-600">({resourceType})</span>
+            {rejectionContext
+              ? <>Requesting edit approval from <span className="font-semibold">Kumar (Commercial Manager)</span> for: <span className="font-semibold">{resourceName}</span></>
+              : <>You are requesting <span className="font-semibold">{action}</span> access for:{" "}
+                  <span className="font-semibold">{resourceName}</span>
+                  <span className="ml-1 text-amber-600">({resourceType})</span></>
+            }
           </div>
 
           <div className="flex flex-col gap-1.5">

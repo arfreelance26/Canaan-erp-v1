@@ -26,6 +26,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/resources/fleet",
     "/attendance/drivers",
     "/attendance/leave-requests",
+    "/attendance/edit-approvals",
   ],
   "Assistant Commercial Manager": [
     "/",

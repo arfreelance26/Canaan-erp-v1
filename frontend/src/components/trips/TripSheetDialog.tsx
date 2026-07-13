@@ -171,7 +171,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.ratePerTon          = trip.ratePerTon ?? "";
       sheet.hireAmount              = trip.transportHireAmount ?? "";
       sheet.driverCompensationType  = trip.driverCompensationType || battaCompType;
-      sheet.driverPay               = "";
+      sheet.driverPay               = trip.driverAdvanceAmount ?? "";
       sheet.driverAdvanceAmount = String(
         (Number(closure?.driverAdvance || 0) + Number(closure?.additionalDriverAdvance || 0)).toFixed(2)
       );
@@ -255,27 +255,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       }
     }
 
-    // ±5% diesel variance check (compare diesel_total to fuel_cost_approx as baseline)
-    let dieselRemark = form.dieselRemarks;
-    const dieselTotal = n(form.dieselTotal);
-    const fuelCostBase = n(form.fuelCostApprox);
-    if (!ro && dieselTotal > 0 && fuelCostBase > 0 && !dieselRemark) {
-      const pct = Math.abs((dieselTotal - fuelCostBase) / fuelCostBase) * 100;
-      if (pct > 5) {
-        const res = await MySwal.fire({
-          title: "Diesel Cost Variance Alert",
-          html: `<p>Diesel total (<b>₹${dieselTotal.toLocaleString("en-IN")}</b>) differs from expected fuel cost (<b>₹${fuelCostBase.toLocaleString("en-IN")}</b>) by <b>${pct.toFixed(1)}%</b> — outside the ±5% limit.</p><p class="mt-2 text-sm text-gray-500">Please enter a reason to proceed.</p>`,
-          input: "textarea",
-          inputPlaceholder: "Enter reason for diesel variance...",
-          inputAttributes: { required: "true" },
-          showCancelButton: true,
-          confirmButtonText: "Save with Remark",
-          preConfirm: (val: string) => { if (!val?.trim()) { MySwal.showValidationMessage("Remark is required"); return false; } return val.trim(); },
-        });
-        if (res.isDismissed) { setSaving(false); return; }
-        dieselRemark = res.value as string;
-      }
-    }
+    // ±5% diesel variance check — disabled for now
+    const dieselRemark = form.dieselRemarks;
 
     onSubmit({
       ...form,
@@ -287,16 +268,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       haltRemarks,
     });
   }
-
-  const autoFuelCost =
-    n(form.totalKm) > 0 && Number(costPerKm) > 0
-      ? (n(form.totalKm) * Number(costPerKm)).toFixed(2)
-      : "";
-
-  // Auto-fill from computed value when km or cost-per-km changes; user can override between km edits
-  useEffect(() => {
-    setForm((prev) => ({ ...prev, fuelCostApprox: autoFuelCost }));
-  }, [form.totalKm, costPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-calculate diesel total when litres or rate changes
   useEffect(() => {
@@ -480,22 +451,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Total km *">
             <DecimalInput type="number" className={`${fc} bg-gray-50`} value={form.totalKm} readOnly placeholder="Auto-calculated" />
           </Field>
-          <Field label="Fuel Cost for this Trip — approx (₹)">
-            <DecimalInput type="number"
-              min="0"
-              className={fc}
-              value={form.fuelCostApprox}
-              readOnly={ro}
-              onChange={(e) => set("fuelCostApprox", e.target.value)}
-              onWheel={(e) => e.currentTarget.blur()}
-              placeholder={costPerKm ? "Auto-calculated — you can override" : "Enter fuel cost manually"}
-            />
-            {costPerKm && Number(costPerKm) > 0 && (
-              <p className="mt-1 text-xs text-gray-400">
-                {n(form.totalKm) > 0 ? `${n(form.totalKm)} km × ₹${Number(costPerKm).toFixed(2)}/km (auto-filled — edit to override)` : `₹${Number(costPerKm).toFixed(2)}/km from fuel history`}
-              </p>
-            )}
-          </Field>
           <Field label="Cargo Weight (tons)">
             <input className={ac} value={form.cargoWeight} readOnly={!auto} disabled={!auto} onChange={(e) => set("cargoWeight", e.target.value)} placeholder="Auto-fetched from trip" />
           </Field>
@@ -554,14 +509,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             )}
           </Field>
         </div>
-        {n(form.dieselTotal) > 0 && n(form.fuelCostApprox) > 0 && (() => {
-          const pct = Math.abs((n(form.dieselTotal) - n(form.fuelCostApprox)) / n(form.fuelCostApprox)) * 100;
-          return pct > 5 ? (
-            <p className="text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-              ⚠ Diesel total (₹{n(form.dieselTotal).toLocaleString("en-IN")}) differs from expected fuel cost (₹{n(form.fuelCostApprox).toLocaleString("en-IN")}) by {pct.toFixed(1)}% — a remark will be required on save.
-            </p>
-          ) : null;
-        })()}
 
         {/* ── 5. Halt Information ── */}
         <p className={sh}>Halt Information</p>

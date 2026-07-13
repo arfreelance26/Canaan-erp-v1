@@ -59,6 +59,7 @@ import type { CompensationTransaction } from "@/types/compensation";
 import { todayIst } from "@/lib/format-date";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
 import { TripStatusDonutChart } from "@/components/dashboard/TripStatusDonutChart";
 import { FleetUtilizationChart } from "@/components/dashboard/FleetUtilizationChart";
 import { TripTrendChart } from "@/components/dashboard/TripTrendChart";
@@ -217,6 +218,7 @@ export default function DashboardPage() {
   useWebSocketEvent("leave_request_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
+  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon } = useComplianceAlerts(trucks);
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
@@ -591,6 +593,59 @@ export default function DashboardPage() {
           Live
         </div>
       </div>
+
+      {/* ── Compliance Alert Banner ─────────────────────────────────────── */}
+      {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (
+        <div className={cn(
+          "rounded-2xl border px-5 py-4",
+          complianceExpired.length > 0
+            ? "border-red-200 bg-red-50"
+            : "border-amber-200 bg-amber-50"
+        )}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className={cn(
+              "mt-0.5 h-5 w-5 shrink-0",
+              complianceExpired.length > 0 ? "text-red-500" : "text-amber-500"
+            )} />
+            <div className="flex-1">
+              <p className={cn(
+                "text-sm font-bold",
+                complianceExpired.length > 0 ? "text-red-700" : "text-amber-700"
+              )}>
+                {complianceExpired.length > 0
+                  ? `${complianceExpired.length} expired document${complianceExpired.length === 1 ? "" : "s"} — immediate renewal required`
+                  : `${complianceExpiringSoon.length} document${complianceExpiringSoon.length === 1 ? "" : "s"} expiring soon`}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {complianceExpired.map((item, i) => (
+                  <span key={`exp-${i}`} className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                    {item.truckId} · {item.label}
+                  </span>
+                ))}
+                {complianceExpiringSoon.map((item, i) => (
+                  <span key={`soon-${i}`} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    {item.truckId} · {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/resources/fleet")}
+              className={cn(
+                "shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                complianceExpired.length > 0
+                  ? "bg-red-600 text-white hover:bg-red-700"
+                  : "bg-amber-600 text-white hover:bg-amber-700"
+              )}
+            >
+              View Fleet
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Section 1: Hero KPIs ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">

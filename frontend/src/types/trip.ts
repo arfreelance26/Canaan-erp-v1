@@ -120,7 +120,8 @@ export type Trip = {
   tripSheetReceived: boolean;
   tripSheetReceivedAt: string | null;
   tripSheetDate: string | null;
-  verificationStatus: "pending" | "verified" | "flagged";
+  verificationStatus: "pending" | "verified" | "flagged" | "rejected";
+  verificationRejectionReason: string | null;
   isInvoiced: boolean;
   invoiceRequired: boolean;
   driverName: string | null;

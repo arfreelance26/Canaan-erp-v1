@@ -20,6 +20,9 @@ import {
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getComplianceStatus } from "@/lib/compliance";
+import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
+import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
@@ -123,6 +126,9 @@ export function FinanceManagerDashboard() {
   useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
+  const router = useRouter();
+  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon } = useComplianceAlerts(trucks);
+
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().slice(0, 10);
 
@@ -182,6 +188,57 @@ export function FinanceManagerDashboard() {
           </div>
         )}
       </div>
+
+      {/* Compliance Alert Banner */}
+      {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (
+        <div className={cn(
+          "rounded-2xl border px-5 py-4",
+          complianceExpired.length > 0 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
+        )}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className={cn(
+              "mt-0.5 h-5 w-5 shrink-0",
+              complianceExpired.length > 0 ? "text-red-500" : "text-amber-500"
+            )} />
+            <div className="flex-1">
+              <p className={cn(
+                "text-sm font-bold",
+                complianceExpired.length > 0 ? "text-red-700" : "text-amber-700"
+              )}>
+                {complianceExpired.length > 0
+                  ? `${complianceExpired.length} expired document${complianceExpired.length === 1 ? "" : "s"} — immediate renewal required`
+                  : `${complianceExpiringSoon.length} document${complianceExpiringSoon.length === 1 ? "" : "s"} expiring soon`}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {complianceExpired.map((item, i) => (
+                  <span key={`exp-${i}`} className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                    {item.truckId} · {item.label}
+                  </span>
+                ))}
+                {complianceExpiringSoon.map((item, i) => (
+                  <span key={`soon-${i}`} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    {item.truckId} · {item.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/maintenance/compliance")}
+              className={cn(
+                "shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                complianceExpired.length > 0
+                  ? "bg-red-600 text-white hover:bg-red-700"
+                  : "bg-amber-600 text-white hover:bg-amber-700"
+              )}
+            >
+              View Compliance
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

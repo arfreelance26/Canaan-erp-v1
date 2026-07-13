@@ -47,12 +47,15 @@ def create_edit_approval(
 @router.get("", response_model=list[schemas.EditApprovalRequestOut])
 def list_edit_approvals(
     status: Optional[str] = Query(None),
+    resource_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin")),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
 ):
     q = db.query(models.EditApprovalRequest)
     if status:
         q = q.filter(models.EditApprovalRequest.status == status)
+    if resource_type:
+        q = q.filter(models.EditApprovalRequest.resource_type == resource_type)
     return q.order_by(models.EditApprovalRequest.created_at.desc()).all()
 
 
@@ -75,7 +78,7 @@ def approve_edit_request(
     request_id: int,
     payload: Optional[schemas.ApproveDeletePayload] = None,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin")),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
 ):
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:
@@ -127,7 +130,7 @@ def delete_edit_request(request_id: int, db: Session = Depends(get_db)):
 def reject_edit_request(
     request_id: int,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin")),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
 ):
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:

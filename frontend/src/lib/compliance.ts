@@ -1,8 +1,27 @@
 export type ComplianceStatus = "Valid" | "Expiring Soon" | "Expired";
 
-const EXPIRING_SOON_WINDOW_DAYS = 30;
+export type ComplianceField =
+  | "fc"
+  | "nationalPermit"
+  | "localPermit"
+  | "pollution"
+  | "roadTax"
+  | "insurance"
+  | "rc"
+  | "default";
 
-export function getComplianceStatus(date: string): ComplianceStatus {
+const WARNING_DAYS: Record<ComplianceField, number> = {
+  fc:            30,   // FC: 1 month
+  nationalPermit: 10,
+  localPermit:   10,
+  pollution:      7,   // PUC: 7 days
+  roadTax:       10,
+  insurance:      7,
+  rc:            30,
+  default:       30,
+};
+
+export function getComplianceStatus(date: string, field: ComplianceField = "default"): ComplianceStatus {
   if (!date) return "Expired";
 
   const today = new Date();
@@ -12,8 +31,9 @@ export function getComplianceStatus(date: string): ComplianceStatus {
   expiry.setHours(0, 0, 0, 0);
 
   const diffDays = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+  const warnDays = WARNING_DAYS[field] ?? WARNING_DAYS.default;
 
   if (diffDays < 0) return "Expired";
-  if (diffDays <= EXPIRING_SOON_WINDOW_DAYS) return "Expiring Soon";
+  if (diffDays <= warnDays) return "Expiring Soon";
   return "Valid";
 }

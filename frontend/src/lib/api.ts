@@ -517,6 +517,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     tripSheetReceivedAt: b.trip_sheet_received_at ?? null,
     tripSheetDate: b.trip_sheet_date ?? null,
     verificationStatus: b.verification_status ?? "pending",
+    verificationRejectionReason: b.verification_rejection_reason ?? null,
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,
     driverName: b.driver_name ?? null,
@@ -1143,6 +1144,14 @@ export const tripsApi = {
   // Workflow
   verify: (dbId: string) => req<B>(`/trips/${dbId}/verify`, { method: "POST" }).then(toTrip),
   flag: (dbId: string) => req<B>(`/trips/${dbId}/flag`, { method: "POST" }).then(toTrip),
+  rejectVerification: (dbId: string, reason: string) =>
+    req<B>(`/trips/${dbId}/reject-verification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    }).then(toTrip),
+  resubmitVerification: (dbId: string) =>
+    req<B>(`/trips/${dbId}/resubmit-verification`, { method: "POST" }).then(toTrip),
   invoice: (dbId: string, data: Record<string, unknown>) =>
     req<B>(`/trips/${dbId}/invoice`, {
       method: "POST",
@@ -1678,8 +1687,13 @@ function toEditApproval(b: B): EditApprovalRequest {
 }
 
 export const editApprovalsApi = {
-  list: (status?: string) =>
-    req<B[]>(`/edit-approvals${status ? `?status=${status}` : ""}`).then((d) => d.map(toEditApproval)),
+  list: (status?: string, resourceType?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (resourceType) params.set("resource_type", resourceType);
+    const qs = params.toString();
+    return req<B[]>(`/edit-approvals${qs ? `?${qs}` : ""}`).then((d) => d.map(toEditApproval));
+  },
   getMyActive: () =>
     req<B[]>("/edit-approvals/my-active").then((d) => d.map(toEditApproval)),
   create: (payload: {

@@ -121,7 +121,7 @@ export function Topbar() {
     ? "Payments"
     : "Reminders";
 
-  const { sheetAlerts, reminders, pushSheetAlert, dismissSheetAlert } = useNotifications();
+  const { sheetAlerts, reminders, complianceAlertCount, pushSheetAlert, dismissSheetAlert } = useNotifications();
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -314,7 +314,7 @@ export function Topbar() {
             const totalBadge =
               sheetAlerts.length +
               reminders.length +
-              (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
+              (isAdmin ? leaveRequests.length + editRequestNotifs.length + complianceAlertCount : 0) +
               editApprovalNotifs.length;
             return (
               <button
@@ -323,7 +323,10 @@ export function Topbar() {
                 onClick={() => setIsNotifOpen((v) => !v)}
                 className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               >
-                <Bell className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                <Bell className={cn(
+                  "h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110",
+                  complianceAlertCount > 0 && !isNotifOpen && "animate-bounce"
+                )} />
                 {totalBadge > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
                     {totalBadge > 99 ? "99+" : totalBadge}
@@ -345,7 +348,7 @@ export function Topbar() {
                   const count =
                     sheetAlerts.length +
                     reminders.length +
-                    (isAdmin ? leaveRequests.length + editRequestNotifs.length : 0) +
+                    (isAdmin ? leaveRequests.length + editRequestNotifs.length + complianceAlertCount : 0) +
                     editApprovalNotifs.length;
                   return count > 0 ? (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
@@ -406,6 +409,32 @@ export function Topbar() {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* ── Compliance Alerts (Admin only) ── */}
+                  {isAdmin && complianceAlertCount > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                        Compliance Alerts
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setIsNotifOpen(false); router.push("/resources/fleet"); }}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/60"
+                      >
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                          <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-semibold text-gray-900">
+                            {complianceAlertCount} truck document{complianceAlertCount === 1 ? "" : "s"} need attention
+                          </p>
+                          <p className="text-[11px] text-red-700 font-medium">
+                            View Fleet page for details → renew expired documents immediately
+                          </p>
+                        </div>
+                      </button>
                     </div>
                   )}
 
@@ -604,7 +633,7 @@ export function Topbar() {
                   {sheetAlerts.length === 0 &&
                    reminders.length === 0 &&
                    editApprovalNotifs.length === 0 &&
-                   (isStaff || isFleetManager || isFinanceManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0)) && (
+                   (isStaff || isFleetManager || isFinanceManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && complianceAlertCount === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Bell className="h-8 w-8 text-gray-200" />
                       <p className="text-sm font-medium text-gray-500">No notifications</p>

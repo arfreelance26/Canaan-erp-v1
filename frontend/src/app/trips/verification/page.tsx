@@ -36,16 +36,16 @@ type PreviewState = {
 
 type InvoiceDialogState = { trip: Trip; savedInvoice: Partial<InvoiceFormData> | null };
 
-type StatusFilter = "All" | "Pending" | "Verified" | "Invoiced" | "Flagged";
+type StatusFilter = "All" | "Pending" | "Verified" | "Invoiced" | "Rejected";
 
-function StatusBadge({ status }: { status: "pending" | "verified" | "flagged" | "invoiced" }) {
+function StatusBadge({ status }: { status: "pending" | "verified" | "invoiced" | "rejected" }) {
   const map = {
     pending:  "bg-yellow-100 text-yellow-700",
     verified: "bg-emerald-100 text-emerald-700",
-    flagged:  "bg-red-100 text-red-700",
     invoiced: "bg-blue-100 text-blue-700",
+    rejected: "bg-rose-100 text-rose-700",
   };
-  const labels = { pending: "Pending", verified: "Verified", flagged: "Flagged", invoiced: "Invoiced" };
+  const labels = { pending: "Pending", verified: "Verified", invoiced: "Invoiced", rejected: "Rejected" };
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${map[status]}`}>
       {labels[status]}
@@ -63,9 +63,9 @@ export default function TripVerificationPage() {
 
   const [closures, setClosures]     = useState<Map<string, TripClosureData>>(new Map());
   const [sheets, setSheets]         = useState<Map<string, TripSheetData>>(new Map());
-  const [verifiedIds, setVerifiedIds] = useState<Set<string>>(new Set());
-  const [flaggedIds, setFlaggedIds]   = useState<Set<string>>(new Set());
-  const [invoicedIds, setInvoicedIds] = useState<Set<string>>(new Set());
+  const [verifiedIds, setVerifiedIds]   = useState<Set<string>>(new Set());
+  const [rejectedIds, setRejectedIds]   = useState<Set<string>>(new Set());
+  const [invoicedIds, setInvoicedIds]   = useState<Set<string>>(new Set());
   const [invoiceData, setInvoiceData] = useState<Map<string, any>>(new Map());
   const [invoiceTypes, setInvoiceTypes] = useState<Map<string, InvoiceType>>(new Map());
 
@@ -94,10 +94,10 @@ export default function TripVerificationPage() {
     const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true);
     setTrips(sheettedTrips);
 
-    const verified = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "verified").map((t) => t.id));
-    const flagged  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "flagged").map((t) => t.id));
-    const invoiced = new Set<string>(allTrips.filter((t) => (t as any).isInvoiced === true).map((t) => t.id));
-    setVerifiedIds(verified); setFlaggedIds(flagged); setInvoicedIds(invoiced);
+    const verified  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "verified").map((t) => t.id));
+    const rejected  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "rejected").map((t) => t.id));
+    const invoiced  = new Set<string>(allTrips.filter((t) => (t as any).isInvoiced === true).map((t) => t.id));
+    setVerifiedIds(verified); setRejectedIds(rejected); setInvoicedIds(invoiced);
 
     const invoicedTrips = allTrips.filter((t) => (t as any).isInvoiced === true);
 
@@ -165,21 +165,21 @@ export default function TripVerificationPage() {
     try {
       await tripsApi.verify(verifyTrip.id);
       setVerifiedIds((prev) => new Set([...prev, verifyTrip.id]));
-      setFlaggedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
+      setRejectedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
       setVerifyTrip(null);
       showSuccess("Trip verified successfully.");
     } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to verify trip."); }
   }
 
-  async function handleFlag() {
+  async function handleRejectVerification(reason: string) {
     if (!verifyTrip) return;
     try {
-      await tripsApi.flag(verifyTrip.id);
-      setFlaggedIds((prev) => new Set([...prev, verifyTrip.id]));
+      await tripsApi.rejectVerification(verifyTrip.id, reason);
+      setRejectedIds((prev) => new Set([...prev, verifyTrip.id]));
       setVerifiedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
       setVerifyTrip(null);
-      showSuccess("Trip flagged for review.");
-    } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to flag trip."); }
+      showSuccess("Trip sheet sent back to Docs team with rejection reason.");
+    } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to reject trip."); }
   }
 
   // ── Invoice handlers ───────────────────────────────────────────────────────
@@ -265,21 +265,21 @@ export default function TripVerificationPage() {
   const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
 
   // Counts for filter cards
-  const pendingCount  = allFiltered.filter((t) => !verifiedIds.has(t.id) && !flaggedIds.has(t.id) && !invoicedIds.has(t.id)).length;
-  const flaggedCount  = allFiltered.filter((t) => flaggedIds.has(t.id)).length;
+  const pendingCount  = allFiltered.filter((t) => !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id)).length;
+  const rejectedCount = allFiltered.filter((t) => rejectedIds.has(t.id)).length;
   const verifiedCount = allFiltered.filter((t) => verifiedIds.has(t.id) && !invoicedIds.has(t.id)).length;
   const invoicedCount = allFiltered.filter((t) => invoicedIds.has(t.id)).length;
 
   const filteredTrips = allFiltered
     .filter((t) => {
-      if (statusFilter === "Pending")  return !verifiedIds.has(t.id) && !flaggedIds.has(t.id) && !invoicedIds.has(t.id);
-      if (statusFilter === "Flagged")  return flaggedIds.has(t.id);
+      if (statusFilter === "Pending")  return !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id);
+      if (statusFilter === "Rejected") return rejectedIds.has(t.id);
       if (statusFilter === "Verified") return verifiedIds.has(t.id) && !invoicedIds.has(t.id);
       if (statusFilter === "Invoiced") return invoicedIds.has(t.id);
       return true;
     })
     .sort((a, b) => {
-      const order = (t: Trip) => invoicedIds.has(t.id) ? 3 : verifiedIds.has(t.id) ? 1 : flaggedIds.has(t.id) ? 2 : 0;
+      const order = (t: Trip) => invoicedIds.has(t.id) ? 4 : verifiedIds.has(t.id) ? 1 : rejectedIds.has(t.id) ? 2 : 0;
       return order(a) - order(b);
     });
 
@@ -290,7 +290,7 @@ export default function TripVerificationPage() {
   const FILTER_CARDS: { key: StatusFilter; label: string; count: number; color: string }[] = [
     { key: "All",      label: "All Trips",  count: allFiltered.length,  color: "border-gray-200 bg-white text-gray-900" },
     { key: "Pending",  label: "Pending",    count: pendingCount,         color: "border-yellow-200 bg-yellow-50 text-yellow-700" },
-    { key: "Flagged",  label: "Flagged",    count: flaggedCount,         color: "border-red-200 bg-red-50 text-red-700" },
+    { key: "Rejected", label: "Rejected",   count: rejectedCount,        color: "border-rose-200 bg-rose-50 text-rose-700" },
     { key: "Verified", label: "Verified",   count: verifiedCount,        color: "border-emerald-200 bg-emerald-50 text-emerald-700" },
     { key: "Invoiced", label: "Invoiced",   count: invoicedCount,        color: "border-blue-200 bg-blue-50 text-blue-700" },
   ];
@@ -369,10 +369,10 @@ export default function TripVerificationPage() {
                   const sheet      = sheets.get(trip.id);
                   const driver     = driverById.get(trip.driverId);
                   const truck      = truckById.get(trip.vehicleId);
-                  const isVerified = verifiedIds.has(trip.id);
-                  const isFlagged  = flaggedIds.has(trip.id);
-                  const isInvoiced = invoicedIds.has(trip.id);
-                  const inv        = invoiceData.get(trip.id);
+                  const isVerified  = verifiedIds.has(trip.id);
+                  const isRejected  = rejectedIds.has(trip.id);
+                  const isInvoiced  = invoicedIds.has(trip.id);
+                  const inv         = invoiceData.get(trip.id);
 
                   const hireAmt    = sheet ? n(sheet.hireAmount) : 0;
                   const expenseAmt = sheet ? calcTripExpenses(sheet) : 0;
@@ -382,12 +382,12 @@ export default function TripVerificationPage() {
                     : invType === "Transport Memo" ? "bg-orange-100 text-orange-700"
                     : invType === "Tax Invoice" ? "bg-blue-100 text-blue-700" : "";
 
-                  const tripStatus = isInvoiced ? "invoiced" : isVerified ? "verified" : isFlagged ? "flagged" : "pending";
+                  const tripStatus = isInvoiced ? "invoiced" : isVerified ? "verified" : isRejected ? "rejected" : "pending";
 
                   return (
                     <tr
                       key={trip.id}
-                      className={`hover:bg-gray-50 ${isFlagged ? "bg-red-50/30" : isInvoiced ? "bg-blue-50/20" : ""}`}
+                      className={`hover:bg-gray-50 ${isRejected ? "bg-rose-50/40" : isInvoiced ? "bg-blue-50/20" : ""}`}
                     >
                       <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-700">
@@ -453,14 +453,19 @@ export default function TripVerificationPage() {
                               View Details
                             </button>
                           </div>
-                        ) : isFlagged ? (
+                        ) : isRejected ? (
                           <div className="flex flex-col gap-1">
-                            <span className="flex items-center gap-1 text-xs text-red-500">
-                              <AlertTriangle className="h-3 w-3" /> Flagged for recheck
+                            <span className="flex items-center gap-1 text-xs text-rose-600 font-semibold">
+                              <AlertTriangle className="h-3 w-3" /> Rejected by Accounts
                             </span>
+                            {trip.verificationRejectionReason && (
+                              <p className="text-[11px] text-gray-500 max-w-[160px] whitespace-normal leading-snug">
+                                {trip.verificationRejectionReason}
+                              </p>
+                            )}
                             <button type="button" onClick={() => setVerifyTrip(trip)}
-                              className="w-fit rounded-lg border border-red-300 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50">
-                              Review Again
+                              className="w-fit rounded-lg border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">
+                              Review
                             </button>
                           </div>
                         ) : (
@@ -522,8 +527,8 @@ export default function TripVerificationPage() {
         onEditSheet={() => verifyTrip && openSheetDialog(verifyTrip, "edit")}
         onViewBookingSheet={() => verifyTrip && openBookingSheet(verifyTrip, true)}
         onEditBookingSheet={() => verifyTrip && openBookingSheet(verifyTrip, false)}
-        onFlag={handleFlag}
         onConfirm={handleConfirmVerification}
+        onReject={handleRejectVerification}
       />
 
       <BookingSheetDialog

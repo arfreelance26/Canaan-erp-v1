@@ -139,10 +139,16 @@ def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
         ).count()
         next_num = str(count + 1).zfill(4)
         invoice_no = f"CGI{fy}/TM{next_num}"
-    else:
-        # Bill of Supply and Tax Invoice share the same T-series counter
+    elif invoice_type == "Bill of Supply":
         count = db.query(models.TripInvoice).filter(
-            models.TripInvoice.invoice_type.in_(["Bill of Supply", "Tax Invoice"])
+            models.TripInvoice.invoice_type == "Bill of Supply"
+        ).count()
+        next_num = str(count + 1).zfill(4)
+        invoice_no = f"CGI{fy}/BS{next_num}"
+    else:
+        # Tax Invoice — T-series
+        count = db.query(models.TripInvoice).filter(
+            models.TripInvoice.invoice_type == "Tax Invoice"
         ).count()
         next_num = str(count + 1).zfill(4)
         invoice_no = f"CGI{fy}/T{next_num}"
@@ -405,6 +411,46 @@ def verify_trip(trip_id: int, db: Session = Depends(get_db)):
     trip.verification_status = "verified"
     if trip.invoice_required is False:
         trip.is_invoiced = True
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+@router.post("/{trip_id}/resubmit-verification", response_model=schemas.TripOut)
+def resubmit_verification(trip_id: int, db: Session = Depends(get_db)):
+    """Docs re-submits a rejected trip sheet for accounts verification after corrections."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if trip.verification_status != "rejected":
+        raise HTTPException(400, "Trip must be in rejected state to re-submit")
+    if not trip.sheet:
+        raise HTTPException(400, "Trip sheet must exist before re-submitting")
+    trip.verification_status = "pending"
+    trip.verification_rejection_reason = None
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+class RejectVerificationBody(BaseModel):
+    reason: str
+
+
+@router.post("/{trip_id}/reject-verification", response_model=schemas.TripOut)
+def reject_verification(trip_id: int, body: RejectVerificationBody, db: Session = Depends(get_db)):
+    """Accounts rejects a trip sheet — sends it back to Docs with a reason."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if not trip.sheet:
+        raise HTTPException(400, "Trip sheet must exist before rejecting")
+    trip.verification_status = "rejected"
+    trip.verification_rejection_reason = body.reason
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

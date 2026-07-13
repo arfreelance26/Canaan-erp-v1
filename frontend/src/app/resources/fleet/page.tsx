@@ -12,6 +12,7 @@ import type { Truck } from "@/types/truck";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
@@ -36,6 +37,7 @@ export default function FleetPage() {
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
+  useComplianceAlerts(trucks);
 
   function handleAdd() {
     setEditingTruck(null);
