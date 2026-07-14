@@ -18,7 +18,7 @@ const MAX_RETRIES = 5;
 const HEARTBEAT_MS = 30000;
 
 let socket: WebSocket | null = null;
-let listeners: Set<Listener> = new Set();
+const listeners: Set<Listener> = new Set();
 let reconnectDelay = RECONNECT_MIN_MS;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;

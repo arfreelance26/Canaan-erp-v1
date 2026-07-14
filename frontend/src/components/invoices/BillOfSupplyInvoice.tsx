@@ -46,28 +46,6 @@ export function BillOfSupplyInvoice({ hsnRows, hsnTotal, ...props }: BillOfSuppl
       showGtaNote
       metaTableBorderless
       contactSignBordered
-      hsnSection={
-        <table className={s.hsnTable}>
-          <thead>
-            <tr>
-              <th style={{ width: "75%" }}>HSN/SAC</th>
-              <th className={s.right}>Taxable Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hsnRows.map((row, i) => (
-              <tr key={i}>
-                <td>{row.hsn}</td>
-                <td className={s.right}>{row.taxableValue}</td>
-              </tr>
-            ))}
-            <tr className={s.hsnTotal}>
-              <td className={s.right} style={{ fontSize: "10px", letterSpacing: "0.3px" }}>TOTAL</td>
-              <td className={s.right}>{hsnTotal}</td>
-            </tr>
-          </tbody>
-        </table>
-      }
       {...props}
     />
   );

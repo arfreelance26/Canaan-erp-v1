@@ -1299,28 +1299,6 @@ export function TripFormDialog({
         <section className="flex flex-col gap-4">
           <p className={sectionHeadingClass}>Transport Cost Details</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Lift-on Amount (₹)">
-              <DecimalInput
-                type="number"
-                min="0"
-                value={form.liftOnAmount ?? ""}
-                onChange={(e) => update("liftOnAmount", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isLiftOnLocked}
-                className={`${inputClass} ${isLiftOnLocked ? "cursor-not-allowed bg-gray-50 text-gray-500" : ""}`}
-                placeholder={isLiftOnLocked ? "0 (Coastal — locked)" : "e.g. 3500"}
-              />
-              {isLiftOnLocked && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">
-                  <Info className="h-3 w-3" />
-                  Lift-on is always zero for Coastal trips
-                </span>
-              )}
-              {!isLiftOnLocked && isLiftOnManual && (
-                <span className="mt-1 text-xs text-gray-400">Manual entry — enter actual lift-on amount</span>
-              )}
-            </Field>
-
             <Field label="Hire Amount (₹)" required>
               <DecimalInput type="number"
                 min="0"

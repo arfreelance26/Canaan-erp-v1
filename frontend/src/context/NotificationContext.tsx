@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { notificationsApi, remindersApi, type Reminder } from "@/lib/api";
 import { subscribeRealtime } from "@/lib/realtime";
 import { useAuth } from "./AuthContext";
@@ -35,7 +35,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [complianceAlertCount, setComplianceAlertCount] = useState(0);
   const alertsRef = useRef(sheetAlerts);
-  alertsRef.current = sheetAlerts;
+  useLayoutEffect(() => { alertsRef.current = sheetAlerts; });
 
   const isAdmin = user?.softwareDesignation === "Admin";
   // Admin + Commercial Manager get sheet alerts; Accounts additionally gets payment reminders.

@@ -131,7 +131,7 @@ import { INVOICE_HINTS_KEY, type InvoiceHint } from "@/components/trips/VerifyTr
 // Maps each admin-configured expense heading → the TripSheet field that holds its value
 const EXPENSE_TO_SHEET_FIELD: Partial<Record<string, keyof TripSheetData>> = {
   "Hire Amount":                   "hireAmount",
-  "Lift On / Off (லிப்டான்)":    "liftOnOffExpense",
+  "Lift On / Off":                 "liftOnOffExpense",
   "Weight Sheet Expense":          "weightSheetExpense",
   "Halt Pay":                      "haltPay",
   "Port Pass Expense":             "portPassExpense",
@@ -285,9 +285,11 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     const remaining = invoiceHints.filter((_, i) => i !== index);
     setInvoiceHints(remaining);
     if (trip) {
-      remaining.length === 0
-        ? localStorage.removeItem(INVOICE_HINTS_KEY(trip.id))
-        : localStorage.setItem(INVOICE_HINTS_KEY(trip.id), JSON.stringify(remaining));
+      if (remaining.length === 0) {
+        localStorage.removeItem(INVOICE_HINTS_KEY(trip.id));
+      } else {
+        localStorage.setItem(INVOICE_HINTS_KEY(trip.id), JSON.stringify(remaining));
+      }
     }
   }
 
@@ -367,14 +369,13 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         const match = sacCodes.find((sc) => String(sc.id) === sacId);
         if (match) {
           const linkedVal = getLinkedExpenseValue(match.linkedExpense, sheet);
-          const shouldFillRate = !s.rate || parseFloat(s.rate) === 0;
           return {
             ...s,
             sacId,
             sacCode: match.code,
             gstRate: parseFloat(match.gstRate) > 0 ? match.gstRate : "",
             descriptionOfService: match.description || s.descriptionOfService,
-            rate: shouldFillRate && linkedVal && parseFloat(linkedVal) > 0 ? linkedVal : s.rate,
+            rate: linkedVal && parseFloat(linkedVal) > 0 ? linkedVal : s.rate,
           };
         }
         return { ...s, sacId, sacCode: sacId };
@@ -677,47 +678,6 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                 ))}
               </div>
             )}
-            {/* Extra charges — shown for Bill of Supply (GTA) only */}
-            {form.invoiceType === "Bill of Supply" && (
-              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 flex flex-col gap-3">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-700">Extra Charges (optional — for Bill of Supply)</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {extraCharges.map((charge, idx) => (
-                    <div key={charge.label} className="flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
-                      <input
-                        type="checkbox"
-                        id={`ec-${idx}`}
-                        checked={charge.enabled}
-                        onChange={(e) => setExtraCharges((prev) => prev.map((c, i) => i === idx ? { ...c, enabled: e.target.checked } : c))}
-                        className="h-4 w-4 accent-amber-600 shrink-0"
-                      />
-                      <label htmlFor={`ec-${idx}`} className="text-xs font-medium text-gray-700 shrink-0 w-28">{charge.label}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={charge.amount}
-                        disabled={!charge.enabled}
-                        onChange={(e) => setExtraCharges((prev) => prev.map((c, i) => i === idx ? { ...c, amount: e.target.value } : c))}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="₹ amount"
-                        className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:text-gray-300 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                  ))}
-                </div>
-                {extraChargesTotal > 0 && (
-                  <p className="text-xs font-semibold text-amber-700">Extra charges total: ₹{fmt(extraChargesTotal)}</p>
-                )}
-              </div>
-            )}
-
-            {/* Rate lock notice for non-Open/Return trips */}
-            {!isRateEditable && (
-              <p className="text-xs text-amber-600 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-                Rate fields are locked — charges are editable only for <strong>Open Load</strong> and <strong>Return Trip</strong> types.
-              </p>
-            )}
 
             {form.services.map((svc, i) => {
               const calc = serviceCalcs[i];
@@ -771,13 +731,12 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                         placeholder="e.g. 1"
                       />
                     </Field>
-                    <Field label={`Rate (INR)${!isRateEditable ? " — locked" : ""}`}>
+                    <Field label="Rate (INR)">
                       <DecimalInput type="number" min="0" step="0.01"
                         value={svc.rate}
-                        readOnly={!isRateEditable}
-                        onChange={(e) => isRateEditable && updateService(i, "rate", e.target.value)}
+                        onChange={(e) => updateService(i, "rate", e.target.value)}
                         onWheel={(e) => e.currentTarget.blur()}
-                        className={!isRateEditable ? `${inputClass} bg-gray-100 cursor-not-allowed text-gray-500` : inputClass}
+                        className={inputClass}
                         placeholder="e.g. 32000"
                       />
                     </Field>

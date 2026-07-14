@@ -107,6 +107,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [costPerKm, setCostPerKm] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [invoiceRequired, setInvoiceRequired] = useState(true);
+  const [localDriverAdvance, setLocalDriverAdvance] = useState("");
+  const [localAdditionalAdvance, setLocalAdditionalAdvance] = useState("");
   // Tracks which session has been initialized to prevent auto-refresh from resetting the form
   const initKeyRef = useRef<string>("");
 
@@ -192,8 +194,24 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     }
   }, [open, trip, existingSheet, closure]);
 
+  // Sync advance breakdown locals whenever closure loads/changes (independent of initKeyRef)
+  useEffect(() => {
+    if (!open || !closure) return;
+    setLocalDriverAdvance(String(closure.driverAdvance ?? ""));
+    setLocalAdditionalAdvance(String(closure.additionalDriverAdvance ?? ""));
+  }, [open, closure]);
+
   function set<K extends keyof TripSheetData>(key: K, value: TripSheetData[K]) {
     setForm((prev) => recalcDerived({ ...prev, [key]: value }, haltPay));
+  }
+
+  function updateAdvanceField(field: "driver" | "additional", value: string) {
+    const da  = field === "driver"     ? value : localDriverAdvance;
+    const ada = field === "additional" ? value : localAdditionalAdvance;
+    if (field === "driver")     setLocalDriverAdvance(value);
+    if (field === "additional") setLocalAdditionalAdvance(value);
+    const total = (parseFloat(da) || 0) + (parseFloat(ada) || 0);
+    set("driverAdvanceAmount", total > 0 ? total.toFixed(2) : "");
   }
 
   // Halt values — read directly from stored closure (set when trip was closed)
@@ -773,6 +791,32 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               </p>
             </div>
           )}
+          {(() => {
+            if (!trip?.advanceCorrectedAmount || trip?.advanceVerified !== false) return null;
+            const corrected   = parseFloat(String(trip.advanceCorrectedAmount)) || 0;
+            const recorded    = parseFloat(String(closure?.driverAdvance || 0)) || 0;
+            if (Math.abs(corrected - recorded) < 0.01) return null;
+            const current   = (parseFloat(localDriverAdvance) || 0) + (parseFloat(localAdditionalAdvance) || 0);
+            if (corrected > 0 && Math.abs(current - corrected) < 0.01) return null;
+            return (
+              <div className="sm:col-span-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <span className="mt-0.5 text-amber-500 text-sm">⚠</span>
+                <div className="text-sm text-amber-800">
+                  <p className="font-semibold">Advance Mismatch Recorded by Yard Supervisor</p>
+                  <p className="mt-0.5">
+                    Advance paid to driver was recorded as{" "}
+                    <span className="font-semibold">₹{Number(closure?.driverAdvance || 0).toLocaleString("en-IN")}</span>,
+                    but the correct amount noted is{" "}
+                    <span className="font-semibold text-amber-900">₹{corrected.toLocaleString("en-IN")}</span>.
+                    Update the advance fields below to match.
+                    {trip.advanceVerificationRemark && (
+                      <span className="block mt-0.5 text-amber-700">Remark: {trip.advanceVerificationRemark}</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
           <Field label="Driver Batta Amount (₹)">
             <DecimalInput
               type="number"
@@ -799,9 +843,29 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               return <p className="mt-1 text-xs text-gray-400">Batta paid to driver for this trip.</p>;
             })()}
           </Field>
-          <Field label="Advance Paid">
-            <DecimalInput type="number" className={roClass} value={form.driverAdvanceAmount} readOnly disabled />
-            <p className="mt-1 text-xs text-gray-400">Driver Advance + Additional Driver Advance from trip closure.</p>
+          <Field label="Driver Advance (₹)">
+            <DecimalInput
+              type="number"
+              min="0"
+              className={fc}
+              value={localDriverAdvance}
+              readOnly={ro}
+              onChange={(e) => updateAdvanceField("driver", e.target.value)}
+              placeholder="e.g. 2000"
+            />
+            <p className="mt-1 text-xs text-gray-400">Advance paid at trip assignment.</p>
+          </Field>
+          <Field label="Additional Driver Advance (₹)">
+            <DecimalInput
+              type="number"
+              min="0"
+              className={fc}
+              value={localAdditionalAdvance}
+              readOnly={ro}
+              onChange={(e) => updateAdvanceField("additional", e.target.value)}
+              placeholder="e.g. 500"
+            />
+            <p className="mt-1 text-xs text-gray-400">Extra advance paid during the trip.</p>
           </Field>
           <Field label="Driver Balance">
             <DecimalInput type="number" className={`${fc} bg-gray-50 font-semibold`} value={form.driverBalance} readOnly placeholder="Auto-calculated" />

@@ -86,6 +86,8 @@ function LifeBadge({ pct }: { pct: number }) {
   return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Good</span>;
 }
 
+function Skeleton() { return <div className="h-5 w-full animate-pulse rounded bg-gray-100" />; }
+
 export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean }) {
   const [inventory, setInventory]   = useState<TyreInventoryItem[]>([]);
   const [available, setAvailable]   = useState<TyreInventoryItem[]>([]);
@@ -164,8 +166,6 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
   );
 
   const criticalTyres = tyreLifeRows.filter((r) => r.lifePct !== null && r.lifePct <= 20).length;
-
-  const Skeleton = () => <div className="h-5 w-full animate-pulse rounded bg-gray-100" />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

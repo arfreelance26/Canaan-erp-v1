@@ -105,20 +105,23 @@ export default function SheetCollectionPage() {
   const collected = trips.filter((t) => t.tripSheetCollected);
   const pending = trips.filter((t) => !t.tripSheetCollected);
 
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  const overdueIds = new Set(
-    trips
-      .filter((t) => {
-        if (!t.tripSheetReceived || t.hasSheet) return false;
-        if (!t.tripSheetReceivedAt) return false;
-        const utc = t.tripSheetReceivedAt.endsWith("Z") || t.tripSheetReceivedAt.includes("+")
-          ? t.tripSheetReceivedAt
-          : t.tripSheetReceivedAt + "Z";
-        return now - new Date(utc).getTime() > oneDayMs;
-      })
-      .map((t) => t.id)
-  );
+  const [overdueIds, setOverdueIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    setOverdueIds(new Set(
+      trips
+        .filter((t) => {
+          if (!t.tripSheetReceived || t.hasSheet) return false;
+          if (!t.tripSheetReceivedAt) return false;
+          const utc = t.tripSheetReceivedAt.endsWith("Z") || t.tripSheetReceivedAt.includes("+")
+            ? t.tripSheetReceivedAt
+            : t.tripSheetReceivedAt + "Z";
+          return now - new Date(utc).getTime() > oneDayMs;
+        })
+        .map((t) => t.id)
+    ));
+  }, [trips]);
 
   const tableTrips = filtered.filter((t) => {
     if (statusFilter === "Pending" && t.tripSheetCollected) return false;
@@ -146,7 +149,7 @@ export default function SheetCollectionPage() {
   function toggleRow(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
   }
@@ -352,7 +355,7 @@ export default function SheetCollectionPage() {
       let rowIndex = 0;
       for (let page = 1; page <= totalPages; page++) {
         if (page > 1) pdf.addPage();
-        let y = drawPageHeader(page, totalPages);
+        const y = drawPageHeader(page, totalPages);
 
         const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
         rowIndex += rowsPerPage;

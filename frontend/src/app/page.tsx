@@ -165,23 +165,23 @@ export default function DashboardPage() {
   if (user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager") {
     return <FleetManagerDashboard />;
   }
-
   if (user?.softwareDesignation === "Maintenance") {
     return <TyreManagerDashboard />;
   }
-
   if (user?.softwareDesignation === "Accounts") {
     return <FinanceManagerDashboard />;
   }
-
   if (user?.softwareDesignation === "Trip Sheet Register") {
     return <StaffDashboard />;
   }
-
   if (user?.softwareDesignation === "Yard Supervisor") {
     return <TripSheetCoordinatorDashboard />;
   }
 
+  return <AdminDashboard />;
+}
+
+function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [trucks, setTrucks] = useState<TruckType[]>([]);

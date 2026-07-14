@@ -16,7 +16,7 @@ import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Download, Flag, Inbox, ClipboardList, AlertTriangle } from "lucide-react";
+import { Search, CheckCircle2, Download, Inbox, ClipboardList } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -51,10 +51,8 @@ export default function TripReconciliationPage() {
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Flagged" | "Rejected">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
-  const [recheckOpen, setRecheckOpen] = useState<string | null>(null); // trip.id
-  const [recheckRemark, setRecheckRemark] = useState("");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -282,19 +280,6 @@ export default function TripReconciliationPage() {
     }
   }
 
-  async function handleToggleRecheck(trip: Trip, flagged: boolean) {
-    try {
-      const remark = flagged ? recheckRemark.trim() : "";
-      const updated = await tripsApi.setRecheckFlag(trip.id, flagged, remark);
-      setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
-      setRecheckOpen(null);
-      setRecheckRemark("");
-      showSuccess(flagged ? `Trip ${trip.tripId} flagged for re-checking.` : `Flag cleared for ${trip.tripId}.`);
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to update re-check flag.");
-    }
-  }
-
   const [downloading, setDownloading] = useState(false);
 
   const fmt = (v: number) =>
@@ -439,7 +424,6 @@ export default function TripReconciliationPage() {
     "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
     "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !sheets.has(t.id)).length,
     "Sheet Entered":    trips.filter((t) => sheets.has(t.id)).length,
-    "Flagged":          trips.filter((t) => t.flaggedForRecheck).length,
     "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
   };
 
@@ -448,7 +432,6 @@ export default function TripReconciliationPage() {
       if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
       if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || sheets.has(t.id))) return false;
       if (statusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
-      if (statusFilter === "Flagged" && !t.flaggedForRecheck) return false;
       if (statusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
 
       if (!searchQuery) return true;
@@ -513,14 +496,13 @@ export default function TripReconciliationPage() {
       </div>
 
       {/* Status filter count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Flagged", "Rejected"] as const).map((f) => {
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected"] as const).map((f) => {
           const colors: Record<string, string> = {
             "All":                  "border-gray-200 bg-white text-gray-700",
             "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
             "Pending Sheet Entry":  "border-blue-200 bg-blue-50 text-blue-700",
             "Sheet Entered":        "border-emerald-200 bg-emerald-50 text-emerald-700",
-            "Flagged":              "border-orange-200 bg-orange-50 text-orange-700",
             "Rejected":             "border-rose-200 bg-rose-50 text-rose-700",
           };
           const activeRing: Record<string, string> = {
@@ -528,7 +510,6 @@ export default function TripReconciliationPage() {
             "Pending Receive":      "ring-2 ring-amber-400",
             "Pending Sheet Entry":  "ring-2 ring-blue-400",
             "Sheet Entered":        "ring-2 ring-emerald-400",
-            "Flagged":              "ring-2 ring-orange-400",
             "Rejected":             "ring-2 ring-rose-400",
           };
           return (
@@ -553,8 +534,6 @@ export default function TripReconciliationPage() {
         <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5 text-blue-500" /> Received → pending sheet entry</span>
         <span className="text-gray-300">›</span>
         <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Sheet entered → moves to Verification</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 text-orange-500" /> Flagged = needs re-check before entry</span>
       </div>
 
       {/* Active filter label */}
@@ -601,14 +580,9 @@ export default function TripReconciliationPage() {
                 const customer = customerById.get(trip.customerId);
 
                 return (
-                  <tr key={trip.id} className={`hover:bg-gray-50 ${trip.verificationStatus === "rejected" ? "bg-rose-50/50" : trip.flaggedForRecheck ? "bg-orange-50/40" : ""}`}>
+                  <tr key={trip.id} className={`hover:bg-gray-50 ${trip.verificationStatus === "rejected" ? "bg-rose-50/50" : ""}`}>
                     <td className="px-4 py-2 font-medium text-gray-800">
                       {trip.truckRegistration ?? "—"}
-                      {trip.flaggedForRecheck && (
-                        <span className="ml-1 inline-flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
-                          <Flag className="h-2.5 w-2.5" /> Re-check
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-2 text-gray-700">
                       <span>{trip.driverName ?? "—"}</span>
@@ -796,60 +770,6 @@ export default function TripReconciliationPage() {
                           )}
                         </div>
 
-                        {/* Re-check Flag */}
-                        <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Re-check</p>
-                          {trip.flaggedForRecheck ? (
-                            <div className="flex flex-col gap-1">
-                              {trip.flaggedRemark && (
-                                <p className="text-[10px] text-orange-600 italic max-w-[160px] whitespace-normal leading-snug">
-                                  {trip.flaggedRemark}
-                                </p>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleToggleRecheck(trip, false)}
-                                className="rounded-lg border border-orange-300 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100 w-fit"
-                              >
-                                Clear Flag
-                              </button>
-                            </div>
-                          ) : recheckOpen === trip.id ? (
-                            <div className="flex flex-col gap-1">
-                              <textarea
-                                value={recheckRemark}
-                                onChange={(e) => setRecheckRemark(e.target.value)}
-                                placeholder="Reason for re-check (optional)"
-                                rows={2}
-                                className="w-40 rounded border border-orange-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-orange-300"
-                              />
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleRecheck(trip, true)}
-                                  className="rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-600"
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setRecheckOpen(null); setRecheckRemark(""); }}
-                                  className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => { setRecheckOpen(trip.id); setRecheckRemark(""); }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100 w-fit"
-                            >
-                              <Flag className="h-3 w-3" /> Flag
-                            </button>
-                          )}
-                        </div>
                       </div>
                     </td>
                   </tr>

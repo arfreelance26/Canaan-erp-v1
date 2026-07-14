@@ -43,28 +43,6 @@ export function TaxInvoice({ hsnRows, hsnTotal, ...props }: TaxInvoiceProps) {
   return (
     <InvoiceShell
       title="TAX INVOICE"
-      hsnSection={
-        <table className={s.hsnTable}>
-          <thead>
-            <tr>
-              <th style={{ width: "75%" }}>HSN/SAC</th>
-              <th className={s.right}>Taxable Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hsnRows.map((row, i) => (
-              <tr key={i}>
-                <td>{row.description}</td>
-                <td className={s.right}>{row.value}</td>
-              </tr>
-            ))}
-            <tr className={s.hsnTotal}>
-              <td className={s.bold}>TOTAL</td>
-              <td className={`${s.right} ${s.bold}`}>{hsnTotal}</td>
-            </tr>
-          </tbody>
-        </table>
-      }
       {...props}
     />
   );

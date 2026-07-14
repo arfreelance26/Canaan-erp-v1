@@ -21,7 +21,7 @@ const DEBOUNCE_MS = 300;    // merge rapid bursts of events into one refresh
 
 export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) {
   const savedCallback = useRef(callback);
-  const lastWsEvent   = useRef(Date.now()); // tracks last received data_changed event
+  const lastWsEvent   = useRef(0); // tracks last received data_changed event
   const { subscribe } = useWebSocket();
 
   useEffect(() => {
