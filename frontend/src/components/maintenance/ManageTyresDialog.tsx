@@ -17,7 +17,20 @@ import { tyreApi } from "@/lib/api";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
+
+const REMOVAL_QUICK_REMARKS = [
+  "Puncture",
+  "Powder Work",
+  "LHS to RHS to LHS",
+  "Tyre Side Change",
+  "Retreading",
+  "Tyre Busted",
+  "Tyre Air Fault",
+  "Tyre Side Wall Crack",
+  "Speedometer Issue",
+  "Tyre Rotation",
+];
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 type ManageTyresDialogProps = {
@@ -185,6 +198,19 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                         placeholder="Odometer reading at removal (km)"
                         className={inputClass}
                       />
+                      <div className="flex flex-wrap gap-1.5">
+                        {REMOVAL_QUICK_REMARKS.map((remark) => (
+                          <button
+                            key={remark}
+                            type="button"
+                            onClick={() => setRemovalRemark(remark)}
+                            className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-red-400 hover:bg-red-50 hover:text-red-700 transition-colors"
+                          >
+                            <Plus className="h-3 w-3" />
+                            {remark}
+                          </button>
+                        ))}
+                      </div>
                       <textarea
                         value={removalRemark}
                         onChange={(e) => setRemovalRemark(e.target.value)}
