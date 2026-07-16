@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { disconnectRealtime } from "@/lib/realtime";
+import { cacheClear } from "@/lib/api-cache";
 
 export type AuthUser = {
   id: number | null;
@@ -114,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     sessionStorage.removeItem(STORAGE_KEY);
     disconnectRealtime();
+    cacheClear();
     setUser(null);
     router.replace("/login");
   }

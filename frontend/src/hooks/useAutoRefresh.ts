@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useWebSocket } from "@/context/WebSocketContext";
+import { onRevalidated } from "@/lib/api-cache";
 
 /**
  * Realtime-first refresh hook.
@@ -41,6 +42,12 @@ export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) 
       unsub();
     };
   }, [subscribe]);
+
+  // Cache revalidation — when a background SWR refresh discovers changed data,
+  // re-run the callback so the component pulls the now-fresh cached value.
+  useEffect(() => {
+    return onRevalidated(() => savedCallback.current());
+  }, []);
 
   // Fallback polling — only fires when WS has been silent for FALLBACK_MS
   useEffect(() => {

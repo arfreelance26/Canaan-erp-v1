@@ -27,6 +27,8 @@ import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
 import type { SacCode } from "@/types/sac-code";
 
+import { cacheGet, cacheSet, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 // ---------------------------------------------------------------------------
@@ -56,15 +58,54 @@ function handleUnauthorized() {
 // Core fetch utility
 // ---------------------------------------------------------------------------
 
-async function req<T>(path: string, options?: RequestInit): Promise<T> {
+const method = (o?: RequestInit) => (o?.method ?? "GET").toUpperCase();
+
+// How long to wait on a slow link before giving up. Generous so slow-but-working
+// connections still succeed; reads get less patience than writes.
+const READ_TIMEOUT_MS = 30_000;
+const WRITE_TIMEOUT_MS = 60_000;
+
+// Marks connectivity errors so callers/UI can tell them apart from real HTTP errors.
+export class NetworkError extends Error {
+  readonly kind: "offline" | "timeout" | "unreachable";
+  constructor(kind: "offline" | "timeout" | "unreachable", message: string) {
+    super(message);
+    this.name = "NetworkError";
+    this.kind = kind;
+  }
+}
+
+// One raw network round-trip + response parsing. No caching concern here.
+async function rawReq<T>(path: string, options?: RequestInit): Promise<T> {
   let res: Response;
+  const controller = new AbortController();
+  const isWrite = method(options) !== "GET";
+  const timeout = setTimeout(
+    () => controller.abort(),
+    isWrite ? WRITE_TIMEOUT_MS : READ_TIMEOUT_MS,
+  );
   try {
     res = await fetch(`${BASE}${path}`, {
       ...options,
+      signal: options?.signal ?? controller.signal,
       headers: { "Content-Type": "application/json", ...authHeaders(), ...options?.headers },
     });
-  } catch {
-    throw new Error(`Cannot reach the server at ${BASE}. Make sure the backend is running (uvicorn main:app --port 8000).`);
+  } catch (err) {
+    // Distinguish offline / timeout / server-unreachable so the UI can guide the user.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new NetworkError("offline", "You appear to be offline. Please check your internet connection and try again.");
+    }
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new NetworkError(
+        "timeout",
+        isWrite
+          ? "The request is taking too long — your internet connection seems slow. Your changes may not have been saved; please check your connection and try again."
+          : "The request is taking too long — please check your internet connection and try again.",
+      );
+    }
+    throw new NetworkError("unreachable", "Can't reach the server — your connection may be slow or unstable. Please check your internet and try again.");
+  } finally {
+    clearTimeout(timeout);
   }
   if (res.status === 401 && !path.startsWith("/auth/")) {
     handleUnauthorized();
@@ -90,6 +131,56 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(errorMsg);
   }
   return data as T;
+}
+
+/**
+ * Cached request wrapper (stale-while-revalidate).
+ *
+ * GET: serves the persisted cache instantly so pages paint without waiting on
+ * the network. Within FRESH_MS it skips the network entirely (no DB hit);
+ * otherwise it returns cached data and revalidates in the background, notifying
+ * subscribers (useAutoRefresh) only when the data actually changed. When there
+ * is no cache at all it awaits the network as before. Concurrent identical GETs
+ * are de-duplicated into one request.
+ *
+ * Mutations pass straight through and invalidate the affected resource's cache.
+ */
+async function req<T>(path: string, options?: RequestInit): Promise<T> {
+  if (method(options) !== "GET") {
+    const result = await rawReq<T>(path, options);
+    cacheInvalidate(path);
+    return result;
+  }
+
+  const cached = cacheGet(path);
+
+  const revalidate = () =>
+    dedupe(path, () => rawReq<T>(path, options)).then((fresh) => {
+      if (cacheSet(path, fresh)) emitRevalidated();
+      return fresh as T;
+    });
+
+  if (cached) {
+    // Fresh enough → zero network. Stale → refresh in background, return cached now.
+    if (Date.now() - cached.ts >= FRESH_MS) {
+      revalidate().catch(() => {
+        /* keep showing cached data if the network is down */
+      });
+    }
+    return cached.data as T;
+  }
+
+  // Cold cache — must wait for the network (first ever load / after invalidation).
+  // Retry once on a transient connectivity error to ride out a brief slow-network blip.
+  try {
+    return await revalidate();
+  } catch (err) {
+    if (err instanceof NetworkError && err.kind !== "offline") {
+      await new Promise((r) => setTimeout(r, 1500));
+      return revalidate();
+    }
+    throw err;
+  }
 }
 
 // Returns the URL to serve a stored file (photo / document)
