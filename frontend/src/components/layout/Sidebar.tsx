@@ -50,6 +50,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/finance/emi-tracking",
     "/maintenance/compliance",
     "/attendance/leave-requests",
+    "/admin/sac-codes",
   ],
   Maintenance: [
     "/",

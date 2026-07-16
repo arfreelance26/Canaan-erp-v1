@@ -42,7 +42,7 @@ export function PageSkeleton({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <div className="flex gap-4 border-b border-gray-100 bg-gray-50 px-4 py-3">
           {Array.from({ length: columns }).map((_, i) => (
             <div key={i} className="h-3 flex-1 rounded bg-slate-200" />

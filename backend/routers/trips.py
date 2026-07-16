@@ -1,8 +1,9 @@
+import re
 from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from security import require_roles, get_current_user, TokenUser
@@ -126,34 +127,49 @@ def get_autocomplete_values(db: Session = Depends(get_db)):
     }
 
 
+def _current_fy() -> str:
+    today = date_type.today()
+    start_year = today.year if today.month >= 4 else today.year - 1
+    return f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
+
+
+# Each invoice series (its prefix + the invoice types that share the counter).
+# Bill of Supply and Tax Invoice deliberately share the "T" series so their
+# numbers form one continuous, non-overlapping sequence.
+def _series_for(invoice_type: str):
+    if invoice_type == "Transport Memo":
+        return "TM", ["Transport Memo"]
+    return "T", ["Bill of Supply", "Tax Invoice"]
+
+
+def _next_invoice_no(db: Session, invoice_type: str, fy: str) -> str:
+    """Next number in the series, computed as MAX(existing suffix) + 1.
+
+    Using the max existing suffix (not COUNT) guarantees the new number is
+    strictly greater than every number already issued in this series for the FY,
+    so it can never collide with an existing 'T####' or 'BS####' — even if rows
+    were ever removed. Existing invoices are never modified.
+    """
+    prefix, types = _series_for(invoice_type)
+    rows = db.query(models.TripInvoice.invoice_no).filter(
+        models.TripInvoice.invoice_type.in_(types),
+        models.TripInvoice.invoice_no.like(f"CGI{fy}/%"),
+    ).all()
+    max_seq = 0
+    for (no,) in rows:
+        if not no:
+            continue
+        m = re.search(r"(\d+)$", no)  # trailing digits, ignores the letter prefix
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+    return f"CGI{fy}/{prefix}{str(max_seq + 1).zfill(4)}"
+
+
 @router.get("/invoices/next-seq")
 def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
-    from datetime import date
-    today = date.today()
-    start_year = today.year if today.month >= 4 else today.year - 1
-    fy = f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
-
-    if invoice_type == "Transport Memo":
-        count = db.query(models.TripInvoice).filter(
-            models.TripInvoice.invoice_type == "Transport Memo"
-        ).count()
-        next_num = str(count + 1).zfill(4)
-        invoice_no = f"CGI{fy}/TM{next_num}"
-    elif invoice_type == "Bill of Supply":
-        count = db.query(models.TripInvoice).filter(
-            models.TripInvoice.invoice_type == "Bill of Supply"
-        ).count()
-        next_num = str(count + 1).zfill(4)
-        invoice_no = f"CGI{fy}/BS{next_num}"
-    else:
-        # Tax Invoice — T-series
-        count = db.query(models.TripInvoice).filter(
-            models.TripInvoice.invoice_type == "Tax Invoice"
-        ).count()
-        next_num = str(count + 1).zfill(4)
-        invoice_no = f"CGI{fy}/T{next_num}"
-
-    return {"invoice_no": invoice_no}
+    # Preview only — the authoritative number is assigned atomically at save time
+    # (see generate_invoice), so this may differ if others save in between.
+    return {"invoice_no": _next_invoice_no(db, invoice_type, _current_fy())}
 
 
 @router.get("/{trip_id}", response_model=schemas.TripOut)
@@ -751,13 +767,28 @@ def generate_invoice(trip_id: int, payload: schemas.TripInvoiceCreate, db: Sessi
         raise HTTPException(400, "Trip sheet must exist before generating an invoice")
     trip.is_invoiced = True
     existing = db.query(models.TripInvoice).filter(models.TripInvoice.trip_id == trip_id).first()
+    data = payload.model_dump(exclude_unset=True)
     if existing:
-        for k, v in payload.model_dump(exclude_unset=True).items():
+        # Editing an already-generated invoice: keep its original number so it stays
+        # stable — never renumber issued invoices.
+        data.pop("invoice_no", None)
+        for k, v in data.items():
             setattr(existing, k, v)
         existing.version = (existing.version or 1) + 1
+        db.commit()
     else:
-        # New invoice — UNIQUE constraint on trip_id is the final safety net
-        db.add(models.TripInvoice(trip_id=trip_id, **payload.model_dump(exclude_unset=True)))
-    db.commit()
+        # New invoice — assign the running number server-side, serialised across all
+        # trips/users with a MySQL named lock so two invoices can't take the same
+        # number. The client-supplied invoice_no is ignored in favour of this.
+        # We commit while still holding the lock so the next waiter sees this number.
+        inv_type = data.get("invoice_type") or "Tax Invoice"
+        got_lock = db.execute(text("SELECT GET_LOCK('cgi_invoice_no', 10)")).scalar()
+        try:
+            data["invoice_no"] = _next_invoice_no(db, inv_type, _current_fy())
+            db.add(models.TripInvoice(trip_id=trip_id, **data))
+            db.commit()
+        finally:
+            if got_lock:
+                db.execute(text("SELECT RELEASE_LOCK('cgi_invoice_no')"))
     db.refresh(trip)
     return _enrich(trip)

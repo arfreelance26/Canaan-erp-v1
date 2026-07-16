@@ -562,7 +562,7 @@ export default function TripReconciliationPage() {
         </div>
       ) : (
         <>
-        <div className="overflow-auto max-h-[65vh] rounded-xl border border-gray-200 bg-white">
+        <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
           <table className="w-full min-w-[1300px] text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-50">

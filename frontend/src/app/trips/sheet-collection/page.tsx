@@ -134,7 +134,11 @@ export default function SheetCollectionPage() {
   const safePage = Math.min(page, totalPages);
   const paginatedTrips = tableTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const selectableIds = tableTrips.filter((t) => !t.tripSheetCollected && !t.hasSheet).map((t) => t.id);
+  // A trip is deliverable only once its driver advance has been verified
+  // (Correct/Mismatch). Trips with no advance (₹0) have nothing to verify.
+  const advanceOk = (t: Trip) =>
+    Number(t.driverAdvance || 0) <= 0 || t.advanceVerified === true || t.advanceVerified === false;
+  const selectableIds = tableTrips.filter((t) => !t.tripSheetCollected && !t.hasSheet && advanceOk(t)).map((t) => t.id);
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
   const someSelected = selected.size > 0;
 
@@ -202,7 +206,7 @@ export default function SheetCollectionPage() {
   async function handleBulkCollect() {
     if (selected.size === 0 || bulkBusy) return;
     setBulkBusy(true);
-    const targets = filtered.filter((t) => selected.has(t.id) && !t.tripSheetCollected);
+    const targets = filtered.filter((t) => selected.has(t.id) && !t.tripSheetCollected && advanceOk(t));
     let successCount = 0;
     const errors: string[] = [];
     await Promise.all(
@@ -591,8 +595,10 @@ export default function SheetCollectionPage() {
                         <input
                           type="checkbox"
                           checked={isChecked}
+                          disabled={!isCollected && !advanceOk(trip)}
+                          title={!isCollected && !advanceOk(trip) ? "Verify the driver advance before marking as delivered" : undefined}
                           onChange={() => toggleRow(trip.id)}
-                          className="h-4 w-4 rounded border-gray-300 accent-emerald-600"
+                          className="h-4 w-4 rounded border-gray-300 accent-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                       </td>
                       {/* Action — col 1 */}
@@ -604,20 +610,29 @@ export default function SheetCollectionPage() {
                           >
                             Locked
                           </span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => handleToggleCollect(trip)}
-                            className={
-                              isCollected
-                                ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                                : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                            }
-                          >
-                            {isBusy ? "..." : isCollected ? "Undo" : "Mark Delivered"}
-                          </button>
-                        )}
+                        ) : (() => {
+                          // Mark Delivered is enabled only once the driver advance has been
+                          // verified (Correct or Mismatch). Trips with no advance (₹0) have
+                          // nothing to verify, so they are allowed through. Undo (when already
+                          // collected) is never blocked.
+                          const advanceReviewed = trip.advanceVerified === true || trip.advanceVerified === false;
+                          const needsAdvanceVerify = !isCollected && Number(trip.driverAdvance || 0) > 0 && !advanceReviewed;
+                          return (
+                            <button
+                              type="button"
+                              disabled={isBusy || needsAdvanceVerify}
+                              title={needsAdvanceVerify ? "Verify the driver advance before marking as delivered" : undefined}
+                              onClick={() => handleToggleCollect(trip)}
+                              className={
+                                isCollected
+                                  ? "rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                                  : "rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              }
+                            >
+                              {isBusy ? "..." : isCollected ? "Undo" : "Mark Delivered"}
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* Vehicle — col 2 */}
@@ -629,7 +644,10 @@ export default function SheetCollectionPage() {
                           const advance = Number(trip.driverAdvance || 0);
                           const adv = advance;
                           const advStr = advance > 0 ? `₹${advance.toLocaleString("en-IN")}` : "—";
-                          if (trip.advanceVerified === true) {
+                          // Editor takes precedence — when the user clicks Change/Edit we open
+                          // the verify UI even if the advance was already verified/mismatched.
+                          const isEditing = advanceOpen === trip.id || advanceOpen === `${trip.id}_wrong`;
+                          if (!isEditing && trip.advanceVerified === true) {
                             return (
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-xs font-semibold text-gray-700">{advStr}</span>
@@ -642,7 +660,7 @@ export default function SheetCollectionPage() {
                               </div>
                             );
                           }
-                          if (trip.advanceVerified === false) {
+                          if (!isEditing && trip.advanceVerified === false) {
                             return (
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-xs font-semibold text-gray-700">{advStr}</span>

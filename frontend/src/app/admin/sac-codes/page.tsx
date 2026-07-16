@@ -43,9 +43,13 @@ export default function SacCodeManagementPage() {
   const [retrieveDialog, setRetrieveDialog] = useState<{ open: boolean; sc: SacCode | null }>({ open: false, sc: null });
   const [linking, setLinking] = useState(false);
 
+  const isAdmin = user?.softwareDesignation === "Admin";
+  // Accounts may view SAC codes (read-only); Admin has full edit access.
+  const canView = isAdmin || user?.softwareDesignation === "Accounts";
+
   useEffect(() => {
-    if (ready && user?.softwareDesignation !== "Admin") router.replace("/");
-  }, [ready, user, router]);
+    if (ready && !canView) router.replace("/");
+  }, [ready, canView, router]);
 
   useEffect(() => {
     sacCodesApi.list().then(setSacCodes).finally(() => setLoading(false));
@@ -125,7 +129,7 @@ export default function SacCodeManagementPage() {
     }
   }
 
-  if (!ready || user?.softwareDesignation !== "Admin") return null;
+  if (!ready || !canView) return null;
   if (loading) return <PageSkeleton hasButton hasSearch columns={4} />;
 
   const filteredSacCodes = sacCodes.filter((sc) => !searchQuery || sc.code.toLowerCase().includes(searchQuery.toLowerCase()) || sc.description.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -154,18 +158,20 @@ export default function SacCodeManagementPage() {
             />
           </div>
           <DownloadExcelButton path="/exports/sac-codes" filename="sac_codes.xlsx" />
-          <button
-            type="button"
-            onClick={openAdd}
-            className="flex items-center whitespace-nowrap gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            SAC Code
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={openAdd}
+              className="flex items-center whitespace-nowrap gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              SAC Code
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto">
         <table className="w-full text-sm whitespace-nowrap">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
@@ -173,13 +179,13 @@ export default function SacCodeManagementPage() {
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SAC Code</th>
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GST (%)</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Linked Expense</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
+              {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredSacCodes.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={isAdmin ? 5 : 4} className="px-4 py-8 text-center text-sm text-gray-400">
                   No SAC codes configured yet. Add one to get started.
                 </td>
               </tr>
@@ -201,33 +207,35 @@ export default function SacCodeManagementPage() {
                     <span className="text-xs text-gray-400">Not linked</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRetrieveDialog({ open: true, sc })}
-                      title="Retrieve Values From"
-                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50"
-                    >
-                      <Link2 className="h-3.5 w-3.5" />
-                      Retrieve Values From
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(sc)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:text-blue-600"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(sc)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-red-200 hover:text-red-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </td>
+                {isAdmin && (
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRetrieveDialog({ open: true, sc })}
+                        title="Retrieve Values From"
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50"
+                      >
+                        <Link2 className="h-3.5 w-3.5" />
+                        Retrieve Values From
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(sc)}
+                        className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:text-blue-600"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(sc)}
+                        className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-red-200 hover:text-red-500"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

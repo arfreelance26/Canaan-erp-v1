@@ -102,7 +102,7 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                 />
               </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
                   <h3 className="font-semibold text-gray-900">Calculated Mileage History</h3>
                 </div>

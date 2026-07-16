@@ -243,7 +243,7 @@ export default function EditApprovalsPage() {
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">
+      <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <ShieldAlert className="h-8 w-8 text-gray-200" />

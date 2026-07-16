@@ -351,12 +351,12 @@ export default function TripVerificationPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-auto max-h-[65vh] rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
             <table className="w-full min-w-[1200px] text-left text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
-                    "Hire Amt", "Expense", "Invoice No", "Status", "Actions"].map((col) => (
+                  {["Status", "Actions", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
+                    "Hire Amt", "Expense", "Invoice No"].map((col) => (
                     <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {col}
                     </th>
@@ -389,37 +389,6 @@ export default function TripVerificationPage() {
                       key={trip.id}
                       className={`hover:bg-gray-50 ${isRejected ? "bg-rose-50/40" : isInvoiced ? "bg-blue-50/20" : ""}`}
                     >
-                      <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-700">
-                        <span>{trip.driverName ?? driver?.name ?? "—"}</span>
-                        {trip.driverChangeRemark && (
-                          <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[120px] whitespace-normal">
-                            {trip.driverChangeRemark}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
-                      <td className="px-4 py-3 font-medium text-blue-700">{fmt(hireAmt)}</td>
-                      <td className="px-4 py-3 font-medium text-gray-600">{fmt(expenseAmt)}</td>
-                      <td className="px-4 py-3">
-                        {isInvoiced ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-xs font-medium text-gray-900">{invNo}</span>
-                            {invType && (
-                              <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${invTypeBadge}`}>
-                                {invType}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
-                      </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={tripStatus} />
                       </td>
@@ -476,6 +445,37 @@ export default function TripVerificationPage() {
                           >
                             VERIFY TRIP DATA
                           </button>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        <span>{trip.driverName ?? driver?.name ?? "—"}</span>
+                        {trip.driverChangeRemark && (
+                          <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[120px] whitespace-normal">
+                            {trip.driverChangeRemark}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
+                      <td className="px-4 py-3 font-medium text-blue-700">{fmt(hireAmt)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-600">{fmt(expenseAmt)}</td>
+                      <td className="px-4 py-3">
+                        {isInvoiced ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-gray-900">{invNo}</span>
+                            {invType && (
+                              <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold ${invTypeBadge}`}>
+                                {invType}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
                         )}
                       </td>
                     </tr>
