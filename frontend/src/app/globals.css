@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "react-datepicker/dist/react-datepicker.css";
 
+/* Enable class-based dark mode: `dark:` variants + `.dark` scope overrides */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Remove spin buttons on number inputs globally */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -25,8 +28,15 @@ input[type="number"] {
   /* Brand colors from Canaan Global logo */
   --color-brand-navy: #1b2b5e;
   --color-brand-gold: #c9a227;
+}
 
-  /* Override Tailwind blue scale → logo navy */
+/*
+ * Brand blue scale (logo navy). Kept in a NON-inline @theme block so utilities
+ * compile to var(--color-blue-*) and can be remapped for dark mode below.
+ * (An @theme inline block would bake these literal hex values into every
+ * utility, making dark-mode overrides impossible.)
+ */
+@theme {
   --color-blue-50: #eef0f8;
   --color-blue-100: #d2d7ef;
   --color-blue-200: #a5afdf;
@@ -38,6 +48,223 @@ input[type="number"] {
   --color-blue-800: #0f1a38;
   --color-blue-900: #0a1128;
   --color-blue-950: #050918;
+}
+
+/*
+ * Dark theme — premium navy palette
+ * ----------------------------------
+ * All color utilities resolve to var(--color-*) in Tailwind v4, so remapping
+ * the variables here flips the entire UI without per-component edits.
+ *
+ * Design language:
+ *  • Body: deep navy-black (#090c14) — rich, not flat grey
+ *  • Cards (bg-white): #141929 — distinctly navy, pops off the body
+ *  • Neutral scale: navy-tinted so surfaces read as "premium" not "greyed out"
+ *  • Accents: vivid saturated panels (-50/-100) + bright text (-600/-700)
+ *    so stat cards, badges and alerts jump off the dark surface
+ *  • bg-white / border-white NOT via variable — overridden explicitly below
+ */
+html.dark {
+  color-scheme: dark;
+
+  /* Neutral scale — navy-tinted. 50 = deepest surface, 950 = near-white text */
+  --color-gray-50:  #0e111d;
+  --color-gray-100: #141929;
+  --color-gray-200: #1c2340;
+  --color-gray-300: #2d3660;
+  --color-gray-400: #4d5e7a;
+  --color-gray-500: #7d92b0;
+  --color-gray-600: #a2b5cc;
+  --color-gray-700: #c4d4e8;
+  --color-gray-800: #dde8f4;
+  --color-gray-900: #edf3fb;
+  --color-gray-950: #f5f9fe;
+
+  --color-slate-50:  #0e111d;
+  --color-slate-100: #141929;
+  --color-slate-200: #1c2340;
+  --color-slate-300: #2d3660;
+  --color-slate-400: #4d5e7a;
+  --color-slate-500: #7d92b0;
+  --color-slate-600: #a2b5cc;
+  --color-slate-700: #c4d4e8;
+  --color-slate-800: #dde8f4;
+  --color-slate-900: #edf3fb;
+  --color-slate-950: #f5f9fe;
+
+  /* Brand blue — deep rich panels, vivid interactive accents */
+  --color-blue-50:  #0e1e4a;
+  --color-blue-100: #162758;
+  --color-blue-200: #1f3675;
+  --color-blue-300: #2e4f9e;
+  --color-blue-400: #4a6fd4;
+  --color-blue-500: #6089f0;
+  --color-blue-600: #5080f2;
+  --color-blue-700: #7aa4f8;
+  --color-blue-800: #a8c5fb;
+  --color-blue-900: #cce0fd;
+  --color-blue-950: #e8f1fe;
+
+  /*
+   * Accent scales — vivid & saturated so cards/badges/alerts pop on dark.
+   * -50/-100 : deep richly-hued panel background
+   * -200     : visible border with color character
+   * -600/-700: vivid label text (bright enough to read on the dark panel)
+   * -800/-900: even brighter for large numbers / headings on dark panels
+   */
+  --color-emerald-50:#073825; --color-emerald-100:#0b4f35; --color-emerald-200:#155c3e;
+  --color-emerald-300:#1a8a60; --color-emerald-400:#10b981; --color-emerald-500:#10b981;
+  --color-emerald-600:#34d399; --color-emerald-700:#34d399; --color-emerald-800:#6ee7b7; --color-emerald-900:#a7f3d0;
+
+  --color-green-50:#063a18; --color-green-100:#0b5025; --color-green-200:#146530;
+  --color-green-300:#1a8a40; --color-green-400:#22c55e; --color-green-500:#22c55e;
+  --color-green-600:#4ade80; --color-green-700:#4ade80; --color-green-800:#86efac; --color-green-900:#bbf7d0;
+
+  --color-amber-50:#2d1a00; --color-amber-100:#3f2500; --color-amber-200:#664000;
+  --color-amber-300:#a36400; --color-amber-400:#f59e0b; --color-amber-500:#f59e0b;
+  --color-amber-600:#fbbf24; --color-amber-700:#fbbf24; --color-amber-800:#fde68a; --color-amber-900:#fef3c7;
+
+  --color-yellow-50:#281f00; --color-yellow-100:#3a2c00; --color-yellow-200:#5a4500;
+  --color-yellow-300:#9a8600; --color-yellow-400:#eab308; --color-yellow-500:#eab308;
+  --color-yellow-600:#facc15; --color-yellow-700:#facc15; --color-yellow-800:#fef08a; --color-yellow-900:#fef9c3;
+
+  --color-orange-50:#2d1400; --color-orange-100:#3f1e00; --color-orange-200:#663200;
+  --color-orange-300:#a34800; --color-orange-400:#f97316; --color-orange-500:#f97316;
+  --color-orange-600:#fb923c; --color-orange-700:#fb923c; --color-orange-800:#fed7aa; --color-orange-900:#ffedd5;
+
+  --color-red-50:#2d0e12; --color-red-100:#3f141a; --color-red-200:#66212a;
+  --color-red-300:#a33040; --color-red-400:#ef4444; --color-red-500:#ef4444;
+  --color-red-600:#f87171; --color-red-700:#f87171; --color-red-800:#fecaca; --color-red-900:#fee2e2;
+
+  --color-rose-50:#2d0d1a; --color-rose-100:#3f1428; --color-rose-200:#662040;
+  --color-rose-300:#a33060; --color-rose-400:#f43f5e; --color-rose-500:#f43f5e;
+  --color-rose-600:#fb7185; --color-rose-700:#fb7185; --color-rose-800:#fecdd3; --color-rose-900:#ffe4e6;
+
+  --color-purple-50:#1a0e3a; --color-purple-100:#251550; --color-purple-200:#3a2275;
+  --color-purple-300:#6040b8; --color-purple-400:#a855f7; --color-purple-500:#a855f7;
+  --color-purple-600:#c084fc; --color-purple-700:#c084fc; --color-purple-800:#e9d5ff; --color-purple-900:#f3e8ff;
+
+  --color-indigo-50:#120f3e; --color-indigo-100:#1a1658; --color-indigo-200:#282475;
+  --color-indigo-300:#4040b8; --color-indigo-400:#6366f1; --color-indigo-500:#6366f1;
+  --color-indigo-600:#818cf8; --color-indigo-700:#818cf8; --color-indigo-800:#c7d2fe; --color-indigo-900:#e0e7ff;
+
+  --color-teal-50:#063828; --color-teal-100:#0b4f38; --color-teal-200:#145e47;
+  --color-teal-300:#1a8a80; --color-teal-400:#14b8a6; --color-teal-500:#14b8a6;
+  --color-teal-600:#2dd4bf; --color-teal-700:#2dd4bf; --color-teal-800:#99f6e4; --color-teal-900:#ccfbf1;
+
+  --color-sky-50:#08243a; --color-sky-100:#0d3655; --color-sky-200:#155075;
+  --color-sky-300:#1a7cb8; --color-sky-400:#38bdf8; --color-sky-500:#0ea5e9;
+  --color-sky-600:#38bdf8; --color-sky-700:#7dd3fc; --color-sky-800:#bae6fd; --color-sky-900:#e0f2fe;
+
+  --color-violet-50:#160e3a; --color-violet-100:#201558; --color-violet-200:#312275;
+  --color-violet-300:#5040b8; --color-violet-400:#8b5cf6; --color-violet-500:#8b5cf6;
+  --color-violet-600:#a78bfa; --color-violet-700:#a78bfa; --color-violet-800:#ddd6fe; --color-violet-900:#ede9fe;
+}
+
+/* Sidebar logo — pop out in dark mode with brightness boost + white glow */
+html.dark .sidebar-logo {
+  filter: brightness(1.4) saturate(1.3) drop-shadow(0 0 10px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 20px rgba(100, 160, 255, 0.4));
+}
+
+/* Page background — deep navy-black, not flat grey */
+html.dark body { background-color: #090c14; }
+html.dark .bg-mesh-light { background-color: #090c14; }
+
+/* White surfaces → deep navy card (distinctly different from the body) */
+html.dark .bg-white       { background-color: #141929; }
+html.dark .bg-white\/95   { background-color: rgba(20, 25, 41, 0.95); }
+html.dark .bg-white\/90   { background-color: rgba(20, 25, 41, 0.90); }
+html.dark .bg-white\/80   { background-color: rgba(20, 25, 41, 0.80); }
+html.dark .bg-white\/70   { background-color: rgba(20, 25, 41, 0.70); }
+html.dark .bg-white\/60   { background-color: rgba(20, 25, 41, 0.60); }
+html.dark .bg-white\/50   { background-color: rgba(20, 25, 41, 0.55); }
+html.dark .bg-white\/40   { background-color: rgba(20, 25, 41, 0.45); }
+html.dark .bg-white\/30   { background-color: rgba(20, 25, 41, 0.35); }
+html.dark .bg-white\/20   { background-color: rgba(20, 25, 41, 0.25); }
+
+/* White borders → blue-tinted dark separators */
+html.dark .border-white     { border-color: #1c2340; }
+html.dark .border-white\/80 { border-color: rgba(255, 255, 255, 0.10); }
+html.dark .border-white\/60 { border-color: rgba(255, 255, 255, 0.08); }
+html.dark .border-white\/50 { border-color: rgba(255, 255, 255, 0.07); }
+html.dark .border-white\/30 { border-color: rgba(255, 255, 255, 0.05); }
+
+/* Card elevation — glowing border + layered shadow so cards lift off the body */
+html.dark .bg-white,
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/80 {
+  border-color: rgba(79, 126, 240, 0.16);
+  box-shadow: 0 0 0 1px rgba(79, 126, 240, 0.08), 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Elevated card/table shadows — more depth than the base card */
+html.dark .rounded-xl.shadow-sm,
+html.dark .rounded-2xl.shadow-sm {
+  box-shadow: 0 0 0 1px rgba(79, 126, 240, 0.10), 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Row dividers — blue-tinted so they have colour character, not just grey */
+html.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(79, 126, 240, 0.10);
+}
+
+/* Table headers — rich navy lift, blue bottom rule */
+html.dark thead .bg-gray-50,
+html.dark thead.bg-gray-50,
+html.dark .bg-gray-50 thead {
+  background-color: #1a2040;
+}
+html.dark thead tr {
+  border-bottom-color: rgba(79, 126, 240, 0.20);
+}
+
+/* ── Hover overrides — all transparent in dark mode ── */
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-white:hover,
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-blue-50:hover,
+html.dark .hover\:bg-blue-100:hover,
+html.dark .hover\:bg-emerald-50:hover,
+html.dark .hover\:bg-emerald-100:hover,
+html.dark .hover\:bg-red-50:hover,
+html.dark .hover\:bg-rose-50:hover,
+html.dark .hover\:bg-amber-50:hover,
+html.dark .hover\:bg-indigo-50:hover,
+html.dark .hover\:bg-purple-50:hover,
+html.dark .hover\:bg-teal-50:hover,
+html.dark .hover\:bg-white\/10:hover,
+html.dark .hover\:bg-white\/20:hover,
+html.dark .hover\:bg-white\/30:hover,
+html.dark .hover\:bg-white\/40:hover,
+html.dark .hover\:bg-white\/50:hover,
+html.dark .hover\:bg-white\/60:hover,
+html.dark .hover\:bg-white\/70:hover,
+html.dark .hover\:bg-white\/80:hover,
+html.dark .hover\:bg-white\/90:hover,
+html.dark .hover\:bg-gray-50\/10:hover,
+html.dark .hover\:bg-gray-50\/20:hover,
+html.dark .hover\:bg-gray-50\/30:hover,
+html.dark .hover\:bg-gray-50\/40:hover,
+html.dark .hover\:bg-gray-50\/50:hover,
+html.dark .hover\:bg-gray-50\/60:hover,
+html.dark .hover\:bg-gray-50\/70:hover,
+html.dark .hover\:bg-gray-50\/80:hover,
+html.dark .hover\:bg-gray-100\/10:hover,
+html.dark .hover\:bg-gray-100\/20:hover,
+html.dark .hover\:bg-gray-100\/30:hover,
+html.dark .hover\:bg-gray-100\/40:hover,
+html.dark .hover\:bg-gray-100\/50:hover,
+html.dark .hover\:bg-gray-100\/60:hover,
+html.dark .hover\:bg-gray-100\/70:hover,
+html.dark .hover\:bg-gray-100\/80:hover,
+html.dark tbody tr.hover\:bg-gray-50:hover,
+html.dark tbody tr.hover\:bg-blue-50:hover,
+html.dark tbody tr:hover {
+  background-color: transparent !important;
 }
 
 @layer utilities {
@@ -149,6 +376,23 @@ input[type="number"] {
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 5px;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+html.dark * {
+  scrollbar-color: #4b5563 transparent;
 }
 
 @keyframes truck-success {
@@ -398,4 +642,36 @@ input[type="number"] {
 
 .canaan-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
   border-color: #1B2B5E !important;
+}
+
+/* ---- Dark-mode overrides for the DatePicker calendar (hardcoded light hex) ---- */
+html.dark .canaan-calendar {
+  background: #1a1d24 !important;
+  border-color: #262b34 !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5) !important;
+}
+html.dark .canaan-calendar .react-datepicker__header {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+html.dark .canaan-calendar .react-datepicker__current-month {
+  color: #eef1f6 !important;
+}
+html.dark .canaan-calendar .react-datepicker__day-name {
+  color: #8a94a6 !important;
+}
+html.dark .canaan-calendar .react-datepicker__day {
+  color: #dde3ec !important;
+}
+html.dark .canaan-calendar .react-datepicker__day:hover {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  color: #ffffff !important;
+}
+html.dark .canaan-calendar .react-datepicker__day--disabled {
+  color: #4b5563 !important;
+}
+html.dark .canaan-calendar .react-datepicker__navigation-icon::before {
+  border-color: #8a94a6 !important;
+}
+html.dark .canaan-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #eef1f6 !important;
 }

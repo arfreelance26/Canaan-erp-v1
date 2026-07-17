@@ -82,17 +82,9 @@ export function CustomerPricingFormDialog({
     }
   }, [dropdownOpen, form.customerId, customers]);
 
-  const availableCustomers = useMemo(() => {
-    return customers.filter(
-      (customer) =>
-        customer.id === initialData?.customerId ||
-        !existingPricing.some((pricing) => pricing.customerId === customer.id),
-    );
-  }, [customers, existingPricing, initialData]);
-
   const filteredCustomers = useMemo(
-    () => availableCustomers.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
-    [availableCustomers, search],
+    () => customers.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
+    [customers, search],
   );
 
   const customerDestinationOptions = useMemo(() => {

@@ -15,6 +15,7 @@ import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
+import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Clock, FileText, AlertTriangle } from "lucide-react";
@@ -383,11 +384,13 @@ export default function TripVerificationPage() {
                     : invType === "Tax Invoice" ? "bg-blue-100 text-blue-700" : "";
 
                   const tripStatus = isInvoiced ? "invoiced" : isVerified ? "verified" : isRejected ? "rejected" : "pending";
+                  // Row tint matches the filter cards: Invoiced→blue, Verified→emerald, Rejected→rose, Pending→yellow.
+                  const stageColor: StageColor = isInvoiced ? "blue" : isVerified ? "emerald" : isRejected ? "rose" : "yellow";
 
                   return (
                     <tr
                       key={trip.id}
-                      className={`hover:bg-gray-50 ${isRejected ? "bg-rose-50/40" : isInvoiced ? "bg-blue-50/20" : ""}`}
+                      className={stageRowClass(stageColor)}
                     >
                       <td className="px-4 py-3">
                         <StatusBadge status={tripStatus} />

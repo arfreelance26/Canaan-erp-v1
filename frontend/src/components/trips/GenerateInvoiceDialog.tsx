@@ -462,13 +462,13 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-5xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
         {/* Invoice Type + Tax Details */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
 
-          <section className="flex flex-col gap-4">
+          <section className="flex flex-col gap-5">
             <p className={sh}>Invoice Type</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {INVOICE_TYPES.map((type) => {
@@ -522,7 +522,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             )}
           </section>
 
-          <section className="flex flex-col gap-4">
+          <section className="flex flex-col gap-5">
             <p className={sh}>Tax Details</p>
             <div className="flex flex-col gap-3">
               {(["gstApplicable", "igstApplicable"] as const)
@@ -576,9 +576,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </div>
 
         {/* Section 1: Invoice Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>1. Invoice Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Invoice No">
               <input readOnly disabled value={autoInvoiceNo} className={roClass} placeholder={open ? "Fetching next number…" : ""} />
             </Field>
@@ -596,9 +596,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </section>
 
         {/* Section 2: Customer Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>2. Customer Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Bill To">
               <input readOnly disabled value={form.billTo} className={roClass} />
             </Field>
@@ -611,9 +611,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
 
         {/* Section 3: Container Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>3. Container Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Container Type">
               <input readOnly disabled value={form.containerType} className={roClass} />
             </Field>
@@ -627,7 +627,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </section>
 
         {/* Section 4: Service Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className={sh}>4. Service Details</p>
             <div className="flex items-center gap-2">
@@ -648,7 +648,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
               </button>
             </div>
           </div>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {invoiceHints.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -763,7 +763,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </section>
 
         {/* Section 7: Amount Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>7. Amount Details</p>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
@@ -809,9 +809,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </section>
 
         {/* Section 8: Bank Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>8. Bank Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Bank Name">
               <input value={form.bankName} onChange={(e) => update("bankName", e.target.value)} className={inputClass} placeholder="e.g. HDFC Bank" />
             </Field>
@@ -828,9 +828,9 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </section>
 
         {/* Section 9: Contact Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>9. Contact Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field label="Contact Person">
               <input value={form.contactPerson} onChange={(e) => update("contactPerson", e.target.value)} className={inputClass} placeholder="e.g. Raju Kumar" />
             </Field>
@@ -844,7 +844,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         </section>
 
         {/* Section 10: Additional Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sh}>10. Additional Details</p>
           <Field label="Narration">
             <textarea rows={3} value={form.narration} onChange={(e) => update("narration", e.target.value)} className={inputClass} placeholder="e.g. Payment to be made within 30 days of invoice date" />

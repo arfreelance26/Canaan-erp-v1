@@ -657,12 +657,12 @@ export function TripFormDialog({
   const selectedCustomer = customers.find((c) => c.id === form.customerId);
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-4xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Booking Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Booking Information</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Booking Reference No" required>
               <input
                 type="text"
@@ -727,7 +727,7 @@ export function TripFormDialog({
         </section>
 
         {/* Customer Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Customer Information</p>
           {isSelf && (
             <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
@@ -737,7 +737,7 @@ export function TripFormDialog({
               </p>
             </div>
           )}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Customer Account" required>
               {isReturnTrip ? (
                 <GlassCombobox
@@ -822,9 +822,9 @@ export function TripFormDialog({
         </section>
 
         {/* Cargo Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Cargo Information</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             {form.containerSpecification === "2 X 20 FEET CONTAINERS" ? (
               <>
                 <Field label="Container Number for the First Container" required>
@@ -962,9 +962,9 @@ export function TripFormDialog({
         </section>
 
         {/* Route Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Route Information</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Origin Location" required>
               <GlassCombobox
                 required
@@ -1005,9 +1005,9 @@ export function TripFormDialog({
         </section>
 
         {/* Shipping Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Shipping Information</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Shipping Line">
               <input
                 type="text"
@@ -1041,9 +1041,9 @@ export function TripFormDialog({
         </section>
 
         {/* Vehicle & Trip Assignment */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Vehicle &amp; Trip Assignment</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Scheduled Trip Date" required>
               <DatePickerInput
                 required
@@ -1133,7 +1133,7 @@ export function TripFormDialog({
         </section>
 
         {/* Payment & Advances */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Payment &amp; Advances</p>
           {isShifting && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -1146,7 +1146,7 @@ export function TripFormDialog({
           {(() => {
             const locked = isShifting || isSelf;
             return (
-              <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${locked ? "pointer-events-none opacity-50" : ""}`}>
+              <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${locked ? "pointer-events-none opacity-50" : ""}`}>
                 <Field label="Bill To" required={!locked}>
                   <GlassSelect
                     value={form.billTo}
@@ -1215,9 +1215,9 @@ export function TripFormDialog({
         </section>
 
         {/* Driver Compensation */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Driver Compensation</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Driver Compensation Type" required>
               <GlassSelect
                 value={form.driverCompensationType}
@@ -1296,9 +1296,9 @@ export function TripFormDialog({
         </section>
 
         {/* Transport Cost Details */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Transport Cost Details</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Hire Amount (₹)" required>
               <DecimalInput type="number"
                 min="0"
@@ -1336,9 +1336,9 @@ export function TripFormDialog({
         </section>
 
         {/* Operational Notes */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Operational Notes</p>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-5">
             <Field label="Internal Remarks">
               <textarea
                 value={form.internalRemarks}

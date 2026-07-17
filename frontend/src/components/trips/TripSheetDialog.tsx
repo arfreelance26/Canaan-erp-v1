@@ -359,11 +359,11 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const startKmTooLow  = !ro && !existingSheet && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
 
   return (
-    <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-3xl">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-5xl">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* ── 1. Trip Information ── */}
         <p className={sh}>Trip Information</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Trip Sheet No">
             <input className={roClass} value={form.tripSheetNo} readOnly disabled placeholder="Auto-generated from booking reference" />
           </Field>
@@ -456,7 +456,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 2. Route Information ── */}
         <p className={sh}>Route Information</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <Field label="From">
             <input className={ac} value={form.from} readOnly={!auto} disabled={!auto} onChange={(e) => set("from", e.target.value)} />
           </Field>
@@ -470,7 +470,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 3. Hire ── */}
         <p className={sh}>Hire</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Hire Amount *">
             <DecimalInput type="number" min="0" className={ac} value={form.hireAmount} readOnly={!auto} disabled={!auto} onChange={(e) => set("hireAmount", e.target.value)} />
           </Field>
@@ -478,7 +478,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 4. Trip Distance & Cargo ── */}
         <p className={sh}>Trip Distance & Cargo</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Start km *">
             <DecimalInput type="number" min="0" className={fc} value={form.startKm} readOnly={ro} onChange={(e) => set("startKm", e.target.value)} placeholder="e.g. 84000" />
             {startKmTooLow && (
@@ -529,7 +529,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             </button>
           )}
         </div>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           {form.dieselEntries.map((entry, idx) => (
             <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
               <div className="flex items-center justify-between mb-3">
@@ -546,7 +546,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Date">
                   <DatePickerInput
                     value={entry.date}
@@ -623,7 +623,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 5. Halt Information ── */}
         <p className={sh}>Halt Information</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Company Halt Days (Driver)">
             <input className={roClass} value={companyHaltDays > 0 ? String(companyHaltDays) : ""} readOnly disabled placeholder="Auto-fetched" />
             <p className="mt-1 text-xs text-gray-400">Included in trip expenses</p>
@@ -647,7 +647,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Trip Expenses</p>
 
         <p className={subsh}>Port & Operational Charges</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Port Pass Expense (பாஸ்) *">
             <DecimalInput type="number" min="0" className={fc} value={form.portPassExpense} readOnly={ro} onChange={(e) => set("portPassExpense", e.target.value)} placeholder="e.g. 500" />
           </Field>
@@ -663,14 +663,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         </div>
 
         <p className={subsh}>Government & Compliance</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Traffic, RTO / Police Expense *">
             <DecimalInput type="number" min="0" className={fc} value={form.trafficRtoExpense} readOnly={ro} onChange={(e) => set("trafficRtoExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
         </div>
 
         <p className={subsh}>Loading & Handling</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <Field label="Lift On / Off (லிப்டான்) *">
             <DecimalInput type="number" min="0" className={fc} value={form.liftOnOffExpense} readOnly={ro} onChange={(e) => set("liftOnOffExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
@@ -764,7 +764,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         )}
 
         <p className={subsh}>Miscellaneous</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Other Expenses *">
             <DecimalInput type="number" min="0" className={fc} value={form.otherExpenses} readOnly={ro} onChange={(e) => set("otherExpenses", e.target.value)} placeholder="e.g. 0" />
             <p className="mt-1 text-xs text-amber-600">Note: Please don&apos;t add maintenance charges here.</p>
@@ -773,7 +773,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
         {/* ── 8. Toll Details ── */}
         <p className={sh}>Toll Details</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Toll Charges (டோல்) *">
             <DecimalInput type="number" min="0" className={fc} value={form.tollCharges} readOnly={ro} onChange={(e) => set("tollCharges", e.target.value)} placeholder="e.g. 1200" />
           </Field>

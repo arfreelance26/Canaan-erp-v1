@@ -145,13 +145,13 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
   if (!trip) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} title="Close Trip" className="max-w-2xl">
+    <Dialog open={open} onClose={onClose} title="Close Trip" className="max-w-4xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
         {/* 1. Shipment Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>1. Shipment Information</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Booking No">
               <input readOnly disabled value={form.bookingNo} className={readonlyClass} />
             </Field>
@@ -177,9 +177,9 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
         </section>
 
         {/* 2. Assignment */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>2. Assignment</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field label="Vehicle">
               <input
                 readOnly
@@ -208,9 +208,9 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
         </section>
 
         {/* 3. Route */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>3. Route</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field label="From">
               <input readOnly disabled value={form.fromLocation} className={readonlyClass} />
             </Field>
@@ -229,9 +229,9 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
         </section>
 
         {/* 4. Billing */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>4. Billing</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Hire Amount (₹)">
               <input readOnly disabled value={form.hireAmount} className={readonlyClass} />
             </Field>
@@ -279,9 +279,9 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
         </section>
 
         {/* 5. Halt Information */}
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>5. Halt Information</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Company Halt Days (Driver)">
               <input
                 type="number"

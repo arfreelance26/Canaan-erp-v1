@@ -18,6 +18,7 @@
     "react": "19.2.4",
     "react-datepicker": "^9.1.0",
     "react-dom": "19.2.4",
+    "react-haiku": "^2.4.1",
     "recharts": "^3.8.1",
     "sweetalert2": "^11.26.25",
     "sweetalert2-react-content": "^5.1.2",

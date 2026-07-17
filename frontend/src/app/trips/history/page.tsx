@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { History, FileText, ClipboardList, Receipt, Search, Trash2 } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
@@ -357,7 +358,7 @@ export default function TripHistoryPage() {
                     />
                   </th>
                 )}
-                {["Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
+                {["Status", "Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Date", "Hire Amount", "Total Expenses", "Trip Summary", ...(!isFleetManager ? ["Invoice"] : []), "Documents"].map((col) => (
                   <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
@@ -374,9 +375,17 @@ export default function TripHistoryPage() {
                 const expense    = sheet ? n(sheet.totalExpense)  : null;
                 const pl         = hire !== null && expense !== null ? hire - expense : null;
                 const isProfit   = pl !== null && pl >= 0;
+                // Stage tint/label match the summary filter cards.
+                const stage: { color: StageColor; label: string } =
+                  trip.status === "Cancelled"               ? { color: "red",     label: "Cancelled" }
+                  : isInvoiced                              ? { color: "purple",  label: "Invoiced" }
+                  : (trip as any).hasClosure === true       ? { color: "emerald", label: "Completed" }
+                  : CURRENT_STATUSES.has(trip.status)       ? { color: "amber",   label: "Current" }
+                  : trip.status === "Assigned"              ? { color: "blue",    label: "Assigned" }
+                  :                                           { color: "gray",    label: trip.status };
 
                 return (
-                  <tr key={trip.id} className={selected.has(trip.id) ? "bg-red-50/60" : "hover:bg-gray-50"}>
+                  <tr key={trip.id} className={selected.has(trip.id) ? "border-l-4 border-l-red-400 bg-red-50/60" : stageRowClass(stage.color)}>
                     {isAdmin && (
                       <td className="px-4 py-2">
                         <input
@@ -387,6 +396,9 @@ export default function TripHistoryPage() {
                         />
                       </td>
                     )}
+                    <td className="px-4 py-2">
+                      <span className={stageBadgeClass(stage.color)}>{stage.label}</span>
+                    </td>
                     <td className="px-4 py-2 font-semibold text-gray-900">
                       <div className="flex items-center gap-2">
                         {trip.tripId}

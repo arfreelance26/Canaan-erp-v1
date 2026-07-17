@@ -22,8 +22,17 @@ import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
+import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 
 type DialogMode = "add" | "view" | "edit";
+
+// Reconciliation stage → color/label, matching the status filter cards.
+function reconStage(trip: Trip, hasSheet: boolean): { color: StageColor; label: string } {
+  if (trip.verificationStatus === "rejected") return { color: "rose", label: "Rejected" };
+  if (hasSheet) return { color: "emerald", label: "Sheet Entered" };
+  if (trip.tripSheetReceived) return { color: "blue", label: "Pending Sheet Entry" };
+  return { color: "amber", label: "Pending Receive" };
+}
 
 export default function TripReconciliationPage() {
   const { user } = useAuth();
@@ -566,8 +575,8 @@ export default function TripReconciliationPage() {
           <table className="w-full min-w-[1300px] text-left text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref", "Customer",
-                  "Hire Amount", "Total Expense", "Trip Sheet Status", "Actions"].map((col) => (
+                {["Trip Sheet Status", "Actions", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref", "Customer",
+                  "Hire Amount", "Total Expense"].map((col) => (
                   <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
@@ -578,35 +587,13 @@ export default function TripReconciliationPage() {
               {paginatedTrips.map((trip) => {
                 const sheet = sheets.get(trip.id);
                 const customer = customerById.get(trip.customerId);
+                const stage = reconStage(trip, sheets.has(trip.id));
 
                 return (
-                  <tr key={trip.id} className={`hover:bg-gray-50 ${trip.verificationStatus === "rejected" ? "bg-rose-50/50" : ""}`}>
-                    <td className="px-4 py-2 font-medium text-gray-800">
-                      {trip.truckRegistration ?? "—"}
-                    </td>
-                    <td className="px-4 py-2 text-gray-700">
-                      <span>{trip.driverName ?? "—"}</span>
-                      {trip.driverChangeRemark && (
-                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[140px] whitespace-normal">
-                          Remark: {trip.driverChangeRemark}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
-                    <td className="px-4 py-2 text-gray-600">
-                      {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
-                    </td>
-                    <td className="px-4 py-2 font-medium text-gray-900">{trip.tripId}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
-                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
-                    <td className="px-4 py-2 font-medium text-blue-700">
-                      {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-gray-400">—</span>}
-                    </td>
-                    <td className="px-4 py-2 font-medium text-emerald-700">
-                      {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-gray-400">—</span>}
-                    </td>
+                  <tr key={trip.id} className={stageRowClass(stage.color)}>
                     {/* Trip Sheet Status */}
                     <td className="px-4 py-2">
+                      <span className={`${stageBadgeClass(stage.color)} mb-2`}>{stage.label}</span>
                       <div className="flex flex-col gap-2">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 w-fit">
                           <CheckCircle2 className="h-3 w-3" />
@@ -771,6 +758,32 @@ export default function TripReconciliationPage() {
                         </div>
 
                       </div>
+                    </td>
+
+                    {/* Trip detail columns */}
+                    <td className="px-4 py-2 font-medium text-gray-800">
+                      {trip.truckRegistration ?? "—"}
+                    </td>
+                    <td className="px-4 py-2 text-gray-700">
+                      <span>{trip.driverName ?? "—"}</span>
+                      {trip.driverChangeRemark && (
+                        <p className="mt-0.5 text-[11px] text-amber-600 leading-snug max-w-[140px] whitespace-normal">
+                          Remark: {trip.driverChangeRemark}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      {trip.origin} <span className="text-gray-400">→</span> {trip.destination}
+                    </td>
+                    <td className="px-4 py-2 font-medium text-gray-900">{trip.tripId}</td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
+                    <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>
+                    <td className="px-4 py-2 font-medium text-blue-700">
+                      {sheet ? fmt(n(sheet.hireAmount)) : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 py-2 font-medium text-emerald-700">
+                      {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-gray-400">—</span>}
                     </td>
                   </tr>
                 );

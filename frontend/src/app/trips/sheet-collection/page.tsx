@@ -11,6 +11,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
+import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
@@ -585,11 +586,13 @@ export default function SheetCollectionPage() {
                   const isChecked = selected.has(trip.id);
                   const sheetSubmitted = trip.hasSheet;
                   const isOverdue = overdueIds.has(trip.id);
+                  // Stage tint matches the filter cards: Overdue→rose, Delivered→emerald, Pending→amber.
+                  const stageColor: StageColor = isOverdue ? "rose" : isCollected ? "emerald" : "amber";
 
                   return (
                     <tr
                       key={trip.id}
-                      className={isChecked ? "bg-blue-50/60" : isOverdue ? "bg-rose-50/50 hover:bg-rose-50" : "hover:bg-gray-50"}
+                      className={isChecked ? "border-l-4 border-l-blue-400 bg-blue-50/60" : stageRowClass(stageColor)}
                     >
                       <td className="px-4 py-3">
                         <input

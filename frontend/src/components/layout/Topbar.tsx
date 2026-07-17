@@ -8,6 +8,8 @@ import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { ProfileModal } from "./ProfileModal";
+import { DisplaySettings } from "./DisplaySettings";
+import { NetworkStatus } from "./NetworkStatus";
 import { attendanceApi, editApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -307,6 +309,12 @@ export function Topbar() {
             Connected
           </span>
         )} */}
+
+        {/* Network status indicator */}
+        <NetworkStatus />
+
+        {/* Display settings — theme + font size */}
+        <DisplaySettings />
 
         {/* Notification bell — hidden for Yard Supervisor */}
         {user?.softwareDesignation !== "Yard Supervisor" && <div className="relative" ref={notifRef}>

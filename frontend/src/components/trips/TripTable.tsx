@@ -8,8 +8,20 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { formatDate } from "@/lib/format-date";
 import { generateLR } from "@/lib/generate-lr";
+import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 
 const PAGE_SIZE = 10;
+
+// Trip lifecycle status → color/label, reused for the row tint + status badge.
+function tripStage(status: string): { color: StageColor; label: string } {
+  switch (status) {
+    case "Assigned":  return { color: "blue", label: "Assigned" };
+    case "Started":   return { color: "amber", label: "In Transit" };
+    case "Completed": return { color: "emerald", label: "Completed" };
+    case "Cancelled": return { color: "rose", label: "Cancelled" };
+    default:          return { color: "gray", label: status || "—" };
+  }
+}
 
 type TripTableProps = {
   trips: Trip[];
@@ -54,6 +66,7 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-gray-200 bg-gray-50">
               {[
+                "Status",
                 "Vehicle",
                 "Driver",
                 "Trip ID",
@@ -77,8 +90,12 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
               const truck = truckById.get(trip.vehicleId);
               const customer = customerById.get(trip.customerId);
 
+              const stage = tripStage(trip.status);
               return (
-                <tr key={trip.id} className="hover:bg-gray-50">
+                <tr key={trip.id} className={stageRowClass(stage.color)}>
+                  <td className="px-4 py-3">
+                    <span className={stageBadgeClass(stage.color)}>{stage.label}</span>
+                  </td>
                   <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-700">{trip.driverName ?? driver?.name ?? "—"}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{trip.tripId}</td>

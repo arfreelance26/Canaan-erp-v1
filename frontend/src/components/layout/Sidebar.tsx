@@ -131,11 +131,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}>
         {collapsed ? (
           <button type="button" onClick={onToggle} aria-label="Expand sidebar" className="flex flex-col items-center gap-1.5">
-            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain" />
+            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain sidebar-logo" />
           </button>
         ) : (
           <>
-            <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
+            <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain sidebar-logo" />
             <button
               type="button"
               onClick={onToggle}

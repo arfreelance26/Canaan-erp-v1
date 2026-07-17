@@ -52,7 +52,7 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
         )}
       >
         {/* Sticky header */}
-        <div className="flex flex-shrink-0 items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex flex-shrink-0 items-center justify-between px-8 py-5 border-b border-gray-100">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
           <button
             type="button"
@@ -65,7 +65,7 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 custom-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6 custom-scrollbar">
           {children}
         </div>
       </div>

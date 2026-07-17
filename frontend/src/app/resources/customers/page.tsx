@@ -116,7 +116,9 @@ export default function CustomersPage() {
     );
   }
 
-  // Load pricing and destinations lazily when tab is opened
+  // Load pricing and destinations lazily when tab is opened.
+  // Destinations are also loaded on the pricing tab because the pricing form
+  // needs them to populate the destination dropdown.
   useEffect(() => {
     if (activeTab === "pricing" && customers.length > 0 && pricing.length === 0) {
       setLoadingPricing(true);
@@ -124,7 +126,7 @@ export default function CustomersPage() {
         .then((results) => setPricing(results.flat()))
         .finally(() => setLoadingPricing(false));
     }
-    if (activeTab === "destinations" && customers.length > 0 && destinations.length === 0) {
+    if ((activeTab === "destinations" || activeTab === "pricing") && customers.length > 0 && destinations.length === 0) {
       setLoadingDestinations(true);
       Promise.all(customers.map((c) => customersApi.listDestinations(c.id)))
         .then((results) => setDestinations(results.flat()))
