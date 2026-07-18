@@ -1,0 +1,103 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
+import { formatDate } from "@/lib/format-date";
+import type { Truck } from "@/types/truck";
+
+type ComplianceTableProps = {
+  trucks: Truck[];
+};
+
+const columns = [
+  "Truck ID",
+  "Registration No.",
+  "RC Validity",
+  "FC Validity",
+  "Road Tax",
+  "National Permit",
+  "Local Permit",
+  "Pollution Cert.",
+  "Insurance",
+];
+
+const statusStyles: Record<string, string> = {
+  Valid: "bg-green-50 text-green-700",
+  "Expiring Soon": "bg-yellow-50 text-yellow-700",
+  Expired: "bg-red-50 text-red-700",
+};
+
+function ComplianceCell({ date, field = "default" }: { date: string; field?: ComplianceField }) {
+  const status = getComplianceStatus(date, field);
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-gray-600 whitespace-nowrap">{formatDate(date)}</span>
+      <span
+        className={cn(
+          "inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+          statusStyles[status]
+        )}
+      >
+        {status}
+      </span>
+    </div>
+  );
+}
+
+export function ComplianceTable({ trucks }: ComplianceTableProps) {
+  if (trucks.length === 0) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+        No trucks yet. Add trucks under &ldquo;Our Fleet&rdquo; to get started.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+      <table className="w-full min-w-[1400px] text-left text-sm whitespace-nowrap">
+        <thead className="sticky top-0 z-10">
+          <tr className="border-b border-gray-200 bg-gray-50">
+            {columns.map((column) => (
+              <th
+                key={column}
+                className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase whitespace-nowrap"
+              >
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {trucks.map((truck) => (
+            <tr key={truck.truckId} className="hover:bg-gray-50">
+              <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{truck.truckId}</td>
+              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{truck.registrationNumber}</td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.rcValidityDate} field="rc" />
+              </td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.fcExpiryDate} field="fc" />
+              </td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.roadTaxDate} field="roadTax" />
+              </td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.nationalPermitDate} field="nationalPermit" />
+              </td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.localPermitDate} field="localPermit" />
+              </td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.pollutionCertificateDate} field="pollution" />
+              </td>
+              <td className="px-4 py-3">
+                <ComplianceCell date={truck.insuranceExpiryDate} field="insurance" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
