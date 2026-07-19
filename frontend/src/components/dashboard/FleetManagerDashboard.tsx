@@ -39,20 +39,20 @@ interface OverviewData {
 const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
 
 const STATUS_COLORS: Record<string, string> = {
-  "Assigned":   "bg-sky-100 text-sky-700",
-  "Started":    "bg-blue-100 text-blue-700",
-  "Loaded":     "bg-indigo-100 text-indigo-700",
+  "Assigned": "bg-sky-100 text-sky-700",
+  "Started": "bg-blue-100 text-blue-700",
+  "Loaded": "bg-indigo-100 text-indigo-700",
   "On-Transit": "bg-violet-100 text-violet-700",
-  "Reached":    "bg-amber-100 text-amber-700",
-  "Unloaded":   "bg-teal-100 text-teal-700",
+  "Reached": "bg-amber-100 text-amber-700",
+  "Unloaded": "bg-teal-100 text-teal-700",
 };
 
 const QUICK_LINKS = [
-  { label: "Driver Attendance", href: "/attendance/drivers", icon: IdCard,       color: "bg-blue-50 text-blue-600 border-blue-200" },
-  { label: "Assign Trips",      href: "/trips/assign",       icon: Send,          color: "bg-violet-50 text-violet-600 border-violet-200" },
-  { label: "Current Trips",     href: "/trips/current",      icon: Navigation,    color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
-  { label: "Completed Trips",   href: "/trips/completed",    icon: CheckCircle2,  color: "bg-teal-50 text-teal-600 border-teal-200" },
-  { label: "Trip History",      href: "/trips/history",      icon: History,       color: "bg-amber-50 text-amber-600 border-amber-200" },
+  { label: "Driver Attendance", href: "/attendance/drivers", icon: IdCard, color: "bg-blue-50 text-blue-600 border-blue-200" },
+  { label: "Assign Trips", href: "/trips/assign", icon: Send, color: "bg-violet-50 text-violet-600 border-violet-200" },
+  { label: "Current Trips", href: "/trips/current", icon: Navigation, color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+  { label: "Completed Trips", href: "/trips/completed", icon: CheckCircle2, color: "bg-teal-50 text-teal-600 border-teal-200" },
+  { label: "Trip History", href: "/trips/history", icon: History, color: "bg-amber-50 text-amber-600 border-amber-200" },
 ];
 
 function StatCard({ icon: Icon, label, value, color, onClick }: { icon: React.ElementType; label: string; value: string | number; color: string; onClick?: () => void }) {
@@ -79,20 +79,18 @@ function TruckCard({ truck, activeTrip }: { truck: TruckType; activeTrip?: Trip 
   const onTrip = !!activeTrip;
 
   return (
-    <div className={`relative flex flex-col gap-3 rounded-xl border p-4 transition-shadow hover:shadow-md ${
-      onTrip
+    <div className={`relative flex flex-col gap-3 rounded-xl border p-4 transition-shadow hover:shadow-md ${onTrip
         ? "border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50"
         : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50"
-    }`}>
+      }`}>
       {/* Status dot */}
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-bold text-gray-900">{truck.registrationNumber}</p>
           <p className="text-xs text-gray-500">{truck.truckId}</p>
         </div>
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-          onTrip ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
-        }`}>
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${onTrip ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"
+          }`}>
           <Circle className={`h-1.5 w-1.5 fill-current`} />
           {onTrip ? "On Trip" : "Available"}
         </span>
@@ -116,9 +114,8 @@ function TruckCard({ truck, activeTrip }: { truck: TruckType; activeTrip?: Trip 
             <span className="text-gray-400">→</span>
             <span className="truncate font-medium">{activeTrip.destination}</span>
           </div>
-          <span className={`mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-            STATUS_COLORS[activeTrip.status ?? ""] ?? "bg-gray-100 text-gray-600"
-          }`}>
+          <span className={`mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_COLORS[activeTrip.status ?? ""] ?? "bg-gray-100 text-gray-600"
+            }`}>
             {activeTrip.status}
           </span>
         </div>
@@ -129,13 +126,13 @@ function TruckCard({ truck, activeTrip }: { truck: TruckType; activeTrip?: Trip 
 
 export function FleetManagerDashboard() {
   const router = useRouter();
-  const [overview, setOverview]             = useState<OverviewData | null>(null);
-  const [allTrips, setAllTrips]             = useState<Trip[]>([]);
-  const [trucks, setTrucks]                 = useState<TruckType[]>([]);
+  const [overview, setOverview] = useState<OverviewData | null>(null);
+  const [allTrips, setAllTrips] = useState<Trip[]>([]);
+  const [trucks, setTrucks] = useState<TruckType[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState(0);
-  const [loading, setLoading]               = useState(true);
-  const [refreshKey, setRefreshKey]         = useState(0);
-  const [sheets, setSheets]                 = useState<Map<string, TripSheetData>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
 
   useEffect(() => {
     Promise.all([
@@ -166,13 +163,13 @@ export function FleetManagerDashboard() {
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
-  useWebSocketEvent("trip_created",          () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("trip_updated",          () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("truck_updated",         () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_collected",       () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_received",        () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_entered",         () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_unmarked",        () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));
@@ -188,16 +185,16 @@ export function FleetManagerDashboard() {
     }
   }
 
-  const onTripTrucks    = trucks.filter((t) => activeTripByVehicle.has(t.truckId));
+  const onTripTrucks = trucks.filter((t) => activeTripByVehicle.has(t.truckId));
   const availableTrucks = trucks.filter((t) => !activeTripByVehicle.has(t.truckId));
 
   const completedCount = overview?.completed_pending_closure ?? 0;
-  const activeCount    = overview?.active_trips ?? 0;
+  const activeCount = overview?.active_trips ?? 0;
 
   // Trip sheet tracking — delivered by Yard Staff, received by Trip Sheet Register
-  const completedTrips  = allTrips.filter((t) => t.status === "Completed");
+  const completedTrips = allTrips.filter((t) => t.status === "Completed");
   const sheetsDelivered = completedTrips.filter((t) => t.tripSheetCollected && !t.hasSheet);
-  const sheetsReceived  = sheetsDelivered.filter((t) => t.tripSheetReceived);
+  const sheetsReceived = sheetsDelivered.filter((t) => t.tripSheetReceived);
   const awaitingReceipt = sheetsDelivered.filter((t) => !t.tripSheetReceived);
 
   return (
@@ -210,11 +207,11 @@ export function FleetManagerDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
-        <StatCard icon={Truck}          label="Total Fleet"             value={loading ? "—" : trucks.length}                         color="bg-blue-100 text-blue-600"   onClick={() => router.push("/trips/assign")} />
-        <StatCard icon={Activity}       label="Active Trips"            value={loading ? "—" : activeCount}                           color="bg-indigo-100 text-indigo-600" onClick={() => router.push("/trips/current")} />
-        <StatCard icon={CheckCircle2}   label="Completed Trips"         value={loading ? "—" : completedCount}                        color="bg-teal-100 text-teal-600"   onClick={() => router.push("/trips/completed")} />
-        <StatCard icon={Users}          label="Total Drivers"           value={loading ? "—" : (overview?.total_drivers ?? 0)}        color="bg-violet-100 text-violet-600" />
-        <StatCard icon={ClipboardList}  label="Pending Edit Approvals"  value={loading ? "—" : pendingApprovals}                      color="bg-amber-100 text-amber-600" onClick={() => router.push("/attendance/edit-approvals")} />
+        <StatCard icon={Truck} label="Total Fleet" value={loading ? "—" : trucks.length} color="bg-blue-100 text-blue-600" onClick={() => router.push("/trips/assign")} />
+        <StatCard icon={Activity} label="Active Trips" value={loading ? "—" : activeCount} color="bg-indigo-100 text-indigo-600" onClick={() => router.push("/trips/current")} />
+        <StatCard icon={CheckCircle2} label="Completed Trips" value={loading ? "—" : completedCount} color="bg-teal-100 text-teal-600" onClick={() => router.push("/trips/completed")} />
+        <StatCard icon={Users} label="Total Drivers" value={loading ? "—" : (overview?.total_drivers ?? 0)} color="bg-violet-100 text-violet-600" />
+        <StatCard icon={ClipboardList} label="Pending Edit Approvals" value={loading ? "—" : pendingApprovals} color="bg-amber-100 text-amber-600" onClick={() => router.push("/attendance/edit-approvals")} />
       </div>
 
       {/* Trip Sheet Tracking */}
