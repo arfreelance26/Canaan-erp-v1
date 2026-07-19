@@ -386,8 +386,8 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
         </div>
       </div>
 
-      {/* Trip Status Overview */}
-      <TripSummaryWidget />
+      {/* Trip Status Overview — only on standalone view; admin overview renders it separately */}
+      {!embedded && <TripSummaryWidget />}
 
     </div>
   );

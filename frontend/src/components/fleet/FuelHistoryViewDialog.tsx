@@ -115,17 +115,22 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                         <th className="px-6 py-3 font-medium text-right">Fuel Filled</th>
                         <th className="px-6 py-3 font-medium text-right">Distance</th>
                         <th className="px-6 py-3 font-medium text-right">Interval Mileage</th>
+                        <th className="px-6 py-3 font-medium">User Modified</th>
+                        <th className="px-6 py-3 font-medium">Source</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-sm">
                       {logs.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                          <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                             No fuel logs found for this truck.
                           </td>
                         </tr>
                       ) : (
-                        logs.map((log) => (
+                        logs.map((log) => {
+                          const sourceLabel = log.source ?? (log.loggedBy?.startsWith("trip:") ? "Trip Sheet" : "Manual Log");
+                          const isTripSheet = sourceLabel.startsWith("Trip Sheet");
+                          return (
                           <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="px-6 py-4 text-gray-900">{formatDate(log.date)}</td>
                             <td className="px-6 py-4 text-right text-gray-600 font-medium">
@@ -156,8 +161,17 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                                 <span className="text-gray-400">-</span>
                               )}
                             </td>
+                            <td className="px-6 py-4 text-gray-600">
+                              {log.enteredByName ?? <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${isTripSheet ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                                {sourceLabel}
+                              </span>
+                            </td>
                           </tr>
-                        ))
+                          );
+                        })
                       )}
                     </tbody>
                   </table>

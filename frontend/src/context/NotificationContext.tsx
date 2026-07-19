@@ -14,14 +14,28 @@ export type SheetAlertNotif = {
   alertedAt: string;
 };
 
+export type KmVarianceNotif = {
+  serverId?: number;
+  tripDbId: number;
+  tripIdStr: string;
+  bookingRef: string;
+  actualKm: string;
+  approxKm: string;
+  kmRemark: string;
+  alertedAt: string;
+};
+
 type NotificationCtx = {
   sheetAlerts: SheetAlertNotif[];
+  kmVarianceAlerts: KmVarianceNotif[];
   reminders: Reminder[];
   complianceAlertCount: number;
   setComplianceAlertCount: (n: number) => void;
   pushSheetAlert: (alert: Omit<SheetAlertNotif, "alertedAt">) => void;
   dismissSheetAlert: (index: number) => void;
   clearSheetAlerts: () => void;
+  pushKmVarianceAlert: (alert: Omit<KmVarianceNotif, "alertedAt">) => void;
+  dismissKmVarianceAlert: (index: number) => void;
 };
 
 const NotificationContext = createContext<NotificationCtx | null>(null);
@@ -32,10 +46,13 @@ const REALTIME_DEBOUNCE_MS = 1500;
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [sheetAlerts, setSheetAlerts] = useState<SheetAlertNotif[]>([]);
+  const [kmVarianceAlerts, setKmVarianceAlerts] = useState<KmVarianceNotif[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [complianceAlertCount, setComplianceAlertCount] = useState(0);
   const alertsRef = useRef(sheetAlerts);
+  const kmVarianceAlertsRef = useRef(kmVarianceAlerts);
   useLayoutEffect(() => { alertsRef.current = sheetAlerts; });
+  useLayoutEffect(() => { kmVarianceAlertsRef.current = kmVarianceAlerts; });
 
   const isAdmin = user?.softwareDesignation === "Admin";
   // Admin + Commercial Manager get sheet alerts; Accounts additionally gets payment reminders.
@@ -56,8 +73,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         .list(true)
         .then((rows) => {
           if (cancelled) return;
+
+          // Split by event_type: km_variance goes to its own list, rest are sheet alerts
+          const kmRows = rows.filter((r) => r.eventType === "km_variance");
+          const sheetRows = rows.filter((r) => r.eventType !== "km_variance");
+
           setSheetAlerts((prev) => {
-            const fromServer = rows.map((r) => ({
+            const fromServer = sheetRows.map((r) => ({
               serverId: r.id,
               tripDbId: 0,
               tripIdStr: r.tripIdStr,
@@ -65,6 +87,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               reportedBy: r.createdBy,
               alertedAt: r.createdAt,
             }));
+            const localOnly = prev.filter(
+              (a) =>
+                a.serverId === undefined &&
+                !fromServer.some((s) => s.tripIdStr === a.tripIdStr && s.bookingRef === a.bookingRef)
+            );
+            return [...fromServer, ...localOnly];
+          });
+
+          setKmVarianceAlerts((prev) => {
+            const fromServer: KmVarianceNotif[] = kmRows.map((r) => {
+              let parsed: { actualKm?: string; approxKm?: string; kmRemark?: string } = {};
+              try { parsed = JSON.parse(r.message || "{}"); } catch {}
+              return {
+                serverId: r.id,
+                tripDbId: 0,
+                tripIdStr: r.tripIdStr,
+                bookingRef: r.bookingRef,
+                actualKm: parsed.actualKm ?? "",
+                approxKm: parsed.approxKm ?? "",
+                kmRemark: parsed.kmRemark ?? r.message ?? "",
+                alertedAt: r.createdAt,
+              };
+            });
             // keep local (WS-pushed) alerts only if the server copy hasn't arrived yet
             const localOnly = prev.filter(
               (a) =>
@@ -133,9 +178,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setSheetAlerts([]);
   }, []);
 
+  const pushKmVarianceAlert = useCallback((alert: Omit<KmVarianceNotif, "alertedAt">) => {
+    setKmVarianceAlerts((prev) => {
+      if (prev.some((a) => a.tripIdStr === alert.tripIdStr && a.bookingRef === alert.bookingRef)) {
+        return prev;
+      }
+      return [{ ...alert, alertedAt: new Date().toISOString() }, ...prev];
+    });
+  }, []);
+
+  const dismissKmVarianceAlert = useCallback((index: number) => {
+    const alert = kmVarianceAlertsRef.current[index];
+    if (alert?.serverId !== undefined) {
+      notificationsApi.markRead(alert.serverId).catch(() => {});
+    }
+    setKmVarianceAlerts((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   return (
     <NotificationContext.Provider
-      value={{ sheetAlerts, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts }}
+      value={{ sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
     >
       {children}
     </NotificationContext.Provider>

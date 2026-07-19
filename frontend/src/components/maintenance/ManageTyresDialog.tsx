@@ -6,7 +6,7 @@ import { GlassSelect } from "@/components/ui/GlassSelect";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import { inputClass } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
-import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
+import { getTyreLayout, getTyrePositions, getUnitLabel, type TyreLayout } from "@/lib/tyre-layouts";
 import { initialTrucks } from "@/lib/truck-data";
 import {
   getAvailableTyres,
@@ -33,6 +33,53 @@ const REMOVAL_QUICK_REMARKS = [
 ];
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
+// ── Swap helpers ───────────────────────────────────────────────────────────
+
+type AxleEntry = {
+  axleLabel: string;       // full position prefix, e.g. "Axle 2" or "Tractor Head - Axle 1"
+  wheelsPerSide: 1 | 2;
+  displayLabel: string;    // human-readable for the picker
+};
+
+function buildAxleEntries(layout: TyreLayout): AxleEntry[] {
+  const result: AxleEntry[] = [];
+  layout.units.forEach((unit, ui) => {
+    const unitLabel = getUnitLabel(layout, unit, ui);
+    const prefix = unitLabel ? `${unitLabel} - ` : "";
+    unit.axles.forEach((axle, ai) => {
+      const axleLabel = `${prefix}Axle ${ai + 1}`;
+      const tyreCount = axle.wheelsPerSide * 2;
+      const displayLabel = unitLabel
+        ? `${unitLabel} — Axle ${ai + 1} (${tyreCount} tyres)`
+        : `Axle ${ai + 1} (${tyreCount} tyres)`;
+      result.push({ axleLabel, wheelsPerSide: axle.wheelsPerSide, displayLabel });
+    });
+  });
+  return result;
+}
+
+function getLRSwapPairs(entry: AxleEntry): [string, string][] {
+  const { axleLabel, wheelsPerSide } = entry;
+  if (wheelsPerSide === 1) {
+    return [[`${axleLabel} - Left`, `${axleLabel} - Right`]];
+  }
+  return [
+    [`${axleLabel} - Left 1`, `${axleLabel} - Right 1`],
+    [`${axleLabel} - Left 2`, `${axleLabel} - Right 2`],
+  ];
+}
+
+function getIOSwapPairs(entry: AxleEntry): [string, string][] {
+  const { axleLabel } = entry;
+  // Left: swap wheel 1 (outer) ↔ wheel 2 (inner); same on Right
+  return [
+    [`${axleLabel} - Left 1`, `${axleLabel} - Left 2`],
+    [`${axleLabel} - Right 1`, `${axleLabel} - Right 2`],
+  ];
+}
+
+// ── Component types ─────────────────────────────────────────────────────────
+
 type ManageTyresDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -52,6 +99,14 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   const [removalRemark, setRemovalRemark] = useState("");
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  type SwapStep =
+    | { step: "select-axle"; type: "lr" | "io" }
+    | { step: "confirm"; pairs: [string, string][]; description: string }
+    | null;
+  const [swapStep, setSwapStep] = useState<SwapStep>(null);
+  const [swapOdometer, setSwapOdometer] = useState("");
+  const [swapRemark, setSwapRemark] = useState("Tyre Rotation");
+  const [swapping, setSwapping] = useState(false);
 
   useEffect(() => {
     setOdometerInput(truck ? truck.odometer : "");
@@ -132,6 +187,45 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     }
   }
 
+  function openConfirm(pairs: [string, string][], description: string) {
+    setSwapOdometer(truck?.odometer ?? "");
+    setSwapRemark("Tyre Rotation");
+    setSwapStep({ step: "confirm", pairs, description });
+  }
+
+  async function executeSwaps() {
+    if (!truck || swapStep?.step !== "confirm") return;
+    const odometer = Number(swapOdometer);
+    if (!swapOdometer || Number.isNaN(odometer) || odometer < 0) {
+      showError("Enter a valid odometer reading.");
+      return;
+    }
+    if (!swapRemark.trim()) {
+      showError("A remark is required.");
+      return;
+    }
+    setSwapping(true);
+    try {
+      const affected = await tyreApi.swapPositions(truck.id, swapStep.pairs, odometer, swapRemark.trim());
+      if (affected.length > 0) {
+        setFitmentRecords((prev) => {
+          const affectedMap = new Map(affected.map((f) => [f.id, f]));
+          const existingIds = new Set(prev.map((f) => f.id));
+          const updated = prev.map((f) => affectedMap.has(f.id) ? affectedMap.get(f.id)! : f);
+          const brandNew = affected.filter((f) => !existingIds.has(f.id));
+          return [...updated, ...brandNew];
+        });
+      }
+      setSwapStep(null);
+      setSelectedPosition(null);
+      showSuccess("Tyre positions swapped and history updated successfully.");
+    } catch (err: any) {
+      showError(err.message || "Failed to swap tyre positions.");
+    } finally {
+      setSwapping(false);
+    }
+  }
+
   return (
     <Dialog open={open} onClose={onClose} title={`Manage Tyres — ${truck.registrationNumber}`} className="max-w-3xl">
       <div className="flex flex-col gap-4">
@@ -146,6 +240,181 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
         ) : (
           <p className="text-sm text-gray-500">No tyre layout has been set for this truck.</p>
         )}
+
+        {/* ── Tyre Rotation / Swap Buttons ──────────────────────────────── */}
+        {layout && (() => {
+          const axleEntries = buildAxleEntries(layout);
+          const dualAxles = axleEntries.filter((a) => a.wheelsPerSide === 2);
+          const isSelectingAxle = swapStep?.step === "select-axle";
+          const isConfirming = swapStep?.step === "confirm";
+
+          return (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Tyre Rotation</p>
+
+              {/* Step 1 — main action buttons */}
+              {!isConfirming && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={swapping}
+                    onClick={() => {
+                      const allPairs = axleEntries.flatMap(getLRSwapPairs);
+                      openConfirm(allPairs, "Swap Left ↔ Right across all axles");
+                    }}
+                    className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                  >
+                    ⇄ Swap Left ↔ Right (All Axles)
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={swapping}
+                    onClick={() => setSwapStep(
+                      isSelectingAxle && swapStep.type === "lr" ? null : { step: "select-axle", type: "lr" }
+                    )}
+                    className={cn(
+                      "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      isSelectingAxle && swapStep.type === "lr"
+                        ? "border-blue-500 bg-blue-600 text-white"
+                        : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                      swapping && "opacity-50"
+                    )}
+                  >
+                    ⇄ Swap Left ↔ Right (Selected Axle)
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={swapping || dualAxles.length === 0}
+                    onClick={() => setSwapStep(
+                      isSelectingAxle && swapStep.type === "io" ? null : { step: "select-axle", type: "io" }
+                    )}
+                    className={cn(
+                      "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      isSelectingAxle && swapStep.type === "io"
+                        ? "border-purple-500 bg-purple-600 text-white"
+                        : "border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100",
+                      (swapping || dualAxles.length === 0) && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    ↕ Swap Inner ↔ Outer Tyres
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2 — axle picker */}
+              {isSelectingAxle && (
+                <div className="rounded-md border border-gray-200 bg-white p-3 flex flex-col gap-2">
+                  <p className="text-xs font-medium text-gray-600">
+                    {swapStep.type === "lr"
+                      ? "Select axle to swap Left ↔ Right:"
+                      : "Select dual-wheel axle to swap Inner ↔ Outer:"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(swapStep.type === "lr" ? axleEntries : dualAxles).map((entry) => (
+                      <button
+                        key={entry.axleLabel}
+                        type="button"
+                        onClick={() => {
+                          const pairs = swapStep.type === "lr"
+                            ? getLRSwapPairs(entry)
+                            : getIOSwapPairs(entry);
+                          const verb = swapStep.type === "lr" ? "Left ↔ Right" : "Inner ↔ Outer";
+                          openConfirm(pairs, `Swap ${verb} on ${entry.displayLabel}`);
+                        }}
+                        className="rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      >
+                        {entry.displayLabel}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setSwapStep(null)}
+                      className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3 — odometer + remark confirm form */}
+              {isConfirming && (
+                <div className="rounded-md border border-blue-200 bg-blue-50/40 p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-blue-800">{swapStep.description}</p>
+                    <span className="text-[10px] text-blue-500 font-medium">
+                      {swapStep.pairs.length} position pair{swapStep.pairs.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  {/* Odometer */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-700">Odometer at Rotation (km) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={swapOdometer}
+                      onChange={(e) => setSwapOdometer(e.target.value)}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="Current truck odometer reading"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  {/* Remark quick chips */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-700">Remark *</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Tyre Rotation", "LHS to RHS to LHS", "Tyre Side Change", "Wear Balancing", "Preventive Rotation"].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setSwapRemark(r)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                            swapRemark === r
+                              ? "border-blue-500 bg-blue-100 text-blue-800"
+                              : "border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={swapRemark}
+                      onChange={(e) => setSwapRemark(e.target.value)}
+                      placeholder="Or type a custom remark…"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setSwapStep(null)}
+                      disabled={swapping}
+                      className="flex-1 rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={executeSwaps}
+                      disabled={swapping || !swapOdometer || !swapRemark.trim()}
+                      className="flex-[2] rounded-lg bg-blue-600 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      {swapping ? "Swapping…" : "Confirm Swap & Update History"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="border-t border-gray-200 pt-4">
           {!selectedPosition ? (

@@ -123,7 +123,7 @@ export function Topbar() {
     ? "Payments"
     : "Reminders";
 
-  const { sheetAlerts, reminders, complianceAlertCount, pushSheetAlert, dismissSheetAlert } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert } = useNotifications();
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -208,6 +208,19 @@ export function Topbar() {
       tripIdStr: String(payload.trip_id_str ?? ""),
       bookingRef: String(payload.booking_reference_no ?? ""),
       reportedBy: String((payload as { reported_by?: string }).reported_by ?? ""),
+    });
+  });
+
+  // Docs team logged a KM variance remark — alert Admin + Commercial Manager
+  useWebSocketEvent("km_variance_alert", (payload) => {
+    if (!isAdmin && !isFleetManager) return;
+    pushKmVarianceAlert({
+      tripDbId: Number(payload.trip_db_id),
+      tripIdStr: String(payload.trip_id_str ?? ""),
+      bookingRef: String(payload.booking_ref ?? ""),
+      actualKm: String(payload.actual_km ?? ""),
+      approxKm: String(payload.approx_km ?? ""),
+      kmRemark: String(payload.km_remark ?? ""),
     });
   });
 
@@ -321,6 +334,7 @@ export function Topbar() {
           {(() => {
             const totalBadge =
               sheetAlerts.length +
+              kmVarianceAlerts.length +
               reminders.length +
               (isAdmin ? leaveRequests.length + editRequestNotifs.length + complianceAlertCount : 0) +
               editApprovalNotifs.length;
@@ -355,6 +369,7 @@ export function Topbar() {
                 {(() => {
                   const count =
                     sheetAlerts.length +
+                    kmVarianceAlerts.length +
                     reminders.length +
                     (isAdmin ? leaveRequests.length + editRequestNotifs.length + complianceAlertCount : 0) +
                     editApprovalNotifs.length;
@@ -407,6 +422,55 @@ export function Topbar() {
                                   <p className="text-[11px] text-gray-500">Reported by: <span className="font-medium">{alert.reportedBy}</span></p>
                                 )}
                                 <p className="text-[11px] text-orange-700 font-medium">Please follow up immediately.</p>
+                              </div>
+                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                                {timeAgo(alert.alertedAt)}
+                                <br />
+                                {fmtIST(alert.alertedAt)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* ── KM Variance Alerts (Admin + Commercial Manager) ── */}
+                  {kmVarianceAlerts.length > 0 && (isAdmin || isFleetManager) && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                        KM Variance Alerts
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {kmVarianceAlerts.map((alert, i) => (
+                          <li key={`km-${alert.tripDbId}-${i}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dismissKmVarianceAlert(i);
+                                setIsNotifOpen(false);
+                                router.push(isAdmin ? "/trips/reconciliation" : "/trips/current");
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">KM distance variance recorded</p>
+                                <p className="text-[11px] text-gray-600">
+                                  Booking: <span className="font-semibold">{alert.bookingRef}</span>
+                                  {alert.tripIdStr && <span className="ml-1 text-gray-400">({alert.tripIdStr})</span>}
+                                </p>
+                                {(alert.actualKm || alert.approxKm) && (
+                                  <p className="text-[11px] text-gray-500">
+                                    Actual: <span className="font-semibold">{alert.actualKm} km</span>
+                                    {alert.approxKm && <span className="ml-1 text-gray-400">vs approx {alert.approxKm} km</span>}
+                                  </p>
+                                )}
+                                <p className="mt-0.5 text-[11px] text-amber-800 font-medium line-clamp-2">
+                                  Reason: {alert.kmRemark}
+                                </p>
                               </div>
                               <span className="shrink-0 text-right text-[10px] text-gray-400">
                                 {timeAgo(alert.alertedAt)}
@@ -639,6 +703,7 @@ export function Topbar() {
 
                   {/* Empty state */}
                   {sheetAlerts.length === 0 &&
+                   kmVarianceAlerts.length === 0 &&
                    reminders.length === 0 &&
                    editApprovalNotifs.length === 0 &&
                    (isStaff || isFleetManager || isFinanceManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && complianceAlertCount === 0)) && (

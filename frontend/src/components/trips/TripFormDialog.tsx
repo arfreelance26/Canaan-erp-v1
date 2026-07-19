@@ -27,6 +27,7 @@ import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerOrigin } from "@/types/customer-origin";
 import type { CustomerPricing } from "@/types/customer-pricing";
+import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, tripsApi } from "@/lib/api";
 import { confirmAction } from "@/lib/swal";
@@ -169,6 +170,7 @@ export function TripFormDialog({
   const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
   const [customerOrigins, setCustomerOrigins] = useState<CustomerOrigin[]>([]);
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
+  const [finalCustomerPricing, setFinalCustomerPricing] = useState<FinalCustomerPricing | null>(null);
   const [dbOrigins, setDbOrigins] = useState<string[]>([]);
   const [dbDestinations, setDbDestinations] = useState<string[]>([]);
   const wasOpenRef = useRef(false);
@@ -192,6 +194,7 @@ export function TripFormDialog({
           customersApi.listDestinations(initialData.customerId).then(setCustomerDestinations).catch(() => {});
           customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
           customersApi.listOrigins(initialData.customerId).then(setCustomerOrigins).catch(() => {});
+          customersApi.listFinalPricing(initialData.customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
         }
       } else {
         const todayStr = todayIst();
@@ -206,6 +209,7 @@ export function TripFormDialog({
         setVehicleAssignmentId("");
         setCustomerDestinations([]);
         setCustomerPricing([]);
+        setFinalCustomerPricing(null);
         setCustomerOrigins([]);
         setForm({
           ...emptyForm,
@@ -456,8 +460,10 @@ export function TripFormDialog({
     }));
     setCustomerDestinations([]);
     setCustomerPricing([]);
+    setFinalCustomerPricing(null);
     setCustomerOrigins([]);
     if (customerId) {
+      customersApi.listFinalPricing(customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
       customersApi.listDestinations(customerId).then((dests) => {
         setCustomerDestinations(dests);
         if (dests.length > 0 && !returnTrip) {
@@ -536,9 +542,10 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId: assignmentDriverId };
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+      const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
-          ? calcCompensation(prev.transportHireAmount, pct)
+          ? calcCompensation(battaBase, pct)
           : prev.driverAdvanceAmount;
       return { ...prev, driverId: assignmentDriverId, driverAdvanceAmount };
     });
@@ -550,9 +557,11 @@ export function TripFormDialog({
       const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+      // Batta percentage base: accounts hire amount if set, else fall back to the new hire amount
+      const battaBase = finalCustomerPricing?.accountsHireAmount ?? value;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
-          ? calcCompensation(value, pct)
+          ? calcCompensation(battaBase, pct)
           : prev.driverAdvanceAmount;
       return { ...prev, transportHireAmount: value, driverAdvanceAmount };
     });
@@ -567,9 +576,10 @@ export function TripFormDialog({
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const rule = BATTA_RULES[prev.tripCategory]?.[prev.containerSpecification];
+      const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
       let driverAdvanceAmount: string;
       if (val === "Normal") {
-        driverAdvanceAmount = calcCompensation(prev.transportHireAmount, pct);
+        driverAdvanceAmount = calcCompensation(battaBase, pct);
       } else if (rule) {
         driverAdvanceAmount = rule.amount;
       } else {

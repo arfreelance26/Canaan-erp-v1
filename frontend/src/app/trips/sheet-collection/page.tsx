@@ -567,7 +567,7 @@ export default function SheetCollectionPage() {
                       title="Select all pending"
                     />
                   </th>
-                  {["Action", "Vehicle", "Advance Paid", "Driver", "Container No", "From → To", "Shipper / Consignee", "Status", "Trip ID", "Booking Ref", "Trip Date", "Delivered On", "Sheet Status"].map(
+                  {["Action", "Vehicle", "Trip Date", "Advance Paid", "Driver", "Container No", "From → To", "Shipper / Consignee", "Status", "Trip ID", "Booking Ref", "Delivered On", "Sheet Status"].map(
                     (col) => (
                       <th
                         key={col}
@@ -641,7 +641,10 @@ export default function SheetCollectionPage() {
                       {/* Vehicle — col 2 */}
                       <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? trip.vehicleId ?? "—"}</td>
 
-                      {/* Advance Paid — col 3 */}
+                      {/* Trip Date — col 3 */}
+                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(trip.scheduledDate) || "—"}</td>
+
+                      {/* Advance Paid — col 4 */}
                       <td className="px-4 py-3">
                         {(() => {
                           const advance = Number(trip.driverAdvance || 0);
@@ -766,8 +769,17 @@ export default function SheetCollectionPage() {
                         )}
                       </td>
 
-                      {/* Container No — col 5 */}
-                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{containerRef(trip)}</td>
+                      {/* Container No — col 6 */}
+                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">
+                        {trip.containerSpecification === "2 X 20 FEET CONTAINERS" ? (
+                          <span className="flex flex-col gap-0.5">
+                            <span>{trip.containerNumber1 || "—"}</span>
+                            <span>{trip.containerNumber2 || "—"}</span>
+                          </span>
+                        ) : (
+                          containerRef(trip)
+                        )}
+                      </td>
 
                       {/* From → To — col 6 */}
                       <td className="px-4 py-3 text-gray-600">
@@ -807,9 +819,6 @@ export default function SheetCollectionPage() {
 
                       {/* Booking Ref — col 10 */}
                       <td className="px-4 py-3 text-gray-500 text-xs">{trip.bookingReferenceNo}</td>
-
-                      {/* Trip Date — col 11 */}
-                      <td className="px-4 py-3 text-gray-500 text-xs">{formatDate(trip.scheduledDate) || "—"}</td>
 
                       {/* Delivered On — col 12 */}
                       <td className="px-4 py-3 text-gray-500 text-xs">

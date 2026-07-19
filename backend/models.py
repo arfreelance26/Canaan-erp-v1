@@ -191,6 +191,7 @@ class Customer(Base):
     destinations = relationship("CustomerDestination", back_populates="customer", cascade="all, delete-orphan")
     origins = relationship("CustomerOrigin", back_populates="customer", cascade="all, delete-orphan")
     pricing = relationship("CustomerPricing", back_populates="customer", cascade="all, delete-orphan")
+    final_pricing = relationship("FinalCustomerPricing", back_populates="customer", cascade="all, delete-orphan")
     trips = relationship("Trip", back_populates="customer")
 
 
@@ -232,6 +233,20 @@ class CustomerPricing(Base):
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
 
     customer = relationship("Customer", back_populates="pricing")
+
+
+class FinalCustomerPricing(Base):
+    __tablename__ = "final_customer_pricing"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    actual_hire_amount = Column(Numeric(10, 2), nullable=True)
+    accounts_hire_amount = Column(Numeric(10, 2), nullable=True)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    customer = relationship("Customer", back_populates="final_pricing")
 
 
 class Vendor(Base):
@@ -614,6 +629,8 @@ class FuelLog(Base):
     mileage = Column(Numeric(10, 2), default=0)
     fuel_station = Column(String(200))
     logged_by = Column(String(100))
+    entered_by_name = Column(String(100), nullable=True)
+    source = Column(String(200), nullable=True)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -672,6 +689,7 @@ class SacCode(Base):
     code = Column(String(20), nullable=False)
     gst_rate = Column(Numeric(5, 2), default=0)
     linked_expense = Column(String(200), nullable=True)
+    auto_populate_invoice_type = Column(String(50), nullable=True)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

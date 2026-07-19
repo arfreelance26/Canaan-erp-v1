@@ -11,6 +11,8 @@ export type FuelLog = {
   fuelStation: string | null;
   loggedBy: string | null;
   createdAt: string | null;
+  enteredByName: string | null;
+  source: string | null;
   version?: number;
 };
 

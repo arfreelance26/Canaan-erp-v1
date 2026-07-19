@@ -57,6 +57,22 @@ def link_expense(sac_code_id: int, body: _LinkExpenseBody, db: Session = Depends
     return record
 
 
+class _AutoPopulateBody(BaseModel):
+    invoice_type: Optional[str] = None
+
+
+@router.patch("/{sac_code_id}/auto-populate", response_model=schemas.SacCodeOut)
+def set_auto_populate(sac_code_id: int, body: _AutoPopulateBody, db: Session = Depends(get_db)):
+    record = db.query(models.SacCode).with_for_update().filter(models.SacCode.id == sac_code_id).first()
+    if not record:
+        raise HTTPException(404, "SAC code not found")
+    record.auto_populate_invoice_type = body.invoice_type if body.invoice_type else None
+    record.version = (record.version or 1) + 1
+    db.commit()
+    db.refresh(record)
+    return record
+
+
 @router.delete("/{sac_code_id}", status_code=204)
 def delete_sac_code(sac_code_id: int, db: Session = Depends(get_db)):
     record = db.get(models.SacCode, sac_code_id)

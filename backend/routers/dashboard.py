@@ -61,6 +61,14 @@ def get_overview(db: Session = Depends(get_db)):
           .all()
     )
 
+    # Completed trips that have NOT yet been closed — matches the Completed Trips page filter
+    completed_pending_closure = (
+        db.query(func.count(models.Trip.id))
+          .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.Trip.id)
+          .filter(models.Trip.status == "Completed", models.TripClosure.id.is_(None))
+          .scalar() or 0
+    )
+
     monthly_emi_total = float(
         db.query(func.coalesce(func.sum(models.EmiRecord.emi_amount), 0)).scalar() or 0
     )
@@ -110,6 +118,7 @@ def get_overview(db: Session = Depends(get_db)):
         "active_trips": active_trips,
         "total_trips": total_trips,
         "trip_status_counts": trip_status_counts,
+        "completed_pending_closure": completed_pending_closure,
         "total_drivers": total_drivers,
         "total_staff": total_staff,
         "pending_leave_requests": pending_leave,

@@ -482,6 +482,28 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Hire Amount *">
             <DecimalInput type="number" min="0" className={ac} value={form.hireAmount} readOnly={!auto} disabled={!auto} onChange={(e) => set("hireAmount", e.target.value)} />
           </Field>
+
+          {/* Driver Settlement Preview card */}
+          <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3.5 flex flex-col gap-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-teal-600">Driver Settlement</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-teal-700">Driver Batta</span>
+              <span className="text-sm font-bold text-teal-900">{fmt(form.driverPay)}</span>
+            </div>
+            <div className="h-px bg-teal-200" />
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-teal-700">Driver Advance</span>
+              <span className="text-sm font-semibold text-teal-900">
+                {localDriverAdvance ? `₹${Number(localDriverAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-teal-700">Additional Advance</span>
+              <span className="text-sm font-semibold text-teal-900">
+                {localAdditionalAdvance ? `₹${Number(localAdditionalAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* ── 4. Trip Distance & Cargo ── */}

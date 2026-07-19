@@ -16,8 +16,9 @@ import {
   Circle,
   FileCheck2,
   Inbox,
+  ClipboardList,
 } from "lucide-react";
-import { dashboardApi, tripsApi, trucksApi } from "@/lib/api";
+import { dashboardApi, tripsApi, trucksApi, editApprovalsApi } from "@/lib/api";
 import { TripSummaryWidget } from "./TripSummaryWidget";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -32,6 +33,7 @@ interface OverviewData {
   total_trips: number;
   total_drivers: number;
   trip_status_counts: Record<string, number>;
+  completed_pending_closure: number;
 }
 
 const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
@@ -127,12 +129,13 @@ function TruckCard({ truck, activeTrip }: { truck: TruckType; activeTrip?: Trip 
 
 export function FleetManagerDashboard() {
   const router = useRouter();
-  const [overview, setOverview]     = useState<OverviewData | null>(null);
-  const [allTrips, setAllTrips]     = useState<Trip[]>([]);
-  const [trucks, setTrucks]         = useState<TruckType[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [sheets, setSheets]         = useState<Map<string, TripSheetData>>(new Map());
+  const [overview, setOverview]             = useState<OverviewData | null>(null);
+  const [allTrips, setAllTrips]             = useState<Trip[]>([]);
+  const [trucks, setTrucks]                 = useState<TruckType[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [loading, setLoading]               = useState(true);
+  const [refreshKey, setRefreshKey]         = useState(0);
+  const [sheets, setSheets]                 = useState<Map<string, TripSheetData>>(new Map());
 
   useEffect(() => {
     Promise.all([
@@ -144,6 +147,10 @@ export function FleetManagerDashboard() {
         setOverview(ov as unknown as OverviewData);
         setAllTrips(trips);
         setTrucks(trks);
+        // Pending edit approvals count — fetched separately so a failure doesn't break the dashboard
+        editApprovalsApi.list("Pending")
+          .then((r) => setPendingApprovals(r.length))
+          .catch(() => setPendingApprovals(0));
         // Fetch sheets for completed trips to enable P&L calculation
         const completed = (trips as Trip[]).filter((t) => t.hasSheet);
         Promise.all(
@@ -159,13 +166,16 @@ export function FleetManagerDashboard() {
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
-  useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_received", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("sheet_unmarked", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_created",          () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("trip_updated",          () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("truck_updated",         () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_collected",       () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_received",        () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_entered",         () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("sheet_unmarked",        () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_created", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));
   // Robust fallback: any server mutation (data_changed) + slow poll keeps the
   // Trip Sheet Tracking panel live even if a specific WS event is missed.
   useAutoRefresh(() => setRefreshKey(k => k + 1), 15000);
@@ -181,7 +191,7 @@ export function FleetManagerDashboard() {
   const onTripTrucks    = trucks.filter((t) => activeTripByVehicle.has(t.truckId));
   const availableTrucks = trucks.filter((t) => !activeTripByVehicle.has(t.truckId));
 
-  const completedCount = overview?.trip_status_counts?.["Completed"] ?? 0;
+  const completedCount = overview?.completed_pending_closure ?? 0;
   const activeCount    = overview?.active_trips ?? 0;
 
   // Trip sheet tracking — delivered by Yard Staff, received by Trip Sheet Register
@@ -199,11 +209,12 @@ export function FleetManagerDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Truck}        label="Total Fleet"      value={loading ? "—" : trucks.length}   color="bg-blue-100 text-blue-600" onClick={() => router.push("/trips/assign")} />
-        <StatCard icon={Activity}     label="Active Trips"     value={loading ? "—" : activeCount}      color="bg-indigo-100 text-indigo-600" onClick={() => router.push("/trips/current")} />
-        <StatCard icon={CheckCircle2} label="Completed Trips"  value={loading ? "—" : completedCount}   color="bg-teal-100 text-teal-600" onClick={() => router.push("/trips/completed")} />
-        <StatCard icon={Users}        label="Total Drivers"    value={loading ? "—" : (overview?.total_drivers ?? 0)} color="bg-violet-100 text-violet-600" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
+        <StatCard icon={Truck}          label="Total Fleet"             value={loading ? "—" : trucks.length}                         color="bg-blue-100 text-blue-600"   onClick={() => router.push("/trips/assign")} />
+        <StatCard icon={Activity}       label="Active Trips"            value={loading ? "—" : activeCount}                           color="bg-indigo-100 text-indigo-600" onClick={() => router.push("/trips/current")} />
+        <StatCard icon={CheckCircle2}   label="Completed Trips"         value={loading ? "—" : completedCount}                        color="bg-teal-100 text-teal-600"   onClick={() => router.push("/trips/completed")} />
+        <StatCard icon={Users}          label="Total Drivers"           value={loading ? "—" : (overview?.total_drivers ?? 0)}        color="bg-violet-100 text-violet-600" />
+        <StatCard icon={ClipboardList}  label="Pending Edit Approvals"  value={loading ? "—" : pendingApprovals}                      color="bg-amber-100 text-amber-600" onClick={() => router.push("/attendance/edit-approvals")} />
       </div>
 
       {/* Trip Sheet Tracking */}

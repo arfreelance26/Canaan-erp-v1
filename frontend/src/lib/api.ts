@@ -9,6 +9,7 @@ import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerOrigin } from "@/types/customer-origin";
 import type { CustomerPricing } from "@/types/customer-pricing";
+import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { Vendor } from "@/types/vendor";
 import type { DriverAssignment } from "@/types/driver-assignment";
 import type { Trip } from "@/types/trip";
@@ -516,6 +517,17 @@ function toCustomerPricing(b: B): CustomerPricing {
   };
 }
 
+function toFinalCustomerPricing(b: B): FinalCustomerPricing {
+  return {
+    id: String(b.id),
+    customerId: String(b.customer_id),
+    actualHireAmount: b.actual_hire_amount != null ? String(b.actual_hire_amount) : null,
+    accountsHireAmount: b.accounts_hire_amount != null ? String(b.accounts_hire_amount) : null,
+    version: b.version ?? 1,
+    createdAt: b.created_at ?? null,
+  };
+}
+
 function toVendor(b: B): Vendor {
   return {
     id: String(b.id),
@@ -936,6 +948,8 @@ function toFuelLog(b: B): FuelLog {
     fuelStation: b.fuel_station ?? null,
     loggedBy: b.logged_by ?? null,
     createdAt: b.created_at ?? null,
+    enteredByName: b.entered_by_name ?? null,
+    source: b.source ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1191,6 +1205,28 @@ export const customersApi = {
     }).then(toCustomerPricing),
   deletePricing: (customerId: string, priceId: string) =>
     req<void>(`/customers/${customerId}/pricing/${priceId}`, { method: "DELETE" }),
+
+  listFinalPricing: (customerId: string) =>
+    req<B[]>(`/customers/${customerId}/final-pricing`).then((d) => d.map(toFinalCustomerPricing)),
+  createFinalPricing: (customerId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null }) =>
+    req<B>(`/customers/${customerId}/final-pricing`, {
+      method: "POST",
+      body: JSON.stringify({
+        actual_hire_amount: data.actualHireAmount ? parseFloat(data.actualHireAmount) : null,
+        accounts_hire_amount: data.accountsHireAmount ? parseFloat(data.accountsHireAmount) : null,
+      }),
+    }).then(toFinalCustomerPricing),
+  updateFinalPricing: (customerId: string, pricingId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null; clientVersion?: number }) =>
+    req<B>(`/customers/${customerId}/final-pricing/${pricingId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        actual_hire_amount: data.actualHireAmount ? parseFloat(data.actualHireAmount) : null,
+        accounts_hire_amount: data.accountsHireAmount ? parseFloat(data.accountsHireAmount) : null,
+        client_version: data.clientVersion,
+      }),
+    }).then(toFinalCustomerPricing),
+  deleteFinalPricing: (customerId: string, pricingId: string) =>
+    req<void>(`/customers/${customerId}/final-pricing/${pricingId}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------
@@ -1433,7 +1469,7 @@ export const fuelLogsApi = {
   listFuelStations: () => req<string[]>("/maintenance/fuel-stations"),
   listFuelLogs: (truckId?: string) =>
     req<B[]>(`/maintenance/fuel-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toFuelLog)),
-  createFuelLog: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre">) =>
+  createFuelLog: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre" | "enteredByName" | "source">) =>
     req<B>("/maintenance/fuel-logs", {
       method: "POST",
       body: JSON.stringify({
@@ -1496,6 +1532,16 @@ export const tyreApi = {
       method: "PATCH",
       body: JSON.stringify({ removed_odometer: removedOdometer, removed_date: removedDate, removal_remark: removalRemark }),
     }).then(toTyreFitment),
+  swapPositions: (truckDbId: string, pairs: [string, string][], odometer: number, remark: string) =>
+    req<B[]>("/tyre-fitment/swap", {
+      method: "POST",
+      body: JSON.stringify({
+        truck_id: parseInt(truckDbId),
+        pairs: pairs.map(([a, b]) => ({ position_a: a, position_b: b })),
+        odometer,
+        remark,
+      }),
+    }).then((d) => d.map(toTyreFitment)),
 };
 
 // ---------------------------------------------------------------------------
@@ -1581,6 +1627,7 @@ function toSacCode(b: B): SacCode {
     code: b.code ?? "",
     gstRate: String(b.gst_rate ?? "0"),
     linkedExpense: b.linked_expense ?? undefined,
+    autoPopulateInvoiceType: b.auto_populate_invoice_type ?? undefined,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1624,6 +1671,11 @@ export const sacCodesApi = {
     req<B>(`/sac-codes/${id}/link-expense`, {
       method: "PATCH",
       body: JSON.stringify({ expense: expense || null }),
+    }).then(toSacCode),
+  setAutoPopulate: (id: string, invoiceType: string | null) =>
+    req<B>(`/sac-codes/${id}/auto-populate`, {
+      method: "PATCH",
+      body: JSON.stringify({ invoice_type: invoiceType || null }),
     }).then(toSacCode),
   delete: (id: string) => req<void>(`/sac-codes/${id}`, { method: "DELETE" }),
 };

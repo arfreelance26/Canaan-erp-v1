@@ -148,6 +148,12 @@ def _run_schema_migrations():
         # Approx distance from customer destination master → stored on trip for carry-forward
         "ALTER TABLE customer_destinations ADD COLUMN approx_distance_km DECIMAL(8,2) NULL",
         "ALTER TABLE trips ADD COLUMN approx_trip_distance DECIMAL(8,2) NULL",
+        # User who entered/last modified a fuel log (ERP staff name, not the system marker)
+        "ALTER TABLE fuel_logs ADD COLUMN entered_by_name VARCHAR(100) NULL",
+        # Source of the fuel log entry: 'Manual Log' or 'Trip Sheet-{trip_id}'
+        "ALTER TABLE fuel_logs ADD COLUMN source VARCHAR(200) NULL",
+        # Invoice type this SAC code should auto-populate into when generating an invoice
+        "ALTER TABLE sac_codes ADD COLUMN auto_populate_invoice_type VARCHAR(50) NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

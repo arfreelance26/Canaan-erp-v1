@@ -316,6 +316,26 @@ class CustomerPricingOut(CustomerPricingBase):
     customer_id: int
 
 
+class FinalCustomerPricingBase(OrmBase):
+    actual_hire_amount: Optional[Decimal] = None
+    accounts_hire_amount: Optional[Decimal] = None
+
+
+class FinalCustomerPricingCreate(FinalCustomerPricingBase):
+    pass
+
+
+class FinalCustomerPricingUpdate(FinalCustomerPricingBase):
+    client_version: Optional[int] = None
+
+
+class FinalCustomerPricingOut(FinalCustomerPricingBase):
+    id: int
+    customer_id: int
+    version: int = 1
+    created_at: Optional[datetime] = None
+
+
 # ---------------------------------------------------------------------------
 # Vendors
 # ---------------------------------------------------------------------------
@@ -875,6 +895,8 @@ class FuelLogCreate(OrmBase):
     total_cost: Decimal
     fuel_station: Optional[str] = None
     logged_by: Optional[str] = None
+    entered_by_name: Optional[str] = None
+    source: Optional[str] = None
 
 
 class FuelLogUpdate(OrmBase):
@@ -886,6 +908,8 @@ class FuelLogUpdate(OrmBase):
     total_cost: Optional[Decimal] = None
     fuel_station: Optional[str] = None
     logged_by: Optional[str] = None
+    entered_by_name: Optional[str] = None
+    source: Optional[str] = None
 
 
 class FuelLogOut(OrmBase):
@@ -900,6 +924,8 @@ class FuelLogOut(OrmBase):
     mileage: Decimal
     fuel_station: Optional[str] = None
     logged_by: Optional[str] = None
+    entered_by_name: Optional[str] = None
+    source: Optional[str] = None
     version: int = 1
     created_at: Optional[datetime] = None
 
@@ -1165,6 +1191,7 @@ class SacCodeBase(OrmBase):
     code: str
     gst_rate: Optional[Decimal] = Decimal("0")
     linked_expense: Optional[str] = None
+    auto_populate_invoice_type: Optional[str] = None
 
 
 class SacCodeCreate(SacCodeBase):
@@ -1177,6 +1204,7 @@ class SacCodeUpdate(OrmBase):
     code: Optional[str] = None
     gst_rate: Optional[Decimal] = None
     linked_expense: Optional[str] = None
+    auto_populate_invoice_type: Optional[str] = None
 
 
 class SacCodeOut(SacCodeBase):

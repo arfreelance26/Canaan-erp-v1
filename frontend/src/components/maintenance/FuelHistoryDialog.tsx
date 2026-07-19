@@ -2,7 +2,7 @@
 
 import { Dialog } from "@/components/ui/Dialog";
 import type { Truck } from "@/types/truck";
-import type { FuelLog } from "@/lib/fuel-log-data";
+import type { FuelLog } from "@/types/fuel-log";
 import { formatDate } from "@/lib/format-date";
 
 type FuelHistoryDialogProps = {
@@ -18,10 +18,10 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
   const fmt = (n: number) =>
     `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const sorted = [...logs].sort((a, b) => a.odometer - b.odometer);
+  const sorted = [...logs].sort((a, b) => Number(a.odometer) - Number(b.odometer));
 
-  const totalLitres = logs.reduce((s, l) => s + l.litres, 0);
-  const totalCost = logs.reduce((s, l) => s + l.totalCost, 0);
+  const totalLitres = logs.reduce((s, l) => s + Number(l.litres), 0);
+  const totalCost = logs.reduce((s, l) => s + Number(l.totalCost), 0);
   const avgCostPerLitre = totalLitres > 0 ? totalCost / totalLitres : 0;
 
   return (
@@ -57,7 +57,7 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Date", "Odometer (km)", "Litres", "Price/L", "Total Cost", "Fuel Station", "Logged By"].map((h) => (
+                  {["Date", "Odometer (km)", "Litres", "Price/L", "Total Cost", "Fuel Station", "Logged By", "User Modified", "Source"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">
                       {h}
                     </th>
@@ -66,15 +66,23 @@ export function FuelHistoryDialog({ open, truck, logs, onClose }: FuelHistoryDia
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {[...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log) => {
+                  const sourceLabel = log.source ?? (log.loggedBy?.startsWith("trip:") ? "Trip Sheet" : "Manual Log");
+                  const isTripSheet = sourceLabel.startsWith("Trip Sheet");
                   return (
                     <tr key={log.id} className="hover:bg-gray-50">
                       <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap">{formatDate(log.date)}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{log.odometer.toLocaleString("en-IN")}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{log.litres} L</td>
-                      <td className="px-3 py-2.5 text-gray-700">₹{log.pricePerLitre}</td>
-                      <td className="px-3 py-2.5 font-medium text-gray-800">{fmt(log.totalCost)}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{Number(log.odometer).toLocaleString("en-IN")}</td>
+                      <td className="px-3 py-2.5 text-gray-700">{Number(log.litres).toFixed(1)} L</td>
+                      <td className="px-3 py-2.5 text-gray-700">₹{Number(log.pricePerLitre).toFixed(2)}</td>
+                      <td className="px-3 py-2.5 font-medium text-gray-800">{fmt(Number(log.totalCost))}</td>
                       <td className="px-3 py-2.5 text-gray-600">{log.fuelStation}</td>
                       <td className="px-3 py-2.5 text-gray-600">{log.loggedBy}</td>
+                      <td className="px-3 py-2.5 text-gray-600">{log.enteredByName ?? "—"}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${isTripSheet ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                          {sourceLabel}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}

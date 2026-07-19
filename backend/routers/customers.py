@@ -213,3 +213,55 @@ def delete_pricing(customer_id: int, price_id: int, db: Session = Depends(get_db
     db.delete(pricing)
     db.commit()
     emit("customer_updated", {})
+
+
+# ---------------------------------------------------------------------------
+# Final Customer Pricing (For Accounts)
+# ---------------------------------------------------------------------------
+
+@router.get("/{customer_id}/final-pricing", response_model=list[schemas.FinalCustomerPricingOut])
+def list_final_pricing(customer_id: int, db: Session = Depends(get_db)):
+    return db.query(models.FinalCustomerPricing).filter(
+        models.FinalCustomerPricing.customer_id == customer_id
+    ).all()
+
+
+@router.post("/{customer_id}/final-pricing", response_model=schemas.FinalCustomerPricingOut, status_code=201)
+def create_final_pricing(customer_id: int, payload: schemas.FinalCustomerPricingCreate, db: Session = Depends(get_db)):
+    if not db.get(models.Customer, customer_id):
+        raise HTTPException(404, "Customer not found")
+    record = models.FinalCustomerPricing(customer_id=customer_id, **payload.model_dump())
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@router.put("/{customer_id}/final-pricing/{pricing_id}", response_model=schemas.FinalCustomerPricingOut)
+def update_final_pricing(customer_id: int, pricing_id: int, payload: schemas.FinalCustomerPricingUpdate, db: Session = Depends(get_db)):
+    record = db.query(models.FinalCustomerPricing).filter(
+        models.FinalCustomerPricing.id == pricing_id,
+        models.FinalCustomerPricing.customer_id == customer_id,
+    ).first()
+    if not record:
+        raise HTTPException(404, "Final pricing not found")
+    if payload.client_version is not None and record.version != payload.client_version:
+        raise HTTPException(409, "Record was modified by someone else. Please refresh and try again.")
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
+        setattr(record, field, value)
+    record.version = (record.version or 1) + 1
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@router.delete("/{customer_id}/final-pricing/{pricing_id}", status_code=204)
+def delete_final_pricing(customer_id: int, pricing_id: int, db: Session = Depends(get_db)):
+    record = db.query(models.FinalCustomerPricing).filter(
+        models.FinalCustomerPricing.id == pricing_id,
+        models.FinalCustomerPricing.customer_id == customer_id,
+    ).first()
+    if not record:
+        raise HTTPException(404, "Final pricing not found")
+    db.delete(record)
+    db.commit()

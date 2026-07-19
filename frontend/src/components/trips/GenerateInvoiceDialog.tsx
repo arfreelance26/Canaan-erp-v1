@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, type FormEvent } from "react";
+import { useState, useMemo, useEffect, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
@@ -257,6 +257,43 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
       }),
     }));
   }, [sacCodes]);
+
+  // Auto-populate service lines for SAC codes tagged with the current invoice type.
+  // Fires once per dialog open (guarded by ref), after SAC codes are loaded.
+  const autoPopulatedRef = useRef(false);
+  useEffect(() => {
+    if (!open) { autoPopulatedRef.current = false; return; }
+    if (!sacCodes.length) return;
+    if (autoPopulatedRef.current) return;
+    if (savedInvoice) return; // editing existing invoice — don't overwrite saved services
+    autoPopulatedRef.current = true;
+
+    setForm((prev) => {
+      const toAdd = sacCodes.filter((sc) => sc.autoPopulateInvoiceType === prev.invoiceType);
+      if (!toAdd.length) return prev;
+
+      let services = [...prev.services];
+      for (const sc of toAdd) {
+        if (services.some((s) => s.sacId === String(sc.id))) continue;
+        const linkedVal = getLinkedExpenseValue(sc.linkedExpense, sheet);
+        const line: ServiceLine = {
+          descriptionOfService: sc.description,
+          sacCode: sc.code,
+          sacId: String(sc.id),
+          gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
+          quantity: "1",
+          rate: linkedVal && parseFloat(linkedVal) > 0 ? linkedVal : "",
+        };
+        const blankIdx = services.findIndex(isBlankService);
+        if (blankIdx >= 0) {
+          services = services.map((s, i) => (i === blankIdx ? line : s));
+        } else {
+          services = [...services, line];
+        }
+      }
+      return { ...prev, services };
+    });
+  }, [open, sacCodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !trip) return;
@@ -862,8 +899,8 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <button type="button" onClick={() => { clearFormDraft(draftKey); onClose(); }} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" disabled={saving || (!savedInvoice && !autoInvoiceNo)} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-              {saving ? (savedInvoice ? "Saving…" : "Generating…") : (!savedInvoice && !autoInvoiceNo) ? "Fetching No…" : (savedInvoice ? "Save Changes" : "Generate Invoice")}
+            <button type="submit" disabled={saving || (!savedInvoice && !autoInvoiceNo) || (!savedInvoice && grandTotal === 0)} title={!savedInvoice && grandTotal === 0 ? "Grand Total is ₹0 — enter at least one service amount before generating" : undefined} className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              {saving ? (savedInvoice ? "Saving…" : "Generating…") : (!savedInvoice && !autoInvoiceNo) ? "Fetching No…" : (!savedInvoice && grandTotal === 0) ? "Enter Amounts First" : (savedInvoice ? "Save Changes" : "Generate Invoice")}
             </button>
           </div>
         </div>
@@ -897,12 +934,14 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                 sacCodes.map((sc, i) => {
                   const linkedVal = getLinkedExpenseValue(sc.linkedExpense, sheet);
                   const hasValue = linkedVal && parseFloat(linkedVal) > 0;
+                  const scHasGst = parseFloat(sc.gstRate) > 0;
+                  const blockedForTm = form.invoiceType === "Transport Memo" && scHasGst;
                   return (
-                    <tr key={sc.id} className={`transition-colors ${i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
+                    <tr key={sc.id} className={`transition-colors ${blockedForTm ? "opacity-50" : i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
                       <td className="px-4 py-2.5 text-gray-700 whitespace-normal break-words">{sc.description}</td>
                       <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
                       <td className="px-4 py-2.5 text-center">
-                        {parseFloat(sc.gstRate) > 0 ? (
+                        {scHasGst ? (
                           <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">
                             {sc.gstRate}%
                           </span>
@@ -927,27 +966,36 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
                         )}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            addOrFillService({
-                              ...emptyService(),
-                              descriptionOfService: sc.description,
-                              sacCode: sc.code,
-                              sacId: String(sc.id),
-                              gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
-                              quantity: "1",
-                              rate: hasValue ? linkedVal : "",
-                            });
-                            setShowSacTable(false);
-                          }}
-                          className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
-                        >
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                          </svg>
-                          Add
-                        </button>
+                        {blockedForTm ? (
+                          <span
+                            title="Transport Memo is strictly no-GST — this SAC code carries a GST rate"
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-400 cursor-not-allowed"
+                          >
+                            No GST
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              addOrFillService({
+                                ...emptyService(),
+                                descriptionOfService: sc.description,
+                                sacCode: sc.code,
+                                sacId: String(sc.id),
+                                gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
+                                quantity: "1",
+                                rate: hasValue ? linkedVal : "",
+                              });
+                              setShowSacTable(false);
+                            }}
+                            className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

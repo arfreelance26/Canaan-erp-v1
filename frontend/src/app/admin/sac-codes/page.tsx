@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Tag, Plus, Pencil, Trash2, Search, Link2 } from "lucide-react";
+import { Tag, Plus, Pencil, Trash2, Search, Link2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { sacCodesApi } from "@/lib/api";
@@ -41,7 +41,9 @@ export default function SacCodeManagementPage() {
   const [form, setForm] = useState(emptyForm);
   const [searchQuery, setSearchQuery] = useState("");
   const [retrieveDialog, setRetrieveDialog] = useState<{ open: boolean; sc: SacCode | null }>({ open: false, sc: null });
+  const [autoPopDialog, setAutoPopDialog] = useState<{ open: boolean; sc: SacCode | null }>({ open: false, sc: null });
   const [linking, setLinking] = useState(false);
+  const [autoPopping, setAutoPopping] = useState(false);
 
   const isAdmin = user?.softwareDesignation === "Admin";
   // Accounts may view SAC codes (read-only); Admin has full edit access.
@@ -129,6 +131,23 @@ export default function SacCodeManagementPage() {
     }
   }
 
+  async function handleSetAutoPopulate(invoiceType: string | null) {
+    const sc = autoPopDialog.sc;
+    if (!sc) return;
+    setAutoPopping(true);
+    try {
+      await sacCodesApi.setAutoPopulate(sc.id, invoiceType);
+      const fresh = await sacCodesApi.list();
+      setSacCodes(fresh);
+      setAutoPopDialog({ open: false, sc: null });
+      showSuccess(invoiceType ? `"${sc.description}" will auto-populate in ${invoiceType}.` : "Auto Populate setting removed.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update Auto Populate setting.");
+    } finally {
+      setAutoPopping(false);
+    }
+  }
+
   if (!ready || !canView) return null;
   if (loading) return <PageSkeleton hasButton hasSearch columns={4} />;
 
@@ -179,13 +198,14 @@ export default function SacCodeManagementPage() {
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SAC Code</th>
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GST (%)</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Linked Expense</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Auto Populate</th>
               {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredSacCodes.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 5 : 4} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-sm text-gray-400">
                   No SAC codes configured yet. Add one to get started.
                 </td>
               </tr>
@@ -207,9 +227,28 @@ export default function SacCodeManagementPage() {
                     <span className="text-xs text-gray-400">Not linked</span>
                   )}
                 </td>
+                <td className="px-4 py-3">
+                  {sc.autoPopulateInvoiceType ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 border border-violet-100">
+                      <Zap className="h-3 w-3 flex-shrink-0" />
+                      {sc.autoPopulateInvoiceType}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">Not set</span>
+                  )}
+                </td>
                 {isAdmin && (
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAutoPopDialog({ open: true, sc })}
+                        title="Auto Populate"
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:border-violet-200 hover:text-violet-600 hover:bg-violet-50"
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                        Auto Populate
+                      </button>
                       <button
                         type="button"
                         onClick={() => setRetrieveDialog({ open: true, sc })}
@@ -340,6 +379,59 @@ export default function SacCodeManagementPage() {
               className="mt-1 text-xs text-gray-400 hover:text-red-500 text-center disabled:opacity-50"
             >
               Remove linked expense
+            </button>
+          )}
+        </div>
+      </Dialog>
+
+      {/* Auto Populate dialog */}
+      <Dialog
+        open={autoPopDialog.open}
+        onClose={() => setAutoPopDialog({ open: false, sc: null })}
+        title="Auto Populate"
+        className="max-w-sm"
+      >
+        <div className="flex flex-col gap-3">
+          {autoPopDialog.sc && (
+            <p className="text-sm text-gray-500">
+              Select an invoice type to auto-populate <span className="font-semibold text-gray-700">{autoPopDialog.sc.description}</span> as a service line whenever that invoice type is generated.
+            </p>
+          )}
+          <div className="flex flex-col gap-1.5">
+            {(["Transport Memo", "Tax Invoice", "Bill of Supply"] as const).map((type) => {
+              const isActive = autoPopDialog.sc?.autoPopulateInvoiceType === type;
+              const hasGst = parseFloat(autoPopDialog.sc?.gstRate ?? "0") > 0;
+              const blockedByGst = type === "Transport Memo" && hasGst;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  disabled={autoPopping || blockedByGst}
+                  onClick={() => !blockedByGst && handleSetAutoPopulate(type)}
+                  title={blockedByGst ? "Transport Memo is strictly no-GST — this SAC code carries a GST rate and cannot be assigned to Transport Memo" : undefined}
+                  className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm font-medium text-left transition-colors disabled:cursor-not-allowed ${
+                    blockedByGst
+                      ? "border-gray-100 bg-gray-50 text-gray-300"
+                      : isActive
+                      ? "border-violet-300 bg-violet-50 text-violet-700"
+                      : "border-gray-200 text-gray-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+                  }`}
+                >
+                  <span>{type}</span>
+                  {isActive && !blockedByGst && <span className="text-xs text-violet-500 font-normal">Currently set</span>}
+                  {blockedByGst && <span className="text-xs text-red-400 font-normal">GST code — not allowed</span>}
+                </button>
+              );
+            })}
+          </div>
+          {autoPopDialog.sc?.autoPopulateInvoiceType && (
+            <button
+              type="button"
+              disabled={autoPopping}
+              onClick={() => handleSetAutoPopulate(null)}
+              className="mt-1 text-xs text-gray-400 hover:text-red-500 text-center disabled:opacity-50"
+            >
+              Remove Auto Populate setting
             </button>
           )}
         </div>

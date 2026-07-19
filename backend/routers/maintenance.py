@@ -1,10 +1,12 @@
 from typing import Optional
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from websocket_manager import emit
+from security import get_current_user, TokenUser
 
 router = APIRouter(tags=["Maintenance"])
 
@@ -183,7 +185,7 @@ def list_fuel_stations(db: Session = Depends(get_db)):
 
 
 @router.post("/maintenance/fuel-logs", response_model=schemas.FuelLogOut, status_code=201, tags=["Fuel Logs"])
-def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db)):
+def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     if not db.get(models.Truck, payload.truck_id):
         raise HTTPException(404, "Truck not found")
         
@@ -211,7 +213,7 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
         if float(payload.litres) > 0:
             mileage = float(distance) / float(payload.litres)
             
-    log = models.FuelLog(**payload.model_dump(), distance=distance, mileage=mileage)
+    log = models.FuelLog(**payload.model_dump(exclude={"entered_by_name", "source"}), distance=distance, mileage=mileage, entered_by_name=current_user.name, source="Manual Log")
     db.add(log)
     db.commit()
     db.refresh(log)
@@ -259,7 +261,7 @@ def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
     )
 
 @router.put("/maintenance/fuel-logs/{log_id}", response_model=schemas.FuelLogOut, tags=["Fuel Logs"])
-def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = Depends(get_db)):
+def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     log = db.query(models.FuelLog).with_for_update().filter(models.FuelLog.id == log_id).first()
     if not log:
         raise HTTPException(404, "Fuel log not found")
@@ -285,8 +287,9 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
     if duplicate:
         raise HTTPException(400, "Duplicate entry: A fuel log with the same date, quantity, and odometer already exists.")
 
-    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version", "source"}).items():
         setattr(log, field, value)
+    log.entered_by_name = current_user.name
     prev_log = db.query(models.FuelLog)\
         .filter(models.FuelLog.truck_id == log.truck_id, models.FuelLog.odometer < log.odometer)\
         .order_by(models.FuelLog.odometer.desc())\
@@ -435,3 +438,98 @@ def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session
     db.refresh(record)
     emit("tyre_updated", {})
     return record
+
+
+class _SwapPair(BaseModel):
+    position_a: str
+    position_b: str
+
+
+class _SwapBody(BaseModel):
+    truck_id: int
+    pairs: list[_SwapPair]
+    odometer: int
+    remark: str
+
+
+@router.post("/tyre-fitment/swap", response_model=list[schemas.TyreFitmentOut], tags=["Tyre"])
+def swap_tyre_positions(payload: _SwapBody, db: Session = Depends(get_db)):
+    """Close existing fitments and open new ones at swapped positions, preserving full tyre history."""
+    from datetime import date as _date
+    today = _date.today()
+    all_affected: list[models.TyreFitmentRecord] = []
+
+    for pair in payload.pairs:
+        rec_a = db.query(models.TyreFitmentRecord).filter(
+            models.TyreFitmentRecord.truck_id == payload.truck_id,
+            models.TyreFitmentRecord.position == pair.position_a,
+            models.TyreFitmentRecord.removed_odometer.is_(None),
+        ).first()
+        rec_b = db.query(models.TyreFitmentRecord).filter(
+            models.TyreFitmentRecord.truck_id == payload.truck_id,
+            models.TyreFitmentRecord.position == pair.position_b,
+            models.TyreFitmentRecord.removed_odometer.is_(None),
+        ).first()
+
+        tyre_a_id = rec_a.tyre_id if rec_a else None
+        tyre_b_id = rec_b.tyre_id if rec_b else None
+
+        if not tyre_a_id and not tyre_b_id:
+            continue  # Both empty — skip this pair
+
+        # Validate odometer is not less than each tyre's fitted odometer
+        if rec_a and payload.odometer < rec_a.fitted_odometer:
+            raise HTTPException(
+                400,
+                f"Odometer {payload.odometer} km is less than the fitted odometer "
+                f"{rec_a.fitted_odometer} km for position {pair.position_a}.",
+            )
+        if rec_b and payload.odometer < rec_b.fitted_odometer:
+            raise HTTPException(
+                400,
+                f"Odometer {payload.odometer} km is less than the fitted odometer "
+                f"{rec_b.fitted_odometer} km for position {pair.position_b}.",
+            )
+
+        # Close the existing fitment records (history entry)
+        if rec_a:
+            rec_a.removed_odometer = payload.odometer
+            rec_a.removed_date = today
+            rec_a.removal_remark = payload.remark
+            all_affected.append(rec_a)
+        if rec_b:
+            rec_b.removed_odometer = payload.odometer
+            rec_b.removed_date = today
+            rec_b.removal_remark = payload.remark
+            all_affected.append(rec_b)
+
+        # Open new fitments at the swapped positions
+        if tyre_a_id:
+            new_rec = models.TyreFitmentRecord(
+                tyre_id=tyre_a_id,
+                truck_id=payload.truck_id,
+                position=pair.position_b,
+                fitted_odometer=payload.odometer,
+                fitted_date=today,
+            )
+            db.add(new_rec)
+            all_affected.append(new_rec)
+        if tyre_b_id:
+            new_rec = models.TyreFitmentRecord(
+                tyre_id=tyre_b_id,
+                truck_id=payload.truck_id,
+                position=pair.position_a,
+                fitted_odometer=payload.odometer,
+                fitted_date=today,
+            )
+            db.add(new_rec)
+            all_affected.append(new_rec)
+
+    if not all_affected:
+        return []  # Nothing to swap — all pairs were empty
+
+    db.commit()
+    for r in all_affected:
+        db.refresh(r)
+    emit("tyre_updated", {})
+    return all_affected

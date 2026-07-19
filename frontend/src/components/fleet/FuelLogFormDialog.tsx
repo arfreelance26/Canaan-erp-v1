@@ -14,7 +14,7 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 type FuelLogFormDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre">) => void;
+  onSave: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre" | "enteredByName" | "source">) => void;
   truck: Truck;
 };
 

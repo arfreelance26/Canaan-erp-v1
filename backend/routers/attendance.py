@@ -1,10 +1,28 @@
-from datetime import date as date_type, datetime, timezone
+from datetime import date as date_type, datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from websocket_manager import emit
+
+_IST = ZoneInfo("Asia/Kolkata")
+
+def _today_ist() -> date_type:
+    return datetime.now(_IST).date()
+
+def _assert_editable_date(record_date) -> None:
+    """Raise 403 if record_date is older than today−2 days (IST).
+    Mirrors the 2-day edit window enforced on the frontend attendance page."""
+    if isinstance(record_date, str):
+        record_date = date_type.fromisoformat(record_date)
+    cutoff = _today_ist() - timedelta(days=2)
+    if record_date < cutoff:
+        raise HTTPException(
+            403,
+            f"Attendance for {record_date} is locked — only today and the past 2 days can be edited.",
+        )
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
@@ -113,6 +131,7 @@ def list_driver_attendance(
 
 @router.post("/drivers", response_model=schemas.DriverAttendanceOut, status_code=201)
 def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session = Depends(get_db)):
+    _assert_editable_date(payload.date)
     existing = db.query(models.DriverAttendance).filter(
         models.DriverAttendance.driver_id == payload.driver_id,
         models.DriverAttendance.date == payload.date,
@@ -138,6 +157,7 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     record = db.get(models.DriverAttendance, record_id)
     if not record:
         raise HTTPException(404, "Attendance record not found")
+    _assert_editable_date(record.date)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
@@ -173,6 +193,7 @@ def list_driver_remarks(
 
 @router.post("/drivers/remarks", response_model=schemas.DriverAttendanceRemarkOut, status_code=201)
 def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session = Depends(get_db)):
+    _assert_editable_date(payload.date)
     remark = models.DriverAttendanceRemark(**payload.model_dump())
     db.add(remark)
     db.commit()
@@ -186,6 +207,7 @@ def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemark
     remark = db.get(models.DriverAttendanceRemark, remark_id)
     if not remark:
         raise HTTPException(404, "Remark not found")
+    _assert_editable_date(remark.date)
     remark.remark = payload.remark
     db.commit()
     db.refresh(remark)
@@ -198,6 +220,7 @@ def delete_driver_remark(remark_id: int, db: Session = Depends(get_db)):
     remark = db.get(models.DriverAttendanceRemark, remark_id)
     if not remark:
         raise HTTPException(404, "Remark not found")
+    _assert_editable_date(remark.date)
     db.delete(remark)
     db.commit()
     emit("attendance_updated", {})

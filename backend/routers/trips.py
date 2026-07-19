@@ -1,4 +1,5 @@
 import re
+import json
 from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -301,7 +302,7 @@ def get_closure(trip_id: int, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.post("/{trip_id}/sheet", response_model=schemas.TripSheetOut, status_code=201)
-def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Session = Depends(get_db)):
+def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     # SELECT FOR UPDATE — serialises concurrent requests on this trip row
     trip = db.query(models.Trip).with_for_update().filter(models.Trip.id == trip_id).first()
     if not trip:
@@ -332,6 +333,33 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     db.commit()
     db.refresh(sheet)
     emit("sheet_entered", {"trip_db_id": trip_id, "trip_id_str": trip.trip_id, "is_new": is_new})
+
+    # If the Docs user recorded a KM variance remark, persist a notification and
+    # alert Admin + Commercial Manager in real time via WebSocket.
+    if payload.km_variance_remark:
+        notif = models.Notification(
+            event_type="km_variance",
+            title=f"KM Variance — {trip.trip_id}",
+            message=json.dumps({
+                "actualKm": str(payload.total_km or ""),
+                "approxKm": str(trip.approx_km or ""),
+                "kmRemark": payload.km_variance_remark,
+            }),
+            trip_id_str=trip.trip_id,
+            booking_reference_no=trip.booking_reference_no,
+            target_roles="Admin,Commercial Manager",
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(notif)
+        db.commit()
+        emit("km_variance_alert", {
+            "trip_db_id": trip_id,
+            "trip_id_str": trip.trip_id,
+            "booking_ref": trip.booking_reference_no or "",
+            "actual_km": str(payload.total_km or ""),
+            "approx_km": str(trip.approx_km or ""),
+            "km_remark": payload.km_variance_remark,
+        })
 
     # Resolve the truck once — used for both odometer update and maintenance records
     vehicle_id = payload.vehicle_id or trip.vehicle_id
@@ -368,6 +396,8 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
                 existing_log.price_per_litre = cost_per_litre
                 existing_log.total_cost = total_cost
                 existing_log.fuel_station = fuel_station
+                existing_log.entered_by_name = current_user.name
+                existing_log.source = f"Trip Sheet-{trip.trip_id}"
             else:
                 db.add(models.FuelLog(
                     truck_id=truck.id,
@@ -378,6 +408,8 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
                     total_cost=total_cost,
                     fuel_station=fuel_station,
                     logged_by=marker,
+                    entered_by_name=current_user.name,
+                    source=f"Trip Sheet-{trip.trip_id}",
                 ))
         # Remove stale entries (e.g. user deleted one)
         stale = db.query(models.FuelLog).filter(
@@ -406,6 +438,8 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
             existing_log.litres = diesel_litres
             existing_log.price_per_litre = diesel_rate
             existing_log.total_cost = diesel_total
+            existing_log.entered_by_name = current_user.name
+            existing_log.source = f"Trip Sheet-{trip.trip_id}"
         else:
             db.add(models.FuelLog(
                 truck_id=truck.id,
@@ -416,6 +450,8 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
                 total_cost=diesel_total,
                 fuel_station="Trip Sheet",
                 logged_by=f"trip:{trip_id}",
+                entered_by_name=current_user.name,
+                source=f"Trip Sheet-{trip.trip_id}",
             ))
         db.commit()
 

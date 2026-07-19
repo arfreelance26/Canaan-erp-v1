@@ -51,7 +51,7 @@ export function VerifyTripDialog({
   onClose, onViewSheet, onEditSheet, onViewBookingSheet, onEditBookingSheet, onConfirm, onReject,
 }: VerifyTripDialogProps) {
   const [markedLabels, setMarkedLabels] = useState<Set<string>>(new Set());
-  const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
+  const [expenseMarks, setExpenseMarks] = useState<Record<string, "tick" | "untick">>({});
   const [rejectionReason, setRejectionReason] = useState("");
 
   useEffect(() => {
@@ -69,10 +69,21 @@ export function VerifyTripDialog({
 
   useEffect(() => {
     if (!open) {
-      setDecision(null);
+      setExpenseMarks({});
       setRejectionReason("");
     }
   }, [open]);
+
+  function setExpenseMark(label: string, mark: "tick" | "untick") {
+    setExpenseMarks((prev) => {
+      if (prev[label] === mark) {
+        const next = { ...prev };
+        delete next[label];
+        return next;
+      }
+      return { ...prev, [label]: mark };
+    });
+  }
 
   if (!trip) return null;
 
@@ -110,6 +121,13 @@ export function VerifyTripDialog({
 
   const totalExpense  = calcTripExpenses(sheet ?? {} as TripSheetData) + haltPay;
   const markedCount   = markedLabels.size;
+
+  // Verification logic — only non-zero expenses need to be ticked or unticked
+  const nonZeroExpenses = expenses.filter((e) => e.value > 0);
+  const verifiedCount   = nonZeroExpenses.filter((e) => expenseMarks[e.label] !== undefined).length;
+  const allMarked       = nonZeroExpenses.length === 0 || nonZeroExpenses.every((e) => expenseMarks[e.label] !== undefined);
+  const anyUnticked     = nonZeroExpenses.some((e) => expenseMarks[e.label] === "untick");
+  const autoDecision: "approve" | "reject" | null = allMarked ? (anyUnticked ? "reject" : "approve") : null;
 
   function toggleMark(label: string, value: number) {
     const next = new Set(markedLabels);
@@ -195,57 +213,120 @@ export function VerifyTripDialog({
         >
           {sheet ? (
             <div className="flex flex-col gap-2 py-1">
-              {/* hint about marking */}
-              {markedCount === 0 && (
-                <p className="text-xs text-gray-400 mb-1">
-                  Tap <span className="font-semibold text-indigo-500">+ Inv</span> on any expense to flag it for the invoice.
-                </p>
-              )}
-              {markedCount > 0 && (
-                <p className="text-xs font-medium text-indigo-600 mb-1">
-                  {markedCount} expense{markedCount > 1 ? "s" : ""} flagged for invoice.
-                </p>
-              )}
+              {/* Verification progress */}
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  {!allMarked && (
+                    <p className="text-xs text-gray-500">
+                      Verify each expense below — <span className="font-semibold text-gray-700">{verifiedCount}/{nonZeroExpenses.length}</span> done
+                    </p>
+                  )}
+                  {allMarked && !anyUnticked && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                      All expenses verified — ready to approve
+                    </span>
+                  )}
+                  {anyUnticked && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold text-red-700">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      Issues found — rejection required
+                    </span>
+                  )}
+                </div>
+                {markedCount > 0 && (
+                  <p className="text-xs font-medium text-indigo-600">
+                    {markedCount} flagged for invoice
+                  </p>
+                )}
+              </div>
 
               {/* expense rows */}
               <div className="rounded-xl border border-gray-100 overflow-hidden shadow-sm">
                 {expenses.map(({ label, value, note }, idx) => {
-                  const marked = markedLabels.has(label);
-                  const isZero = value === 0;
+                  const invMarked  = markedLabels.has(label);
+                  const verifyMark = expenseMarks[label];
+                  const isZero     = value === 0;
+                  const rowBg = verifyMark === "tick"
+                    ? "!bg-emerald-50/60"
+                    : verifyMark === "untick"
+                    ? "!bg-red-50/60"
+                    : invMarked
+                    ? "!bg-indigo-50/70"
+                    : idx % 2 === 0 ? "bg-white" : "bg-gray-50/60";
                   return (
                     <div
                       key={label}
                       className={[
                         "flex items-center justify-between px-3.5 py-2.5 text-sm transition-colors",
-                        idx % 2 === 0 ? "bg-white" : "bg-gray-50/60",
-                        marked ? "!bg-indigo-50/70" : "",
+                        rowBg,
                         idx !== 0 ? "border-t border-gray-100" : "",
                       ].join(" ")}
                     >
-                      <span className={`flex items-center gap-1.5 ${isZero ? "text-gray-300" : "text-gray-600"}`}>
-                        {marked && (
+                      <span className={`flex items-center gap-1.5 min-w-0 ${isZero ? "text-gray-300" : "text-gray-600"}`}>
+                        {invMarked && !verifyMark && (
                           <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
+                        )}
+                        {verifyMark === "tick" && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        )}
+                        {verifyMark === "untick" && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                         )}
                         {label}
                         {note && <span className="text-xs text-gray-400 font-normal">({note})</span>}
                       </span>
-                      <span className="flex items-center gap-2.5 shrink-0">
+                      <span className="flex items-center gap-2 shrink-0 ml-3">
                         <span className={isZero ? "text-gray-300 text-sm" : "font-semibold text-gray-800 text-sm"}>
                           {fmt(value)}
                         </span>
+
+                        {/* ✓ / ✗ verification buttons — only on non-zero expenses */}
+                        {!isZero && (
+                          <span className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setExpenseMark(label, "tick")}
+                              title="Mark as correct"
+                              className={[
+                                "flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold transition-all",
+                                verifyMark === "tick"
+                                  ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                                  : "border-gray-200 bg-white text-gray-300 hover:border-emerald-400 hover:text-emerald-500",
+                              ].join(" ")}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpenseMark(label, "untick")}
+                              title="Mark as incorrect"
+                              className={[
+                                "flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold transition-all",
+                                verifyMark === "untick"
+                                  ? "border-red-500 bg-red-500 text-white shadow-sm"
+                                  : "border-gray-200 bg-white text-gray-300 hover:border-red-400 hover:text-red-500",
+                              ].join(" ")}
+                            >
+                              ✗
+                            </button>
+                          </span>
+                        )}
+
+                        {/* + Inv invoice flag button */}
                         {!isZero && (
                           <button
                             type="button"
                             onClick={() => toggleMark(label, value)}
-                            title={marked ? "Remove from invoice hints" : "Flag for invoice"}
+                            title={invMarked ? "Remove from invoice hints" : "Flag for invoice"}
                             className={[
                               "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all duration-150 leading-none select-none",
-                              marked
+                              invMarked
                                 ? "border-indigo-500 bg-indigo-500 text-white shadow-sm hover:bg-indigo-600 hover:border-indigo-600"
                                 : "border-gray-200 bg-white text-gray-400 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600",
                             ].join(" ")}
                           >
-                            {marked ? (
+                            {invMarked ? (
                               <>
                                 <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -321,45 +402,32 @@ export function VerifyTripDialog({
             </button>
           </div>
 
-          {/* Verification Decision */}
+          {/* Verification Decision — auto-derived from tick/untick marks */}
           <div className="border-t border-gray-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Verification Decision</p>
-            <div className="flex items-center gap-3 mb-3">
-              <button
-                type="button"
-                onClick={() => setDecision("approve")}
-                className={[
-                  "flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition-all",
-                  decision === "approve"
-                    ? "border-emerald-500 bg-emerald-500 text-white shadow-md"
-                    : "border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50",
-                ].join(" ")}
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                Approve
-              </button>
-              <button
-                type="button"
-                onClick={() => setDecision("reject")}
-                className={[
-                  "flex items-center gap-2 rounded-xl border-2 px-5 py-2.5 text-sm font-bold transition-all",
-                  decision === "reject"
-                    ? "border-red-500 bg-red-500 text-white shadow-md"
-                    : "border-red-200 bg-white text-red-500 hover:bg-red-50",
-                ].join(" ")}
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Reject
-              </button>
-            </div>
 
-            {decision === "reject" && (
+            {/* Pending state */}
+            {autoDecision === null && (
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <svg className="h-4 w-4 shrink-0 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-gray-400">
+                  Tick (✓) or untick (✗) every expense above to unlock the decision.
+                  <span className="ml-1 font-semibold text-gray-500">
+                    {verifiedCount}/{nonZeroExpenses.length} verified.
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* Rejection reason — auto-shown when any expense is unticked */}
+            {autoDecision === "reject" && (
               <div className="mb-3 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 p-3">
-                <label className="text-xs font-semibold text-red-600">Rejection Reason (required — sent back to Docs team)</label>
+                <p className="text-xs font-semibold text-red-600">
+                  One or more expenses were marked incorrect (✗) — rejection required.
+                </p>
+                <label className="text-xs font-semibold text-red-500">Rejection Reason (required — sent back to Docs team)</label>
                 <textarea
                   rows={3}
                   value={rejectionReason}
@@ -370,7 +438,8 @@ export function VerifyTripDialog({
               </div>
             )}
 
-            {decision === "approve" && (
+            {/* Confirm Verification — only when all are ticked */}
+            {autoDecision === "approve" && (
               <button
                 type="button"
                 onClick={onConfirm}
@@ -382,7 +451,9 @@ export function VerifyTripDialog({
                 Confirm Verification
               </button>
             )}
-            {decision === "reject" && (
+
+            {/* Send Back to Docs — only when any expense is unticked */}
+            {autoDecision === "reject" && (
               <button
                 type="button"
                 disabled={!rejectionReason.trim()}

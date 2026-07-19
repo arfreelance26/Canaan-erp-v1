@@ -217,17 +217,36 @@ export function buildTransportMemo(
   customer: Customer | undefined,
   invoice?: Record<string, any>
 ): TransportMemoInvoiceProps {
-  const { subtotal, gstTotal } = invoice?.services?.length
-    ? computeServiceTotals(invoice.services)
-    : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
-  const grand = subtotal + gstTotal;
+  // Transport Memo is strictly no-GST — ignore any GST rates on service lines.
+  const services: any[] | undefined = invoice?.services?.length ? invoice.services : undefined;
+  const subtotal = services
+    ? services.reduce((sum: number, s: any) => sum + n(s.quantity) * n(s.rate), 0)
+    : n(closure.billingAmount) || n(closure.hireAmount);
+
+  const common = commonFields(trip, closure, sheet, customer, invoice);
+  // Strip GST rate and recalculate totals (base only, no tax) for every service line.
+  const serviceItems = services
+    ? services.map((s: any) => {
+        const base = n(s.quantity) * n(s.rate);
+        return {
+          description: s.descriptionOfService,
+          sacCode: s.sacCode,
+          qty: n(s.quantity),
+          rate: fmt(n(s.rate)),
+          gstRate: "",
+          total: fmt(base),
+        };
+      })
+    : common.serviceItems.map((s: ServiceItem) => ({ ...s, gstRate: "" }));
+
   return {
-    ...commonFields(trip, closure, sheet, customer, invoice),
+    ...common,
+    serviceItems,
     billToName: invoice?.billTo || "Canaan Global International, Puthukottai, Tuticorin, Tamil Nadu, India.",
     billToAddress: undefined,
-    subtotal: fmt(grand),
-    grandTotal: fmt(grand),
-    amountInWords: amountToWords(String(grand)),
+    subtotal: fmt(subtotal),
+    grandTotal: fmt(subtotal),
+    amountInWords: amountToWords(String(subtotal)),
   };
 }
 

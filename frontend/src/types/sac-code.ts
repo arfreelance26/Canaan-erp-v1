@@ -4,5 +4,6 @@ export type SacCode = {
   code: string;
   gstRate: string;
   linkedExpense?: string;
+  autoPopulateInvoiceType?: string;
   version?: number;
 };

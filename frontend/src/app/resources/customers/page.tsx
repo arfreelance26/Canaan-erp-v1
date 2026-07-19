@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
 import { CustomerPricingFormDialog, DRAFT_KEY as PRICING_DRAFT_KEY } from "@/components/customers/CustomerPricingFormDialog";
 import { CustomerDestinationTable } from "@/components/customers/CustomerDestinationTable";
 import { CustomerDestinationFormDialog, DRAFT_KEY as DESTINATION_DRAFT_KEY } from "@/components/customers/CustomerDestinationFormDialog";
+import { FinalCustomerPricingFormDialog } from "@/components/customers/FinalCustomerPricingFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { customersApi, editApprovalsApi } from "@/lib/api";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { CustomerDestination } from "@/types/customer-destination";
+import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -27,6 +29,7 @@ const TABS = [
   { id: "list", label: "Customer List" },
   { id: "destinations", label: "Our Customer Destinations" },
   { id: "pricing", label: "Our Customer Pricing" },
+  { id: "finalPricing", label: "Final Customer Pricing (For Accounts)" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -57,6 +60,11 @@ export default function CustomersPage() {
   const [loadingDestinations, setLoadingDestinations] = useState(false);
   const [destinationDialogOpen, setDestinationDialogOpen] = useState(false);
   const [editingDestination, setEditingDestination] = useState<CustomerDestination | null>(null);
+
+  const [finalPricing, setFinalPricing] = useState<FinalCustomerPricing[]>([]);
+  const [loadingFinalPricing, setLoadingFinalPricing] = useState(false);
+  const [finalPricingDialogOpen, setFinalPricingDialogOpen] = useState(false);
+  const [editingFinalPricing, setEditingFinalPricing] = useState<FinalCustomerPricing | null>(null);
 
   const filteredCustomers = customers.filter(c =>
     !searchQuery ||
@@ -132,7 +140,13 @@ export default function CustomersPage() {
         .then((results) => setDestinations(results.flat()))
         .finally(() => setLoadingDestinations(false));
     }
-  }, [activeTab, customers, pricing.length, destinations.length]);
+    if (activeTab === "finalPricing" && customers.length > 0 && finalPricing.length === 0) {
+      setLoadingFinalPricing(true);
+      Promise.all(customers.map((c) => customersApi.listFinalPricing(c.id)))
+        .then((results) => setFinalPricing(results.flat()))
+        .finally(() => setLoadingFinalPricing(false));
+    }
+  }, [activeTab, customers, pricing.length, destinations.length, finalPricing.length]);
 
   function handleAddCustomer() {
     setEditingCustomer(null);
@@ -286,6 +300,41 @@ export default function CustomersPage() {
     }
   }
 
+  async function handleSaveFinalPricing(customerId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null }) {
+    try {
+      if (editingFinalPricing) {
+        const updated = await customersApi.updateFinalPricing(editingFinalPricing.customerId, editingFinalPricing.id, {
+          ...data,
+          clientVersion: editingFinalPricing.version,
+        });
+        setFinalPricing((prev) => prev.map((fp) => (fp.id === editingFinalPricing.id ? updated : fp)));
+        showSuccess("Final pricing updated successfully.");
+      } else {
+        const created = await customersApi.createFinalPricing(customerId, data);
+        setFinalPricing((prev) => [...prev, created]);
+        showSuccess("Final pricing added successfully.");
+      }
+      setFinalPricingDialogOpen(false);
+      setEditingFinalPricing(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save final pricing.");
+    }
+  }
+
+  async function handleDeleteFinalPricing(id: string) {
+    const entry = finalPricing.find((fp) => fp.id === id);
+    if (!entry) return;
+    const result = await confirmDelete("final pricing entry");
+    if (!result.isConfirmed) return;
+    try {
+      await customersApi.deleteFinalPricing(entry.customerId, id);
+      setFinalPricing((prev) => prev.filter((fp) => fp.id !== id));
+      showSuccess("Final pricing deleted successfully.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete final pricing.");
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton hasSearch columns={5} />;
 
   return (
@@ -299,10 +348,10 @@ export default function CustomersPage() {
           <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" label="Download Excel (List, Destinations, Pricing)" />
           <div className="flex flex-col items-end rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-              {activeTab === "list" ? "Total Customers" : activeTab === "destinations" ? "Total Destinations" : "Total Pricing Rules"}
+              {activeTab === "list" ? "Total Customers" : activeTab === "destinations" ? "Total Destinations" : activeTab === "pricing" ? "Total Pricing Rules" : "Final Pricing Entries"}
             </p>
             <p className="text-2xl font-bold text-blue-600">
-              {activeTab === "list" ? customers.length : activeTab === "destinations" ? destinations.length : pricing.length}
+              {activeTab === "list" ? customers.length : activeTab === "destinations" ? destinations.length : activeTab === "pricing" ? pricing.length : finalPricing.length}
             </p>
           </div>
         </div>
@@ -445,6 +494,91 @@ export default function CustomersPage() {
             onClose={() => setDestinationDialogOpen(false)}
             onSave={handleSaveDestination}
             initialData={editingDestination}
+            customers={customers}
+          />
+        </div>
+      )}
+
+      {activeTab === "finalPricing" && loadingFinalPricing && (
+        <PageSkeleton hasButton columns={4} />
+      )}
+
+      {activeTab === "finalPricing" && !loadingFinalPricing && (
+        <div className="animate-stagger flex flex-col gap-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              Accounts-adjusted hire amounts used for Driver Batta calculation.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setEditingFinalPricing(null); setFinalPricingDialogOpen(true); }}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Add Final Pricing
+            </button>
+          </div>
+
+          {finalPricing.length === 0 ? (
+            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+              No final pricing entries yet. Click &ldquo;Add Final Pricing&rdquo; to create one.
+            </div>
+          ) : (
+            <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
+              <table className="w-full min-w-[700px] text-left text-sm whitespace-nowrap">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actual Hire Amount (₹)</th>
+                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Hire Amount as per Accounts (₹)</th>
+                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {finalPricing.map((entry) => {
+                    const customer = customers.find((c) => c.id === entry.customerId);
+                    return (
+                      <tr key={entry.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {entry.actualHireAmount ? `₹${parseFloat(entry.actualHireAmount).toLocaleString("en-IN")}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-blue-700">
+                          {entry.accountsHireAmount ? `₹${parseFloat(entry.accountsHireAmount).toLocaleString("en-IN")}` : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setEditingFinalPricing(entry); setFinalPricingDialogOpen(true); }}
+                              className="rounded p-1 text-blue-600 hover:bg-blue-50"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFinalPricing(entry.id)}
+                              className="rounded p-1 text-red-500 hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <FinalCustomerPricingFormDialog
+            open={finalPricingDialogOpen}
+            onClose={() => { setFinalPricingDialogOpen(false); setEditingFinalPricing(null); }}
+            onSave={handleSaveFinalPricing}
+            initialData={editingFinalPricing}
             customers={customers}
           />
         </div>
