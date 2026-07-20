@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2, AlertCircle, Truck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 function useBackendStatus() {
   const [online, setOnline] = useState<boolean | null>(null);

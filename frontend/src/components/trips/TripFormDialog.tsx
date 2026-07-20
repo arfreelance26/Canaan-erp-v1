@@ -30,7 +30,7 @@ import type { CustomerPricing } from "@/types/customer-pricing";
 import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { Branch } from "@/types/branch";
 import { branchesApi, customersApi, tripsApi } from "@/lib/api";
-import { confirmAction } from "@/lib/swal";
+import { confirmAction, showError } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { saveToAutocompleteHistory, getAutocompleteHistory }from "@/components/ui/AutocompleteInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -522,7 +522,7 @@ export function TripFormDialog({
     }));
   }
 
-  function handleVehicleChange(assignmentDriverId: string) {
+  async function handleVehicleChange(assignmentDriverId: string) {
     const assignment = assignableDrivers.find((a) => a.driver.driverId === assignmentDriverId);
     if (assignment) {
       const truckId = assignment.truck.truckId;
@@ -532,8 +532,10 @@ export function TripFormDialog({
       );
       if (sameDayTrips.length > 0) {
         const refs = sameDayTrips.map((t) => t.bookingReferenceNo || t.tripId).join(", ");
-        const proceed = window.confirm(
-          `Warning: ${assignment.truck.registrationNumber} already has ${sameDayTrips.length} trip(s) assigned today (${refs}).\n\nThis truck is being assigned sequentially. Do you want to continue?`
+        const proceed = await confirmAction(
+          `${assignment.truck.registrationNumber} already has ${sameDayTrips.length} trip(s) assigned today`,
+          `Trips: ${refs}\n\nThis truck is being assigned sequentially. Do you want to continue?`,
+          "Yes, Continue"
         );
         if (!proceed) return;
       }
@@ -628,11 +630,11 @@ export function TripFormDialog({
     event.preventDefault();
     const assigned = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
     if (!assigned) {
-      alert("Please select a vehicle before assigning the trip.");
+      await showError("Please select a vehicle before assigning the trip.", "Vehicle Required");
       return;
     }
     if (vehicleAssignmentId && form.driverId !== vehicleAssignmentId && !form.driverChangeRemark.trim()) {
-      alert("Please provide a reason for changing the driver.");
+      await showError("Please provide a reason for changing the driver.", "Reason Required");
       return;
     }
 
@@ -651,8 +653,9 @@ export function TripFormDialog({
     for (const c of containersToValidate) {
       const normalized = c.value.trim().toUpperCase().replace(/\s/g, "");
       if (normalized && !CONTAINER_REGEX.test(normalized)) {
-        alert(
-          `Invalid ${c.label}: "${c.value}"\n\nContainer numbers must be exactly 4 letters followed by 7 digits.\nExample: ABCD1234567`
+        await showError(
+          `Container numbers must be exactly 4 letters followed by 7 digits.\nExample: ABCD1234567\n\nGot: "${c.value}"`,
+          `Invalid ${c.label}`
         );
         return;
       }

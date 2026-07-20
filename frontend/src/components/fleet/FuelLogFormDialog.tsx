@@ -56,7 +56,7 @@ export function FuelLogFormDialog({ open, onClose, onSave, truck }: FuelLogFormD
     if (open) {
       fuelLogsApi.listFuelStations()
         .then(setStations)
-        .catch(console.error);
+        .catch(() => {});
     }
   }, [open]);
 

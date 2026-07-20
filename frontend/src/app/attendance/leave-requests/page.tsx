@@ -22,8 +22,8 @@ export default function LeaveRequestsPage() {
     try {
       const data = await attendanceApi.listLeaveRequests();
       setRequests(data);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // silent — UI stays on previous data
     } finally {
       setLoading(false);
     }

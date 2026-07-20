@@ -30,7 +30,7 @@ import type { SacCode } from "@/types/sac-code";
 
 import { cacheGet, cacheSet, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 // ---------------------------------------------------------------------------
 // Auth helpers — read the JWT saved by AuthContext and attach it to requests

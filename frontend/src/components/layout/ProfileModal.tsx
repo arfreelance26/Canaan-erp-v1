@@ -16,7 +16,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { formatDateLong } from "@/lib/format-date";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 type StaffDetail = {
   name: string;

@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,39352,e=>{"use strict";var t=e.i(71645),i=e.i(18566);e.s(["default",0,function(){let e=(0,i.useRouter)();return(0,t.useEffect)(()=>{e.replace("/trips/verification")},[e]),null}])}]);

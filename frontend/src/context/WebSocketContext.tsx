@@ -12,7 +12,7 @@ type WSContextType = {
 
 const WebSocketContext = createContext<WSContextType | null>(null);
 
-const WS_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/^http/, "ws");
+const WS_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "").replace(/^http/, "ws");
 const MAX_RETRIES = 5;
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {

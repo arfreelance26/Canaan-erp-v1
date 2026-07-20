@@ -16,7 +16,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useNotifications } from "@/context/NotificationContext";
 import { showToast } from "@/lib/swal";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 // Trip pages whose local search is driven by the Topbar global search
 const SEARCHABLE_TRIP_PATHS = new Set([

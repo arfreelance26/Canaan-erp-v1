@@ -131,7 +131,7 @@ export function InvoicePreviewDialog({
 
       pdf.save(filename);
     } catch (err) {
-      console.error("PDF generation failed:", err);
+      void err;
     } finally {
       if (iframe) document.body.removeChild(iframe);
       if (blobURL) URL.revokeObjectURL(blobURL);

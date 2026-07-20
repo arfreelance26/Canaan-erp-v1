@@ -347,12 +347,9 @@ app = FastAPI(
 async def _startup():
     set_event_loop(asyncio.get_running_loop())
 
-# CORS: set CORS_ORIGINS in .env (comma-separated) to restrict in production,
-# e.g. CORS_ORIGINS=https://erp.canaanglobal.com
-_cors_origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

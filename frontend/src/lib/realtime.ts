@@ -9,7 +9,7 @@
 type RealtimeEvent = { type: string; payload: Record<string, unknown> };
 type Listener = (event: RealtimeEvent) => void;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 const WS_URL = API_URL.replace(/^http/, "ws") + "/ws";
 
 const RECONNECT_MIN_MS = 1000;

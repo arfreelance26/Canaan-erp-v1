@@ -49,7 +49,7 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
           setLogs(logsData);
           setStats(statsData);
         })
-        .catch(console.error)
+        .catch(() => {})
         .finally(() => setLoading(false));
     }
   }, [open, truck]);
