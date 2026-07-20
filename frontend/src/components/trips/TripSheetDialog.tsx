@@ -466,7 +466,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           <Field label="Approx Distance for this Trip">
             <input
               className={roClass}
-              value={trip.approxTripDistance ? `${trip.approxTripDistance} KM` : "—"}
+              value={trip.approxKm ? `${trip.approxKm} KM` : trip.approxTripDistance ? `${trip.approxTripDistance} KM` : "—"}
               readOnly
               disabled
             />
@@ -719,7 +719,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               <button
                 key={rt.id}
                 type="button"
-                onClick={() => set("majorRepairs", [...form.majorRepairs, { name: rt.name, cost: rt.defaultCost !== "0" ? rt.defaultCost : "" }])}
+                onClick={() => set("majorRepairs", [...form.majorRepairs, {
+                  name: rt.name,
+                  date: form.tripSheetDate || "",
+                  odometer: form.endKm || "",
+                  description: "",
+                  cost: rt.defaultCost !== "0" ? rt.defaultCost : "",
+                }])}
                 className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
               >
                 + {rt.name}
@@ -727,53 +733,90 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             ))}
           </div>
         )}
-        {form.majorRepairs.map((repair, idx) => (
-          <div key={idx} className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Field label={`Repair Name ${idx + 1}`}>
+        {form.majorRepairs.map((repair, idx) => {
+          const upd = (patch: Partial<typeof repair>) => {
+            set("majorRepairs", form.majorRepairs.map((r, i) => i === idx ? { ...r, ...patch } : r));
+          };
+          return (
+            <div key={idx} className="rounded-xl border border-orange-200 bg-orange-50/40 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wide text-orange-700">Repair {idx + 1}</span>
+                {!ro && (
+                  <button
+                    type="button"
+                    onClick={() => set("majorRepairs", form.majorRepairs.filter((_, i) => i !== idx))}
+                    className="rounded-lg border border-red-200 px-2.5 py-1 text-xs text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Maintenance Type *">
+                  <input
+                    type="text"
+                    className={fc}
+                    value={repair.name}
+                    readOnly={ro}
+                    onChange={(e) => upd({ name: e.target.value })}
+                    placeholder="e.g. Engine overhaul"
+                  />
+                </Field>
+                <Field label="Date *">
+                  <input
+                    type="date"
+                    className={fc}
+                    value={repair.date}
+                    readOnly={ro}
+                    onChange={(e) => upd({ date: e.target.value })}
+                  />
+                </Field>
+                <Field label="Odometer (km) *">
+                  <DecimalInput
+                    type="number"
+                    min="0"
+                    className={fc}
+                    value={repair.odometer}
+                    readOnly={ro}
+                    onChange={(e) => upd({ odometer: e.target.value })}
+                    placeholder="e.g. 125000"
+                  />
+                </Field>
+                <Field label="Cost (₹) *">
+                  <DecimalInput
+                    type="number"
+                    min="0"
+                    className={fc}
+                    value={repair.cost}
+                    readOnly={ro}
+                    onChange={(e) => upd({ cost: e.target.value })}
+                    placeholder="e.g. 0"
+                  />
+                </Field>
+              </div>
+              <Field label="Description">
                 <input
                   type="text"
                   className={fc}
-                  value={repair.name}
+                  value={repair.description}
                   readOnly={ro}
-                  onChange={(e) => {
-                    const updated = form.majorRepairs.map((r, i) => i === idx ? { ...r, name: e.target.value } : r);
-                    set("majorRepairs", updated);
-                  }}
-                  placeholder="e.g. Engine overhaul"
+                  onChange={(e) => upd({ description: e.target.value })}
+                  placeholder="Details about the repair"
                 />
               </Field>
             </div>
-            <div className="w-36">
-              <Field label="Cost (₹)">
-                <DecimalInput type="number"
-                  min="0"
-                  className={fc}
-                  value={repair.cost}
-                  readOnly={ro}
-                  onChange={(e) => {
-                    const updated = form.majorRepairs.map((r, i) => i === idx ? { ...r, cost: e.target.value } : r);
-                    set("majorRepairs", updated);
-                  }}
-                  placeholder="e.g. 0"
-                />
-              </Field>
-            </div>
-            {!ro && (
-              <button
-                type="button"
-                onClick={() => set("majorRepairs", form.majorRepairs.filter((_, i) => i !== idx))}
-                className="mb-0.5 rounded-lg border border-red-200 px-2 py-2 text-xs text-red-500 hover:bg-red-50"
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {!ro && (
           <button
             type="button"
-            onClick={() => set("majorRepairs", [...form.majorRepairs, { name: "", cost: "" }])}
+            onClick={() => set("majorRepairs", [...form.majorRepairs, {
+              name: "",
+              date: form.tripSheetDate || "",
+              odometer: form.endKm || "",
+              description: "",
+              cost: "",
+            }])}
             className="self-start rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50"
           >
             + Add Repair

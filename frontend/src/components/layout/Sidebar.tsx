@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { editApprovalsApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useTheme } from "@/context/ThemeContext";
 
 // Allowed hrefs per software designation (Admin gets everything)
 const ROLE_HREFS: Record<string, string[] | "all"> = {
@@ -98,7 +99,11 @@ type SidebarProps = {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   const isAdmin = user?.softwareDesignation === "Admin";
+  const logoBg = theme === "dark"
+    ? { backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }
+    : {};
 
   const [pendingEditApprovals, setPendingEditApprovals] = useState(0);
   useEffect(() => {
@@ -125,52 +130,69 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}
     >
       {/* Header — logo + toggle */}
-      <div className={cn(
-        "flex items-center border-b border-white/50 transition-all duration-300",
-        collapsed ? "justify-center px-0 py-3" : "justify-between px-4 py-3"
-      )}>
-        {collapsed ? (
-          <button type="button" onClick={onToggle} aria-label="Expand sidebar" className="flex flex-col items-center gap-1.5">
-            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain sidebar-logo" />
-          </button>
-        ) : (
-          <>
-            <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain sidebar-logo" />
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-label="Collapse sidebar"
-              className="ml-2 shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Expand button when collapsed (below logo) */}
-      {collapsed && (
+      <div className="relative flex h-[88px] shrink-0 items-center justify-center border-b border-white/50">
+        {/* Small icon — centered, in flow only when collapsed */}
         <button
           type="button"
           onClick={onToggle}
           aria-label="Expand sidebar"
-          className="mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          className={cn(
+            "flex flex-col items-center gap-1.5 transition-all duration-300",
+            collapsed ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-75 pointer-events-none absolute"
+          )}
         >
-          <ChevronRight className="h-4 w-4" />
+          <div style={logoBg} className="p-1.5">
+            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain" />
+          </div>
         </button>
-      )}
+
+        {/* Full logo + collapse button — absolutely positioned, in flow only when expanded */}
+        <div className={cn(
+          "absolute inset-0 flex items-center justify-between px-4 transition-all duration-300",
+          collapsed ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"
+        )}>
+          <div style={logoBg} className="px-3 py-1">
+            <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
+          </div>
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label="Collapse sidebar"
+            className="ml-2 shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Expand chevron — only shown when collapsed */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label="Expand sidebar"
+        className={cn(
+          "mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-all duration-300",
+          collapsed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none h-0 mt-0 overflow-hidden"
+        )}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4">
         {sections.map((section) => (
           <div key={section.title} className="mb-4">
-            {/* Section title — hidden when collapsed */}
-            {!collapsed && (
-              <p className="px-3 pb-2 text-[11px] font-bold tracking-wider text-blue-600 uppercase">
-                {section.title}
-              </p>
-            )}
-            {collapsed && <div className="mx-auto mb-2 h-px w-8 bg-gray-200" />}
+            {/* Section title — fades out when collapsed */}
+            <p className={cn(
+              "px-3 text-[11px] font-bold tracking-wider text-blue-600 uppercase overflow-hidden transition-all duration-300",
+              collapsed ? "max-h-0 opacity-0 pb-0" : "max-h-8 opacity-100 pb-2"
+            )}>
+              {section.title}
+            </p>
+            <div className={cn(
+              "mx-auto mb-2 h-px bg-gray-200 transition-all duration-300",
+              collapsed ? "w-8 opacity-100" : "w-0 opacity-0"
+            )} />
 
             <ul className="space-y-1">
               {section.items.map((item) => {
@@ -191,19 +213,28 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && (
-                        <>
-                          <span className="flex-1">{item.label}</span>
-                          {badge > 0 && (
-                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                              {badge > 99 ? "99+" : badge}
-                            </span>
-                          )}
-                        </>
+                      {/* Label — always rendered, fades + collapses width */}
+                      <span className={cn(
+                        "flex-1 whitespace-nowrap overflow-hidden transition-all duration-300",
+                        collapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"
+                      )}>
+                        {item.label}
+                      </span>
+                      {/* Badge count pill */}
+                      {badge > 0 && (
+                        <span className={cn(
+                          "flex h-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white transition-all duration-300 overflow-hidden",
+                          collapsed ? "min-w-0 w-0 px-0 opacity-0" : "min-w-5 px-1.5 opacity-100"
+                        )}>
+                          {badge > 99 ? "99+" : badge}
+                        </span>
                       )}
-                      {/* Badge dot when collapsed */}
-                      {collapsed && badge > 0 && (
-                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+                      {/* Badge dot — only when collapsed */}
+                      {badge > 0 && (
+                        <span className={cn(
+                          "absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 transition-all duration-300",
+                          collapsed ? "opacity-100 scale-100" : "opacity-0 scale-0"
+                        )} />
                       )}
                     </Link>
                   </li>
@@ -226,22 +257,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             {getInitials(user?.name ?? "U")}
           </div>
         )}
-        {!collapsed && (
-          <>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate text-sm font-semibold text-gray-900">{user?.name ?? "—"}</span>
-              <span className="truncate text-[11px] text-gray-500">{user?.softwareDesignation ?? ""}</span>
-            </div>
-            <button
-              type="button"
-              aria-label="Log out"
-              onClick={logout}
-              className="shrink-0 text-gray-400 transition-colors hover:text-red-500"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </>
-        )}
+        <div className={cn(
+          "flex min-w-0 flex-1 flex-col overflow-hidden transition-all duration-300",
+          collapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"
+        )}>
+          <span className="truncate text-sm font-semibold text-gray-900">{user?.name ?? "—"}</span>
+          <span className="truncate text-[11px] text-gray-500">{user?.softwareDesignation ?? ""}</span>
+        </div>
+        <button
+          type="button"
+          aria-label="Log out"
+          onClick={logout}
+          className={cn(
+            "shrink-0 text-gray-400 transition-all duration-300 hover:text-red-500",
+            collapsed ? "max-w-0 opacity-0 pointer-events-none overflow-hidden" : "max-w-full opacity-100"
+          )}
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
     </aside>
   );

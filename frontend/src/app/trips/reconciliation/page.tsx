@@ -163,10 +163,15 @@ export default function TripReconciliationPage() {
     );
   }
 
+  function hasBookingSheetApproval(trip: Trip): boolean {
+    return myActiveApprovals.some(
+      (a) => a.resourceType === "BookingSheet" && String(a.resourceId) === trip.id,
+    );
+  }
+
   function openDialog(trip: Trip, mode: DialogMode) {
     if (mode === "edit" && isStaff) {
-      // Rejected trip with active approval from Kumar — allow editing directly
-      if (trip.verificationStatus === "rejected" && hasTripSheetApproval(trip)) {
+      if (hasTripSheetApproval(trip)) {
         setSelectedTrip(trip);
         setDialogMode("edit");
         return;
@@ -180,11 +185,12 @@ export default function TripReconciliationPage() {
   }
 
   function openBookingSheet(trip: Trip, readOnly: boolean) {
-    // Staff can never edit directly — always raises a request; admin acts on it
     if (!readOnly && isStaff) {
-      setPendingEditAction({ resourceType: "BookingSheet", trip });
-      setEditRequestOpen(true);
-      return;
+      if (!hasBookingSheetApproval(trip)) {
+        setPendingEditAction({ resourceType: "BookingSheet", trip });
+        setEditRequestOpen(true);
+        return;
+      }
     }
     setBookingSheetTrip(trip);
     setBookingSheetReadOnly(readOnly);
@@ -197,16 +203,21 @@ export default function TripReconciliationPage() {
     const fullReason = rejectionContext
       ? `[Accounts Rejection Reason: ${rejectionContext}]\n\nDocs Request: ${reason}`
       : reason;
-    await editApprovalsApi.create({
-      resourceType,
-      resourceId: parseInt(trip.id),
-      resourceName,
-      action: "Edit",
-      reason: fullReason,
-    });
-    showSuccess("Edit request has been sent to Kumar (Commercial Manager) for approval.");
-    setEditRequestOpen(false);
-    setPendingEditAction(null);
+    try {
+      await editApprovalsApi.create({
+        resourceType,
+        resourceId: parseInt(trip.id),
+        resourceName,
+        action: "Edit",
+        reason: fullReason,
+      });
+      showSuccess("Edit request has been sent to Kumar (Commercial Manager) for approval.");
+      setEditRequestOpen(false);
+      setPendingEditAction(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to send edit request.";
+      showError(msg);
+    }
   }
 
   async function handleResubmitVerification(trip: Trip) {

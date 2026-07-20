@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { Paperclip, X } from "lucide-react";
+import { showSuccess, showError } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -9,7 +10,6 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { trucksApi, uploadFile } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
-import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 
 type DocumentMeta = {
@@ -188,7 +188,7 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (!f) { setFile(null); return; }
-              if (f.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+              if (f.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
               setFile(f);
             }}
           />

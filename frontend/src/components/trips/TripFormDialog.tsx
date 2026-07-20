@@ -467,7 +467,7 @@ export function TripFormDialog({
       customersApi.listDestinations(customerId).then((dests) => {
         setCustomerDestinations(dests);
         if (dests.length > 0 && !returnTrip) {
-          setForm((prev) => ({ ...prev, approxTripDistance: dests[0].approxDistanceKm ?? "" }));
+          setForm((prev) => ({ ...prev, approxTripDistance: dests[0].approxDistanceKm ?? "", approxKm: dests[0].approxDistanceKm ?? prev.approxKm }));
         }
       }).catch(() => {});
       customersApi.listPricing(customerId).then((pricing) => {
@@ -518,6 +518,7 @@ export function TripFormDialog({
       ...prev,
       ...(matchingPricing ? applyPricingFields(matchingPricing) : { destination }),
       approxTripDistance: matchingDest?.approxDistanceKm ?? "",
+      approxKm: matchingDest?.approxDistanceKm ?? prev.approxKm,
     }));
   }
 
@@ -1081,18 +1082,6 @@ export function TripFormDialog({
               )}
             </Field>
 
-            <Field label="Approx Distance for this Trip">
-              <input
-                type="text"
-                readOnly
-                value={form.approxTripDistance ? `${form.approxTripDistance} KM` : ""}
-                className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
-                placeholder="Auto-fetched from customer destination"
-              />
-              <span className="mt-1 text-xs text-gray-400">
-                Auto-fetched from customer destination master record
-              </span>
-            </Field>
           </div>
         </section>
 
@@ -1156,7 +1145,7 @@ export function TripFormDialog({
                 placeholder="e.g. 120"
               />
               <span className="mt-1 text-xs text-gray-400">
-                Used as baseline for ±10% KM variance check in trip sheet
+                Auto-fetched from customer destination — editable if needed. Used as baseline for ±10% KM variance check in trip sheet.
               </span>
             </Field>
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { Search, Lock } from "lucide-react";
+import { Search, Lock, Download } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DriverAttendanceTable } from "@/components/attendance/DriverAttendanceTable";
 import { driversApi, attendanceApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import type { Driver } from "@/types/driver";
 import type { DriverAttendanceRecord, DriverAttendanceRemark } from "@/types/attendance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -23,6 +24,8 @@ function getAttendanceForDate(
 }
 
 export default function DriverAttendancePage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [date, setDate] = useState(todayIst());
   const [search, setSearch] = useState("");
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -30,6 +33,7 @@ export default function DriverAttendancePage() {
   const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     Promise.all([driversApi.list(), attendanceApi.listDrivers(), attendanceApi.listDriverRemarks()])
@@ -91,13 +95,142 @@ export default function DriverAttendancePage() {
     setRemarks((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
+  async function handleDownloadPDF() {
+    if (downloading || drivers.length === 0) return;
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+
+      const displayDate = new Date(date + "T00:00:00").toLocaleDateString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric",
+      });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const marginX = 14;
+      const marginY = 14;
+      const rowH = 8;
+      const headerH = 9;
+
+      const STATUS_COLORS: Record<string, [number, number, number]> = {
+        "On Trip":      [37, 99, 235],
+        "On Halt":      [234, 88, 12],
+        "Leave":        [161, 98, 7],
+        "On Workshop":  [124, 58, 237],
+        "Not Marked":   [107, 114, 128],
+      };
+
+      const cols: [string, number][] = [
+        ["#",           10],
+        ["Driver ID",   30],
+        ["Driver Name", 75],
+        ["Status",      50],
+        ["Remarks",     18],
+      ];
+
+      function drawPageHeader(pageNum: number, totalPages: number) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text("Driver Attendance", marginX, marginY);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `Date: ${displayDate}  ·  ${drivers.length} driver${drivers.length !== 1 ? "s" : ""}`,
+          marginX, marginY + 5,
+        );
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+
+        const tableTop = marginY + 10;
+        pdf.setFillColor(27, 43, 94);
+        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(255, 255, 255);
+        let x = marginX;
+        for (const [label, w] of cols) {
+          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          x += w;
+        }
+        return tableTop + headerH;
+      }
+
+      const rowData = drivers.map((driver, idx) => {
+        const record = getAttendanceForDate(records, driver.driverId, date);
+        const status = record?.status ?? "Not Marked";
+        const driverRemarks = remarks.filter((r) => r.driverId === driver.driverId && r.date === date);
+        const remarkText = driverRemarks.map((r) => r.remark).join("; ");
+        return { idx: idx + 1, driverId: driver.driverId, name: driver.name ?? "—", status, remarkText };
+      });
+
+      const usableH = pageH - marginY - 20;
+      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
+      const totalPages = Math.ceil(rowData.length / rowsPerPage);
+
+      let rowIndex = 0;
+      for (let page = 1; page <= totalPages; page++) {
+        if (page > 1) pdf.addPage();
+        const y = drawPageHeader(page, totalPages);
+
+        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
+        rowIndex += rowsPerPage;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+
+        for (let r = 0; r < pageRows.length; r++) {
+          const row = pageRows[r];
+          const rowY = y + r * rowH;
+
+          if (r % 2 === 1) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+          }
+          pdf.setDrawColor(229, 231, 235);
+          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+
+          pdf.setTextColor(30, 30, 30);
+          let x = marginX;
+          const cells = [String(row.idx), row.driverId, row.name, row.status, row.remarkText || "—"];
+          for (let c = 0; c < cols.length; c++) {
+            const [, w] = cols[c];
+            // Color the status cell
+            if (c === 3) {
+              const [cr, cg, cb] = STATUS_COLORS[row.status] ?? [107, 114, 128];
+              pdf.setTextColor(cr, cg, cb);
+            } else {
+              pdf.setTextColor(30, 30, 30);
+            }
+            const clipped = pdf.splitTextToSize(cells[c], w - 4)[0] ?? "";
+            pdf.text(clipped, x + 2, rowY + 5.5);
+            x += w;
+          }
+        }
+
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
+      }
+
+      pdf.save(`driver-attendance-${date}.pdf`);
+    } catch {
+      showError("Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   const isReadOnly = useMemo(() => {
+    if (!isAdmin) return false;
     const today = todayIst();
     const [y, m, d] = today.split("-").map(Number);
     const cutoff = new Date(y, m - 1, d - 2);
     const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
     return date < cutoffStr;
-  }, [date]);
+  }, [date, isAdmin]);
 
   const summary = useMemo(() => {
     const counts = { "On Trip": 0, "On Halt": 0, "Leave": 0, "On Workshop": 0, "Not Marked": 0 };
@@ -142,6 +275,15 @@ export default function DriverAttendancePage() {
               className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            disabled={downloading || drivers.length === 0}
+            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <Download className="h-4 w-4" />
+            {downloading ? "Generating..." : "Download PDF"}
+          </button>
         </div>
       </div>
 

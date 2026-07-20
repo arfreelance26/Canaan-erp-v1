@@ -127,4 +127,18 @@ export type Trip = {
   invoiceRequired: boolean;
   driverName: string | null;
   truckRegistration: string | null;
+  // Lorry Receipt
+  lrConsignor?: string;
+  lrConsignee?: string;
+  lrRefNo?: string;
+  lrDescriptionOfGoods?: string;
+  lrInvoiceNo?: string;
+  lrSbBeNo?: string;
+  lrSealNoPackages?: string;
+  lrTare?: string;
+  lrWeight?: string;
+  lrValue?: string;
+  lrToPay?: boolean;
+  lrToBeBilled?: boolean;
+  lrSavedAt?: string | null;
 };

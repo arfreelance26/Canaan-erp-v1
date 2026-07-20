@@ -361,8 +361,22 @@ class Trip(Base):
     invoice_required = Column(Boolean, default=True, nullable=False)
     trip_sheet_collected = Column(Boolean, default=False, nullable=False)
     trip_sheet_collected_at = Column(DateTime, nullable=True)
-    trip_sheet_received = Column(Boolean, default=False, nullable=False)      # confirmed by Trip Sheet Register
+    trip_sheet_received = Column(Boolean, default=False, nullable=False)
     trip_sheet_received_at = Column(DateTime, nullable=True)
+    # Lorry Receipt / Consignment Note
+    lr_consignor = Column(Text, nullable=True)
+    lr_consignee = Column(Text, nullable=True)
+    lr_ref_no = Column(String(100), nullable=True)
+    lr_description_of_goods = Column(Text, nullable=True)
+    lr_invoice_no = Column(String(100), nullable=True)
+    lr_sb_be_no = Column(String(100), nullable=True)
+    lr_seal_no_packages = Column(String(100), nullable=True)
+    lr_tare = Column(String(50), nullable=True)
+    lr_weight = Column(String(50), nullable=True)
+    lr_value = Column(String(100), nullable=True)
+    lr_to_pay = Column(Boolean, default=False, nullable=True)
+    lr_to_be_billed = Column(Boolean, default=False, nullable=True)
+    lr_saved_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -603,6 +617,7 @@ class MaintenanceRecord(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="SET NULL"), nullable=True)
     date = Column(Date, nullable=False)
     odometer = Column(Integer, nullable=False)
     maintenance_type = Column(String(200), nullable=False)

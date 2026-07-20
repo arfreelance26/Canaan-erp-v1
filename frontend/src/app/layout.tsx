@@ -51,7 +51,7 @@ export default function RootLayout({
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('erp_theme');if(t==='dark'){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}var f=parseFloat(localStorage.getItem('erp_font_scale'));if([0.9,1,1.1,1.2,1.3].indexOf(f)>-1){document.documentElement.style.fontSize=(f*100)+'%';}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}var f=parseFloat(localStorage.getItem('erp_font_scale'));if([0.9,1,1.1,1.2,1.3].indexOf(f)>-1){document.documentElement.style.fontSize=(f*100)+'%';}}catch(e){}})();`,
           }}
         />
       </head>

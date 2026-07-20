@@ -452,6 +452,18 @@ class TripBase(OrmBase):
     invoice_required: bool = True
 
 
+    @model_validator(mode="after")
+    def _clear_billing_for_shifting(self) -> "TripBase":
+        if self.trip_category == "SHIFTING":
+            self.bill_to = None
+            self.payment_type = None
+            self.customer_cash_advance = None
+            self.customer_fuel_advance_amount = None
+            self.customer_fuel_advance_litres = None
+        return self
+
+
+class TripCreate(TripBase):
     @field_validator("container_number", "container_number_1", "container_number_2", mode="before")
     @classmethod
     def validate_container_number(cls, v: object) -> object:
@@ -465,23 +477,24 @@ class TripBase(OrmBase):
             )
         return normalized
 
-    @model_validator(mode="after")
-    def _clear_billing_for_shifting(self) -> "TripBase":
-        if self.trip_category == "SHIFTING":
-            self.bill_to = None
-            self.payment_type = None
-            self.customer_cash_advance = None
-            self.customer_fuel_advance_amount = None
-            self.customer_fuel_advance_litres = None
-        return self
-
-
-class TripCreate(TripBase):
-    pass
-
 
 class TripStatusUpdate(OrmBase):
     status: TripStatus
+
+
+class LRDataSave(OrmBase):
+    lr_consignor: Optional[str] = None
+    lr_consignee: Optional[str] = None
+    lr_ref_no: Optional[str] = None
+    lr_description_of_goods: Optional[str] = None
+    lr_invoice_no: Optional[str] = None
+    lr_sb_be_no: Optional[str] = None
+    lr_seal_no_packages: Optional[str] = None
+    lr_tare: Optional[str] = None
+    lr_weight: Optional[str] = None
+    lr_value: Optional[str] = None
+    lr_to_pay: bool = False
+    lr_to_be_billed: bool = False
 
 
 class TripOut(TripBase):
@@ -500,6 +513,20 @@ class TripOut(TripBase):
     updated_at: Optional[datetime] = None
     driver_name: Optional[str] = None
     truck_registration: Optional[str] = None
+    # LR fields
+    lr_consignor: Optional[str] = None
+    lr_consignee: Optional[str] = None
+    lr_ref_no: Optional[str] = None
+    lr_description_of_goods: Optional[str] = None
+    lr_invoice_no: Optional[str] = None
+    lr_sb_be_no: Optional[str] = None
+    lr_seal_no_packages: Optional[str] = None
+    lr_tare: Optional[str] = None
+    lr_weight: Optional[str] = None
+    lr_value: Optional[str] = None
+    lr_to_pay: bool = False
+    lr_to_be_billed: bool = False
+    lr_saved_at: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------------

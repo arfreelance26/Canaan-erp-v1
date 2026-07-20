@@ -259,18 +259,21 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   }, [sacCodes]);
 
   // Auto-populate service lines for SAC codes tagged with the current invoice type.
-  // Fires once per dialog open (guarded by ref), after SAC codes are loaded.
+  // Re-fires when form.invoiceType changes so a draft restoration with a different
+  // invoiceType doesn't permanently block the populate (ref only set after actual adds).
   const autoPopulatedRef = useRef(false);
   useEffect(() => {
     if (!open) { autoPopulatedRef.current = false; return; }
     if (!sacCodes.length) return;
     if (autoPopulatedRef.current) return;
     if (savedInvoice) return; // editing existing invoice — don't overwrite saved services
-    autoPopulatedRef.current = true;
 
     setForm((prev) => {
       const toAdd = sacCodes.filter((sc) => sc.autoPopulateInvoiceType === prev.invoiceType);
+      // Only mark done and add services when there are actually matching SAC codes.
+      // If toAdd is empty the ref stays false so the effect can retry when invoiceType settles.
       if (!toAdd.length) return prev;
+      autoPopulatedRef.current = true;
 
       let services = [...prev.services];
       for (const sc of toAdd) {
@@ -293,7 +296,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
       }
       return { ...prev, services };
     });
-  }, [open, sacCodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, sacCodes, form.invoiceType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !trip) return;

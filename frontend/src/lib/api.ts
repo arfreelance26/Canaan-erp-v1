@@ -500,6 +500,7 @@ function toCustomerDestination(b: B): CustomerDestination {
     destinationName: b.destination_name ?? undefined,
     destinationState: b.destination_state ?? "",
     destinationAddress: b.destination_address ?? "",
+    approxDistanceKm: b.approx_distance_km != null ? String(b.approx_distance_km) : "",
     status: b.status ?? undefined,
   };
 }
@@ -625,6 +626,19 @@ function toTrip(b: B): Trip & { _dbId: number } {
     invoiceRequired: b.invoice_required ?? true,
     driverName: b.driver_name ?? null,
     truckRegistration: b.truck_registration ?? null,
+    lrConsignor: b.lr_consignor ?? undefined,
+    lrConsignee: b.lr_consignee ?? undefined,
+    lrRefNo: b.lr_ref_no ?? undefined,
+    lrDescriptionOfGoods: b.lr_description_of_goods ?? undefined,
+    lrInvoiceNo: b.lr_invoice_no ?? undefined,
+    lrSbBeNo: b.lr_sb_be_no ?? undefined,
+    lrSealNoPackages: b.lr_seal_no_packages ?? undefined,
+    lrTare: b.lr_tare ?? undefined,
+    lrWeight: b.lr_weight ?? undefined,
+    lrValue: b.lr_value ?? undefined,
+    lrToPay: b.lr_to_pay ?? false,
+    lrToBeBilled: b.lr_to_be_billed ?? false,
+    lrSavedAt: b.lr_saved_at ?? null,
   };
 }
 
@@ -803,7 +817,13 @@ function toSheet(b: B): TripSheetData {
     craneOperatorExpense: String(b.crane_operator_expense ?? ""),
     parkingExpense: String(b.parking_expense ?? ""),
     majorRepairs: Array.isArray(b.major_repairs)
-      ? b.major_repairs.map((r: { name?: string; cost?: number }) => ({ name: r.name ?? "", cost: String(r.cost ?? "") }))
+      ? b.major_repairs.map((r: { name?: string; date?: string; odometer?: number; description?: string; cost?: number }) => ({
+          name: r.name ?? "",
+          date: r.date ?? "",
+          odometer: r.odometer != null ? String(r.odometer) : "",
+          description: r.description ?? "",
+          cost: String(r.cost ?? ""),
+        }))
       : [],
     otherExpenses: String(b.other_expenses ?? ""),
     tripExpensesTotal: String(b.trip_expenses_total ?? ""),
@@ -865,7 +885,13 @@ function fromSheet(f: TripSheetData) {
     lift_on_off_expense: n(f.liftOnOffExpense),
     crane_operator_expense: n(f.craneOperatorExpense),
     parking_expense: n(f.parkingExpense),
-    major_repairs: (f.majorRepairs || []).map(r => ({ name: r.name, cost: parseFloat(r.cost) || 0 })),
+    major_repairs: (f.majorRepairs || []).map(r => ({
+      name: r.name,
+      date: r.date || null,
+      odometer: r.odometer ? parseInt(r.odometer) : null,
+      description: r.description || null,
+      cost: parseFloat(r.cost) || 0,
+    })),
     other_expenses: n(f.otherExpenses),
     trip_expenses_total: n(f.tripExpensesTotal),
     driver_expenses_total: n(f.driverExpensesTotal),
@@ -1171,12 +1197,12 @@ export const customersApi = {
   createDestination: (customerId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations`, {
       method: "POST",
-      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress }),
+      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress, approx_distance_km: dest.approxDistanceKm || null }),
     }).then(toCustomerDestination),
   updateDestination: (customerId: string, destId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations/${destId}`, {
       method: "PUT",
-      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress }),
+      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress, approx_distance_km: dest.approxDistanceKm || null }),
     }).then(toCustomerDestination),
   deleteDestination: (customerId: string, destId: string) =>
     req<void>(`/customers/${customerId}/destinations/${destId}`, { method: "DELETE" }),
@@ -1303,6 +1329,12 @@ export const tripsApi = {
     req<B>(`/trips/${dbId}/recheck-flag`, { method: "POST", body: JSON.stringify({ flagged, remark }) }).then(toTrip),
   verifyAdvance: (dbId: string, verified: boolean, remark: string, correctedAmount: number | null) =>
     req<B>(`/trips/${dbId}/verify-advance`, { method: "POST", body: JSON.stringify({ verified, remark, corrected_amount: correctedAmount }) }).then(toTrip),
+  saveLR: (dbId: string, data: Record<string, unknown>) =>
+    req<{ ok: boolean; lr_saved_at: string }>(`/trips/${dbId}/lr`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
 };
 
 // ---------------------------------------------------------------------------

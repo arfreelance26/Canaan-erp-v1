@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { GlassSelect } from "@/components/ui/GlassSelect";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { customersApi } from "@/lib/api";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
@@ -81,11 +81,11 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-1">
 
         <Field label="Customer Name" required>
-          <GlassSelect
+          <GlassCombobox
             value={customerId}
             onChange={handleCustomerChange}
             options={customerOptions}
-            placeholder="Select customer…"
+            placeholder="Search customer…"
             disabled={!!initialData}
           />
         </Field>

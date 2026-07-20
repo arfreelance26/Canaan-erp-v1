@@ -60,7 +60,7 @@ export default function EditApprovalsPage() {
   }
 
   useEffect(() => { loadData(); }, [refreshKey]);
-  useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
+  useAutoRefresh(() => setRefreshKey(k => k + 1), 3000);
   useWebSocketEvent("edit_approval_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));

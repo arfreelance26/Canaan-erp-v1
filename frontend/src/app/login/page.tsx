@@ -95,11 +95,13 @@ export default function LoginPage() {
           />
           {/* Brand */}
           <div className="relative z-10 mb-8 flex flex-col items-center animate-cinematic-enter" style={{ animationDelay: "300ms" }}>
-            <img
-              src="/companylogo.png"
-              alt="Canaan Global"
-              className="h-[100px] w-full object-contain"
-            />
+            <div className="login-logo-wrap">
+              <img
+                src="/companylogo.png"
+                alt="Canaan Global"
+                className="h-[100px] w-full object-contain"
+              />
+            </div>
           </div>
 
           {/* Heading */}

@@ -221,7 +221,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               <input
                 readOnly
                 disabled
-                value={trip.approxTripDistance ? `${trip.approxTripDistance} KM` : "—"}
+                value={trip.approxKm ? `${trip.approxKm} KM` : trip.approxTripDistance ? `${trip.approxTripDistance} KM` : "—"}
                 className={readonlyClass}
               />
             </Field>

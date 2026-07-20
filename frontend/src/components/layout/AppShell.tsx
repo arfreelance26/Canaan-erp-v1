@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, ready } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   // Login page always renders without the shell
   if (pathname === "/login" || pathname === "/login/") {

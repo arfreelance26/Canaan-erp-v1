@@ -37,6 +37,8 @@ type TabId = (typeof TABS)[number]["id"];
 export default function CustomersPage() {
   const { user } = useAuth();
   const isStaff = user?.softwareDesignation === "Trip Sheet Register";
+  const canSeeFinalPricing =
+    user?.softwareDesignation === "Admin" || user?.softwareDesignation === "Accounts";
 
   const [activeTab, setActiveTab] = useState<TabId>("list");
   const [loading, setLoading] = useState(true);
@@ -183,16 +185,20 @@ export default function CustomersPage() {
 
   async function handleEditRequestSubmit(reason: string) {
     if (!pendingAction) return;
-    await editApprovalsApi.create({
-      resourceType: "Customer",
-      resourceId: parseInt(pendingAction.resourceId),
-      resourceName: pendingAction.resourceName,
-      action: pendingAction.type,
-      reason,
-    });
-    showSuccess("Edit request has been sent.");
-    setEditRequestOpen(false);
-    setPendingAction(null);
+    try {
+      await editApprovalsApi.create({
+        resourceType: "Customer",
+        resourceId: parseInt(pendingAction.resourceId),
+        resourceName: pendingAction.resourceName,
+        action: pendingAction.type,
+        reason,
+      });
+      showSuccess("Edit request has been sent.");
+      setEditRequestOpen(false);
+      setPendingAction(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to send edit request.");
+    }
   }
 
   async function handleSaveCustomer(customer: Customer) {
@@ -358,7 +364,7 @@ export default function CustomersPage() {
       </div>
 
       <div className="flex items-center gap-2 border-b border-gray-200">
-        {TABS.map((tab) => (
+        {TABS.filter((tab) => tab.id !== "finalPricing" || canSeeFinalPricing).map((tab) => (
           <button
             key={tab.id}
             type="button"

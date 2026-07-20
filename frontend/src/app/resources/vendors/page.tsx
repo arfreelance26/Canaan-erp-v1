@@ -101,16 +101,20 @@ export default function VendorsPage() {
 
   async function handleEditRequestSubmit(reason: string) {
     if (!pendingAction) return;
-    await editApprovalsApi.create({
-      resourceType: "Vendor",
-      resourceId: parseInt(pendingAction.resourceId),
-      resourceName: pendingAction.resourceName,
-      action: pendingAction.type,
-      reason,
-    });
-    showSuccess("Edit request has been sent.");
-    setEditRequestOpen(false);
-    setPendingAction(null);
+    try {
+      await editApprovalsApi.create({
+        resourceType: "Vendor",
+        resourceId: parseInt(pendingAction.resourceId),
+        resourceName: pendingAction.resourceName,
+        action: pendingAction.type,
+        reason,
+      });
+      showSuccess("Edit request has been sent.");
+      setEditRequestOpen(false);
+      setPendingAction(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to send edit request.");
+    }
   }
 
   async function handleSave(vendor: Vendor) {

@@ -176,15 +176,19 @@ export default function TripHistoryPage() {
   }
 
   async function handleDeleteRequest(trip: Trip, reason: string) {
-    await editApprovalsApi.create({
-      resourceType: "Trip",
-      resourceId: parseInt(trip.id),
-      resourceName: trip.bookingReferenceNo || trip.tripId,
-      action: "Delete",
-      reason,
-    });
-    showSuccess("Delete request sent to Admin.");
-    setDeleteRequestTrip(null);
+    try {
+      await editApprovalsApi.create({
+        resourceType: "Trip",
+        resourceId: parseInt(trip.id),
+        resourceName: trip.bookingReferenceNo || trip.tripId,
+        action: "Delete",
+        reason,
+      });
+      showSuccess("Delete request sent to Admin.");
+      setDeleteRequestTrip(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to send delete request.");
+    }
   }
 
   function fmtDate(d?: string) {

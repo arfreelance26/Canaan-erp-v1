@@ -535,6 +535,7 @@ export default function TripVerificationPage() {
         trip={verifyTrip}
         closure={verifyTrip ? closures.get(verifyTrip.id) : undefined}
         sheet={verifyTrip ? sheets.get(verifyTrip.id) : undefined}
+        customer={verifyTrip ? customerById.get(verifyTrip.customerId) : undefined}
         onClose={() => setVerifyTrip(null)}
         onViewSheet={() => verifyTrip && openSheetDialog(verifyTrip, "view")}
         onEditSheet={() => verifyTrip && openSheetDialog(verifyTrip, "edit")}

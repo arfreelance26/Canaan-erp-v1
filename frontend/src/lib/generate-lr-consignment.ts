@@ -50,15 +50,8 @@ function checkBox(checked: boolean): string {
   return `<span style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border:1.5px solid #2c4179;border-radius:2px;margin-right:6px;flex-shrink:0;${bg}">${mark}</span>`;
 }
 
-export async function generateLRConsignment(data: LRConsignmentData, tripId: string): Promise<void> {
-  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
-
-  const logoSrc = await toDataUrl(`${window.location.origin}/companylogo.png`);
-
-  const htmlContent = `<!DOCTYPE html>
+export function buildLRHtml(data: LRConsignmentData, logoSrc: string): string {
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -95,12 +88,14 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-
 .route-cell:last-child{border-bottom:none;}
 .route-label{width:70px;display:inline-block;font-weight:500;}
 .info-bottom{display:flex;flex:1;}
-.consignor-box,.consignee-box{width:50%;padding:8px;display:flex;flex-direction:column;gap:10px;}
+.consignor-box,.consignee-box{width:50%;padding:8px;display:flex;flex-direction:column;gap:0;}
 .consignor-box{border-right:var(--border-style);}
-.consignor-box strong,.consignee-box strong{display:block;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.02em;}
-.dot-line-row{display:flex;align-items:flex-end;width:100%;}
-.dot-line-fill{flex-grow:1;border-bottom:1px dotted var(--form-blue);margin-left:4px;height:12px;}
-.empty-dot-row{border-bottom:1px dotted var(--form-blue);width:100%;height:14px;margin-top:2px;}
+.consignor-box strong,.consignee-box strong{display:block;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.02em;margin-bottom:8px;}
+.field-row{display:flex;align-items:flex-end;gap:3px;width:100%;}
+.field-lbl{white-space:nowrap;flex-shrink:0;font-weight:500;}
+.field-val{flex:1;border-bottom:1.5px dotted var(--form-blue);font-weight:700;min-height:16px;padding-bottom:2px;word-break:break-word;}
+.field-val-ml{flex:1;border-bottom:1.5px dotted var(--form-blue);font-weight:700;min-height:16px;padding-bottom:2px;word-break:break-word;align-self:flex-end;}
+.empty-dot-row{border-bottom:1.5px dotted var(--form-blue);width:100%;min-height:16px;margin-top:6px;}
 .row-3{display:flex;border-bottom:var(--border-style);text-align:center;font-weight:600;background-color:#fafdff;letter-spacing:0.01em;}
 .col-ref{width:15%;padding:6px;border-right:var(--border-style);}
 .col-desc{width:70%;padding:6px;border-right:var(--border-style);}
@@ -160,10 +155,10 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-
         <div class="cn-col">
           <div class="cn-top-cell">
             <strong>CONSIGNMENT NOTE</strong>
-            <div class="dot-line-row">No.&nbsp;<span style="font-weight:700;">${esc(data.no)}</span><span class="dot-line-fill"></span></div>
+            <div class="field-row"><span class="field-lbl">No.</span><span class="field-val">${esc(data.no)}</span></div>
           </div>
           <div class="cn-bottom-cell">
-            <div class="dot-line-row">Date:&nbsp;<span style="font-weight:700;">${esc(data.date)}</span><span class="dot-line-fill"></span></div>
+            <div class="field-row"><span class="field-lbl">Date:</span><span class="field-val">${esc(data.date)}</span></div>
           </div>
         </div>
         <div class="copy-col">CONSIGNEE<br>COPY</div>
@@ -176,13 +171,13 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-
       <div class="info-bottom">
         <div class="consignor-box">
           <strong>CONSIGNOR</strong>
-          <div class="dot-line-row">M/s.&nbsp;<span style="font-weight:700;">${esc(data.consignor)}</span><span class="dot-line-fill"></span></div>
+          <div class="field-row"><span class="field-lbl">M/s.</span><span class="field-val-ml">${esc(data.consignor)}</span></div>
           <div class="empty-dot-row"></div>
           <div class="empty-dot-row"></div>
         </div>
         <div class="consignee-box">
           <strong>CONSIGNEE</strong>
-          <div class="dot-line-row">M/s.&nbsp;<span style="font-weight:700;">${esc(data.consignee)}</span><span class="dot-line-fill"></span></div>
+          <div class="field-row"><span class="field-lbl">M/s.</span><span class="field-val-ml">${esc(data.consignee)}</span></div>
           <div class="empty-dot-row"></div>
           <div class="empty-dot-row"></div>
         </div>
@@ -248,6 +243,16 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-
 </div>
 </body>
 </html>`;
+}
+
+export async function generateLRConsignment(data: LRConsignmentData, tripId: string): Promise<void> {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  const logoSrc = await toDataUrl(`${window.location.origin}/companylogo.png`);
+  const htmlContent = buildLRHtml(data, logoSrc);
 
   const blobURL = URL.createObjectURL(new Blob([htmlContent], { type: "text/html" }));
   const iframe = document.createElement("iframe");
@@ -262,7 +267,6 @@ body{font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:11px;font-
       iframe.src = blobURL;
     });
 
-    // Wait for fonts
     await new Promise((r) => setTimeout(r, 1200));
 
     const iframeDoc = iframe.contentDocument!;

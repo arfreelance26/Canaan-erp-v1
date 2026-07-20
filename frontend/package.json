@@ -1,12 +1,58 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "canaan-erp",
+  "version": "1.0.0",
   "private": true,
+  "main": "electron-dist/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:compile": "tsc -p tsconfig.electron.json",
+    "electron:dev": "NODE_ENV=development npm run electron:compile && electron .",
+    "electron:build": "next build && npm run electron:compile && electron-builder",
+    "electron:preview": "npm run electron:compile && electron ."
+  },
+  "build": {
+    "appId": "com.canaanglobal.erp",
+    "productName": "Canaan ERP",
+    "copyright": "Copyright © 2025 Canaan Global International",
+    "icon": "build-resources/icon.png",
+    "files": [
+      "electron-dist/**/*",
+      "out/**/*",
+      "public/**/*"
+    ],
+    "directories": {
+      "buildResources": "build-resources",
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -31,9 +77,18 @@
     "@types/react": "^19",
     "@types/react-datepicker": "^6.2.0",
     "@types/react-dom": "^19",
+    "electron": "^36.9.5",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "electron@36.9.5": true,
+    "unrs-resolver@1.12.2": true,
+    "electron-winstaller@5.4.0": true,
+    "core-js@3.49.0": true,
+    "sharp@0.34.5": true
   }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { Upload, X, FileText, Image as ImageIcon } from "lucide-react";
+import { showError } from "@/lib/swal";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
@@ -278,7 +279,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, rc: file }));
                 update("rcDocumentUrl", file.name);
               }}
@@ -310,7 +311,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, fc: file }));
                 update("fcDocumentFileName", file.name);
               }}
@@ -364,7 +365,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, road_tax: file }));
                 update("roadTaxDocumentFileName", file.name);
               }}
@@ -407,7 +408,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, insurance_proof: file }));
                 update("insuranceDocumentProofFileName", file.name);
               }}
@@ -461,7 +462,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, national_permit: file }));
                 update("nationalPermitProofFileName", file.name);
               }}
@@ -515,7 +516,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, local_permit: file }));
                 update("localPermitProofFileName", file.name);
               }}
@@ -569,7 +570,7 @@ export function TruckFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, pollution_cert: file }));
                 update("pollutionCertificateProofFileName", file.name);
               }}

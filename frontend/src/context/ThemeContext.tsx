@@ -10,7 +10,7 @@ export type FontScale = (typeof FONT_SCALE_STEPS)[number];
 
 const THEME_KEY = "erp_theme";
 const FONT_KEY = "erp_font_scale";
-const DEFAULT_THEME: Theme = "light";
+const DEFAULT_THEME: Theme = "dark";
 const DEFAULT_SCALE: FontScale = 1;
 
 type ThemeContextValue = {

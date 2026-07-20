@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { X, FileText, KeyRound, Eye, EyeOff } from "lucide-react";
+import { showError } from "@/lib/swal";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -103,7 +104,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, photo: file }));
                 const reader = new FileReader();
                 reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
@@ -303,7 +304,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              if (file.size > 5 * 1024 * 1024) { alert("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+              if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
               setFiles((prev) => ({ ...prev, aadhar: file }));
               update("aadharFileName", file.name);
             }}

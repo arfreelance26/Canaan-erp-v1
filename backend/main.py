@@ -154,6 +154,25 @@ def _run_schema_migrations():
         "ALTER TABLE fuel_logs ADD COLUMN source VARCHAR(200) NULL",
         # Invoice type this SAC code should auto-populate into when generating an invoice
         "ALTER TABLE sac_codes ADD COLUMN auto_populate_invoice_type VARCHAR(50) NULL",
+        # branches — driver halt day compensation percentage
+        "ALTER TABLE branches ADD COLUMN driver_halt_day_percentage DECIMAL(5,2) DEFAULT 0",
+        # LR (Lorry Receipt / Consignment Note) fields on trips
+        "ALTER TABLE trips ADD COLUMN lr_consignor TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN lr_consignee TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN lr_ref_no VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_description_of_goods TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN lr_invoice_no VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_sb_be_no VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_seal_no_packages VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_tare VARCHAR(50) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_weight VARCHAR(50) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_value VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN lr_to_pay TINYINT(1) DEFAULT 0 NULL",
+        "ALTER TABLE trips ADD COLUMN lr_to_be_billed TINYINT(1) DEFAULT 0 NULL",
+        "ALTER TABLE trips ADD COLUMN lr_saved_at DATETIME NULL",
+        # maintenance_records — link to trip sheet for sync on save
+        "ALTER TABLE maintenance_records ADD COLUMN trip_id INT NULL",
+        "ALTER TABLE maintenance_records ADD CONSTRAINT fk_maintenance_trip_id FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE SET NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle } from "lucide-react";
@@ -134,25 +134,52 @@ export function Topbar() {
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
+  const shownEditReqIds = useRef(new Set<number>());
+  const editReqFirstLoad = useRef(true);
 
   function getInitials(name: string) {
     return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   }
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    attendanceApi.listLeaveRequests("Pending").then(setLeaveRequests).catch(() => {});
-    editApprovalsApi.list("Pending").then((reqs) =>
-      setEditRequestNotifs(reqs.map((r) => ({
+  const loadEditRequests = useCallback(() => {
+    if (!isAdmin && !isFleetManager) return;
+    editApprovalsApi.list("Pending").then((reqs) => {
+      const updated: EditRequestNotif[] = reqs.map((r) => ({
         id: Number(r.id),
         staffName: r.staffName,
         resourceType: r.resourceType,
         resourceName: r.resourceName,
         action: r.action,
         createdAt: r.createdAt ?? new Date().toISOString(),
-      })))
-    ).catch(() => {});
-  }, [isAdmin]);
+      }));
+      if (editReqFirstLoad.current) {
+        for (const r of updated) shownEditReqIds.current.add(r.id);
+        editReqFirstLoad.current = false;
+      } else {
+        for (const req of updated) {
+          if (!shownEditReqIds.current.has(req.id)) {
+            shownEditReqIds.current.add(req.id);
+            showToast(
+              `${req.staffName} is requesting ${req.action.toLowerCase()} access for "${req.resourceName}"`,
+              "info",
+              "New Edit Request",
+            );
+          }
+        }
+      }
+      setEditRequestNotifs(updated);
+    }).catch(() => {});
+  }, [isAdmin, isFleetManager]);
+
+  useEffect(() => {
+    if (!isAdmin && !isFleetManager) return;
+    if (isAdmin) {
+      attendanceApi.listLeaveRequests("Pending").then(setLeaveRequests).catch(() => {});
+    }
+    loadEditRequests();
+    const id = setInterval(loadEditRequests, 5000);
+    return () => clearInterval(id);
+  }, [isAdmin, isFleetManager, loadEditRequests]);
 
   // New leave request submitted by any staff — add immediately
   useWebSocketEvent("leave_request_created", (payload) => {
@@ -224,22 +251,31 @@ export function Topbar() {
     });
   });
 
-  // Staff submitted an edit request — Admin gets notified
+  // Staff submitted an edit request — Admin + Commercial Manager get notified
   useWebSocketEvent("edit_approval_created", (payload) => {
-    if (!isAdmin) return;
-    setEditRequestNotifs((prev) => [{
-      id: Number(payload.id),
+    if (!isAdmin && !isFleetManager) return;
+    const reqId = Number(payload.id);
+    if (shownEditReqIds.current.has(reqId)) return;
+    shownEditReqIds.current.add(reqId);
+    const notif: EditRequestNotif = {
+      id: reqId,
       staffName: String(payload.staff_name ?? ""),
       resourceType: String(payload.resource_type ?? ""),
       resourceName: String(payload.resource_name ?? ""),
       action: String(payload.action ?? ""),
       createdAt: String(payload.created_at ?? new Date().toISOString()),
-    }, ...prev]);
+    };
+    setEditRequestNotifs((prev) => [notif, ...prev]);
+    showToast(
+      `${notif.staffName} is requesting ${notif.action.toLowerCase()} access for "${notif.resourceName}"`,
+      "info",
+      "New Edit Request",
+    );
   });
 
-  // Admin approved/rejected — remove from admin list; notify the requester in realtime
+  // Admin/CM approved/rejected — remove from list; notify the requester in realtime
   useWebSocketEvent("edit_approval_updated", (payload) => {
-    if (isAdmin) {
+    if (isAdmin || isFleetManager) {
       setEditRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
     }
     // The staff member who raised this request gets a pop-up toast + bell entry
@@ -336,7 +372,8 @@ export function Topbar() {
               sheetAlerts.length +
               kmVarianceAlerts.length +
               reminders.length +
-              (isAdmin ? leaveRequests.length + editRequestNotifs.length + complianceAlertCount : 0) +
+              (isAdmin ? leaveRequests.length + complianceAlertCount : 0) +
+              ((isAdmin || isFleetManager) ? editRequestNotifs.length : 0) +
               editApprovalNotifs.length;
             return (
               <button
@@ -390,6 +427,54 @@ export function Topbar() {
                 </div>
               ) : (
                 <div className="max-h-[420px] overflow-y-auto">
+
+                  {/* ── Edit Requests (Admin + Commercial Manager) — always on top ── */}
+                  {(isAdmin || isFleetManager) && editRequestNotifs.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-purple-600">
+                        Edit Requests
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {editRequestNotifs.map((notif, i) => (
+                          <li key={`edit-req-${notif.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditRequestNotifs((prev) => prev.filter((_, idx) => idx !== i));
+                                setIsNotifOpen(false);
+                                router.push("/attendance/edit-approvals");
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-purple-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100">
+                                <CalendarClock className="h-3.5 w-3.5 text-purple-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">
+                                  {notif.staffName} is requesting{" "}
+                                  <span className="text-purple-700">{notif.action.toLowerCase()}</span> access
+                                </p>
+                                <p className="text-[11px] text-gray-600">
+                                  {notif.resourceType}: <span className="font-semibold">{notif.resourceName}</span>
+                                </p>
+                                <p className="text-[11px] text-purple-700 font-medium">Tap to review — approve or reject</p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="border-t border-gray-100 px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
+                          className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+                        >
+                          View all in Edit Approvals →
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── Sheet Alerts (Admin + Fleet Manager) ── */}
                   {sheetAlerts.length > 0 && (
@@ -600,53 +685,6 @@ export function Topbar() {
                     </div>
                   )}
 
-                  {/* ── Edit Requests (Admin only) ── */}
-                  {isAdmin && editRequestNotifs.length > 0 && (
-                    <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-purple-600">
-                        Edit Requests
-                      </p>
-                      <ul className="divide-y divide-gray-50">
-                        {editRequestNotifs.map((notif, i) => (
-                          <li key={`edit-req-${notif.id}`}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditRequestNotifs((prev) => prev.filter((_, idx) => idx !== i));
-                                setIsNotifOpen(false);
-                                router.push("/attendance/edit-approvals");
-                              }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-purple-50/60"
-                            >
-                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100">
-                                <CalendarClock className="h-3.5 w-3.5 text-purple-600" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">
-                                  {notif.staffName} is requesting{" "}
-                                  <span className="text-purple-700">{notif.action.toLowerCase()}</span> access
-                                </p>
-                                <p className="text-[11px] text-gray-600">
-                                  {notif.resourceType}: <span className="font-semibold">{notif.resourceName}</span>
-                                </p>
-                                <p className="text-[11px] text-purple-700 font-medium">Please follow up</p>
-                              </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="border-t border-gray-100 px-4 py-2.5">
-                        <button
-                          type="button"
-                          onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
-                          className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
-                        >
-                          View all in Edit Approvals →
-                        </button>
-                      </div>
-                    </div>
-                  )}
 
                   {/* ── Edit Request outcomes (the staff member who raised them) ── */}
                   {editApprovalNotifs.length > 0 && (
@@ -706,7 +744,7 @@ export function Topbar() {
                    kmVarianceAlerts.length === 0 &&
                    reminders.length === 0 &&
                    editApprovalNotifs.length === 0 &&
-                   (isStaff || isFleetManager || isFinanceManager || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && complianceAlertCount === 0)) && (
+                   (isStaff || isFinanceManager || (isFleetManager && editRequestNotifs.length === 0) || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && complianceAlertCount === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Bell className="h-8 w-8 text-gray-200" />
                       <p className="text-sm font-medium text-gray-500">No notifications</p>

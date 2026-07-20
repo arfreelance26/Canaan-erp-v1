@@ -78,7 +78,7 @@ export type TripSheetData = {
   craneOperatorExpense: string;
   parkingExpense: string;
   // Major Repairs
-  majorRepairs: Array<{ name: string; cost: string }>;
+  majorRepairs: Array<{ name: string; date: string; odometer: string; description: string; cost: string }>;
   // Miscellaneous
   otherExpenses: string;
 
