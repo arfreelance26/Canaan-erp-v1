@@ -46,3 +46,5 @@ frontend/.next/
 backend/__pycache__/
 backend/**/*.pyc
 .claude/
+frontend/out/
+frontend/out.zip
