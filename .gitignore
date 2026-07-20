@@ -48,3 +48,6 @@ backend/**/*.pyc
 .claude/
 frontend/out/
 frontend/out.zip
+desktop/release/
+desktop/node_modules/
+desktop/dist/
