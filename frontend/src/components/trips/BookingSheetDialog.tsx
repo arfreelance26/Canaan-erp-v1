@@ -30,7 +30,7 @@ import { showError } from "@/lib/swal";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 const PAYMENT_MODE_OPTIONS: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"];
-const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER", "CONSIGNEE"];
+const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER"];
 
 const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
   "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },

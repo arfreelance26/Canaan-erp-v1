@@ -300,6 +300,7 @@ export function TripFormDialog({
   const isNormalComp = form.driverCompensationType === "Normal";
   const isShifting = form.tripCategory === "SHIFTING";
   const isReturnTrip = form.tripCategory === "RETURN TRIP";
+  const isExport = form.cargoClassification === "EXPORT";
   const isOpenLoad = form.cargoClassification === "OPEN LOAD" || form.containerSpecification === "OPEN LOAD CARGO";
   const isCoastal = form.cargoClassification === "COASTAL";
   const isTonBased = isOpenLoad && (form.openLoadHireType === "Ton Based" || form.openLoadHireType === "");
@@ -437,6 +438,7 @@ export function TripFormDialog({
   function handleCustomerChange(customerId: string) {
     const selectedCustomer = customers.find((c) => c.id === customerId);
     const returnTrip = form.tripCategory === "RETURN TRIP";
+    const shiftingTrip = form.tripCategory === "SHIFTING";
     const name = (selectedCustomer?.name ?? "").trim().toLowerCase();
     const selfCustomer = name === "self" || name === "cgi";
     setForm((prev) => ({
@@ -466,19 +468,18 @@ export function TripFormDialog({
       customersApi.listFinalPricing(customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
       customersApi.listDestinations(customerId).then((dests) => {
         setCustomerDestinations(dests);
-        if (dests.length > 0 && !returnTrip) {
+        if (dests.length > 0 && !returnTrip && !shiftingTrip) {
           setForm((prev) => ({ ...prev, approxTripDistance: dests[0].approxDistanceKm ?? "", approxKm: dests[0].approxDistanceKm ?? prev.approxKm }));
         }
       }).catch(() => {});
       customersApi.listPricing(customerId).then((pricing) => {
         setCustomerPricing(pricing);
-        if (pricing.length > 0 && !returnTrip) {
-          setForm((prev) => ({ ...prev, ...applyPricingFields(pricing[0]) }));
-        }
+        // Don't auto-apply pricing[0] — there may be multiple rows for the same customer
+        // with different container specs. Wait for user to pick destination + container spec.
       }).catch(() => {});
       customersApi.listOrigins(customerId).then((origins) => {
         setCustomerOrigins(origins);
-        if (origins.length > 0 && !returnTrip) {
+        if (origins.length > 0 && !returnTrip && !shiftingTrip) {
           setForm((prev) => ({ ...prev, origin: origins[0].originName }));
         }
       }).catch(() => {});
@@ -486,37 +487,37 @@ export function TripFormDialog({
   }
 
   function handleOriginChange(origin: string) {
-    if (form.tripCategory === "RETURN TRIP") {
-      setForm((prev) => ({ ...prev, origin }));
-      return;
-    }
-    // Auto-select the first destination (+ apply its pricing) whenever origin is chosen
-    if (customerPricing.length > 0) {
-      setForm((prev) => ({ ...prev, origin, ...applyPricingFields(customerPricing[0]) }));
-    } else if (destinationOptions.length > 0) {
-      setForm((prev) => ({ ...prev, origin, destination: destinationOptions[0].value }));
-    } else {
-      setForm((prev) => ({ ...prev, origin }));
-    }
+    setForm((prev) => ({ ...prev, origin }));
+  }
+
+  function findPricingForDestAndSpec(destination: string, containerSpec: string): CustomerPricing | undefined {
+    return customerPricing.find((p) => {
+      const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
+        ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+        : String(p.customerDestination || "");
+      if (dest !== destination) return false;
+      // If a container spec is already chosen, require it to match; otherwise accept any
+      return !containerSpec || containerTypeToSpec(p.containerType) === containerSpec;
+    });
   }
 
   function handleDestinationChange(destination: string) {
-    if (form.tripCategory === "RETURN TRIP") {
+    if (form.tripCategory === "RETURN TRIP" || form.tripCategory === "SHIFTING") {
       setForm((prev) => ({ ...prev, destination }));
       return;
     }
-    const matchingPricing = customerPricing.find((p) => {
-      const name = typeof p.customerDestination === "object" && p.customerDestination !== null
-        ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-        : String(p.customerDestination || "");
-      return name === destination;
-    });
+    const matchingPricing = findPricingForDestAndSpec(destination, form.containerSpecification);
     const matchingDest = customerDestinations.find((d) =>
       (d.destinationName ?? d.destinationAddress ?? "") === destination
     );
     setForm((prev) => ({
       ...prev,
-      ...(matchingPricing ? applyPricingFields(matchingPricing) : { destination }),
+      destination,
+      // Only apply hire amount + cargo weight from matched pricing — don't override container spec
+      ...(matchingPricing ? {
+        transportHireAmount: matchingPricing.rate || "",
+        cargoWeight: matchingPricing.weightInTons || prev.cargoWeight,
+      } : {}),
       approxTripDistance: matchingDest?.approxDistanceKm ?? "",
       approxKm: matchingDest?.approxDistanceKm ?? prev.approxKm,
     }));
@@ -556,7 +557,7 @@ export function TripFormDialog({
 
   function handleHireAmountChange(value: string) {
     setForm((prev) => {
-      if (prev.tripCategory === "RETURN TRIP") return { ...prev, transportHireAmount: value };
+      if (prev.tripCategory === "RETURN TRIP" || prev.tripCategory === "SHIFTING") return { ...prev, transportHireAmount: value };
       const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
       const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
@@ -772,6 +773,9 @@ export function TripFormDialog({
                       customerCashAdvance: "",
                       customerFuelAdvanceAmount: "",
                       customerFuelAdvanceLitres: "",
+                      origin: "",
+                      destination: "",
+                      transportHireAmount: "",
                     }));
                   } else if (val === "RETURN TRIP") {
                     setForm((prev) => ({
@@ -961,7 +965,14 @@ export function TripFormDialog({
                 value={form.cargoClassification}
                 onChange={(val) => {
                   const spec = val === "OPEN LOAD" ? "OPEN LOAD CARGO" : form.containerSpecification === "OPEN LOAD CARGO" ? "" : form.containerSpecification;
-                  setForm((prev) => ({ ...prev, cargoClassification: val as Trip["cargoClassification"], containerSpecification: spec as Trip["containerSpecification"] }));
+                  const wasExport = form.cargoClassification === "EXPORT";
+                  setForm((prev) => ({
+                    ...prev,
+                    cargoClassification: val as Trip["cargoClassification"],
+                    containerSpecification: spec as Trip["containerSpecification"],
+                    // Auto-set origin to TUTICORIN when EXPORT is chosen; clear if switching away from EXPORT
+                    ...(val === "EXPORT" ? { origin: "TUTICORIN" } : wasExport ? { origin: "" } : {}),
+                  }));
                 }}
                 options={[
                   { value: "", label: "Select cargo classification" },
@@ -975,7 +986,24 @@ export function TripFormDialog({
                 value={form.containerSpecification}
                 onChange={(val) => {
                   const cls = val === "OPEN LOAD CARGO" ? "OPEN LOAD" : form.cargoClassification === "OPEN LOAD" ? "" : form.cargoClassification;
-                  setForm((prev) => ({ ...prev, containerSpecification: val as Trip["containerSpecification"], cargoClassification: cls as Trip["cargoClassification"] }));
+                  // Re-fetch hire amount for the new spec against the already-chosen destination
+                  const matchedPricing = form.destination
+                    ? customerPricing.find((p) => {
+                        const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
+                          ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+                          : String(p.customerDestination || "");
+                        return dest === form.destination && containerTypeToSpec(p.containerType) === val;
+                      })
+                    : undefined;
+                  setForm((prev) => ({
+                    ...prev,
+                    containerSpecification: val as Trip["containerSpecification"],
+                    cargoClassification: cls as Trip["cargoClassification"],
+                    ...(matchedPricing ? {
+                      transportHireAmount: matchedPricing.rate || "",
+                      cargoWeight: matchedPricing.weightInTons || prev.cargoWeight,
+                    } : {}),
+                  }));
                 }}
                 options={[
                   { value: "", label: "Select container specification" },
@@ -1050,38 +1078,77 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Route Information</p>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Origin Location" required>
-              <GlassCombobox
-                required
-                value={form.origin}
-                onChange={handleOriginChange}
-                placeholder={allOriginOptions.length > 0 ? "Select or type origin" : "e.g. Coimbatore"}
-                options={allOriginOptions}
-              />
-              {customerOriginNames.length > 0 && (
-                <span className="mt-1 text-xs text-blue-600">
-                  Showing saved origins for this customer
-                </span>
+              {isShifting ? (
+                <>
+                  <input
+                    type="text"
+                    required
+                    value={form.origin}
+                    onChange={(e) => update("origin", e.target.value)}
+                    className={inputClass}
+                    placeholder="Enter origin location (e.g. Manali Yard)"
+                  />
+                  <span className="mt-1 text-xs text-amber-600">Shifting trips — enter origin manually, no auto-fill from customer</span>
+                </>
+              ) : isExport ? (
+                <>
+                  <GlassSelect
+                    value={form.origin}
+                    onChange={(val) => handleOriginChange(val)}
+                    options={[
+                      { value: "TUTICORIN", label: "TUTICORIN" },
+                      { value: "CHENNAI", label: "CHENNAI" },
+                    ]}
+                  />
+                  <span className="mt-1 text-xs text-blue-600">Export trips — origin restricted to Tuticorin or Chennai</span>
+                </>
+              ) : (
+                <>
+                  <GlassCombobox
+                    required
+                    value={form.origin}
+                    onChange={handleOriginChange}
+                    placeholder={allOriginOptions.length > 0 ? "Select or type origin" : "e.g. Coimbatore"}
+                    options={allOriginOptions}
+                  />
+                  {customerOriginNames.length > 0 && (
+                    <span className="mt-1 text-xs text-blue-600">
+                      Showing saved origins for this customer
+                    </span>
+                  )}
+                </>
               )}
             </Field>
 
             <Field label="Destination Location" required>
-              <GlassCombobox
-                required
-                value={form.destination}
-                onChange={handleDestinationChange}
-                placeholder={allDestinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
-                options={allDestinationOptions}
-              />
-              {customerPricing.find((p) => {
-                const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
-                  ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-                  : String(p.customerDestination || "");
-                return dest === form.destination;
-              }) && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
-                  <Sparkles className="h-3 w-3" />
-                  Cargo classification, container spec, weight &amp; hire amount auto-filled from customer pricing
-                </span>
+              {isShifting ? (
+                <>
+                  <input
+                    type="text"
+                    required
+                    value={form.destination}
+                    onChange={(e) => update("destination", e.target.value)}
+                    className={inputClass}
+                    placeholder="Enter destination location (e.g. Oragadam Yard)"
+                  />
+                  <span className="mt-1 text-xs text-amber-600">Shifting trips — enter destination manually, no auto-fill from customer</span>
+                </>
+              ) : (
+                <>
+                  <GlassCombobox
+                    required
+                    value={form.destination}
+                    onChange={handleDestinationChange}
+                    placeholder={allDestinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
+                    options={allDestinationOptions}
+                  />
+                  {form.destination && form.transportHireAmount && findPricingForDestAndSpec(form.destination, form.containerSpecification) && (
+                    <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                      <Sparkles className="h-3 w-3" />
+                      Hire amount auto-filled from customer pricing for this destination &amp; container spec
+                    </span>
+                  )}
+                </>
               )}
             </Field>
 
@@ -1400,21 +1467,24 @@ export function TripFormDialog({
                 onChange={(e) => handleHireAmountChange(e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
                 readOnly={
-                  (!isReturnTrip && !isOpenLoad) ||
+                  (!isReturnTrip && !isOpenLoad && !isShifting) ||
                   (isTonBased && !!(form.cargoWeight && form.ratePerTon))
                 }
                 className={`${inputClass} ${
-                  (!isReturnTrip && !isOpenLoad) || (isTonBased && form.cargoWeight && form.ratePerTon)
+                  (!isReturnTrip && !isOpenLoad && !isShifting) || (isTonBased && form.cargoWeight && form.ratePerTon)
                     ? "cursor-not-allowed bg-gray-50 text-gray-500"
                     : ""
                 }`}
-                placeholder={isFixedHire ? "Enter hire amount" : "e.g. 32000"}
+                placeholder={isFixedHire ? "Enter hire amount" : isShifting ? "Enter hire amount for this shifting trip" : "e.g. 32000"}
               />
-              {!isReturnTrip && !isOpenLoad && (
+              {!isReturnTrip && !isOpenLoad && !isShifting && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
                   <Info className="h-3 w-3" />
-                  Hire amount is set from customer pricing and is locked. Only editable for Return and Open Load trips.
+                  Hire amount is set from customer pricing and is locked. Only editable for Return, Shifting, and Open Load trips.
                 </span>
+              )}
+              {isShifting && (
+                <span className="mt-1 text-xs text-amber-600">Shifting trips — enter hire amount manually</span>
               )}
               {isTonBased && form.cargoWeight && form.ratePerTon && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">

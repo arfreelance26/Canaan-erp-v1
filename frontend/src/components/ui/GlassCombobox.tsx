@@ -67,8 +67,11 @@ export function GlassCombobox({
 
   const openDropdown = () => {
     if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-    setInputValue(""); // clear so all options are shown (not filtered by the selected label)
+    // Keep the current label visible (don't clear) so the value doesn't disappear on click.
+    // Select-all so the user can immediately type to replace it.
+    restoreLabel();
     setIsOpen(true);
+    setTimeout(() => inputRef.current?.select(), 0);
   };
 
   const updatePosition = () => {

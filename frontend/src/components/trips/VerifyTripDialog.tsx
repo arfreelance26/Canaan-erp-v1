@@ -30,7 +30,7 @@ function SectionCard({ title, accent, children }: { title: string; accent: strin
   return (
     <section className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
       <div className={`flex items-center gap-2.5 border-b border-gray-100 px-4 py-2.5 ${accent}`}>
-        <p className="text-[11px] font-bold uppercase tracking-widest text-current opacity-70">{title}</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-current opacity-70 dark:text-white dark:opacity-100">{title}</p>
       </div>
       <div className="px-4 py-2">{children}</div>
     </section>
@@ -40,9 +40,9 @@ function SectionCard({ title, accent, children }: { title: string; accent: strin
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-6 py-1.5 text-sm border-b border-gray-50 last:border-0">
-      <span className="shrink-0 text-gray-400 font-medium">{label}</span>
-      <span className={`text-right font-semibold text-gray-800 ${mono ? "font-mono text-xs" : ""}`}>
-        {value || <span className="text-gray-300 font-normal">—</span>}
+      <span className="shrink-0 text-gray-400 font-medium dark:text-white">{label}</span>
+      <span className={`text-right font-semibold text-gray-800 dark:text-white ${mono ? "font-mono text-xs" : ""}`}>
+        {value || <span className="text-gray-300 font-normal dark:text-gray-500">—</span>}
       </span>
     </div>
   );
@@ -163,8 +163,8 @@ export function VerifyTripDialog({
             </svg>
           </span>
           <div>
-            <p className="text-sm font-semibold text-gray-800">Trip sheet pending verification</p>
-            <p className="text-xs text-gray-500">Uploaded by Commercial Manager · Review all details before confirming.</p>
+            <p className="text-sm font-semibold text-gray-800 dark:text-white">Trip sheet pending verification</p>
+            <p className="text-xs text-gray-500 dark:text-white">Uploaded by Commercial Manager · Review all details before confirming.</p>
           </div>
         </div>
 
@@ -226,8 +226,8 @@ export function VerifyTripDialog({
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   {!allMarked && (
-                    <p className="text-xs text-gray-500">
-                      Verify each expense below — <span className="font-semibold text-gray-700">{verifiedCount}/{nonZeroExpenses.length}</span> done
+                    <p className="text-xs text-gray-500 dark:text-white">
+                      Verify each expense below — <span className="font-semibold text-gray-700 dark:text-white">{verifiedCount}/{nonZeroExpenses.length}</span> done
                     </p>
                   )}
                   {allMarked && !anyUnticked && (
@@ -244,7 +244,7 @@ export function VerifyTripDialog({
                   )}
                 </div>
                 {markedCount > 0 && (
-                  <p className="text-xs font-medium text-indigo-600">
+                  <p className="text-xs font-medium text-indigo-600 dark:text-white">
                     {markedCount} flagged for invoice
                   </p>
                 )}
@@ -272,7 +272,7 @@ export function VerifyTripDialog({
                         idx !== 0 ? "border-t border-gray-100" : "",
                       ].join(" ")}
                     >
-                      <span className={`flex items-center gap-1.5 min-w-0 ${isZero ? "text-gray-300" : "text-gray-600"}`}>
+                      <span className={`flex items-center gap-1.5 min-w-0 ${isZero ? "text-gray-300 dark:text-gray-600" : "text-gray-600 dark:text-white"}`}>
                         {invMarked && !verifyMark && (
                           <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
                         )}
@@ -283,10 +283,10 @@ export function VerifyTripDialog({
                           <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                         )}
                         {label}
-                        {note && <span className="text-xs text-gray-400 font-normal">({note})</span>}
+                        {note && <span className="text-xs text-gray-400 font-normal dark:text-white">({note})</span>}
                       </span>
                       <span className="flex items-center gap-2 shrink-0 ml-3">
-                        <span className={isZero ? "text-gray-300 text-sm" : "font-semibold text-gray-800 text-sm"}>
+                        <span className={isZero ? "text-gray-300 text-sm dark:text-gray-600" : "font-semibold text-gray-800 text-sm dark:text-white"}>
                           {fmt(value)}
                         </span>
 
@@ -331,16 +331,16 @@ export function VerifyTripDialog({
                 {majorRepairsTotal > 0 && (
                   <>
                     <div className="flex items-center justify-between border-t border-orange-100 bg-orange-50 px-3.5 py-2.5">
-                      <span className="flex items-center gap-1.5 text-sm text-orange-700">
+                      <span className="flex items-center gap-1.5 text-sm text-orange-700 dark:text-white">
                         Major Repairs
-                        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-500">not in trip cost</span>
+                        <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-500 dark:text-white dark:bg-orange-900/40">not in trip cost</span>
                       </span>
-                      <span className="text-sm font-semibold text-orange-700">{fmt(majorRepairsTotal)}</span>
+                      <span className="text-sm font-semibold text-orange-700 dark:text-white">{fmt(majorRepairsTotal)}</span>
                     </div>
                     {(sheet.majorRepairs || []).map((r, i) => (
                       <div key={i} className="flex justify-between border-t border-orange-50 bg-orange-50/40 px-3.5 py-1.5">
-                        <span className="pl-3 text-xs text-gray-400">· {r.name}</span>
-                        <span className="text-xs text-gray-500">{fmt(n(r.cost))}</span>
+                        <span className="pl-3 text-xs text-gray-400 dark:text-white">· {r.name}</span>
+                        <span className="text-xs text-gray-500 dark:text-white">{fmt(n(r.cost))}</span>
                       </div>
                     ))}
                   </>
@@ -356,7 +356,7 @@ export function VerifyTripDialog({
               </div>
             </div>
           ) : (
-            <p className="py-4 text-center text-sm text-gray-400">No trip sheet available yet.</p>
+            <p className="py-4 text-center text-sm text-gray-400 dark:text-white">No trip sheet available yet.</p>
           )}
         </SectionCard>
 
@@ -383,7 +383,7 @@ export function VerifyTripDialog({
 
           {/* Verification Decision — auto-derived from tick/untick marks */}
           <div className="border-t border-gray-100 pt-3">
-            <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Verification Decision</p>
+            <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-white">Verification Decision</p>
 
             {/* Pending state */}
             {autoDecision === null && (
@@ -391,9 +391,9 @@ export function VerifyTripDialog({
                 <svg className="h-4 w-4 shrink-0 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-white">
                   Tick (✓) or untick (✗) every expense above to unlock the decision.
-                  <span className="ml-1 font-semibold text-gray-500">
+                  <span className="ml-1 font-semibold text-gray-500 dark:text-white">
                     {verifiedCount}/{nonZeroExpenses.length} verified.
                   </span>
                 </p>
@@ -403,10 +403,10 @@ export function VerifyTripDialog({
             {/* Rejection reason — auto-shown when any expense is unticked */}
             {autoDecision === "reject" && (
               <div className="mb-3 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 p-3">
-                <p className="text-xs font-semibold text-red-600">
+                <p className="text-xs font-semibold text-red-600 dark:text-white">
                   One or more expenses were marked incorrect (✗) — rejection required.
                 </p>
-                <label className="text-xs font-semibold text-red-500">Rejection Reason (required — sent back to Docs team)</label>
+                <label className="text-xs font-semibold text-red-500 dark:text-white">Rejection Reason (required — sent back to Docs team)</label>
                 <textarea
                   rows={3}
                   value={rejectionReason}
