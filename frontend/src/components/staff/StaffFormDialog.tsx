@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { X, FileText, KeyRound, Eye, EyeOff } from "lucide-react";
-import { showError } from "@/lib/swal";
+import { showError, validateFileSize } from "@/lib/swal";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -95,7 +95,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
       title={initialData ? "Edit Staff" : "Add Staff"}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Field label="Staff's Photo (Max 5MB)" required>
+        <Field label="Staff's Photo (Max 25MB)" required>
           <div className="flex items-center gap-4">
             <Avatar photoUrl={form.photoUrl} label={form.name || form.staffId || "?"} size={56} />
             <input
@@ -104,7 +104,7 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (!validateFileSize(file)) { e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, photo: file }));
                 const reader = new FileReader();
                 reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
@@ -297,14 +297,14 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
           />
         </Field>
 
-        <Field label="Aadhar Card (PDF) (Max 5MB)" required>
+        <Field label="Aadhar Card (PDF) (Max 25MB)" required>
           <input
             type="file"
             accept="application/pdf,image/*"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+              if (!validateFileSize(file)) { e.target.value = ""; return; }
               setFiles((prev) => ({ ...prev, aadhar: file }));
               update("aadharFileName", file.name);
             }}

@@ -246,9 +246,31 @@ export async function uploadFile(
     handleUnauthorized();
     throw new Error("Session expired. Please log in again.");
   }
+  if (res.status === 413) {
+    // Server rejected the file for exceeding the size limit (defense-in-depth in
+    // case the client-side check was bypassed). Surface the clean detail message.
+    throw new Error(await extractDetail(res, "File too large. The maximum allowed size is 25MB."));
+  }
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Upload failed: HTTP ${res.status}`);
+    throw new Error(await extractDetail(res, `Upload failed: HTTP ${res.status}`));
+  }
+}
+
+// Parse a FastAPI error body ({"detail": "..."}) into a clean message, falling
+// back to raw text or a provided default so popups never show raw JSON.
+async function extractDetail(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.text();
+    if (!body) return fallback;
+    try {
+      const parsed = JSON.parse(body);
+      if (typeof parsed?.detail === "string") return parsed.detail;
+    } catch {
+      return body; // not JSON — return the raw text
+    }
+    return fallback;
+  } catch {
+    return fallback;
   }
 }
 

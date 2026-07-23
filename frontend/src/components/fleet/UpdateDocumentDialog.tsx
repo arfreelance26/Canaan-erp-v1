@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { Paperclip, X } from "lucide-react";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError, validateFileSize } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -179,7 +179,7 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
           />
         </Field>
 
-        <Field label="New Document (PDF / Image) (Max 5MB)">
+        <Field label="New Document (PDF / Image) (Max 25MB)">
           <input
             ref={fileRef}
             type="file"
@@ -188,7 +188,7 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (!f) { setFile(null); return; }
-              if (f.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+              if (!validateFileSize(f)) { e.target.value = ""; return; }
               setFile(f);
             }}
           />

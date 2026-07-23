@@ -65,6 +65,11 @@ MODEL_MAP: dict[str, type] = {
     "trucks":    models.Truck,
 }
 
+# Standard upload cap for every file type (photos + compliance/ID documents).
+# Backing columns are LONGBLOB, so 25 MB fits comfortably; MySQL max_allowed_packet
+# on the server must be >= ~32 MB for writes of this size to succeed.
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
+
 
 def _get_record(entity: str, entity_id: int, db: Session):
     model = MODEL_MAP.get(entity)
@@ -98,7 +103,14 @@ async def upload_file(
 ):
     record = _get_record(entity, entity_id, db)
     col = _col_name(entity, field)
-    data = await file.read()
+    # Enforce the 25 MB standard cap. Read one byte past the limit so an oversized
+    # file is detected without pulling the entire (potentially huge) body into memory.
+    data = await file.read(MAX_FILE_SIZE + 1)
+    if len(data) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="File too large. The maximum allowed size is 25 MB.",
+        )
     setattr(record, col, data)
     name_col = FILENAME_COL.get(col)
     if name_col and hasattr(record, name_col):

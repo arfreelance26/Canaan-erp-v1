@@ -173,6 +173,9 @@ def _run_schema_migrations():
         # maintenance_records — link to trip sheet for sync on save
         "ALTER TABLE maintenance_records ADD COLUMN trip_id INT NULL",
         "ALTER TABLE maintenance_records ADD CONSTRAINT fk_maintenance_trip_id FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE SET NULL",
+        # NOTE: BLOB widening (MEDIUMBLOB → LONGBLOB for the 25 MB upload limit) is handled
+        # by the guarded _widen_blob_columns() step below, NOT here — a blob-type change forces
+        # a full table copy, so it must run once (only when needed), never on every restart.
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -317,7 +320,57 @@ def _run_schema_migrations():
                     pass
             conn.commit()
 
+def _widen_blob_columns():
+    """Widen document BLOB columns MEDIUMBLOB (16 MB) → LONGBLOB (up to 4 GB) so the
+    standardized 25 MB upload limit is not truncated at the old ceiling.
+
+    Safety properties (important because production already holds files):
+    - MEDIUMBLOB → LONGBLOB is a *widening* conversion: MySQL copies every existing
+      byte unchanged. There is no truncation and no corruption of stored files.
+    - The columns stay NULL-able exactly as before (plain LONGBLOB, no NOT NULL added).
+    - A blob-type change forces a full table copy, so this runs ONLY when a column is
+      not already LONGBLOB. On a DB that's already widened it does nothing (no re-copy,
+      no lock), making backend restarts cheap and safe.
+    - Each column is handled independently in its own try/except; one failure never
+      leaves the rest unwidened and never aborts startup.
+    """
+    blob_targets = [
+        ("trucks",    "photo_blob"),
+        ("trucks",    "rc_document_blob"),
+        ("trucks",    "fc_document_blob"),
+        ("trucks",    "road_tax_document_blob"),
+        ("trucks",    "insurance_document_proof_blob"),
+        ("trucks",    "national_permit_proof_blob"),
+        ("trucks",    "local_permit_proof_blob"),
+        ("trucks",    "pollution_certificate_blob"),
+        ("drivers",   "photo_blob"),
+        ("drivers",   "aadhaar_blob"),
+        ("drivers",   "license_blob"),
+        ("staff",     "photo_blob"),
+        ("staff",     "aadhar_document_blob"),
+        ("customers", "photo_blob"),
+    ]
+    with engine.connect() as conn:
+        for table, column in blob_targets:
+            try:
+                current_type = conn.execute(text(
+                    "SELECT DATA_TYPE FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c"
+                ), {"t": table, "c": column}).scalar()
+                # Column missing (fresh DB — create_all made it LONGBLOB already) or
+                # already widened → skip. Only convert genuine narrower blob types.
+                if current_type is None or current_type.lower() == "longblob":
+                    continue
+                conn.execute(text(f"ALTER TABLE `{table}` MODIFY COLUMN `{column}` LONGBLOB NULL"))
+                conn.commit()
+                print(f"[migration] widened {table}.{column} ({current_type} → longblob)")
+            except Exception as e:
+                # Never block startup; log and continue with the next column.
+                print(f"[migration] skip widening {table}.{column}: {e}")
+
+
 _run_schema_migrations()
+_widen_blob_columns()
 
 _DEFAULT_REPAIR_TYPES = [
     "Tyre Puncture", "Tyre Replacement", "Engine Oil Change", "Brake Repair",

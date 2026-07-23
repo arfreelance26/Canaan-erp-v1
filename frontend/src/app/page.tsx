@@ -23,6 +23,9 @@ import {
   UserCheck,
   FileCheck2,
   Inbox,
+  FileSpreadsheet,
+  Database,
+  FolderArchive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -38,6 +41,7 @@ import {
   tyreApi,
   financeApi,
   editApprovalsApi,
+  downloadExcel,
 } from "@/lib/api";
 import {
   getMaintenanceStatus,
@@ -208,8 +212,21 @@ function AdminDashboard() {
   const [sheetReceivedFilter, setSheetReceivedFilter] = useState<"All" | "Pending Entry" | "Entered">("All");
   const [sheetReceivedDate, setSheetReceivedDate] = useState("");
   const [sheetEnteredDate, setSheetEnteredDate] = useState("");
+  const [backupLoading, setBackupLoading] = useState<"excel" | "sql" | "files" | null>(null);
 
   const today = todayIst();
+
+  async function handleBackup(type: "excel" | "sql" | "files") {
+    setBackupLoading(type);
+    const fallbackName = type === "files" ? "canaan_erp_files.zip" : `canaan_erp_backup.${type}`;
+    try {
+      await downloadExcel(`/backup/${type}`, fallbackName);
+    } catch (err) {
+      alert(`Backup failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBackupLoading(null);
+    }
+  }
 
   useWebSocketEvent("trip_created", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
@@ -589,9 +606,38 @@ function AdminDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="mt-0.5 text-sm text-gray-400">Fleet command centre · {dayLabel}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs font-medium text-gray-500">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-          Live
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleBackup("excel")}
+            disabled={backupLoading !== null}
+            className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            {backupLoading === "excel" ? "Downloading…" : "Download Excel"}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleBackup("sql")}
+            disabled={backupLoading !== null}
+            className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+          >
+            <Database className="h-3.5 w-3.5" />
+            {backupLoading === "sql" ? "Downloading…" : "Download SQL"}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleBackup("files")}
+            disabled={backupLoading !== null}
+            className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+          >
+            <FolderArchive className="h-3.5 w-3.5" />
+            {backupLoading === "files" ? "Downloading…" : "Download Files (ZIP)"}
+          </button>
+          <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs font-medium text-gray-500">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+            Live
+          </div>
         </div>
       </div>
 

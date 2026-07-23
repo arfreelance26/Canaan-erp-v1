@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FileText, Eye, EyeOff, KeyRound } from "lucide-react";
-import { showError } from "@/lib/swal";
+import { showError, validateFileSize } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -132,7 +132,7 @@ export function DriverFormDialog({
           />
         </Field>
 
-        <Field label="Driver's Photo (Max 5MB)" required>
+        <Field label="Driver's Photo (Max 25MB)" required>
           <div className="flex items-center gap-4">
             <Avatar photoUrl={form.photoUrl} label={form.name || driverId} size={56} />
             <input
@@ -141,7 +141,7 @@ export function DriverFormDialog({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (!validateFileSize(file)) { e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, photo: file }));
                 const reader = new FileReader();
                 reader.onload = () => setForm((prev) => ({ ...prev, photoUrl: reader.result as string }));
@@ -415,14 +415,14 @@ export function DriverFormDialog({
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Driver Aadhaar Proof (PDF) (Max 5MB)">
+          <Field label="Driver Aadhaar Proof (PDF) (Max 25MB)">
             <input
               type="file"
               accept="application/pdf,image/*"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (!validateFileSize(file)) { e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, aadhaar: file }));
                 update("aadhaarFileName", file.name);
               }}
@@ -437,14 +437,14 @@ export function DriverFormDialog({
             />
           </Field>
 
-          <Field label="License Proof (PDF) (Max 5MB)">
+          <Field label="License Proof (PDF) (Max 25MB)">
             <input
               type="file"
               accept="application/pdf,image/*"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
-                if (file.size > 5 * 1024 * 1024) { showError("File too large. Maximum size is 5MB."); e.target.value = ""; return; }
+                if (!validateFileSize(file)) { e.target.value = ""; return; }
                 setFiles((prev) => ({ ...prev, license: file }));
                 update("licenseFileName", file.name);
               }}

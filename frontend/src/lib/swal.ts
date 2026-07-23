@@ -71,6 +71,26 @@ export const showError = async (message: string, title = 'Error') => {
 };
 
 /**
+ * Standard upload size limit for all file types across the app.
+ * Must stay in sync with the backend cap (MAX_FILE_SIZE in routers/files.py).
+ */
+export const MAX_FILE_SIZE_MB = 25;
+export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+/**
+ * Validate a file against the standard size limit. If it's too large, this shows
+ * an error popup and returns false; otherwise returns true. Callers should abort
+ * (and reset the input) when this returns false.
+ */
+export const validateFileSize = (file: File): boolean => {
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    showError(`File too large. The maximum allowed size is ${MAX_FILE_SIZE_MB}MB.`);
+    return false;
+  }
+  return true;
+};
+
+/**
  * Success notification dialog.
  */
 export const showSuccess = async (message: string, title = 'Success') => {
