@@ -34,6 +34,8 @@ export default function DriverAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [downloading, setDownloading] = useState(false);
+  const [fromDate, setFromDate] = useState(todayIst());
+  const [toDate, setToDate] = useState(todayIst());
 
   useEffect(() => {
     Promise.all([driversApi.list(), attendanceApi.listDrivers(), attendanceApi.listDriverRemarks()])
@@ -101,121 +103,222 @@ export default function DriverAttendancePage() {
     try {
       const { default: jsPDF } = await import("jspdf");
 
-      const displayDate = new Date(date + "T00:00:00").toLocaleDateString("en-IN", {
-        day: "2-digit", month: "short", year: "numeric",
-      });
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      // Fetch all records and remarks for the selected date range
+      const [rangeRecords, rangeRemarks] = await Promise.all([
+        attendanceApi.listDrivers(undefined, undefined, fromDate, toDate),
+        attendanceApi.listDriverRemarks(undefined, undefined, fromDate, toDate),
+      ]);
 
+      // Build sorted list of all dates in the range (inclusive)
+      const dates: string[] = [];
+      const [fy, fm, fd] = fromDate.split("-").map(Number);
+      const [ty, tm, td] = toDate.split("-").map(Number);
+      const cur = new Date(fy, fm - 1, fd);
+      const end = new Date(ty, tm - 1, td);
+      while (cur <= end) {
+        dates.push(
+          `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
+        );
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      const isSingleDay = fromDate === toDate;
+      const rangeLabel = isSingleDay
+        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const marginX = 14;
       const marginY = 14;
       const rowH = 8;
       const headerH = 9;
+      const dayHeadH = 7; // height of the per-day date banner
 
       const STATUS_COLORS: Record<string, [number, number, number]> = {
-        "On Trip":      [37, 99, 235],
-        "On Halt":      [234, 88, 12],
-        "Leave":        [161, 98, 7],
-        "On Workshop":  [124, 58, 237],
-        "Not Marked":   [107, 114, 128],
+        "On Trip":     [37, 99, 235],
+        "On Halt":     [234, 88, 12],
+        "Leave":       [161, 98, 7],
+        "On Workshop": [124, 58, 237],
+        "Not Marked":  [107, 114, 128],
       };
 
       const cols: [string, number][] = [
         ["#",           10],
         ["Driver ID",   30],
-        ["Driver Name", 75],
+        ["Driver Name", 72],
         ["Status",      50],
-        ["Remarks",     18],
+        ["Remarks",     21],
       ];
 
-      function drawPageHeader(pageNum: number, totalPages: number) {
+      // Build flat list of all rows across all dates
+      type PdfRow = { dateLabel: string; idx: number; driverId: string; name: string; status: string; remarkText: string };
+      const allRows: PdfRow[] = [];
+      for (const d of dates) {
+        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+          day: "2-digit", month: "short", year: "numeric", weekday: "short",
+        });
+        drivers.forEach((driver, idx) => {
+          const record = rangeRecords.find((r) => r.driverId === driver.driverId && r.date === d);
+          const status = record?.status ?? "Not Marked";
+          const driverRemarks = rangeRemarks.filter((r) => r.driverId === driver.driverId && r.date === d);
+          const remarkText = driverRemarks.map((r) => r.remark).join("; ");
+          allRows.push({ dateLabel: displayDate, idx: idx + 1, driverId: driver.driverId, name: driver.name ?? "—", status, remarkText });
+        });
+      }
+
+      // Estimate total pages: each row is rowH, day banners add dayHeadH, page header is ~24mm
+      const usableH = pageH - marginY - 10;
+      const colHeaderH = headerH;
+
+      // We'll render dynamically — track cursor Y
+      let pageNum = 1;
+      let curY = marginY;
+      let isFirstPage = true;
+      let currentDayLabel = "";
+      let tableStartY = 0;
+      let rowsOnPage: number[] = []; // heights so we can draw border at end
+
+      function drawDocHeader() {
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(13);
         pdf.setTextColor(27, 43, 94);
-        pdf.text("Driver Attendance", marginX, marginY);
-
+        pdf.text("Driver Attendance Report", marginX, curY);
+        curY += 6;
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8);
         pdf.setTextColor(100, 100, 100);
-        pdf.text(
-          `Date: ${displayDate}  ·  ${drivers.length} driver${drivers.length !== 1 ? "s" : ""}`,
-          marginX, marginY + 5,
-        );
-        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+        pdf.text(`Period: ${rangeLabel}  ·  ${drivers.length} driver${drivers.length !== 1 ? "s" : ""}`, marginX, curY);
+        curY += 6;
+      }
 
-        const tableTop = marginY + 10;
+      function drawColHeader() {
         pdf.setFillColor(27, 43, 94);
-        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
-
+        pdf.rect(marginX, curY, pageW - marginX * 2, colHeaderH, "F");
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(7);
         pdf.setTextColor(255, 255, 255);
         let x = marginX;
         for (const [label, w] of cols) {
-          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          pdf.text(label.toUpperCase(), x + 2, curY + 6);
           x += w;
         }
-        return tableTop + headerH;
+        tableStartY = curY;
+        rowsOnPage = [];
+        curY += colHeaderH;
       }
 
-      const rowData = drivers.map((driver, idx) => {
-        const record = getAttendanceForDate(records, driver.driverId, date);
-        const status = record?.status ?? "Not Marked";
-        const driverRemarks = remarks.filter((r) => r.driverId === driver.driverId && r.date === date);
-        const remarkText = driverRemarks.map((r) => r.remark).join("; ");
-        return { idx: idx + 1, driverId: driver.driverId, name: driver.name ?? "—", status, remarkText };
-      });
+      function closeBorder() {
+        if (rowsOnPage.length > 0) {
+          const totalRowH = rowsOnPage.reduce((a, b) => a + b, 0);
+          pdf.setDrawColor(209, 213, 219);
+          pdf.rect(marginX, tableStartY, pageW - marginX * 2, colHeaderH + totalRowH, "S");
+        }
+      }
 
-      const usableH = pageH - marginY - 20;
-      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
-      const totalPages = Math.ceil(rowData.length / rowsPerPage);
-
-      let rowIndex = 0;
-      for (let page = 1; page <= totalPages; page++) {
-        if (page > 1) pdf.addPage();
-        const y = drawPageHeader(page, totalPages);
-
-        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
-        rowIndex += rowsPerPage;
-
+      function newPage() {
+        closeBorder();
+        pdf.addPage();
+        pageNum++;
+        curY = marginY;
+        // Continuation header
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`Driver Attendance Report — ${rangeLabel} (continued)`, marginX, curY);
+        pdf.text(`Page ${pageNum}`, pageW - marginX, curY, { align: "right" });
+        curY += 6;
+        drawColHeader();
+      }
 
-        for (let r = 0; r < pageRows.length; r++) {
-          const row = pageRows[r];
-          const rowY = y + r * rowH;
+      // First page header
+      drawDocHeader();
+      drawColHeader();
+      isFirstPage = false;
 
-          if (r % 2 === 1) {
-            pdf.setFillColor(249, 250, 251);
-            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+      for (let i = 0; i < allRows.length; i++) {
+        const row = allRows[i];
+
+        // Inject day banner when date changes
+        if (!isSingleDay && row.dateLabel !== currentDayLabel) {
+          // Need space for banner + at least one data row
+          if (curY + dayHeadH + rowH > pageH - marginY) {
+            newPage();
           }
-          pdf.setDrawColor(229, 231, 235);
-          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+          currentDayLabel = row.dateLabel;
+          pdf.setFillColor(239, 246, 255);
+          pdf.rect(marginX, curY, pageW - marginX * 2, dayHeadH, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(27, 43, 94);
+          pdf.text(row.dateLabel, marginX + 3, curY + 5);
+          rowsOnPage.push(dayHeadH);
+          curY += dayHeadH;
+        }
 
-          pdf.setTextColor(30, 30, 30);
-          let x = marginX;
-          const cells = [String(row.idx), row.driverId, row.name, row.status, row.remarkText || "—"];
-          for (let c = 0; c < cols.length; c++) {
-            const [, w] = cols[c];
-            // Color the status cell
-            if (c === 3) {
-              const [cr, cg, cb] = STATUS_COLORS[row.status] ?? [107, 114, 128];
-              pdf.setTextColor(cr, cg, cb);
-            } else {
-              pdf.setTextColor(30, 30, 30);
-            }
-            const clipped = pdf.splitTextToSize(cells[c], w - 4)[0] ?? "";
-            pdf.text(clipped, x + 2, rowY + 5.5);
-            x += w;
+        // Page break check for data row
+        if (curY + rowH > pageH - marginY) {
+          newPage();
+          // Re-inject day banner on new page if mid-day
+          if (!isSingleDay) {
+            pdf.setFillColor(239, 246, 255);
+            pdf.rect(marginX, curY, pageW - marginX * 2, dayHeadH, "F");
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(7.5);
+            pdf.setTextColor(27, 43, 94);
+            pdf.text(`${row.dateLabel} (cont.)`, marginX + 3, curY + 5);
+            rowsOnPage.push(dayHeadH);
+            curY += dayHeadH;
           }
         }
 
-        pdf.setDrawColor(209, 213, 219);
-        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
+        // Alternating row background
+        const rowIndexInTable = rowsOnPage.length;
+        if (rowIndexInTable % 2 === 1) {
+          pdf.setFillColor(249, 250, 251);
+          pdf.rect(marginX, curY, pageW - marginX * 2, rowH, "F");
+        }
+        pdf.setDrawColor(229, 231, 235);
+        pdf.line(marginX, curY + rowH, pageW - marginX, curY + rowH);
+
+        // Cell content
+        let x = marginX;
+        const cells = [String(row.idx), row.driverId, row.name, row.status, row.remarkText || "—"];
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        for (let c = 0; c < cols.length; c++) {
+          const [, w] = cols[c];
+          if (c === 3) {
+            const [cr, cg, cb] = STATUS_COLORS[row.status] ?? [107, 114, 128];
+            pdf.setTextColor(cr, cg, cb);
+          } else {
+            pdf.setTextColor(30, 30, 30);
+          }
+          const clipped = pdf.splitTextToSize(cells[c], w - 4)[0] ?? "";
+          pdf.text(clipped, x + 2, curY + 5.5);
+          x += w;
+        }
+
+        rowsOnPage.push(rowH);
+        curY += rowH;
       }
 
-      pdf.save(`driver-attendance-${date}.pdf`);
+      // Close the final border
+      closeBorder();
+
+      // Add page numbers on every page
+      const totalPages = pdf.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        pdf.setPage(p);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(`Page ${p} of ${totalPages}`, pageW - marginX, pageH - 6, { align: "right" });
+      }
+
+      const fileSuffix = isSingleDay ? fromDate : `${fromDate}_to_${toDate}`;
+      pdf.save(`driver-attendance-${fileSuffix}.pdf`);
     } catch {
       showError("Failed to generate PDF.");
     } finally {
@@ -263,18 +366,41 @@ export default function DriverAttendancePage() {
             Track and mark attendance for all drivers
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <DownloadExcelButton path="/exports/driver-attendance" filename="driver_attendance.xlsx" />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* View date picker */}
           <div className="flex items-center gap-2">
-            <label htmlFor="attendance-date" className="text-sm font-medium text-gray-600">
-              Date
-            </label>
+            <label className="text-sm font-medium text-gray-600">View Date</label>
             <DatePickerInput
               value={date}
               onChange={(v) => setDate(v)}
-              className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
+
+          <div className="h-6 w-px bg-gray-200" />
+
+          {/* Download date range pickers */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Download</span>
+            <label className="text-sm font-medium text-gray-600">From</label>
+            <DatePickerInput
+              value={fromDate}
+              onChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
+              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+            />
+            <label className="text-sm font-medium text-gray-600">To</label>
+            <DatePickerInput
+              value={toDate}
+              onChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
+              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          <DownloadExcelButton
+            path="/exports/driver-attendance"
+            filename={`driver_attendance_${fromDate}_to_${toDate}.xlsx`}
+            params={{ from_date: fromDate, to_date: toDate }}
+          />
           <button
             type="button"
             onClick={handleDownloadPDF}

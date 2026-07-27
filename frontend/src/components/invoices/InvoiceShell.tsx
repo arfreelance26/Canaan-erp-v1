@@ -27,6 +27,10 @@ export interface InvoiceShellProps {
   showGtaNote?: boolean;
   metaTableBorderless?: boolean;
   contactSignBordered?: boolean;
+  /** Transport Memo mode — hides Invoice No., Bill To, and SAC Code column from the PDF */
+  isTransportMemo?: boolean;
+  gstApplicable?: "Yes" | "No";
+  igstApplicable?: "Yes" | "No";
   // Meta table
   invoiceNo: string;
   date: string;
@@ -64,11 +68,21 @@ export interface InvoiceShellProps {
   narration: string;
 }
 
+function halfRate(rate: string): string {
+  const r = parseFloat(rate);
+  if (!r) return "—";
+  const half = r / 2;
+  return (Number.isInteger(half) ? String(half) : half.toFixed(1)) + "%";
+}
+
 export function InvoiceShell({
   title,
   showGtaNote,
   metaTableBorderless,
   contactSignBordered,
+  isTransportMemo,
+  gstApplicable,
+  igstApplicable,
   invoiceNo,
   date,
   billToName,
@@ -133,23 +147,32 @@ export function InvoiceShell({
           style={metaTableBorderless ? { borderBottom: "none" } : undefined}
         >
           <tbody>
-            <tr>
-              <td style={{ width: "22%" }}>
-                <span className={s.lbl}>Invoice No.</span>
-                <span className={s.val}>{invoiceNo}</span>
-              </td>
-              <td style={{ width: "18%" }}>
-                <span className={s.lbl}>Date</span>
-                <span className={s.val}>{date}</span>
-              </td>
-              <td colSpan={2}>
-                <span className={s.lbl}>Bill To</span>
-                <span className={s.val}>{billToName}</span>
-                {billToAddress && (
-                  <span className={s.valLight} style={{ fontSize: "10px" }}>{billToAddress}</span>
-                )}
-              </td>
-            </tr>
+            {isTransportMemo ? (
+              <tr>
+                <td colSpan={4}>
+                  <span className={s.lbl}>Date</span>
+                  <span className={s.val}>{date}</span>
+                </td>
+              </tr>
+            ) : (
+              <tr>
+                <td style={{ width: "22%" }}>
+                  <span className={s.lbl}>Invoice No.</span>
+                  <span className={s.val}>{invoiceNo}</span>
+                </td>
+                <td style={{ width: "18%" }}>
+                  <span className={s.lbl}>Date</span>
+                  <span className={s.val}>{date}</span>
+                </td>
+                <td colSpan={2}>
+                  <span className={s.lbl}>Bill To</span>
+                  <span className={s.val}>{billToName}</span>
+                  {billToAddress && (
+                    <span className={s.valLight} style={{ fontSize: "10px" }}>{billToAddress}</span>
+                  )}
+                </td>
+              </tr>
+            )}
             <tr>
               <td colSpan={2}>
                 <span className={s.lbl}>Booking &amp; Trip Sheet No.</span>
@@ -215,35 +238,60 @@ export function InvoiceShell({
         </table>
 
         {/* ── SERVICE LINE ITEMS ── */}
-        <table className={s.itemsTable}>
-          <thead>
-            <tr>
-              <th style={{ width: "44%" }}>Description of Service</th>
-              <th style={{ width: "11%" }} className={s.center}>SAC Code</th>
-              <th style={{ width: "7%" }}  className={s.center}>QTY</th>
-              <th style={{ width: "12%" }} className={s.right}>Rate (INR)</th>
-              <th style={{ width: "10%" }} className={s.center}>GST %</th>
-              <th style={{ width: "16%" }} className={s.right}>Total (INR)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {serviceItems.map((item, i) => (
-              <tr key={i}>
-                <td>{item.description}</td>
-                <td className={s.center}>{item.sacCode}</td>
-                <td className={s.center}>{item.qty}</td>
-                <td className={s.right}>{item.rate}</td>
-                <td className={s.center}>{item.gstRate ? `${item.gstRate}%` : "—"}</td>
-                <td className={`${s.right} ${s.bold}`}>{item.total}</td>
-              </tr>
-            ))}
-            <tr className={s.totalRow}>
-              <td colSpan={4} style={{ border: "none", background: "transparent" }}></td>
-              <td className={`${s.right} ${s.bold}`} style={{ fontSize: "10px", letterSpacing: "0.3px" }}>TOTAL</td>
-              <td className={`${s.right} ${s.bold}`}>{subtotal}</td>
-            </tr>
-          </tbody>
-        </table>
+        {(() => {
+          const isCgstSgst = !isTransportMemo && gstApplicable === "Yes";
+          const isIgst     = !isTransportMemo && igstApplicable === "Yes";
+          const descW      = isCgstSgst ? "34%" : isTransportMemo ? "55%" : "44%";
+          // Total-row: blank colSpan covers every col except the last two (TOTAL label + amount)
+          const blankSpan  = isTransportMemo ? 3 : isCgstSgst ? 5 : 4;
+          return (
+            <table className={s.itemsTable}>
+              <thead>
+                <tr>
+                  <th style={{ width: descW }}>Description of Service</th>
+                  {!isTransportMemo && <th style={{ width: "10%" }} className={s.center}>SAC Code</th>}
+                  <th style={{ width: "6%" }}  className={s.center}>QTY</th>
+                  <th style={{ width: "12%" }} className={s.right}>Rate (INR)</th>
+                  {isCgstSgst ? (
+                    <>
+                      <th style={{ width: "8%" }} className={s.center}>CGST %</th>
+                      <th style={{ width: "8%" }} className={s.center}>SGST %</th>
+                    </>
+                  ) : (
+                    <th style={{ width: "10%" }} className={s.center}>
+                      {isIgst ? "IGST %" : "GST %"}
+                    </th>
+                  )}
+                  <th style={{ width: "16%" }} className={s.right}>Total (INR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviceItems.map((item, i) => (
+                  <tr key={i}>
+                    <td>{item.description}</td>
+                    {!isTransportMemo && <td className={s.center}>{item.sacCode}</td>}
+                    <td className={s.center}>{item.qty}</td>
+                    <td className={s.right}>{item.rate}</td>
+                    {isCgstSgst ? (
+                      <>
+                        <td className={s.center}>{item.gstRate ? halfRate(item.gstRate) : "—"}</td>
+                        <td className={s.center}>{item.gstRate ? halfRate(item.gstRate) : "—"}</td>
+                      </>
+                    ) : (
+                      <td className={s.center}>{item.gstRate ? `${item.gstRate}%` : "—"}</td>
+                    )}
+                    <td className={`${s.right} ${s.bold}`}>{item.total}</td>
+                  </tr>
+                ))}
+                <tr className={s.totalRow}>
+                  <td colSpan={blankSpan} style={{ border: "none", background: "transparent" }}></td>
+                  <td className={`${s.right} ${s.bold}`} style={{ fontSize: "10px", letterSpacing: "0.3px" }}>TOTAL</td>
+                  <td className={`${s.right} ${s.bold}`}>{subtotal}</td>
+                </tr>
+              </tbody>
+            </table>
+          );
+        })()}
 
         {/* ── AMOUNT IN WORDS + GRAND TOTAL ── */}
         <div className={s.amountBar}>

@@ -1366,10 +1366,12 @@ export const tripsApi = {
 export const attendanceApi = {
   getLatestDate: (category: "driver" | "staff") =>
     req<{ latest_date: string | null }>(`/attendance/latest-date?category=${category}`).then((d) => d.latest_date),
-  listDrivers: (date?: string, driverId?: string) => {
+  listDrivers: (date?: string, driverId?: string, dateFrom?: string, dateTo?: string) => {
     const params = new URLSearchParams();
     if (date) params.set("date", date);
     if (driverId) params.set("driver_id", driverId);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     return req<B[]>(`/attendance/drivers?${params}`).then((d) => d.map(toDriverAttendance));
   },
   markDriver: (driverId: string, date: string, status: string, checkInTime?: string) =>
@@ -1424,10 +1426,12 @@ export const attendanceApi = {
   deleteDriverRemark: (remarkId: string) =>
     req<void>(`/attendance/drivers/remarks/${remarkId}`, { method: "DELETE" }),
 
-  listStaff: (date?: string, staffId?: number) => {
+  listStaff: (date?: string, staffId?: number, dateFrom?: string, dateTo?: string) => {
     const params = new URLSearchParams();
     if (date) params.set("date", date);
     if (staffId) params.set("staff_id", String(staffId));
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     return req<B[]>(`/attendance/staff?${params}`).then((d) => d.map(toStaffAttendance));
   },
   markStaff: (staffId: number, date: string, status: string, checkInTime?: string, source?: string) =>

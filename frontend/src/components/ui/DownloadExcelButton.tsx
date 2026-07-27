@@ -12,15 +12,18 @@ type Props = {
   filename: string;
   label?: string;
   className?: string;
+  /** Optional query parameters appended to path before fetching. */
+  params?: Record<string, string>;
 };
 
-export function DownloadExcelButton({ path, filename, label = "Download Excel", className }: Props) {
+export function DownloadExcelButton({ path, filename, label = "Download Excel", className, params }: Props) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
     setLoading(true);
+    const qs = params && Object.keys(params).length > 0 ? "?" + new URLSearchParams(params).toString() : "";
     try {
-      await downloadExcel(path, filename);
+      await downloadExcel(path + qs, filename);
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to download Excel file.");
     } finally {

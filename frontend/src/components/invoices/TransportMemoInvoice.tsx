@@ -34,8 +34,10 @@ export interface TransportMemoInvoiceProps {
   email: string;
   contact: string;
   narration: string;
+  gstApplicable?: "Yes" | "No";
+  igstApplicable?: "Yes" | "No";
 }
 
 export function TransportMemoInvoice(props: TransportMemoInvoiceProps) {
-  return <InvoiceShell title="TRANSPORT MEMO" showGtaNote {...props} />;
+  return <InvoiceShell title="TRANSPORT MEMO" showGtaNote isTransportMemo {...props} />;
 }

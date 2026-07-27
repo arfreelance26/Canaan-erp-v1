@@ -4,7 +4,7 @@ from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, text
+from sqlalchemy import func, text, or_
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from security import require_roles, get_current_user, TokenUser
@@ -131,7 +131,7 @@ def get_autocomplete_values(db: Session = Depends(get_db)):
 def _current_fy() -> str:
     today = date_type.today()
     start_year = today.year if today.month >= 4 else today.year - 1
-    return f"{str(start_year)[2:]}-{str(start_year+1)[2:]}"
+    return f"{str(start_year)[2:]}{str(start_year+1)[2:]}"
 
 
 # Each invoice series (its prefix + the invoice types that share the counter).
@@ -152,9 +152,15 @@ def _next_invoice_no(db: Session, invoice_type: str, fy: str) -> str:
     were ever removed. Existing invoices are never modified.
     """
     prefix, types = _series_for(invoice_type)
+    # Also search the old hyphenated FY format (e.g. CGI26-27/...) so the
+    # counter stays continuous when invoices were created before this format change.
+    fy_old = f"{fy[:2]}-{fy[2:]}"
     rows = db.query(models.TripInvoice.invoice_no).filter(
         models.TripInvoice.invoice_type.in_(types),
-        models.TripInvoice.invoice_no.like(f"CGI{fy}/%"),
+        or_(
+            models.TripInvoice.invoice_no.like(f"CGI{fy}/%"),
+            models.TripInvoice.invoice_no.like(f"CGI{fy_old}/%"),
+        ),
     ).all()
     max_seq = 0
     for (no,) in rows:

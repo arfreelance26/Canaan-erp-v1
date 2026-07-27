@@ -37,6 +37,8 @@ export interface TaxInvoiceProps {
   email: string;
   contact: string;
   narration: string;
+  gstApplicable?: "Yes" | "No";
+  igstApplicable?: "Yes" | "No";
 }
 
 export function TaxInvoice({ hsnRows, hsnTotal, ...props }: TaxInvoiceProps) {

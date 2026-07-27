@@ -37,6 +37,8 @@ export interface BillOfSupplyInvoiceProps {
   email: string;
   contact: string;
   narration: string;
+  gstApplicable?: "Yes" | "No";
+  igstApplicable?: "Yes" | "No";
 }
 
 export function BillOfSupplyInvoice({ hsnRows, hsnTotal, ...props }: BillOfSupplyInvoiceProps) {

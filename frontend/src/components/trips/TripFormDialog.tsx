@@ -490,14 +490,23 @@ export function TripFormDialog({
     setForm((prev) => ({ ...prev, origin }));
   }
 
-  function findPricingForDestAndSpec(destination: string, containerSpec: string): CustomerPricing | undefined {
+  function findPricingForDestAndSpec(
+    destination: string,
+    containerSpec: string,
+    cargoClassification?: string,
+    weightInTons?: string,
+  ): CustomerPricing | undefined {
     return customerPricing.find((p) => {
       const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
         ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
         : String(p.customerDestination || "");
       if (dest !== destination) return false;
-      // If a container spec is already chosen, require it to match; otherwise accept any
-      return !containerSpec || containerTypeToSpec(p.containerType) === containerSpec;
+      if (containerSpec && containerTypeToSpec(p.containerType) !== containerSpec) return false;
+      // Match on cargo classification only when both sides are non-empty
+      if (cargoClassification && p.cargoClassification && p.cargoClassification !== cargoClassification) return false;
+      // Match on weight only when both sides are non-empty
+      if (weightInTons && p.weightInTons && p.weightInTons !== weightInTons) return false;
+      return true;
     });
   }
 
@@ -506,7 +515,7 @@ export function TripFormDialog({
       setForm((prev) => ({ ...prev, destination }));
       return;
     }
-    const matchingPricing = findPricingForDestAndSpec(destination, form.containerSpecification);
+    const matchingPricing = findPricingForDestAndSpec(destination, form.containerSpecification, form.cargoClassification, form.cargoWeight);
     const matchingDest = customerDestinations.find((d) =>
       (d.destinationName ?? d.destinationAddress ?? "") === destination
     );
@@ -992,7 +1001,11 @@ export function TripFormDialog({
                         const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
                           ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
                           : String(p.customerDestination || "");
-                        return dest === form.destination && containerTypeToSpec(p.containerType) === val;
+                        if (dest !== form.destination) return false;
+                        if (containerTypeToSpec(p.containerType) !== val) return false;
+                        if (cls && p.cargoClassification && p.cargoClassification !== cls) return false;
+                        if (form.cargoWeight && p.weightInTons && p.weightInTons !== form.cargoWeight) return false;
+                        return true;
                       })
                     : undefined;
                   setForm((prev) => ({
@@ -1142,7 +1155,7 @@ export function TripFormDialog({
                     placeholder={allDestinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
                     options={allDestinationOptions}
                   />
-                  {form.destination && form.transportHireAmount && findPricingForDestAndSpec(form.destination, form.containerSpecification) && (
+                  {form.destination && form.transportHireAmount && findPricingForDestAndSpec(form.destination, form.containerSpecification, form.cargoClassification, form.cargoWeight) && (
                     <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                       <Sparkles className="h-3 w-3" />
                       Hire amount auto-filled from customer pricing for this destination &amp; container spec

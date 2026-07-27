@@ -117,16 +117,23 @@ def get_latest_attendance_date(
 
 @router.get("/drivers", response_model=list[schemas.DriverAttendanceOut])
 def list_driver_attendance(
-    date: Optional[str] = Query(None, description="Filter by date YYYY-MM-DD"),
+    date: Optional[str] = Query(None, description="Filter by exact date YYYY-MM-DD"),
     driver_id: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    date_to: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.DriverAttendance)
     if date:
         q = q.filter(models.DriverAttendance.date == date)
+    else:
+        if date_from:
+            q = q.filter(models.DriverAttendance.date >= date_from)
+        if date_to:
+            q = q.filter(models.DriverAttendance.date <= date_to)
     if driver_id:
         q = q.filter(models.DriverAttendance.driver_id == driver_id)
-    return q.order_by(models.DriverAttendance.date.desc()).all()
+    return q.order_by(models.DriverAttendance.date.asc(), models.DriverAttendance.id.asc()).all()
 
 
 @router.post("/drivers", response_model=schemas.DriverAttendanceOut, status_code=201)
@@ -232,16 +239,23 @@ def delete_driver_remark(remark_id: int, db: Session = Depends(get_db)):
 
 @router.get("/staff", response_model=list[schemas.StaffAttendanceOut])
 def list_staff_attendance(
-    date: Optional[str] = Query(None, description="Filter by date YYYY-MM-DD"),
+    date: Optional[str] = Query(None, description="Filter by exact date YYYY-MM-DD"),
     staff_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    date_to: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.StaffAttendance)
     if date:
         q = q.filter(models.StaffAttendance.date == date)
+    else:
+        if date_from:
+            q = q.filter(models.StaffAttendance.date >= date_from)
+        if date_to:
+            q = q.filter(models.StaffAttendance.date <= date_to)
     if staff_id:
         q = q.filter(models.StaffAttendance.staff_id == staff_id)
-    return q.order_by(models.StaffAttendance.date.desc()).all()
+    return q.order_by(models.StaffAttendance.date.asc(), models.StaffAttendance.id.asc()).all()
 
 
 @router.post("/staff", response_model=schemas.StaffAttendanceOut, status_code=201)

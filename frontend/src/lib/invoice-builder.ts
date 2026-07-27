@@ -184,6 +184,8 @@ function commonFields(
     contactPerson: invoice?.contactPerson || "S SUNDER",
     email:         invoice?.email || "tutfin@canaanglobal.com",
     contact:       invoice?.contact || "9047015423",
+    gstApplicable:  (invoice?.gstApplicable  || invoice?.gst_applicable  || "No") as "Yes" | "No",
+    igstApplicable: (invoice?.igstApplicable || invoice?.igst_applicable || "No") as "Yes" | "No",
   };
 }
 

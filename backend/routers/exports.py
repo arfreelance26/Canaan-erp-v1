@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from typing import Optional
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -240,36 +241,52 @@ def export_driver_assignments(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.get("/driver-attendance")
-def export_driver_attendance(db: Session = Depends(get_db)):
-    records = (
+def export_driver_attendance(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    q = (
         db.query(models.DriverAttendance)
         .join(models.Driver, models.Driver.driver_id == models.DriverAttendance.driver_id)
-        .order_by(models.DriverAttendance.date.desc(), models.Driver.name)
-        .all()
     )
+    if from_date:
+        q = q.filter(models.DriverAttendance.date >= from_date)
+    if to_date:
+        q = q.filter(models.DriverAttendance.date <= to_date)
+    records = q.order_by(models.DriverAttendance.date.asc(), models.Driver.name).all()
     headers = ["Driver ID", "Driver Name", "Date", "Status", "Check In Time"]
     data = [
         [r.driver_id, r.driver.name if r.driver else "", r.date, r.status, r.check_in_time]
         for r in records
     ]
-    return build_excel_response([("Driver Attendance", headers, data)], "driver_attendance.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Driver Attendance", headers, data)], f"driver_attendance{suffix}.xlsx")
 
 
 @router.get("/staff-attendance")
-def export_staff_attendance(db: Session = Depends(get_db)):
-    records = (
+def export_staff_attendance(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    q = (
         db.query(models.StaffAttendance)
         .join(models.Staff, models.Staff.id == models.StaffAttendance.staff_id)
-        .order_by(models.StaffAttendance.date.desc(), models.Staff.name)
-        .all()
     )
+    if from_date:
+        q = q.filter(models.StaffAttendance.date >= from_date)
+    if to_date:
+        q = q.filter(models.StaffAttendance.date <= to_date)
+    records = q.order_by(models.StaffAttendance.date.asc(), models.Staff.name).all()
     headers = ["Staff ID", "Staff Name", "Date", "Status", "Check In Time", "Source"]
     data = [
         [r.staff.staff_id if r.staff else "", r.staff.name if r.staff else "",
          r.date, r.status, r.check_in_time, r.source]
         for r in records
     ]
-    return build_excel_response([("Staff Attendance", headers, data)], "staff_attendance.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Staff Attendance", headers, data)], f"staff_attendance{suffix}.xlsx")
 
 
 @router.get("/leave-requests")
