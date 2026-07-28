@@ -1078,6 +1078,8 @@ function toEmiRecord(b: B): EmiRecord {
     tenureMonths: String(b.tenure_months ?? ""),
     emiPaymentDate: b.emi_payment_date ?? "",
     costPerMonth: String(b.cost_per_month ?? ""),
+    monthlyFinanceCost: String(b.monthly_finance_cost ?? ""),
+    dailyFinanceCost: String(b.daily_finance_cost ?? ""),
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1095,6 +1097,8 @@ function fromEmiRecord(f: EmiRecord) {
     tenure_months: parseInt(f.tenureMonths) || null,
     emi_payment_date: f.emiPaymentDate || null,
     cost_per_month: parseFloat(f.costPerMonth) || 0,
+    monthly_finance_cost: parseFloat(f.monthlyFinanceCost) || 0,
+    daily_finance_cost: parseFloat(f.dailyFinanceCost) || 0,
     client_version: f.version,
   };
 }
@@ -1488,6 +1492,69 @@ export const attendanceApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Truck Status
+// ---------------------------------------------------------------------------
+
+export type TruckStatusItem = {
+  category: string;
+  item: string;
+  intervalKm: number;
+  remainingKm: number;
+  dueAtOdometer: number;
+  lastDoneOdometer: number | null;
+  lastDoneDate: string | null;
+  status: "attention" | "upcoming";
+};
+
+export type TruckStatusData = {
+  truckId: number;
+  registrationNumber: string;
+  truckLabel: string;
+  odometer: number;
+  healthStatus: "Bad" | "Average" | "Good" | "Great";
+  healthScore: number;
+  overdueCount: number;
+  upcomingCount: number;
+  overdueItems: TruckStatusItem[];
+  upcomingItems: TruckStatusItem[];
+  totalYearlyCost: number;
+  avgMonthlyCost: number;
+  avgDailyCost: number;
+  recordCountYearly: number;
+  daysSinceLastService: number | null;
+};
+
+function toTruckStatus(b: B): TruckStatusData {
+  const mapItem = (i: B): TruckStatusItem => ({
+    category:         String(i.category ?? ""),
+    item:             String(i.item ?? ""),
+    intervalKm:       Number(i.interval_km ?? 0),
+    remainingKm:      Number(i.remaining_km ?? 0),
+    dueAtOdometer:    Number(i.due_at_odometer ?? 0),
+    lastDoneOdometer: i.last_done_odometer != null ? Number(i.last_done_odometer) : null,
+    lastDoneDate:     i.last_done_date ? String(i.last_done_date) : null,
+    status:           (i.status === "attention" ? "attention" : "upcoming") as "attention" | "upcoming",
+  });
+  return {
+    truckId:              Number(b.truck_id),
+    registrationNumber:   String(b.registration_number ?? ""),
+    truckLabel:           String(b.truck_label ?? ""),
+    odometer:             Number(b.odometer ?? 0),
+    healthStatus:         String(b.health_status ?? "Average") as TruckStatusData["healthStatus"],
+    healthScore:          Number(b.health_score ?? 0),
+    overdueCount:         Number(b.overdue_count ?? 0),
+    upcomingCount:        Number(b.upcoming_count ?? 0),
+    overdueItems:         ((b.overdue_items as B[]) ?? []).map(mapItem),
+    upcomingItems:        ((b.upcoming_items as B[]) ?? []).map(mapItem),
+    totalYearlyCost:      Number(b.total_yearly_cost ?? 0),
+    avgMonthlyCost:       Number(b.avg_monthly_cost ?? 0),
+    avgDailyCost:         Number(b.avg_daily_cost ?? 0),
+    recordCountYearly:    Number(b.record_count_yearly ?? 0),
+    daysSinceLastService: b.days_since_last_service != null ? Number(b.days_since_last_service) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Maintenance API
 // ---------------------------------------------------------------------------
 
@@ -1521,6 +1588,8 @@ export const maintenanceApi = {
   deleteRecord: (id: string) => req<void>(`/maintenance/records/${id}`, { method: "DELETE" }),
   getStatus: () => req<B[]>("/maintenance/status"),
   getCompliance: () => req<B[]>("/maintenance/compliance"),
+  getTruckStatus: (truckDbId: string) =>
+    req<B>(`/maintenance/trucks/${truckDbId}/status`).then(toTruckStatus),
 };
 
 export const fuelLogsApi = {
@@ -1805,6 +1874,11 @@ export type TruckPLTripRow = {
   hireAmount: number;
   totalExpense: number;
   totalKm: number;
+  // Joined from trips + customers — used for profitability filter pills
+  customerName: string;
+  tripCategory: string;
+  cargoClassification: string;
+  containerSpecification: string;
 };
 
 export type TruckPLMaintenanceRow = {
@@ -1837,6 +1911,9 @@ export type TruckPLEntry = {
     bankName: string;
     monthlyEmi: number;
     shareForPeriod: number;
+    monthlyFinanceCost: number;
+    dailyFinanceCost: number;
+    periodFinanceCost: number;
   }>;
   totalCost: number;
   netPl: number;
@@ -1875,6 +1952,9 @@ export const plSummaryApi = {
           bankName: String(e.bank_name ?? ""),
           monthlyEmi: Number(e.monthly_emi ?? 0),
           shareForPeriod: Number(e.share_for_period ?? 0),
+          monthlyFinanceCost: Number(e.monthly_finance_cost ?? 0),
+          dailyFinanceCost: Number(e.daily_finance_cost ?? 0),
+          periodFinanceCost: Number(e.period_finance_cost ?? 0),
         })),
         totalCost: Number(b.total_cost ?? 0),
         netPl: Number(b.net_pl ?? 0),
@@ -1882,14 +1962,18 @@ export const plSummaryApi = {
         revenuePerKm: Number(b.revenue_per_km ?? 0),
         maintenanceCount: Number(b.maintenance_count ?? 0),
         tripRows: ((b.trip_rows as B[]) ?? []).map((t) => ({
-          tripSheetDate: String(t.trip_sheet_date ?? ""),
-          tripSheetNo: String(t.trip_sheet_no ?? ""),
-          bookingReferenceNo: String(t.booking_reference_no ?? ""),
-          fromLocation: String(t.from_location ?? ""),
-          toLocation: String(t.to_location ?? ""),
-          hireAmount: Number(t.hire_amount ?? 0),
-          totalExpense: Number(t.total_expense ?? 0),
-          totalKm: Number(t.total_km ?? 0),
+          tripSheetDate:          String(t.trip_sheet_date ?? ""),
+          tripSheetNo:            String(t.trip_sheet_no ?? ""),
+          bookingReferenceNo:     String(t.booking_reference_no ?? ""),
+          fromLocation:           String(t.from_location ?? ""),
+          toLocation:             String(t.to_location ?? ""),
+          hireAmount:             Number(t.hire_amount ?? 0),
+          totalExpense:           Number(t.total_expense ?? 0),
+          totalKm:                Number(t.total_km ?? 0),
+          customerName:           String(t.customer_name ?? ""),
+          tripCategory:           String(t.trip_category ?? ""),
+          cargoClassification:    String(t.cargo_classification ?? ""),
+          containerSpecification: String(t.container_specification ?? ""),
         })),
         maintenanceRows: ((b.maintenance_rows as B[]) ?? []).map((m) => ({
           date: String(m.date ?? ""),

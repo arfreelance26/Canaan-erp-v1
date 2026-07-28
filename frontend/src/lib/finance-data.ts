@@ -14,6 +14,8 @@ export const initialEmiRecords: EmiRecord[] = [
     tenureMonths: "60",
     emiPaymentDate: "2026-06-05",
     costPerMonth: "40000",
+    monthlyFinanceCost: "808.33",
+    dailyFinanceCost: "31.09",
   },
 ];
 

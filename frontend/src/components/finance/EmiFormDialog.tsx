@@ -32,6 +32,8 @@ const emptyForm: Omit<EmiRecord, "id"> = {
   tenureMonths: "",
   emiPaymentDate: "",
   costPerMonth: "",
+  monthlyFinanceCost: "",
+  dailyFinanceCost: "",
 };
 
 export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDialogProps) {
@@ -72,12 +74,18 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
 
   const tenure = Number(form.tenureMonths) || 0;
   const loanAmt = Number(form.loanAmount) || 0;
-  const costPerMonth = tenure > 0 && loanAmt > 0 ? (loanAmt / tenure).toFixed(2) : "";
+  const emiAmt  = Number(form.emiAmount)  || 0;
 
-  // Keep costPerMonth in form state so it is sent to the API
+  const costPerMonth        = tenure > 0 && loanAmt > 0 ? (loanAmt / tenure).toFixed(2)             : "";
+  // Monthly Finance Cost = EMI Amount ÷ Tenure
+  const monthlyFinanceCost  = tenure > 0 && emiAmt  > 0 ? (emiAmt  / tenure).toFixed(2)             : "";
+  // Daily Finance Cost   = Monthly Finance Cost ÷ 26 working days
+  const dailyFinanceCost    = monthlyFinanceCost         ? (Number(monthlyFinanceCost) / 26).toFixed(2) : "";
+
+  // Keep all computed values in form state so they are persisted to the API
   useEffect(() => {
-    setForm((prev) => ({ ...prev, costPerMonth }));
-  }, [costPerMonth]);
+    setForm((prev) => ({ ...prev, costPerMonth, monthlyFinanceCost, dailyFinanceCost }));
+  }, [costPerMonth, monthlyFinanceCost, dailyFinanceCost]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -212,6 +220,28 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               value={costPerMonth ? `₹ ${Number(costPerMonth).toLocaleString("en-IN")}` : ""}
               className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
               placeholder="Auto-calculated"
+            />
+          </Field>
+
+          <Field label="Monthly Finance Cost">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={monthlyFinanceCost ? `₹ ${Number(monthlyFinanceCost).toLocaleString("en-IN")}` : ""}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder="EMI Amount ÷ Tenure"
+            />
+          </Field>
+
+          <Field label="Daily Finance Cost">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={dailyFinanceCost ? `₹ ${Number(dailyFinanceCost).toLocaleString("en-IN")}` : ""}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder="Monthly Finance Cost ÷ 26"
             />
           </Field>
 

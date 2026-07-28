@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TruckMaintenanceTable } from "@/components/maintenance/TruckMaintenanceTable";
 import { MaintenanceRecordFormDialog } from "@/components/maintenance/MaintenanceRecordFormDialog";
 import { MaintenanceRecordHistoryDialog } from "@/components/maintenance/MaintenanceRecordHistoryDialog";
+import { TruckStatusDialog } from "@/components/maintenance/TruckStatusDialog";
 
 import { trucksApi, maintenanceApi } from "@/lib/api";
 
@@ -24,6 +25,7 @@ export default function TruckMaintenancePage() {
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -49,6 +51,11 @@ export default function TruckMaintenancePage() {
   function handleViewRecord(truck: Truck) {
     setSelectedTruck(truck);
     setHistoryDialogOpen(true);
+  }
+
+  function handleViewStatus(truck: Truck) {
+    setSelectedTruck(truck);
+    setStatusDialogOpen(true);
   }
 
   async function handleSaveRecord(record: MaintenanceRecord) {
@@ -99,6 +106,7 @@ export default function TruckMaintenancePage() {
         records={records}
         onUpdateRecord={handleUpdateRecord}
         onViewRecord={handleViewRecord}
+        onViewStatus={handleViewStatus}
       />
 
       <MaintenanceRecordFormDialog
@@ -113,6 +121,12 @@ export default function TruckMaintenancePage() {
         onClose={() => setHistoryDialogOpen(false)}
         truck={selectedTruck}
         records={records}
+      />
+
+      <TruckStatusDialog
+        open={statusDialogOpen}
+        onClose={() => setStatusDialogOpen(false)}
+        truck={selectedTruck}
       />
 
     </div>

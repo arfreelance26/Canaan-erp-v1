@@ -11,6 +11,7 @@ type TruckMaintenanceTableProps = {
   records: MaintenanceRecord[];
   onUpdateRecord: (truck: Truck) => void;
   onViewRecord: (truck: Truck) => void;
+  onViewStatus: (truck: Truck) => void;
 };
 
 const columns = [
@@ -23,6 +24,7 @@ export function TruckMaintenanceTable({
   records,
   onUpdateRecord,
   onViewRecord,
+  onViewStatus,
 }: TruckMaintenanceTableProps) {
   if (trucks.length === 0) {
     return (
@@ -70,6 +72,13 @@ export function TruckMaintenanceTable({
                     className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                   >
                     View Maintenance Record
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onViewStatus(truck)}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                  >
+                    Truck Status
                   </button>
                 </td>
 

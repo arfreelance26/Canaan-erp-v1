@@ -11,6 +11,8 @@ export type EmiRecord = {
   tenureMonths: string;
   emiPaymentDate: string;
   costPerMonth: string;
+  monthlyFinanceCost: string;
+  dailyFinanceCost: string;
   version?: number;
 };
 

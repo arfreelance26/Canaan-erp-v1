@@ -62,6 +62,10 @@ def seed_drivers():
             dob = clean_date(row.get("Date of Birth"))
             lic_exp = clean_date(row.get("License Expiry Date"))
             
+            contact = clean_string(row.get("Contact Number"))
+            if len(contact) > 20:
+                contact = contact[:20]
+
             driver = Driver(
                 driver_id=driver_id,
                 name=clean_string(row.get("Name"), default="Unknown"),
@@ -69,7 +73,7 @@ def seed_drivers():
                 date_of_birth=dob,
                 date_of_joining=None, # Since the Excel column was swapped with address, we don't have this.
                 email=clean_string(row.get("Email")),
-                contact_number=clean_string(row.get("Contact Number")),
+                contact_number=contact,
                 address=actual_address,
                 license_number=clean_string(row.get("License Number")),
                 license_expiry_date=lic_exp,

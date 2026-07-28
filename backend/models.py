@@ -740,6 +740,8 @@ class EmiRecord(Base):
     tenure_months = Column(Integer)
     emi_payment_date = Column(Date)
     cost_per_month = Column(Numeric(10, 2), default=0)
+    monthly_finance_cost = Column(Numeric(10, 2), default=0, server_default="0")
+    daily_finance_cost = Column(Numeric(10, 4), default=0, server_default="0")
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

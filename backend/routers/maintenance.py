@@ -131,6 +131,82 @@ def delete_maintenance_record(record_id: int, db: Session = Depends(get_db)):
     emit("maintenance_updated", {})
 
 
+@router.get("/maintenance/trucks/{truck_id}/status", tags=["Maintenance"])
+def get_truck_status(truck_id: int, db: Session = Depends(get_db)):
+    """Return full health + cost breakdown for a single truck."""
+    truck = db.get(models.Truck, truck_id)
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+
+    records = (
+        db.query(models.MaintenanceRecord)
+        .filter(models.MaintenanceRecord.truck_id == truck_id)
+        .order_by(models.MaintenanceRecord.date.desc())
+        .all()
+    )
+
+    # ── Health score ──────────────────────────────────────────────────────────
+    status_items = _maintenance_status(truck, records)
+    overdue_items  = [s for s in status_items if s["status"] == "attention"]
+    upcoming_items = [s for s in status_items if s["status"] == "upcoming"]
+
+    score = 100
+
+    # −20 per overdue item, capped at −60
+    score -= min(len(overdue_items) * 20, 60)
+
+    # −8 per upcoming item, capped at −24
+    score -= min(len(upcoming_items) * 8, 24)
+
+    # Recency of last service
+    days_since_last = None
+    if not records:
+        score -= 20
+    else:
+        days_since_last = (date.today() - records[0].date).days
+        if days_since_last > 180:
+            score -= 20
+        elif days_since_last > 90:
+            score -= 10
+
+    score = max(0, min(100, score))
+
+    if score >= 80:
+        health_status = "Great"
+    elif score >= 60:
+        health_status = "Good"
+    elif score >= 40:
+        health_status = "Average"
+    else:
+        health_status = "Bad"
+
+    # ── 12-month cost averages ────────────────────────────────────────────────
+    today = date.today()
+    one_year_ago = today.replace(year=today.year - 1)
+    year_records = [r for r in records if r.date and r.date >= one_year_ago]
+    total_yearly  = round(sum(float(r.cost or 0) for r in year_records), 2)
+    avg_monthly   = round(total_yearly / 12, 2)
+    avg_daily     = round(avg_monthly / 26, 2)
+
+    return {
+        "truck_id":             truck.id,
+        "registration_number":  truck.registration_number,
+        "truck_label":          truck.truck_id or "",
+        "odometer":             int(truck.odometer or 0),
+        "health_status":        health_status,
+        "health_score":         score,
+        "overdue_count":        len(overdue_items),
+        "upcoming_count":       len(upcoming_items),
+        "overdue_items":        overdue_items,
+        "upcoming_items":       upcoming_items,
+        "total_yearly_cost":    total_yearly,
+        "avg_monthly_cost":     avg_monthly,
+        "avg_daily_cost":       avg_daily,
+        "record_count_yearly":  len(year_records),
+        "days_since_last_service": days_since_last,
+    }
+
+
 @router.get("/maintenance/status", tags=["Maintenance"])
 def get_maintenance_status(db: Session = Depends(get_db)):
     trucks = db.query(models.Truck).all()

@@ -44,7 +44,7 @@ def main():
         run_script(script, ["--yes"] if script == "clear_database.py" else None)
         
     print("\n" + "="*60)
-    print("✅ DATABASE RESET & SEED COMPLETELY SUCCESSFUL!")
+    print("SUCCESS: DATABASE RESET & SEED COMPLETELY SUCCESSFUL!")
     print("="*60)
 
 if __name__ == "__main__":
