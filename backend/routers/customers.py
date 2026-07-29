@@ -135,7 +135,7 @@ def create_destination(customer_id: int, payload: schemas.CustomerDestinationCre
 
 @router.put("/{customer_id}/destinations/{dest_id}", response_model=schemas.CustomerDestinationOut)
 def update_destination(customer_id: int, dest_id: int, payload: schemas.CustomerDestinationCreate, db: Session = Depends(get_db)):
-    check_customer_destination_duplicates(db, payload, customer_id)
+    check_customer_destination_duplicates(db, payload, customer_id, exclude_id=dest_id)
     dest = db.query(models.CustomerDestination).filter(
         models.CustomerDestination.id == dest_id,
         models.CustomerDestination.customer_id == customer_id,

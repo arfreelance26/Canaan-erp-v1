@@ -74,9 +74,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         .then((rows) => {
           if (cancelled) return;
 
-          // Split by event_type: km_variance goes to its own list, rest are sheet alerts
-          const kmRows = rows.filter((r) => r.eventType === "km_variance");
-          const sheetRows = rows.filter((r) => r.eventType !== "km_variance");
+          // Split by event_type
+          const kmRows    = rows.filter((r) => r.eventType === "km_variance");
+          // trip_assigned / trip_closed are handled by TripEventToastHub — exclude from sheet alerts
+          const TRIP_EVENT_TYPES = new Set(["trip_assigned", "trip_closed"]);
+          const sheetRows = rows.filter((r) => r.eventType !== "km_variance" && !TRIP_EVENT_TYPES.has(r.eventType));
 
           setSheetAlerts((prev) => {
             const fromServer = sheetRows.map((r) => ({

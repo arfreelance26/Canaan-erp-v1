@@ -26,6 +26,7 @@ import {
   FileCheck,
   ShieldAlert,
   BarChart2,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 
@@ -106,6 +107,7 @@ export const sidebarSections: NavSection[] = [
     title: "Administration",
     items: [
       { label: "Branch Management", href: "/admin/branches", icon: GitBranch },
+      { label: "Trip Expenses Management", href: "/admin/trip-expenses", icon: Receipt },
       { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
     ],

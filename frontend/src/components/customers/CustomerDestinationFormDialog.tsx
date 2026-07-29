@@ -19,6 +19,8 @@ type CustomerDestinationFormDialogProps = {
 
 const emptyForm: Omit<CustomerDestination, "id"> = {
   customerId: "",
+  originState: "",
+  originAddress: "",
   destinationState: "",
   destinationAddress: "",
   approxDistanceKm: "",
@@ -156,6 +158,43 @@ export function CustomerDestinationFormDialog({
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Origin section */}
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg">
+              Origin
+            </p>
+          </div>
+
+          <Field label="Origin State">
+            <input
+              type="text"
+              value={form.originState ?? ""}
+              onChange={(e) => update("originState", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Tamil Nadu"
+            />
+            <span className="mt-1 text-xs text-gray-400">
+              State the truck departs from — shown in Origin Location dropdown when assigning trips
+            </span>
+          </Field>
+
+          <Field label="Origin Address">
+            <input
+              type="text"
+              value={form.originAddress ?? ""}
+              onChange={(e) => update("originAddress", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Chennai Port, Rajaji Salai"
+            />
+          </Field>
+
+          {/* Destination section */}
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg">
+              Destination
+            </p>
+          </div>
+
           <Field label="Destination State" required>
             <input
               type="text"

@@ -15,7 +15,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates
 
 Base.metadata.create_all(bind=engine)
 
@@ -43,6 +43,8 @@ def _run_schema_migrations():
         "ALTER TABLE fuel_logs ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE tyre_inventory ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE emi_records ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE emi_records ADD COLUMN monthly_finance_cost DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE emi_records ADD COLUMN daily_finance_cost DECIMAL(10,4) NOT NULL DEFAULT 0",
         "ALTER TABLE recurring_payments ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE repair_types ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE sac_codes ADD COLUMN version INT NOT NULL DEFAULT 1",
@@ -146,7 +148,10 @@ def _run_schema_migrations():
         "ALTER TABLE trips MODIFY COLUMN container_number_1 VARCHAR(11) NULL",
         "ALTER TABLE trips MODIFY COLUMN container_number_2 VARCHAR(11) NULL",
         # Approx distance from customer destination master → stored on trip for carry-forward
+        "ALTER TABLE customer_destinations ADD COLUMN destination_name VARCHAR(200) NULL",
         "ALTER TABLE customer_destinations ADD COLUMN approx_distance_km DECIMAL(8,2) NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN origin_state VARCHAR(100) NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN origin_address VARCHAR(500) NULL",
         "ALTER TABLE trips ADD COLUMN approx_trip_distance DECIMAL(8,2) NULL",
         # User who entered/last modified a fuel log (ERP staff name, not the system marker)
         "ALTER TABLE fuel_logs ADD COLUMN entered_by_name VARCHAR(100) NULL",
@@ -170,6 +175,16 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN lr_to_pay TINYINT(1) DEFAULT 0 NULL",
         "ALTER TABLE trips ADD COLUMN lr_to_be_billed TINYINT(1) DEFAULT 0 NULL",
         "ALTER TABLE trips ADD COLUMN lr_saved_at DATETIME NULL",
+        # trip_expense_rates — Admin-configurable default expense rate sets
+        "ALTER TABLE trip_expense_rates ADD COLUMN version INT NOT NULL DEFAULT 1",
+        "ALTER TABLE trip_expense_rates ADD COLUMN port_pass_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN weight_sheet_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN mamol_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN claimable_mamol_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN traffic_rto_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN lift_on_off_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN crane_operator_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE trip_expense_rates ADD COLUMN parking_expense_auto TINYINT(1) NOT NULL DEFAULT 0",
         # maintenance_records — link to trip sheet for sync on save
         "ALTER TABLE maintenance_records ADD COLUMN trip_id INT NULL",
         "ALTER TABLE maintenance_records ADD CONSTRAINT fk_maintenance_trip_id FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE SET NULL",
@@ -207,13 +222,14 @@ def _run_schema_migrations():
         "ALTER TABLE staff MODIFY COLUMN software_designation ENUM('Admin','Fleet Manager','Finance Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff','Trip Sheet Register') NOT NULL DEFAULT 'Staff'",
         "ALTER TABLE leave_requests MODIFY COLUMN category ENUM('Driver','Fleet Manager','Tyre Manager','Staff','Trip Sheet Coordinator','Yard Staff','Trip Sheet Register') NOT NULL",
     ]
-    with engine.connect() as conn:
-        for stmt in migrations:
-            try:
+    # Each statement gets its own connection+commit so a failed ALTER TABLE
+    # (e.g. duplicate column) cannot poison subsequent migrations.
+    for stmt in migrations:
+        try:
+            with engine.begin() as conn:
                 conn.execute(text(stmt))
-            except Exception:
-                pass
-        conn.commit()
+        except Exception:
+            pass
 
     if not _rename_done:
         # Role rename, step 2: data migration. Must be state-aware because a DB may
@@ -465,6 +481,7 @@ app.include_router(pl_summary.router, dependencies=FINANCE)
 app.include_router(exports.router, dependencies=AUTH)
 app.include_router(edit_approvals.router, dependencies=AUTH)
 app.include_router(notifications.router, dependencies=AUTH)
+app.include_router(trip_expense_rates.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

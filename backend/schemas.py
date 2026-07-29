@@ -285,6 +285,8 @@ class CustomerDestinationBase(OrmBase):
     destination_name: Optional[str] = None
     destination_state: Optional[str] = None
     destination_address: Optional[str] = None
+    origin_state: Optional[str] = None
+    origin_address: Optional[str] = None
     status: Optional[EntityStatus] = "ACTIVE"
     approx_distance_km: Optional[Decimal] = None
 
@@ -1183,6 +1185,62 @@ class BranchUpdate(OrmBase):
 
 
 class BranchOut(BranchBase):
+    id: int
+    version: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Trip Expense Rates
+# ---------------------------------------------------------------------------
+
+class TripExpenseRateBase(OrmBase):
+    name: str
+    port_pass_expense: Optional[Decimal] = None
+    port_pass_expense_auto: Optional[bool] = False
+    weight_sheet_expense: Optional[Decimal] = None
+    weight_sheet_expense_auto: Optional[bool] = False
+    mamol_expense: Optional[Decimal] = None
+    mamol_expense_auto: Optional[bool] = False
+    claimable_mamol_expense: Optional[Decimal] = None
+    claimable_mamol_expense_auto: Optional[bool] = False
+    traffic_rto_expense: Optional[Decimal] = None
+    traffic_rto_expense_auto: Optional[bool] = False
+    lift_on_off_expense: Optional[Decimal] = None
+    lift_on_off_expense_auto: Optional[bool] = False
+    crane_operator_expense: Optional[Decimal] = None
+    crane_operator_expense_auto: Optional[bool] = False
+    parking_expense: Optional[Decimal] = None
+    parking_expense_auto: Optional[bool] = False
+
+
+class TripExpenseRateCreate(TripExpenseRateBase):
+    pass
+
+
+class TripExpenseRateUpdate(OrmBase):
+    client_version: Optional[int] = None
+    name: Optional[str] = None
+    port_pass_expense: Optional[Decimal] = None
+    port_pass_expense_auto: Optional[bool] = None
+    weight_sheet_expense: Optional[Decimal] = None
+    weight_sheet_expense_auto: Optional[bool] = None
+    mamol_expense: Optional[Decimal] = None
+    mamol_expense_auto: Optional[bool] = None
+    claimable_mamol_expense: Optional[Decimal] = None
+    claimable_mamol_expense_auto: Optional[bool] = None
+    traffic_rto_expense: Optional[Decimal] = None
+    traffic_rto_expense_auto: Optional[bool] = None
+    lift_on_off_expense: Optional[Decimal] = None
+    lift_on_off_expense_auto: Optional[bool] = None
+    crane_operator_expense: Optional[Decimal] = None
+    crane_operator_expense_auto: Optional[bool] = None
+    parking_expense: Optional[Decimal] = None
+    parking_expense_auto: Optional[bool] = None
+
+
+class TripExpenseRateOut(TripExpenseRateBase):
     id: int
     version: int = 1
     created_at: Optional[datetime] = None

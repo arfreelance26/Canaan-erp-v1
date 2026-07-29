@@ -2,9 +2,33 @@ from datetime import date as date_type
 from calendar import monthrange
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from database import get_db
+from sqlalchemy.exc import OperationalError
+from database import get_db, engine
 import models
+
+
+def _ensure_emi_finance_columns() -> None:
+    """Add monthly_finance_cost / daily_finance_cost to emi_records if absent.
+
+    Runs at module import time so a uvicorn --reload picks it up immediately,
+    and also called defensively inside the endpoint on OperationalError.
+    Each ALTER TABLE is in its own connection so a 'Duplicate column' error
+    on the second column never blocks the first.
+    """
+    for col, defn in [
+        ("monthly_finance_cost", "DECIMAL(10,2) NOT NULL DEFAULT 0"),
+        ("daily_finance_cost",   "DECIMAL(10,4) NOT NULL DEFAULT 0"),
+    ]:
+        try:
+            with engine.begin() as _conn:
+                _conn.execute(text(f"ALTER TABLE emi_records ADD COLUMN {col} {defn}"))
+        except Exception:
+            pass
+
+
+_ensure_emi_finance_columns()
 
 router = APIRouter(prefix="/pl-summary", tags=["P&L Summary"])
 
@@ -99,7 +123,16 @@ def get_pl_summary(
     # ── Pre-load related data ──────────────────────────────────────────────
 
     emi_by_reg: dict = {}
-    for e in db.query(models.EmiRecord).all():
+    try:
+        emi_records = db.query(models.EmiRecord).all()
+    except OperationalError as _exc:
+        if "monthly_finance_cost" in str(_exc) or "daily_finance_cost" in str(_exc):
+            db.rollback()
+            _ensure_emi_finance_columns()
+            emi_records = db.query(models.EmiRecord).all()
+        else:
+            raise
+    for e in emi_records:
         reg = (e.truck_registration or "").strip()
         emi_by_reg.setdefault(reg, []).append(e)
 

@@ -177,17 +177,22 @@ export function FinanceManagerDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
-        </div>
-        {!loading && overdueEmis.length > 0 && (
-          <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-            <span className="text-xs font-semibold text-red-700">{overdueEmis.length} EMI payment{overdueEmis.length > 1 ? "s" : ""} overdue</span>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
           </div>
-        )}
+          <div className="flex flex-wrap items-center gap-3">
+            {!loading && overdueEmis.length > 0 && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+                <span className="text-xs font-semibold text-red-700">{overdueEmis.length} EMI payment{overdueEmis.length > 1 ? "s" : ""} overdue</span>
+              </div>
+            )}
+            <TripSummaryWidget />
+          </div>
+        </div>
       </div>
 
       {/* Compliance Alert Banner */}
@@ -450,9 +455,6 @@ export function FinanceManagerDashboard() {
           )}
         </div>
       </div>
-
-      {/* Trip Status Overview */}
-      <TripSummaryWidget />
 
     </div>
   );

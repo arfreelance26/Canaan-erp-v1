@@ -522,6 +522,8 @@ function toCustomerDestination(b: B): CustomerDestination {
     destinationName: b.destination_name ?? undefined,
     destinationState: b.destination_state ?? "",
     destinationAddress: b.destination_address ?? "",
+    originState: b.origin_state ?? "",
+    originAddress: b.origin_address ?? "",
     approxDistanceKm: b.approx_distance_km != null ? String(b.approx_distance_km) : "",
     status: b.status ?? undefined,
   };
@@ -1223,12 +1225,24 @@ export const customersApi = {
   createDestination: (customerId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations`, {
       method: "POST",
-      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress, approx_distance_km: dest.approxDistanceKm || null }),
+      body: JSON.stringify({
+        destination_state: dest.destinationState,
+        destination_address: dest.destinationAddress,
+        origin_state: dest.originState || null,
+        origin_address: dest.originAddress || null,
+        approx_distance_km: dest.approxDistanceKm || null,
+      }),
     }).then(toCustomerDestination),
   updateDestination: (customerId: string, destId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations/${destId}`, {
       method: "PUT",
-      body: JSON.stringify({ destination_state: dest.destinationState, destination_address: dest.destinationAddress, approx_distance_km: dest.approxDistanceKm || null }),
+      body: JSON.stringify({
+        destination_state: dest.destinationState,
+        destination_address: dest.destinationAddress,
+        origin_state: dest.originState || null,
+        origin_address: dest.originAddress || null,
+        approx_distance_km: dest.approxDistanceKm || null,
+      }),
     }).then(toCustomerDestination),
   deleteDestination: (customerId: string, destId: string) =>
     req<void>(`/customers/${customerId}/destinations/${destId}`, { method: "DELETE" }),
@@ -1815,6 +1829,94 @@ export const branchesApi = {
   update: (id: string, branch: Branch) =>
     req<B>(`/branches/${id}`, { method: "PUT", body: JSON.stringify(fromBranch(branch)) }).then(toBranch),
   delete: (id: string) => req<void>(`/branches/${id}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// Trip Expense Rates API
+// ---------------------------------------------------------------------------
+
+export type TripExpenseRate = {
+  id: number;
+  name: string;
+  portPassExpense: number;
+  portPassExpenseAuto: boolean;
+  weightSheetExpense: number;
+  weightSheetExpenseAuto: boolean;
+  mamolExpense: number;
+  mamolExpenseAuto: boolean;
+  claimableMamolExpense: number;
+  claimableMamolExpenseAuto: boolean;
+  trafficRtoExpense: number;
+  trafficRtoExpenseAuto: boolean;
+  liftOnOffExpense: number;
+  liftOnOffExpenseAuto: boolean;
+  craneOperatorExpense: number;
+  craneOperatorExpenseAuto: boolean;
+  parkingExpense: number;
+  parkingExpenseAuto: boolean;
+  version: number;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+type TER = Record<string, unknown>;
+
+function toTripExpenseRate(r: TER): TripExpenseRate {
+  return {
+    id: r.id as number,
+    name: String(r.name ?? ""),
+    portPassExpense: Number(r.port_pass_expense ?? 0),
+    portPassExpenseAuto: Boolean(r.port_pass_expense_auto),
+    weightSheetExpense: Number(r.weight_sheet_expense ?? 0),
+    weightSheetExpenseAuto: Boolean(r.weight_sheet_expense_auto),
+    mamolExpense: Number(r.mamol_expense ?? 0),
+    mamolExpenseAuto: Boolean(r.mamol_expense_auto),
+    claimableMamolExpense: Number(r.claimable_mamol_expense ?? 0),
+    claimableMamolExpenseAuto: Boolean(r.claimable_mamol_expense_auto),
+    trafficRtoExpense: Number(r.traffic_rto_expense ?? 0),
+    trafficRtoExpenseAuto: Boolean(r.traffic_rto_expense_auto),
+    liftOnOffExpense: Number(r.lift_on_off_expense ?? 0),
+    liftOnOffExpenseAuto: Boolean(r.lift_on_off_expense_auto),
+    craneOperatorExpense: Number(r.crane_operator_expense ?? 0),
+    craneOperatorExpenseAuto: Boolean(r.crane_operator_expense_auto),
+    parkingExpense: Number(r.parking_expense ?? 0),
+    parkingExpenseAuto: Boolean(r.parking_expense_auto),
+    version: Number(r.version ?? 1),
+    createdAt: (r.created_at as string) ?? null,
+    updatedAt: (r.updated_at as string) ?? null,
+  };
+}
+
+function fromTripExpenseRate(ter: Partial<TripExpenseRate> & { clientVersion?: number }): TER {
+  const out: TER = {};
+  if (ter.name !== undefined) out.name = ter.name;
+  if (ter.portPassExpense !== undefined) out.port_pass_expense = ter.portPassExpense;
+  if (ter.portPassExpenseAuto !== undefined) out.port_pass_expense_auto = ter.portPassExpenseAuto;
+  if (ter.weightSheetExpense !== undefined) out.weight_sheet_expense = ter.weightSheetExpense;
+  if (ter.weightSheetExpenseAuto !== undefined) out.weight_sheet_expense_auto = ter.weightSheetExpenseAuto;
+  if (ter.mamolExpense !== undefined) out.mamol_expense = ter.mamolExpense;
+  if (ter.mamolExpenseAuto !== undefined) out.mamol_expense_auto = ter.mamolExpenseAuto;
+  if (ter.claimableMamolExpense !== undefined) out.claimable_mamol_expense = ter.claimableMamolExpense;
+  if (ter.claimableMamolExpenseAuto !== undefined) out.claimable_mamol_expense_auto = ter.claimableMamolExpenseAuto;
+  if (ter.trafficRtoExpense !== undefined) out.traffic_rto_expense = ter.trafficRtoExpense;
+  if (ter.trafficRtoExpenseAuto !== undefined) out.traffic_rto_expense_auto = ter.trafficRtoExpenseAuto;
+  if (ter.liftOnOffExpense !== undefined) out.lift_on_off_expense = ter.liftOnOffExpense;
+  if (ter.liftOnOffExpenseAuto !== undefined) out.lift_on_off_expense_auto = ter.liftOnOffExpenseAuto;
+  if (ter.craneOperatorExpense !== undefined) out.crane_operator_expense = ter.craneOperatorExpense;
+  if (ter.craneOperatorExpenseAuto !== undefined) out.crane_operator_expense_auto = ter.craneOperatorExpenseAuto;
+  if (ter.parkingExpense !== undefined) out.parking_expense = ter.parkingExpense;
+  if (ter.parkingExpenseAuto !== undefined) out.parking_expense_auto = ter.parkingExpenseAuto;
+  if (ter.clientVersion !== undefined) out.client_version = ter.clientVersion;
+  return out;
+}
+
+export const tripExpenseRatesApi = {
+  getConfig: () => req<TER>("/trip-expense-rates").then(toTripExpenseRate),
+  saveConfig: (data: Partial<TripExpenseRate>, clientVersion?: number) =>
+    req<TER>("/trip-expense-rates", {
+      method: "PUT",
+      body: JSON.stringify(fromTripExpenseRate({ ...data, clientVersion })),
+    }).then(toTripExpenseRate),
 };
 
 // ---------------------------------------------------------------------------

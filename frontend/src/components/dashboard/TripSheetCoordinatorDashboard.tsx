@@ -122,17 +122,20 @@ export function TripSheetCoordinatorDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Yard Supervisor</h1>
           <p className="mt-1 text-sm text-gray-500">Sheet collection status across all closed trips</p>
         </div>
-        {!loading && pending.length > 0 && (
-          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-            <AlertCircle className="h-4 w-4 text-amber-500" />
-            <span className="text-xs font-semibold text-amber-700">{pending.length} trip{pending.length > 1 ? "s" : ""} awaiting collection</span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {!loading && pending.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+              <AlertCircle className="h-4 w-4 text-amber-500" />
+              <span className="text-xs font-semibold text-amber-700">{pending.length} trip{pending.length > 1 ? "s" : ""} awaiting collection</span>
+            </div>
+          )}
+          <TripSummaryWidget />
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -229,9 +232,6 @@ export function TripSheetCoordinatorDashboard() {
           )}
         </div>
       </div>
-
-      {/* Trip Status Overview */}
-      <TripSummaryWidget />
 
     </div>
   );

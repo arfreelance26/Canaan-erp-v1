@@ -14,6 +14,9 @@ from websocket_manager import emit
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
 
+# All roles that should receive trip-event notifications
+_ALL_ROLES = "Admin,Commercial Manager,Assistant Commercial Manager,Accounts,Trip Sheet Register,Yard Supervisor,Maintenance"
+
 
 def _remember_customer_origin(db: Session, customer_id, origin: Optional[str]):
     """Persist a customer's typed origin so it can be auto-fetched next time the same customer is selected."""
@@ -92,7 +95,11 @@ def list_trips(
 
 
 @router.post("", response_model=schemas.TripOut, status_code=201)
-def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
+def create_trip(
+    payload: schemas.TripCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_trip_duplicates(db, payload)
     if db.query(models.Trip).filter(models.Trip.trip_id == payload.trip_id).first():
         raise HTTPException(400, f"Trip ID {payload.trip_id} already exists")
@@ -105,6 +112,24 @@ def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
     db.refresh(trip)
     _remember_customer_origin(db, trip.customer_id, trip.origin)
     emit("trip_created", {"trip_id": trip.trip_id})
+    emit("trip_assigned", {
+        "trip_id": trip.trip_id,
+        "origin": trip.origin or "",
+        "destination": trip.destination or "",
+        "assigned_by": current_user.name,
+    })
+    # Persist so users who were offline still see it on reconnect
+    db.add(models.Notification(
+        event_type="trip_assigned",
+        title=f"Trip {trip.trip_id} assigned",
+        message=json.dumps({"origin": trip.origin or "", "destination": trip.destination or "", "by": current_user.name}),
+        trip_id_str=trip.trip_id,
+        booking_reference_no=trip.booking_reference_no,
+        target_roles=_ALL_ROLES,
+        created_by=current_user.name,
+        created_by_role=current_user.role,
+    ))
+    db.commit()
     return _enrich(trip)
 
 
@@ -257,7 +282,12 @@ def delete_trip(trip_id: int, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.post("/{trip_id}/close", response_model=schemas.TripClosureOut, status_code=201)
-def close_trip(trip_id: int, payload: schemas.TripClosureCreate, db: Session = Depends(get_db)):
+def close_trip(
+    trip_id: int,
+    payload: schemas.TripClosureCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     # SELECT FOR UPDATE — serialises concurrent requests on this trip row
     trip = db.query(models.Trip).with_for_update().filter(models.Trip.id == trip_id).first()
     if not trip:
@@ -289,7 +319,25 @@ def close_trip(trip_id: int, payload: schemas.TripClosureCreate, db: Session = D
     db.add(closure)
     db.commit()
     db.refresh(closure)
-    emit("trip_closed", {"trip_id": trip_id})
+    emit("trip_closed", {
+        "trip_id": trip_id,
+        "trip_id_str": trip.trip_id,
+        "origin": trip.origin or "",
+        "destination": trip.destination or "",
+        "closed_by": current_user.name,
+    })
+    # Persist so users who were offline still see it on reconnect
+    db.add(models.Notification(
+        event_type="trip_closed",
+        title=f"Trip {trip.trip_id} completed",
+        message=json.dumps({"origin": trip.origin or "", "destination": trip.destination or "", "by": current_user.name}),
+        trip_id_str=trip.trip_id,
+        booking_reference_no=trip.booking_reference_no,
+        target_roles=_ALL_ROLES,
+        created_by=current_user.name,
+        created_by_role=current_user.role,
+    ))
+    db.commit()
     return closure
 
 

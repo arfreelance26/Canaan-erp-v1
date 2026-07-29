@@ -214,6 +214,8 @@ class CustomerDestination(Base):
     destination_name = Column(String(200), nullable=True)
     destination_state = Column(String(100))
     destination_address = Column(String(500))
+    origin_state = Column(String(100), nullable=True)
+    origin_address = Column(String(500), nullable=True)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
     approx_distance_km = Column(Numeric(8, 2), nullable=True)
 
@@ -705,6 +707,35 @@ class SacCode(Base):
     gst_rate = Column(Numeric(5, 2), default=0)
     linked_expense = Column(String(200), nullable=True)
     auto_populate_invoice_type = Column(String(50), nullable=True)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TripExpenseRate(Base):
+    __tablename__ = "trip_expense_rates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)  # e.g. "Standard Rates"
+    # Section 1 — Port & Operational Charges
+    port_pass_expense = Column(Numeric(10, 2), default=0)
+    port_pass_expense_auto = Column(Boolean, default=False, nullable=False)
+    weight_sheet_expense = Column(Numeric(10, 2), default=0)
+    weight_sheet_expense_auto = Column(Boolean, default=False, nullable=False)
+    mamol_expense = Column(Numeric(10, 2), default=0)
+    mamol_expense_auto = Column(Boolean, default=False, nullable=False)
+    claimable_mamol_expense = Column(Numeric(10, 2), default=0)
+    claimable_mamol_expense_auto = Column(Boolean, default=False, nullable=False)
+    # Section 2 — Government & Compliance
+    traffic_rto_expense = Column(Numeric(10, 2), default=0)
+    traffic_rto_expense_auto = Column(Boolean, default=False, nullable=False)
+    # Section 3 — Loading & Handling
+    lift_on_off_expense = Column(Numeric(10, 2), default=0)
+    lift_on_off_expense_auto = Column(Boolean, default=False, nullable=False)
+    crane_operator_expense = Column(Numeric(10, 2), default=0)
+    crane_operator_expense_auto = Column(Boolean, default=False, nullable=False)
+    parking_expense = Column(Numeric(10, 2), default=0)
+    parking_expense_auto = Column(Boolean, default=False, nullable=False)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

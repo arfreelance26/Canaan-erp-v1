@@ -601,44 +601,43 @@ function AdminDashboard() {
 
       {activeTab === "overview" && <>
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-gray-400">Fleet command centre · {dayLabel}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleBackup("excel")}
-            disabled={backupLoading !== null}
-            className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            {backupLoading === "excel" ? "Downloading…" : "Download Excel"}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleBackup("sql")}
-            disabled={backupLoading !== null}
-            className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
-          >
-            <Database className="h-3.5 w-3.5" />
-            {backupLoading === "sql" ? "Downloading…" : "Download SQL"}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleBackup("files")}
-            disabled={backupLoading !== null}
-            className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
-          >
-            <FolderArchive className="h-3.5 w-3.5" />
-            {backupLoading === "files" ? "Downloading…" : "Download Files (ZIP)"}
-          </button>
-          <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs font-medium text-gray-500">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            Live
+      <div className="flex items-center justify-between gap-6">
+        <div className="flex flex-col gap-2">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p className="mt-0.5 text-sm text-gray-400">Fleet command centre · {dayLabel}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleBackup("excel")}
+              disabled={backupLoading !== null}
+              className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              {backupLoading === "excel" ? "Downloading…" : "Download Excel"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBackup("sql")}
+              disabled={backupLoading !== null}
+              className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+            >
+              <Database className="h-3.5 w-3.5" />
+              {backupLoading === "sql" ? "Downloading…" : "Download SQL"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBackup("files")}
+              disabled={backupLoading !== null}
+              className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+            >
+              <FolderArchive className="h-3.5 w-3.5" />
+              {backupLoading === "files" ? "Downloading…" : "Download Files (ZIP)"}
+            </button>
           </div>
         </div>
+        <TripSummaryWidget />
       </div>
 
       {/* ── Compliance Alert Banner ─────────────────────────────────────── */}
@@ -1643,9 +1642,6 @@ function AdminDashboard() {
 
       {/* ── Section 6: Maintenance Due ───────────────────────────────────── */}
       
-
-      {/* ── Section: Trip Status Overview ─────────────────────────────────── */}
-      <TripSummaryWidget />
 
       {/* ── Section: Tyre Manager ──────────────────────────────────────────── */}
       <div className="border-t border-gray-200 pt-6">

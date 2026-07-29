@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Info, Sparkles } from "lucide-react";
+import { X, Info, Sparkles, MapPin } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -325,6 +325,45 @@ export function TripFormDialog({
 
   const customerOriginNames = customerOrigins.map((o) => o.originName).filter(Boolean);
 
+  // Origin states saved on the customer's destination records — shown first in the origin dropdown
+  const customerDestinationOriginStates = [
+    ...new Set(
+      customerDestinations
+        .map((d) => d.originState)
+        .filter((s): s is string => !!s && s.trim() !== "")
+    ),
+  ];
+
+  type RouteOption = {
+    originState: string;
+    destinationState: string;
+    destLabel: string;
+    hireAmount: string;
+    approxDistanceKm: string;
+  };
+
+  // Build one route entry per destination that has both originState and destinationState.
+  // Hire amount is taken from the first pricing row that matches this destination.
+  const availableRoutes: RouteOption[] = customerDestinations
+    .filter((d) => d.originState && d.destinationState)
+    .map((d) => {
+      const destLabel = d.destinationName ?? d.destinationAddress ?? "";
+      const matchedPricing = customerPricing.find((p) => {
+        const pDest =
+          typeof p.customerDestination === "object" && p.customerDestination !== null
+            ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+            : String(p.customerDestination || "");
+        return pDest === destLabel;
+      });
+      return {
+        originState: d.originState!,
+        destinationState: d.destinationState,
+        destLabel,
+        hireAmount: matchedPricing?.rate ?? "",
+        approxDistanceKm: d.approxDistanceKm ?? "",
+      };
+    });
+
   // Predefined standard port/logistics locations (always available in dropdowns)
   const PREDEFINED_LOCATIONS = [
     "Chennai Port",
@@ -354,9 +393,19 @@ export function TripFormDialog({
     "Madurai",
   ];
 
-  // When a customer is selected and has saved origins, show ONLY those origins.
-  // Otherwise fall back to typed history + predefined port locations.
+  // Origin priority: destination origin states > customer origin names > history + predefined
   const allOriginOptions = (() => {
+    // Destination origin states from the selected customer take priority
+    if (customerDestinationOriginStates.length > 0) {
+      const destStatesLower = customerDestinationOriginStates.map((s) => s.toLowerCase());
+      const extras = customerOriginNames
+        .filter((o) => !destStatesLower.includes(o.toLowerCase()))
+        .map((o) => ({ value: o, label: o }));
+      return [
+        ...customerDestinationOriginStates.map((s) => ({ value: s, label: s })),
+        ...extras,
+      ];
+    }
     if (customerOriginNames.length > 0) {
       return customerOriginNames.map((o) => ({ value: o, label: o }));
     }
@@ -488,6 +537,25 @@ export function TripFormDialog({
 
   function handleOriginChange(origin: string) {
     setForm((prev) => ({ ...prev, origin }));
+  }
+
+  function handleRouteSelect(route: RouteOption) {
+    if (isShifting) return;
+    const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
+    const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+    const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+    const hireBase = finalCustomerPricing?.accountsHireAmount ?? route.hireAmount;
+    setForm((prev) => ({
+      ...prev,
+      origin: route.originState,
+      destination: route.destinationState,
+      ...(route.hireAmount ? { transportHireAmount: route.hireAmount } : {}),
+      ...(prev.driverCompensationType === "Normal"
+        ? { driverAdvanceAmount: calcCompensation(hireBase, pct) }
+        : {}),
+      approxTripDistance: route.approxDistanceKm,
+      approxKm: route.approxDistanceKm || prev.approxKm,
+    }));
   }
 
   function findPricingForDestAndSpec(
@@ -1090,6 +1158,74 @@ export function TripFormDialog({
         <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Route Information</p>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+
+            {/* Available Routes — always visible except for Shifting trips */}
+            {!isShifting && (
+              <div className="sm:col-span-2">
+                <Field label="Available Routes">
+                  {availableRoutes.length === 0 ? (
+                    <div className="flex items-start gap-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3.5">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500">No Available Routes</p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
+                          Add routes in the{" "}
+                          <span className="font-medium text-blue-500">&ldquo;Add Customers&rdquo;</span>{" "}
+                          page under Customer Destinations, or manually type the address in the fields below.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-2 pt-0.5">
+                        {availableRoutes.map((route, i) => {
+                          const isSelected =
+                            form.origin === route.originState &&
+                            form.destination === route.destinationState;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => handleRouteSelect(route)}
+                              className={[
+                                "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all duration-150",
+                                isSelected
+                                  ? "border-blue-400 bg-blue-600 text-white shadow-md"
+                                  : "border-gray-200 bg-white text-gray-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700",
+                              ].join(" ")}
+                            >
+                              <span>{route.originState}</span>
+                              <span className={`text-xs ${isSelected ? "text-blue-200" : "text-gray-400"}`}>
+                                →
+                              </span>
+                              <span>{route.destinationState}</span>
+                              {route.hireAmount && (
+                                <span
+                                  className={[
+                                    "ml-1 rounded-full px-2 py-0.5 text-xs font-bold",
+                                    isSelected
+                                      ? "bg-blue-500 text-blue-100"
+                                      : "border border-emerald-200 bg-emerald-50 text-emerald-700",
+                                  ].join(" ")}
+                                >
+                                  ₹{Number(route.hireAmount).toLocaleString("en-IN")}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1.5 text-xs text-gray-400">
+                        Select a route to auto-fill Origin and Destination fields
+                      </p>
+                    </>
+                  )}
+                </Field>
+              </div>
+            )}
+
             <Field label="Origin Location" required>
               {isShifting ? (
                 <>
@@ -1124,7 +1260,12 @@ export function TripFormDialog({
                     placeholder={allOriginOptions.length > 0 ? "Select or type origin" : "e.g. Coimbatore"}
                     options={allOriginOptions}
                   />
-                  {customerOriginNames.length > 0 && (
+                  {customerDestinationOriginStates.length > 0 && (
+                    <span className="mt-1 text-xs text-blue-600">
+                      Showing origin states from this customer&apos;s destinations
+                    </span>
+                  )}
+                  {customerDestinationOriginStates.length === 0 && customerOriginNames.length > 0 && (
                     <span className="mt-1 text-xs text-blue-600">
                       Showing saved origins for this customer
                     </span>

@@ -21,18 +21,22 @@ export function CustomerDestinationTable({ destinations, customers, onEdit, onDe
   }
 
   const hasData = {
-    customerName: destinations.some((d) => customers.find(c => c.id === d.customerId)?.name),
-    destinationState: destinations.some((d) => d.destinationState),
+    customerName:       destinations.some((d) => customers.find(c => c.id === d.customerId)?.name),
+    originState:        destinations.some((d) => d.originState),
+    originAddress:      destinations.some((d) => d.originAddress),
+    destinationState:   destinations.some((d) => d.destinationState),
     destinationAddress: destinations.some((d) => d.destinationAddress),
   };
 
   return (
     <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-      <table className="w-full min-w-[500px] text-left text-sm whitespace-nowrap">
+      <table className="w-full min-w-[600px] text-left text-sm whitespace-nowrap">
         <thead className="sticky top-0 z-10">
           <tr className="border-b border-gray-200 bg-gray-50">
-            {hasData.customerName && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>}
-            {hasData.destinationState && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Destination State</th>}
+            {hasData.customerName       && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>}
+            {hasData.originState        && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-blue-600 uppercase">Origin State</th>}
+            {hasData.originAddress      && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-blue-600 uppercase">Origin Address</th>}
+            {hasData.destinationState   && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Destination State</th>}
             {hasData.destinationAddress && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Destination Address</th>}
             <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actions</th>
           </tr>
@@ -42,9 +46,11 @@ export function CustomerDestinationTable({ destinations, customers, onEdit, onDe
             const customer = customers.find((c) => c.id === entry.customerId);
             return (
               <tr key={entry.id} className="hover:bg-gray-50">
-                {hasData.customerName && <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>}
-                {hasData.destinationState && <td className="px-4 py-3 text-gray-600">{entry.destinationState}</td>}
-                {hasData.destinationAddress && <td className="px-4 py-3 text-gray-600">{entry.destinationAddress}</td>}
+                {hasData.customerName       && <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>}
+                {hasData.originState        && <td className="px-4 py-3 text-blue-700 font-medium">{entry.originState || "—"}</td>}
+                {hasData.originAddress      && <td className="px-4 py-3 text-blue-600">{entry.originAddress || "—"}</td>}
+                {hasData.destinationState   && <td className="px-4 py-3 text-gray-600">{entry.destinationState || "—"}</td>}
+                {hasData.destinationAddress && <td className="px-4 py-3 text-gray-600">{entry.destinationAddress || "—"}</td>}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button

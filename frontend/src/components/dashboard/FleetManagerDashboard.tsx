@@ -200,9 +200,12 @@ export function FleetManagerDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Commercial Manager Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">Real-time fleet status, active trips, and operational overview</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Commercial Manager Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">Real-time fleet status, active trips, and operational overview</p>
+        </div>
+        <TripSummaryWidget />
       </div>
 
       {/* Stats */}
@@ -417,9 +420,6 @@ export function FleetManagerDashboard() {
           </div>
         )}
       </div>
-
-      {/* Trip Status Overview */}
-      <TripSummaryWidget />
 
     </div>
   );

@@ -10,7 +10,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
-import { repairTypesApi, fuelLogsApi, tripsApi } from "@/lib/api";
+import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
 import { showError, MySwal } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -109,12 +109,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [invoiceRequired, setInvoiceRequired] = useState(true);
   const [localDriverAdvance, setLocalDriverAdvance] = useState("");
   const [localAdditionalAdvance, setLocalAdditionalAdvance] = useState("");
+  const [expenseConfig, setExpenseConfig] = useState<TripExpenseRate | null>(null);
   // Tracks which session has been initialized to prevent auto-refresh from resetting the form
   const initKeyRef = useRef<string>("");
 
   useEffect(() => {
     repairTypesApi.list().then(setRepairTypes).catch(() => setRepairTypes([]));
     fuelLogsApi.listFuelStations().then(setFuelStations).catch(() => setFuelStations([]));
+    tripExpenseRatesApi.getConfig().then(setExpenseConfig).catch(() => {});
   }, []);
 
   const truckDbId = useMemo(
@@ -190,9 +192,28 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       }
       // Auto-set entry date to today (non-editable once set)
       sheet.tripSheetDate = todayIst();
+      // Pre-fill expense fields that the Admin has marked for auto-populate
+      if (expenseConfig) {
+        if (expenseConfig.portPassExpenseAuto && expenseConfig.portPassExpense > 0)
+          sheet.portPassExpense = String(expenseConfig.portPassExpense);
+        if (expenseConfig.weightSheetExpenseAuto && expenseConfig.weightSheetExpense > 0)
+          sheet.weightSheetExpense = String(expenseConfig.weightSheetExpense);
+        if (expenseConfig.mamolExpenseAuto && expenseConfig.mamolExpense > 0)
+          sheet.mamolExpense = String(expenseConfig.mamolExpense);
+        if (expenseConfig.claimableMamolExpenseAuto && expenseConfig.claimableMamolExpense > 0)
+          sheet.claimableMamolExpense = String(expenseConfig.claimableMamolExpense);
+        if (expenseConfig.trafficRtoExpenseAuto && expenseConfig.trafficRtoExpense > 0)
+          sheet.trafficRtoExpense = String(expenseConfig.trafficRtoExpense);
+        if (expenseConfig.liftOnOffExpenseAuto && expenseConfig.liftOnOffExpense > 0)
+          sheet.liftOnOffExpense = String(expenseConfig.liftOnOffExpense);
+        if (expenseConfig.craneOperatorExpenseAuto && expenseConfig.craneOperatorExpense > 0)
+          sheet.craneOperatorExpense = String(expenseConfig.craneOperatorExpense);
+        if (expenseConfig.parkingExpenseAuto && expenseConfig.parkingExpense > 0)
+          sheet.parkingExpense = String(expenseConfig.parkingExpense);
+      }
       setForm(recalcDerived(sheet, hp));
     }
-  }, [open, trip, existingSheet, closure]);
+  }, [open, trip, existingSheet, closure, expenseConfig]);
 
   // Sync advance breakdown locals whenever closure loads/changes (independent of initKeyRef)
   useEffect(() => {
