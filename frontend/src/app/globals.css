@@ -161,6 +161,14 @@ html.dark {
   --color-violet-600:#a78bfa; --color-violet-700:#a78bfa; --color-violet-800:#ddd6fe; --color-violet-900:#ede9fe;
 }
 
+/* Bare inputs/textareas/selects with no explicit bg inherit the card surface in dark */
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="range"]):not([class*="bg-"]),
+html.dark textarea:not([class*="bg-"]),
+html.dark select:not([class*="bg-"]) {
+  background-color: transparent;
+  color: var(--color-gray-900);
+}
+
 /* Login logo — white background so it doesn't merge with the dark card */
 html.dark .login-logo-wrap {
   background-color: rgba(255, 255, 255, 0.92);
@@ -683,4 +691,107 @@ html.dark .canaan-calendar .react-datepicker__navigation-icon::before {
 }
 html.dark .canaan-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
   border-color: #eef1f6 !important;
+}
+
+/* Month / Year <select> dropdowns in the calendar header (dropdownMode="select") */
+.canaan-calendar .react-datepicker__month-select,
+.canaan-calendar .react-datepicker__year-select {
+  background-color: #ffffff;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+html.dark .canaan-calendar .react-datepicker__month-select,
+html.dark .canaan-calendar .react-datepicker__year-select {
+  background-color: #262b34 !important;
+  color: #eef1f6 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color-scheme: dark;
+}
+/* Native <option> items rendered by the OS dropdown */
+html.dark .canaan-calendar .react-datepicker__month-select option,
+html.dark .canaan-calendar .react-datepicker__year-select option {
+  background-color: #262b34;
+  color: #eef1f6;
+}
+
+/* ---- SweetAlert2 dark mode ---- */
+html.dark .swal2-popup {
+  background-color: #1e2130 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #e2e8f0 !important;
+}
+html.dark .swal2-title {
+  color: #f1f5f9 !important;
+}
+html.dark .swal2-html-container {
+  color: #94a3b8 !important;
+}
+html.dark .swal2-icon.swal2-warning {
+  border-color: rgba(234, 179, 8, 0.35) !important;
+  color: #eab308 !important;
+}
+html.dark .swal2-icon.swal2-warning .swal2-icon-content {
+  color: #eab308 !important;
+}
+html.dark .swal2-icon.swal2-question {
+  border-color: rgba(96, 165, 250, 0.35) !important;
+  color: #60a5fa !important;
+}
+html.dark .swal2-icon.swal2-question .swal2-icon-content {
+  color: #60a5fa !important;
+}
+html.dark .swal2-icon.swal2-info {
+  border-color: rgba(96, 165, 250, 0.35) !important;
+  color: #60a5fa !important;
+}
+html.dark .swal2-icon.swal2-info .swal2-icon-content {
+  color: #60a5fa !important;
+}
+html.dark .swal2-icon.swal2-error {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+html.dark .swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
+  background-color: #ef4444 !important;
+}
+html.dark .swal2-icon.swal2-success {
+  border-color: rgba(34, 197, 94, 0.35) !important;
+}
+html.dark .swal2-icon.swal2-success [class^='swal2-success-line'] {
+  background: #22c55e !important;
+}
+html.dark .swal2-icon.swal2-success .swal2-success-ring {
+  border-color: rgba(34, 197, 94, 0.25) !important;
+}
+html.dark .swal2-icon.swal2-success::before,
+html.dark .swal2-icon.swal2-success::after {
+  background: #1e2130 !important;
+}
+html.dark .swal2-close {
+  color: #94a3b8 !important;
+}
+html.dark .swal2-close:hover {
+  color: #f1f5f9 !important;
+  background: transparent !important;
+}
+html.dark .swal2-timer-progress-bar {
+  background: rgba(212, 175, 55, 0.6) !important;
+}
+/* Toast dark mode */
+html.dark .swal2-toast {
+  background-color: #1e2130 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+html.dark .swal2-toast .swal2-title {
+  color: #f1f5f9 !important;
+}
+html.dark .swal2-toast .swal2-html-container {
+  color: #94a3b8 !important;
+}
+html.dark .swal2-toast .swal2-timer-progress-bar {
+  background: rgba(212, 175, 55, 0.5) !important;
 }

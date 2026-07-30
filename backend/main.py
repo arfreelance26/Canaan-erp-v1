@@ -15,7 +15,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup
 
 Base.metadata.create_all(bind=engine)
 
@@ -487,6 +487,7 @@ app.include_router(exports.router, dependencies=AUTH)
 app.include_router(edit_approvals.router, dependencies=AUTH)
 app.include_router(notifications.router, dependencies=AUTH)
 app.include_router(trip_expense_rates.router, dependencies=AUTH)
+app.include_router(backup.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

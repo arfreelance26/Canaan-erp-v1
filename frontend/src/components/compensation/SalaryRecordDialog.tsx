@@ -8,6 +8,7 @@ import { tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { Truck } from "@/types/truck";
+import type { Branch } from "@/types/branch";
 import type { CompensationPerson } from "./CompensationTable";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
   driver: CompensationPerson | null;
   trips: Trip[];
   trucks: Truck[];
+  branches: Branch[];
   onRecordPayment: (total: number) => Promise<void>;
 };
 
@@ -55,13 +57,14 @@ type Row = {
   totalAdvance: number;
   outstandingAdvance: number;
   hireAmount: number;
+  compensationPct: number;
   regularPay: number;
   netPayable: number;
   completedDate: string;
   hasSheet: boolean;
 };
 
-export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRecordPayment }: Props) {
+export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branches, onRecordPayment }: Props) {
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -118,7 +121,12 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
         const totalAdvance = parseFloat(sheet?.driverAdvanceAmount ?? "0") || 0;
         const outstandingAdvance = totalAdvance - totalExpenses;
         const hireAmount = parseFloat(sheet?.hireAmount ?? t.transportHireAmount ?? "0") || 0;
-        const regularPay = Math.round(hireAmount * 0.1);
+        // Compensation % comes from the branch the truck is registered to; fall back to 10%
+        const branch = branches.find(
+          (b) => b.name.trim().toLowerCase() === (truck?.branchRegisteredTo ?? "").trim().toLowerCase()
+        );
+        const compensationPct = branch ? (parseFloat(branch.driverHaltDayPercentage) || 10) : 10;
+        const regularPay = Math.round(hireAmount * compensationPct / 100);
         const netPayable = regularPay - outstandingAdvance;
 
         const containerNo =
@@ -143,6 +151,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
           totalAdvance,
           outstandingAdvance,
           hireAmount,
+          compensationPct,
           regularPay,
           netPayable,
           completedDate: sheet?.tripCompletedDate ?? "",
@@ -346,13 +355,28 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
               {/* Regular Pay */}
               <div className="grid grid-cols-[160px_1fr] items-start gap-4 border-b border-slate-50 px-5 py-3 hover:bg-slate-50/70">
                 <span className="text-xs font-semibold text-slate-700">Regular Pay</span>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <span className="inline-flex w-fit items-center rounded-md bg-blue-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-blue-700">
-                    10% × Hire Amount
+                    Driver Compensation % × Hire Amount
                   </span>
                   <p className="text-[11px] leading-relaxed text-slate-500">
-                    Standard driver earnings — e.g. Hire ₹10,000 → Regular Pay ₹1,000
+                    The compensation percentage is set per branch in <span className="font-semibold text-slate-700">Admin → Branch Management → Driver Compensation %</span>.
+                    The truck&apos;s registered branch determines which % is used.
                   </p>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0 rounded bg-blue-100 px-1.5 py-px text-[10px] font-bold text-blue-600">e.g.</span>
+                      <p className="text-[11px] leading-relaxed text-slate-500">
+                        Truck branch = Tuticorin (12%) · Hire ₹10,000 → Regular Pay ₹1,200
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-px text-[10px] font-bold text-gray-500">default</span>
+                      <p className="text-[11px] leading-relaxed text-slate-500">
+                        Falls back to 10% if the truck&apos;s branch has no compensation % configured
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -451,7 +475,9 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
                       {row.hasSheet ? fmtCur(row.hireAmount) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right text-blue-700 font-semibold">
-                      {row.hasSheet ? fmtCur(row.regularPay) : <span className="text-gray-400">—</span>}
+                      {row.hasSheet ? (
+                        <span title={`${row.compensationPct}% of hire amount`}>{fmtCur(row.regularPay)}</span>
+                      ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {row.hasSheet ? <NetPayableCell v={row.netPayable} /> : <span className="text-gray-400">—</span>}

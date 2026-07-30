@@ -512,6 +512,7 @@ class TripOut(TripBase):
     trip_sheet_received: bool = False
     trip_sheet_received_at: Optional[datetime] = None
     trip_sheet_date: Optional[date] = None
+    sheet_hire_amount: Optional[float] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     driver_name: Optional[str] = None

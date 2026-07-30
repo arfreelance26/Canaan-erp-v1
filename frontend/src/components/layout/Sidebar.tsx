@@ -100,9 +100,11 @@ function getInitials(name: string): string {
 type SidebarProps = {
   collapsed: boolean;
   onToggle: () => void;
+  mobileOpen: boolean;
+  onMobileClose: () => void;
 };
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { theme } = useTheme();
@@ -129,10 +131,25 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
 
   return (
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
     <aside
       className={cn(
-        "relative flex h-screen shrink-0 flex-col border-r border-white/50 bg-white/60 backdrop-blur-xl shadow-sm transition-[width] duration-300 ease-in-out overflow-hidden",
-        collapsed ? "w-16" : "w-[280px]"
+        // Shared
+        "flex flex-col border-r border-white/50 bg-white/60 backdrop-blur-xl shadow-sm overflow-hidden",
+        // Mobile: fixed overlay drawer, slides in/out
+        "fixed inset-y-0 left-0 z-50 w-[280px] transition-transform duration-300 ease-in-out",
+        mobileOpen ? "translate-x-0" : "-translate-x-full",
+        // Desktop (md+): in-layout, overrides fixed, collapsible
+        "md:static md:inset-auto md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:transition-[width]",
+        collapsed ? "md:w-16" : "md:w-[280px]"
       )}
     >
       {/* Header — logo + toggle */}
@@ -283,5 +300,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
     </aside>
+    </>
   );
 }

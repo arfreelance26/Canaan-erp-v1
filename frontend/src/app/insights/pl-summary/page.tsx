@@ -333,7 +333,7 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
           </div>
 
           {/* Advanced filters */}
-          <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white px-5 py-4">
+          <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3">
               Advanced Filters — Profitability Based
             </p>
@@ -369,7 +369,7 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
           <input
             type="text" placeholder="Search by truck, customer, route, sheet no…"
             value={search} onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 text-sm outline-none placeholder-gray-400"
+            className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder-gray-400"
           />
           {search && <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
           <span className="text-xs text-gray-400 shrink-0">
@@ -496,7 +496,7 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
           </div>
 
           {/* Overhead deductions block */}
-          <div className="min-w-[240px] flex-1 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="min-w-[240px] flex-1 rounded-xl border border-slate-200 bg-gray-100 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Overhead Deductions</p>
             {emiDetails.length > 0 ? (
               <div className="flex justify-between py-1 text-xs">
@@ -846,7 +846,7 @@ function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
           </div>
 
           {/* Advanced filters */}
-          <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white px-5 py-4">
+          <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3">
               Advanced Filters — Profitability Based
             </p>
@@ -879,7 +879,7 @@ function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
           <input
             type="text" placeholder="Search by truck ID or registration…"
             value={search} onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 text-sm outline-none placeholder-gray-400"
+            className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder-gray-400"
           />
           {search && <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
           <span className="text-xs text-gray-400 shrink-0">
@@ -1081,7 +1081,7 @@ export default function PLSummaryPage() {
             <DatePickerInput
               value={startDate}
               onChange={(v) => { setStartDate(v); setActivePreset(""); }}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -1089,7 +1089,7 @@ export default function PLSummaryPage() {
             <DatePickerInput
               value={endDate}
               onChange={(v) => { setEndDate(v); setActivePreset(""); }}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
             />
           </div>
           <button
@@ -1113,7 +1113,7 @@ export default function PLSummaryPage() {
       {data !== null && (
         <>
           {/* Report heading banner */}
-          <div className="flex items-center gap-5 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-white px-6 py-4 shadow-sm">
+          <div className="flex items-center gap-5 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-gray-100 px-6 py-4 shadow-sm">
             <div className="h-12 w-1 rounded-full bg-blue-500 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-0.5">
@@ -1123,11 +1123,11 @@ export default function PLSummaryPage() {
                 {tab === "trips" ? "Trip Profitability" : "Truck Profitability"}
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 shadow-sm shrink-0">
+            <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 shadow-sm shrink-0">
               <CalendarDays className="h-4 w-4 text-blue-400 shrink-0" />
-              <span className="text-sm font-semibold text-gray-700">{fmtDate(startDate)}</span>
-              <span className="text-gray-300 font-light">→</span>
-              <span className="text-sm font-semibold text-gray-700">{fmtDate(endDate)}</span>
+              <span className="text-sm font-semibold text-blue-800">{fmtDate(startDate)}</span>
+              <span className="text-blue-300 font-light">→</span>
+              <span className="text-sm font-semibold text-blue-800">{fmtDate(endDate)}</span>
             </div>
           </div>
 

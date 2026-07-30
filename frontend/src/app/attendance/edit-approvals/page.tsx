@@ -250,10 +250,10 @@ export default function EditApprovalsPage() {
             <p className="text-sm font-medium text-gray-500">No edit approval requests</p>
           </div>
         ) : (
-          <div className="overflow-auto max-h-[75vh]">
+          <div className="overflow-auto max-h-[58vh]">
             <table className="w-full text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-100 bg-gray-50/50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-gray-100 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   <th className="px-4 py-3">
                     <input
                       type="checkbox"
@@ -455,7 +455,7 @@ export default function EditApprovalsPage() {
       </Dialog>
 
       {/* Request detail modal */}
-      <Dialog open={viewing !== null} onClose={() => setViewing(null)} title="Edit Request Details" className="max-w-lg">
+      <Dialog open={viewing !== null} onClose={() => setViewing(null)} title="Edit Request Details" className="max-w-2xl">
         {viewing && (
           <div className="flex flex-col gap-4 text-sm">
             <div className="grid grid-cols-2 gap-4">

@@ -244,8 +244,8 @@ export default function TripHistoryPage() {
             All trips — view booking sheet, trip sheet, and invoice.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
+        <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -284,7 +284,7 @@ export default function TripHistoryPage() {
       </div>
 
       {/* Summary count cards */}
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
         {(["All", "Assigned", "Current", "Completed", "Invoiced", "Cancelled"] as const).map((f) => {
           const colors: Record<string, string> = {
             All:       "border-gray-200 bg-white text-gray-700",

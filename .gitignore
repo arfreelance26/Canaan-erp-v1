@@ -48,6 +48,17 @@ backend/**/*.pyc
 .claude/
 frontend/out/
 frontend/out.zip
-desktop/release/
-desktop/node_modules/
-desktop/dist/
+
+# stray local databases (app uses MySQL) & python caches
+*.db
+*.sqlite
+*.sqlite3
+backend/__pycache__/
+**/__pycache__/
+
+# local tooling caches
+.claude/
+.tokensave/
+
+# desktop (Electron) — not part of the web app
+desktop/

@@ -502,7 +502,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-5xl">
+    <Dialog open={open} onClose={onClose} title={`${savedInvoice ? "Edit" : "Generate"} Invoice — ${trip.tripId}`} className="max-w-6xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
         {/* Invoice Type + Tax Details */}
@@ -912,7 +912,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     </Dialog>
 
     {/* SAC Code Table Modal */}
-    <Dialog open={showSacTable} onClose={() => setShowSacTable(false)} title="SAC Code Reference Table" className="max-w-2xl">
+    <Dialog open={showSacTable} onClose={() => setShowSacTable(false)} title="SAC Code Reference Table" className="max-w-3xl">
       <div className="flex flex-col gap-3">
         <p className="text-xs text-gray-500">
           {sacCodes.length} codes available · Click <span className="font-semibold text-blue-600">+ Add</span> to insert a service line pre-filled with that code.

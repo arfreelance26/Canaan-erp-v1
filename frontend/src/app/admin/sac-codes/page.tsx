@@ -46,8 +46,9 @@ export default function SacCodeManagementPage() {
   const [autoPopping, setAutoPopping] = useState(false);
 
   const isAdmin = user?.softwareDesignation === "Admin";
-  // Accounts may view SAC codes (read-only); Admin has full edit access.
-  const canView = isAdmin || user?.softwareDesignation === "Accounts";
+  const isAccounts = user?.softwareDesignation === "Accounts";
+  const canView = isAdmin || isAccounts;
+  const canEdit = isAdmin || isAccounts;
 
   useEffect(() => {
     if (ready && !canView) router.replace("/");
@@ -149,7 +150,7 @@ export default function SacCodeManagementPage() {
   }
 
   if (!ready || !canView) return null;
-  if (loading) return <PageSkeleton hasButton hasSearch columns={4} />;
+  if (loading) return <PageSkeleton hasButton={canEdit} hasSearch columns={4} />;
 
   const filteredSacCodes = sacCodes.filter((sc) => !searchQuery || sc.code.toLowerCase().includes(searchQuery.toLowerCase()) || sc.description.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -177,7 +178,7 @@ export default function SacCodeManagementPage() {
             />
           </div>
           <DownloadExcelButton path="/exports/sac-codes" filename="sac_codes.xlsx" />
-          {isAdmin && (
+          {canEdit && (
             <button
               type="button"
               onClick={openAdd}
@@ -199,13 +200,13 @@ export default function SacCodeManagementPage() {
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">GST (%)</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Linked Expense</th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Auto Populate</th>
-              {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>}
+              {canEdit && <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredSacCodes.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 6 : 5} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={canEdit ? 6 : 5} className="px-4 py-8 text-center text-sm text-gray-400">
                   No SAC codes configured yet. Add one to get started.
                 </td>
               </tr>
@@ -237,7 +238,7 @@ export default function SacCodeManagementPage() {
                     <span className="text-xs text-gray-400">Not set</span>
                   )}
                 </td>
-                {isAdmin && (
+                {canEdit && (
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
@@ -286,7 +287,7 @@ export default function SacCodeManagementPage() {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         title={editing ? "Edit SAC Code" : "Add SAC Code"}
-        className="max-w-md"
+        className="max-w-xl"
       >
         <form onSubmit={handleSave} className="flex flex-col gap-4">
           <Field label="Description of Service *">
@@ -342,7 +343,7 @@ export default function SacCodeManagementPage() {
         open={retrieveDialog.open}
         onClose={() => setRetrieveDialog({ open: false, sc: null })}
         title="Retrieve Values From"
-        className="max-w-sm"
+        className="max-w-lg"
       >
         <div className="flex flex-col gap-3">
           {retrieveDialog.sc && (
@@ -389,7 +390,7 @@ export default function SacCodeManagementPage() {
         open={autoPopDialog.open}
         onClose={() => setAutoPopDialog({ open: false, sc: null })}
         title="Auto Populate"
-        className="max-w-sm"
+        className="max-w-lg"
       >
         <div className="flex flex-col gap-3">
           {autoPopDialog.sc && (

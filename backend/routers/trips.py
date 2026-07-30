@@ -63,6 +63,7 @@ def _enrich(trip: models.Trip, driver_names: dict = {}, truck_regs: dict = {}) -
     data["has_closure"] = trip.closure is not None
     data["has_sheet"] = trip.sheet is not None
     data["trip_sheet_date"] = trip.sheet.trip_sheet_date if trip.sheet else None
+    data["sheet_hire_amount"] = float(trip.sheet.hire_amount) if trip.sheet and trip.sheet.hire_amount is not None else None
     data["driver_name"] = driver_names.get(trip.driver_id)
     data["truck_registration"] = truck_regs.get(trip.vehicle_id)
     return data
@@ -78,6 +79,9 @@ SHEET_COLLECTOR_ROLES = ("Yard Supervisor",)
 @router.get("", response_model=list[schemas.TripOut])
 def list_trips(
     status: Optional[str] = Query(None, description="Filter by trip status"),
+    search: Optional[str] = Query(None, description="Search trip ID, container, truck, origin, destination"),
+    limit: Optional[int] = Query(None, le=100, description="Max rows to return (AI use); omit for full list"),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.Trip).options(
@@ -86,7 +90,21 @@ def list_trips(
     )
     if status:
         q = q.filter(models.Trip.status == status)
-    trips = q.order_by(models.Trip.booking_created_date.desc()).all()
+    if search:
+        s = f"%{search.strip()}%"
+        q = q.filter(or_(
+            models.Trip.trip_id.ilike(s),
+            models.Trip.container_number.ilike(s),
+            models.Trip.container_number_1.ilike(s),
+            models.Trip.container_number_2.ilike(s),
+            models.Trip.vehicle_id.ilike(s),
+            models.Trip.origin.ilike(s),
+            models.Trip.destination.ilike(s),
+        ))
+    q = q.order_by(models.Trip.booking_created_date.desc())
+    if limit is not None:
+        q = q.offset(offset).limit(limit)
+    trips = q.all()
 
     driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
     truck_regs = {t.truck_id: t.registration_number for t in db.query(models.Truck.truck_id, models.Truck.registration_number).all()}
@@ -195,6 +213,38 @@ def _next_invoice_no(db: Session, invoice_type: str, fy: str) -> str:
         if m:
             max_seq = max(max_seq, int(m.group(1)))
     return f"CGI{fy}/{prefix}{str(max_seq + 1).zfill(4)}"
+
+
+@router.get("/ai-counts")
+def get_ai_counts(db: Session = Depends(get_db)):
+    """Pure SQL counts for the AI assistant — no row loading, fast at any scale."""
+    _ACTIVE = {"Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
+
+    def _count(*filters):
+        return db.query(func.count(models.Trip.id)).filter(*filters).scalar() or 0
+
+    return {
+        "total_trips": _count(),
+        "active": _count(models.Trip.status.in_(_ACTIVE)),
+        "pending_sheet_collection": _count(
+            models.Trip.trip_sheet_collected == False,
+            models.Trip.status.in_(_ACTIVE | {"Completed"}),
+        ),
+        "pending_reconciliation": _count(
+            models.Trip.trip_sheet_collected == True,
+            models.Trip.trip_sheet_received == False,
+        ),
+        "pending_verification": _count(
+            models.Trip.trip_sheet_received == True,
+            models.Trip.verification_status == "pending",
+        ),
+        "pending_invoice": _count(
+            models.Trip.verification_status == "verified",
+            models.Trip.is_invoiced == False,
+            models.Trip.invoice_required == True,
+        ),
+        "invoiced": _count(models.Trip.is_invoiced == True),
+    }
 
 
 @router.get("/invoices/next-seq")

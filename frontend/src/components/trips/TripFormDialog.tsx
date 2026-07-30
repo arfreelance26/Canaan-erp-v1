@@ -126,7 +126,6 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   driverAdvanceAmount: "",
   driverAdvancePaymentMethod: "",
   driverAdvance: "",
-  initialDisbursedAdvance: "",
   driverCompensationType: "",
   openLoadHireType: "",
   ratePerTon: "",
@@ -241,6 +240,15 @@ export function TripFormDialog({
       scheduledDate: todayStr,
       bookingReferenceNo: generateBookingReferenceNo(existingTrips, yesterdayStr),
     });
+    // Re-fetch customer-specific data when draft restores a customerId.
+    // The [open, initialData] effect already cleared customerDestinations, so we
+    // must reload them here or "Available Routes" will show empty on reopen.
+    if (draft.customerId) {
+      customersApi.listDestinations(draft.customerId).then(setCustomerDestinations).catch(() => {});
+      customersApi.listPricing(draft.customerId).then(setCustomerPricing).catch(() => {});
+      customersApi.listOrigins(draft.customerId).then(setCustomerOrigins).catch(() => {});
+      customersApi.listFinalPricing(draft.customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
+    }
   });
 
   // vehicleAssignmentId is not part of `form`, so useFormDraft can't save/restore it.
@@ -554,9 +562,11 @@ export function TripFormDialog({
     const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
     const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
     const hireBase = finalCustomerPricing?.accountsHireAmount ?? route.hireAmount;
-    // Use the real address strings so origin/destination fields show full locations.
-    // Fall back to state names when no address is stored.
-    const origin = route.originAddress || route.originState;
+    // For EXPORT routes, origin must be TUTICORIN — the origin GlassSelect only
+    // accepts TUTICORIN/CHENNAI, so we can't set an arbitrary originState here.
+    // For all other types, prefer the stored address then fall back to state name.
+    const cargo = route.cargoClassification as Trip["cargoClassification"] | undefined;
+    const origin = cargo === "EXPORT" ? "TUTICORIN" : (route.originAddress || route.originState);
     const destination = route.destLabel || route.destinationState;
     const containerSpec = route.containerType ? containerTypeToSpec(route.containerType) : "";
     setForm((prev) => ({
@@ -834,7 +844,7 @@ export function TripFormDialog({
   const selectedCustomer = customers.find((c) => c.id === form.customerId);
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-4xl">
+    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-5xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Booking Information */}
         <section className="flex flex-col gap-5">
@@ -1616,34 +1626,6 @@ export function TripFormDialog({
             </Field>
             )}
 
-            {!isReturnTrip && (
-            <Field label="Initial Disbursed Advance (₹)">
-              <DecimalInput type="number"
-                value={form.initialDisbursedAdvance ?? ""}
-                onChange={(e) => update("initialDisbursedAdvance", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="e.g. -500 (leave blank if full advance was sent)"
-              />
-              <span className="mt-1 text-xs text-gray-400">
-                Use this if the actual amount sent to the driver differs from the Driver Advance above.
-                Enter the <strong>difference</strong> (negative if less was sent, positive if more).
-                {form.driverAdvance && form.initialDisbursedAdvance && (() => {
-                  const base = parseFloat(form.driverAdvance);
-                  const adj = parseFloat(form.initialDisbursedAdvance);
-                  if (!isNaN(base) && !isNaN(adj)) {
-                    const effective = base + adj;
-                    return (
-                      <span className="ml-1 font-semibold text-blue-600">
-                        Effective amount sent: ₹{effective.toLocaleString("en-IN")}
-                      </span>
-                    );
-                  }
-                  return null;
-                })()}
-              </span>
-            </Field>
-            )}
 
             <Field label="Driver Batta Amount (₹)" required>
               <DecimalInput type="number"

@@ -36,7 +36,11 @@ export function CurrentTripsCard() {
 
   useEffect(() => {
     tripsApi.list()
-      .then((all) => setTrips(all.filter((t) => !t.isInvoiced)))
+      .then((all) => setTrips(all.filter((t) =>
+        ["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"].includes(t.status ?? "")
+        && !t.hasClosure
+        && !t.isInvoiced
+      )))
       .catch(() => {});
   }, [refreshKey]);
 
@@ -114,11 +118,12 @@ export function CurrentTripsCard() {
 
       {/* Column headers */}
       {trips.length > 0 && (
-        <div className="grid grid-cols-[1fr_1fr_140px_110px] gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+        <div className="grid grid-cols-[1fr_1fr_130px_90px_80px] gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
           <span>From</span>
           <span>To</span>
           <span>Truck</span>
           <span className="text-right">Booked On</span>
+          <span className="text-right">Status</span>
         </div>
       )}
 
@@ -127,16 +132,17 @@ export function CurrentTripsCard() {
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-center">
           <Truck className="h-8 w-8 text-gray-200" />
           <p className="text-sm text-gray-400">No current trips</p>
-          <p className="text-xs text-gray-300">All trips are closed or invoiced</p>
+          <p className="text-xs text-gray-300">All trips are completed or invoiced</p>
         </div>
       ) : (
         <div className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
           {trips.map((trip) => {
             const isNew = newTripIds.has(trip.tripId) || newTripIds.has(String(trip.id));
+            const isAssigned = trip.status === "Assigned";
             return (
               <div
                 key={trip.id}
-                className={`grid grid-cols-[1fr_1fr_140px_110px] items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
+                className={`grid grid-cols-[1fr_1fr_130px_90px_80px] items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
                   isNew
                     ? "border-l-4 border-l-blue-500 bg-blue-50"
                     : "border-l-4 border-l-transparent hover:bg-gray-50"
@@ -166,6 +172,17 @@ export function CurrentTripsCard() {
                 {/* Booking created date */}
                 <span className="shrink-0 text-right text-[11px] text-gray-400">
                   {fmtDate(trip.bookingCreatedDate || trip.assignedDate)}
+                </span>
+
+                {/* Status badge */}
+                <span className="flex justify-end">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                    isAssigned
+                      ? "bg-sky-100 text-sky-700"
+                      : "bg-violet-100 text-violet-700"
+                  }`}>
+                    {isAssigned ? "Assigned" : trip.status}
+                  </span>
                 </span>
               </div>
             );

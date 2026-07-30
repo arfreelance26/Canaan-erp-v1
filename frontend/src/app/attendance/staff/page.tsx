@@ -292,23 +292,24 @@ export default function StaffAttendancePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="relative z-50 flex flex-wrap items-center justify-between gap-4">
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Attendance</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track and mark attendance for all staff members
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View date picker */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-600">View Date</label>
+        <div className="flex items-center gap-2">
+            
             <DatePickerInput
               value={date}
               onChange={(v) => setDate(v)}
-              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* View date picker */}
+          
 
           <div className="h-6 w-px bg-gray-200" />
 

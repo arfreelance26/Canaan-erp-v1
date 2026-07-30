@@ -78,15 +78,46 @@ def _maintenance_status(truck: models.Truck, records: list) -> list:
 # Maintenance Records
 # ---------------------------------------------------------------------------
 
+@router.get("/maintenance/ai-counts", tags=["Maintenance"])
+def get_maintenance_ai_counts(db: Session = Depends(get_db)):
+    """Pure SQL counts for AI assistant — no row loading."""
+    from sqlalchemy import func
+    total_records = db.query(func.count(models.MaintenanceRecord.id)).scalar() or 0
+    total_fuel_logs = db.query(func.count(models.FuelLog.id)).scalar() or 0
+    total_cost = float(db.query(func.coalesce(func.sum(models.MaintenanceRecord.cost), 0)).scalar() or 0)
+    total_fuel_spend = float(db.query(func.coalesce(func.sum(models.FuelLog.total_cost), 0)).scalar() or 0)
+    total_litres = float(db.query(func.coalesce(func.sum(models.FuelLog.litres), 0)).scalar() or 0)
+    return {
+        "total_maintenance_records": total_records,
+        "total_fuel_log_entries": total_fuel_logs,
+        "total_maintenance_cost": total_cost,
+        "total_fuel_spend": total_fuel_spend,
+        "total_litres_consumed": total_litres,
+    }
+
+
 @router.get("/maintenance/records", response_model=list[schemas.MaintenanceRecordOut], tags=["Maintenance"])
 def list_maintenance_records(
     truck_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None, description="Search by maintenance type or description"),
+    limit: Optional[int] = Query(None, le=100, description="Max rows (AI use); omit for full list"),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    from sqlalchemy import or_
     q = db.query(models.MaintenanceRecord)
     if truck_id:
         q = q.filter(models.MaintenanceRecord.truck_id == truck_id)
-    return q.order_by(models.MaintenanceRecord.date.desc()).all()
+    if search:
+        s = f"%{search.strip()}%"
+        q = q.filter(or_(
+            models.MaintenanceRecord.maintenance_type.ilike(s),
+            models.MaintenanceRecord.description.ilike(s),
+        ))
+    q = q.order_by(models.MaintenanceRecord.date.desc())
+    if limit is not None:
+        q = q.offset(offset).limit(limit)
+    return q.all()
 
 
 @router.post("/maintenance/records", response_model=schemas.MaintenanceRecordOut, status_code=201, tags=["Maintenance"])
@@ -246,11 +277,19 @@ def get_compliance(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.get("/maintenance/fuel-logs", response_model=list[schemas.FuelLogOut], tags=["Fuel Logs"])
-def list_fuel_logs(truck_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
+def list_fuel_logs(
+    truck_id: Optional[int] = Query(None),
+    limit: Optional[int] = Query(None, le=100, description="Max rows (AI use); omit for full list"),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
     q = db.query(models.FuelLog)
     if truck_id:
         q = q.filter(models.FuelLog.truck_id == truck_id)
-    return q.order_by(models.FuelLog.date.desc()).all()
+    q = q.order_by(models.FuelLog.date.desc())
+    if limit is not None:
+        q = q.offset(offset).limit(limit)
+    return q.all()
 
 
 @router.get("/maintenance/fuel-stations", response_model=list[str], tags=["Fuel Logs"])

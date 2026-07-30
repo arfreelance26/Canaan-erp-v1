@@ -36,7 +36,7 @@ interface OverviewData {
   completed_pending_closure: number;
 }
 
-const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+const ACTIVE_STATUSES = new Set(["Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
 
 const STATUS_COLORS: Record<string, string> = {
   "Assigned": "bg-sky-100 text-sky-700",
@@ -177,10 +177,10 @@ export function FleetManagerDashboard() {
   // Trip Sheet Tracking panel live even if a specific WS event is missed.
   useAutoRefresh(() => setRefreshKey(k => k + 1), 15000);
 
-  // Map vehicleId → active trip
+  // Map vehicleId → active trip (exclude closed and invoiced trips)
   const activeTripByVehicle = new Map<string, Trip>();
   for (const trip of allTrips) {
-    if (ACTIVE_STATUSES.has(trip.status ?? "") && trip.vehicleId) {
+    if (ACTIVE_STATUSES.has(trip.status ?? "") && trip.vehicleId && !trip.hasClosure && !trip.isInvoiced) {
       activeTripByVehicle.set(trip.vehicleId, trip);
     }
   }

@@ -59,13 +59,13 @@ function Row({
 }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 rounded-xl bg-gray-50/80 px-3.5 py-2.5 transition-colors hover:bg-gray-100/80">
-      <span className="mt-0.5 h-4 w-4 shrink-0 text-blue-500">{icon}</span>
+    <div className="flex items-start gap-3 rounded-xl bg-gray-50/80 px-3.5 py-2.5 transition-colors hover:bg-gray-100/80 dark:bg-white/5 dark:hover:bg-white/10">
+      <span className="mt-0.5 h-4 w-4 shrink-0 text-blue-400">{icon}</span>
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
           {label}
         </p>
-        <p className="mt-0.5 break-words text-sm font-medium text-gray-900">
+        <p className="mt-0.5 break-words text-sm font-medium text-gray-900 dark:text-white">
           {value}
         </p>
       </div>
@@ -83,7 +83,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
     setProfile(null);
 
     // Admin has no DB record — build from auth context
-    if (user.id === null || user.staffId === "ADMIN") {
+    if (user.id === null || user.staffId === "ADMIN" || user.softwareDesignation === "Admin") {
       setProfile({
         name: user.name,
         staff_id: "ADMIN",
@@ -149,7 +149,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/60 bg-white shadow-[0_24px_64px_rgba(0,0,0,0.15)] animate-[slideUpFade_0.4s_cubic-bezier(0.175,0.885,0.32,1.275)_both]">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/60 bg-white dark:bg-[#1a2035] dark:border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.15)] animate-[slideUpFade_0.4s_cubic-bezier(0.175,0.885,0.32,1.275)_both]">
         {/* Gradient header — avatar on left, info on right */}
         <div className="relative bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 px-6 py-5">
           <button
@@ -191,7 +191,7 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
         </div>
 
         {/* Details */}
-        <div className="max-h-[50vh] overflow-y-auto px-5 pb-6">
+        <div className="max-h-[50vh] overflow-y-auto px-5 pt-4 pb-6">
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
@@ -232,12 +232,12 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
               <Row
                 icon={<Calendar className="h-4 w-4" />}
                 label="Date of Joining"
-                value={formatDateLong(profile?.date_of_joining)}
+                value={profile?.date_of_joining ? formatDateLong(profile.date_of_joining) : null}
               />
               <Row
                 icon={<Calendar className="h-4 w-4" />}
                 label="Date of Birth"
-                value={formatDateLong(profile?.date_of_birth)}
+                value={profile?.date_of_birth ? formatDateLong(profile.date_of_birth) : null}
               />
               <Row
                 icon={<MapPin className="h-4 w-4" />}

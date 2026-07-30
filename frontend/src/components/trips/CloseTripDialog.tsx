@@ -145,7 +145,7 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
   if (!trip) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} title="Close Trip" className="max-w-4xl">
+    <Dialog open={open} onClose={onClose} title="Close Trip" className="max-w-5xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
         {/* 1. Shipment Information */}

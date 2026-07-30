@@ -101,6 +101,13 @@ const ACTIVE_TRIP_STATUSES: TripStatus[] = [
   "Unloaded",
 ];
 
+// Trips that have actually started (excludes Assigned-but-not-started)
+const CURRENT_TRIP_STATUSES: TripStatus[] = ["Started", "Loaded", "On-Transit", "Reached", "Unloaded"];
+
+function isActiveTrip(t: Trip): boolean {
+  return CURRENT_TRIP_STATUSES.includes(t.status) && !t.hasClosure && !t.isInvoiced;
+}
+
 const RECURRING_FREQUENCY_DIVISOR: Record<string, number> = {
   Monthly: 1,
   Quarterly: 3,
@@ -218,7 +225,8 @@ function AdminDashboard() {
 
   async function handleBackup(type: "excel" | "sql" | "files") {
     setBackupLoading(type);
-    const fallbackName = type === "files" ? "canaan_erp_files.zip" : `canaan_erp_backup.${type}`;
+    const extMap = { excel: "xlsx", sql: "sql", files: "zip" } as const;
+    const fallbackName = type === "files" ? "canaan_erp_files.zip" : `canaan_erp_backup.${extMap[type]}`;
     try {
       await downloadExcel(`/backup/${type}`, fallbackName);
     } catch (err) {
@@ -350,12 +358,12 @@ function AdminDashboard() {
   }, [trips]);
 
   const activeTripsCount = useMemo(
-    () => trips.filter((t) => ACTIVE_TRIP_STATUSES.includes(t.status)).length,
+    () => trips.filter(isActiveTrip).length,
     [trips]
   );
 
   const liveTrips = useMemo(
-    () => trips.filter((t) => ACTIVE_TRIP_STATUSES.includes(t.status)).slice(0, 8),
+    () => trips.filter(isActiveTrip).slice(0, 8),
     [trips]
   );
 
@@ -363,7 +371,7 @@ function AdminDashboard() {
     () =>
       new Set(
         trips
-          .filter((t) => ACTIVE_TRIP_STATUSES.includes(t.status))
+          .filter(isActiveTrip)
           .map((t) => t.vehicleId)
           .filter(Boolean)
       ),

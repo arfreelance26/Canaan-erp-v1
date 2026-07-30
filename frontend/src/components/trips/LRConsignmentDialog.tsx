@@ -235,7 +235,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
               <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-indigo-500">
                 Auto-filled from trip
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600">No.</label>
                   <input readOnly value={trip.tripId} className={roClass} />
@@ -289,7 +289,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
               </p>
               <div className="space-y-3">
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">CONSIGNOR</label>
                     <textarea
@@ -312,7 +312,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">Ref No.</label>
                     <input value={refNo} onChange={(e) => setRefNo(e.target.value)} placeholder="Reference number" className={inClass} />
@@ -323,7 +323,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">S.B / B.E No.</label>
                     <input value={sbBeNo} onChange={(e) => setSbBeNo(e.target.value)} placeholder="Shipping Bill / Bill of Entry No." className={inClass} />
@@ -334,7 +334,7 @@ export function LRConsignmentDialog({ open, trip, truck, invoiceNo, onClose, onS
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">Tare</label>
                     <input value={tare} onChange={(e) => setTare(e.target.value)} placeholder="Tare weight" className={inClass} />

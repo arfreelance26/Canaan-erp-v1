@@ -227,7 +227,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Manage Tyres — ${truck.registrationNumber}`} className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title={`Manage Tyres — ${truck.registrationNumber}`} className="max-w-4xl">
       <div className="flex flex-col gap-4">
         {layout ? (
           <TyreLayoutDiagram

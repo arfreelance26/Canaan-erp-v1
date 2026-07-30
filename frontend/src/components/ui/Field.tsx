@@ -1,10 +1,13 @@
 import { cn } from "@/lib/utils";
 
+// NOTE: dark mode is handled by the CSS-variable remap in globals.css (the gray
+// scale inverts + bg-white is overridden). Do NOT add `dark:` variants here —
+// they resolve against the inverted scale and produce dark text on dark surfaces.
 export const inputClass =
-  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] focus:outline-none hover:border-gray-300 hover:bg-white/90 uppercase placeholder:normal-case";
+  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] focus:outline-none hover:border-gray-300 hover:bg-white/90 uppercase placeholder:normal-case placeholder:text-gray-400";
 
 export const inputClassLower =
-  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] focus:outline-none hover:border-gray-300 hover:bg-white/90 placeholder:normal-case input-no-transform";
+  "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white/80 backdrop-blur-sm transition-all duration-200 focus:border-blue-500 focus:bg-white focus:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] focus:outline-none hover:border-gray-300 hover:bg-white/90 placeholder:normal-case placeholder:text-gray-400 input-no-transform";
 
 type FieldProps = {
   label: string;

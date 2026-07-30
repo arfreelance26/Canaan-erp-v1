@@ -32,6 +32,12 @@ python-dotenv==1.0.0          # Load environment variables from .env
 email-validator==2.1.0        # Email validation
 openpyxl==3.1.5                # Excel (.xlsx) generation for export endpoints
 
+# Scheduled Google Drive backup (backend/backup/)
+# ============================================================================
+google-api-python-client==2.114.0     # Google Drive API client
+google-auth-httplib2==0.2.0           # HTTP transport for google-auth
+google-auth-oauthlib==1.2.0           # OAuth installed-app flow + token refresh
+
 # Development & Optional
 # ============================================================================
 # Uncomment for production deployment

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
@@ -13,8 +15,24 @@ router = APIRouter(prefix="/customers", tags=["Customers"])
 # ---------------------------------------------------------------------------
 
 @router.get("", response_model=list[schemas.CustomerOut])
-def list_customers(db: Session = Depends(get_db)):
-    return db.query(models.Customer).order_by(models.Customer.name).all()
+def list_customers(
+    search: Optional[str] = Query(None, description="Search by name, GSTIN, phone, email"),
+    limit: Optional[int] = Query(None, le=100, description="Max rows (AI use); omit for full list"),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Customer).order_by(models.Customer.name)
+    if search:
+        s = f"%{search.strip()}%"
+        q = q.filter(or_(
+            models.Customer.name.ilike(s),
+            models.Customer.gstin.ilike(s),
+            models.Customer.phone.ilike(s),
+            models.Customer.email.ilike(s),
+        ))
+    if limit is not None:
+        q = q.offset(offset).limit(limit)
+    return q.all()
 
 
 @router.post("", response_model=schemas.CustomerOut, status_code=201)

@@ -149,7 +149,7 @@ function ExpenseRow({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
-          className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-8 pr-3 text-sm font-medium text-gray-900 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-8 pr-3 text-sm font-medium text-gray-900 transition-colors focus:border-blue-500 focus:bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
       </div>
     </div>
@@ -241,14 +241,14 @@ export default function TripExpensesPage() {
     });
   };
 
-  // Setter for the auto boolean — also syncs the ref so persist() fired in the same
-  // click event sees the updated value (React batches state updates, the ref does not).
-  const setAuto = (key: keyof FormData) => (v: boolean) =>
-    setForm((prev) => {
-      const next = { ...prev, [key]: v };
-      formRef.current = next;
-      return next;
-    });
+  // Setter for the auto boolean — updates formRef synchronously so persist() fired
+  // in the same click event sees the new value (React batches the state update and
+  // runs updater functions later, so we cannot rely on an updater to write the ref).
+  const setAuto = (key: keyof FormData) => (v: boolean) => {
+    const next = { ...formRef.current, [key]: v };
+    formRef.current = next;
+    setForm(next);
+  };
 
   if (!ready) return null;
 
@@ -279,7 +279,7 @@ export default function TripExpensesPage() {
           <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
         </div>
       ) : (
-        <div className="max-w-3xl space-y-4">
+        <div className="space-y-4">
           {/* Section 1 */}
           <Section icon={Anchor} title="Port & Operational Charges" accentCls="bg-blue-50 text-blue-700">
             <ExpenseRow

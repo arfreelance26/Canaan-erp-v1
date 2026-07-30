@@ -152,7 +152,7 @@ export function VerifyTripDialog({
       : "";
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Verify Trip — ${trip.tripId}`} className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title={`Verify Trip — ${trip.tripId}`} className="max-w-4xl">
       <div className="flex flex-col gap-4">
 
         {/* Status banner */}
@@ -212,14 +212,12 @@ export function VerifyTripDialog({
             <div className="flex items-start justify-between gap-6 py-1.5 text-sm border-b border-gray-50">
               <span className="shrink-0 text-gray-400 font-medium dark:text-white">Initial Disbursed Advance</span>
               <div className="text-right">
-                <span className={`font-semibold ${Number(trip.initialDisbursedAdvance) < 0 ? "text-amber-600" : "text-gray-800"} dark:text-white`}>
-                  {Number(trip.initialDisbursedAdvance) >= 0 ? "+" : ""}{fmt(Number(trip.initialDisbursedAdvance))}
+                <span className="font-semibold text-gray-800 dark:text-white">
+                  {fmt(Number(trip.initialDisbursedAdvance))}
                 </span>
-                {trip.driverAdvance && (
-                  <p className="text-xs text-gray-400 mt-0.5 dark:text-gray-500">
-                    Effective sent: ₹{(Number(trip.driverAdvance) + Number(trip.initialDisbursedAdvance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </p>
-                )}
+                <p className="text-xs text-gray-400 mt-0.5 dark:text-gray-500">
+                  Actual amount given to driver (used for balance)
+                </p>
               </div>
             </div>
           )}

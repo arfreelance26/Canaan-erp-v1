@@ -1,0 +1,8 @@
+# OAuth secrets & tokens — NEVER commit these
+credentials.json
+token.json
+
+# local backup env + kept archives + logs
+backup.env
+archives/
+*.log

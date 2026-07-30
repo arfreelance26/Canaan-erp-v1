@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle } from "lucide-react";
+import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu } from "lucide-react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -14,6 +14,7 @@ import { attendanceApi, editApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useNotifications } from "@/context/NotificationContext";
+// Phase 2 — AI chat: import { useChat } from "@/context/ChatContext";
 import { showToast } from "@/lib/swal";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -103,7 +104,7 @@ type EditApprovalNotif = {
   notifiedAt: string;
 };
 
-export function Topbar() {
+export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const pathname = usePathname();
   const router   = useRouter();
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: getPageLabel(pathname) }];
@@ -124,6 +125,7 @@ export function Topbar() {
     : "Reminders";
 
   const { sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert } = useNotifications();
+  // Phase 2 — AI chat: const { isOpen: isChatOpen, toggle: toggleChat } = useChat();
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -321,22 +323,32 @@ export function Topbar() {
 
   return (
     <>
-    <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/50 bg-white/60 backdrop-blur-xl px-6 shadow-sm">
-      <nav className="flex items-center gap-2 text-[15px]">
+    <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/50 bg-white/60 backdrop-blur-xl px-3 sm:px-6 shadow-sm">
+      {/* Hamburger — mobile only */}
+      <button
+        type="button"
+        aria-label="Open menu"
+        onClick={onMenuOpen}
+        className="mr-2 flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors md:hidden"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      <nav className="flex items-center gap-2 text-[15px] min-w-0 flex-1">
         <Link href="/" className="text-gray-400 hover:text-gray-900 transition-all duration-300 hover:-translate-y-0.5 hover:scale-110">
           <Home className="h-4 w-4" />
         </Link>
         {breadcrumbs.map((crumb, index) => {
           const isLast = index === breadcrumbs.length - 1;
           return (
-            <span key={crumb.label} className="flex items-center gap-2">
-              <ChevronRight className="h-4 w-4 text-gray-300" />
+            <span key={crumb.label} className={`flex items-center gap-2 min-w-0 ${isLast ? "hidden sm:flex" : ""}`}>
+              <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
               {crumb.href && !isLast ? (
-                <Link href={crumb.href} className="text-gray-500 hover:text-gray-900 transition-colors duration-300">
+                <Link href={crumb.href} className="truncate text-gray-500 hover:text-gray-900 transition-colors duration-300">
                   {crumb.label}
                 </Link>
               ) : (
-                <span className={isLast ? "font-semibold text-gray-900" : "text-gray-500"}>
+                <span className={`truncate ${isLast ? "font-semibold text-gray-900" : "text-gray-500"}`}>
                   {crumb.label}
                 </span>
               )}
@@ -364,6 +376,26 @@ export function Topbar() {
 
         {/* Display settings — theme + font size */}
         <DisplaySettings />
+
+        {/* Phase 2 — AI chat toggle (disabled until phase 2)
+        {process.env.NEXT_PUBLIC_OR_API_KEY && (
+          <button
+            type="button"
+            aria-label="AI Assistant"
+            onClick={toggleChat}
+            title="AI Assistant"
+            className={[
+              "group relative flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300",
+              "hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4",
+              isChatOpen
+                ? "border-brand-gold/60 bg-brand-navy text-brand-gold focus:ring-brand-gold/20"
+                : "border-gray-200 bg-white text-gray-500 hover:border-brand-navy/30 hover:bg-brand-navy/5 hover:text-brand-navy focus:ring-brand-navy/10",
+            ].join(" ")}
+          >
+            <MessageSquare className="h-5 w-5 transition-transform duration-300 group-hover:scale-110" />
+          </button>
+        )}
+        */}
 
         {/* Notification bell — hidden for Yard Supervisor */}
         {user?.softwareDesignation !== "Yard Supervisor" && <div className="relative" ref={notifRef}>
@@ -396,7 +428,7 @@ export function Topbar() {
           })()}
 
           {isNotifOpen && (
-            <div className="absolute right-0 z-[100] mt-3 w-[380px] origin-top-right rounded-2xl border border-white/60 bg-white/95 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
+            <div className="absolute right-0 z-[100] mt-3 w-[calc(100vw-24px)] sm:w-[380px] origin-top-right rounded-2xl border border-white/60 bg-white/95 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
                 <div className="flex items-center gap-2">

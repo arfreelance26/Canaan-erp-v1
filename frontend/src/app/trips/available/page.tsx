@@ -65,8 +65,8 @@ export default function AvailableTripsPage() {
             View all trips and filter by the progress status updated by the driver
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
+        <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"

@@ -112,6 +112,8 @@ def _serialize_xlsx(value: Any):
         return float(value)
     if isinstance(value, (datetime, date)):
         return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value)
     return value
 
 
@@ -142,12 +144,9 @@ def _serialize_sql(value: Any) -> str:
 # Excel backup
 # ---------------------------------------------------------------------------
 
-@router.get("/excel")
-def backup_excel(
-    db: Session = Depends(get_db),
-    _user: TokenUser = ADMIN_ONLY,
-):
-    """Download every table as a separate sheet in one .xlsx workbook."""
+def build_excel_bytes(db: Session) -> bytes:
+    """Build a multi-sheet .xlsx (one sheet per table) and return the raw bytes.
+    Shared by the /backup/excel endpoint and the scheduled Drive backup job."""
     wb = Workbook()
     wb.remove(wb.active)
 
@@ -171,12 +170,19 @@ def backup_excel(
 
     buf = io.BytesIO()
     wb.save(buf)
-    buf.seek(0)
+    return buf.getvalue()
 
+
+@router.get("/excel")
+def backup_excel(
+    db: Session = Depends(get_db),
+    _user: TokenUser = ADMIN_ONLY,
+):
+    """Download every table as a separate sheet in one .xlsx workbook."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"canaan_erp_backup_{ts}.xlsx"
     return StreamingResponse(
-        buf,
+        io.BytesIO(build_excel_bytes(db)),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -186,12 +192,9 @@ def backup_excel(
 # SQL backup
 # ---------------------------------------------------------------------------
 
-@router.get("/sql")
-def backup_sql(
-    db: Session = Depends(get_db),
-    _user: TokenUser = ADMIN_ONLY,
-):
-    """Download all data as SQL INSERT statements that can be replayed to restore the database."""
+def build_sql_bytes(db: Session) -> bytes:
+    """Build a .sql dump of INSERT statements for every table; return raw bytes.
+    Shared by the /backup/sql endpoint and the scheduled Drive backup job."""
     lines: list[str] = []
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -226,13 +229,19 @@ def backup_sql(
     lines.append("SET FOREIGN_KEY_CHECKS = 1;")
     lines.append("")
 
-    sql_content = "\n".join(lines)
-    buf = io.BytesIO(sql_content.encode("utf-8"))
+    return "\n".join(lines).encode("utf-8")
 
+
+@router.get("/sql")
+def backup_sql(
+    db: Session = Depends(get_db),
+    _user: TokenUser = ADMIN_ONLY,
+):
+    """Download all data as SQL INSERT statements that can be replayed to restore the database."""
     ts_file = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"canaan_erp_backup_{ts_file}.sql"
     return StreamingResponse(
-        buf,
+        io.BytesIO(build_sql_bytes(db)),
         media_type="application/sql",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -242,14 +251,9 @@ def backup_sql(
 # Files backup (ZIP)
 # ---------------------------------------------------------------------------
 
-@router.get("/files")
-def backup_files(
-    db: Session = Depends(get_db),
-    _user: TokenUser = ADMIN_ONLY,
-):
-    """Download every stored document/photo (the BLOB columns excluded from the Excel/SQL
-    backups) as a single ZIP. Files are foldered by entity and record id, and a MANIFEST.csv
-    lists every file so a restore can be mapped back to its record."""
+def build_files_zip_bytes(db: Session) -> bytes:
+    """Build a ZIP of every stored document/photo BLOB (with a MANIFEST.csv); return raw bytes.
+    Shared by the /backup/files endpoint and the scheduled Drive backup job."""
     buf = io.BytesIO()
     manifest = ["entity,record_id,field,filename,bytes"]
 
@@ -273,11 +277,21 @@ def backup_files(
                     manifest.append(f"{entity},{pk},{col},{safe},{len(data)}")
         zf.writestr("MANIFEST.csv", "\n".join(manifest))
 
-    buf.seek(0)
+    return buf.getvalue()
+
+
+@router.get("/files")
+def backup_files(
+    db: Session = Depends(get_db),
+    _user: TokenUser = ADMIN_ONLY,
+):
+    """Download every stored document/photo (the BLOB columns excluded from the Excel/SQL
+    backups) as a single ZIP. Files are foldered by entity and record id, and a MANIFEST.csv
+    lists every file so a restore can be mapped back to its record."""
     ts_file = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     filename = f"canaan_erp_files_{ts_file}.zip"
     return StreamingResponse(
-        buf,
+        io.BytesIO(build_files_zip_bytes(db)),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

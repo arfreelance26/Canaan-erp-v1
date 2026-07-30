@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BarChart3, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
@@ -73,6 +73,7 @@ export default function AttendanceReportPage() {
   const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
   const [latestDate, setLatestDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
@@ -99,6 +100,14 @@ export default function AttendanceReportPage() {
   if (!ready || user?.softwareDesignation !== "Admin") return null;
 
   const isDriver = category === "driver";
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) => r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
+    );
+  }, [rows, search]);
 
   const remarksByDriver = remarks.reduce<Record<string, DriverAttendanceRemark[]>>((acc, r) => {
     (acc[r.driverId] ??= []).push(r);
@@ -156,12 +165,12 @@ export default function AttendanceReportPage() {
       </div>
 
       <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {(["driver", "staff"] as Category[]).map((c) => (
             <button
               key={c}
               type="button"
-              onClick={() => setCategory(c)}
+              onClick={() => { setCategory(c); setSearch(""); }}
               className={cn(
                 "rounded-full px-4 py-2 text-sm font-medium transition-colors",
                 category === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -170,6 +179,16 @@ export default function AttendanceReportPage() {
               {c === "driver" ? "Drivers" : "Staff"}
             </button>
           ))}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={isDriver ? "Search by name or driver ID…" : "Search by name or staff ID…"}
+              className="h-9 w-64 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -178,7 +197,7 @@ export default function AttendanceReportPage() {
             <DatePickerInput
               value={fromDate}
               onChange={setFromDate}
-              className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
           <div>
@@ -186,7 +205,7 @@ export default function AttendanceReportPage() {
             <DatePickerInput
               value={toDate}
               onChange={setToDate}
-              className="w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
         </div>
@@ -252,14 +271,14 @@ export default function AttendanceReportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.length === 0 ? (
+                {filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={isDriver ? 9 : 7} className="px-4 py-10 text-center text-sm text-gray-400">
-                      No {isDriver ? "drivers" : "staff"} found.
+                      {search ? "No results match your search." : `No ${isDriver ? "drivers" : "staff"} found.`}
                     </td>
                   </tr>
                 ) : isDriver ? (
-                  rows.map((r) => {
+                  filteredRows.map((r) => {
                     const active = r.onTrip + r.onHalt + r.onWorkshop;
                     const pct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
                     const driverRemarks = remarksByDriver[r.code] ?? [];
@@ -287,7 +306,7 @@ export default function AttendanceReportPage() {
                     );
                   })
                 ) : (
-                  rows.map((r) => {
+                  filteredRows.map((r) => {
                     const pct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
                     return (
                       <tr key={r.id} className="hover:bg-gray-50">

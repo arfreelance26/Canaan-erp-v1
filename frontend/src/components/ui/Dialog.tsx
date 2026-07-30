@@ -40,20 +40,22 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 animate-backdrop-in" onClick={onClose} />
 
       {/* Modal panel */}
       <div
         className={cn(
-          "relative flex flex-col w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-xl animate-dialog-enter",
+          "relative flex flex-col w-full max-h-[92dvh] overflow-hidden bg-white shadow-xl animate-dialog-enter",
+          "rounded-t-2xl sm:rounded-xl",
+          "sm:max-w-2xl md:max-w-3xl",
           className
         )}
       >
         {/* Sticky header */}
-        <div className="flex flex-shrink-0 items-center justify-between px-8 py-5 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+        <div className="flex flex-shrink-0 items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100">
+          <h2 className="text-base sm:text-lg font-bold text-gray-900">{title}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -65,7 +67,7 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-8 py-6 custom-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 custom-scrollbar">
           {children}
         </div>
       </div>

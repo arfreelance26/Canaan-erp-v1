@@ -8,6 +8,8 @@ import models
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 ACTIVE_TRIP_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
+# Only trips that have actually started (Assigned excluded from the stat-card count)
+CURRENT_TRIP_STATUSES = {"Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
 EXPIRING_SOON_DAYS = 30
 UPCOMING_WINDOW_KM = 1000
 
@@ -48,7 +50,17 @@ def get_overview(db: Session = Depends(get_db)):
     trucks = db.query(models.Truck).all()
 
     # Aggregate counts via SQL — avoid loading full rows into Python
-    active_trips    = db.query(func.count(models.Trip.id)).filter(models.Trip.status.in_(ACTIVE_TRIP_STATUSES)).scalar() or 0
+    # Exclude closed (has TripClosure) and invoiced trips from active count
+    active_trips = (
+        db.query(func.count(models.Trip.id))
+          .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.Trip.id)
+          .filter(
+              models.Trip.status.in_(CURRENT_TRIP_STATUSES),
+              models.TripClosure.id.is_(None),
+              models.Trip.is_invoiced == False,
+          )
+          .scalar() or 0
+    )
     total_trips     = db.query(func.count(models.Trip.id)).scalar() or 0
     total_drivers   = db.query(func.count(models.Driver.id)).scalar() or 0
     total_staff     = db.query(func.count(models.Staff.id)).scalar() or 0

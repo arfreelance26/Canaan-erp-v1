@@ -685,7 +685,7 @@ mysqladmin -u root password 'alan#2005'
 ### Key Documentation Files
 - **CLAUDE.md** - Developer guidelines and conventions
 - **AGENTS.md** - Next.js specific instructions
-- **frontend/QUICK_REFERENCE_ANIMATIONS.md** - Animation guide
+- **docs/QUICK_REFERENCE_ANIMATIONS.md** - Animation guide
 
 ### Common Commands Reference
 
@@ -1206,7 +1206,7 @@ Use this checklist to ensure successful setup:
 1. **Review the codebase** - Start with `frontend/src/types/trip.ts` to understand the data models
 2. **Explore API** - Visit http://localhost:8000/docs and test endpoints
 3. **Test workflows** - Try creating a trip: Create → Assign → Mark Started → Mark Completed → Close
-4. **Understand animations** - Check `QUICK_REFERENCE_ANIMATIONS.md` for UI patterns
+4. **Understand animations** - Check `docs/QUICK_REFERENCE_ANIMATIONS.md` for UI patterns
 5. **Read developer guide** - Review `CLAUDE.md` for coding conventions
 
 ---

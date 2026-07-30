@@ -10,6 +10,7 @@ import { WebSocketProvider } from "@/context/WebSocketContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
+import { ChatProvider } from "@/context/ChatContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,7 +65,9 @@ export default function RootLayout({
             <NotificationProvider>
               <TripWorkflowProvider>
                 <TyreInventoryProvider>
-                  <AppShell>{children}</AppShell>
+                  <ChatProvider>
+                    <AppShell>{children}</AppShell>
+                  </ChatProvider>
                 </TyreInventoryProvider>
               </TripWorkflowProvider>
             </NotificationProvider>

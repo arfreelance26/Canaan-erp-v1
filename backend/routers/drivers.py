@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from database import get_db
@@ -11,8 +13,24 @@ pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 @router.get("", response_model=list[schemas.DriverOut])
-def list_drivers(db: Session = Depends(get_db)):
-    return db.query(models.Driver).order_by(models.Driver.driver_id).all()
+def list_drivers(
+    search: Optional[str] = Query(None, description="Search by name, driver ID, phone, license"),
+    limit: Optional[int] = Query(None, le=100, description="Max rows (AI use); omit for full list"),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Driver).order_by(models.Driver.driver_id)
+    if search:
+        s = f"%{search.strip()}%"
+        q = q.filter(or_(
+            models.Driver.name.ilike(s),
+            models.Driver.driver_id.ilike(s),
+            models.Driver.phone.ilike(s),
+            models.Driver.license_number.ilike(s),
+        ))
+    if limit is not None:
+        q = q.offset(offset).limit(limit)
+    return q.all()
 
 
 @router.post("", response_model=schemas.DriverOut, status_code=201)

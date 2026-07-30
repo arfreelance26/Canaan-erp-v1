@@ -21,7 +21,7 @@ export function TyreHistoryDialog({ open, onClose, tyre, records }: TyreHistoryD
     .sort((a, b) => b.fittedOdometer - a.fittedOdometer);
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Tyre History — ${tyre.tyreNumber}`} className="max-w-2xl">
+    <Dialog open={open} onClose={onClose} title={`Tyre History — ${tyre.tyreNumber}`} className="max-w-3xl">
       {tyreRecords.length === 0 ? (
         <p className="text-sm text-gray-500">This tyre has not been fitted to any truck yet.</p>
       ) : (
