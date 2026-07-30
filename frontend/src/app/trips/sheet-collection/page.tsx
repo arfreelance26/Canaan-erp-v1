@@ -9,7 +9,8 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
+import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, Navigation, X } from "lucide-react";
+import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { formatDate } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -49,6 +50,7 @@ export default function SheetCollectionPage() {
   // Date range for PDF export
   const [pdfDateFrom, setPdfDateFrom] = useState("");
   const [pdfDateTo, setPdfDateTo] = useState("");
+  const [showCurrentTrips, setShowCurrentTrips] = useState(false);
   // Advance verification panel state
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
@@ -465,6 +467,14 @@ export default function SheetCollectionPage() {
           >
             <Download className="h-4 w-4" />
             {downloading ? "Generating..." : "Download PDF"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCurrentTrips(true)}
+            className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors whitespace-nowrap"
+          >
+            <Navigation className="h-4 w-4" />
+            View Current Trips
           </button>
         </div>
       </div>
@@ -907,6 +917,36 @@ export default function SheetCollectionPage() {
           )}
         </>
       )}
+      {/* Current Trips dialog — always mounted so the card is pre-loaded */}
+      <div
+        className={`fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/50 transition-opacity duration-150 ${showCurrentTrips ? "opacity-100" : "opacity-0 invisible"}`}
+        onClick={() => setShowCurrentTrips(false)}
+      >
+        <div
+          className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Dialog header */}
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+            <div className="flex items-center gap-2.5">
+              <Navigation className="h-4 w-4 text-blue-600" />
+              <h2 className="text-sm font-bold text-gray-900">Current Trips</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCurrentTrips(false)}
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {/* Card — fills the dialog body */}
+          <div className="p-4">
+            <CurrentTripsCard />
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

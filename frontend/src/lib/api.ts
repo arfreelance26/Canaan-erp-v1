@@ -15,7 +15,7 @@ import type { DriverAssignment } from "@/types/driver-assignment";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
-import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/attendance";
+import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark, StaffSelfSummary } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
@@ -620,6 +620,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     driverAdvanceAmount: String(b.driver_advance_amount ?? ""),
     driverAdvancePaymentMethod: b.driver_advance_payment_method ?? "",
     driverAdvance: String(b.driver_advance ?? ""),
+    initialDisbursedAdvance: b.initial_disbursed_advance != null ? String(b.initial_disbursed_advance) : undefined,
     driverCompensationType: b.driver_compensation_type ?? "",
     openLoadHireType: b.open_load_hire_type ?? "",
     ratePerTon: String(b.rate_per_ton ?? ""),
@@ -700,6 +701,7 @@ function fromTrip(f: Trip) {
     driver_advance_amount: f.driverAdvanceAmount ? parseFloat(f.driverAdvanceAmount) : null,
     driver_advance_payment_method: f.driverAdvancePaymentMethod || null,
     driver_advance: f.driverAdvance ? parseFloat(f.driverAdvance) : null,
+    initial_disbursed_advance: f.initialDisbursedAdvance ? parseFloat(f.initialDisbursedAdvance) : null,
     driver_compensation_type: f.driverCompensationType || null,
     open_load_hire_type: f.openLoadHireType || null,
     rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
@@ -951,8 +953,10 @@ function toStaffAttendance(b: B): StaffAttendanceRecord {
     date: b.date ?? "",
     status: b.status ?? "Not Marked",
     checkInTime: b.check_in_time ?? null,
+    checkOutTime: b.check_out_time ?? null,
     markedAt: b.marked_at ?? null,
     source: b.source ?? "Web",
+    adminOverride: b.admin_override ?? false,
   };
 }
 
@@ -1462,6 +1466,42 @@ export const attendanceApi = {
       method: "PUT",
       body: JSON.stringify({ status, check_in_time: checkInTime ?? null }),
     }).then(toStaffAttendance),
+
+  /**
+   * Self-service mark for the Mark Attendance page.
+   * Always marks TODAY (IST) — the backend ignores any client-supplied date.
+   * Upserts: creates or updates atomically server-side.
+   */
+  selfMarkStaff: (staffId: number, status: string) =>
+    req<B>("/attendance/staff/self-mark", {
+      method: "POST",
+      body: JSON.stringify({ staff_id: staffId, status }),
+    }).then(toStaffAttendance),
+
+  closeShiftStaff: (staffId: number) =>
+    req<B>(`/attendance/staff/close-shift?staff_id=${staffId}`, {
+      method: "POST",
+    }).then(toStaffAttendance),
+
+  /**
+   * Returns present/absent/on_leave/not_marked counts + attendance percentage
+   * for a single staff member for the given month.
+   * percentage = (present / 26) × 100, capped at 100.
+   */
+  getStaffSelfSummary: (staffId: number, year: number, month: number) =>
+    req<{
+      present: number; absent: number; on_leave: number; not_marked: number;
+      days_elapsed: number; working_days: number; percentage: number;
+    }>(`/attendance/staff/self-summary?staff_id=${staffId}&year=${year}&month=${month}`)
+    .then((b): StaffSelfSummary => ({
+      present: b.present,
+      absent: b.absent,
+      onLeave: b.on_leave,
+      notMarked: b.not_marked,
+      daysElapsed: b.days_elapsed,
+      workingDays: b.working_days,
+      percentage: b.percentage,
+    })),
 
   lookupApplicant: (code: string) =>
     req<B>(`/attendance/lookup-applicant?code=${encodeURIComponent(code)}`),

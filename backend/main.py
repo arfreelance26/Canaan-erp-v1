@@ -188,6 +188,11 @@ def _run_schema_migrations():
         # maintenance_records — link to trip sheet for sync on save
         "ALTER TABLE maintenance_records ADD COLUMN trip_id INT NULL",
         "ALTER TABLE maintenance_records ADD CONSTRAINT fk_maintenance_trip_id FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE SET NULL",
+        # Initial Disbursed Advance — tracks the actual amount sent to driver when it differs from Driver Advance
+        "ALTER TABLE trips ADD COLUMN initial_disbursed_advance DECIMAL(10,2) NULL",
+        # Staff attendance — close-shift time (IST, "HH:MM AM/PM")
+        "ALTER TABLE staff_attendance ADD COLUMN check_out_time VARCHAR(20) NULL",
+        "ALTER TABLE staff_attendance ADD COLUMN admin_override TINYINT(1) NOT NULL DEFAULT 0",
         # NOTE: BLOB widening (MEDIUMBLOB → LONGBLOB for the 25 MB upload limit) is handled
         # by the guarded _widen_blob_columns() step below, NOT here — a blob-type change forces
         # a full table copy, so it must run once (only when needed), never on every restart.

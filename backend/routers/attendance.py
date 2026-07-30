@@ -1,3 +1,4 @@
+import calendar as _calendar
 from datetime import date as date_type, datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from typing import Optional
@@ -237,6 +238,121 @@ def delete_driver_remark(remark_id: int, db: Session = Depends(get_db)):
 # Staff Attendance
 # ---------------------------------------------------------------------------
 
+@router.post("/staff/self-mark", response_model=schemas.StaffAttendanceOut, status_code=201)
+def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session = Depends(get_db)):
+    """
+    Self-service endpoint used by the Mark Attendance page.
+    Always marks attendance for TODAY (IST) — the client cannot supply a date.
+    Creates a new record; rejects if today's record already exists (one mark per day).
+    Records check_in_time (IST HH:MM AM/PM) when status is Present.
+    """
+    today = _today_ist()
+    existing = db.query(models.StaffAttendance).filter(
+        models.StaffAttendance.staff_id == payload.staff_id,
+        models.StaffAttendance.date == today,
+    ).first()
+    if existing:
+        raise HTTPException(400, "Attendance already marked for today. Use close-shift to record shift end.")
+    now_ist = datetime.now(_IST)
+    check_in = now_ist.strftime("%I:%M %p") if payload.status == "Present" else None
+    record = models.StaffAttendance(
+        staff_id=payload.staff_id,
+        date=today,
+        status=payload.status,
+        check_in_time=check_in,
+        marked_at=datetime.now(timezone.utc),
+        source="Web",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    emit("attendance_updated", {"staff_id": payload.staff_id})
+    return record
+
+
+@router.post("/staff/close-shift", response_model=schemas.StaffAttendanceOut)
+def close_shift(staff_id: int, db: Session = Depends(get_db)):
+    """
+    Records the shift end time for today's Present attendance record.
+    Can only be called once per day (once check_out_time is set it is locked).
+    """
+    today = _today_ist()
+    record = db.query(models.StaffAttendance).filter(
+        models.StaffAttendance.staff_id == staff_id,
+        models.StaffAttendance.date == today,
+    ).first()
+    if not record:
+        raise HTTPException(404, "No attendance record found for today. Mark attendance first.")
+    if record.status != "Present":
+        raise HTTPException(400, "Close shift is only applicable for Present status.")
+    if record.check_out_time:
+        raise HTTPException(400, "Shift already closed for today.")
+    record.check_out_time = datetime.now(_IST).strftime("%I:%M %p")
+    db.commit()
+    db.refresh(record)
+    emit("attendance_updated", {"staff_id": staff_id})
+    return record
+
+
+_WORKING_DAYS_PER_MONTH = 26
+
+
+@router.get("/staff/self-summary", response_model=schemas.StaffSelfSummaryOut)
+def get_staff_self_summary(
+    staff_id: int = Query(..., description="Numeric staff PK"),
+    year: int = Query(..., ge=2020, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns the attendance summary for a single staff member for the given month.
+    Used by the Mark Attendance page to render the circular percentage ring and
+    summary counts without shipping every daily record to the client.
+    """
+    last_day = _calendar.monthrange(year, month)[1]
+    start = date_type(year, month, 1)
+    end = date_type(year, month, last_day)
+    today = _today_ist()
+    effective_end = min(end, today)
+
+    if effective_end < start:
+        # Month hasn't started yet (future month viewed — shouldn't happen, but safe)
+        return schemas.StaffSelfSummaryOut(
+            present=0, absent=0, on_leave=0, not_marked=0,
+            days_elapsed=0, working_days=_WORKING_DAYS_PER_MONTH, percentage=0.0,
+        )
+
+    records = (
+        db.query(models.StaffAttendance)
+        .filter(
+            models.StaffAttendance.staff_id == staff_id,
+            models.StaffAttendance.date >= start,
+            models.StaffAttendance.date <= effective_end,
+        )
+        .all()
+    )
+
+    counts = {"Present": 0, "Absent": 0, "On Leave": 0}
+    for r in records:
+        if r.status in counts:
+            counts[r.status] += 1
+
+    days_elapsed = (effective_end - start).days + 1
+    marked = sum(counts.values())
+    not_marked = max(days_elapsed - marked, 0)
+    percentage = round(min((counts["Present"] / _WORKING_DAYS_PER_MONTH) * 100, 100.0), 1)
+
+    return schemas.StaffSelfSummaryOut(
+        present=counts["Present"],
+        absent=counts["Absent"],
+        on_leave=counts["On Leave"],
+        not_marked=not_marked,
+        days_elapsed=days_elapsed,
+        working_days=_WORKING_DAYS_PER_MONTH,
+        percentage=percentage,
+    )
+
+
 @router.get("/staff", response_model=list[schemas.StaffAttendanceOut])
 def list_staff_attendance(
     date: Optional[str] = Query(None, description="Filter by exact date YYYY-MM-DD"),
@@ -267,15 +383,17 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
     if existing:
         for field, value in payload.model_dump().items():
             setattr(existing, field, value)
+        existing.admin_override = True
         db.commit()
         db.refresh(existing)
-        emit("attendance_updated", {})
+        emit("attendance_updated", {"staff_id": existing.staff_id})
         return existing
     record = models.StaffAttendance(**payload.model_dump())
+    record.admin_override = True
     db.add(record)
     db.commit()
     db.refresh(record)
-    emit("attendance_updated", {})
+    emit("attendance_updated", {"staff_id": record.staff_id})
     return record
 
 
@@ -287,9 +405,10 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
+    record.admin_override = True
     db.commit()
     db.refresh(record)
-    emit("attendance_updated", {})
+    emit("attendance_updated", {"staff_id": record.staff_id})
     return record
 
 

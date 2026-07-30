@@ -27,6 +27,8 @@ export default function TyreInventoryPage() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyTyre, setHistoryTyre] = useState<TyreInventoryItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   useEffect(() => {
     Promise.all([tyreApi.listInventory(), tyreApi.listFitments(), trucksApi.list()])
@@ -116,7 +118,31 @@ export default function TyreInventoryPage() {
           <p className="mt-1 text-sm text-gray-500">Track all tyres purchased by the company</p>
         </div>
         <div className="flex items-center gap-3">
-        <DownloadExcelButton path="/exports/tyre-inventory" filename="tyre_inventory.xlsx" />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={exportFrom}
+            onChange={(e) => setExportFrom(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            title="Report from date (purchase date)"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <input
+            type="date"
+            value={exportTo}
+            onChange={(e) => setExportTo(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            title="Report to date (purchase date)"
+          />
+          <DownloadExcelButton
+            path="/exports/tyre-inventory"
+            filename="tyre_inventory.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
         <button
           type="button"
           onClick={handleAdd}

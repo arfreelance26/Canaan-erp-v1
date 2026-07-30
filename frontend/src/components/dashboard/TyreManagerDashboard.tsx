@@ -17,7 +17,7 @@ import {
   Gauge,
 } from "lucide-react";
 import { tyreApi, trucksApi, maintenanceApi } from "@/lib/api";
-import { TripSummaryWidget } from "./TripSummaryWidget";
+import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
@@ -194,10 +194,12 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                 <span className="text-xs font-semibold text-red-700">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
               </div>
             )}
-            <TripSummaryWidget />
           </div>
         </div>
       )}
+
+      {/* Current Trips */}
+      {!embedded && <CurrentTripsCard />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

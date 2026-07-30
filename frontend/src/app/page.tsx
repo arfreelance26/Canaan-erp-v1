@@ -8,7 +8,7 @@ import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboar
 import { FinanceManagerDashboard } from "@/components/dashboard/FinanceManagerDashboard";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
-import { TripSummaryWidget } from "@/components/dashboard/TripSummaryWidget";
+import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import Link from "next/link";
 import {
   Truck,
@@ -637,8 +637,10 @@ function AdminDashboard() {
             </button>
           </div>
         </div>
-        <TripSummaryWidget />
       </div>
+
+      {/* ── Current Trips ────────────────────────────────────────────────── */}
+      <CurrentTripsCard />
 
       {/* ── Compliance Alert Banner ─────────────────────────────────────── */}
       {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (

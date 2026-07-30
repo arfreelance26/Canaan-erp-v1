@@ -13,7 +13,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { tripsApi } from "@/lib/api";
-import { TripSummaryWidget } from "./TripSummaryWidget";
+import { CurrentTripsCard } from "./CurrentTripsCard";
 
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import type { Trip } from "@/types/trip";
@@ -134,9 +134,11 @@ export function TripSheetCoordinatorDashboard() {
               <span className="text-xs font-semibold text-amber-700">{pending.length} trip{pending.length > 1 ? "s" : ""} awaiting collection</span>
             </div>
           )}
-          <TripSummaryWidget />
         </div>
       </div>
+
+      {/* Current Trips */}
+      <CurrentTripsCard />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

@@ -6,6 +6,7 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
+import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
 type Props = {
@@ -13,12 +14,13 @@ type Props = {
   onClose: () => void;
   driver: CompensationPerson | null;
   trips: Trip[];
+  trucks: Truck[];
   onRecordPayment: (total: number) => Promise<void>;
 };
 
 type FilterMode = "all" | "thisMonth" | "custom";
 
-const fmt = (v: number) =>
+const fmtCur = (v: number) =>
   `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function fmtDate(d: string) {
@@ -35,7 +37,26 @@ function thisMonthRange(): { from: string; to: string } {
   return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(last).padStart(2, "0")}` };
 }
 
-export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPayment }: Props) {
+type Row = {
+  tripId: string;
+  driverName: string;
+  truckReg: string;
+  truckBranch: string;
+  containerSpec: string;
+  containerNo: string;
+  bookingDate: string;
+  tripCategory: string;
+  cargoClassification: string;
+  origin: string;
+  destination: string;
+  driverAdvance: number;
+  additionalDriverAdvance: number;
+  totalAdvance: number;
+  completedDate: string;
+  hasClosure: boolean;
+};
+
+export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRecordPayment }: Props) {
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -80,25 +101,43 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPaym
     }
   }, [open]);
 
-  const allRows = useMemo(
+  const allRows = useMemo<Row[]>(
     () =>
       driverTrips.map((t) => {
         const c = closures.get(t.id);
+        const truck = trucks.find((tr) => tr.truckId === t.vehicleId);
+
         const driverAdv = parseFloat(c?.driverAdvance ?? "0") || 0;
         const addlAdv = parseFloat(c?.additionalDriverAdvance ?? "0") || 0;
+
+        const containerNo =
+          t.containerSpecification === "2 X 20 FEET CONTAINERS"
+            ? [t.containerNumber1, t.containerNumber2].filter(Boolean).join(" / ")
+            : t.containerNumber;
+
         return {
-          tripNo: t.tripId,
-          completedDate: c?.tripCompletedDate ?? "",
+          tripId: t.tripId,
+          driverName: driver?.name ?? "—",
+          truckReg: t.truckRegistration ?? "—",
+          truckBranch: truck?.branchRegisteredTo || "—",
+          containerSpec: t.containerSpecification || "—",
+          containerNo: containerNo || "—",
+          bookingDate: t.bookingCreatedDate ?? "",
+          tripCategory: t.tripCategory || "—",
+          cargoClassification: t.cargoClassification || "—",
+          origin: t.origin || "—",
+          destination: t.destination || "—",
           driverAdvance: driverAdv,
           additionalDriverAdvance: addlAdv,
           totalAdvance: driverAdv + addlAdv,
+          completedDate: c?.tripCompletedDate ?? "",
           hasClosure: !!c,
         };
       }),
-    [driverTrips, closures]
+    [driverTrips, closures, trucks, driver]
   );
 
-  const rows = useMemo(() => {
+  const rows = useMemo<Row[]>(() => {
     if (filterMode === "all") return allRows;
 
     const { from, to } =
@@ -130,12 +169,15 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPaym
     </button>
   );
 
+  const thClass = "px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 whitespace-nowrap text-left";
+  const thRClass = `${thClass} text-right`;
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title={`Advance Record — ${driver?.name ?? ""}`}
-      className="max-w-4xl"
+      className="max-w-[95vw]"
     >
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -174,39 +216,48 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPaym
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-auto max-h-72 rounded-lg border border-gray-200">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead>
+          <div className="overflow-auto max-h-[60vh] rounded-lg border border-gray-200">
+            <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {[
-                    { label: "Trip No", right: false },
-                    { label: "Completed Date", right: false },
-                    { label: "Driver's Advance", right: true },
-                    { label: "Additional Advance", right: true },
-                    { label: "Total Advance", right: true },
-                  ].map(({ label, right }) => (
-                    <th
-                      key={label}
-                      className={`px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500${right ? " text-right" : ""}`}
-                    >
-                      {label}
-                    </th>
-                  ))}
+                  <th className={thClass}>Trip ID</th>
+                  <th className={thClass}>Driver</th>
+                  <th className={thClass}>Truck Reg</th>
+                  <th className={thClass}>Branch</th>
+                  <th className={thClass}>Container Spec</th>
+                  <th className={thClass}>Container No</th>
+                  <th className={thClass}>Booking Date</th>
+                  <th className={thClass}>Trip Category</th>
+                  <th className={thClass}>Cargo Type</th>
+                  <th className={thClass}>Origin</th>
+                  <th className={thClass}>Destination</th>
+                  <th className={thRClass}>Driver Advance</th>
+                  <th className={thRClass}>Additional Advance</th>
+                  <th className={thRClass}>Total Advance</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((row) => (
-                  <tr key={row.tripNo} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.tripNo}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmtDate(row.completedDate)}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">
-                      {row.hasClosure ? fmt(row.driverAdvance) : <span className="text-gray-400">—</span>}
+                {rows.map((row, i) => (
+                  <tr key={`${row.tripId}-${i}`} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5 font-medium text-indigo-700">{row.tripId}</td>
+                    <td className="px-3 py-2.5 text-gray-700">{row.driverName}</td>
+                    <td className="px-3 py-2.5 font-mono text-gray-700">{row.truckReg}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{row.truckBranch}</td>
+                    <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate">{row.containerSpec}</td>
+                    <td className="px-3 py-2.5 font-mono text-gray-700">{row.containerNo}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.bookingDate)}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{row.tripCategory}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{row.cargoClassification}</td>
+                    <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.origin}</td>
+                    <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.destination}</td>
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      {row.hasClosure ? fmtCur(row.driverAdvance) : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right text-gray-700">
-                      {row.hasClosure ? fmt(row.additionalDriverAdvance) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      {row.hasClosure ? fmtCur(row.additionalDriverAdvance) : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-orange-700">
-                      {row.hasClosure ? fmt(row.totalAdvance) : <span className="text-gray-400">—</span>}
+                    <td className="px-3 py-2.5 text-right font-bold text-orange-700">
+                      {row.hasClosure ? fmtCur(row.totalAdvance) : <span className="text-gray-400">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -223,7 +274,7 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, onRecordPaym
                 </span>
               )}
             </span>
-            <span className="text-lg font-bold text-orange-700">{fmt(grandTotal)}</span>
+            <span className="text-lg font-bold text-orange-700">{fmtCur(grandTotal)}</span>
           </div>
 
           <div className="flex justify-end gap-3">

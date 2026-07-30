@@ -27,6 +27,7 @@ import {
   ShieldAlert,
   BarChart2,
   Receipt,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +54,7 @@ export const sidebarSections: NavSection[] = [
   {
     title: "Attendance",
     items: [
+      { label: "Mark Attendance", href: "/attendance/mark", icon: UserCheck },
       { label: "Driver Attendance", href: "/attendance/drivers", icon: ClipboardCheck },
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
       { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },

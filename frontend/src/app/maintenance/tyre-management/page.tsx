@@ -20,6 +20,8 @@ export default function TyreManagementPage() {
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   const { setTyres, setFitmentRecords } = useTyreInventory();
   const [refreshKey, setRefreshKey] = useState(0);
@@ -69,7 +71,31 @@ export default function TyreManagementPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
-          <DownloadExcelButton path="/exports/tyre-inventory" filename="tyre_inventory.xlsx" />
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={exportFrom}
+              onChange={(e) => setExportFrom(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              title="Report from date (purchase date)"
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <input
+              type="date"
+              value={exportTo}
+              onChange={(e) => setExportTo(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              title="Report to date (purchase date)"
+            />
+            <DownloadExcelButton
+              path="/exports/tyre-inventory"
+              filename="tyre_inventory.xlsx"
+              params={{
+                ...(exportFrom ? { from_date: exportFrom } : {}),
+                ...(exportTo ? { to_date: exportTo } : {}),
+              }}
+            />
+          </div>
         </div>
       </div>
 

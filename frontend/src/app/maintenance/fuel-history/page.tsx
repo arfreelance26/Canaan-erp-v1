@@ -23,6 +23,8 @@ export default function FuelHistoryPage() {
   const [historyViewOpen, setHistoryViewOpen] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   useEffect(() => {
     trucksApi.list()
@@ -74,7 +76,31 @@ export default function FuelHistoryPage() {
               className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
-          <DownloadExcelButton path="/exports/fuel-logs" filename="fuel_logs.xlsx" />
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={exportFrom}
+              onChange={(e) => setExportFrom(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              title="Report from date"
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <input
+              type="date"
+              value={exportTo}
+              onChange={(e) => setExportTo(e.target.value)}
+              className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              title="Report to date"
+            />
+            <DownloadExcelButton
+              path="/exports/fuel-logs"
+              filename="fuel_logs.xlsx"
+              params={{
+                ...(exportFrom ? { from_date: exportFrom } : {}),
+                ...(exportTo ? { to_date: exportTo } : {}),
+              }}
+            />
+          </div>
         </div>
       </div>
 

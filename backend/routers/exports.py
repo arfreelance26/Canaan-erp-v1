@@ -171,8 +171,17 @@ def export_customers(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.get("/trips")
-def export_trips(db: Session = Depends(get_db)):
-    trips = db.query(models.Trip).order_by(models.Trip.booking_created_date.desc()).all()
+def export_trips(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, filters by scheduled date)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, filters by scheduled date)"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Trip)
+    if from_date:
+        q = q.filter(models.Trip.scheduled_date >= from_date)
+    if to_date:
+        q = q.filter(models.Trip.scheduled_date <= to_date)
+    trips = q.order_by(models.Trip.booking_created_date.desc()).all()
     customer_map = {c.id: c.name for c in db.query(models.Customer).all()}
     driver_map = {d.driver_id: d.name for d in db.query(models.Driver).all()}
     truck_map = {t.truck_id: t.registration_number for t in db.query(models.Truck).all()}
@@ -216,7 +225,8 @@ def export_trips(db: Session = Depends(get_db)):
         ]
         for t in trips
     ]
-    return build_excel_response([("Trips", headers, data)], "trips.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Trips", headers, data)], f"trips{suffix}.xlsx")
 
 
 @router.get("/driver-assignments")
@@ -290,14 +300,24 @@ def export_staff_attendance(
 
 
 @router.get("/leave-requests")
-def export_leave_requests(db: Session = Depends(get_db)):
-    rows = db.query(models.LeaveRequest).order_by(models.LeaveRequest.applied_at.desc()).all()
+def export_leave_requests(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.LeaveRequest)
+    if from_date:
+        q = q.filter(models.LeaveRequest.from_date >= from_date)
+    if to_date:
+        q = q.filter(models.LeaveRequest.from_date <= to_date)
+    rows = q.order_by(models.LeaveRequest.applied_at.desc()).all()
     headers = ["Category", "Applicant Code", "Applicant Name", "From Date", "To Date", "Reason", "Status", "Applied At"]
     data = [
         [r.category, r.applicant_code, r.applicant_name, r.from_date, r.to_date, r.reason, r.status, r.applied_at]
         for r in rows
     ]
-    return build_excel_response([("Leave Requests", headers, data)], "leave_requests.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Leave Requests", headers, data)], f"leave_requests{suffix}.xlsx")
 
 
 # ---------------------------------------------------------------------------
@@ -376,24 +396,41 @@ def export_staff_compensation(db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.get("/maintenance-records")
-def export_maintenance_records(db: Session = Depends(get_db)):
-    records = (
+def export_maintenance_records(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    q = (
         db.query(models.MaintenanceRecord)
         .join(models.Truck, models.Truck.id == models.MaintenanceRecord.truck_id)
-        .order_by(models.MaintenanceRecord.date.desc())
-        .all()
     )
+    if from_date:
+        q = q.filter(models.MaintenanceRecord.date >= from_date)
+    if to_date:
+        q = q.filter(models.MaintenanceRecord.date <= to_date)
+    records = q.order_by(models.MaintenanceRecord.date.desc()).all()
     headers = ["Truck ID", "Registration Number", "Date", "Odometer", "Maintenance Type", "Description", "Cost"]
     data = [
         [r.truck.truck_id, r.truck.registration_number, r.date, r.odometer, r.maintenance_type, r.description, r.cost]
         for r in records
     ]
-    return build_excel_response([("Maintenance Records", headers, data)], "maintenance_records.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Maintenance Records", headers, data)], f"maintenance_records{suffix}.xlsx")
 
 
 @router.get("/tyre-inventory")
-def export_tyre_inventory(db: Session = Depends(get_db)):
-    rows = db.query(models.TyreInventory).order_by(models.TyreInventory.brand).all()
+def export_tyre_inventory(
+    from_date: Optional[str] = Query(None, description="Purchase date range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Purchase date range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.TyreInventory)
+    if from_date:
+        q = q.filter(models.TyreInventory.purchase_date >= from_date)
+    if to_date:
+        q = q.filter(models.TyreInventory.purchase_date <= to_date)
+    rows = q.order_by(models.TyreInventory.brand).all()
     headers = [
         "Brand", "Tyre Type", "Tyre Number", "Size", "Range (KM)",
         "Cost", "Condition", "Purchase Date",
@@ -404,17 +441,25 @@ def export_tyre_inventory(db: Session = Depends(get_db)):
          r.cost, r.condition, r.purchase_date, r.repair_cost, r.retread_cost, r.retread_count]
         for r in rows
     ]
-    return build_excel_response([("Tyre Inventory", headers, data)], "tyre_inventory.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Tyre Inventory", headers, data)], f"tyre_inventory{suffix}.xlsx")
 
 
 @router.get("/fuel-logs")
-def export_fuel_logs(db: Session = Depends(get_db)):
-    records = (
+def export_fuel_logs(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    q = (
         db.query(models.FuelLog)
         .join(models.Truck, models.Truck.id == models.FuelLog.truck_id)
-        .order_by(models.FuelLog.date.desc())
-        .all()
     )
+    if from_date:
+        q = q.filter(models.FuelLog.date >= from_date)
+    if to_date:
+        q = q.filter(models.FuelLog.date <= to_date)
+    records = q.order_by(models.FuelLog.date.desc()).all()
     headers = [
         "Truck ID", "Registration Number", "Date", "Odometer",
         "Litres", "Price Per Litre", "Total Cost",
@@ -426,4 +471,5 @@ def export_fuel_logs(db: Session = Depends(get_db)):
          r.distance, r.mileage, r.fuel_station, r.logged_by]
         for r in records
     ]
-    return build_excel_response([("Fuel Logs", headers, data)], "fuel_logs.xlsx")
+    suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
+    return build_excel_response([("Fuel Logs", headers, data)], f"fuel_logs{suffix}.xlsx")

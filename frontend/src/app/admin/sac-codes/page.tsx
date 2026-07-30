@@ -398,6 +398,18 @@ export default function SacCodeManagementPage() {
             </p>
           )}
           <div className="flex flex-col gap-1.5">
+            {/* Clear / remove option — shown prominently when a type is already set */}
+            {autoPopDialog.sc?.autoPopulateInvoiceType && (
+              <button
+                type="button"
+                disabled={autoPopping}
+                onClick={() => handleSetAutoPopulate(null)}
+                className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-left text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+              >
+                <span>Remove Auto Populate</span>
+                <span className="text-xs font-normal text-red-400">Currently: {autoPopDialog.sc.autoPopulateInvoiceType}</span>
+              </button>
+            )}
             {(["Transport Memo", "Tax Invoice", "Bill of Supply"] as const).map((type) => {
               const isActive = autoPopDialog.sc?.autoPopulateInvoiceType === type;
               const hasGst = parseFloat(autoPopDialog.sc?.gstRate ?? "0") > 0;
@@ -424,16 +436,6 @@ export default function SacCodeManagementPage() {
               );
             })}
           </div>
-          {autoPopDialog.sc?.autoPopulateInvoiceType && (
-            <button
-              type="button"
-              disabled={autoPopping}
-              onClick={() => handleSetAutoPopulate(null)}
-              className="mt-1 text-xs text-gray-400 hover:text-red-500 text-center disabled:opacity-50"
-            >
-              Remove Auto Populate setting
-            </button>
-          )}
         </div>
       </Dialog>
     </div>

@@ -18,7 +18,7 @@ import {
   CircleDot,
 } from "lucide-react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
-import { TripSummaryWidget } from "./TripSummaryWidget";
+import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getComplianceStatus } from "@/lib/compliance";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
@@ -190,10 +190,12 @@ export function FinanceManagerDashboard() {
                 <span className="text-xs font-semibold text-red-700">{overdueEmis.length} EMI payment{overdueEmis.length > 1 ? "s" : ""} overdue</span>
               </div>
             )}
-            <TripSummaryWidget />
           </div>
         </div>
       </div>
+
+      {/* Current Trips */}
+      <CurrentTripsCard />
 
       {/* Compliance Alert Banner */}
       {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (

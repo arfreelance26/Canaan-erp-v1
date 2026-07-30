@@ -126,6 +126,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   driverAdvanceAmount: "",
   driverAdvancePaymentMethod: "",
   driverAdvance: "",
+  initialDisbursedAdvance: "",
   driverCompensationType: "",
   openLoadHireType: "",
   ratePerTon: "",
@@ -336,14 +337,18 @@ export function TripFormDialog({
 
   type RouteOption = {
     originState: string;
+    originAddress: string;
     destinationState: string;
     destLabel: string;
     hireAmount: string;
     approxDistanceKm: string;
+    cargoClassification: string;
+    containerType: string;
+    cargoWeight: string;
   };
 
   // Build one route entry per destination that has both originState and destinationState.
-  // Hire amount is taken from the first pricing row that matches this destination.
+  // All pricing fields come from the first matching pricing row for that destination.
   const availableRoutes: RouteOption[] = customerDestinations
     .filter((d) => d.originState && d.destinationState)
     .map((d) => {
@@ -357,10 +362,14 @@ export function TripFormDialog({
       });
       return {
         originState: d.originState!,
+        originAddress: d.originAddress ?? "",
         destinationState: d.destinationState,
         destLabel,
         hireAmount: matchedPricing?.rate ?? "",
         approxDistanceKm: d.approxDistanceKm ?? "",
+        cargoClassification: matchedPricing?.cargoClassification ?? "",
+        containerType: matchedPricing?.containerType ?? "",
+        cargoWeight: matchedPricing?.weightInTons ?? "",
       };
     });
 
@@ -545,11 +554,23 @@ export function TripFormDialog({
     const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
     const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
     const hireBase = finalCustomerPricing?.accountsHireAmount ?? route.hireAmount;
+    // Use the real address strings so origin/destination fields show full locations.
+    // Fall back to state names when no address is stored.
+    const origin = route.originAddress || route.originState;
+    const destination = route.destLabel || route.destinationState;
+    const containerSpec = route.containerType ? containerTypeToSpec(route.containerType) : "";
     setForm((prev) => ({
       ...prev,
-      origin: route.originState,
-      destination: route.destinationState,
+      origin,
+      destination,
       ...(route.hireAmount ? { transportHireAmount: route.hireAmount } : {}),
+      ...(route.cargoClassification
+        ? { cargoClassification: route.cargoClassification as Trip["cargoClassification"] }
+        : {}),
+      ...(containerSpec
+        ? { containerSpecification: containerSpec as Trip["containerSpecification"] }
+        : {}),
+      ...(route.cargoWeight ? { cargoWeight: route.cargoWeight } : {}),
       ...(prev.driverCompensationType === "Normal"
         ? { driverAdvanceAmount: calcCompensation(hireBase, pct) }
         : {}),
@@ -1179,46 +1200,70 @@ export function TripFormDialog({
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-wrap gap-2 pt-0.5">
+                      <div className="flex flex-wrap gap-2.5 pt-0.5">
                         {availableRoutes.map((route, i) => {
+                          const originLabel = route.originAddress || route.originState;
+                          const destLabel = route.destLabel || route.destinationState;
                           const isSelected =
-                            form.origin === route.originState &&
-                            form.destination === route.destinationState;
+                            form.origin === (route.originAddress || route.originState) &&
+                            form.destination === (route.destLabel || route.destinationState);
                           return (
                             <button
                               key={i}
                               type="button"
                               onClick={() => handleRouteSelect(route)}
                               className={[
-                                "inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition-all duration-150",
+                                "flex flex-col items-start gap-1.5 rounded-xl border px-3.5 py-2.5 text-left transition-all duration-150",
                                 isSelected
                                   ? "border-blue-400 bg-blue-600 text-white shadow-md"
                                   : "border-gray-200 bg-white text-gray-700 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700",
                               ].join(" ")}
                             >
-                              <span>{route.originState}</span>
-                              <span className={`text-xs ${isSelected ? "text-blue-200" : "text-gray-400"}`}>
-                                →
-                              </span>
-                              <span>{route.destinationState}</span>
-                              {route.hireAmount && (
-                                <span
-                                  className={[
-                                    "ml-1 rounded-full px-2 py-0.5 text-xs font-bold",
+                              {/* Route line */}
+                              <div className="flex items-center gap-1.5 text-sm font-semibold leading-tight">
+                                <span>{originLabel}</span>
+                                <span className={`text-xs ${isSelected ? "text-blue-200" : "text-gray-400"}`}>→</span>
+                                <span>{destLabel}</span>
+                              </div>
+                              {/* Badges */}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {route.cargoClassification && (
+                                  <span className={[
+                                    "rounded-md px-2 py-0.5 text-xs font-medium",
+                                    isSelected
+                                      ? "bg-blue-500 text-blue-100"
+                                      : "border border-blue-100 bg-blue-50 text-blue-700",
+                                  ].join(" ")}>
+                                    {route.cargoClassification}
+                                  </span>
+                                )}
+                                {route.containerType && (
+                                  <span className={[
+                                    "rounded-md px-2 py-0.5 text-xs font-medium",
+                                    isSelected
+                                      ? "bg-blue-500 text-blue-100"
+                                      : "border border-purple-100 bg-purple-50 text-purple-700",
+                                  ].join(" ")}>
+                                    {route.containerType}
+                                  </span>
+                                )}
+                                {route.hireAmount && (
+                                  <span className={[
+                                    "rounded-md px-2 py-0.5 text-xs font-bold",
                                     isSelected
                                       ? "bg-blue-500 text-blue-100"
                                       : "border border-emerald-200 bg-emerald-50 text-emerald-700",
-                                  ].join(" ")}
-                                >
-                                  ₹{Number(route.hireAmount).toLocaleString("en-IN")}
-                                </span>
-                              )}
+                                  ].join(" ")}>
+                                    ₹{Number(route.hireAmount).toLocaleString("en-IN")}
+                                  </span>
+                                )}
+                              </div>
                             </button>
                           );
                         })}
                       </div>
                       <p className="mt-1.5 text-xs text-gray-400">
-                        Select a route to auto-fill Origin and Destination fields
+                        Select a route to auto-fill trip details
                       </p>
                     </>
                   )}
@@ -1566,8 +1611,37 @@ export function TripFormDialog({
                 onChange={(e) => update("driverAdvance", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
-                placeholder="e.g. 1000"
+                placeholder="e.g. 2000"
               />
+            </Field>
+            )}
+
+            {!isReturnTrip && (
+            <Field label="Initial Disbursed Advance (₹)">
+              <DecimalInput type="number"
+                value={form.initialDisbursedAdvance ?? ""}
+                onChange={(e) => update("initialDisbursedAdvance", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={inputClass}
+                placeholder="e.g. -500 (leave blank if full advance was sent)"
+              />
+              <span className="mt-1 text-xs text-gray-400">
+                Use this if the actual amount sent to the driver differs from the Driver Advance above.
+                Enter the <strong>difference</strong> (negative if less was sent, positive if more).
+                {form.driverAdvance && form.initialDisbursedAdvance && (() => {
+                  const base = parseFloat(form.driverAdvance);
+                  const adj = parseFloat(form.initialDisbursedAdvance);
+                  if (!isNaN(base) && !isNaN(adj)) {
+                    const effective = base + adj;
+                    return (
+                      <span className="ml-1 font-semibold text-blue-600">
+                        Effective amount sent: ₹{effective.toLocaleString("en-IN")}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </span>
             </Field>
             )}
 

@@ -333,6 +333,7 @@ class Trip(Base):
     driver_advance_amount = Column(Numeric(10, 2), default=0)
     driver_advance_payment_method = Column(Enum("None", "CASH", "NEFT/IMPS/UPI", "Both"))
     driver_advance = Column(Numeric(10, 2), nullable=True)
+    initial_disbursed_advance = Column(Numeric(10, 2), nullable=True)
     driver_compensation_type = Column(Enum("Normal", "FIXED"))
     # Transport Cost
     open_load_hire_type = Column(Enum("Ton Based", "Fixed"), nullable=True)
@@ -588,8 +589,10 @@ class StaffAttendance(Base):
     date = Column(Date, nullable=False)
     status = Column(Enum("Present", "Absent", "On Leave", "Not Marked"), nullable=False, default="Not Marked")
     check_in_time = Column(String(20))
+    check_out_time = Column(String(20))
     marked_at = Column(DateTime)
     source = Column(Enum("Web", "App"), default="Web")
+    admin_override = Column(Boolean, default=False, nullable=False)
 
     staff = relationship("Staff", back_populates="attendance_records")
 

@@ -31,6 +31,8 @@ export default function LeaveApprovalsPage() {
   const [filter, setFilter] = useState<FilterValue>("All");
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   useEffect(() => {
         attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
@@ -115,7 +117,31 @@ export default function LeaveApprovalsPage() {
             Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
           </p>
         </div>
-        <DownloadExcelButton path="/exports/leave-requests" filename="leave_requests.xlsx" />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={exportFrom}
+            onChange={(e) => setExportFrom(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            title="Report from date"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <input
+            type="date"
+            value={exportTo}
+            onChange={(e) => setExportTo(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            title="Report to date"
+          />
+          <DownloadExcelButton
+            path="/exports/leave-requests"
+            filename="leave_requests.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 sm:max-w-md">

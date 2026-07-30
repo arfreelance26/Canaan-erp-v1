@@ -85,6 +85,7 @@ export type Trip = {
   driverAdvanceAmount: string;
   driverAdvancePaymentMethod: DriverAdvancePaymentMethod | "";
   driverAdvance: string;
+  initialDisbursedAdvance?: string;
   driverCompensationType: DriverCompensationType | "";
 
   // Transport Cost Details

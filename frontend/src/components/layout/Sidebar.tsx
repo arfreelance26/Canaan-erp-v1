@@ -25,6 +25,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/resources/customers",
     "/resources/drivers",
     "/resources/fleet",
+    "/attendance/mark",
     "/attendance/drivers",
     "/attendance/leave-requests",
     "/attendance/edit-approvals",
@@ -40,6 +41,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/resources/customers",
     "/resources/drivers",
     "/resources/fleet",
+    "/attendance/mark",
     "/attendance/drivers",
     "/attendance/leave-requests",
   ],
@@ -50,6 +52,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/finance/driver-compensation",
     "/finance/emi-tracking",
     "/maintenance/compliance",
+    "/attendance/mark",
     "/attendance/leave-requests",
     "/admin/sac-codes",
   ],
@@ -58,15 +61,18 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/tyre-management",
     "/maintenance/tyre-inventory",
     "/maintenance/trucks",
+    "/attendance/mark",
     "/attendance/leave-requests",
   ],
   "Yard Supervisor": [
     "/trips/sheet-collection",
+    "/attendance/mark",
     "/attendance/leave-requests",
   ],
   "Trip Sheet Register": [
     "/trips/reconciliation",
     "/maintenance/fuel-history",
+    "/attendance/mark",
   ],
 };
 

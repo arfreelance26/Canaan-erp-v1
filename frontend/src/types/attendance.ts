@@ -17,8 +17,10 @@ export type StaffAttendanceRecord = {
   date: string;
   status: AttendanceStatus;
   checkInTime: string | null;
+  checkOutTime: string | null;
   markedAt: string | null;
   source: AttendanceSource;
+  adminOverride: boolean;
 };
 
 export type DriverAttendanceRemark = {
@@ -42,4 +44,14 @@ export type AttendanceSummaryRow = {
   onWorkshop: number;
   notMarked: number;
   totalDays: number;
+};
+
+export type StaffSelfSummary = {
+  present: number;
+  absent: number;
+  onLeave: number;
+  notMarked: number;
+  daysElapsed: number;
+  workingDays: number;
+  percentage: number;
 };

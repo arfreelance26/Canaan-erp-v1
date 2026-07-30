@@ -76,7 +76,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
           // Split by event_type
           const kmRows    = rows.filter((r) => r.eventType === "km_variance");
-          // trip_assigned / trip_closed are handled by TripEventToastHub — exclude from sheet alerts
+          // trip_assigned / trip_closed are shown in the CurrentTripsCard — exclude from sheet alerts
           const TRIP_EVENT_TYPES = new Set(["trip_assigned", "trip_closed"]);
           const sheetRows = rows.filter((r) => r.eventType !== "km_variance" && !TRIP_EVENT_TYPES.has(r.eventType));
 

@@ -433,6 +433,7 @@ class TripBase(OrmBase):
     driver_advance_amount: Optional[Decimal] = None
     driver_advance_payment_method: Optional[DriverAdvancePaymentMethod] = None
     driver_advance: Optional[Decimal] = None
+    initial_disbursed_advance: Optional[Decimal] = None
     driver_compensation_type: Optional[DriverCompensationType] = None
     open_load_hire_type: Optional[Literal["Ton Based", "Fixed"]] = None
     rate_per_ton: Optional[Decimal] = None
@@ -781,8 +782,10 @@ class StaffAttendanceOut(OrmBase):
     date: date
     status: AttendanceStatus
     check_in_time: Optional[str] = None
+    check_out_time: Optional[str] = None
     marked_at: Optional[datetime] = None
     source: Literal["Web", "App"] = "Web"
+    admin_override: bool = False
 
 
 class AttendanceSummaryOut(BaseModel):
@@ -798,6 +801,23 @@ class AttendanceSummaryOut(BaseModel):
     on_workshop: int = 0
     not_marked: int
     total_days: int
+
+
+# Self-service mark attendance (today only — no date field accepted from client)
+class StaffSelfMarkCreate(BaseModel):
+    staff_id: int
+    status: Literal["Present", "Absent", "On Leave"]
+
+
+# Monthly summary returned by GET /attendance/staff/self-summary
+class StaffSelfSummaryOut(BaseModel):
+    present: int
+    absent: int
+    on_leave: int
+    not_marked: int
+    days_elapsed: int
+    working_days: int
+    percentage: float
 
 
 # ---------------------------------------------------------------------------

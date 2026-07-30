@@ -207,7 +207,23 @@ export function VerifyTripDialog({
             </div>
           )}
           <Row label="Driver Compensation Type" value={sheet?.driverCompensationType ?? ""} />
-          <Row label="Advance Paid to Driver"   value={sheet ? fmt(n(sheet.driverAdvanceAmount)) : ""} />
+          <Row label="Driver Advance (Assigned)"   value={trip.driverAdvance ? fmt(Number(trip.driverAdvance)) : ""} />
+          {trip.initialDisbursedAdvance && trip.initialDisbursedAdvance !== "0" && (
+            <div className="flex items-start justify-between gap-6 py-1.5 text-sm border-b border-gray-50">
+              <span className="shrink-0 text-gray-400 font-medium dark:text-white">Initial Disbursed Advance</span>
+              <div className="text-right">
+                <span className={`font-semibold ${Number(trip.initialDisbursedAdvance) < 0 ? "text-amber-600" : "text-gray-800"} dark:text-white`}>
+                  {Number(trip.initialDisbursedAdvance) >= 0 ? "+" : ""}{fmt(Number(trip.initialDisbursedAdvance))}
+                </span>
+                {trip.driverAdvance && (
+                  <p className="text-xs text-gray-400 mt-0.5 dark:text-gray-500">
+                    Effective sent: ₹{(Number(trip.driverAdvance) + Number(trip.initialDisbursedAdvance)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <Row label="Advance Paid to Driver (Sheet)"   value={sheet ? fmt(n(sheet.driverAdvanceAmount)) : ""} />
           <Row label="Driver Balance"           value={sheet ? fmt(n(sheet.driverBalance)) : ""} />
           <div className="mt-2 mb-1 flex items-center justify-between rounded-lg bg-blue-600 px-4 py-2.5">
             <span className="text-sm font-semibold text-blue-100">Hire Amount</span>

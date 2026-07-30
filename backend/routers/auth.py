@@ -68,15 +68,38 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
     if username.lower() == ADMIN_USERNAME.lower() and payload.password == ADMIN_PASSWORD:
         _clear_failures(lockout_key)
-        token = create_access_token(user_id=None, name="Administrator", role="Admin", staff_id="ADMIN")
+        # Find or auto-create the Admin Staff record so attendance self-marking works
+        admin_staff = (
+            db.query(models.Staff)
+            .filter(models.Staff.software_designation == "Admin")
+            .first()
+        )
+        if not admin_staff:
+            # Check if the ADMIN staff_id slot is taken by a record with a different designation
+            existing = db.query(models.Staff).filter(models.Staff.staff_id == "ADMIN").first()
+            if existing:
+                existing.software_designation = "Admin"
+                db.commit()
+                db.refresh(existing)
+                admin_staff = existing
+            else:
+                admin_staff = models.Staff(
+                    staff_id="ADMIN",
+                    name="Administrator",
+                    software_designation="Admin",
+                )
+                db.add(admin_staff)
+                db.commit()
+                db.refresh(admin_staff)
+        token = create_access_token(user_id=admin_staff.id, name=admin_staff.name, role="Admin", staff_id=admin_staff.staff_id)
         return LoginResponse(
             access_token=token,
-            id=None,
-            name="Administrator",
+            id=admin_staff.id,
+            name=admin_staff.name,
             email=ADMIN_USERNAME,
             software_designation="Admin",
-            staff_id="ADMIN",
-            photo_url=None,
+            staff_id=admin_staff.staff_id,
+            photo_url=admin_staff.photo_url,
         )
 
     member = (
