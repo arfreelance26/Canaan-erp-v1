@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Lock, Download } from "lucide-react";
+import { Search, Lock, Download, Loader2, Info } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DriverAttendanceTable } from "@/components/attendance/DriverAttendanceTable";
@@ -36,6 +36,9 @@ export default function DriverAttendancePage() {
   const [downloading, setDownloading] = useState(false);
   const [fromDate, setFromDate] = useState(todayIst());
   const [toDate, setToDate] = useState(todayIst());
+  const [lateEntryLog, setLateEntryLog] = useState<{ id: string; date: string; remark: string; createdAt: string | null } | null>(null);
+  const [lateEntryRemark, setLateEntryRemark] = useState("");
+  const [submittingLateEntry, setSubmittingLateEntry] = useState(false);
 
   useEffect(() => {
     Promise.all([driversApi.list(), attendanceApi.listDrivers(), attendanceApi.listDriverRemarks()])
@@ -49,10 +52,13 @@ export default function DriverAttendancePage() {
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
-  // Reload records and remarks when date changes or WS event fires
+  // Reload records, remarks, and late-entry log when date changes or WS event fires
   useEffect(() => {
-    Promise.all([attendanceApi.listDrivers(date), attendanceApi.listDriverRemarks(undefined, date)])
-      .then(([r, rm]) => { setRecords(r); setRemarks(rm); });
+    Promise.all([
+      attendanceApi.listDrivers(date),
+      attendanceApi.listDriverRemarks(undefined, date),
+      attendanceApi.getLateEntryLog(date),
+    ]).then(([r, rm, log]) => { setRecords(r); setRemarks(rm); setLateEntryLog(log); setLateEntryRemark(""); });
   }, [date, refreshKey]);
 
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
@@ -77,6 +83,21 @@ export default function DriverAttendancePage() {
     },
     [date]
   );
+
+  const handleSubmitLateEntry = useCallback(async () => {
+    const trimmed = lateEntryRemark.trim();
+    if (!trimmed) return;
+    setSubmittingLateEntry(true);
+    try {
+      const log = await attendanceApi.postLateEntryLog(date, trimmed);
+      setLateEntryLog(log);
+      setLateEntryRemark("");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to submit late entry reason.");
+    } finally {
+      setSubmittingLateEntry(false);
+    }
+  }, [date, lateEntryRemark]);
 
   const handleAddRemark = useCallback(
     async (driverId: string, remark: string) => {
@@ -326,8 +347,9 @@ export default function DriverAttendancePage() {
     }
   }
 
-  const isReadOnly = useMemo(() => {
-    if (!isAdmin) return false;
+  // Admin has no date restrictions. Non-admin: locked if date is older than 2 days.
+  const isLockedDate = useMemo(() => {
+    if (isAdmin) return false;
     const today = todayIst();
     const [y, m, d] = today.split("-").map(Number);
     const cutoff = new Date(y, m - 1, d - 2);
@@ -414,12 +436,42 @@ export default function DriverAttendancePage() {
         </div>
       </div>
 
-      {isReadOnly && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Lock className="h-4 w-4 shrink-0 text-amber-500" />
+      {/* Non-admin: locked date — show late entry reason form or unlocked confirmation */}
+      {isLockedDate && !lateEntryLog && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Lock className="h-4 w-4 shrink-0 text-amber-500" />
+            <span className="text-sm font-semibold text-amber-800">Locked date</span>
+            <span className="text-sm text-amber-700">— This date is outside the 2-day edit window. Provide a reason to unlock attendance entry for this day.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <textarea
+              value={lateEntryRemark}
+              onChange={(e) => setLateEntryRemark(e.target.value)}
+              placeholder="Reason for late attendance entry…"
+              rows={2}
+              className="flex-1 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm focus:border-amber-500 focus:outline-none resize-none"
+            />
+            <button
+              type="button"
+              onClick={handleSubmitLateEntry}
+              disabled={!lateEntryRemark.trim() || submittingLateEntry}
+              className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap self-stretch"
+            >
+              {submittingLateEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+              Unlock &amp; Enter Attendance
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Admin: show info banner when late entry log exists for this date */}
+      {isAdmin && lateEntryLog && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <Info className="h-4 w-4 shrink-0 text-blue-500 mt-0.5" />
           <span>
-            <span className="font-semibold">View only — </span>
-            Attendance can be marked or edited only for today and the past 2 days. You can view records for this date but cannot make any changes.
+            <span className="font-semibold">Late entry submitted for this date — </span>
+            Reason: &ldquo;{lateEntryLog.remark}&rdquo;
           </span>
         </div>
       )}
@@ -463,7 +515,7 @@ export default function DriverAttendancePage() {
         records={records}
         remarks={remarks}
         date={date}
-        readOnly={isReadOnly}
+        readOnly={isLockedDate && !lateEntryLog}
         onMark={handleMark}
         onAddRemark={handleAddRemark}
         onUpdateRemark={handleUpdateRemark}

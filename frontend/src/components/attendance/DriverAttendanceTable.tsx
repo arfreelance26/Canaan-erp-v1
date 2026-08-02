@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Truck, PauseCircle, CalendarOff, Wrench, Loader2, Plus, Pencil, Trash2, X, MessageSquare } from "lucide-react";
+import { Truck, PauseCircle, CalendarOff, Wrench, Loader2, Plus, Pencil, Trash2, X, MessageSquare, AlertCircle } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 import { getAttendanceForDate } from "@/lib/attendance-data";
@@ -114,9 +114,17 @@ function RemarkRow({
 
   return (
     <li className="group flex items-start gap-1.5">
-      <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-gray-400" />
-      <span className="flex-1 text-xs text-gray-700 break-words whitespace-normal">{remark.remark}</span>
-      {!readOnly && (
+      {remark.isLateEntry
+        ? <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+        : <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-gray-400" />
+      }
+      <div className="flex-1 flex flex-col gap-0.5">
+        {remark.isLateEntry && (
+          <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">Late Entry</span>
+        )}
+        <span className="text-xs text-gray-700 break-words whitespace-normal">{remark.remark}</span>
+      </div>
+      {!readOnly && !remark.isLateEntry && (
         <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button type="button" onClick={() => { setText(remark.remark); setEditing(true); }}
             className="rounded p-0.5 text-gray-400 hover:text-blue-600">

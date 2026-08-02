@@ -14,6 +14,28 @@ router = APIRouter(prefix="/customers", tags=["Customers"])
 # Customers
 # ---------------------------------------------------------------------------
 
+@router.get("/destination-origin-states", response_model=list[str])
+def list_destination_origin_states(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.CustomerDestination.origin_state)
+        .filter(models.CustomerDestination.origin_state.isnot(None), models.CustomerDestination.origin_state != "")
+        .distinct()
+        .all()
+    )
+    return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
+
+
+@router.get("/destination-states", response_model=list[str])
+def list_destination_states(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.CustomerDestination.destination_state)
+        .filter(models.CustomerDestination.destination_state.isnot(None), models.CustomerDestination.destination_state != "")
+        .distinct()
+        .all()
+    )
+    return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
+
+
 @router.get("", response_model=list[schemas.CustomerOut])
 def list_customers(
     search: Optional[str] = Query(None, description="Search by name, GSTIN, phone, email"),

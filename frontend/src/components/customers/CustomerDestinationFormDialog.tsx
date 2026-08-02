@@ -3,9 +3,11 @@
 import { useEffect, useState, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { customersApi } from "@/lib/api";
 
 export const DRAFT_KEY = "erp_customer_destination_form_draft";
 
@@ -38,6 +40,13 @@ export function CustomerDestinationFormDialog({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [customerError, setCustomerError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [originStates, setOriginStates] = useState<string[]>([]);
+  const [destinationStates, setDestinationStates] = useState<string[]>([]);
+
+  useEffect(() => {
+    customersApi.listDestinationOriginStates().then(setOriginStates).catch(() => {});
+    customersApi.listDestinationStates().then(setDestinationStates).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -166,12 +175,11 @@ export function CustomerDestinationFormDialog({
           </div>
 
           <Field label="Origin State">
-            <input
-              type="text"
+            <GlassCombobox
               value={form.originState ?? ""}
-              onChange={(e) => update("originState", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Tamil Nadu"
+              onChange={(val) => update("originState", val)}
+              options={originStates.map((s) => ({ value: s, label: s }))}
+              placeholder="Enter or select origin state"
             />
             <span className="mt-1 text-xs text-gray-400">
               State the truck departs from — shown in Origin Location dropdown when assigning trips
@@ -196,13 +204,12 @@ export function CustomerDestinationFormDialog({
           </div>
 
           <Field label="Destination State" required>
-            <input
-              type="text"
+            <GlassCombobox
               required
               value={form.destinationState}
-              onChange={(e) => update("destinationState", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Kerala"
+              onChange={(val) => update("destinationState", val)}
+              options={destinationStates.map((s) => ({ value: s, label: s }))}
+              placeholder="Enter or select destination state"
             />
           </Field>
 

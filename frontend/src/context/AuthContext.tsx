@@ -113,6 +113,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Best-effort server-side token revocation so a stolen-but-unexpired token
+    // can't be reused after logout (SECURITY_PLAN.md MEDIUM-2). Fire-and-forget.
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
+      if (token) {
+        void fetch(`${API_URL}/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {}
     sessionStorage.removeItem(STORAGE_KEY);
     disconnectRealtime();
     cacheClear();

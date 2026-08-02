@@ -1,17 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
+import { useIdle } from "react-haiku";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
+
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, ready } = useAuth();
+  const { user, ready, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const isIdle = useIdle(IDLE_TIMEOUT_MS);
+
+  useEffect(() => {
+    if (isIdle && user) {
+      logout();
+    }
+  }, [isIdle, user, logout]);
 
   if (pathname === "/login" || pathname === "/login/") {
     return <>{children}</>;

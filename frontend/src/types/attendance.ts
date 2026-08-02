@@ -28,6 +28,7 @@ export type DriverAttendanceRemark = {
   driverId: string;
   date: string;
   remark: string;
+  isLateEntry: boolean;
   createdAt: string | null;
 };
 

@@ -438,12 +438,6 @@ export default function TripVerificationPage() {
                               className="rounded-lg border border-blue-900/30 bg-white px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-50">
                               GENERATE LR
                             </button>
-                            {parseFloat(trip.customerFuelAdvanceAmount || "0") > 0 && (
-                              <button type="button" onClick={() => setDabDialogTrip(trip)}
-                                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100">
-                                GENERATE DAB
-                              </button>
-                            )}
                             <button type="button" onClick={() => setVerifyTrip(trip)}
                               className="w-fit rounded-lg border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50">
                               View Details

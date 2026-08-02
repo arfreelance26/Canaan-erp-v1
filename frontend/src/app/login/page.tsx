@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2, AlertCircle, Truck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -25,11 +25,11 @@ export default function LoginPage() {
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   // Check backend connectivity once on mount
-  if (typeof window !== "undefined" && backendOnline === null) {
+  useEffect(() => {
     fetch(`${API_URL}/`)
       .then(() => setBackendOnline(true))
       .catch(() => setBackendOnline(false));
-  }
+  }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

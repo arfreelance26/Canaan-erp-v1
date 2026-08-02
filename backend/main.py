@@ -1,7 +1,10 @@
 import asyncio
+import logging
 import os
 import re
 import time
+
+_log = logging.getLogger("canaan.app")
 
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -10,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
-from security import get_current_user, require_roles, SECRET_KEY, ALGORITHM
+from security import get_current_user, require_roles, decode_token, SECRET_KEY, ALGORITHM
 from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
@@ -204,6 +207,8 @@ def _run_schema_migrations():
         "ALTER TABLE trip_closures ADD COLUMN closure_remarks TEXT NULL",
         # Driver name snapshot stored on trip at assignment time
         "ALTER TABLE trips ADD COLUMN driver_name VARCHAR(200) NULL",
+        # Driver attendance remarks — late entry flag (set when non-admin marks attendance past the 2-day window)
+        "ALTER TABLE driver_attendance_remarks ADD COLUMN is_late_entry TINYINT(1) NOT NULL DEFAULT 0",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -429,13 +434,28 @@ app = FastAPI(
 async def _startup():
     set_event_loop(asyncio.get_running_loop())
 
+# HIGH-2: CORS origins come from the environment. Wildcard is allowed only when
+# CORS_ORIGINS is literally "*" (development). Production must set the real origin(s).
+_cors_env = os.getenv("CORS_ORIGINS", "*").strip()
+if _cors_env == "*":
+    _cors_origins = ["*"]
+else:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Enable HSTS only when TLS is terminated end-to-end (set ENABLE_HSTS=1 in prod).
+_ENABLE_HSTS = os.getenv("ENABLE_HSTS", "0") == "1"
+# A conservative CSP for the JSON API. The Next.js frontend is served separately
+# and ships its own CSP; this protects any HTML the API itself might return.
+_API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+
 
 
 @app.middleware("http")
@@ -444,7 +464,12 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(), payment=()"
     response.headers["Cache-Control"] = response.headers.get("Cache-Control", "no-store")
+    # File responses set their own CSP (sandbox); don't override those.
+    response.headers.setdefault("Content-Security-Policy", _API_CSP)
+    if _ENABLE_HSTS:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
     return response
 
 
@@ -519,9 +544,11 @@ async def sqlalchemy_integrity_exception_handler(request: Request, exc: Integrit
             content={"detail": "This record is referenced by other data and cannot be modified or deleted."},
         )
 
+    # MEDIUM-5: don't echo raw DB error text to the client. Log it server-side.
+    _log.warning("Unhandled IntegrityError on %s %s: %s", request.method, request.url.path, error_msg)
     return JSONResponse(
         status_code=400,
-        content={"detail": f"Database integrity error: {error_msg}"},
+        content={"detail": "The request conflicts with existing data. Please review your input and try again."},
     )
 
 @app.exception_handler(DataError)
@@ -534,21 +561,25 @@ async def sqlalchemy_data_exception_handler(request: Request, exc: DataError):
             status_code=422,
             content={"detail": f"Invalid value for '{col}'. The value is not allowed by the database."},
         )
-    return JSONResponse(status_code=422, content={"detail": f"Invalid data: {error_msg}"})
+    _log.warning("DataError on %s %s: %s", request.method, request.url.path, error_msg)
+    return JSONResponse(status_code=422, content={"detail": "One or more values are invalid. Please check your input."})
 
 @app.exception_handler(OperationalError)
 async def sqlalchemy_operational_exception_handler(request: Request, exc: OperationalError):
     error_msg = str(exc.orig) if exc.orig else str(exc)
+    _log.error("OperationalError on %s %s: %s", request.method, request.url.path, error_msg)
     return JSONResponse(
-        status_code=500,
-        content={"detail": f"Database error: {error_msg}"},
+        status_code=503,
+        content={"detail": "The service is temporarily unavailable. Please try again shortly."},
     )
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Never leak exception type/stack to the client. Full detail goes to the server log.
+    _log.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal error: {type(exc).__name__}: {exc}"},
+        content={"detail": "An unexpected error occurred. Please try again or contact support."},
     )
 
 @app.get("/", tags=["Health"])
@@ -559,9 +590,9 @@ def health_check():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str = ""):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_token(token)  # enforces signature, expiry AND revocation
     except JWTError:
-        await websocket.close(code=1008)  # policy violation: bad/expired token
+        await websocket.close(code=1008)  # policy violation: bad/expired/revoked token
         return
     token_exp = payload.get("exp", 0)
 

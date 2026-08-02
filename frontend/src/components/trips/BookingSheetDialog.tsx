@@ -85,6 +85,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
         advanceAmount: "", driverAdvance: "", additionalDriverAdvance: "",
         paymentMode: "", billTo: "",
         companyHaltDays: "", partyHaltDays: "", haltRemarks: "", driverHaltCompensation: "",
+        closureRemarks: "",
         closedAt: "",
       });
     }

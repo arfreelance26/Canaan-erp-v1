@@ -581,6 +581,18 @@ class DriverAttendanceRemark(Base):
     driver_id = Column(String(20), ForeignKey("drivers.driver_id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
     remark = Column(String(1000), nullable=False)
+    is_late_entry = Column(Boolean, default=False, nullable=False, server_default="0")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class DriverAttendanceLateEntryLog(Base):
+    """One record per date — stores the reason a non-admin submitted attendance past the 2-day lock.
+    Presence of this record also serves as the backend bypass key for that date."""
+    __tablename__ = "driver_attendance_late_entry_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False, unique=True)
+    remark = Column(String(1000), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -889,3 +901,25 @@ class Notification(Base):
     # Python-side UTC default (not func.now()): the DB server clock may be in any
     # timezone, but the API serializer stamps naive datetimes as UTC — they must match.
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# ---------------------------------------------------------------------------
+# Security audit trail (append-only). One row per security-relevant event:
+# logins, failed logins, privileged actions, document access, deletes, backups.
+# Never UPDATE or DELETE rows here — required for DPDP breach investigation.
+# ---------------------------------------------------------------------------
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event = Column(String(60), nullable=False)             # e.g. "login.success", "file.download", "record.delete"
+    outcome = Column(String(20), nullable=False, default="success")  # success | failure | denied
+    actor_id = Column(Integer)                             # staff.id (null for anonymous/admin backdoor)
+    actor_name = Column(String(120))
+    actor_role = Column(String(50))
+    resource = Column(String(120))                         # e.g. "drivers/12/aadhaar"
+    ip_address = Column(String(64))
+    user_agent = Column(String(300))
+    detail = Column(Text)                                  # short human context (no secrets/PII values)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

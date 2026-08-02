@@ -749,6 +749,7 @@ class DriverAttendanceRemarkCreate(OrmBase):
     driver_id: str
     date: date
     remark: str
+    is_late_entry: bool = False
 
 
 class DriverAttendanceRemarkUpdate(OrmBase):
@@ -758,6 +759,19 @@ class DriverAttendanceRemarkUpdate(OrmBase):
 class DriverAttendanceRemarkOut(OrmBase):
     id: int
     driver_id: str
+    date: date
+    remark: str
+    is_late_entry: bool = False
+    created_at: Optional[datetime] = None
+
+
+class DriverLateEntryLogCreate(OrmBase):
+    date: date
+    remark: str
+
+
+class DriverLateEntryLogOut(OrmBase):
+    id: int
     date: date
     remark: str
     created_at: Optional[datetime] = None

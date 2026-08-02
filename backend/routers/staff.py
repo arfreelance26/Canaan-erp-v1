@@ -6,6 +6,12 @@ from security import require_roles
 import models, schemas
 from duplicate_checks import check_staff_duplicates
 
+
+def _hash_password(raw: str) -> str:
+    # Password policy (LOW-2) disabled until confirmed with client
+    # validate_password_strength(raw)
+    return pwd_ctx.hash(raw)
+
 router = APIRouter(prefix="/staff", tags=["Staff"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -21,7 +27,7 @@ def create_staff(payload: schemas.StaffCreate, db: Session = Depends(get_db)):
     if db.query(models.Staff).filter(models.Staff.staff_id == payload.staff_id).first():
         raise HTTPException(400, f"Staff ID {payload.staff_id} already exists")
     data = payload.model_dump()
-    data["password_hash"] = pwd_ctx.hash(data.pop("password"))
+    data["password_hash"] = _hash_password(data.pop("password"))
     member = models.Staff(**data)
     db.add(member)
     db.commit()
@@ -51,7 +57,7 @@ def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depe
         )
     data = payload.model_dump(exclude_unset=True, exclude={"client_version"})
     if "password" in data:
-        data["password_hash"] = pwd_ctx.hash(data.pop("password"))
+        data["password_hash"] = _hash_password(data.pop("password"))
     for field, value in data.items():
         setattr(member, field, value)
     member.version = (member.version or 1) + 1

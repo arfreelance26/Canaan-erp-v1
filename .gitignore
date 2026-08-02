@@ -62,3 +62,17 @@ backend/__pycache__/
 
 # desktop (Electron) — not part of the web app
 desktop/
+
+# sensitive environment files (never commit real credentials)
+backend/.env
+frontend/.env.local
+
+# client data files (sensitive Excel imports)
+data/
+
+# built installers & release artifacts
+desktop/release/
+desktop/build/
+
+# zip archives
+*.zip

@@ -184,9 +184,20 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
   }
 }
 
-// Returns the URL to serve a stored file (photo / document)
+// Returns the URL to serve a stored file (photo / document).
+// The download endpoint now requires authentication (SECURITY_PLAN.md CRITICAL-1);
+// <img src> tags cannot send headers, so the current session token is appended as
+// a query param, which the backend accepts in addition to the Authorization header.
 export function fileUrl(entity: string, entityId: string, field: string): string {
-  return `${BASE}/files/${entity}/${entityId}/${field}`;
+  const base = `${BASE}/files/${entity}/${entityId}/${field}`;
+  if (typeof window === "undefined") return base;
+  try {
+    const stored = sessionStorage.getItem("canaan_erp_user");
+    const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  } catch {
+    return base;
+  }
 }
 
 // Requests a server-generated .xlsx export and triggers a browser download.
@@ -1212,6 +1223,8 @@ export const staffApi = {
 
 export const customersApi = {
   list: () => req<B[]>("/customers").then((d) => d.map(toCustomer)),
+  listDestinationOriginStates: () => req<string[]>("/customers/destination-origin-states"),
+  listDestinationStates: () => req<string[]>("/customers/destination-states"),
   create: (customer: Customer) =>
     req<B>("/customers", { method: "POST", body: JSON.stringify(fromCustomer(customer)) }).then(toCustomer),
   update: (dbId: string, customer: Customer) =>
@@ -1425,6 +1438,7 @@ export const attendanceApi = {
         driverId: b.driver_id ?? "",
         date: b.date ?? "",
         remark: b.remark ?? "",
+        isLateEntry: b.is_late_entry ?? false,
         createdAt: b.created_at ?? null,
       }))
     );
@@ -1438,6 +1452,7 @@ export const attendanceApi = {
       driverId: b.driver_id ?? "",
       date: b.date ?? "",
       remark: b.remark ?? "",
+      isLateEntry: b.is_late_entry ?? false,
       createdAt: b.created_at ?? null,
     })),
   updateDriverRemark: (remarkId: string, remark: string) =>
@@ -1449,10 +1464,20 @@ export const attendanceApi = {
       driverId: b.driver_id ?? "",
       date: b.date ?? "",
       remark: b.remark ?? "",
+      isLateEntry: b.is_late_entry ?? false,
       createdAt: b.created_at ?? null,
     })),
   deleteDriverRemark: (remarkId: string) =>
     req<void>(`/attendance/drivers/remarks/${remarkId}`, { method: "DELETE" }),
+  getLateEntryLog: (date: string) =>
+    req<B[]>(`/attendance/drivers/late-entry-log?date=${date}`).then((d) =>
+      d.length > 0 ? { id: String(d[0].id), date: d[0].date ?? "", remark: d[0].remark ?? "", createdAt: d[0].created_at ?? null } : null
+    ),
+  postLateEntryLog: (date: string, remark: string) =>
+    req<B>("/attendance/drivers/late-entry-log", {
+      method: "POST",
+      body: JSON.stringify({ date, remark }),
+    }).then((b) => ({ id: String(b.id), date: b.date ?? "", remark: b.remark ?? "", createdAt: b.created_at ?? null })),
 
   listStaff: (date?: string, staffId?: number, dateFrom?: string, dateTo?: string) => {
     const params = new URLSearchParams();
@@ -2293,3 +2318,62 @@ export const remindersApi = {
       }))
     ),
 };
+
+export type AuditLogEntry = {
+  id: number;
+  event: string;
+  outcome: string;
+  actorName: string | null;
+  actorRole: string | null;
+  resource: string | null;
+  ipAddress: string | null;
+  detail: string | null;
+  createdAt: string | null;
+};
+
+export type LockoutEntry = {
+  ipAddress: string;
+  username: string;
+  failedAttempts: number;
+  lockedUntilSeconds: number;
+};
+
+export const securityApi = {
+  getAuditLogs: (params?: { skip?: number; limit?: number; event?: string; user?: string; ip?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.skip !== undefined) qs.set("skip", String(params.skip));
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.event) qs.set("event", params.event);
+    if (params?.user) qs.set("user", params.user);
+    if (params?.ip) qs.set("ip", params.ip);
+    return req<{ total: number; items: B[] }>(`/auth/audit-logs?${qs.toString()}`).then((r) => ({
+      total: r.total,
+      items: r.items.map((b) => ({
+        id: Number(b.id),
+        event: String(b.event ?? ""),
+        outcome: String(b.outcome ?? ""),
+        actorName: b.actor_name ? String(b.actor_name) : null,
+        actorRole: b.actor_role ? String(b.actor_role) : null,
+        resource: b.resource ? String(b.resource) : null,
+        ipAddress: b.ip_address ? String(b.ip_address) : null,
+        detail: b.detail ? String(b.detail) : null,
+        createdAt: b.created_at ? String(b.created_at) : null,
+      })) as AuditLogEntry[],
+    }));
+  },
+  getLockouts: () =>
+    req<{ items: B[] }>("/auth/lockouts").then((r) => ({
+      items: r.items.map((b) => ({
+        ipAddress: String(b.ip_address ?? ""),
+        username: String(b.username ?? ""),
+        failedAttempts: Number(b.failed_attempts ?? 0),
+        lockedUntilSeconds: Number(b.locked_until_seconds ?? 0),
+      })) as LockoutEntry[],
+    })),
+  resetLockout: (ipAddress: string, username: string) =>
+    req<void>("/auth/lockouts/reset", {
+      method: "POST",
+      body: JSON.stringify({ ip_address: ipAddress, username }),
+    }),
+};
+

@@ -7,15 +7,20 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from websocket_manager import emit
+from security import get_current_user, TokenUser
 
 _IST = ZoneInfo("Asia/Kolkata")
 
 def _today_ist() -> date_type:
     return datetime.now(_IST).date()
 
-def _assert_editable_date(record_date) -> None:
+def _assert_editable_date(record_date, user: Optional[TokenUser] = None, bypass_lock: bool = False) -> None:
     """Raise 403 if record_date is older than today−2 days (IST).
-    Mirrors the 2-day edit window enforced on the frontend attendance page."""
+    Admin users and dates with an approved late-entry log bypass this restriction."""
+    if user and user.role == "Admin":
+        return
+    if bypass_lock:
+        return
     if isinstance(record_date, str):
         record_date = date_type.fromisoformat(record_date)
     cutoff = _today_ist() - timedelta(days=2)
@@ -138,14 +143,16 @@ def list_driver_attendance(
 
 
 @router.post("/drivers", response_model=schemas.DriverAttendanceOut, status_code=201)
-def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session = Depends(get_db)):
-    _assert_editable_date(payload.date)
+def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    late_entry_exists = db.query(models.DriverAttendanceLateEntryLog).filter(
+        models.DriverAttendanceLateEntryLog.date == payload.date
+    ).first() is not None
+    _assert_editable_date(payload.date, user, bypass_lock=late_entry_exists)
     existing = db.query(models.DriverAttendance).filter(
         models.DriverAttendance.driver_id == payload.driver_id,
         models.DriverAttendance.date == payload.date,
     ).first()
     if existing:
-        # Upsert — update in place
         for field, value in payload.model_dump().items():
             setattr(existing, field, value)
         db.commit()
@@ -161,11 +168,14 @@ def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session 
 
 
 @router.put("/drivers/{record_id}", response_model=schemas.DriverAttendanceOut)
-def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUpdate, db: Session = Depends(get_db)):
+def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUpdate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     record = db.get(models.DriverAttendance, record_id)
     if not record:
         raise HTTPException(404, "Attendance record not found")
-    _assert_editable_date(record.date)
+    late_entry_exists = db.query(models.DriverAttendanceLateEntryLog).filter(
+        models.DriverAttendanceLateEntryLog.date == record.date
+    ).first() is not None
+    _assert_editable_date(record.date, user, bypass_lock=late_entry_exists)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
@@ -173,6 +183,33 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     db.refresh(record)
     emit("attendance_updated", {})
     return record
+
+
+@router.get("/drivers/late-entry-log", response_model=list[schemas.DriverLateEntryLogOut])
+def list_driver_late_entry_logs(
+    date: Optional[str] = Query(None, description="Filter by exact date YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.DriverAttendanceLateEntryLog)
+    if date:
+        q = q.filter(models.DriverAttendanceLateEntryLog.date == date)
+    return q.order_by(models.DriverAttendanceLateEntryLog.date.desc()).all()
+
+
+@router.post("/drivers/late-entry-log", response_model=schemas.DriverLateEntryLogOut, status_code=201)
+def create_driver_late_entry_log(payload: schemas.DriverLateEntryLogCreate, db: Session = Depends(get_db)):
+    """Creates a date-level late-entry log record. This unlocks normal attendance marking
+    for that date (bypasses the 2-day lock) and gives admin visibility into why it was late."""
+    existing = db.query(models.DriverAttendanceLateEntryLog).filter(
+        models.DriverAttendanceLateEntryLog.date == payload.date
+    ).first()
+    if existing:
+        return existing
+    log = models.DriverAttendanceLateEntryLog(date=payload.date, remark=payload.remark)
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
 
 
 # ---------------------------------------------------------------------------
@@ -200,8 +237,8 @@ def list_driver_remarks(
 
 
 @router.post("/drivers/remarks", response_model=schemas.DriverAttendanceRemarkOut, status_code=201)
-def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session = Depends(get_db)):
-    _assert_editable_date(payload.date)
+def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    _assert_editable_date(payload.date, user)
     remark = models.DriverAttendanceRemark(**payload.model_dump())
     db.add(remark)
     db.commit()
@@ -211,11 +248,11 @@ def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session
 
 
 @router.put("/drivers/remarks/{remark_id}", response_model=schemas.DriverAttendanceRemarkOut)
-def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemarkUpdate, db: Session = Depends(get_db)):
+def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemarkUpdate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     remark = db.get(models.DriverAttendanceRemark, remark_id)
     if not remark:
         raise HTTPException(404, "Remark not found")
-    _assert_editable_date(remark.date)
+    _assert_editable_date(remark.date, user)
     remark.remark = payload.remark
     db.commit()
     db.refresh(remark)
@@ -224,11 +261,11 @@ def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemark
 
 
 @router.delete("/drivers/remarks/{remark_id}", status_code=204)
-def delete_driver_remark(remark_id: int, db: Session = Depends(get_db)):
+def delete_driver_remark(remark_id: int, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     remark = db.get(models.DriverAttendanceRemark, remark_id)
     if not remark:
         raise HTTPException(404, "Remark not found")
-    _assert_editable_date(remark.date)
+    _assert_editable_date(remark.date, user)
     db.delete(remark)
     db.commit()
     emit("attendance_updated", {})

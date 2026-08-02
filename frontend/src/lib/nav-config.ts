@@ -30,6 +30,7 @@ import {
   UserCheck,
   Calculator,
   Droplets,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -118,6 +119,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
       { label: "AdBlue Management", href: "/admin/adblue", icon: Droplets },
+      { label: "Security Log", href: "/admin/security", icon: Lock },
     ],
   },
 ];
