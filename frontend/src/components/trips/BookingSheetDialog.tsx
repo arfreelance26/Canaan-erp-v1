@@ -75,8 +75,18 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current;
     wasOpenRef.current = open;
-    if (justOpened && closure) {
-      setForm({ ...closure });
+    if (justOpened) {
+      setForm(closure ? { ...closure } : {
+        tripId: "", bookingNo: "", containerNo: "", releaseOrderNo: "",
+        containerType: "", line: "", loadType: "", movementCategory: "",
+        vehicleId: "", driverId: "", assignmentDate: "",
+        fromLocation: "", toLocation: "", tripCompletedDate: "",
+        hireAmount: "", transportAmount: "", billingAmount: "",
+        advanceAmount: "", driverAdvance: "", additionalDriverAdvance: "",
+        paymentMode: "", billTo: "",
+        companyHaltDays: "", partyHaltDays: "", haltRemarks: "", driverHaltCompensation: "",
+        closedAt: "",
+      });
     }
     if (justOpened && trip) {
       setTripForm({ ...trip });

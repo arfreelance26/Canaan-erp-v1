@@ -528,7 +528,7 @@ function AdminDashboard() {
 
   const ADMIN_TABS = [
     { key: "overview"     as const, label: "Admin Overview",  icon: Activity },
-    { key: "commercial"   as const, label: "Commercial Mgr",  icon: Navigation },
+    { key: "commercial"   as const, label: "Commercial Manager",  icon: Navigation },
     { key: "accounts"     as const, label: "Accounts",        icon: Wallet },
     { key: "yard"         as const, label: "Yard Supervisor", icon: CheckCircle2 },
     { key: "tripsheet"    as const, label: "Trip Sheet Reg.", icon: Inbox },
@@ -734,6 +734,7 @@ function AdminDashboard() {
           caption={`${leaveSummary.Pending} leave request${leaveSummary.Pending !== 1 ? "s" : ""} pending`}
           icon={UserCheck}
           variant={totalWorkforce > 0 && presentToday < totalWorkforce * 0.7 ? "amber" : "emerald"}
+          onClick={() => router.push("/attendance/report")}
         />
         <StatCard
           label="Customers"
@@ -741,6 +742,7 @@ function AdminDashboard() {
           caption={`${vendors.length} vendor${vendors.length !== 1 ? "s" : ""} registered`}
           icon={UserCheck}
           variant="purple"
+          onClick={() => router.push("/resources/customers")}
         />
         <StatCard
           label="Monthly Fixed"

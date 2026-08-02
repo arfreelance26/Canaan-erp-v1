@@ -196,6 +196,8 @@ def _run_schema_migrations():
         # NOTE: BLOB widening (MEDIUMBLOB → LONGBLOB for the 25 MB upload limit) is handled
         # by the guarded _widen_blob_columns() step below, NOT here — a blob-type change forces
         # a full table copy, so it must run once (only when needed), never on every restart.
+        "ALTER TABLE trips MODIFY COLUMN trip_id VARCHAR(100) NOT NULL",
+        "ALTER TABLE trip_closures ADD COLUMN closure_remarks TEXT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

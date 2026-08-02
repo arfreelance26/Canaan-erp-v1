@@ -244,7 +244,7 @@ export default function MarkAttendancePage() {
 
   if (staffNumericId === null) {
     return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-5">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mark Attendance</h1>
           <p className="mt-1 text-sm text-gray-500">{todayLabelFull}</p>
@@ -267,7 +267,7 @@ export default function MarkAttendancePage() {
   }
 
   return (
-    <div className="animate-stagger mx-auto flex max-w-5xl flex-col gap-5">
+    <div className="animate-stagger mx-auto flex max-w-7xl flex-col gap-5">
 
       {/* Page header */}
       <div>
@@ -276,7 +276,7 @@ export default function MarkAttendancePage() {
       </div>
 
       {/* Main grid: left (stats + history) | right (mark card, sticky) */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_300px]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_380px]">
 
         {/* ── LEFT COLUMN ── */}
         <div className="flex flex-col gap-4">

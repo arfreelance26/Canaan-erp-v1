@@ -11,6 +11,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 import { ChatProvider } from "@/context/ChatContext";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -67,6 +68,7 @@ export default function RootLayout({
                 <TyreInventoryProvider>
                   <ChatProvider>
                     <AppShell>{children}</AppShell>
+                    <Toaster />
                   </ChatProvider>
                 </TyreInventoryProvider>
               </TripWorkflowProvider>

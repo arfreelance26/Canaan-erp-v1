@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -83,7 +83,20 @@ function buildData(trips: Trip[], range: Range) {
 type Props = { trips: Trip[] };
 
 export function TripTrendChart({ trips }: Props) {
-  const [range, setRange] = useState<Range>("6m");
+  const [range, setRange] = useState<Range>("1w");
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains("dark"));
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+  const gridColor    = isDark ? "#2d3660" : "#e5e7eb";
+  const tickColor    = isDark ? "#4d5e7a" : "#9ca3af";
+  const tooltipBg    = isDark ? "#141929" : "#ffffff";
+  const tooltipBorder = isDark ? "#2d3660" : "#e5e7eb";
+  const tooltipText  = isDark ? "#edf3fb" : "#111827";
 
   const data = buildData(trips, range);
   const hasData = data.some((d) => d.Total > 0);
@@ -115,22 +128,31 @@ export function TripTrendChart({ trips }: Props) {
       ) : (
         <ResponsiveContainer width="100%" height={230}>
           <LineChart data={data} margin={{ top: 5, right: 8, left: -22, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
             <XAxis
               dataKey="period"
-              tick={{ fontSize: 10, fill: "#9ca3af" }}
+              tick={{ fontSize: 10, fill: tickColor }}
               axisLine={false}
               tickLine={false}
               interval={range === "1m" ? 4 : "preserveStartEnd"}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: "#9ca3af" }}
+              tick={{ fontSize: 11, fill: tickColor }}
               axisLine={false}
               tickLine={false}
               allowDecimals={false}
             />
             <Tooltip
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", boxShadow: "0 4px 6px -1px rgb(0 0 0 / .05)" }}
+              contentStyle={{
+                fontSize: 12,
+                borderRadius: 8,
+                border: `1px solid ${tooltipBorder}`,
+                backgroundColor: tooltipBg,
+                color: tooltipText,
+                boxShadow: "0 4px 6px -1px rgb(0 0 0 / .2)",
+              }}
+              labelStyle={{ color: tooltipText, fontWeight: 600 }}
+              itemStyle={{ color: tooltipText }}
             />
             <Legend
               iconType="circle"

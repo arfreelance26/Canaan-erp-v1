@@ -62,6 +62,7 @@ function emptyForm(tripId: string): TripClosureData {
     partyHaltDays: "",
     haltRemarks: "",
     driverHaltCompensation: "",
+    closureRemarks: "",
     closedAt: "",
   };
 }
@@ -345,6 +346,20 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
               </>
             )}
           </div>
+        </section>
+
+        {/* Closure Remarks */}
+        <section className="flex flex-col gap-5">
+          <p className={sectionHeadingClass}>Closure Remarks</p>
+          <Field label="Remarks">
+            <textarea
+              rows={3}
+              value={form.closureRemarks}
+              onChange={(e) => update("closureRemarks", e.target.value)}
+              className={`${inputClass} resize-none`}
+              placeholder="Enter any remarks about this trip closure"
+            />
+          </Field>
         </section>
 
         <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">

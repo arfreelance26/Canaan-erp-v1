@@ -5,9 +5,8 @@ import Link from "next/link";
 import {
   CircleDot,
   Boxes,
-  Truck,
-  AlertTriangle,
   Wrench,
+  AlertTriangle,
   BarChart3,
   ShieldCheck,
   CheckCircle2,
@@ -18,8 +17,13 @@ import {
 } from "lucide-react";
 import { tyreApi, trucksApi, maintenanceApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
+import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck as TruckType } from "@/types/truck";
@@ -27,27 +31,10 @@ import type { MaintenanceRecord, MaintenanceStatusItem } from "@/types/truck-mai
 
 
 const QUICK_LINKS = [
-  { label: "Tyre Management",  href: "/maintenance/tyre-management",  icon: CircleDot, color: "bg-blue-50 text-blue-600 border-blue-200" },
-  { label: "Tyre Inventory",   href: "/maintenance/tyre-inventory",   icon: Boxes,     color: "bg-violet-50 text-violet-600 border-violet-200" },
+  { label: "Tyre Management",   href: "/maintenance/tyre-management",  icon: CircleDot, color: "bg-blue-50 text-blue-600 border-blue-200" },
+  { label: "Tyre Inventory",    href: "/maintenance/tyre-inventory",   icon: Boxes,     color: "bg-violet-50 text-violet-600 border-violet-200" },
   { label: "Truck Maintenance", href: "/maintenance/trucks",           icon: Wrench,    color: "bg-amber-50 text-amber-600 border-amber-200" },
 ];
-
-function StatCard({ icon: Icon, label, value, sub, color, alert }: {
-  icon: React.ElementType; label: string; value: string | number; color: string; sub?: string; alert?: boolean;
-}) {
-  return (
-    <div className={`flex items-center gap-4 rounded-xl border bg-white px-5 py-4 shadow-sm ${alert ? "border-red-200 bg-red-50/40" : "border-gray-200"}`}>
-      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-        <p className={`mt-0.5 text-2xl font-bold ${alert ? "text-red-600" : "text-gray-900"}`}>{value}</p>
-        {sub && <p className="text-[11px] text-gray-400">{sub}</p>}
-      </div>
-    </div>
-  );
-}
 
 function Bar({ label, count, total, color, suffix }: { label: string; count: number; total: number; color: string; suffix?: string }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -57,37 +44,36 @@ function Bar({ label, count, total, color, suffix }: { label: string; count: num
         <span className="font-medium text-gray-700">{label}</span>
         <span className="font-semibold text-gray-900">{count}{suffix ?? ""} <span className="font-normal text-gray-400">({pct}%)</span></span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
         <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
 }
 
-function SectionTitle({ icon: Icon, title, badge, badgeColor }: {
-  icon: React.ElementType; title: string; badge?: string | number; badgeColor?: string;
+function SectionTitle({ icon: Icon, title, badge, badgeVariant }: {
+  icon: React.ElementType;
+  title: string;
+  badge?: string | number;
+  badgeVariant?: "active" | "available" | "warning" | "critical" | "neutral" | "purple";
 }) {
   return (
     <div className="mb-4 flex items-center gap-2.5">
       <Icon className="h-4 w-4 text-gray-400" />
       <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
       {badge !== undefined && badge !== 0 && (
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor ?? "bg-gray-100 text-gray-600"}`}>
-          {badge}
-        </span>
+        <Badge variant={badgeVariant ?? "neutral"}>{badge}</Badge>
       )}
     </div>
   );
 }
 
 function LifeBadge({ pct }: { pct: number }) {
-  if (pct <= 0)  return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700"><AlertTriangle className="h-2.5 w-2.5" /> Replace</span>;
-  if (pct <= 20) return <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700"><TrendingDown className="h-2.5 w-2.5" /> Critical</span>;
-  if (pct <= 50) return <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-bold text-yellow-700">Wear</span>;
-  return <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Good</span>;
+  if (pct <= 0)  return <Badge variant="critical"><AlertTriangle className="h-2.5 w-2.5" /> Replace</Badge>;
+  if (pct <= 20) return <Badge variant="critical"><TrendingDown className="h-2.5 w-2.5" /> Critical</Badge>;
+  if (pct <= 50) return <Badge variant="warning">Wear</Badge>;
+  return <Badge variant="available">Good</Badge>;
 }
-
-function Skeleton() { return <div className="h-5 w-full animate-pulse rounded bg-gray-100" />; }
 
 export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean }) {
   const [inventory, setInventory]   = useState<TyreInventoryItem[]>([]);
@@ -129,19 +115,16 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
   const newCount       = inventory.filter((t) => t.condition === "New").length;
   const retreadCount   = inventory.filter((t) => t.condition === "Rethreaded").length;
 
-  // Maintenance alerts across all trucks
   const allAlerts = useMemo<MaintenanceStatusItem[]>(() => {
     return trucks.flatMap((t) => getMaintenanceStatus(t, records)).filter((s) => s.status === "attention");
   }, [trucks, records]);
 
-  // Brand breakdown
   const topBrands = useMemo(() => {
     const map = new Map<string, number>();
     for (const t of inventory) map.set(t.brand, (map.get(t.brand) ?? 0) + 1);
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [inventory]);
 
-  // Tyre life for fitted tyres
   type LifeRow = { f: TyreFitmentRecord; tyre: TyreInventoryItem; truck: TruckType; kmDriven: number; remaining: number | null; lifePct: number | null };
 
   const tyreLifeRows = useMemo<LifeRow[]>(() => {
@@ -160,7 +143,6 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       .sort((a, b) => (a.lifePct ?? 100) - (b.lifePct ?? 100));
   }, [fitments, tyreByDbId, truckByDbId]);
 
-  // Recent maintenance (last 5 by date)
   const recentRecords = useMemo(() =>
     [...records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5),
     [records]
@@ -184,7 +166,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Maintenance Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Maintenance Dashboard</h1>
             <p className="mt-1 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -201,12 +183,14 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       {/* Current Trips */}
       {!embedded && <CurrentTripsCard />}
 
+      {!embedded && <Separator />}
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Boxes}        label="Total Tyres"       value={loading ? "—" : totalTyres}      color="bg-blue-100 text-blue-600" />
-        <StatCard icon={CircleDot}    label="Fitted on Trucks"  value={loading ? "—" : fittedCount}     color="bg-violet-100 text-violet-600" sub={loading ? "" : `${trucks.length} trucks`} />
-        <StatCard icon={CheckCircle2} label="In Stock"          value={loading ? "—" : availableCount}  color="bg-emerald-100 text-emerald-600" sub="Ready to fit" />
-        <StatCard icon={Wrench}       label="Maint. Overdue"    value={loading ? "—" : allAlerts.length} color="bg-red-100 text-red-600" alert={allAlerts.length > 0} sub={allAlerts.length > 0 ? "Needs attention" : "All clear"} />
+        <StatCard icon={Boxes}        label="Total Tyres"      value={loading ? "—" : totalTyres}       variant="blue"    />
+        <StatCard icon={CircleDot}    label="Fitted on Trucks" value={loading ? "—" : fittedCount}      variant="purple"  caption={loading ? "" : `${trucks.length} trucks`} />
+        <StatCard icon={CheckCircle2} label="In Stock"         value={loading ? "—" : availableCount}   variant="emerald" caption="Ready to fit" />
+        <StatCard icon={Wrench}       label="Maint. Overdue"   value={loading ? "—" : allAlerts.length} variant={allAlerts.length > 0 ? "red" : "default"} caption={allAlerts.length > 0 ? "Needs attention" : "All clear"} />
       </div>
 
       {/* Quick Access — only shown on standalone tyre manager view */}
@@ -230,16 +214,17 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 
         {/* Tyre Life Status — wide */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm lg:col-span-2">
-          <SectionTitle icon={Gauge} title="Tyre Life Status" badge={fittedCount} badgeColor="bg-violet-100 text-violet-700" />
+        <Card className="border-purple-200 lg:col-span-2">
+          <CardContent className="p-5">
+          <SectionTitle icon={Gauge} title="Tyre Life Status" badge={fittedCount} badgeVariant="purple" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3,4].map((i) => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : tyreLifeRows.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-400">No tyres currently fitted.</p>
           ) : (
             <div className="max-h-98 overflow-x-auto overflow-y-auto custom-scrollbar">
               <table className="w-full min-w-[520px] text-left text-xs">
-                <thead className="sticky top-0 bg-white z-10">
+                <thead className="sticky top-0 bg-white dark:bg-[#141929] z-10">
                   <tr className="border-b border-gray-100">
                     {["Truck", "Position", "Tyre No.", "Brand", "Km Driven", "Remaining", "Status"].map((h) => (
                       <th key={h} className="pb-2 pr-4 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{h}</th>
@@ -256,7 +241,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                       <td className="py-2 pr-4 font-medium text-gray-700">{f.position}</td>
                       <td className="py-2 pr-4 text-gray-600">{tyre.tyreNumber}</td>
                       <td className="py-2 pr-4 text-gray-600">{tyre.brand}</td>
-                      <td className="py-2 pr-4 text-gray-700">{kmDriven.toLocaleString("en-IN")} km</td>
+                      <td className="py-2 pr-4 text-gray-700 whitespace-nowrap">{kmDriven.toLocaleString("en-IN")} km</td>
                       <td className="py-2 pr-4">
                         {remaining !== null
                           ? <span className={remaining <= 0 ? "font-bold text-red-600" : remaining <= 5000 ? "font-semibold text-orange-600" : "text-gray-700"}>
@@ -273,15 +258,17 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
               </table>
             </div>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Inventory Breakdown — narrow */}
         <div className="flex flex-col gap-4">
           {/* Condition */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <Card className="border-emerald-200">
+            <CardContent className="p-5">
             <SectionTitle icon={ShieldCheck} title="Tyre Condition" />
             {loading ? (
-              <div className="space-y-3"><Skeleton /><Skeleton /></div>
+              <div className="space-y-3"><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-full" /></div>
             ) : totalTyres === 0 ? (
               <p className="text-sm text-gray-400">No tyres.</p>
             ) : (
@@ -294,13 +281,15 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                 </div>
               </div>
             )}
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Top Brands */}
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <Card className="border-blue-200">
+            <CardContent className="p-5">
             <SectionTitle icon={BarChart3} title="Top Brands" />
             {loading ? (
-              <div className="space-y-3"><Skeleton /><Skeleton /><Skeleton /></div>
+              <div className="space-y-3"><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-full" /><Skeleton className="h-5 w-full" /></div>
             ) : topBrands.length === 0 ? (
               <p className="text-sm text-gray-400">No data.</p>
             ) : (
@@ -310,7 +299,8 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                 ))}
               </div>
             )}
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -318,10 +308,11 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Maintenance overdue */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <SectionTitle icon={AlertTriangle} title="Maintenance Overdue" badge={allAlerts.length} badgeColor="bg-red-100 text-red-700" />
+        <Card className="border-red-200">
+          <CardContent className="p-5">
+          <SectionTitle icon={AlertTriangle} title="Maintenance Overdue" badge={allAlerts.length} badgeVariant="critical" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map((i) => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : allAlerts.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <ShieldCheck className="h-8 w-8 text-emerald-400" />
@@ -344,19 +335,21 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                         <span className="ml-2 font-medium text-red-600">{Math.abs(a.remainingKm).toLocaleString("en-IN")} km overdue</span>
                       </p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">{a.category}</span>
+                    <Badge variant="neutral">{a.category}</Badge>
                   </li>
                 );
               })}
             </ul>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Recent maintenance */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <Card className="border-gray-200">
+          <CardContent className="p-5">
           <SectionTitle icon={Clock} title="Recent Maintenance" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3,4,5].map((i) => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : recentRecords.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <Calendar className="h-8 w-8 text-gray-300" />
@@ -388,7 +381,8 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
               })}
             </ul>
           )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
     </div>

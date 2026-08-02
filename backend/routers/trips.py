@@ -171,6 +171,28 @@ def get_autocomplete_values(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/cargo-references", response_model=list[str])
+def list_cargo_references(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.Trip.cargo_reference)
+        .filter(models.Trip.cargo_reference.isnot(None), models.Trip.cargo_reference != "")
+        .distinct()
+        .all()
+    )
+    return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
+
+
+@router.get("/shipping-lines", response_model=list[str])
+def list_shipping_lines(db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.Trip.shipping_line)
+        .filter(models.Trip.shipping_line.isnot(None), models.Trip.shipping_line != "")
+        .distinct()
+        .all()
+    )
+    return sorted({r[0].strip() for r in rows if r[0] and r[0].strip()})
+
+
 def _current_fy() -> str:
     today = date_type.today()
     start_year = today.year if today.month >= 4 else today.year - 1
@@ -212,7 +234,7 @@ def _next_invoice_no(db: Session, invoice_type: str, fy: str) -> str:
         m = re.search(r"(\d+)$", no)  # trailing digits, ignores the letter prefix
         if m:
             max_seq = max(max_seq, int(m.group(1)))
-    return f"CGI{fy}/{prefix}{str(max_seq + 1).zfill(4)}"
+    return f"CGI{fy}/{prefix}{max_seq + 1}"
 
 
 @router.get("/ai-counts")

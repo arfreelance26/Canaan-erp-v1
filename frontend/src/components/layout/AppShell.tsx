@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
-// Phase 2 — AI chat: import { ERPChatWidget } from "@/components/ai/ERPChatWidget";
+// import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -30,9 +30,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} />
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-3 dark:bg-[#090c14] sm:p-4 md:p-6">{children}</main>
       </div>
-      {/* Phase 2 — AI chat: <ERPChatWidget /> */}
+      {/* <ERPChatWidget /> */}{/* Next phase */}
     </div>
   );
 }

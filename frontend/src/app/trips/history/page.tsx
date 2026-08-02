@@ -244,8 +244,8 @@ export default function TripHistoryPage() {
             All trips — view booking sheet, trip sheet, and invoice.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:w-64">
+        <div className="flex flex-col items-end gap-2">
+          <div className="relative w-72">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -442,6 +442,26 @@ export default function TripHistoryPage() {
                           </span>
                         ) : null}
                       </div>
+                      {isAdmin && (() => {
+                        const closure = closures.get(trip.id);
+                        const sheetData = sheets.get(trip.id);
+                        const items = [
+                          trip.internalRemarks       && { label: "Assignment",  text: trip.internalRemarks,       color: "text-gray-500" },
+                          trip.bookingInstructions   && { label: "Instructions", text: trip.bookingInstructions,  color: "text-gray-500" },
+                          closure?.closureRemarks    && { label: "Closure",      text: closure.closureRemarks,    color: "text-blue-600" },
+                          sheetData?.remarks         && { label: "Sheet",        text: sheetData.remarks,         color: "text-violet-600" },
+                        ].filter(Boolean) as { label: string; text: string; color: string }[];
+                        if (items.length === 0) return null;
+                        return (
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            {items.map((item) => (
+                              <p key={item.label} className={`text-[11px] leading-snug max-w-[200px] whitespace-normal ${item.color}`}>
+                                <span className="font-semibold">{item.label}:</span> {item.text}
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2 text-gray-600">{trip.bookingReferenceNo}</td>
                     <td className="px-4 py-2 text-gray-600">{(customer?.name ?? trip.shipperConsignee) || "—"}</td>

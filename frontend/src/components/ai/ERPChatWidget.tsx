@@ -1,11 +1,26 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useChat } from "@/context/ChatContext";
 import { useRouter } from "next/navigation";
 import { buildSystemPrompt, runAgent } from "@/lib/ai/erpAgent";
 import { X, Send, Square } from "lucide-react";
+import {
+  MessageScrollerProvider,
+  MessageScroller,
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerButton,
+  useMessageScrollerAutoScroll,
+} from "@/components/ui/message-scroller";
+import {
+  Message,
+  MessageContent,
+  Bubble,
+  BubbleContent,
+} from "@/components/ui/message";
 
 const SUGGESTIONS = [
   "How many active trips right now?",
@@ -14,6 +29,52 @@ const SUGGESTIONS = [
   "Take me to sheet collection",
 ];
 
+function ChatMessages({
+  messages,
+  thinking,
+}: {
+  messages: { role: string; content: string; id: string }[];
+  thinking: boolean;
+}) {
+  useMessageScrollerAutoScroll([messages, thinking]);
+
+  return (
+    <>
+      {messages.map((m) => (
+        <MessageScrollerItem key={m.id} messageId={m.id} scrollAnchor={m.role === "user"}>
+          <Message align={m.role === "user" ? "end" : "start"} className="px-3 py-1">
+            <MessageContent>
+              <Bubble variant={m.role === "user" ? "user" : m.role === "error" ? "error" : "assistant"}>
+                <BubbleContent>{m.content}</BubbleContent>
+              </Bubble>
+            </MessageContent>
+          </Message>
+        </MessageScrollerItem>
+      ))}
+
+      {thinking && (
+        <Message align="start" className="px-3 py-1">
+          <MessageContent>
+            <Bubble variant="assistant">
+              <BubbleContent>
+                <span className="flex items-center gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold"
+                      style={{ animationDelay: `${i * 0.15}s` }}
+                    />
+                  ))}
+                </span>
+              </BubbleContent>
+            </Bubble>
+          </MessageContent>
+        </Message>
+      )}
+    </>
+  );
+}
+
 export function ERPChatWidget() {
   const { user } = useAuth();
   const { isOpen, close, messages, setMessages, clearMessages } = useChat();
@@ -21,17 +82,10 @@ export function ERPChatWidget() {
 
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-  const abortRef = useRef<AbortController | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, thinking]);
-
-  useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 80);
+  const inputRef = useCallback((el: HTMLInputElement | null) => {
+    if (el && isOpen) setTimeout(() => el.focus(), 80);
   }, [isOpen]);
 
   const onNavigate = useCallback((path: string) => { router.push(path); }, [router]);
@@ -39,10 +93,12 @@ export function ERPChatWidget() {
   const send = useCallback(async () => {
     if (!input.trim() || thinking || !user) return;
     const userMsg = input.trim();
+    const id = crypto.randomUUID();
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setMessages((prev) => [...prev, { role: "user", content: userMsg, id }]);
     setThinking(true);
-    abortRef.current = new AbortController();
+    const ac = new AbortController();
+    setAbortController(ac);
     try {
       const reply = await runAgent({
         userMessage: userMsg,
@@ -50,22 +106,26 @@ export function ERPChatWidget() {
         systemPrompt: buildSystemPrompt(user.softwareDesignation, user.name),
         token: user.token ?? "",
         onNavigate,
-        signal: abortRef.current.signal,
+        signal: ac.signal,
       });
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: reply, id: crypto.randomUUID() }]);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       setMessages((prev) => [
         ...prev,
-        { role: "error", content: `Error: ${e instanceof Error ? e.message : "Something went wrong."}` },
+        { role: "error", content: `Error: ${e instanceof Error ? e.message : "Something went wrong."}`, id: crypto.randomUUID() },
       ]);
     } finally {
       setThinking(false);
-      abortRef.current = null;
+      setAbortController(null);
     }
   }, [input, thinking, user, messages, onNavigate, setMessages]);
 
-  const stop = useCallback(() => { abortRef.current?.abort(); setThinking(false); }, []);
+  const stop = useCallback(() => {
+    abortController?.abort();
+    setThinking(false);
+    setAbortController(null);
+  }, [abortController]);
 
   if (!user || !process.env.NEXT_PUBLIC_OR_API_KEY) return null;
 
@@ -73,8 +133,8 @@ export function ERPChatWidget() {
     <aside
       className={[
         "flex flex-col shrink-0 overflow-hidden",
-        "border-l border-gray-200 dark:border-gray-800",
-        "bg-white dark:bg-gray-950",
+        "border-l border-gray-200",
+        "bg-white",
         "transition-[width] duration-300 ease-in-out",
         isOpen ? "w-80" : "w-0",
       ].join(" ")}
@@ -110,59 +170,39 @@ export function ERPChatWidget() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto bg-white px-3 py-3 space-y-3 dark:bg-gray-950">
-        {messages.length === 0 && (
-          <div className="flex flex-col gap-2 pt-2">
-            <p className="text-center text-xs text-gray-400 dark:text-gray-500">
-              Ask me anything about your ERP data.
-            </p>
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => { setInput(s); inputRef.current?.focus(); }}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-left text-xs text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
+      <MessageScrollerProvider>
+        <MessageScroller className="flex-1 bg-white py-3">
+          <MessageScrollerViewport>
+            <MessageScrollerContent>
+              {messages.length === 0 && (
+                <div className="flex flex-col gap-2 px-3 pt-2">
+                  <p className="text-center text-xs text-gray-400">
+                    Ask me anything about your ERP data.
+                  </p>
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setInput(s);
+                        // focus is handled by the ref callback on re-render
+                      }}
+                      className="rounded-lg border border-gray-200 px-3 py-2 text-left text-xs text-gray-600 transition-colors hover:bg-gray-50"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={[
-                "max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap",
-                m.role === "user"
-                  ? "bg-brand-navy text-white"
-                  : m.role === "error"
-                  ? "border border-red-200 bg-red-50 text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400"
-                  : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100",
-              ].join(" ")}
-            >
-              {m.content}
-            </div>
-          </div>
-        ))}
-
-        {thinking && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-2 dark:bg-gray-800">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-gold"
-                  style={{ animationDelay: `${i * 0.15}s` }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
+              <ChatMessages messages={messages as { role: string; content: string; id: string }[]} thinking={thinking} />
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
 
       {/* Input bar */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-gray-100 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-white px-3 py-2">
         <input
           ref={inputRef}
           type="text"
@@ -171,7 +211,7 @@ export function ERPChatWidget() {
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
           placeholder="Ask about trips, compliance…"
           disabled={thinking}
-          className="input-no-transform flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-brand-navy focus:bg-white disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 dark:focus:border-brand-gold dark:focus:bg-gray-750"
+          className="input-no-transform flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-brand-gold focus:bg-white disabled:opacity-50"
         />
         {thinking ? (
           <button

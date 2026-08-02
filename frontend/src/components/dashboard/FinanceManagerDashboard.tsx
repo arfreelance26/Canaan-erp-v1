@@ -19,11 +19,16 @@ import {
 } from "lucide-react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
+import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getComplianceStatus } from "@/lib/compliance";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
@@ -63,40 +68,22 @@ function daysBetween(dateStr: string) {
   return Math.round((d.getTime() - today.getTime()) / 86400000);
 }
 
-function StatCard({ icon: Icon, label, value, sub, color, alert }: {
-  icon: React.ElementType; label: string; value: string | number; color: string; sub?: string; alert?: boolean;
-}) {
-  return (
-    <div className={`flex items-center gap-4 rounded-xl border bg-white px-5 py-4 shadow-sm ${alert ? "border-red-200 bg-red-50/40" : "border-gray-200"}`}>
-      <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-        <p className={`mt-0.5 text-2xl font-bold ${alert ? "text-red-600" : "text-gray-900"}`}>{value}</p>
-        {sub && <p className="text-[11px] text-gray-400">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
-function SectionTitle({ icon: Icon, title, badge, badgeColor }: {
-  icon: React.ElementType; title: string; badge?: string | number; badgeColor?: string;
+function SectionTitle({ icon: Icon, title, badge, badgeVariant }: {
+  icon: React.ElementType;
+  title: string;
+  badge?: string | number;
+  badgeVariant?: "active" | "available" | "warning" | "critical" | "neutral" | "purple";
 }) {
   return (
     <div className="mb-4 flex items-center gap-2.5">
       <Icon className="h-4 w-4 text-gray-400" />
       <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
       {badge !== undefined && Number(badge) > 0 && (
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeColor ?? "bg-gray-100 text-gray-600"}`}>
-          {badge}
-        </span>
+        <Badge variant={badgeVariant ?? "neutral"}>{badge}</Badge>
       )}
     </div>
   );
 }
-
-const Skeleton = () => <div className="h-5 w-full animate-pulse rounded bg-gray-100" />;
 
 export function FinanceManagerDashboard() {
   const [emiRecords, setEmiRecords]     = useState<EmiRecord[]>([]);
@@ -180,7 +167,7 @@ export function FinanceManagerDashboard() {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Accounts Dashboard</h1>
             <p className="mt-1 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -196,6 +183,8 @@ export function FinanceManagerDashboard() {
 
       {/* Current Trips */}
       <CurrentTripsCard />
+
+      <Separator />
 
       {/* Compliance Alert Banner */}
       {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (
@@ -219,16 +208,14 @@ export function FinanceManagerDashboard() {
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {complianceExpired.map((item, i) => (
-                  <span key={`exp-${i}`} className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  <Badge key={`exp-${i}`} variant="critical">
                     {item.truckId} · {item.label}
-                  </span>
+                  </Badge>
                 ))}
                 {complianceExpiringSoon.map((item, i) => (
-                  <span key={`soon-${i}`} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <Badge key={`soon-${i}`} variant="warning">
                     {item.truckId} · {item.label}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -250,10 +237,10 @@ export function FinanceManagerDashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Landmark}     label="Active EMIs"           value={loading ? "—" : activeEmis.length}          color="bg-blue-100 text-blue-600"    sub={loading ? "" : `${fmt(monthlyEmiTotal)}/mo`} />
-        <StatCard icon={AlertTriangle} label="EMI Overdue"           value={loading ? "—" : overdueEmis.length}         color="bg-red-100 text-red-600"      alert={overdueEmis.length > 0} sub={overdueEmis.length > 0 ? "Needs immediate action" : "All paid"} />
-        <StatCard icon={CalendarCheck} label="Pending Finalization"  value={loading ? "—" : pendingFinalization.length} color="bg-violet-100 text-violet-600" sub="Trips awaiting invoice" />
-        <StatCard icon={ShieldCheck}   label="Compliance Alerts"     value={loading ? "—" : complianceAlerts.length}   color="bg-amber-100 text-amber-600"  alert={complianceAlerts.filter(a => a.status === "Expired").length > 0} sub={complianceAlerts.length > 0 ? `${complianceAlerts.filter(a => a.status === "Expired").length} expired` : "All valid"} />
+        <StatCard icon={Landmark}      label="Active EMIs"          value={loading ? "—" : activeEmis.length}          variant="blue"    caption={loading ? "" : `${fmt(monthlyEmiTotal)}/mo`} />
+        <StatCard icon={AlertTriangle} label="EMI Overdue"          value={loading ? "—" : overdueEmis.length}         variant={overdueEmis.length > 0 ? "red" : "default"} caption={overdueEmis.length > 0 ? "Needs immediate action" : "All paid"} />
+        <StatCard icon={CalendarCheck} label="Pending Finalization" value={loading ? "—" : pendingFinalization.length} variant="purple"  caption="Trips awaiting invoice" />
+        <StatCard icon={ShieldCheck}   label="Compliance Alerts"    value={loading ? "—" : complianceAlerts.length}    variant={complianceAlerts.some(a => a.status === "Expired") ? "red" : "amber"} caption={complianceAlerts.length > 0 ? `${complianceAlerts.filter(a => a.status === "Expired").length} expired` : "All valid"} />
       </div>
 
       {/* Quick Links */}
@@ -275,10 +262,11 @@ export function FinanceManagerDashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* EMI Payment Schedule */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <SectionTitle icon={CalendarDays} title="Upcoming EMI Payments" badge={upcomingEmis.length} badgeColor="bg-blue-100 text-blue-700" />
+        <Card className="border-blue-200">
+          <CardContent className="p-5">
+          <SectionTitle icon={CalendarDays} title="Upcoming EMI Payments" badge={upcomingEmis.length} badgeVariant="active" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : overdueEmis.length === 0 && upcomingEmis.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-400" />
@@ -328,13 +316,15 @@ export function FinanceManagerDashboard() {
               })}
             </ul>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Pending Finalization */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <SectionTitle icon={FileWarning} title="Trips Pending Invoice" badge={pendingFinalization.length} badgeColor="bg-violet-100 text-violet-700" />
+        <Card className="border-purple-200">
+          <CardContent className="p-5">
+          <SectionTitle icon={FileWarning} title="Trips Pending Invoice" badge={pendingFinalization.length} badgeVariant="purple" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : pendingFinalization.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-400" />
@@ -352,15 +342,13 @@ export function FinanceManagerDashboard() {
                     <p className="truncate text-xs font-semibold text-gray-900">{trip.tripId}</p>
                     <p className="text-[11px] text-gray-500 truncate">{trip.origin} → {trip.destination}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    trip.verificationStatus === "verified"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : trip.verificationStatus === "flagged"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}>
+                  <Badge variant={
+                    trip.verificationStatus === "verified" ? "available"
+                    : trip.verificationStatus === "flagged" ? "critical"
+                    : "neutral"
+                  }>
                     {trip.verificationStatus}
-                  </span>
+                  </Badge>
                 </li>
               ))}
               {pendingFinalization.length > 6 && (
@@ -372,17 +360,19 @@ export function FinanceManagerDashboard() {
               )}
             </ul>
           )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Compliance Alerts + Recurring Due Soon */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Compliance */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <SectionTitle icon={ShieldCheck} title="Compliance Alerts" badge={complianceAlerts.length} badgeColor="bg-amber-100 text-amber-700" />
+        <Card className="border-amber-200">
+          <CardContent className="p-5">
+          <SectionTitle icon={ShieldCheck} title="Compliance Alerts" badge={complianceAlerts.length} badgeVariant="warning" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : complianceAlerts.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <ShieldCheck className="h-8 w-8 text-emerald-400" />
@@ -403,9 +393,9 @@ export function FinanceManagerDashboard() {
                       <p className="text-[11px] text-gray-500">{a.truck.registrationNumber}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${isExpired ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>
+                      <Badge variant={isExpired ? "critical" : "warning"}>
                         {isExpired ? `${Math.abs(days)}d ago` : `${days}d left`}
-                      </span>
+                      </Badge>
                     </div>
                   </li>
                 );
@@ -419,13 +409,15 @@ export function FinanceManagerDashboard() {
               )}
             </ul>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Recurring payments due soon */}
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <SectionTitle icon={Clock} title="Recurring Payments Due Soon" badge={dueSoonRecurring.length} badgeColor="bg-teal-100 text-teal-700" />
+        <Card className="border-teal-200">
+          <CardContent className="p-5">
+          <SectionTitle icon={Clock} title="Recurring Payments Due Soon" badge={dueSoonRecurring.length} badgeVariant="active" />
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} />)}</div>
+            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
           ) : dueSoonRecurring.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-400" />
@@ -455,7 +447,8 @@ export function FinanceManagerDashboard() {
               })}
             </ul>
           )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
     </div>

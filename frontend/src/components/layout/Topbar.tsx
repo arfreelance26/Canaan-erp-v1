@@ -14,7 +14,7 @@ import { attendanceApi, editApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useNotifications } from "@/context/NotificationContext";
-// Phase 2 — AI chat: import { useChat } from "@/context/ChatContext";
+// import { useChat } from "@/context/ChatContext"; // Next phase
 import { showToast } from "@/lib/swal";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -125,7 +125,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     : "Reminders";
 
   const { sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert } = useNotifications();
-  // Phase 2 — AI chat: const { isOpen: isChatOpen, toggle: toggleChat } = useChat();
+  // const { isOpen: isChatOpen, toggle: toggleChat } = useChat(); // Next phase
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -377,7 +377,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {/* Display settings — theme + font size */}
         <DisplaySettings />
 
-        {/* Phase 2 — AI chat toggle (disabled until phase 2)
+        {/* Next phase — AI Assistant button
         {process.env.NEXT_PUBLIC_OR_API_KEY && (
           <button
             type="button"

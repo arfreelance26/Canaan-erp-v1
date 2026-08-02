@@ -756,6 +756,7 @@ function toClosure(b: B): TripClosureData {
     partyHaltDays: String(b.party_halt_days ?? "0"),
     haltRemarks: b.halt_remarks ?? "",
     driverHaltCompensation: String(b.driver_halt_compensation ?? "0"),
+    closureRemarks: b.closure_remarks ?? "",
     // Meta
     closedAt: b.created_at ? String(b.created_at).split("T")[0] : "",
     version: typeof b.version === "number" ? b.version : undefined,
@@ -795,6 +796,7 @@ function fromClosure(f: TripClosureData) {
     party_halt_days: parseInt(f.partyHaltDays) || 0,
     halt_remarks: f.haltRemarks || null,
     driver_halt_compensation: n(f.driverHaltCompensation),
+    closure_remarks: f.closureRemarks || null,
     client_version: f.version,  // echo version back for optimistic locking
   };
 }
@@ -1360,6 +1362,8 @@ export const tripsApi = {
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
   getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
+  listShippingLines: () => req<string[]>("/trips/shipping-lines"),
+  listCargoReferences: () => req<string[]>("/trips/cargo-references"),
   remove: (dbId: string) => req<void>(`/trips/${dbId}`, { method: "DELETE" }),
   collectSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),

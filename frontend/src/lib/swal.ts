@@ -1,5 +1,6 @@
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import { toastManager } from './toast-manager';
 
 export const MySwal = withReactContent(Swal);
 
@@ -129,21 +130,10 @@ export const showToast = (
   icon: 'success' | 'error' | 'info' | 'warning' = 'info',
   title?: string,
 ) => {
-  const dark = isDark();
-  return MySwal.fire({
-    toast: true,
-    position: 'top-end',
-    icon,
+  toastManager.add({
     title: title ?? message,
-    text: title ? message : undefined,
-    showConfirmButton: false,
-    timer: 6000,
-    timerProgressBar: true,
-    customClass: {
-      popup: `rounded-xl shadow-lg border ${dark ? 'border-gray-700' : 'border-gray-100'}`,
-      title: `text-sm font-semibold ${dark ? 'text-gray-100' : 'text-gray-900'}`,
-      htmlContainer: `text-xs ${dark ? 'text-gray-400' : 'text-gray-500'}`,
-    },
+    description: title ? message : undefined,
+    type: icon,
   });
 };
 

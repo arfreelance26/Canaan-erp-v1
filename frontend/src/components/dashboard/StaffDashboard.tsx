@@ -7,6 +7,10 @@ import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import type { Trip } from "@/types/trip";
 
 function fmtDate(d?: string | null) {
@@ -77,90 +81,94 @@ export function StaffDashboard() {
       {/* Current Trips */}
       <CurrentTripsCard />
 
+      <Separator />
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4">
-        <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"}`}>
+        <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Pending Receive</p>
-          <p className="mt-1 text-3xl font-bold text-amber-700">{loading ? "—" : pendingReceive.length}</p>
-          <p className="mt-0.5 text-[11px] text-amber-500">Delivered by Yard, not yet received</p>
+          <p className="mt-1 text-4xl font-bold leading-none text-amber-700">{loading ? "—" : pendingReceive.length}</p>
+          <p className="mt-1 text-[11px] text-amber-500">Delivered by Yard, not yet received</p>
         </div>
-        <div className={`rounded-xl border px-5 py-4 ${pendingEntry.length > 0 ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-white"}`}>
+        <div className={`rounded-xl border px-5 py-4 ${pendingEntry.length > 0 ? "border-blue-200 bg-blue-50 dark:bg-blue-950/30" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
           <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Pending Entry</p>
-          <p className="mt-1 text-3xl font-bold text-blue-700">{loading ? "—" : pendingEntry.length}</p>
-          <p className="mt-0.5 text-[11px] text-blue-500">Received, trip sheet not entered</p>
+          <p className="mt-1 text-4xl font-bold leading-none text-blue-700">{loading ? "—" : pendingEntry.length}</p>
+          <p className="mt-1 text-[11px] text-blue-500">Received, trip sheet not entered</p>
         </div>
       </div>
+
+      <Separator />
 
       {/* Two panels */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Pending Receive */}
-        <div className="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Inbox className="h-4 w-4 text-amber-500" />
-              <h2 className="text-sm font-semibold text-gray-700">Pending Receive</h2>
+        <Card className="border-amber-200">
+          <CardContent className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Inbox className="h-4 w-4 text-amber-500" />
+                <h2 className="text-sm font-semibold text-gray-700">Pending Receive</h2>
+              </div>
+              {!loading && pendingReceive.length > 0 && (
+                <Badge variant="warning">{pendingReceive.length}</Badge>
+              )}
             </div>
-            {!loading && pendingReceive.length > 0 && (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700">
-                {pendingReceive.length}
-              </span>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}
+              </div>
+            ) : pendingReceive.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                <p className="text-sm font-medium text-emerald-700">All sheets received</p>
+              </div>
+            ) : (
+              <ul className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
+                {pendingReceive.map((trip) => <TripRow key={trip.id} trip={trip} />)}
+              </ul>
             )}
-          </div>
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-gray-100" />)}
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <Link href="/trips/reconciliation" className="text-xs font-medium text-amber-600 hover:underline">
+                Go to Reconciliation →
+              </Link>
             </div>
-          ) : pendingReceive.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-emerald-700">All sheets received</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {pendingReceive.map((trip) => <TripRow key={trip.id} trip={trip} />)}
-            </ul>
-          )}
-          <div className="mt-4 border-t border-gray-100 pt-3">
-            <Link href="/trips/reconciliation" className="text-xs font-medium text-amber-600 hover:underline">
-              Go to Reconciliation →
-            </Link>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Pending Entry */}
-        <div className="rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-gray-700">Pending Entry</h2>
+        <Card className="border-blue-200">
+          <CardContent className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-blue-500" />
+                <h2 className="text-sm font-semibold text-gray-700">Pending Entry</h2>
+              </div>
+              {!loading && pendingEntry.length > 0 && (
+                <Badge variant="active">{pendingEntry.length}</Badge>
+              )}
             </div>
-            {!loading && pendingEntry.length > 0 && (
-              <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-700">
-                {pendingEntry.length}
-              </span>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}
+              </div>
+            ) : pendingEntry.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                <p className="text-sm font-medium text-emerald-700">All sheets entered</p>
+              </div>
+            ) : (
+              <ul className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
+                {pendingEntry.map((trip) => <TripRow key={trip.id} trip={trip} />)}
+              </ul>
             )}
-          </div>
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-gray-100" />)}
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <Link href="/trips/reconciliation" className="text-xs font-medium text-blue-600 hover:underline">
+                Go to Reconciliation →
+              </Link>
             </div>
-          ) : pendingEntry.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-emerald-700">All sheets entered</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {pendingEntry.map((trip) => <TripRow key={trip.id} trip={trip} />)}
-            </ul>
-          )}
-          <div className="mt-4 border-t border-gray-100 pt-3">
-            <Link href="/trips/reconciliation" className="text-xs font-medium text-blue-600 hover:underline">
-              Go to Reconciliation →
-            </Link>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
     </div>

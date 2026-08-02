@@ -7,6 +7,7 @@
 export interface ChatMessage {
   role: "user" | "assistant" | "error";
   content: string;
+  id?: string;
 }
 
 interface LLMMessage {

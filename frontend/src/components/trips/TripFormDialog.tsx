@@ -135,7 +135,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   approxTripDistance: "",
   liftOnAmount: "",
   liftOnRemarks: "",
-  chaName: "",
+  chaName: "CGSS",
   internalRemarks: "",
   driverChangeRemark: "",
   bookingInstructions: "",
@@ -173,12 +173,16 @@ export function TripFormDialog({
   const [finalCustomerPricing, setFinalCustomerPricing] = useState<FinalCustomerPricing | null>(null);
   const [dbOrigins, setDbOrigins] = useState<string[]>([]);
   const [dbDestinations, setDbDestinations] = useState<string[]>([]);
+  const [shippingLines, setShippingLines] = useState<string[]>([]);
+  const [cargoReferences, setCargoReferences] = useState<string[]>([]);
   const wasOpenRef = useRef(false);
   const vehicleRestoredRef = useRef(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
     tripsApi.getAutocompleteValues().then((v) => { setDbOrigins(v.origins); setDbDestinations(v.destinations); }).catch(() => {});
+    tripsApi.listShippingLines().then(setShippingLines).catch(() => {});
+    tripsApi.listCargoReferences().then(setCargoReferences).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -236,6 +240,7 @@ export function TripFormDialog({
     setForm({
       ...emptyForm,
       ...draft,
+      chaName: draft.chaName || "CGSS",
       bookingCreatedDate: yesterdayStr,
       scheduledDate: todayStr,
       bookingReferenceNo: generateBookingReferenceNo(existingTrips, yesterdayStr),
@@ -494,9 +499,20 @@ export function TripFormDialog({
   }
 
   function handleBookingDateChange(value: string) {
+    let nextScheduledDate = "";
+    if (value) {
+      const [y, m, d] = value.split("-").map(Number);
+      const next = new Date(y, m - 1, d + 1);
+      nextScheduledDate = [
+        next.getFullYear(),
+        String(next.getMonth() + 1).padStart(2, "0"),
+        String(next.getDate()).padStart(2, "0"),
+      ].join("-");
+    }
     setForm((prev) => ({
       ...prev,
       bookingCreatedDate: value,
+      ...(nextScheduledDate ? { scheduledDate: nextScheduledDate } : {}),
       ...(initialData ? {} : { bookingReferenceNo: generateBookingReferenceNo(existingTrips, value) }),
     }));
   }
@@ -965,7 +981,7 @@ export function TripFormDialog({
                 value={form.shipperConsignee}
                 onChange={(e) => update("shipperConsignee", e.target.value)}
                 className={inputClass}
-                placeholder="e.g. Sri Lakshmi Traders"
+                placeholder="Enter shipper / consignee name"
               />
             </Field>
 
@@ -976,7 +992,7 @@ export function TripFormDialog({
                 onChange={(e) => update("chaName", e.target.value)}
                 readOnly={isSelf}
                 className={`${inputClass} ${isSelf ? "cursor-not-allowed bg-gray-50 text-gray-500" : ""}`}
-                placeholder={isSelf ? "CGI (auto-filled)" : "e.g. Sri Ram CHA Services"}
+                placeholder={isSelf ? "CGI (auto-filled)" : "Enter CHA name"}
               />
               {isSelf && (
                 <span className="mt-1 text-xs text-blue-600">Auto-set to CGI for Self customer</span>
@@ -1026,7 +1042,7 @@ export function TripFormDialog({
                     onChange={(e) => update("containerNumber1", enforceContainerFormat(e.target.value))}
                     maxLength={11}
                     className={inputClass}
-                    placeholder="e.g. TWCU2081370"
+                    placeholder="Enter container number"
                   />
                 </Field>
                 <Field label="Container Number for the Second Container" required>
@@ -1038,7 +1054,7 @@ export function TripFormDialog({
                     onChange={(e) => update("containerNumber2", enforceContainerFormat(e.target.value))}
                     maxLength={11}
                     className={inputClass}
-                    placeholder="e.g. TWCU2081370"
+                    placeholder="Enter container number"
                   />
                 </Field>
               </>
@@ -1057,13 +1073,12 @@ export function TripFormDialog({
               </Field>
             ) : form.containerSpecification === "OPEN LOAD CARGO" ? (
               <Field label="Cargo Reference" required>
-                <input
-                  type="text"
+                <GlassCombobox
                   required
                   value={form.cargoReference}
-                  onChange={(e) => update("cargoReference", e.target.value)}
-                  className={inputClass}
-                  placeholder="e.g. CARGO-12345"
+                  onChange={(val) => update("cargoReference", val)}
+                  options={cargoReferences.map((r) => ({ value: r, label: r }))}
+                  placeholder="Enter or select cargo reference"
                 />
               </Field>
             ) : null}
@@ -1148,7 +1163,7 @@ export function TripFormDialog({
                   onChange={(e) => handleOpenLoadWeightChange(e.target.value)}
                   onWheel={(e) => e.currentTarget.blur()}
                   className={inputClass}
-                  placeholder="e.g. 18.5"
+                  placeholder="Enter weight in tons"
                 />
               ) : (
                 <GlassSelect
@@ -1172,7 +1187,7 @@ export function TripFormDialog({
                   onChange={(e) => handleRatePerTonChange(e.target.value)}
                   onWheel={(e) => e.currentTarget.blur()}
                   className={inputClass}
-                  placeholder="e.g. 1200"
+                  placeholder="Enter rate per ton"
                 />
                 {form.cargoWeight && form.ratePerTon && (
                   <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
@@ -1290,7 +1305,7 @@ export function TripFormDialog({
                     value={form.origin}
                     onChange={(e) => update("origin", e.target.value)}
                     className={inputClass}
-                    placeholder="Enter origin location (e.g. Manali Yard)"
+                    placeholder="Enter origin location"
                   />
                   <span className="mt-1 text-xs text-amber-600">Shifting trips — enter origin manually, no auto-fill from customer</span>
                 </>
@@ -1312,7 +1327,7 @@ export function TripFormDialog({
                     required
                     value={form.origin}
                     onChange={handleOriginChange}
-                    placeholder={allOriginOptions.length > 0 ? "Select or type origin" : "e.g. Coimbatore"}
+                    placeholder="Select or type origin"
                     options={allOriginOptions}
                   />
                   {customerDestinationOriginStates.length > 0 && (
@@ -1338,7 +1353,7 @@ export function TripFormDialog({
                     value={form.destination}
                     onChange={(e) => update("destination", e.target.value)}
                     className={inputClass}
-                    placeholder="Enter destination location (e.g. Oragadam Yard)"
+                    placeholder="Enter destination location"
                   />
                   <span className="mt-1 text-xs text-amber-600">Shifting trips — enter destination manually, no auto-fill from customer</span>
                 </>
@@ -1348,7 +1363,7 @@ export function TripFormDialog({
                     required
                     value={form.destination}
                     onChange={handleDestinationChange}
-                    placeholder={allDestinationOptions.length > 0 ? "Select or type destination" : "e.g. Bengaluru"}
+                    placeholder="Select or type destination"
                     options={allDestinationOptions}
                   />
                   {form.destination && form.transportHireAmount && findPricingForDestAndSpec(form.destination, form.containerSpecification, form.cargoClassification, form.cargoWeight) && (
@@ -1369,12 +1384,11 @@ export function TripFormDialog({
           <p className={sectionHeadingClass}>Shipping Information</p>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Shipping Line">
-              <input
-                type="text"
+              <GlassCombobox
                 value={form.shippingLine}
-                onChange={(e) => update("shippingLine", e.target.value)}
-                className={inputClass}
-                placeholder="e.g. Cochin Shipyard Lines"
+                onChange={(val) => update("shippingLine", val)}
+                options={shippingLines.map((s) => ({ value: s, label: s }))}
+                placeholder="Enter or select shipping line"
               />
             </Field>
 
@@ -1384,7 +1398,7 @@ export function TripFormDialog({
                 value={form.vesselName}
                 onChange={(e) => update("vesselName", e.target.value)}
                 className={inputClass}
-                placeholder="e.g. MV Malabar Star"
+                placeholder="Enter vessel name"
               />
             </Field>
 
@@ -1394,7 +1408,7 @@ export function TripFormDialog({
                 value={form.releaseOrderReference}
                 onChange={(e) => update("releaseOrderReference", e.target.value)}
                 className={inputClass}
-                placeholder="e.g. RO-99231"
+                placeholder="Enter release order reference"
               />
             </Field>
           </div>
@@ -1421,7 +1435,7 @@ export function TripFormDialog({
                 onChange={(e) => update("approxKm", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
-                placeholder="e.g. 120"
+                placeholder="Enter approximate KM"
               />
               <span className="mt-1 text-xs text-gray-400">
                 Auto-fetched from customer destination — editable if needed. Used as baseline for ±10% KM variance check in trip sheet.
@@ -1484,7 +1498,7 @@ export function TripFormDialog({
                   rows={3}
                   value={form.driverChangeRemark}
                   onChange={(e) => update("driverChangeRemark", e.target.value)}
-                  placeholder="State the reason why the driver was changed from the default assigned driver..."
+                  placeholder="Enter reason for driver change"
                   className={`${inputClass} resize-none`}
                 />
               </Field>
@@ -1552,7 +1566,7 @@ export function TripFormDialog({
                     onWheel={(e) => e.currentTarget.blur()}
                     readOnly={locked}
                     className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                    placeholder="e.g. 5000"
+                    placeholder="Enter cash advance amount"
                   />
                 </Field>
 
@@ -1564,7 +1578,7 @@ export function TripFormDialog({
                     onWheel={(e) => e.currentTarget.blur()}
                     readOnly={locked}
                     className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                    placeholder="e.g. 8000"
+                    placeholder="Enter fuel advance amount"
                   />
                 </Field>
 
@@ -1576,7 +1590,7 @@ export function TripFormDialog({
                     onWheel={(e) => e.currentTarget.blur()}
                     readOnly={locked}
                     className={`${inputClass} ${locked ? "cursor-not-allowed bg-gray-50 text-gray-400" : ""}`}
-                    placeholder="e.g. 85"
+                    placeholder="Enter fuel advance litres"
                   />
                 </Field>
               </div>
@@ -1621,7 +1635,7 @@ export function TripFormDialog({
                 onChange={(e) => update("driverAdvance", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={inputClass}
-                placeholder="e.g. 2000"
+                placeholder="Enter driver advance"
               />
             </Field>
             )}
@@ -1685,7 +1699,7 @@ export function TripFormDialog({
                     ? "cursor-not-allowed bg-gray-50 text-gray-500"
                     : ""
                 }`}
-                placeholder={isFixedHire ? "Enter hire amount" : isShifting ? "Enter hire amount for this shifting trip" : "e.g. 32000"}
+                placeholder="Enter hire amount"
               />
               {!isReturnTrip && !isOpenLoad && !isShifting && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
@@ -1718,7 +1732,7 @@ export function TripFormDialog({
                 value={form.internalRemarks}
                 onChange={(e) => update("internalRemarks", e.target.value)}
                 className={`${inputClass} min-h-20 resize-y`}
-                placeholder="Notes visible to internal staff only"
+                placeholder="Enter internal remarks"
               />
             </Field>
 
@@ -1727,7 +1741,7 @@ export function TripFormDialog({
                 value={form.bookingInstructions}
                 onChange={(e) => update("bookingInstructions", e.target.value)}
                 className={`${inputClass} min-h-20 resize-y`}
-                placeholder="Instructions related to this booking"
+                placeholder="Enter booking instructions"
               />
             </Field>
           </div>

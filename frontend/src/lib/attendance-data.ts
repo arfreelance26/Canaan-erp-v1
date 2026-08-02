@@ -92,8 +92,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-09",
     status: "Present",
     checkInTime: "09:02 AM",
+    checkOutTime: null,
     markedAt: "2026-06-09T09:02:00",
     source: "Web",
+    adminOverride: false,
   },
   {
     id: "2",
@@ -101,8 +103,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-10",
     status: "Present",
     checkInTime: "08:58 AM",
+    checkOutTime: null,
     markedAt: "2026-06-10T08:58:00",
     source: "Web",
+    adminOverride: false,
   },
   {
     id: "3",
@@ -110,8 +114,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-11",
     status: "On Leave",
     checkInTime: null,
+    checkOutTime: null,
     markedAt: "2026-06-11T08:30:00",
     source: "Web",
+    adminOverride: false,
   },
   {
     id: "4",
@@ -119,8 +125,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-12",
     status: "Present",
     checkInTime: "09:05 AM",
+    checkOutTime: null,
     markedAt: "2026-06-12T09:05:00",
     source: "Web",
+    adminOverride: false,
   },
   {
     id: "5",
@@ -128,8 +136,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-13",
     status: "Present",
     checkInTime: "08:55 AM",
+    checkOutTime: null,
     markedAt: "2026-06-13T08:55:00",
     source: "Web",
+    adminOverride: false,
   },
   {
     id: "6",
@@ -137,8 +147,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-09",
     status: "Present",
     checkInTime: "08:40 AM",
+    checkOutTime: null,
     markedAt: "2026-06-09T08:40:00",
     source: "App",
+    adminOverride: false,
   },
   {
     id: "7",
@@ -146,8 +158,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-10",
     status: "Present",
     checkInTime: "08:45 AM",
+    checkOutTime: null,
     markedAt: "2026-06-10T08:45:00",
     source: "App",
+    adminOverride: false,
   },
   {
     id: "8",
@@ -155,8 +169,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-11",
     status: "Absent",
     checkInTime: null,
+    checkOutTime: null,
     markedAt: null,
     source: "App",
+    adminOverride: false,
   },
   {
     id: "9",
@@ -164,8 +180,10 @@ export const initialStaffAttendance: StaffAttendanceRecord[] = [
     date: "2026-06-12",
     status: "Present",
     checkInTime: "08:38 AM",
+    checkOutTime: null,
     markedAt: "2026-06-12T08:38:00",
     source: "App",
+    adminOverride: false,
   },
 ];
 

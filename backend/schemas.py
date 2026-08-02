@@ -579,6 +579,7 @@ class TripClosureCreate(OrmBase):
     party_halt_days: Optional[int] = 0
     halt_remarks: Optional[str] = None
     driver_halt_compensation: Optional[Decimal] = None
+    closure_remarks: Optional[str] = None
 
 
 class TripClosureOut(TripClosureCreate):

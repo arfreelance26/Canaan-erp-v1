@@ -39,6 +39,9 @@ export type TripClosureData = {
   haltRemarks: string;
   driverHaltCompensation: string;
 
+  // Closure remarks (visible to admin in trip history)
+  closureRemarks: string;
+
   // Meta — set by backend when closure is created
   closedAt: string;  // ISO date string from created_at
   version?: number;  // optimistic-locking token echoed back on save

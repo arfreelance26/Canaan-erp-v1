@@ -328,8 +328,28 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
             <FilterPillRow label="Cargo"     options={cargoOpts}     selected={fCargo}     onToggle={v => tog(fCargo, v, setFCargo)} />
             <FilterPillRow label="Trip Type" options={categoryOpts}  selected={fCategory}  onToggle={v => tog(fCategory, v, setFCategory)} />
             <FilterPillRow label="Container" options={containerOpts} selected={fContainer} onToggle={v => tog(fContainer, v, setFContainer)} />
-            <FilterPillRow label="Customer"  options={customerOpts}  selected={fCustomer}  onToggle={v => tog(fCustomer, v, setFCustomer)}  labelFn={v => v} />
-            <FilterPillRow label="Truck"     options={truckOpts}     selected={fTruck}     onToggle={v => tog(fTruck, v, setFTruck)}         labelFn={v => v} />
+            <div className="flex items-start gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-24 shrink-0 pt-1">Customer</span>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                {customerOpts.map(opt => (
+                  <button key={opt} type="button" onClick={() => tog(fCustomer, opt, setFCustomer)}
+                    className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-all ${fCustomer.has(opt) ? "border-blue-500 bg-blue-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"}`}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-24 shrink-0 pt-1">Truck</span>
+              <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
+                {truckOpts.map(opt => (
+                  <button key={opt} type="button" onClick={() => tog(fTruck, opt, setFTruck)}
+                    className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-all ${fTruck.has(opt) ? "border-blue-500 bg-blue-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"}`}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Advanced filters */}
@@ -396,7 +416,7 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
                     onClick={() => toggleSort("date")}>
                     Date{sortKey === "date" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Sheet / Booking</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">Sheet / Booking</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Truck</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Customer</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Route</th>
@@ -409,7 +429,7 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
                 {filtered.map((t, i) => (
                   <tr key={i} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(t.tripSheetDate)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-xs font-medium text-gray-800">{t.tripSheetNo || "—"}</p>
                       <p className="text-[11px] text-gray-400">{t.bookingReferenceNo || ""}</p>
                     </td>

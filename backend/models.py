@@ -286,7 +286,7 @@ class Trip(Base):
     __tablename__ = "trips"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    trip_id = Column(String(20), unique=True, nullable=False)           # TRP-1050
+    trip_id = Column(String(100), unique=True, nullable=False)          # TRP-1050
     status = Column(
         Enum("Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded", "Completed", "Cancelled"),
         nullable=False,
@@ -430,6 +430,7 @@ class TripClosure(Base):
     party_halt_days = Column(Integer, default=0)
     halt_remarks = Column(Text)
     driver_halt_compensation = Column(Numeric(10, 2), default=0)
+    closure_remarks = Column(Text)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
