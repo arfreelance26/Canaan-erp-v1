@@ -258,31 +258,44 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
     }));
   }, [sacCodes]);
 
-  // Auto-populate service lines for SAC codes tagged with the current invoice type.
-  // Re-fires when form.invoiceType changes so a draft restoration with a different
-  // invoiceType doesn't permanently block the populate (ref only set after actual adds).
-  const autoPopulatedRef = useRef(false);
+  // Tracks which invoice type was last auto-populated so we can swap lines when the type changes.
+  const lastAutoPopType = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) { autoPopulatedRef.current = false; return; }
+    if (!open) { lastAutoPopType.current = null; return; }
     if (!sacCodes.length) return;
-    if (autoPopulatedRef.current) return;
-    if (savedInvoice) return; // editing existing invoice — don't overwrite saved services
+
+    const currentType = form.invoiceType;
+    const prevType = lastAutoPopType.current;
+
+    // Edit mode on initial open: record the type without disturbing the saved service lines.
+    if (savedInvoice && prevType === null) {
+      lastAutoPopType.current = currentType;
+      return;
+    }
+
+    // Nothing changed — skip.
+    if (prevType === currentType) return;
+
+    // SAC IDs that were owned by the previous invoice type's auto-populate.
+    const prevAutoIds = prevType
+      ? new Set(sacCodes.filter((sc) => sc.autoPopulateInvoiceType === prevType).map((sc) => String(sc.id)))
+      : new Set<string>();
 
     setForm((prev) => {
-      const toAdd = sacCodes.filter((sc) => sc.autoPopulateInvoiceType === prev.invoiceType);
-      // Only mark done and add services when there are actually matching SAC codes.
-      // If toAdd is empty the ref stays false so the effect can retry when invoiceType settles.
-      if (!toAdd.length) return prev;
-      autoPopulatedRef.current = true;
+      // Strip lines that belonged to the previous auto-populate type.
+      let services = prev.services.filter((s) => !prevAutoIds.has(s.sacId));
+      if (services.length === 0) services = [emptyService()];
 
-      let services = [...prev.services];
+      // Add lines for the new invoice type.
+      const toAdd = sacCodes.filter((sc) => sc.autoPopulateInvoiceType === currentType);
       for (const sc of toAdd) {
-        if (services.some((s) => s.sacId === String(sc.id))) continue;
+        const sacId = String(sc.id);
+        if (services.some((s) => s.sacId === sacId)) continue;
         const linkedVal = getLinkedExpenseValue(sc.linkedExpense, sheet);
         const line: ServiceLine = {
           descriptionOfService: sc.description,
           sacCode: sc.code,
-          sacId: String(sc.id),
+          sacId,
           gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
           quantity: "1",
           rate: linkedVal && parseFloat(linkedVal) > 0 ? linkedVal : "",
@@ -296,6 +309,8 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
       }
       return { ...prev, services };
     });
+
+    lastAutoPopType.current = currentType;
   }, [open, sacCodes, form.invoiceType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

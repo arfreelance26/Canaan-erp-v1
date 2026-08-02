@@ -41,6 +41,7 @@ class TruckBase(OrmBase):
     year_of_manufacture: Optional[str] = None
     tyre_layout: str
     fuel_capacity: Optional[Decimal] = None
+    adblue_consumption: Optional[Decimal] = None
     odometer_during_purchase: Optional[Decimal] = None
     odometer: Optional[Decimal] = None
     rc_validity_date: Optional[date] = None
@@ -985,11 +986,65 @@ class FuelStats(OrmBase):
     total_distance: Decimal
     total_fuel: Decimal
     average_mileage: Decimal
-    last_mileage: Decimal
-    best_mileage: Decimal
-    worst_mileage: Decimal
-    trend_percentage: Decimal
-    cost_per_km: Decimal
+
+
+# ---------------------------------------------------------------------------
+# AdBlue Logs
+# ---------------------------------------------------------------------------
+
+class AdBlueLogCreate(OrmBase):
+    truck_id: int
+    date: date
+    odometer: int
+    litres: Decimal
+    price_per_litre: Decimal
+    total_cost: Decimal
+    supplier: Optional[str] = None
+    remarks: Optional[str] = None
+
+
+class AdBlueLogUpdate(OrmBase):
+    client_version: Optional[int] = None
+    date: Optional[date] = None
+    odometer: Optional[int] = None
+    litres: Optional[Decimal] = None
+    price_per_litre: Optional[Decimal] = None
+    total_cost: Optional[Decimal] = None
+    supplier: Optional[str] = None
+    remarks: Optional[str] = None
+
+
+class AdBlueLogOut(OrmBase):
+    id: int
+    truck_id: int
+    date: date
+    odometer: int
+    litres: Decimal
+    price_per_litre: Decimal
+    total_cost: Decimal
+    supplier: Optional[str] = None
+    remarks: Optional[str] = None
+    entered_by_name: Optional[str] = None
+    version: int = 1
+    created_at: Optional[datetime] = None
+
+
+class AdBlueManufacturerCreate(OrmBase):
+    name: str
+    default_price_per_litre: Optional[Decimal] = None
+
+
+class AdBlueManufacturerUpdate(OrmBase):
+    name: Optional[str] = None
+    default_price_per_litre: Optional[Decimal] = None
+
+
+class AdBlueManufacturerOut(OrmBase):
+    id: int
+    name: str
+    default_price_per_litre: Optional[Decimal] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 # ---------------------------------------------------------------------------
 # Tyre Inventory
 # ---------------------------------------------------------------------------
@@ -1065,6 +1120,26 @@ class TyreFitmentOut(OrmBase):
     removed_date: Optional[date] = None
     removal_remark: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Operating Cost Calculator — Tyre Base Rates
+# ---------------------------------------------------------------------------
+
+TyreBaseRateType = Literal["Radial", "Tubeless", "Nylon", "Retread"]
+
+
+class TyreBaseRateOut(OrmBase):
+    id: int
+    tyre_type: TyreBaseRateType
+    price: Optional[Decimal] = None
+    expected_range_km: Optional[int] = None
+    updated_at: Optional[datetime] = None
+
+
+class TyreBaseRateUpdate(OrmBase):
+    price: Optional[Decimal] = None
+    expected_range_km: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

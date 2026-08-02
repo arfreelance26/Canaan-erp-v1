@@ -467,7 +467,8 @@ export default function TripReconciliationPage() {
         (t.containerNumber ?? "").toLowerCase().includes(q) ||
         (t.containerNumber1 ?? "").toLowerCase().includes(q) ||
         (t.containerNumber2 ?? "").toLowerCase().includes(q) ||
-        (t.cargoReference ?? "").toLowerCase().includes(q)
+        (t.cargoReference ?? "").toLowerCase().includes(q) ||
+        (customerById.get(t.customerId)?.name ?? "").toLowerCase().includes(q)
       );
     })
     .sort((a, b) => {

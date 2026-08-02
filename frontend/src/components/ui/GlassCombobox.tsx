@@ -19,6 +19,8 @@ interface GlassComboboxProps {
   disabled?: boolean;
   required?: boolean;
   className?: string;
+  /** When true, typing filters the list but only selecting an option commits the value. */
+  strictSelect?: boolean;
 }
 
 export function GlassCombobox({
@@ -29,6 +31,7 @@ export function GlassCombobox({
   disabled = false,
   required = false,
   className,
+  strictSelect = false,
 }: GlassComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -125,7 +128,7 @@ export function GlassCombobox({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
-    onChange(e.target.value); // consumers that need constrained selection should validate in their onChange
+    if (!strictSelect) onChange(e.target.value);
     setIsOpen(true);
   };
 

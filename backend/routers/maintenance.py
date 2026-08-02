@@ -431,6 +431,128 @@ def delete_fuel_log(log_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# AdBlue Logs
+# ---------------------------------------------------------------------------
+
+@router.get("/maintenance/adblue-logs", response_model=list[schemas.AdBlueLogOut], tags=["AdBlue"])
+def list_adblue_logs(
+    truck_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.AdBlueLog)
+    if truck_id:
+        q = q.filter(models.AdBlueLog.truck_id == truck_id)
+    return q.order_by(models.AdBlueLog.date.desc()).all()
+
+
+@router.post("/maintenance/adblue-logs", response_model=schemas.AdBlueLogOut, status_code=201, tags=["AdBlue"])
+def create_adblue_log(
+    payload: schemas.AdBlueLogCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    if not db.get(models.Truck, payload.truck_id):
+        raise HTTPException(404, "Truck not found")
+    log = models.AdBlueLog(
+        **payload.model_dump(),
+        entered_by_name=current_user.name,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    emit("adblue_updated", {})
+    return log
+
+
+@router.put("/maintenance/adblue-logs/{log_id}", response_model=schemas.AdBlueLogOut, tags=["AdBlue"])
+def update_adblue_log(
+    log_id: int,
+    payload: schemas.AdBlueLogUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    log = db.query(models.AdBlueLog).with_for_update().filter(models.AdBlueLog.id == log_id).first()
+    if not log:
+        raise HTTPException(404, "AdBlue log not found")
+    if payload.client_version is not None and log.version != payload.client_version:
+        raise HTTPException(409, "This record was modified by someone else. Please refresh and try again.")
+    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
+        setattr(log, field, value)
+    log.entered_by_name = current_user.name
+    log.version = (log.version or 1) + 1
+    db.commit()
+    db.refresh(log)
+    emit("adblue_updated", {})
+    return log
+
+
+@router.delete("/maintenance/adblue-logs/{log_id}", status_code=204, tags=["AdBlue"])
+def delete_adblue_log(log_id: int, db: Session = Depends(get_db)):
+    log = db.get(models.AdBlueLog, log_id)
+    if not log:
+        raise HTTPException(404, "AdBlue log not found")
+    db.delete(log)
+    db.commit()
+    emit("adblue_updated", {})
+
+
+@router.get("/maintenance/adblue-manufacturers", response_model=list[schemas.AdBlueManufacturerOut], tags=["AdBlue"])
+def list_adblue_manufacturers(db: Session = Depends(get_db)):
+    return db.query(models.AdBlueManufacturer).order_by(models.AdBlueManufacturer.name).all()
+
+
+@router.post("/maintenance/adblue-manufacturers", response_model=schemas.AdBlueManufacturerOut, status_code=201, tags=["AdBlue"])
+def create_adblue_manufacturer(
+    payload: schemas.AdBlueManufacturerCreate,
+    db: Session = Depends(get_db),
+    _: TokenUser = Depends(get_current_user),
+):
+    if db.query(models.AdBlueManufacturer).filter_by(name=payload.name).first():
+        raise HTTPException(400, f"Manufacturer '{payload.name}' already exists.")
+    m = models.AdBlueManufacturer(**payload.model_dump())
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    emit("adblue_updated", {})
+    return m
+
+
+@router.put("/maintenance/adblue-manufacturers/{manufacturer_id}", response_model=schemas.AdBlueManufacturerOut, tags=["AdBlue"])
+def update_adblue_manufacturer(
+    manufacturer_id: int,
+    payload: schemas.AdBlueManufacturerUpdate,
+    db: Session = Depends(get_db),
+    _: TokenUser = Depends(get_current_user),
+):
+    m = db.get(models.AdBlueManufacturer, manufacturer_id)
+    if not m:
+        raise HTTPException(404, "Manufacturer not found.")
+    if payload.name and payload.name != m.name:
+        if db.query(models.AdBlueManufacturer).filter_by(name=payload.name).first():
+            raise HTTPException(400, f"Manufacturer '{payload.name}' already exists.")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(m, field, value)
+    db.commit()
+    db.refresh(m)
+    emit("adblue_updated", {})
+    return m
+
+
+@router.delete("/maintenance/adblue-manufacturers/{manufacturer_id}", status_code=204, tags=["AdBlue"])
+def delete_adblue_manufacturer(
+    manufacturer_id: int,
+    db: Session = Depends(get_db),
+    _: TokenUser = Depends(get_current_user),
+):
+    m = db.get(models.AdBlueManufacturer, manufacturer_id)
+    if not m:
+        raise HTTPException(404, "Manufacturer not found.")
+    db.delete(m)
+    db.commit()
+    emit("adblue_updated", {})
+
+
+# ---------------------------------------------------------------------------
 # Tyre Inventory
 # ---------------------------------------------------------------------------
 

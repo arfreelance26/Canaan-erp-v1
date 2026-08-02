@@ -116,6 +116,19 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
   if (!truck) return null;
 
+  // ── Tyre type summary for this truck ──────────────────────────────────────
+  const activeFitments = fitmentRecords.filter(
+    (f) => f.truckId === truck.id && f.removedDate === null
+  );
+  const tyreTypeCounts: Record<string, number> = {};
+  for (const f of activeFitments) {
+    const tyre = tyres.find((t) => t.id === f.tyreId);
+    if (!tyre) continue;
+    const label = tyre.condition === "Rethreaded" ? "Retreaded" : (tyre.tyreType || "Unknown");
+    tyreTypeCounts[label] = (tyreTypeCounts[label] ?? 0) + 1;
+  }
+  const tyreTypePills = Object.entries(tyreTypeCounts);
+
   const layout = getTyreLayout(truck.tyreLayout);
   const positions = layout ? getTyrePositions(layout) : [];
   const availableTyres = getAvailableTyres(tyres, fitmentRecords);
@@ -227,7 +240,28 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Manage Tyres — ${truck.registrationNumber}`} className="max-w-4xl">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={`Manage Tyres — ${truck.registrationNumber}`}
+      className="max-w-4xl"
+      headerRight={
+        tyreTypePills.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tyreTypePills.map(([label, count]) => (
+              <span
+                key={label}
+                className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700"
+              >
+                {label}-{count}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[11px] font-medium text-gray-400 italic">No tyres configured</span>
+        )
+      }
+    >
       <div className="flex flex-col gap-4">
         {layout ? (
           <TyreLayoutDiagram

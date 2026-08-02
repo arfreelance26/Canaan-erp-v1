@@ -46,6 +46,7 @@ class Truck(Base):
     year_of_manufacture = Column(String(4))
     tyre_layout = Column(String(20), nullable=False)                    # "6+1", "10+1", etc.
     fuel_capacity = Column(Numeric(10, 2), default=0)
+    adblue_consumption = Column(Numeric(8, 5), nullable=True)
     odometer_during_purchase = Column(Numeric(10, 2), default=0)
     odometer = Column(Numeric(10, 2), default=0)
     rc_date = Column(Date)
@@ -90,6 +91,7 @@ class Truck(Base):
 
     maintenance_records = relationship("MaintenanceRecord", back_populates="truck", cascade="all, delete-orphan")
     fuel_logs = relationship("FuelLog", back_populates="truck", cascade="all, delete-orphan")
+    adblue_logs = relationship("AdBlueLog", back_populates="truck", cascade="all, delete-orphan")
     tyre_fitments = relationship("TyreFitmentRecord", back_populates="truck", cascade="all, delete-orphan")
 
 
@@ -356,6 +358,7 @@ class Trip(Base):
     # Operational Notes
     internal_remarks = Column(Text)
     driver_change_remark = Column(Text)
+    driver_name = Column(String(200), nullable=True)
     booking_instructions = Column(Text)
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged", "rejected"), default="pending")
@@ -658,6 +661,35 @@ class FuelLog(Base):
     truck = relationship("Truck", back_populates="fuel_logs")
 
 
+class AdBlueLog(Base):
+    __tablename__ = "adblue_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, nullable=False)
+    odometer = Column(Integer, nullable=False)
+    litres = Column(Numeric(10, 2), nullable=False)
+    price_per_litre = Column(Numeric(10, 2), nullable=False)
+    total_cost = Column(Numeric(10, 2), nullable=False)
+    supplier = Column(String(200), nullable=True)
+    remarks = Column(Text, nullable=True)
+    entered_by_name = Column(String(100), nullable=True)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    truck = relationship("Truck", back_populates="adblue_logs")
+
+
+class AdBlueManufacturer(Base):
+    __tablename__ = "adblue_manufacturers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)
+    default_price_per_litre = Column(Numeric(10, 2), default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class TyreInventory(Base):
     __tablename__ = "tyre_inventory"
 
@@ -696,6 +728,17 @@ class TyreFitmentRecord(Base):
 
     tyre = relationship("TyreInventory", back_populates="fitment_records")
     truck = relationship("Truck", back_populates="tyre_fitments")
+
+
+class TyreBaseRate(Base):
+    """Admin-configured base price and expected range per tyre type, used by the Operating Cost Calculator."""
+    __tablename__ = "tyre_base_rates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_type = Column(Enum("Radial", "Tubeless", "Nylon", "Retread"), nullable=False, unique=True)
+    price = Column(Numeric(10, 2), default=0)
+    expected_range_km = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------

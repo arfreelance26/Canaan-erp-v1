@@ -178,6 +178,10 @@ export function VerifyTripDialog({
           <Row label="Approx Distance"        value={trip.approxKm ? `${trip.approxKm} KM` : trip.approxTripDistance ? `${trip.approxTripDistance} KM` : ""} />
           <Row label="Cargo Classification"   value={trip.cargoClassification} />
           <Row label="Container Specification" value={trip.containerSpecification} />
+          <Row label="Driver Name"             value={trip.driverName ?? ""} />
+          <Row label="Booking Date"            value={trip.bookingCreatedDate
+            ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+            : ""} />
         </SectionCard>
 
         {/* Trip Closure */}

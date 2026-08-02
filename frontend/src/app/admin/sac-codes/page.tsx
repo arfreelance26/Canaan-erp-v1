@@ -359,7 +359,7 @@ export default function SacCodeManagementPage() {
                   key={heading}
                   type="button"
                   disabled={linking}
-                  onClick={() => handleLinkExpense(heading)}
+                  onClick={() => handleLinkExpense(isLinked ? "" : heading)}
                   className={`flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm font-medium text-left transition-colors disabled:opacity-50 ${
                     isLinked
                       ? "border-blue-300 bg-blue-50 text-blue-700"
@@ -367,7 +367,7 @@ export default function SacCodeManagementPage() {
                   }`}
                 >
                   <span>{heading}</span>
-                  {isLinked && <span className="text-xs text-blue-500 font-normal">Currently linked</span>}
+                  {isLinked && <span className="text-xs text-blue-500 font-normal">Click to unlink</span>}
                 </button>
               );
             })}
@@ -377,7 +377,7 @@ export default function SacCodeManagementPage() {
               type="button"
               disabled={linking}
               onClick={() => handleLinkExpense("")}
-              className="mt-1 text-xs text-gray-400 hover:text-red-500 text-center disabled:opacity-50"
+              className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
             >
               Remove linked expense
             </button>

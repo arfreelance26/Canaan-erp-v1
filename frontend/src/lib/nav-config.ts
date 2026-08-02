@@ -28,6 +28,8 @@ import {
   BarChart2,
   Receipt,
   UserCheck,
+  Calculator,
+  Droplets,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,7 +51,10 @@ export const sidebarSections: NavSection[] = [
   },
   {
     title: "Insights",
-    items: [{ label: "P&L Summary", href: "/insights/pl-summary", icon: TrendingUp }],
+    items: [
+      { label: "P&L Summary", href: "/insights/pl-summary", icon: TrendingUp },
+      { label: "Operating Cost Calculator", href: "/insights/operating-cost-calculator", icon: Calculator },
+    ],
   },
   {
     title: "Attendance",
@@ -112,6 +117,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Expenses Management", href: "/admin/trip-expenses", icon: Receipt },
       { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
+      { label: "AdBlue Management", href: "/admin/adblue", icon: Droplets },
     ],
   },
 ];

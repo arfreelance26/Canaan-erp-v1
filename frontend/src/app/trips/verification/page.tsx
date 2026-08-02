@@ -9,6 +9,7 @@ import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { GenerateInvoiceDialog, type InvoiceType, type InvoiceFormData } from "@/components/trips/GenerateInvoiceDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 import { LRConsignmentDialog } from "@/components/trips/LRConsignmentDialog";
+import { DABDialog } from "@/components/trips/DABDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -80,6 +81,7 @@ export default function TripVerificationPage() {
   const [invoiceDialog, setInvoiceDialog]     = useState<InvoiceDialogState | null>(null);
   const [preview, setPreview]                 = useState<PreviewState | null>(null);
   const [lrDialogTrip, setLrDialogTrip]       = useState<Trip | null>(null);
+  const [dabDialogTrip, setDabDialogTrip]     = useState<Trip | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
@@ -265,7 +267,7 @@ export default function TripVerificationPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
-  const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
+  const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers));
 
   // Counts for filter cards
   const pendingCount  = allFiltered.filter((t) => !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id)).length;
@@ -358,7 +360,7 @@ export default function TripVerificationPage() {
             <table className="w-full min-w-[1200px] text-left text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Status", "Actions", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
+                  {["Status", "Actions", "Date", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
                     "Hire Amt", "Expense", "Invoice No"].map((col) => (
                     <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {col}
@@ -416,6 +418,12 @@ export default function TripVerificationPage() {
                               className="flex items-center gap-1 rounded-lg border border-blue-900/30 px-2.5 py-1 text-xs font-semibold text-blue-900 hover:bg-blue-50">
                               Generate LR
                             </button>
+                            {parseFloat(trip.customerFuelAdvanceAmount || "0") > 0 && (
+                              <button type="button" onClick={() => setDabDialogTrip(trip)}
+                                className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                                Generate DAB
+                              </button>
+                            )}
                           </div>
                         ) : isVerified ? (
                           <div className="flex flex-col gap-1">
@@ -430,6 +438,12 @@ export default function TripVerificationPage() {
                               className="rounded-lg border border-blue-900/30 bg-white px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-50">
                               GENERATE LR
                             </button>
+                            {parseFloat(trip.customerFuelAdvanceAmount || "0") > 0 && (
+                              <button type="button" onClick={() => setDabDialogTrip(trip)}
+                                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100">
+                                GENERATE DAB
+                              </button>
+                            )}
                             <button type="button" onClick={() => setVerifyTrip(trip)}
                               className="w-fit rounded-lg border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50">
                               View Details
@@ -459,6 +473,11 @@ export default function TripVerificationPage() {
                             VERIFY TRIP DATA
                           </button>
                         )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">
+                        {trip.bookingCreatedDate
+                          ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          : "—"}
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-700">
@@ -600,6 +619,15 @@ export default function TripVerificationPage() {
         truck={lrDialogTrip ? truckById.get(lrDialogTrip.vehicleId) : undefined}
         invoiceNo={lrDialogTrip ? (invoiceData.get(lrDialogTrip.id)?.invoice_no ?? "") : ""}
         onClose={() => setLrDialogTrip(null)}
+      />
+
+      <DABDialog
+        open={dabDialogTrip !== null}
+        trip={dabDialogTrip}
+        truck={dabDialogTrip ? truckById.get(dabDialogTrip.vehicleId) : undefined}
+        customer={dabDialogTrip ? customerById.get(dabDialogTrip.customerId) : undefined}
+        invoiceNo={dabDialogTrip ? (invoiceData.get(dabDialogTrip.id)?.invoice_no ?? "") : ""}
+        onClose={() => setDabDialogTrip(null)}
       />
     </div>
   );

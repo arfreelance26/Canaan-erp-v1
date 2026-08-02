@@ -11,7 +11,7 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
 import type { Branch } from "@/types/branch";
-import { branchesApi } from "@/lib/api";
+import { branchesApi, adblueApi } from "@/lib/api";
 import { getTyreLayout, TYRE_LAYOUT_OPTIONS } from "@/lib/tyre-layouts";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import type { Truck } from "@/types/truck";
@@ -56,6 +56,7 @@ const emptyForm: Omit<Truck, "id" | "truckId"> = {
   yearOfManufacture: "",
   tyreLayout: "",
   fuelCapacity: "",
+  adblueConsumption: "",
   odometerDuringPurchase: "",
   odometer: "",
   rcValidityDate: "",
@@ -95,9 +96,13 @@ export function TruckFormDialog({
   const [form, setForm] = useState<Omit<Truck, "id" | "truckId">>(emptyForm);
   const [files, setFiles] = useState<TruckFiles>({});
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [manufacturerOptions, setManufacturerOptions] = useState<string[]>([]);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
+    adblueApi.listManufacturers()
+      .then((list) => setManufacturerOptions(list.map((m) => m.name)))
+      .catch(() => setManufacturerOptions([]));
   }, []);
 
   useEffect(() => {
@@ -166,11 +171,12 @@ export function TruckFormDialog({
           </Field>
 
           <Field label="Manufacturer">
-            <input
-              type="text"              value={form.manufacturer}
-              onChange={(e) => update("manufacturer", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Tata Motors"
+            <GlassCombobox
+              value={form.manufacturer}
+              onChange={(val) => update("manufacturer", val)}
+              placeholder="Search manufacturers..."
+              options={manufacturerOptions.map((m) => ({ value: m, label: m }))}
+              strictSelect
             />
           </Field>
 

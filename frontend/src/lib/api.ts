@@ -295,6 +295,7 @@ function toTruck(b: B): Truck {
     yearOfManufacture: b.year_of_manufacture ?? "",
     tyreLayout: b.tyre_layout ?? "",
     fuelCapacity: String(b.fuel_capacity ?? "0"),
+    adblueConsumption: b.adblue_consumption != null ? String(b.adblue_consumption) : "",
     odometerDuringPurchase: String(b.odometer_during_purchase ?? "0"),
     odometer: String(b.odometer ?? "0"),
     rcValidityDate: b.rc_validity_date ?? "",
@@ -339,6 +340,7 @@ function fromTruck(f: Truck) {
     year_of_manufacture: f.yearOfManufacture || null,
     tyre_layout: f.tyreLayout,
     fuel_capacity: f.fuelCapacity ? parseFloat(f.fuelCapacity) : 0,
+    adblue_consumption: f.adblueConsumption ? parseFloat(f.adblueConsumption) : null,
     odometer_during_purchase: f.odometerDuringPurchase ? parseFloat(f.odometerDuringPurchase) : 0,
     odometer: f.odometer ? parseFloat(f.odometer) : 0,
     rc_validity_date: f.rcValidityDate || null,
@@ -1685,6 +1687,45 @@ export const fuelLogsApi = {
       }),
     }).then(toFuelLog),
   deleteFuelLog: (id: string) => req<void>(`/maintenance/fuel-logs/${id}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// AdBlue API
+// ---------------------------------------------------------------------------
+
+export type AdBlueManufacturer = {
+  id: string;
+  name: string;
+  defaultPricePerLitre: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+function toAdBlueManufacturer(b: B): AdBlueManufacturer {
+  return {
+    id: String(b.id),
+    name: b.name ?? "",
+    defaultPricePerLitre: String(b.default_price_per_litre ?? "0"),
+    createdAt: b.created_at ?? undefined,
+    updatedAt: b.updated_at ?? undefined,
+  };
+}
+
+export const adblueApi = {
+  listManufacturers: () =>
+    req<B[]>("/maintenance/adblue-manufacturers").then((d) => d.map(toAdBlueManufacturer)),
+  createManufacturer: (name: string, defaultPricePerLitre: string) =>
+    req<B>("/maintenance/adblue-manufacturers", {
+      method: "POST",
+      body: JSON.stringify({ name, default_price_per_litre: parseFloat(defaultPricePerLitre) || 0 }),
+    }).then(toAdBlueManufacturer),
+  updateManufacturer: (id: string, name: string, defaultPricePerLitre: string) =>
+    req<B>(`/maintenance/adblue-manufacturers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, default_price_per_litre: parseFloat(defaultPricePerLitre) || 0 }),
+    }).then(toAdBlueManufacturer),
+  deleteManufacturer: (id: string) =>
+    req<void>(`/maintenance/adblue-manufacturers/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

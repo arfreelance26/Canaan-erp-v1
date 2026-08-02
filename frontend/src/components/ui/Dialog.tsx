@@ -11,9 +11,10 @@ type DialogProps = {
   title: string;
   children: React.ReactNode;
   className?: string;
+  headerRight?: React.ReactNode;
 };
 
-export function Dialog({ open, onClose, title, children, className }: DialogProps) {
+export function Dialog({ open, onClose, title, children, className, headerRight }: DialogProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -56,14 +57,17 @@ export function Dialog({ open, onClose, title, children, className }: DialogProp
         {/* Sticky header */}
         <div className="flex flex-shrink-0 items-center justify-between px-4 sm:px-8 py-4 sm:py-5 border-b border-gray-100">
           <h2 className="text-base sm:text-lg font-bold text-gray-900">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="text-gray-400 hover:text-gray-600 rounded-lg p-1 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            {headerRight}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="text-gray-400 hover:text-gray-600 rounded-lg p-1 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable content */}

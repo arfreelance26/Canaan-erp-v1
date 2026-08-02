@@ -15,7 +15,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, operating_costs
 
 Base.metadata.create_all(bind=engine)
 
@@ -193,11 +193,17 @@ def _run_schema_migrations():
         # Staff attendance — close-shift time (IST, "HH:MM AM/PM")
         "ALTER TABLE staff_attendance ADD COLUMN check_out_time VARCHAR(20) NULL",
         "ALTER TABLE staff_attendance ADD COLUMN admin_override TINYINT(1) NOT NULL DEFAULT 0",
+        # AdBlue consumption rate per truck (L/km, 5 d.p.), set manually by admin on the AdBlue Management page
+        "ALTER TABLE trucks ADD COLUMN adblue_consumption DECIMAL(8,5) NULL",
+        # Widen precision in case column already existed as DECIMAL(6,2) from a previous migration run
+        "ALTER TABLE trucks MODIFY COLUMN adblue_consumption DECIMAL(8,5) NULL",
         # NOTE: BLOB widening (MEDIUMBLOB → LONGBLOB for the 25 MB upload limit) is handled
         # by the guarded _widen_blob_columns() step below, NOT here — a blob-type change forces
         # a full table copy, so it must run once (only when needed), never on every restart.
         "ALTER TABLE trips MODIFY COLUMN trip_id VARCHAR(100) NOT NULL",
         "ALTER TABLE trip_closures ADD COLUMN closure_remarks TEXT NULL",
+        # Driver name snapshot stored on trip at assignment time
+        "ALTER TABLE trips ADD COLUMN driver_name VARCHAR(200) NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -490,6 +496,7 @@ app.include_router(edit_approvals.router, dependencies=AUTH)
 app.include_router(notifications.router, dependencies=AUTH)
 app.include_router(trip_expense_rates.router, dependencies=AUTH)
 app.include_router(backup.router, dependencies=AUTH)
+app.include_router(operating_costs.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)
