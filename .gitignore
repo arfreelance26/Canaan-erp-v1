@@ -30,6 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# backend application logs (keep the folder, ignore the log files)
+backend/logs/*.log
+backend/logs/*.log.*
+
 # env files — keep .env.example in git, ignore everything else
 .env
 .env.local
@@ -59,6 +63,14 @@ backend/__pycache__/
 # local tooling caches
 .claude/
 .tokensave/
+
+# agent/instruction files — kept local, not published
+AGENTS.md
+CLAUDE.md
+
+# editor settings
+.vscode/
+.idea/
 
 # desktop (Electron) — not part of the web app
 desktop/

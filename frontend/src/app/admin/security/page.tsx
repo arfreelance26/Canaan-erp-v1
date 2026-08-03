@@ -101,6 +101,8 @@ export default function SecurityLogPage() {
   const [showIpHelp, setShowIpHelp] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const REFRESH_INTERVAL = 30;
+
   useEffect(() => {
     if (user && user.softwareDesignation !== "Admin") {
       router.replace("/");
@@ -163,6 +165,15 @@ export default function SecurityLogPage() {
   useEffect(() => {
     setAuditPage(0);
   }, [eventFilter, userFilter, ipFilter]);
+
+  // Auto-refresh every 30 s silently in the background
+  useEffect(() => {
+    const id = setInterval(() => {
+      void fetchAuditLogs();
+      void fetchLockouts();
+    }, REFRESH_INTERVAL * 1000);
+    return () => clearInterval(id);
+  }, [fetchAuditLogs, fetchLockouts]);
 
   const totalPages = Math.ceil(auditTotal / PAGE_SIZE);
 

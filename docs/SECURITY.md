@@ -165,7 +165,7 @@ Every response now carries:
 
 ## Security Fixes — Real Scenarios
 
-### 🔴 CRITICAL-1 — Public Document Downloads
+### CRITICAL-1 — Public Document Downloads
 
 **Scenario:** Sunder is logged into the ERP. Without this fix, anyone who figured out the URL pattern (e.g. `/files/staff/5/aadhaar`) could paste it directly into their browser and download any driver's Aadhaar card, licence, or PAN — without logging in at all. No hacking needed, just guessing a URL.
 
@@ -173,7 +173,7 @@ Every response now carries:
 
 ---
 
-### 🟠 HIGH-1 — Unvalidated File Upload
+### HIGH-1 — Unvalidated File Upload
 
 **Scenario:** A malicious user renames a file `virus.exe` → `photo.jpg` and uploads it as their profile photo. Without this fix, the server trusts the name and stores it. Later, someone opens it and the executable runs.
 
@@ -181,7 +181,7 @@ Every response now carries:
 
 ---
 
-### 🟠 HIGH-2 — Wildcard CORS
+### HIGH-2 — Wildcard CORS
 
 **Scenario:** You're logged into the ERP at `erp.canaan.com`. You visit a malicious website in another tab. That site's JavaScript silently sends requests to the ERP API using your login session and reads the response — trip data, staff records, etc. This is called a CSRF/CORS attack.
 
@@ -189,7 +189,7 @@ Every response now carries:
 
 ---
 
-### 🟠 HIGH-3 — Admin Backdoor
+### HIGH-3 — Admin Backdoor
 
 **Short version:** If no password was set in `.env`, anyone could log in as admin with `admin`/`admin`.
 
@@ -197,7 +197,7 @@ Every response now carries:
 
 ---
 
-### 🟡 MEDIUM-1 — No Rate Limiting
+### MEDIUM-1 — No Rate Limiting
 
 **Scenario:** A bot hammers the login page — 10,000 password guesses per minute. Or someone bulk-downloads every document file by looping through IDs. Without limits, the server tries to handle all of it and either crashes or leaks data.
 
@@ -205,7 +205,7 @@ Every response now carries:
 
 ---
 
-### 🟡 MEDIUM-2 — No JWT Revocation
+### MEDIUM-2 — No JWT Revocation
 
 **Scenario:** Thanamani uses the ERP on a shared office computer and forgets to log out. She leaves for the day. Her colleague picks up the session. Even if she logs out from her phone later, the old token sitting in that browser was still valid for 12 hours — anyone with it could keep using the system.
 
@@ -213,7 +213,7 @@ Every response now carries:
 
 ---
 
-### 🟡 MEDIUM-3 — Username-Only Lockout
+### MEDIUM-3 — Username-Only Lockout
 
 **Scenario:** An attacker knows Sunder's email. They intentionally make 5 wrong login attempts — now Sunder is locked out even though he did nothing wrong. The attacker just needs to repeat this to permanently block Sunder from working.
 
@@ -221,7 +221,7 @@ Every response now carries:
 
 ---
 
-### 🟡 MEDIUM-4 — Missing HSTS/CSP
+### MEDIUM-4 — Missing HSTS/CSP
 
 **Scenario (CSP):** An old part of the app accidentally displays unsanitized user input containing `<script>alert('hacked')</script>`. Without CSP, that script runs in every user's browser.
 
@@ -231,7 +231,7 @@ Every response now carries:
 
 ---
 
-### 🟡 MEDIUM-5 — Verbose DB Errors
+### MEDIUM-5 — Verbose DB Errors
 
 **Scenario:** Latha enters something unexpected in a form. The server crashes and returns: `ERROR: column 'trip_id' of relation 'trips' does not exist (PostgreSQL 14.2)`. Now an attacker knows your database type, version, and table/column names — a roadmap for crafting SQL attacks.
 
@@ -239,7 +239,7 @@ Every response now carries:
 
 ---
 
-### 🟡 MEDIUM-6 — No Audit Trail
+### MEDIUM-6 — No Audit Trail
 
 **Scenario:** Someone logs into Kumar's account at 2 AM and changes hire amounts on several trips. Next morning nobody knows who did it or when, because there's no record of logins or changes.
 
@@ -247,7 +247,7 @@ Every response now carries:
 
 ---
 
-### 🔵 LOW-2 — No Password Policy
+### LOW-2 — No Password Policy
 
 **Scenario:** When creating a new staff account for Antony, you set his password as `1234`. It gets guessed in seconds.
 

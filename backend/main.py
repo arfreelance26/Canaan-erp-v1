@@ -4,6 +4,12 @@ import os
 import re
 import time
 
+# Configure file + console logging before anything else emits a log line.
+# Disabled for now — pending verification with the client. Re-enable to write
+# rotating logs to backend/logs/erp.log (see logging_config.py).
+# from logging_config import setup_logging
+# setup_logging()
+
 _log = logging.getLogger("canaan.app")
 
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -13,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
-from security import get_current_user, require_roles, decode_token, SECRET_KEY, ALGORITHM
+from security import get_current_user, require_roles, decode_token, SECRET_KEY, ALGORITHM, IS_PRODUCTION
 from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
@@ -424,10 +430,15 @@ def _seed_repair_types():
 
 _seed_repair_types()
 
+# In production, hide the interactive API explorer and schema so the full endpoint
+# surface isn't published. These are only served in development.
 app = FastAPI(
     title="Canaan ERP API",
     description="Backend for Canaan Global International — Fleet & Logistics ERP",
     version="1.0.0",
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
 )
 
 @app.on_event("startup")
