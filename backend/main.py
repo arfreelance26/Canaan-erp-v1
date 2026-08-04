@@ -412,6 +412,28 @@ def _widen_blob_columns():
 _run_schema_migrations()
 _widen_blob_columns()
 
+def _normalize_shipping_lines():
+    """Normalise historical shipping_line typos/variants to canonical names."""
+    rewrites = [
+        ("CMACGM",      "CMA CGM"),
+        ("HAPAG LLOYD",  "HAPAG-LLOYD"),
+        ("HAPAG-LL0YD",  "HAPAG-LLOYD"),  # zero instead of O
+        ("HAPAGLLOYD",   "HAPAG-LLOYD"),
+        ("HAPAH LLOYD",  "HAPAG-LLOYD"),
+    ]
+    with engine.connect() as conn:
+        for old, new in rewrites:
+            try:
+                conn.execute(
+                    text("UPDATE trips SET shipping_line = :new WHERE shipping_line = :old"),
+                    {"new": new, "old": old},
+                )
+            except Exception as e:
+                print(f"[migration] shipping_line normalise '{old}' → '{new}': {e}")
+        conn.commit()
+
+_normalize_shipping_lines()
+
 _DEFAULT_REPAIR_TYPES = [
     "Tyre Puncture", "Tyre Replacement", "Engine Oil Change", "Brake Repair",
     "Battery Replacement", "Clutch Repair", "Engine Repair", "Gearbox Repair",

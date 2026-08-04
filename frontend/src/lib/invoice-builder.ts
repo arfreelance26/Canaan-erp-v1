@@ -249,6 +249,15 @@ export function buildTransportMemo(
     subtotal: fmt(subtotal),
     grandTotal: fmt(subtotal),
     amountInWords: amountToWords(String(subtotal)),
+    // Transport Memo does not show bank details, terms, contact, signatory or footer
+    bankName: "",
+    branchName: "",
+    accountNumber: "",
+    ifscCode: "",
+    contactPerson: "",
+    email: "",
+    contact: "",
+    narration: "",
   };
 }
 

@@ -31,7 +31,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm);
+      setForm({ ...emptyForm, odometer: truck?.odometer ?? "" });
     }
   }, [open, truck?.id]);
 

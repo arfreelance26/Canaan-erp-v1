@@ -79,11 +79,17 @@ export default function AttendanceReportPage() {
     attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
   }, [category]);
 
+  const isCommercialManager = user?.softwareDesignation === "Commercial Manager";
+
   useEffect(() => {
-    if (ready && user?.softwareDesignation !== "Admin") {
+    if (ready && user?.softwareDesignation !== "Admin" && !isCommercialManager) {
       router.replace("/");
     }
-  }, [ready, user, router]);
+    // Commercial Manager can only view drivers — force category if somehow set to staff
+    if (isCommercialManager && category === "staff") {
+      setCategory("driver");
+    }
+  }, [ready, user, router, isCommercialManager, category]);
 
   useEffect(() => {
     if (!fromDate || !toDate) return;
@@ -97,7 +103,7 @@ export default function AttendanceReportPage() {
       .finally(() => setLoading(false));
   }, [category, fromDate, toDate]);
 
-  if (!ready || user?.softwareDesignation !== "Admin") return null;
+  if (!ready || (user?.softwareDesignation !== "Admin" && !isCommercialManager)) return null;
 
   const isDriver = category === "driver";
 
@@ -166,19 +172,21 @@ export default function AttendanceReportPage() {
 
       <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          {(["driver", "staff"] as Category[]).map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => { setCategory(c); setSearch(""); }}
-              className={cn(
-                "rounded-full px-4 py-2 text-sm font-medium transition-colors",
-                category === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              )}
-            >
-              {c === "driver" ? "Drivers" : "Staff"}
-            </button>
-          ))}
+          {(["driver", "staff"] as Category[])
+            .filter((c) => !(isCommercialManager && c === "staff"))
+            .map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => { setCategory(c); setSearch(""); }}
+                className={cn(
+                  "rounded-full px-4 py-2 text-sm font-medium transition-colors",
+                  category === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+              >
+                {c === "driver" ? "Drivers" : "Staff"}
+              </button>
+            ))}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input

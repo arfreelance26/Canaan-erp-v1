@@ -50,7 +50,7 @@ export function Dialog({ open, onClose, title, children, className, headerRight 
         className={cn(
           "relative flex flex-col w-full max-h-[92dvh] overflow-hidden bg-white shadow-xl animate-dialog-enter",
           "rounded-t-2xl sm:rounded-xl",
-          "sm:max-w-2xl md:max-w-3xl",
+          !className?.includes("max-w") && "sm:max-w-2xl md:max-w-3xl",
           className
         )}
       >

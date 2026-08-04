@@ -4,7 +4,7 @@ from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, text, or_
+from sqlalchemy import func, text, or_, inspect as sa_inspect
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from security import require_roles, get_current_user, TokenUser
@@ -64,8 +64,26 @@ def _enrich(trip: models.Trip, driver_names: dict = {}, truck_regs: dict = {}) -
     data["has_sheet"] = trip.sheet is not None
     data["trip_sheet_date"] = trip.sheet.trip_sheet_date if trip.sheet else None
     data["sheet_hire_amount"] = float(trip.sheet.hire_amount) if trip.sheet and trip.sheet.hire_amount is not None else None
-    data["driver_name"] = driver_names.get(trip.driver_id)
-    data["truck_registration"] = truck_regs.get(trip.vehicle_id)
+
+    driver_name = driver_names.get(trip.driver_id)
+    truck_reg = truck_regs.get(trip.vehicle_id)
+    # Single-trip callers (mutation endpoints) don't pass the lookup maps. Resolve the
+    # names from the trip's own session so the returned row keeps its driver/truck values —
+    # otherwise the frontend's optimistic update blanks them and search-filtered rows vanish
+    # until the next full refetch.
+    if driver_name is None or truck_reg is None:
+        session = sa_inspect(trip).session
+        if session is not None:
+            if driver_name is None and trip.driver_id:
+                driver_name = session.query(models.Driver.name).filter(
+                    models.Driver.driver_id == trip.driver_id
+                ).scalar()
+            if truck_reg is None and trip.vehicle_id:
+                truck_reg = session.query(models.Truck.registration_number).filter(
+                    models.Truck.truck_id == trip.vehicle_id
+                ).scalar()
+    data["driver_name"] = driver_name
+    data["truck_registration"] = truck_reg
     return data
 
 

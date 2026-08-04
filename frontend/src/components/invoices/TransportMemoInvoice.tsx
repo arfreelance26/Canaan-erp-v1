@@ -39,5 +39,5 @@ export interface TransportMemoInvoiceProps {
 }
 
 export function TransportMemoInvoice(props: TransportMemoInvoiceProps) {
-  return <InvoiceShell title="TRANSPORT MEMO" showGtaNote isTransportMemo {...props} />;
+  return <InvoiceShell title="TRANSPORT MEMO" isTransportMemo {...props} />;
 }

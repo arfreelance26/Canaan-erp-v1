@@ -309,78 +309,84 @@ export function InvoiceShell({
         {hsnSection}
 
         {/* ── GST EXEMPTION NOTE ── */}
-        {showGtaNote && (
+        {showGtaNote && !isTransportMemo && (
           <p className={s.noteText}>
             Note: Services by way of transport of goods by a Goods Transport Agency (GTA) to another GTA is exempt under GST vide Notification No. 12/2017–Central Tax (Rate) dated 28.06.2017.
           </p>
         )}
 
-        {/* ── BANK DETAILS + TERMS ── */}
-        <div className={s.bankTerms}>
-          <div className={s.bankBox}>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>Bank Name:</span>
-              <span className={s.bankVal}>{bankName}</span>
+        {/* ── BANK DETAILS + TERMS (not on Transport Memo) ── */}
+        {!isTransportMemo && (
+          <div className={s.bankTerms}>
+            <div className={s.bankBox}>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>Bank Name:</span>
+                <span className={s.bankVal}>{bankName}</span>
+              </div>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>Branch Name:</span>
+                <span className={s.bankVal}>{branchName}</span>
+              </div>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>Account Number:</span>
+                <span className={s.bankVal}>{accountNumber}</span>
+              </div>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>IFSC Code:</span>
+                <span className={s.bankVal}>{ifscCode}</span>
+              </div>
             </div>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>Branch Name:</span>
-              <span className={s.bankVal}>{branchName}</span>
-            </div>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>Account Number:</span>
-              <span className={s.bankVal}>{accountNumber}</span>
-            </div>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>IFSC Code:</span>
-              <span className={s.bankVal}>{ifscCode}</span>
+            <div className={s.termsBox}>
+              {TERMS.map((term, i) => (
+                <div key={i} className={s.tItem} data-n={String(i + 1)}>{term}</div>
+              ))}
             </div>
           </div>
-          <div className={s.termsBox}>
-            {TERMS.map((term, i) => (
-              <div key={i} className={s.tItem} data-n={String(i + 1)}>{term}</div>
-            ))}
-          </div>
-        </div>
+        )}
 
-        {/* ── CONTACT + SIGNATORY ── */}
-        <div
-          className={s.contactSign}
-          style={contactSignBordered ? { marginTop: "10px", borderTop: "1px solid #c8c8c8" } : undefined}
-        >
-          <div className={s.contactBox}>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>Contact Person:</span>
-              <span className={s.bankVal}>{contactPerson}</span>
+        {/* ── CONTACT + SIGNATORY (not on Transport Memo) ── */}
+        {!isTransportMemo && (
+          <div
+            className={s.contactSign}
+            style={contactSignBordered ? { marginTop: "10px", borderTop: "1px solid #c8c8c8" } : undefined}
+          >
+            <div className={s.contactBox}>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>Contact Person:</span>
+                <span className={s.bankVal}>{contactPerson}</span>
+              </div>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>Email:</span>
+                <span className={s.bankVal}>{email}</span>
+              </div>
+              <div className={s.bankRow}>
+                <span className={s.bankLbl}>Contact:</span>
+                <span className={s.bankVal}>{contact}</span>
+              </div>
+              <div style={{ marginTop: "6px" }}>
+                <span className={s.bankLbl}>Narration:</span>
+                <div style={{ fontSize: "10px", fontWeight: 600, color: "#1a1a1a", marginTop: "2px", lineHeight: "1.4" }}>
+                  {narration}
+                </div>
+              </div>
             </div>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>Email:</span>
-              <span className={s.bankVal}>{email}</span>
-            </div>
-            <div className={s.bankRow}>
-              <span className={s.bankLbl}>Contact:</span>
-              <span className={s.bankVal}>{contact}</span>
-            </div>
-            <div style={{ marginTop: "6px" }}>
-              <span className={s.bankLbl}>Narration:</span>
-              <div style={{ fontSize: "10px", fontWeight: 600, color: "#1a1a1a", marginTop: "2px", lineHeight: "1.4" }}>
-                {narration}
+            <div className={s.signBox}>
+              <div className={s.signFor}>for CANAAN GLOBAL INTERNATIONAL</div>
+              <div style={{ textAlign: "right" }}>
+                <div className={s.signLine}></div>
+                <div className={s.signCaption}>Authorised Signatory</div>
+                <div className={s.signNote}>This is a system generated invoice and does not require a signature.</div>
               </div>
             </div>
           </div>
-          <div className={s.signBox}>
-            <div className={s.signFor}>for CANAAN GLOBAL INTERNATIONAL</div>
-            <div style={{ textAlign: "right" }}>
-              <div className={s.signLine}></div>
-              <div className={s.signCaption}>Authorised Signatory</div>
-              <div className={s.signNote}>This is a system generated invoice and does not require a signature.</div>
-            </div>
-          </div>
-        </div>
+        )}
 
-        {/* ── FOOTER ── */}
-        <p className={s.footerNote}>
-          Please be advised that our dues are to be cleared within 45 days from billing to avoid disallowance u/s 43B(h) of the Income Tax Act, 1961 without prejudice to other consequences attached as per the MSMED Act 2006, CGST Act, 2017 and other laws prevailing in India.
-        </p>
+        {/* ── FOOTER (not on Transport Memo) ── */}
+        {!isTransportMemo && (
+          <p className={s.footerNote}>
+            Please be advised that our dues are to be cleared within 45 days from billing to avoid disallowance u/s 43B(h) of the Income Tax Act, 1961 without prejudice to other consequences attached as per the MSMED Act 2006, CGST Act, 2017 and other laws prevailing in India.
+          </p>
+        )}
 
       </div>
     </div>

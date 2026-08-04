@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { Download } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
@@ -22,6 +23,10 @@ type FilterMode = "all" | "thisMonth" | "custom";
 
 const fmtCur = (v: number) =>
   `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// PDF-safe number (jsPDF Helvetica cannot render the ₹ glyph)
+const fmtNum = (v: number) =>
+  v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function fmtDate(d: string) {
   if (!d) return "—";
@@ -155,6 +160,146 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
 
   const grandTotal = rows.reduce((sum, r) => sum + r.totalAdvance, 0);
 
+  function filterLabel(): string {
+    if (filterMode === "all") return "All Trips";
+    if (filterMode === "thisMonth") {
+      const { from, to } = thisMonthRange();
+      return `This Month (${fmtDate(from)} – ${fmtDate(to)})`;
+    }
+    if (customFrom || customTo) return `${fmtDate(customFrom) || "Start"} – ${fmtDate(customTo) || "End"}`;
+    return "Custom Range";
+  }
+
+  async function downloadPdf() {
+    const { default: jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const marginX = 12;
+    let y = 16;
+
+    // Header block
+    pdf.setFillColor(255, 247, 230);
+    pdf.rect(0, 0, pageW, 28, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(16);
+    pdf.setTextColor(120, 60, 10);
+    pdf.text(`Advance Record — ${driver?.name ?? ""}`, marginX, 12);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(100, 70, 20);
+    pdf.text(`Date Range: ${filterLabel()}     Trips: ${rows.length}     (All amounts in Rs)`, marginX, 20);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(160, 80, 0);
+    pdf.text(`Total Advance Paid (Rs): ${fmtNum(grandTotal)}`, pageW - marginX, 20, { align: "right" });
+    y = 34;
+
+    // All columns from the on-screen table (amounts flagged for Rs)
+    type Col = { label: string; w: number; align: "left" | "right"; amt?: boolean };
+    const cols: Col[] = [
+      { label: "Trip ID",          w: 24, align: "left"  },
+      { label: "Truck Reg",        w: 22, align: "left"  },
+      { label: "Branch",           w: 18, align: "left"  },
+      { label: "Container Spec",   w: 24, align: "left"  },
+      { label: "Container No",     w: 24, align: "left"  },
+      { label: "Booking Date",     w: 20, align: "left"  },
+      { label: "Trip Category",    w: 22, align: "left"  },
+      { label: "Cargo Type",       w: 20, align: "left"  },
+      { label: "Origin",           w: 20, align: "left"  },
+      { label: "Destination",      w: 20, align: "left"  },
+      { label: "Driver Advance",   w: 22, align: "right", amt: true },
+      { label: "Additional Advance", w: 24, align: "right", amt: true },
+      { label: "Total Advance",    w: 22, align: "right", amt: true },
+    ];
+    const totalColW = cols.reduce((s, c) => s + c.w, 0);
+    const scale = (pageW - marginX * 2) / totalColW;
+    const scaledCols = cols.map((c) => ({
+      ...c,
+      w: c.w * scale,
+      lines: pdf.splitTextToSize(c.amt ? `${c.label} (Rs)` : c.label, c.w * scale - 2) as string[],
+    }));
+
+    const hdrLines = Math.max(...scaledCols.map((c) => c.lines.length));
+    const hdrH = hdrLines * 3 + 3;
+    const rowH = 6;
+
+    const drawHeader = () => {
+      pdf.setFillColor(255, 225, 170);
+      pdf.rect(marginX, y, pageW - marginX * 2, hdrH, "F");
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(6);
+      pdf.setTextColor(120, 60, 10);
+      let x = marginX;
+      scaledCols.forEach((col) => {
+        const tx = col.align === "right" ? x + col.w - 1.5 : x + 1.5;
+        col.lines.forEach((ln, li) => {
+          pdf.text(ln, tx, y + 3.5 + li * 3, { align: col.align });
+        });
+        x += col.w;
+      });
+      y += hdrH;
+      pdf.setTextColor(30, 30, 30);
+    };
+
+    drawHeader();
+
+    rows.forEach((row, idx) => {
+      if (y + rowH > pageH - 16) {
+        pdf.addPage();
+        y = 14;
+        drawHeader();
+      }
+      if (idx % 2 === 0) {
+        pdf.setFillColor(255, 252, 244);
+        pdf.rect(marginX, y, pageW - marginX * 2, rowH, "F");
+      }
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(6);
+      const cells: string[] = [
+        row.tripId,
+        row.truckReg,
+        row.truckBranch,
+        row.containerSpec,
+        row.containerNo,
+        fmtDate(row.bookingDate),
+        row.tripCategory,
+        row.cargoClassification,
+        row.origin,
+        row.destination,
+        row.hasClosure ? fmtNum(row.driverAdvance)           : "—",
+        row.hasClosure ? fmtNum(row.additionalDriverAdvance) : "—",
+        row.hasClosure ? fmtNum(row.totalAdvance)            : "—",
+      ];
+      let x = marginX;
+      cells.forEach((cell, ci) => {
+        const col = scaledCols[ci];
+        const text = pdf.splitTextToSize(String(cell), col.w - 2)[0] ?? "";
+        const tx = col.align === "right" ? x + col.w - 1.5 : x + 1.5;
+        pdf.text(text, tx, y + 4, { align: col.align });
+        x += col.w;
+      });
+      y += rowH;
+    });
+
+    // Footer total bar
+    y += 4;
+    pdf.setFillColor(255, 230, 180);
+    pdf.rect(marginX, y, pageW - marginX * 2, 9, "F");
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(160, 80, 0);
+    pdf.text("Total Advance Paid (Rs)", marginX + 2, y + 6);
+    pdf.text(fmtNum(grandTotal), pageW - marginX - 2, y + 6, { align: "right" });
+
+    const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7);
+    pdf.setTextColor(160);
+    pdf.text(`Generated on ${today} | Canaan Global`, marginX, pageH - 5);
+    pdf.save(`Advance_Record_${(driver?.name ?? "Driver").replace(/\s+/g, "_")}_${filterMode}.pdf`);
+  }
+
   const filterBubble = (label: string, mode: FilterMode) => (
     <button
       type="button"
@@ -177,31 +322,40 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
       open={open}
       onClose={onClose}
       title={`Advance Record — ${driver?.name ?? ""}`}
-      className="max-w-[95vw]"
+      className="w-[95vw] max-w-[95vw] h-[90vh]"
     >
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {filterBubble("All", "all")}
           {filterBubble("This Month", "thisMonth")}
           {filterBubble("Custom Range", "custom")}
-        </div>
 
-        {filterMode === "custom" && (
-          <div className="flex items-center gap-2 text-sm">
-            <DatePickerInput
-              value={customFrom}
-              onChange={(v) => setCustomFrom(v)}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
-            />
-            <span className="text-gray-400">→</span>
-            <DatePickerInput
-              value={customTo}
-              onChange={(v) => setCustomTo(v)}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
-            />
-          </div>
-        )}
+          {filterMode === "custom" && (
+            <div className="flex items-center gap-2 text-sm">
+              <DatePickerInput
+                value={customFrom}
+                onChange={(v) => setCustomFrom(v)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+              />
+              <span className="text-gray-400">→</span>
+              <DatePickerInput
+                value={customTo}
+                onChange={(v) => setCustomTo(v)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          disabled={rows.length === 0}
+          onClick={downloadPdf}
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 disabled:opacity-40"
+        >
+          <Download className="h-3 w-3" />
+          Download PDF
+        </button>
       </div>
 
       {loading ? (
@@ -216,7 +370,7 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-auto max-h-[60vh] rounded-lg border border-gray-200">
+          <div className="overflow-auto max-h-[calc(90vh-280px)] rounded-lg border border-gray-200">
             <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">

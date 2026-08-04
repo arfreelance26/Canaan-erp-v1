@@ -10,10 +10,11 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
 function fmtIST(iso: string) {
   // MySQL returns datetime without timezone marker — append Z to force UTC parsing
@@ -46,9 +47,9 @@ export default function SheetCollectionPage() {
   const [downloading, setDownloading] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
-  // Date range for PDF export
-  const [pdfDateFrom, setPdfDateFrom] = useState("");
-  const [pdfDateTo, setPdfDateTo] = useState("");
+  // Date range — filters table and PDF export (defaults to today)
+  const [dateFrom, setDateFrom] = useState(todayIst);
+  const [dateTo, setDateTo] = useState(todayIst);
   // Advance verification panel state
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
@@ -124,10 +125,19 @@ export default function SheetCollectionPage() {
     ));
   }, [trips]);
 
+  const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
+  const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
+
   const tableTrips = filtered.filter((t) => {
     if (statusFilter === "Pending" && t.tripSheetCollected) return false;
     if (statusFilter === "Delivered" && !t.tripSheetCollected) return false;
     if (statusFilter === "Overdue" && !overdueIds.has(t.id)) return false;
+    // Date range: filter by trip's scheduled date (matches the TRIP DATE column)
+    if ((fromMs || toMs) && t.scheduledDate) {
+      const ms = new Date(t.scheduledDate).getTime();
+      if (fromMs && ms < fromMs) return false;
+      if (toMs   && ms > toMs)   return false;
+    }
     return true;
   });
 
@@ -248,14 +258,10 @@ export default function SheetCollectionPage() {
   async function handleDownloadPDF() {
     if (downloading || collected.length === 0) return;
 
-    // Filter by date range if set
-    const fromMs = pdfDateFrom ? new Date(pdfDateFrom).setHours(0, 0, 0, 0) : null;
-    const toMs   = pdfDateTo   ? new Date(pdfDateTo).setHours(23, 59, 59, 999) : null;
+    // Filter by scheduled date (matches table filter)
     const pdfTrips = collected.filter((t) => {
-      const colAt = t.tripSheetCollectedAt;
-      if (!colAt) return true;
-      const utc = colAt.endsWith("Z") || colAt.includes("+") ? colAt : colAt + "Z";
-      const ms = new Date(utc).getTime();
+      if (!t.scheduledDate) return true;
+      const ms = new Date(t.scheduledDate).getTime();
       if (fromMs && ms < fromMs) return false;
       if (toMs   && ms > toMs)   return false;
       return true;
@@ -440,20 +446,16 @@ export default function SheetCollectionPage() {
             <option value="Overdue">Entry Overdue</option>
           </select>
           <div className="flex items-center gap-1">
-            <input
-              type="date"
-              value={pdfDateFrom}
-              onChange={(e) => setPdfDateFrom(e.target.value)}
-              title="PDF export: from date"
-              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            <DatePickerInput
+              value={dateFrom}
+              onChange={(v) => { setDateFrom(v); setPage(1); }}
+              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
             />
             <span className="text-xs text-gray-400">to</span>
-            <input
-              type="date"
-              value={pdfDateTo}
-              onChange={(e) => setPdfDateTo(e.target.value)}
-              title="PDF export: to date"
-              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            <DatePickerInput
+              value={dateTo}
+              onChange={(v) => { setDateTo(v); setPage(1); }}
+              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
             />
           </div>
           <button

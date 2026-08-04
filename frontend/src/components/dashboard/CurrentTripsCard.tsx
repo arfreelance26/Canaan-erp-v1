@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Navigation, Truck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Navigation, Search, Truck, X } from "lucide-react";
 import { notificationsApi, tripsApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -89,6 +89,14 @@ export function CurrentTripsCard() {
   // Cleanup timers on unmount
   useEffect(() => () => { fadeTimers.current.forEach(clearTimeout); }, []);
 
+  const [tripSearch, setTripSearch] = useState("");
+
+  const filteredTrips = useMemo(() => {
+    const q = tripSearch.trim().toLowerCase();
+    if (!q) return trips;
+    return trips.filter((t) => (t.tripId ?? "").toLowerCase().includes(q));
+  }, [trips, tripSearch]);
+
   const newCount = newTripIds.size;
 
   return (
@@ -113,14 +121,35 @@ export function CurrentTripsCard() {
           <span className="rounded-full bg-blue-100 px-3 py-0.5 text-xs font-bold text-blue-700">
             {trips.length} {trips.length === 1 ? "trip" : "trips"}
           </span>
+          {/* Trip ID search */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-blue-400" />
+            <input
+              type="text"
+              value={tripSearch}
+              onChange={(e) => setTripSearch(e.target.value)}
+              placeholder="Search Trip ID…"
+              className="h-6 w-36 rounded-full border border-blue-200 bg-blue-50 pl-6 pr-5 text-[11px] text-blue-800 placeholder:text-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+            {tripSearch && (
+              <button
+                onClick={() => setTripSearch("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Column headers */}
       {trips.length > 0 && (
-        <div className="grid grid-cols-[1fr_1fr_130px_90px_80px] gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_80px] gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+          <span>Trip ID</span>
           <span>From</span>
           <span>To</span>
+          <span>Driver</span>
           <span>Truck</span>
           <span className="text-right">Booked On</span>
           <span className="text-right">Status</span>
@@ -128,42 +157,48 @@ export function CurrentTripsCard() {
       )}
 
       {/* Trip rows */}
-      {trips.length === 0 ? (
+      {filteredTrips.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-center">
           <Truck className="h-8 w-8 text-gray-200" />
-          <p className="text-sm text-gray-400">No current trips</p>
-          <p className="text-xs text-gray-300">All trip sheets have been submitted or trips are invoiced</p>
+          <p className="text-sm text-gray-400">{tripSearch ? "No trips match your search." : "No current trips"}</p>
+          {!tripSearch && <p className="text-xs text-gray-300">All trip sheets have been submitted or trips are invoiced</p>}
         </div>
       ) : (
         <div className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
-          {trips.map((trip) => {
+          {filteredTrips.map((trip) => {
             const isNew = newTripIds.has(trip.tripId) || newTripIds.has(String(trip.id));
             const isAssigned  = trip.status === "Assigned";
             const isCompleted = trip.status === "Completed";
             return (
               <div
                 key={trip.id}
-                className={`grid grid-cols-[1fr_1fr_130px_90px_80px] items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
+                className={`grid grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_80px] items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
                   isNew
                     ? "border-l-4 border-l-blue-500 bg-blue-50"
                     : "border-l-4 border-l-transparent hover:bg-gray-50"
                 }`}
               >
-                {/* Origin */}
-                <span className="flex min-w-0 items-center gap-1.5 font-medium text-gray-800">
+                {/* Trip ID */}
+                <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] text-indigo-600">
                   {isNew && (
                     <span className="shrink-0 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
                       New
                     </span>
                   )}
-                  <span className="truncate">{trip.origin || "—"}</span>
+                  <span className="truncate">{trip.tripId || "—"}</span>
                 </span>
+
+                {/* Origin */}
+                <span className="truncate font-medium text-gray-800">{trip.origin || "—"}</span>
 
                 {/* Destination */}
                 <div className="flex min-w-0 items-center gap-1">
                   <ArrowRight className="h-3 w-3 shrink-0 text-gray-300" />
                   <span className="truncate text-gray-600">{trip.destination || "—"}</span>
                 </div>
+
+                {/* Driver name */}
+                <span className="truncate text-sm font-medium text-gray-700">{trip.driverName ?? "—"}</span>
 
                 {/* Truck registration */}
                 <span className="shrink-0 font-mono text-[11px] text-gray-600">
