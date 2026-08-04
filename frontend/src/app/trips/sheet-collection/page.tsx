@@ -310,7 +310,7 @@ export default function SheetCollectionPage() {
         pdf.setFontSize(8);
         pdf.setTextColor(100, 100, 100);
         pdf.text(
-          `Generated on ${today}  ·  ${pdfTrips.length} sheet${pdfTrips.length !== 1 ? "s" : ""} delivered${pdfDateFrom || pdfDateTo ? ` · ${pdfDateFrom || "start"} to ${pdfDateTo || "today"}` : ""}`,
+          `Generated on ${today}  ·  ${pdfTrips.length} sheet${pdfTrips.length !== 1 ? "s" : ""} delivered${dateFrom || dateTo ? ` · ${dateFrom || "start"} to ${dateTo || "today"}` : ""}`,
           marginX, marginY + 5,
         );
 
