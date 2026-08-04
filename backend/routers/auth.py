@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from database import get_db
@@ -162,6 +163,8 @@ def get_audit_logs(
     event: str | None = None,
     user_filter: str | None = Query(default=None, alias="user"),
     ip_filter: str | None = Query(default=None, alias="ip"),
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
     db: Session = Depends(get_db),
     user: TokenUser = Depends(get_current_user),
 ):
@@ -175,6 +178,10 @@ def get_audit_logs(
         q = q.filter(models.AuditLog.actor_name.ilike(f"%{user_filter}%"))
     if ip_filter:
         q = q.filter(models.AuditLog.ip_address.ilike(f"%{ip_filter}%"))
+    if date_from:
+        q = q.filter(func.date(models.AuditLog.created_at) >= date_from)
+    if date_to:
+        q = q.filter(func.date(models.AuditLog.created_at) <= date_to)
     total = q.count()
     rows = q.offset(skip).limit(limit).all()
     return {

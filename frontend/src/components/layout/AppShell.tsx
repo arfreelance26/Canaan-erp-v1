@@ -16,7 +16,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isIdle = useIdle(IDLE_TIMEOUT_MS);
+  // initialState:false — otherwise the hook reports "idle" on first render and
+  // the effect below would log the user out immediately on every refresh.
+  const isIdle = useIdle(IDLE_TIMEOUT_MS, { initialState: false });
 
   useEffect(() => {
     if (isIdle && user) {

@@ -18,8 +18,9 @@ import {
   Download,
   Search,
   X,
+  Eye,
 } from "lucide-react";
-import { securityApi, type AuditLogEntry, type LockoutEntry } from "@/lib/api";
+import { securityApi, fileUrl, type AuditLogEntry, type LockoutEntry } from "@/lib/api";
 import { showSuccess, showError } from "@/lib/swal";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -63,7 +64,7 @@ function formatMinutes(seconds: number): string {
 function OutcomeBadge({ outcome }: { outcome: string }) {
   if (outcome === "success")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-400/30 dark:text-emerald-400">
         <CheckCircle2 className="h-3 w-3" /> Success
       </span>
     );
@@ -91,7 +92,8 @@ export default function SecurityLogPage() {
   const [auditPage, setAuditPage] = useState(0);
   const [eventFilter, setEventFilter] = useState("");
   const [userFilter, setUserFilter] = useState("");
-  const [ipFilter, setIpFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [auditLoading, setAuditLoading] = useState(true);
 
   const [lockouts, setLockouts] = useState<LockoutEntry[]>([]);
@@ -100,6 +102,8 @@ export default function SecurityLogPage() {
 
   const [showIpHelp, setShowIpHelp] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLabel, setPreviewLabel] = useState("");
 
   const REFRESH_INTERVAL = 30;
 
@@ -117,7 +121,8 @@ export default function SecurityLogPage() {
         limit: PAGE_SIZE,
         event: eventFilter || undefined,
         user: userFilter || undefined,
-        ip: ipFilter || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
       });
       setAuditLogs(result.items);
       setAuditTotal(result.total);
@@ -126,7 +131,7 @@ export default function SecurityLogPage() {
     } finally {
       setAuditLoading(false);
     }
-  }, [auditPage, eventFilter, userFilter, ipFilter]);
+  }, [auditPage, eventFilter, userFilter, dateFrom, dateTo]);
 
   const fetchLockouts = useCallback(async () => {
     setLockoutsLoading(true);
@@ -164,7 +169,7 @@ export default function SecurityLogPage() {
 
   useEffect(() => {
     setAuditPage(0);
-  }, [eventFilter, userFilter, ipFilter]);
+  }, [eventFilter, userFilter, dateFrom, dateTo]);
 
   // Auto-refresh every 30 s silently in the background
   useEffect(() => {
@@ -178,7 +183,7 @@ export default function SecurityLogPage() {
   const totalPages = Math.ceil(auditTotal / PAGE_SIZE);
 
   async function fetchAllLogsForExport(): Promise<AuditLogEntry[]> {
-    const result = await securityApi.getAuditLogs({ skip: 0, limit: 10000, event: eventFilter || undefined, user: userFilter || undefined, ip: ipFilter || undefined });
+    const result = await securityApi.getAuditLogs({ skip: 0, limit: 10000, event: eventFilter || undefined, user: userFilter || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined });
     return result.items;
   }
 
@@ -247,7 +252,7 @@ export default function SecurityLogPage() {
     <div className="mx-auto max-w-7xl space-y-8 p-2">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/10">
           <Lock className="h-5 w-5 text-red-600 dark:text-red-400" />
         </div>
         <div>
@@ -417,15 +422,46 @@ export default function SecurityLogPage() {
 
       {/* ── Section 2: Audit Trail ── */}
       <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-indigo-500" />
-            <h2 className="font-semibold text-gray-900">Audit Trail</h2>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-              {auditTotal} records
-            </span>
+        <div className="border-b border-gray-200 px-5 py-4 space-y-3">
+          {/* Row 1: title + export + refresh */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Clock className="h-5 w-5 shrink-0 text-indigo-500" />
+              <h2 className="whitespace-nowrap font-semibold text-gray-900">Audit Trail</h2>
+              <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                {auditTotal} records
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => void exportCSV()}
+                disabled={exporting}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {exporting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                CSV
+              </button>
+              <button
+                onClick={() => void exportJSON()}
+                disabled={exporting}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {exporting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                JSON
+              </button>
+              <button
+                onClick={() => void fetchAuditLogs()}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${auditLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
           </div>
+
+          {/* Row 2: filters */}
           <div className="flex items-center gap-2">
+            {/* User filter */}
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
               <input
@@ -433,7 +469,7 @@ export default function SecurityLogPage() {
                 placeholder="Filter by user…"
                 value={userFilter}
                 onChange={(e) => setUserFilter(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-white py-1.5 pl-7 pr-7 text-xs text-gray-700 placeholder:text-gray-400"
+                className="w-40 rounded-lg border border-gray-200 bg-white py-1.5 pl-7 pr-7 text-xs text-gray-700 placeholder:text-gray-400"
               />
               {userFilter && (
                 <button
@@ -444,24 +480,36 @@ export default function SecurityLogPage() {
                 </button>
               )}
             </div>
-            <div className="relative">
-              <Globe className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+
+            {/* Date range */}
+            <div className="flex items-center gap-1.5">
               <input
-                type="text"
-                placeholder="Filter by IP…"
-                value={ipFilter}
-                onChange={(e) => setIpFilter(e.target.value)}
-                className="rounded-lg border border-gray-200 bg-white py-1.5 pl-7 pr-7 text-xs text-gray-700 placeholder:text-gray-400"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700"
+                title="From date"
               />
-              {ipFilter && (
+              <span className="text-xs text-gray-400">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700"
+                title="To date"
+              />
+              {(dateFrom || dateTo) && (
                 <button
-                  onClick={() => setIpFilter("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}
+                  className="rounded p-1 text-gray-400 hover:text-gray-600"
+                  title="Clear dates"
                 >
                   <X className="h-3 w-3" />
                 </button>
               )}
             </div>
+
+            {/* Event type */}
             <select
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
@@ -473,29 +521,6 @@ export default function SecurityLogPage() {
                 </option>
               ))}
             </select>
-            <button
-              onClick={() => void exportCSV()}
-              disabled={exporting}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {exporting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              CSV
-            </button>
-            <button
-              onClick={() => void exportJSON()}
-              disabled={exporting}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              {exporting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              JSON
-            </button>
-            <button
-              onClick={() => void fetchAuditLogs()}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${auditLoading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
           </div>
         </div>
 
@@ -525,31 +550,47 @@ export default function SecurityLogPage() {
                     <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-500">
                       {formatDateTime(row.createdAt)}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="whitespace-nowrap px-4 py-2.5">
                       <span className="font-medium text-gray-800">
                         {EVENT_LABELS[row.event] ?? row.event}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="whitespace-nowrap px-4 py-2.5">
                       <span className="flex items-center gap-1.5 text-gray-700">
                         <User className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
                         {row.actorName ?? <span className="text-gray-400">—</span>}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">
+                    <td className="whitespace-nowrap px-4 py-2.5 text-xs text-gray-500">
                       {row.actorRole ?? "—"}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="whitespace-nowrap px-4 py-2.5">
                       <span className="flex items-center gap-1.5 font-mono text-xs text-gray-600">
                         <Globe className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
                         {row.ipAddress ?? "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="whitespace-nowrap px-4 py-2.5">
                       <OutcomeBadge outcome={row.outcome} />
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-500">
-                      {row.resource ? (
+                      {row.event === "file.download" && row.resource ? (() => {
+                        const parts = row.resource.split("/");
+                        const url = parts.length >= 3 ? fileUrl(parts[0], parts[1], parts[2]) : null;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-indigo-600 dark:text-indigo-400">{row.resource}</span>
+                            {url && (
+                              <button
+                                onClick={() => { setPreviewUrl(url); setPreviewLabel(row.resource ?? ""); }}
+                                className="flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-600/20 dark:text-indigo-400"
+                              >
+                                <Eye className="h-3 w-3" /> Preview
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })() : row.resource ? (
                         <span className="font-mono text-indigo-600 dark:text-indigo-400">{row.resource}</span>
                       ) : (
                         row.detail ?? "—"
@@ -590,6 +631,56 @@ export default function SecurityLogPage() {
           </div>
         )}
       </section>
+
+      {/* ── Document Preview Modal ── */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div
+            className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-indigo-500" />
+                <span className="text-sm font-semibold text-gray-800 dark:text-white">Document Preview</span>
+                <span className="font-mono text-xs text-gray-400">{previewLabel}</span>
+              </div>
+              <button
+                onClick={() => setPreviewUrl(null)}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Preview area */}
+            <div className="flex flex-1 items-center justify-center overflow-auto bg-gray-50 p-4 dark:bg-gray-800">
+              <img
+                src={previewUrl}
+                alt="Document preview"
+                className="max-h-[75vh] max-w-full rounded-lg object-contain shadow"
+                onError={(e) => {
+                  // Not an image — swap to iframe for PDF / other types
+                  const target = e.currentTarget;
+                  const parent = target.parentElement;
+                  if (parent) {
+                    target.remove();
+                    const frame = document.createElement("iframe");
+                    frame.src = previewUrl;
+                    frame.className = "h-[75vh] w-full rounded-lg border-0";
+                    frame.title = "Document preview";
+                    parent.appendChild(frame);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -27,7 +27,7 @@ let failCount = 0;
 
 function getToken(): string | null {
   try {
-    const stored = sessionStorage.getItem("canaan_erp_user");
+    const stored = localStorage.getItem("canaan_erp_user");
     return stored ? (JSON.parse(stored).token ?? null) : null;
   } catch {
     return null;

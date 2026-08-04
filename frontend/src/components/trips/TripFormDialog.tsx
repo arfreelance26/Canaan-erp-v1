@@ -788,7 +788,7 @@ export function TripFormDialog({
 
     // Duplicate detection: same truck or same container on any active trip
     const ACTIVE = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
-    const targetVehicleId = initialData ? initialData.vehicleId : assigned.truck.truckId;
+    const targetVehicleId = assigned.truck.truckId;
     const editingId = initialData?.id;
 
     const truckConflicts = existingTrips.filter(
@@ -842,7 +842,7 @@ export function TripFormDialog({
         tripId: initialData.tripId,
         status: initialData.status,
         assignedDate: initialData.assignedDate,
-        vehicleId: initialData.vehicleId,
+        vehicleId: assigned.truck.truckId,
         ...form,
       });
     } else {

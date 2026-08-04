@@ -39,7 +39,7 @@ const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replac
 function authHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
   try {
-    const stored = sessionStorage.getItem("canaan_erp_user");
+    const stored = localStorage.getItem("canaan_erp_user");
     const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch {
@@ -49,7 +49,7 @@ function authHeaders(): Record<string, string> {
 
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
-  sessionStorage.removeItem("canaan_erp_user");
+  localStorage.removeItem("canaan_erp_user");
   if (!window.location.pathname.startsWith("/login")) {
     window.location.href = "/login";
   }
@@ -192,7 +192,7 @@ export function fileUrl(entity: string, entityId: string, field: string): string
   const base = `${BASE}/files/${entity}/${entityId}/${field}`;
   if (typeof window === "undefined") return base;
   try {
-    const stored = sessionStorage.getItem("canaan_erp_user");
+    const stored = localStorage.getItem("canaan_erp_user");
     const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
     return token ? `${base}?token=${encodeURIComponent(token)}` : base;
   } catch {
@@ -2339,13 +2339,15 @@ export type LockoutEntry = {
 };
 
 export const securityApi = {
-  getAuditLogs: (params?: { skip?: number; limit?: number; event?: string; user?: string; ip?: string }) => {
+  getAuditLogs: (params?: { skip?: number; limit?: number; event?: string; user?: string; ip?: string; dateFrom?: string; dateTo?: string }) => {
     const qs = new URLSearchParams();
     if (params?.skip !== undefined) qs.set("skip", String(params.skip));
     if (params?.limit !== undefined) qs.set("limit", String(params.limit));
     if (params?.event) qs.set("event", params.event);
     if (params?.user) qs.set("user", params.user);
     if (params?.ip) qs.set("ip", params.ip);
+    if (params?.dateFrom) qs.set("date_from", params.dateFrom);
+    if (params?.dateTo) qs.set("date_to", params.dateTo);
     return req<{ total: number; items: B[] }>(`/auth/audit-logs?${qs.toString()}`).then((r) => ({
       total: r.total,
       items: r.items.map((b) => ({

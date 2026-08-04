@@ -39,11 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Rehydrate from sessionStorage on mount (per-tab: each browser tab is an
-  // independent session, so two users can work in two tabs without clashing)
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setUser(JSON.parse(stored));
     } catch {
       /* ignore corrupt storage */
@@ -101,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function completeLogin(authUser: AuthUser) {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
     const home =
       authUser.softwareDesignation === "Yard Supervisor"
@@ -116,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Best-effort server-side token revocation so a stolen-but-unexpired token
     // can't be reused after logout (SECURITY_PLAN.md MEDIUM-2). Fire-and-forget.
     try {
-      const stored = sessionStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY);
       const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
       if (token) {
         void fetch(`${API_URL}/auth/logout`, {
@@ -126,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }).catch(() => {});
       }
     } catch {}
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
     disconnectRealtime();
     cacheClear();
     setUser(null);
