@@ -130,10 +130,12 @@ export const showToast = (
   icon: 'success' | 'error' | 'info' | 'warning' = 'info',
   title?: string,
 ) => {
-  toastManager.add({
-    title: title ?? message,
-    description: title ? message : undefined,
-    type: icon,
+  queueMicrotask(() => {
+    toastManager.add({
+      title: title ?? message,
+      description: title ? message : undefined,
+      type: icon,
+    });
   });
 };
 
