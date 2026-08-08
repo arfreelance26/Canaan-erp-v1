@@ -55,6 +55,7 @@ export function VerifyTripDialog({
   const [markedLabels, setMarkedLabels] = useState<Set<string>>(new Set());
   const [expenseMarks, setExpenseMarks] = useState<Record<string, "tick" | "untick">>({});
   const [rejectionReason, setRejectionReason] = useState("");
+  const [directReject, setDirectReject] = useState(false);
 
   useEffect(() => {
     if (!trip) return;
@@ -73,6 +74,7 @@ export function VerifyTripDialog({
     if (!open) {
       setExpenseMarks({});
       setRejectionReason("");
+      setDirectReject(false);
     }
   }, [open]);
 
@@ -398,14 +400,59 @@ export function VerifyTripDialog({
               className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
               Edit Booking Sheet
             </button>
+            <button type="button" onClick={() => setDirectReject(true)}
+              className="ml-auto flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-colors">
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Reject Trip
+            </button>
           </div>
 
           {/* Verification Decision — auto-derived from tick/untick marks */}
           <div className="border-t border-gray-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-white">Verification Decision</p>
 
+            {/* Direct reject — bypasses expense verification entirely */}
+            {directReject && (
+              <div className="flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 p-3">
+                <p className="text-xs font-semibold text-red-600 dark:text-white">
+                  Rejecting this trip sheet — it will be sent back to the Docs team.
+                </p>
+                <label className="text-xs font-semibold text-red-500 dark:text-white">Rejection Reason (required)</label>
+                <textarea
+                  rows={3}
+                  autoFocus
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Describe why this trip sheet is being rejected..."
+                  className="w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-300"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setDirectReject(false); setRejectionReason(""); }}
+                    className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!rejectionReason.trim()}
+                    onClick={() => onReject(rejectionReason.trim())}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Send Back to Docs
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Pending state */}
-            {autoDecision === null && (
+            {!directReject && autoDecision === null && (
               <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                 <svg className="h-4 w-4 shrink-0 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -420,7 +467,7 @@ export function VerifyTripDialog({
             )}
 
             {/* Rejection reason — auto-shown when any expense is unticked */}
-            {autoDecision === "reject" && (
+            {!directReject && autoDecision === "reject" && (
               <div className="mb-3 flex flex-col gap-2 rounded-xl border border-red-100 bg-red-50 p-3">
                 <p className="text-xs font-semibold text-red-600 dark:text-white">
                   One or more expenses were marked incorrect (✗) — rejection required.
@@ -437,7 +484,7 @@ export function VerifyTripDialog({
             )}
 
             {/* Confirm Verification — only when all are ticked */}
-            {autoDecision === "approve" && (
+            {!directReject && autoDecision === "approve" && (
               <button
                 type="button"
                 onClick={onConfirm}
@@ -451,7 +498,7 @@ export function VerifyTripDialog({
             )}
 
             {/* Send Back to Docs — only when any expense is unticked */}
-            {autoDecision === "reject" && (
+            {!directReject && autoDecision === "reject" && (
               <button
                 type="button"
                 disabled={!rejectionReason.trim()}

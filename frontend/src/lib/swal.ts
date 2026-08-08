@@ -130,13 +130,17 @@ export const showToast = (
   icon: 'success' | 'error' | 'info' | 'warning' = 'info',
   title?: string,
 ) => {
-  queueMicrotask(() => {
+  // Defer to a macrotask (not just a microtask): base-ui's Toast.Root calls
+  // flushSync internally when a toast is added. A microtask can still run inside
+  // React's commit/flush window, triggering "flushSync was called while React is
+  // already rendering". setTimeout(0) guarantees the add runs after the commit.
+  setTimeout(() => {
     toastManager.add({
       title: title ?? message,
       description: title ? message : undefined,
       type: icon,
     });
-  });
+  }, 0);
 };
 
 /**

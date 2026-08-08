@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Search, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
@@ -10,14 +10,48 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { cn } from "@/lib/utils";
 import type { AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/attendance";
-import { todayIst, formatDate } from "@/lib/format-date";
+import { formatDate } from "@/lib/format-date";
 
 type Category = "driver" | "staff";
+type ViewMode = "summary" | "datewise";
 
 function firstOfMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
+
+function lastOfMonth(): string {
+  const d = new Date();
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); // day 0 of next month = last day of this month
+  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+}
+
+// Inclusive list of "YYYY-MM-DD" dates between from and to.
+function dateRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  if (!from || !to) return out;
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  const start = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+  if (start > end) return out;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  }
+  return out;
+}
+
+// Register cell display: single-letter code + color per attendance status.
+const STATUS_DISPLAY: Record<string, { abbr: string; cls: string; title: string }> = {
+  "Present":     { abbr: "P", cls: "bg-green-100 text-green-700",   title: "Present" },
+  "Absent":      { abbr: "A", cls: "bg-red-100 text-red-600",       title: "Absent" },
+  "On Leave":    { abbr: "L", cls: "bg-yellow-100 text-yellow-700", title: "On Leave" },
+  "Leave":       { abbr: "L", cls: "bg-yellow-100 text-yellow-700", title: "Leave" },
+  "On Trip":     { abbr: "T", cls: "bg-blue-100 text-blue-700",     title: "On Trip" },
+  "On Halt":     { abbr: "H", cls: "bg-orange-100 text-orange-700", title: "On Halt" },
+  "On Workshop": { abbr: "W", cls: "bg-purple-100 text-purple-700", title: "On Workshop" },
+  "Not Marked":  { abbr: "·", cls: "bg-gray-50 text-gray-300",      title: "Not Marked" },
+};
 
 function RemarksList({ remarks }: { remarks: DriverAttendanceRemark[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -67,13 +101,17 @@ export default function AttendanceReportPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
   const [category, setCategory] = useState<Category>("driver");
+  const [viewMode, setViewMode] = useState<ViewMode>("summary");
   const [fromDate, setFromDate] = useState(firstOfMonth());
-  const [toDate, setToDate] = useState(todayIst());
+  const [toDate, setToDate] = useState(lastOfMonth());
   const [rows, setRows] = useState<AttendanceSummaryRow[]>([]);
   const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
+  // Per-day status lookup for the date-wise register: personCode -> date -> status
+  const [statusMap, setStatusMap] = useState<Record<string, Record<string, string>>>({});
   const [latestDate, setLatestDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
@@ -98,10 +136,27 @@ export default function AttendanceReportPage() {
     const remarksPromise = category === "driver"
       ? attendanceApi.listDriverRemarks(undefined, undefined, fromDate, toDate).then(setRemarks)
       : Promise.resolve();
-    Promise.all([summaryPromise, remarksPromise])
+
+    // Date-wise register: fetch every daily record in the range and build a
+    // personCode -> date -> status lookup.
+    const registerPromise = viewMode === "datewise"
+      ? (category === "driver"
+          ? attendanceApi.listDrivers(undefined, undefined, fromDate, toDate).then((recs) => {
+              const map: Record<string, Record<string, string>> = {};
+              recs.forEach((r) => { (map[r.driverId] ??= {})[r.date] = r.status; });
+              setStatusMap(map);
+            })
+          : attendanceApi.listStaff(undefined, undefined, fromDate, toDate).then((recs) => {
+              const map: Record<string, Record<string, string>> = {};
+              recs.forEach((r) => { (map[r.staffId] ??= {})[r.date] = r.status; });
+              setStatusMap(map);
+            }))
+      : Promise.resolve();
+
+    Promise.all([summaryPromise, remarksPromise, registerPromise])
       .catch((err: unknown) => showError(err instanceof Error ? err.message : "Failed to load attendance report."))
       .finally(() => setLoading(false));
-  }, [category, fromDate, toDate]);
+  }, [category, fromDate, toDate, viewMode]);
 
   if (!ready || (user?.softwareDesignation !== "Admin" && !isCommercialManager)) return null;
 
@@ -114,6 +169,8 @@ export default function AttendanceReportPage() {
       (r) => r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)
     );
   }, [rows, search]);
+
+  const dates = useMemo(() => dateRange(fromDate, toDate), [fromDate, toDate]);
 
   const remarksByDriver = remarks.reduce<Record<string, DriverAttendanceRemark[]>>((acc, r) => {
     (acc[r.driverId] ??= []).push(r);
@@ -143,6 +200,187 @@ export default function AttendanceReportPage() {
 
   const driverColumns = ["Driver ID", "Name", "On Trip", "On Halt", "Leave", "On Workshop", "Not Marked", "Active Rate", "Remarks"];
   const staffColumns  = ["Staff ID",  "Name", "Present", "Absent",  "On Leave", "Not Marked", "% Present"];
+
+  async function handleDownloadPDF() {
+    if (downloading || filteredRows.length === 0) return;
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const rangeLabel = fromDate === toDate
+        ? formatDate(fromDate)
+        : `${formatDate(fromDate)} - ${formatDate(toDate)}`;
+      const who = isDriver ? "Driver" : "Staff";
+
+      // status → RGB for jsPDF fills/text
+      const RGB: Record<string, [number, number, number]> = {
+        "Present": [22, 163, 74], "Absent": [220, 38, 38],
+        "On Leave": [161, 98, 7], "Leave": [161, 98, 7],
+        "On Trip": [37, 99, 235], "On Halt": [234, 88, 12],
+        "On Workshop": [124, 58, 237], "Not Marked": [156, 163, 175],
+      };
+      const NAVY: [number, number, number] = [27, 43, 94];
+
+      if (viewMode === "datewise") {
+        // ── Register grid (landscape) ──────────────────────────────────────
+        const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const marginX = 8, marginY = 12;
+        const nameW = 48;
+        const cellW = (pageW - marginX * 2 - nameW) / dates.length;
+        const rowH = 6, headH = 9;
+
+        function docHeader() {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(13);
+          pdf.setTextColor(...NAVY);
+          pdf.text(`${who} Attendance Register`, marginX, marginY);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          pdf.setTextColor(100, 100, 100);
+          pdf.text(`Period: ${rangeLabel}  |  ${filteredRows.length} ${who.toLowerCase()}${filteredRows.length !== 1 ? "s" : ""}`, marginX, marginY + 5);
+        }
+
+        function colHeader(y: number) {
+          pdf.setFillColor(...NAVY);
+          pdf.rect(marginX, y, pageW - marginX * 2, headH, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7);
+          pdf.setTextColor(255, 255, 255);
+          pdf.text(who.toUpperCase(), marginX + 2, y + 6);
+          for (let i = 0; i < dates.length; i++) {
+            const dd = Number(dates[i].split("-")[2]);
+            pdf.text(String(dd), marginX + nameW + i * cellW + cellW / 2, y + 6, { align: "center" });
+          }
+        }
+
+        let curY = marginY + 9;
+        docHeader();
+        colHeader(curY);
+        curY += headH;
+
+        for (let ri = 0; ri < filteredRows.length; ri++) {
+          if (curY + rowH > pageH - marginY) {
+            pdf.addPage();
+            curY = marginY;
+            colHeader(curY);
+            curY += headH;
+          }
+          const r = filteredRows[ri];
+          if (ri % 2 === 1) {
+            pdf.setFillColor(245, 247, 250);
+            pdf.rect(marginX, curY, pageW - marginX * 2, rowH, "F");
+          }
+          // name + code
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7);
+          pdf.setTextColor(31, 41, 55);
+          pdf.text(String(r.name).slice(0, 26), marginX + 2, curY + 4);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(5.5);
+          pdf.setTextColor(150, 150, 150);
+          pdf.text(String(r.code), marginX + 2, curY + rowH - 0.6);
+          // status letters
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7);
+          for (let i = 0; i < dates.length; i++) {
+            const st = statusMap[r.code]?.[dates[i]] ?? "Not Marked";
+            const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
+            pdf.setTextColor(...(RGB[st] ?? RGB["Not Marked"]));
+            pdf.text(disp.abbr, marginX + nameW + i * cellW + cellW / 2, curY + 4, { align: "center" });
+          }
+          curY += rowH;
+        }
+
+        // legend
+        if (curY + 10 > pageH - marginY) { pdf.addPage(); curY = marginY; }
+        curY += 4;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(80, 80, 80);
+        pdf.text("Legend:", marginX, curY);
+        let lx = marginX + 16;
+        const legendItems = isDriver
+          ? ["On Trip", "On Halt", "Leave", "On Workshop", "Not Marked"]
+          : ["Present", "Absent", "On Leave", "Not Marked"];
+        for (const s of legendItems) {
+          const disp = STATUS_DISPLAY[s] ?? STATUS_DISPLAY["Not Marked"];
+          pdf.setTextColor(...(RGB[s] ?? RGB["Not Marked"]));
+          pdf.text(disp.abbr, lx, curY);
+          pdf.setTextColor(90, 90, 90);
+          pdf.text(` = ${s}`, lx + 2, curY);
+          lx += 42;
+        }
+
+        pdf.save(`${who}_Attendance_Register_${fromDate}_to_${toDate}.pdf`);
+      } else {
+        // ── Summary table (portrait) ───────────────────────────────────────
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const marginX = 12, marginY = 14;
+        const rowH = 8, headH = 9;
+
+        const cols: [string, number][] = isDriver
+          ? [["#", 10], ["Driver ID", 26], ["Name", 52], ["Trip", 16], ["Halt", 16], ["Leave", 16], ["W.shop", 18], ["N/M", 14], ["Active %", 18]]
+          : [["#", 10], ["Staff ID", 26], ["Name", 64], ["Present", 22], ["Absent", 22], ["On Leave", 24], ["N/M", 16], ["% Pres", 22]];
+
+        function docHeader() {
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(13);
+          pdf.setTextColor(...NAVY);
+          pdf.text(`${who} Attendance Report`, marginX, marginY);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8);
+          pdf.setTextColor(100, 100, 100);
+          pdf.text(`Period: ${rangeLabel}  |  ${filteredRows.length} ${who.toLowerCase()}${filteredRows.length !== 1 ? "s" : ""}`, marginX, marginY + 5);
+        }
+
+        function colHeader(y: number) {
+          pdf.setFillColor(...NAVY);
+          pdf.rect(marginX, y, cols.reduce((s, [, w]) => s + w, 0), headH, "F");
+          pdf.setFont("helvetica", "bold");
+          pdf.setFontSize(7);
+          pdf.setTextColor(255, 255, 255);
+          let x = marginX;
+          for (const [label, w] of cols) { pdf.text(label.toUpperCase(), x + 2, y + 6); x += w; }
+        }
+
+        let curY = marginY + 9;
+        docHeader();
+        colHeader(curY);
+        curY += headH;
+
+        filteredRows.forEach((r, idx) => {
+          if (curY + rowH > pageH - marginY) {
+            pdf.addPage(); curY = marginY; colHeader(curY); curY += headH;
+          }
+          if (idx % 2 === 1) {
+            pdf.setFillColor(245, 247, 250);
+            pdf.rect(marginX, curY, cols.reduce((s, [, w]) => s + w, 0), rowH, "F");
+          }
+          const active = r.onTrip + r.onHalt + r.onWorkshop;
+          const driverPct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
+          const staffPct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
+          const cells = isDriver
+            ? [String(idx + 1), r.code, String(r.name).slice(0, 30), String(r.onTrip), String(r.onHalt), String(r.leave), String(r.onWorkshop), String(r.notMarked), `${driverPct}%`]
+            : [String(idx + 1), r.code, String(r.name).slice(0, 36), String(r.present), String(r.absent), String(r.onLeave), String(r.notMarked), `${staffPct}%`];
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7.5);
+          pdf.setTextColor(40, 40, 40);
+          let x = marginX;
+          cells.forEach((c, ci) => { pdf.text(c, x + 2, curY + 5.5); x += cols[ci][1]; });
+          curY += rowH;
+        });
+
+        pdf.save(`${who}_Attendance_Report_${fromDate}_to_${toDate}.pdf`);
+      }
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -197,6 +435,23 @@ export default function AttendanceReportPage() {
               className="h-9 w-64 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
             />
           </div>
+
+          {/* View toggle: aggregated Summary vs day-by-day Register */}
+          <div className="ml-1 inline-flex rounded-full border border-gray-200 bg-gray-100 p-0.5">
+            {([["summary", "Summary"], ["datewise", "Date-wise"]] as [ViewMode, string][]).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
+                  viewMode === mode ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -216,11 +471,91 @@ export default function AttendanceReportPage() {
               className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleDownloadPDF}
+            disabled={downloading || filteredRows.length === 0}
+            className="flex h-[38px] items-center gap-1.5 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Download className="h-4 w-4" />
+            {downloading ? "Generating…" : "Download PDF"}
+          </button>
         </div>
       </div>
 
       {loading ? (
         <PageSkeleton hasButton={false} hasSearch={false} statCards={4} columns={7} />
+      ) : viewMode === "datewise" ? (
+        <>
+          {/* Legend */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs">
+            <span className="font-semibold uppercase tracking-wider text-gray-500">Legend</span>
+            {(isDriver
+              ? ["On Trip", "On Halt", "Leave", "On Workshop", "Not Marked"]
+              : ["Present", "Absent", "On Leave", "Not Marked"]
+            ).map((s) => {
+              const d = STATUS_DISPLAY[s] ?? STATUS_DISPLAY["Not Marked"];
+              return (
+                <span key={s} className="inline-flex items-center gap-1.5">
+                  <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold", d.cls)}>{d.abbr}</span>
+                  <span className="text-gray-600">{s}</span>
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white">
+            <table className="border-collapse text-sm">
+              <thead className="sticky top-0 z-20">
+                <tr className="bg-gray-50">
+                  <th className="sticky left-0 z-30 min-w-[180px] border-b border-r border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    {isDriver ? "Driver" : "Staff"}
+                  </th>
+                  {dates.map((d) => {
+                    const [yy, mm, dd] = d.split("-").map(Number);
+                    const dt = new Date(yy, mm - 1, dd);
+                    const isSunday = dt.getDay() === 0;
+                    return (
+                      <th key={d} className={cn("min-w-[34px] border-b border-gray-200 px-1 py-2 text-center text-[10px] font-semibold", isSunday ? "bg-red-50" : "")}>
+                        <div className={isSunday ? "text-red-500" : "text-gray-700"}>{dd}</div>
+                        <div className={isSunday ? "text-red-400" : "text-gray-400"}>{dt.toLocaleDateString("en-IN", { weekday: "narrow" })}</div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={dates.length + 1} className="px-4 py-10 text-center text-sm text-gray-400">
+                      {search ? "No results match your search." : `No ${isDriver ? "drivers" : "staff"} found.`}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="sticky left-0 z-10 border-r border-gray-200 bg-white px-4 py-2">
+                        <div className="whitespace-nowrap font-medium text-gray-900">{r.name}</div>
+                        <div className="text-xs text-gray-400">{r.code}</div>
+                      </td>
+                      {dates.map((d) => {
+                        const st = statusMap[r.code]?.[d] ?? "Not Marked";
+                        const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
+                        return (
+                          <td key={d} className="px-1 py-2 text-center" title={`${formatDate(d)} — ${disp.title}`}>
+                            <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold", disp.cls)}>
+                              {disp.abbr}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <>
           {isDriver ? (

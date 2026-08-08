@@ -217,6 +217,9 @@ def _run_schema_migrations():
         "ALTER TABLE driver_attendance_remarks ADD COLUMN is_late_entry TINYINT(1) NOT NULL DEFAULT 0",
         # Edit approvals — store who approved so requestors can see the approver's name
         "ALTER TABLE edit_approval_requests ADD COLUMN approved_by_name VARCHAR(100) NULL",
+        # Trip sheet — individual driver advance breakdown (base + additional), separate from the computed total
+        "ALTER TABLE trip_sheets ADD COLUMN driver_advance DECIMAL(10,2) NULL",
+        "ALTER TABLE trip_sheets ADD COLUMN additional_driver_advance DECIMAL(10,2) NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

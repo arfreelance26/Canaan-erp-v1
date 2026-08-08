@@ -581,10 +581,6 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <p className={sh}>Tax Details</p>
             <div className="flex flex-col gap-3">
               {(["gstApplicable", "igstApplicable"] as const)
-                .filter((key) => {
-                  if (key === "gstApplicable") return form.igstApplicable !== "Yes";
-                  return form.gstApplicable !== "Yes";
-                })
                 .map((key) => (
                   <div key={key} className="flex flex-col gap-1.5">
                     <span className="text-xs font-medium text-gray-600">

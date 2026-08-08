@@ -10,7 +10,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -47,9 +47,9 @@ export default function SheetCollectionPage() {
   const [downloading, setDownloading] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
-  // Date range — scopes the PDF export only (starts empty = all delivered sheets)
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Date range (Delivered On) — scopes the PDF export only. Defaults to today.
+  const [dateFrom, setDateFrom] = useState(todayIst());
+  const [dateTo, setDateTo] = useState(todayIst());
   // Advance verification panel state
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
@@ -254,10 +254,14 @@ export default function SheetCollectionPage() {
   async function handleDownloadPDF() {
     if (downloading || collected.length === 0) return;
 
-    // Filter by scheduled date (the date range scopes the export only, not the table)
+    // Filter by "Delivered On" date (tripSheetCollectedAt). The date range scopes
+    // the export only, not the table.
     const pdfTrips = collected.filter((t) => {
-      if (!t.scheduledDate) return true;
-      const ms = new Date(t.scheduledDate).getTime();
+      if (!fromMs && !toMs) return true; // no date filter → all delivered sheets
+      if (!t.tripSheetCollectedAt) return false;
+      const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+")
+        ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
+      const ms = new Date(raw).getTime();
       if (fromMs && ms < fromMs) return false;
       if (toMs   && ms > toMs)   return false;
       return true;
@@ -442,6 +446,7 @@ export default function SheetCollectionPage() {
             <option value="Overdue">Entry Overdue</option>
           </select>
           <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Delivered On:</span>
             <DatePickerInput
               value={dateFrom}
               onChange={(v) => { setDateFrom(v); setPage(1); }}
