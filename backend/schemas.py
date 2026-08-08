@@ -627,6 +627,8 @@ class TripSheetCreate(OrmBase):
     cargo_weight: Optional[Decimal] = None
     driver_compensation_type: Optional[str] = None
     driver_pay: Optional[Decimal] = None
+    driver_advance: Optional[Decimal] = None
+    additional_driver_advance: Optional[Decimal] = None
     driver_advance_amount: Optional[Decimal] = None
     driver_balance: Optional[Decimal] = None
     total_halt_days: Optional[int] = 0
@@ -865,6 +867,7 @@ class EditApprovalRequestOut(OrmBase):
     action: EditApprovalAction
     reason: str
     admin_note: Optional[str] = None
+    approved_by_name: Optional[str] = None
     status: EditApprovalStatus
     approved_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None

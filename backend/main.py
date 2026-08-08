@@ -215,6 +215,8 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN driver_name VARCHAR(200) NULL",
         # Driver attendance remarks — late entry flag (set when non-admin marks attendance past the 2-day window)
         "ALTER TABLE driver_attendance_remarks ADD COLUMN is_late_entry TINYINT(1) NOT NULL DEFAULT 0",
+        # Edit approvals — store who approved so requestors can see the approver's name
+        "ALTER TABLE edit_approval_requests ADD COLUMN approved_by_name VARCHAR(100) NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

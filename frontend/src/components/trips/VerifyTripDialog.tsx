@@ -225,6 +225,7 @@ export function VerifyTripDialog({
               </div>
             </div>
           )}
+          <Row label="Additional Driver Advance (₹)" value={sheet?.additionalDriverAdvance ? fmt(n(sheet.additionalDriverAdvance)) : ""} />
           <Row label="Advance Paid to Driver (Sheet)"   value={sheet ? fmt(n(sheet.driverAdvanceAmount)) : ""} />
           <Row label="Driver Balance"           value={sheet ? fmt(n(sheet.driverBalance)) : ""} />
           <div className="mt-2 mb-1 flex items-center justify-between rounded-lg bg-blue-600 px-4 py-2.5">

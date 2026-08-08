@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, type CSSProperties } from "react";
 import s from "./invoice.module.css";
 
 const TERMS = [
@@ -18,6 +18,8 @@ export interface ServiceItem {
   qty: number;
   rate: string;
   gstRate?: string;
+  /** Total GST amount for this line (base × gstRate%). Split in half for CGST/SGST display. */
+  gstAmount?: number;
   total: string;
 }
 
@@ -74,6 +76,18 @@ function halfRate(rate: string): string {
   const half = r / 2;
   return (Number.isInteger(half) ? String(half) : half.toFixed(1)) + "%";
 }
+
+function fmtAmt(v: number): string {
+  return v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const taxAmtStyle: CSSProperties = {
+  display: "block",
+  fontSize: "8.5px",
+  fontWeight: 600,
+  color: "#555",
+  marginTop: "1px",
+};
 
 export function InvoiceShell({
   title,
@@ -274,11 +288,32 @@ export function InvoiceShell({
                     <td className={s.right}>{item.rate}</td>
                     {isCgstSgst ? (
                       <>
-                        <td className={s.center}>{item.gstRate ? halfRate(item.gstRate) : "—"}</td>
-                        <td className={s.center}>{item.gstRate ? halfRate(item.gstRate) : "—"}</td>
+                        <td className={s.center}>
+                          {item.gstRate ? (
+                            <>
+                              {halfRate(item.gstRate)}
+                              <span style={taxAmtStyle}>&#8377; {fmtAmt((item.gstAmount ?? 0) / 2)}</span>
+                            </>
+                          ) : "—"}
+                        </td>
+                        <td className={s.center}>
+                          {item.gstRate ? (
+                            <>
+                              {halfRate(item.gstRate)}
+                              <span style={taxAmtStyle}>&#8377; {fmtAmt((item.gstAmount ?? 0) / 2)}</span>
+                            </>
+                          ) : "—"}
+                        </td>
                       </>
                     ) : (
-                      <td className={s.center}>{item.gstRate ? `${item.gstRate}%` : "—"}</td>
+                      <td className={s.center}>
+                        {item.gstRate ? (
+                          <>
+                            {`${item.gstRate}%`}
+                            <span style={taxAmtStyle}>&#8377; {fmtAmt(item.gstAmount ?? 0)}</span>
+                          </>
+                        ) : "—"}
+                      </td>
                     )}
                     <td className={`${s.right} ${s.bold}`}>{item.total}</td>
                   </tr>

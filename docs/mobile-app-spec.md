@@ -17,11 +17,13 @@ The mobile app is **Admin-only**. It surfaces the most time-sensitive admin work
 | P1 | Attendance overview |
 | P1 | Fleet compliance alerts |
 | P1 | Edit / delete approval requests |
+| P1 | P&L summary (per-truck & per-trip) |
+| P1 | Maintenance records & service history |
 | P2 | Staff & driver directory |
 | P2 | Truck fleet list |
 | P3 | Notifications |
 
-Everything else (invoice generation, reconciliation, tyre management, finance) remains web-only for now.
+Everything else (invoice generation, reconciliation, tyre management, EMI/compensation) remains web-only for now.
 
 ---
 
@@ -229,8 +231,12 @@ Groups matching the web sidebar:
   Our Drivers
   Our Customers
 
- FINANCE
+ MAINTENANCE
+  Maintenance Records
   Compliance & Renewals
+
+ INSIGHTS
+  P&L Summary
 ```
 
 Active item: navy bg, white text, bold  
@@ -360,7 +366,48 @@ Tap → Truck detail screen (compliance docs, maintenance history)
 
 ---
 
-### Screen 7 — Profile / Settings
+### Screen 7 — P&L Summary
+
+**Route:** `/pl-summary`
+
+**Header:** Date-range picker (from / to, defaults to current month) + optional truck filter.
+
+**Body:**
+1. **Totals band** (3 stat cards): Total Revenue • Total Cost • Net P&L (green if positive, red if negative — see semantic colors)
+2. **Per-truck list** — each truck card shows revenue, cost, and net P&L with a colored left border (green/red by profitability). Tap → expands per-trip rows.
+3. **Per-trip rows** (inside a truck, or via a trip's detail sheet): Hire (revenue) − Expenses = Net, with customer, trip category, and cargo classification shown for context.
+
+**Data source:** `GET /pl-summary?start_date=&end_date=&truck_id=` returns per-truck breakdown with enriched per-trip rows (revenue = trip-sheet hire; cost = trip expenses + maintenance + EMI share + document amortisation). All calculation happens server-side — the app only renders.
+
+**View-only** — no editing of figures on mobile.
+
+---
+
+### Screen 8 — Maintenance Records
+
+**Route:** `/maintenance`
+
+**Header:** Search bar + truck filter chips.
+
+**Body:** Scrollable list of maintenance record cards:
+```
+┌───────────────────────────────────────────┐
+│  TN01AB1234           ₹ 12,500            │
+│  Brake overhaul  •  Repair                │
+│  Vendor: ABC Motors  •  15 Jul 2026       │
+│  Odometer: 1,23,456 km                    │
+└───────────────────────────────────────────┘
+```
+- Tap → Maintenance detail bottom sheet (full description, parts, cost breakdown, next-service reminder if any).
+- Optional grouping/filter by truck to see a single vehicle's full service history.
+
+**Summary strip (top):** total maintenance spend for the selected period + count of open/pending jobs (from `GET /maintenance/status`).
+
+**Data source:** `GET /maintenance/records` (list), `GET /maintenance/trucks/{truck_id}/status` (per-truck history & next service). **View-only** on mobile.
+
+---
+
+### Screen 9 — Profile / Settings
 
 **Route:** `/profile` (accessible from avatar in top bar)
 
@@ -388,7 +435,7 @@ Tap → Truck detail screen (compliance docs, maintenance history)
 
 ## 10. Iconography
 
-**Library:** [Lucide Icons](https://lucide.dev) — use the React Native or Flutter equivalent package.
+**Library:** [Lucide Icons](https://lucide.dev) — use the `lucide-react-native` package (same icon set as the web `lucide-react`).
 
 Key icons used:
 
@@ -457,14 +504,18 @@ The mobile app hits the **same FastAPI backend** as the web:
 | `GET /edit-approvals` | Pending approval requests |
 | `POST /edit-approvals/{id}/approve` | Approve edit request |
 | `POST /edit-approvals/{id}/reject` | Reject edit request |
+| `GET /pl-summary?start_date=&end_date=&truck_id=` | Per-truck & per-trip P&L breakdown |
+| `GET /maintenance/records` | Maintenance / service records list |
+| `GET /maintenance/status` | Maintenance summary (spend, open jobs) |
+| `GET /maintenance/trucks/{truck_id}/status` | Per-truck service history & next service |
 
 **WebSocket:** `wss://erpbackend.canaanglobalinternational.com/ws`  
 Events: `trip_updated`, `trip_assigned`, `trip_completed` — use for live badge counts and trip status updates.
 
-### Flutter API Client Base (`lib/core/api/api_client.dart`)
-```dart
-const String kBaseUrl = 'https://erpbackend.canaanglobalinternational.com';
-const String kWsUrl   = 'wss://erpbackend.canaanglobalinternational.com/ws';
+### API Client Base (`src/api/client.ts`)
+```ts
+export const BASE_URL = 'https://erpbackend.canaanglobalinternational.com';
+export const WS_URL   = 'wss://erpbackend.canaanglobalinternational.com/ws';
 ```
 
 ---
@@ -484,50 +535,62 @@ const String kWsUrl   = 'wss://erpbackend.canaanglobalinternational.com/ws';
 
 ---
 
-## 14. Flutter Tech Stack
+## 14. React Native Tech Stack
 
 ### Framework
-- **Flutter** (stable channel, latest)
-- **Dart** 3.x
+- **React Native** via **Expo** (SDK 52+)
+- **TypeScript** 5.x
+- **Expo Router** (file-based routing, shares mental model with the web's Next.js App Router)
+
+> **Why React Native (not Flutter):** the web app is Next.js 16 / React 19 / TypeScript. React Native reuses the same language, the same TypeScript API models, validation logic, and API-client patterns — so a single developer maintains one ecosystem instead of two.
+
+> **Build note:** this app uses native modules (Firebase). It runs on an **Expo development build / EAS Build**, not Expo Go. Run `npx expo prebuild` to generate the native projects.
 
 ### Project Structure
 ```
-lib/
-├── main.dart
-├── app.dart                  # MaterialApp, theme, routing
-├── core/
-│   ├── api/                  # Dio client, interceptors, endpoints
-│   ├── auth/                 # JWT storage, login state
-│   ├── notifications/        # FCM setup, local notifications
-│   └── theme/                # AppTheme (light + dark)
-├── features/
-│   ├── dashboard/
-│   ├── trips/
-│   ├── fleet/
-│   ├── attendance/
-│   ├── approvals/
-│   └── profile/
-└── shared/
-    ├── widgets/              # StatCard, TripCard, Badge, BottomSheet
-    └── utils/
+app/                         # Expo Router — file-based routes
+├── _layout.tsx              # Root layout, providers, theme
+├── login.tsx
+├── (tabs)/
+│   ├── _layout.tsx          # Bottom tab navigator
+│   ├── index.tsx            # Dashboard (Home)
+│   ├── trips.tsx            # Current Trips
+│   ├── history.tsx          # Trip History
+│   ├── alerts.tsx           # Notifications / Approvals
+│   └── more.tsx             # Nav drawer / full menu
+├── trips/[id].tsx           # Trip detail
+├── fleet/index.tsx
+├── attendance/index.tsx
+└── profile.tsx
+src/
+├── api/                     # axios client, interceptors, endpoints
+├── auth/                    # JWT storage, auth context/provider
+├── notifications/           # FCM + expo-notifications setup
+├── theme/                   # color + typography tokens (light/dark)
+├── components/              # StatCard, TripCard, Badge, BottomSheet
+├── hooks/                   # useTrips, useDashboard, useApprovals…
+└── utils/
 ```
 
 ### Key Packages
 
 | Package | Purpose |
 |---|---|
-| `firebase_core` | Firebase initialisation |
-| `firebase_messaging` | FCM push notifications |
-| `flutter_local_notifications` | Show notifications when app is in foreground |
-| `dio` | HTTP client (interceptors for JWT auth) |
-| `flutter_secure_storage` | Store JWT token securely |
-| `go_router` | Declarative routing + deep link handling |
-| `riverpod` / `flutter_bloc` | State management |
-| `cached_network_image` | Image caching |
-| `intl` | Date formatting (Indian locale `en_IN`) |
-| `shimmer` | Skeleton loading effect |
-| `lucide_icons` / `material_symbols_icons` | Icons matching web Lucide set |
-| `google_fonts` | Plus Jakarta Sans font |
+| `expo` | Core framework & tooling |
+| `expo-router` | File-based routing + deep-link handling |
+| `@react-native-firebase/app` | Firebase initialisation |
+| `@react-native-firebase/messaging` | FCM push notifications |
+| `expo-notifications` | Foreground banners + Android channels + app badge |
+| `axios` | HTTP client (interceptors for JWT auth) |
+| `expo-secure-store` | Store JWT token securely |
+| `@tanstack/react-query` | Server state, caching, refetch, pull-to-refresh |
+| `zustand` | Lightweight client/UI state |
+| `react-native-reanimated` | Animations (bottom sheet, card press) |
+| `@gorhom/bottom-sheet` | Bottom-sheet detail views (see 7.7) |
+| `lucide-react-native` | Icons matching the web Lucide set |
+| `@expo-google-fonts/plus-jakarta-sans` | Plus Jakarta Sans font |
+| `date-fns` | Date formatting (Indian locale `en-IN`) |
+| `react-native-mmkv` | Fast local storage (theme preference, cache) |
 
 ---
 
@@ -572,163 +635,134 @@ Firebase Cloud Messaging (FCM)
 
 ---
 
-### 15.2 Flutter Setup
+### 15.2 React Native Setup
 
 #### Step 1 — Firebase Project
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
 2. Add **Android** app (`com.canaanglobalinternational.erp`)
 3. Add **iOS** app (`com.canaanglobalinternational.erp`)
-4. Download `google-services.json` → place at `android/app/google-services.json`
-5. Download `GoogleService-Info.plist` → place at `ios/Runner/GoogleService-Info.plist`
+4. Download `google-services.json` → place at project root
+5. Download `GoogleService-Info.plist` → place at project root
 
-#### Step 2 — Android Config (`android/app/build.gradle`)
-```gradle
-apply plugin: 'com.google.gms.google-services'
+#### Step 2 — Expo Config (`app.json`)
+Wire the Firebase files and native modules through Expo config plugins. `expo prebuild` generates the native iOS/Android projects from this — no manual Xcode/Gradle edits needed.
 
-android {
-    defaultConfig {
-        minSdkVersion 29
-    }
-}
-```
-
-`android/build.gradle`:
-```gradle
-dependencies {
-    classpath 'com.google.gms:google-services:4.4.0'
-}
-```
-
-#### Step 3 — iOS Config
-In Xcode:
-1. Enable **Push Notifications** capability
-2. Enable **Background Modes** → check `Remote notifications` and `Background fetch`
-3. Upload APNs Auth Key (`.p8`) to Firebase Console → Project Settings → Cloud Messaging → iOS app
-
-`ios/Runner/Info.plist` — add:
-```xml
-<key>FirebaseAppDelegateProxyEnabled</key>
-<false/>
-```
-
-#### Step 4 — Flutter Code
-
-**`lib/core/notifications/fcm_service.dart`**
-```dart
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-
-@pragma('vm:entry-point')
-Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
-  // Handle background messages (app terminated / background)
-  // No UI work here — system tray handles display automatically
-}
-
-class FCMService {
-  static final _messaging = FirebaseMessaging.instance;
-  static final _localNotifications = FlutterLocalNotificationsPlugin();
-
-  static Future<void> init() async {
-    // Request permission (iOS always, Android 13+)
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // Background handler must be top-level function
-    FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
-
-    // Local notification channel (Android)
-    const androidChannel = AndroidNotificationChannel(
-      'canaan_erp_high', // id
-      'Canaan ERP Alerts',
-      description: 'Trip, approval, and compliance alerts',
-      importance: Importance.high,
-    );
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChannel);
-
-    // Initialise local notifications plugin
-    await _localNotifications.initialize(
-      const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        iOS: DarwinInitializationSettings(),
-      ),
-      onDidReceiveNotificationResponse: _onNotificationTap,
-    );
-
-    // Foreground: show local notification banner
-    FirebaseMessaging.onMessage.listen((message) {
-      final notification = message.notification;
-      if (notification == null) return;
-      _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'canaan_erp_high',
-            'Canaan ERP Alerts',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
-        payload: message.data['deep_link'],
-      );
-    });
-
-    // Background tap: app was in background, user tapped notification
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleDeepLink);
-
-    // Terminated tap: app was closed, user tapped notification
-    final initial = await _messaging.getInitialMessage();
-    if (initial != null) _handleDeepLink(initial);
-  }
-
-  static void _onNotificationTap(NotificationResponse response) {
-    if (response.payload != null) {
-      // Navigate via GoRouter
-      AppRouter.router.push(response.payload!);
+```json
+{
+  "expo": {
+    "plugins": [
+      "expo-router",
+      "@react-native-firebase/app",
+      ["expo-build-properties", { "ios": { "useFrameworks": "static" } }],
+      ["expo-notifications", { "icon": "./assets/notification-icon.png" }]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.canaanglobalinternational.erp",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": { "aps-environment": "production" },
+      "infoPlist": { "UIBackgroundModes": ["remote-notification"] }
+    },
+    "android": {
+      "package": "com.canaanglobalinternational.erp",
+      "googleServicesFile": "./google-services.json"
     }
   }
-
-  static void _handleDeepLink(RemoteMessage message) {
-    final link = message.data['deep_link'];
-    if (link != null) AppRouter.router.push(link);
-  }
-
-  /// Call after login — sends FCM token to backend for storage
-  static Future<void> registerToken(String jwtToken) async {
-    final fcmToken = await _messaging.getToken();
-    if (fcmToken == null) return;
-    await ApiClient.post(
-      '/users/me/fcm-token',
-      data: {'fcm_token': fcmToken},
-      token: jwtToken,
-    );
-    // Refresh token if FCM rotates it
-    _messaging.onTokenRefresh.listen((newToken) {
-      ApiClient.post('/users/me/fcm-token', data: {'fcm_token': newToken}, token: jwtToken);
-    });
-  }
 }
 ```
 
-**Call order in `main.dart`:**
-```dart
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await FCMService.init();
-  runApp(const App());
+#### Step 3 — iOS Push (APNs)
+1. In the Apple Developer portal, create an **APNs Auth Key** (`.p8`).
+2. Upload it to Firebase Console → Project Settings → Cloud Messaging → iOS app.
+3. The `aps-environment` entitlement above enables Push Notifications; `expo prebuild` applies it. No manual Xcode capability toggling required.
+
+#### Step 4 — React Native Code
+
+**`src/notifications/fcm.ts`**
+```ts
+import messaging from '@react-native-firebase/messaging';
+import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
+import { api } from '../api/client';
+
+// How foreground notifications are presented
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+// Background/terminated handler — must be registered at top level (see index.js)
+messaging().setBackgroundMessageHandler(async () => {
+  // System tray displays the notification automatically; no UI work needed.
+});
+
+export async function initFCM() {
+  // Request permission (iOS always, Android 13+)
+  await messaging().requestPermission();
+
+  // Android channel (matches the high-importance channel used by the backend)
+  await Notifications.setNotificationChannelAsync('canaan_erp_high', {
+    name: 'Canaan ERP Alerts',
+    importance: Notifications.AndroidImportance.HIGH,
+  });
+
+  // Foreground: show a local banner (FCM does not display these by default)
+  messaging().onMessage(async (message) => {
+    const n = message.notification;
+    if (!n) return;
+    await Notifications.scheduleNotificationAsync({
+      content: { title: n.title, body: n.body, data: message.data },
+      trigger: null,
+    });
+  });
+
+  // Background tap: app was in background, user tapped the notification
+  messaging().onNotificationOpenedApp((m) => handleDeepLink(m?.data?.deep_link));
+
+  // Terminated tap: app was closed, user tapped the notification
+  const initial = await messaging().getInitialMessage();
+  if (initial) handleDeepLink(initial.data?.deep_link);
+
+  // Tap on a foreground banner shown via expo-notifications
+  Notifications.addNotificationResponseReceivedListener((resp) => {
+    handleDeepLink(resp.notification.request.content.data?.deep_link as string);
+  });
+}
+
+function handleDeepLink(link?: string) {
+  if (link) router.push(link);
+}
+
+/** Call after login — sends the FCM token to the backend for storage */
+export async function registerFcmToken() {
+  const token = await messaging().getToken();
+  if (!token) return;
+  await api.post('/users/me/fcm-token', { fcm_token: token });
+  // Refresh if FCM rotates the token
+  messaging().onTokenRefresh((newToken) =>
+    api.post('/users/me/fcm-token', { fcm_token: newToken }),
+  );
+}
+```
+
+**Call order in the root layout (`app/_layout.tsx`):**
+```tsx
+import { useEffect } from 'react';
+import { initFCM } from '../src/notifications/fcm';
+
+export default function RootLayout() {
+  useEffect(() => {
+    initFCM();
+  }, []);
+  // …providers + <Stack /> …
 }
 ```
 
 **Call after successful login:**
-```dart
-await FCMService.registerToken(jwtToken);
+```ts
+await registerFcmToken();
 ```
 
 ---
@@ -856,7 +890,7 @@ Update badge count:
 2. On FCM message received (increment badge locally)
 3. After approving/rejecting (decrement badge locally + refetch)
 
-iOS badge number: set via `messaging.setForegroundNotificationPresentationOptions` and `APNSPayload(aps=Aps(badge=N))` from backend.
+iOS badge number: set locally via `Notifications.setBadgeCountAsync(N)` from `expo-notifications`, and from the backend via `APNSPayload(aps=Aps(badge=N))`.
 
 ---
 
@@ -868,8 +902,10 @@ These features are intentionally excluded from the mobile app v1:
 - Trip sheet entry / reconciliation
 - Yard supervisor sheet collection
 - Tyre management & inventory
+- **Creating / editing** maintenance records (mobile is view-only; entry stays on web)
 - EMI & compensation management
 - Branch / SAC code / expense rate administration
 - Excel export / PDF downloads
-- P&L summary
 - LR (Lorry Receipt) generation
+
+> **Note:** P&L summary and maintenance records are **viewable** on mobile (Screens 7 & 8). Only their data-entry/editing flows remain web-only.

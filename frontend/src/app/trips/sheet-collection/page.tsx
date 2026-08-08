@@ -10,7 +10,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
-import { formatDate, todayIst } from "@/lib/format-date";
+import { formatDate } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -47,9 +47,9 @@ export default function SheetCollectionPage() {
   const [downloading, setDownloading] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
-  // Date range — filters table and PDF export (defaults to today)
-  const [dateFrom, setDateFrom] = useState(todayIst);
-  const [dateTo, setDateTo] = useState(todayIst);
+  // Date range — scopes the PDF export only (starts empty = all delivered sheets)
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   // Advance verification panel state
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
@@ -128,16 +128,12 @@ export default function SheetCollectionPage() {
   const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
   const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
 
+  // Note: the date range (from/to) intentionally does NOT filter the table —
+  // it only scopes the "Download PDF" export below.
   const tableTrips = filtered.filter((t) => {
     if (statusFilter === "Pending" && t.tripSheetCollected) return false;
     if (statusFilter === "Delivered" && !t.tripSheetCollected) return false;
     if (statusFilter === "Overdue" && !overdueIds.has(t.id)) return false;
-    // Date range: filter by trip's scheduled date (matches the TRIP DATE column)
-    if ((fromMs || toMs) && t.scheduledDate) {
-      const ms = new Date(t.scheduledDate).getTime();
-      if (fromMs && ms < fromMs) return false;
-      if (toMs   && ms > toMs)   return false;
-    }
     return true;
   });
 
@@ -258,7 +254,7 @@ export default function SheetCollectionPage() {
   async function handleDownloadPDF() {
     if (downloading || collected.length === 0) return;
 
-    // Filter by scheduled date (matches table filter)
+    // Filter by scheduled date (the date range scopes the export only, not the table)
     const pdfTrips = collected.filter((t) => {
       if (!t.scheduledDate) return true;
       const ms = new Date(t.scheduledDate).getTime();

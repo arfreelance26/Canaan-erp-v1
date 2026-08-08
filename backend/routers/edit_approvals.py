@@ -86,6 +86,7 @@ def approve_edit_request(
 
     req.status = "Approved"
     req.approved_at = datetime.now(timezone.utc)
+    req.approved_by_name = _.name
     req.admin_note = (payload.admin_note or "").strip() if payload else None
 
     if req.action == "Delete" and req.resource_type == "Trip":

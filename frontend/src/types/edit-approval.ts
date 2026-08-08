@@ -13,6 +13,7 @@ export type EditApprovalRequest = {
   action: EditApprovalAction;
   reason: string;
   adminNote: string | null;
+  approvedByName: string | null;
   status: EditApprovalStatus;
   approvedAt: string | null;
   expiresAt: string | null;

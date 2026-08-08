@@ -75,6 +75,9 @@ CLAUDE.md
 # desktop (Electron) — not part of the web app
 desktop/
 
+# mobile (Flutter) — separate app, not part of the web repo
+Canaan_mobile/
+
 # sensitive environment files (never commit real credentials)
 backend/.env
 frontend/.env.local

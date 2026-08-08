@@ -158,16 +158,24 @@ export default function TripReconciliationPage() {
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
-  function hasTripSheetApproval(trip: Trip): boolean {
-    return myActiveApprovals.some(
+  function getTripSheetApproval(trip: Trip) {
+    return myActiveApprovals.find(
       (a) => a.resourceType === "TripSheet" && String(a.resourceId) === trip.id,
-    );
+    ) ?? null;
+  }
+
+  function getBookingSheetApproval(trip: Trip) {
+    return myActiveApprovals.find(
+      (a) => a.resourceType === "BookingSheet" && String(a.resourceId) === trip.id,
+    ) ?? null;
+  }
+
+  function hasTripSheetApproval(trip: Trip): boolean {
+    return getTripSheetApproval(trip) !== null;
   }
 
   function hasBookingSheetApproval(trip: Trip): boolean {
-    return myActiveApprovals.some(
-      (a) => a.resourceType === "BookingSheet" && String(a.resourceId) === trip.id,
-    );
+    return getBookingSheetApproval(trip) !== null;
   }
 
   function openDialog(trip: Trip, mode: DialogMode) {
@@ -688,6 +696,15 @@ export default function TripReconciliationPage() {
                         {/* Booking Sheet */}
                         <div className="flex flex-col gap-0.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Booking Sheet</p>
+                          {(() => {
+                            const appr = getBookingSheetApproval(trip);
+                            if (!appr) return null;
+                            return (
+                              <p className="mb-0.5 text-[10px] font-semibold text-emerald-700">
+                                ✓ {appr.approvedByName ?? "Approver"} approved your Edit Request
+                              </p>
+                            );
+                          })()}
                           <div className="flex gap-1.5">
                             <button
                               type="button"
@@ -717,9 +734,9 @@ export default function TripReconciliationPage() {
                                   {trip.verificationRejectionReason}
                                 </p>
                               )}
-                              {hasTripSheetApproval(trip) ? (
+                              {getTripSheetApproval(trip) ? (
                                 <p className="text-[10px] font-semibold text-emerald-700">
-                                  ✓ Kumar approved your edit request — you can now edit the trip sheet.
+                                  ✓ {getTripSheetApproval(trip)!.approvedByName ?? "Approver"} approved your Edit Request
                                 </p>
                               ) : (
                                 <button
@@ -749,6 +766,15 @@ export default function TripReconciliationPage() {
                               )}
                             </div>
                           )}
+                          {(() => {
+                            const appr = getTripSheetApproval(trip);
+                            if (!appr || trip.verificationStatus === "rejected") return null;
+                            return (
+                              <p className="mb-0.5 text-[10px] font-semibold text-emerald-700">
+                                ✓ {appr.approvedByName ?? "Approver"} approved your Edit Request
+                              </p>
+                            );
+                          })()}
                           {sheet ? (
                             <div className="flex gap-1.5">
                               <button

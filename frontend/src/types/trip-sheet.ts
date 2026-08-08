@@ -59,8 +59,10 @@ export type TripSheetData = {
   // Driver Settlement
   driverCompensationType: string;
   driverPay: string;
-  driverAdvanceAmount: string;  // auto-fetched from trip.driverAdvanceAmount
-  driverBalance: string;        // auto-calculated: driverPay - driverAdvanceAmount
+  driverAdvance: string;            // editable: base advance paid at trip assignment
+  additionalDriverAdvance: string;  // editable: extra advance paid during trip
+  driverAdvanceAmount: string;      // computed sum (adjusted for initialDisbursedAdvance)
+  driverBalance: string;            // auto-calculated: driverExpenses - driverAdvanceAmount
 
   // Trip Expenses — Stay & Driver
   totalHaltDays: string;

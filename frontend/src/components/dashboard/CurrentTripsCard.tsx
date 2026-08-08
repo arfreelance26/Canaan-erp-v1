@@ -94,7 +94,13 @@ export function CurrentTripsCard() {
   const filteredTrips = useMemo(() => {
     const q = tripSearch.trim().toLowerCase();
     if (!q) return trips;
-    return trips.filter((t) => (t.tripId ?? "").toLowerCase().includes(q));
+    return trips.filter((t) =>
+      (t.tripId          ?? "").toLowerCase().includes(q) ||
+      (t.truckRegistration ?? "").toLowerCase().includes(q) ||
+      (t.driverName      ?? "").toLowerCase().includes(q) ||
+      (t.origin          ?? "").toLowerCase().includes(q) ||
+      (t.destination     ?? "").toLowerCase().includes(q)
+    );
   }, [trips, tripSearch]);
 
   const newCount = newTripIds.size;
@@ -128,8 +134,8 @@ export function CurrentTripsCard() {
               type="text"
               value={tripSearch}
               onChange={(e) => setTripSearch(e.target.value)}
-              placeholder="Search Trip ID…"
-              className="h-6 w-36 rounded-full border border-blue-200 bg-blue-50 pl-6 pr-5 text-[11px] text-blue-800 placeholder:text-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              placeholder="Trip ID, Truck, Driver, From/To…"
+              className="h-6 w-48 rounded-full border border-blue-200 bg-blue-50 pl-6 pr-5 text-[11px] text-blue-800 placeholder:text-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
             {tripSearch && (
               <button

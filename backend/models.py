@@ -479,6 +479,8 @@ class TripSheet(Base):
     # Driver Settlement
     driver_compensation_type = Column(String(50), nullable=True)
     driver_pay = Column(Numeric(10, 2), default=0)
+    driver_advance = Column(Numeric(10, 2), nullable=True)
+    additional_driver_advance = Column(Numeric(10, 2), nullable=True)
     driver_advance_amount = Column(Numeric(10, 2), default=0)
     driver_balance = Column(Numeric(10, 2), default=0)
     # Expenses
@@ -866,6 +868,7 @@ class EditApprovalRequest(Base):
     reason = Column(Text, nullable=False)
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
     admin_note = Column(Text, nullable=True)
+    approved_by_name = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)         # approved_at + 1 hour
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

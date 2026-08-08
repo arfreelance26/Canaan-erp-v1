@@ -86,6 +86,7 @@ export default function TripVerificationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<"All" | "Tax Invoice" | "Bill of Supply" | "Transport Memo">("All");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -280,7 +281,14 @@ export default function TripVerificationPage() {
       if (statusFilter === "Pending")  return !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id);
       if (statusFilter === "Rejected") return rejectedIds.has(t.id);
       if (statusFilter === "Verified") return verifiedIds.has(t.id) && !invoicedIds.has(t.id);
-      if (statusFilter === "Invoiced") return invoicedIds.has(t.id);
+      if (statusFilter === "Invoiced") {
+        if (!invoicedIds.has(t.id)) return false;
+        if (invoiceTypeFilter !== "All") {
+          const invType = (invoiceData.get(t.id)?.invoice_type ?? "") as string;
+          return invType === invoiceTypeFilter;
+        }
+        return true;
+      }
       return true;
     })
     .sort((a, b) => {
@@ -329,7 +337,7 @@ export default function TripVerificationPage() {
           <button
             key={key}
             type="button"
-            onClick={() => { setStatusFilter(key); setPage(1); }}
+            onClick={() => { setStatusFilter(key); setPage(1); if (key !== "Invoiced") setInvoiceTypeFilter("All"); }}
             className={`rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${color} ${statusFilter === key ? "ring-2 ring-blue-500 shadow-md" : "hover:shadow-sm"}`}
           >
             <p className="text-xs font-semibold uppercase tracking-wider opacity-70">{label}</p>
@@ -338,14 +346,34 @@ export default function TripVerificationPage() {
         ))}
       </div>
 
-      {/* Workflow steps legend */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
-        <span className="font-semibold text-gray-600">Workflow:</span>
-        <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-yellow-500" /> Pending → verify trip data</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Verified → generate invoice</span>
-        <span className="text-gray-300">›</span>
-        <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5 text-blue-500" /> Invoiced</span>
+      {/* Workflow steps legend + invoice type sub-filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-semibold text-gray-600">Workflow:</span>
+          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-yellow-500" /> Pending → verify trip data</span>
+          <span className="text-gray-300">›</span>
+          <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Verified → generate invoice</span>
+          <span className="text-gray-300">›</span>
+          <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5 text-blue-500" /> Invoiced</span>
+        </div>
+        {/* Invoice type sub-filter — only visible when Invoiced tab is selected */}
+        {statusFilter === "Invoiced" && <div className="flex items-center gap-1">
+          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Invoice Type:</span>
+          {(["All", "Tax Invoice", "Bill of Supply", "Transport Memo"] as const).map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { setInvoiceTypeFilter(opt); setPage(1); }}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+                invoiceTypeFilter === opt
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "border border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600"
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>}
       </div>
 
       {filteredTrips.length === 0 ? (

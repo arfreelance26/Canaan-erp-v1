@@ -162,6 +162,7 @@ function commonFields(
         qty: n(s.quantity),
         rate: fmt(n(s.rate)),
         gstRate: s.gstRate || "",
+        gstAmount: gst,
         total: fmt(base + gst),
       };
     }) : buildServiceItems(closure),

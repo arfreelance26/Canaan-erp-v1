@@ -71,6 +71,8 @@ const emptySheet = (tripId: string): TripSheetData => ({
   dieselLitres: "", dieselRate: "", dieselTotal: "", dieselRemarks: "",
   driverCompensationType: "",
   driverPay: "",
+  driverAdvance: "",
+  additionalDriverAdvance: "",
   driverAdvanceAmount: "",
   driverBalance: "",
   totalHaltDays: "", haltRemarks: "", haltPay: "",
@@ -107,12 +109,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [costPerKm, setCostPerKm] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [invoiceRequired, setInvoiceRequired] = useState(true);
-  const [localDriverAdvance, setLocalDriverAdvance] = useState("");
-  const [localAdditionalAdvance, setLocalAdditionalAdvance] = useState("");
+  // driverAdvance and additionalDriverAdvance live in form (TripSheetData) — not local state
   const [localInitialDisbursedAdvance, setLocalInitialDisbursedAdvance] = useState("");
   const [expenseConfig, setExpenseConfig] = useState<TripExpenseRate | null>(null);
   // Tracks which session has been initialized to prevent auto-refresh from resetting the form
   const initKeyRef = useRef<string>("");
+  // Guards localInitialDisbursedAdvance so WS-triggered trip refreshes don't overwrite user edits
+  const localInitDoneRef = useRef(false);
 
   useEffect(() => {
     repairTypesApi.list().then(setRepairTypes).catch(() => setRepairTypes([]));
@@ -135,15 +138,37 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   useEffect(() => {
     if (!open || !trip) {
       initKeyRef.current = "";
+      localInitDoneRef.current = false;
       return;
     }
 
-    // For new sheets: include whether expenseConfig is loaded so the effect re-runs
-    // when the config arrives (which may be async) and can apply auto-populate pre-fills.
-    // For existing sheets: key never changes so we don't overwrite in-progress edits.
+    // Key is stable per session: existing sheets key on their sheet number; new sheets
+    // use a plain "::new" key. expenseConfig is deliberately excluded — it arrives async
+    // and is applied via a functional setForm patch below so it never resets user edits.
     const key = existingSheet
       ? `${trip.id}::${existingSheet.tripSheetNo}`
-      : `${trip.id}::new::${expenseConfig ? "1" : "0"}`;
+      : `${trip.id}::new`;
+
+    // If a new sheet is already initialised and expenseConfig just arrived, patch ONLY
+    // the expense auto-populate fields (leave everything else — especially advance fields
+    // — untouched).
+    if (!existingSheet && initKeyRef.current === key && expenseConfig) {
+      setForm((prev) => {
+        const patch: Partial<typeof prev> = {};
+        if (!prev.portPassExpense     && expenseConfig.portPassExpenseAuto     && expenseConfig.portPassExpense     > 0) patch.portPassExpense     = String(expenseConfig.portPassExpense);
+        if (!prev.weightSheetExpense  && expenseConfig.weightSheetExpenseAuto  && expenseConfig.weightSheetExpense  > 0) patch.weightSheetExpense  = String(expenseConfig.weightSheetExpense);
+        if (!prev.mamolExpense        && expenseConfig.mamolExpenseAuto        && expenseConfig.mamolExpense        > 0) patch.mamolExpense        = String(expenseConfig.mamolExpense);
+        if (!prev.claimableMamolExpense && expenseConfig.claimableMamolExpenseAuto && expenseConfig.claimableMamolExpense > 0) patch.claimableMamolExpense = String(expenseConfig.claimableMamolExpense);
+        if (!prev.trafficRtoExpense   && expenseConfig.trafficRtoExpenseAuto   && expenseConfig.trafficRtoExpense   > 0) patch.trafficRtoExpense   = String(expenseConfig.trafficRtoExpense);
+        if (!prev.liftOnOffExpense    && expenseConfig.liftOnOffExpenseAuto    && expenseConfig.liftOnOffExpense    > 0) patch.liftOnOffExpense    = String(expenseConfig.liftOnOffExpense);
+        if (!prev.craneOperatorExpense && expenseConfig.craneOperatorExpenseAuto && expenseConfig.craneOperatorExpense > 0) patch.craneOperatorExpense = String(expenseConfig.craneOperatorExpense);
+        if (!prev.parkingExpense      && expenseConfig.parkingExpenseAuto      && expenseConfig.parkingExpense      > 0) patch.parkingExpense      = String(expenseConfig.parkingExpense);
+        if (Object.keys(patch).length === 0) return prev;
+        return recalcDerived({ ...prev, ...patch }, hp);
+      });
+      return;
+    }
+
     if (initKeyRef.current === key) return;
     initKeyRef.current = key;
     setInvoiceRequired(trip.invoiceRequired ?? true);
@@ -165,6 +190,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           ? existingSheet.dieselEntries
           : [emptyDieselEntry(existingSheet.tripSheetDate || todayIst())],
         driverCompensationType: existingSheet.driverCompensationType || trip.driverCompensationType || battaCompType,
+        // Fallback to closure for old sheets saved before these columns existed
+        driverAdvance:           existingSheet.driverAdvance           || String(closure?.driverAdvance           ?? ""),
+        additionalDriverAdvance: existingSheet.additionalDriverAdvance || String(closure?.additionalDriverAdvance  ?? ""),
       }, hp));
     } else {
       const sheet = emptySheet(trip.id);
@@ -189,8 +217,11 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       sheet.hireAmount              = trip.transportHireAmount ?? "";
       sheet.driverCompensationType  = trip.driverCompensationType || battaCompType;
       sheet.driverPay               = trip.driverAdvanceAmount ?? "";
-      // If initialDisbursedAdvance is recorded it IS the effective amount given to the
-      // driver, so use it as the base for balance; otherwise fall back to driverAdvance.
+      // Store the individual advance breakdown so each field is independently editable.
+      sheet.driverAdvance           = String(closure?.driverAdvance           ?? "");
+      sheet.additionalDriverAdvance = String(closure?.additionalDriverAdvance  ?? "");
+      // Compute the total: if initialDisbursedAdvance is set it replaces driverAdvance
+      // as the effective base (the actual cash handed to the driver).
       const effBase = trip.initialDisbursedAdvance
         ? Number(trip.initialDisbursedAdvance)
         : Number(closure?.driverAdvance || 0);
@@ -225,16 +256,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     }
   }, [open, trip, existingSheet, closure, expenseConfig]);
 
-  // Sync advance breakdown locals whenever closure/trip loads (independent of initKeyRef)
+  // Sync initialDisbursedAdvance once per dialog open session.
+  // Uses localInitDoneRef so WS-triggered trip prop updates never overwrite user edits mid-session.
   useEffect(() => {
-    if (!open || !closure) return;
-    setLocalDriverAdvance(String(closure.driverAdvance ?? ""));
-    setLocalAdditionalAdvance(String(closure.additionalDriverAdvance ?? ""));
-  }, [open, closure]);
-
-  useEffect(() => {
-    if (!open || !trip) return;
+    if (!open || !trip || localInitDoneRef.current) return;
     setLocalInitialDisbursedAdvance(trip.initialDisbursedAdvance ?? "");
+    localInitDoneRef.current = true;
   }, [open, trip]);
 
   function set<K extends keyof TripSheetData>(key: K, value: TripSheetData[K]) {
@@ -242,30 +269,33 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   }
 
   function updateAdvanceField(field: "driver" | "additional", value: string) {
-    const newDriverAdv = field === "driver"     ? value : localDriverAdvance;
-    const newAddlAdv   = field === "additional" ? value : localAdditionalAdvance;
-    if (field === "driver")     setLocalDriverAdvance(value);
-    if (field === "additional") setLocalAdditionalAdvance(value);
-    // If initialDisbursedAdvance is set it IS the effective advance given to the driver,
-    // replacing driverAdvance for balance purposes (not adding to it).
-    const effectiveBase = localInitialDisbursedAdvance.trim()
-      ? (parseFloat(localInitialDisbursedAdvance) || 0)
-      : (parseFloat(newDriverAdv) || 0);
-    const total = effectiveBase + (parseFloat(newAddlAdv) || 0);
-    set("driverAdvanceAmount", total > 0 ? total.toFixed(2) : "");
+    setForm((prev) => {
+      const newDriverAdv = field === "driver"     ? value : prev.driverAdvance;
+      const newAddlAdv   = field === "additional" ? value : prev.additionalDriverAdvance;
+      // initialDisbursedAdvance overrides driverAdvance as the effective cash-in-hand amount
+      const effectiveBase = localInitialDisbursedAdvance.trim()
+        ? (parseFloat(localInitialDisbursedAdvance) || 0)
+        : (parseFloat(newDriverAdv) || 0);
+      const total = effectiveBase + (parseFloat(newAddlAdv) || 0);
+      return recalcDerived({
+        ...prev,
+        driverAdvance:           newDriverAdv,
+        additionalDriverAdvance: newAddlAdv,
+        driverAdvanceAmount:     total > 0 ? total.toFixed(2) : "",
+      }, haltPay);
+    });
   }
 
   function handleInitialDisbursedChange(value: string) {
-    // Strip everything except digits and a single decimal point
     const sanitized = value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
     // Must be strictly less than Driver Advance
-    const driverAdv = parseFloat(localDriverAdvance) || 0;
+    const driverAdv = parseFloat(form.driverAdvance) || 0;
     if (sanitized !== "" && parseFloat(sanitized) >= driverAdv) return;
     setLocalInitialDisbursedAdvance(sanitized);
     const effectiveBase = sanitized.trim()
       ? (parseFloat(sanitized) || 0)
       : driverAdv;
-    const total = effectiveBase + (parseFloat(localAdditionalAdvance) || 0);
+    const total = effectiveBase + (parseFloat(form.additionalDriverAdvance) || 0);
     set("driverAdvanceAmount", total > 0 ? total.toFixed(2) : "");
   }
 
@@ -550,13 +580,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <div className="flex items-center justify-between">
               <span className="text-xs text-teal-700">Driver Advance</span>
               <span className="text-sm font-semibold text-teal-900">
-                {localDriverAdvance ? `₹${Number(localDriverAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
+                {form.driverAdvance ? `₹${Number(form.driverAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-teal-700">Additional Advance</span>
               <span className="text-sm font-semibold text-teal-900">
-                {localAdditionalAdvance ? `₹${Number(localAdditionalAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
+                {form.additionalDriverAdvance ? `₹${Number(form.additionalDriverAdvance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "₹0.00"}
               </span>
             </div>
           </div>
@@ -925,7 +955,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             const corrected   = parseFloat(String(trip.advanceCorrectedAmount)) || 0;
             const recorded    = parseFloat(String(closure?.driverAdvance || 0)) || 0;
             if (Math.abs(corrected - recorded) < 0.01) return null;
-            const current   = (parseFloat(localDriverAdvance) || 0) + (parseFloat(localAdditionalAdvance) || 0);
+            const current   = (parseFloat(form.driverAdvance) || 0) + (parseFloat(form.additionalDriverAdvance) || 0);
             if (corrected > 0 && Math.abs(current - corrected) < 0.01) return null;
             return (
               <div className="sm:col-span-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -977,7 +1007,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               type="number"
               min="0"
               className={fc}
-              value={localDriverAdvance}
+              value={form.driverAdvance}
               readOnly={ro}
               onChange={(e) => updateAdvanceField("driver", e.target.value)}
               placeholder="e.g. 2000"
@@ -997,7 +1027,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             />
             <p className="mt-1 text-xs text-gray-400">
               Actual amount disbursed to driver — must be less than Driver Advance
-              {localDriverAdvance ? ` (₹${parseFloat(localDriverAdvance).toLocaleString("en-IN")})` : ""}.
+              {form.driverAdvance ? ` (₹${parseFloat(form.driverAdvance).toLocaleString("en-IN")})` : ""}.
               Leave blank if the full advance was sent.
               {localInitialDisbursedAdvance && (
                 <span className="ml-1 font-semibold text-blue-600">
@@ -1011,7 +1041,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               type="number"
               min="0"
               className={fc}
-              value={localAdditionalAdvance}
+              value={form.additionalDriverAdvance}
               readOnly={ro}
               onChange={(e) => updateAdvanceField("additional", e.target.value)}
               placeholder="e.g. 500"
