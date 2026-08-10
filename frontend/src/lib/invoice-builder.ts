@@ -58,6 +58,17 @@ function fmt(v: number): string {
   return v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Grand Total rounded half-DOWN to the nearest rupee (fraction > 0.5 rounds up,
+// fraction <= 0.5 rounds down). e.g. 46,020.60 → 46,021 ; 46,020.50 → 46,020.
+function roundGrandTotal(x: number): number {
+  const cents = Math.round(x * 100) / 100;
+  return Math.ceil(cents - 0.5);
+}
+
+function fmtInt(v: number): string {
+  return v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
 function fmtDate(iso: string): string {
   if (!iso || iso.length < 10) return iso;
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -203,11 +214,12 @@ export function buildBillOfSupply(
     ? computeServiceTotals(invoice.services)
     : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
   const grand = subtotal + gstTotal;
+  const grandRounded = roundGrandTotal(grand);
   return {
     ...commonFields(trip, closure, sheet, customer, invoice),
     subtotal: fmt(grand),
-    grandTotal: fmt(grand),
-    amountInWords: amountToWords(String(grand)),
+    grandTotal: fmtInt(grandRounded),
+    amountInWords: amountToWords(String(grandRounded)),
     hsnRows:  [{ hsn: "996791 — Goods Transport Services", taxableValue: fmt(subtotal) }],
     hsnTotal: fmt(subtotal),
   };
@@ -248,8 +260,8 @@ export function buildTransportMemo(
     billToName: invoice?.billTo || "Canaan Global International, Puthukottai, Tuticorin, Tamil Nadu, India.",
     billToAddress: undefined,
     subtotal: fmt(subtotal),
-    grandTotal: fmt(subtotal),
-    amountInWords: amountToWords(String(subtotal)),
+    grandTotal: fmtInt(roundGrandTotal(subtotal)),
+    amountInWords: amountToWords(String(roundGrandTotal(subtotal))),
     // Transport Memo does not show bank details, terms, contact, signatory or footer
     bankName: "",
     branchName: "",
@@ -280,12 +292,13 @@ export function buildTaxInvoice(
   const cgst = gstApp === "Yes" ? parseFloat((gstTotal / 2).toFixed(2)) : 0;
   const igst = igstApp === "Yes" ? gstTotal : 0;
   const grand = subtotal + (gstApp === "Yes" ? sgst + cgst : igstApp === "Yes" ? igst : gstTotal);
+  const grandRounded = roundGrandTotal(grand);
 
   return {
     ...commonFields(trip, closure, sheet, customer, invoice),
     subtotal: fmt(grand),
-    amountInWords: amountToWords(String(grand)),
-    grandTotal:    fmt(grand),
+    amountInWords: amountToWords(String(grandRounded)),
+    grandTotal:    fmtInt(grandRounded),
     hsnRows: [
       { description: "996791 — Goods Transport Services", value: fmt(subtotal) },
       ...(sgst > 0 ? [{ description: "SGST @ 9%", value: fmt(sgst) }, { description: "CGST @ 9%", value: fmt(cgst) }] : []),

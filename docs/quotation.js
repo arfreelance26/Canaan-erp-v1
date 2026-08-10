@@ -5,13 +5,13 @@ const {
 } = require('docx');
 const fs = require('fs');
 
-const NAVY        = "1B3157";
-const GOLD        = "C9A84C";
-const BODY        = "333333";
-const LABEL       = "555555";
-const GRAY_LIGHT  = "F5F5F5";
-const LIGHT_BLUE  = "EFF6FF";
-const WHITE       = "FFFFFF";
+const NAVY = "1B3157";
+const GOLD = "C9A84C";
+const BODY = "333333";
+const LABEL = "555555";
+const GRAY_LIGHT = "F5F5F5";
+const LIGHT_BLUE = "EFF6FF";
+const WHITE = "FFFFFF";
 const HEADER_GRAY = "888888";
 const CW = 9746;
 
@@ -58,26 +58,30 @@ function callout(label, text) {
   return new Table({
     width: { size: CW, type: WidthType.DXA },
     columnWidths: [CW],
-    rows: [new TableRow({ children: [
-      new TableCell({
-        borders: { top: thinBorder, bottom: thinBorder, right: thinBorder, left: { style: BorderStyle.SINGLE, size: 16, color: GOLD } },
-        shading: { fill: "FFF7E6", type: ShadingType.CLEAR },
-        margins: { top: 140, bottom: 140, left: 200, right: 200 },
-        children: [
-          new Paragraph({ spacing: { before: 0, after: 40 }, children: [new TextRun({ text: label, bold: true, size: 19, color: NAVY, font: "Calibri" })] }),
-          new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text, size: 19, color: BODY, font: "Calibri" })] }),
-        ]
-      })
-    ]})]
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          borders: { top: thinBorder, bottom: thinBorder, right: thinBorder, left: { style: BorderStyle.SINGLE, size: 16, color: GOLD } },
+          shading: { fill: "FFF7E6", type: ShadingType.CLEAR },
+          margins: { top: 140, bottom: 140, left: 200, right: 200 },
+          children: [
+            new Paragraph({ spacing: { before: 0, after: 40 }, children: [new TextRun({ text: label, bold: true, size: 19, color: NAVY, font: "Calibri" })] }),
+            new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text, size: 19, color: BODY, font: "Calibri" })] }),
+          ]
+        })
+      ]
+    })]
   });
 }
 
 // Meta row for cover table
 function metaRow(label, value, fill) {
-  return new TableRow({ children: [
-    new TableCell({ width: { size: 2800, type: WidthType.DXA }, borders: noBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 0, right: 120 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: label, size: 20, color: LABEL, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: CW-2800, type: WidthType.DXA }, borders: noBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 120, right: 0 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: value, bold: true, size: 20, color: NAVY, font: "Calibri" })] })] }),
-  ]});
+  return new TableRow({
+    children: [
+      new TableCell({ width: { size: 2800, type: WidthType.DXA }, borders: noBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 0, right: 120 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: label, size: 20, color: LABEL, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: CW - 2800, type: WidthType.DXA }, borders: noBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 120, right: 0 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: value, bold: true, size: 20, color: NAVY, font: "Calibri" })] })] }),
+    ]
+  });
 }
 
 // Generic data table
@@ -88,19 +92,23 @@ function dataTable(headers, rows, colWidths) {
     width: { size: CW, type: WidthType.DXA },
     columnWidths: norm,
     rows: [
-      new TableRow({ children: headers.map((h, i) => new TableCell({
-        width: { size: norm[i], type: WidthType.DXA }, borders: thinBorders,
-        shading: { fill: NAVY, type: ShadingType.CLEAR },
-        margins: { top: 90, bottom: 90, left: 120, right: 120 },
-        children: [new Paragraph({ alignment: i === norm.length - 1 && h.includes("(") ? AlignmentType.RIGHT : AlignmentType.LEFT, spacing:{before:0,after:0}, children: [new TextRun({ text: h, bold: true, size: 18, color: WHITE, font: "Calibri" })] })]
-      }))}),
-      ...rows.map((r, ri) => new TableRow({ children: r.map((cell, ci) => new TableCell({
-        width: { size: norm[ci], type: WidthType.DXA }, borders: thinBorders,
-        shading: { fill: ri % 2 === 0 ? WHITE : GRAY_LIGHT, type: ShadingType.CLEAR },
-        margins: { top: 80, bottom: 80, left: 120, right: 120 },
-        verticalAlign: VerticalAlign.TOP,
-        children: [new Paragraph({ alignment: ci === r.length - 1 && (cell.includes(",") && cell.includes("0")) ? AlignmentType.RIGHT : AlignmentType.LEFT, spacing:{before:0,after:0}, children: [new TextRun({ text: cell, size: 18, color: ci === 0 ? NAVY : BODY, bold: ci === 0, font: "Calibri" })] })]
-      }))}))
+      new TableRow({
+        children: headers.map((h, i) => new TableCell({
+          width: { size: norm[i], type: WidthType.DXA }, borders: thinBorders,
+          shading: { fill: NAVY, type: ShadingType.CLEAR },
+          margins: { top: 90, bottom: 90, left: 120, right: 120 },
+          children: [new Paragraph({ alignment: i === norm.length - 1 && h.includes("(") ? AlignmentType.RIGHT : AlignmentType.LEFT, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: h, bold: true, size: 18, color: WHITE, font: "Calibri" })] })]
+        }))
+      }),
+      ...rows.map((r, ri) => new TableRow({
+        children: r.map((cell, ci) => new TableCell({
+          width: { size: norm[ci], type: WidthType.DXA }, borders: thinBorders,
+          shading: { fill: ri % 2 === 0 ? WHITE : GRAY_LIGHT, type: ShadingType.CLEAR },
+          margins: { top: 80, bottom: 80, left: 120, right: 120 },
+          verticalAlign: VerticalAlign.TOP,
+          children: [new Paragraph({ alignment: ci === r.length - 1 && (cell.includes(",") && cell.includes("0")) ? AlignmentType.RIGHT : AlignmentType.LEFT, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: cell, size: 18, color: ci === 0 ? NAVY : BODY, bold: ci === 0, font: "Calibri" })] })]
+        }))
+      }))
     ]
   });
 }
@@ -111,54 +119,60 @@ function priceRow(num, module, deliverables, amount, isTotal = false) {
   const altFill = "F8F9FF";
   const sz = isTotal ? 20 : 18;
   const rowFill = isTotal ? NAVY : (parseInt(num) % 2 === 0 ? WHITE : GRAY_LIGHT);
-  return new TableRow({ children: [
-    new TableCell({
-      width: { size: 400, type: WidthType.DXA }, borders: thinBorders,
-      shading: { fill: isTotal ? NAVY : NAVY, type: ShadingType.CLEAR },
-      margins: { top: 90, bottom: 90, left: 100, right: 80 },
-      verticalAlign: VerticalAlign.CENTER,
-      children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing:{before:0,after:0}, children: [new TextRun({ text: isTotal ? "" : num, bold: true, size: sz, color: WHITE, font: "Calibri" })] })]
-    }),
-    new TableCell({
-      width: { size: 2400, type: WidthType.DXA }, borders: thinBorders,
-      shading: { fill: rowFill, type: ShadingType.CLEAR },
-      margins: { top: 90, bottom: 90, left: 120, right: 80 },
-      verticalAlign: VerticalAlign.TOP,
-      children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: module, bold: true, size: sz, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })]
-    }),
-    new TableCell({
-      width: { size: CW - 400 - 2400 - 1600, type: WidthType.DXA }, borders: thinBorders,
-      shading: { fill: rowFill, type: ShadingType.CLEAR },
-      margins: { top: 90, bottom: 90, left: 120, right: 80 },
-      verticalAlign: VerticalAlign.TOP,
-      children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: deliverables, size: 17, color: isTotal ? WHITE : BODY, font: "Calibri" })] })]
-    }),
-    new TableCell({
-      width: { size: 1600, type: WidthType.DXA }, borders: thinBorders,
-      shading: { fill: isTotal ? NAVY : rowFill, type: ShadingType.CLEAR },
-      margins: { top: 90, bottom: 90, left: 80, right: 120 },
-      verticalAlign: VerticalAlign.CENTER,
-      children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing:{before:0,after:0}, children: [new TextRun({ text: amount, bold: true, size: sz, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })]
-    }),
-  ]});
+  return new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 400, type: WidthType.DXA }, borders: thinBorders,
+        shading: { fill: isTotal ? NAVY : NAVY, type: ShadingType.CLEAR },
+        margins: { top: 90, bottom: 90, left: 100, right: 80 },
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: isTotal ? "" : num, bold: true, size: sz, color: WHITE, font: "Calibri" })] })]
+      }),
+      new TableCell({
+        width: { size: 2400, type: WidthType.DXA }, borders: thinBorders,
+        shading: { fill: rowFill, type: ShadingType.CLEAR },
+        margins: { top: 90, bottom: 90, left: 120, right: 80 },
+        verticalAlign: VerticalAlign.TOP,
+        children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: module, bold: true, size: sz, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })]
+      }),
+      new TableCell({
+        width: { size: CW - 400 - 2400 - 1600, type: WidthType.DXA }, borders: thinBorders,
+        shading: { fill: rowFill, type: ShadingType.CLEAR },
+        margins: { top: 90, bottom: 90, left: 120, right: 80 },
+        verticalAlign: VerticalAlign.TOP,
+        children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: deliverables, size: 17, color: isTotal ? WHITE : BODY, font: "Calibri" })] })]
+      }),
+      new TableCell({
+        width: { size: 1600, type: WidthType.DXA }, borders: thinBorders,
+        shading: { fill: isTotal ? NAVY : rowFill, type: ShadingType.CLEAR },
+        margins: { top: 90, bottom: 90, left: 80, right: 120 },
+        verticalAlign: VerticalAlign.CENTER,
+        children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: amount, bold: true, size: sz, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })]
+      }),
+    ]
+  });
 }
 
 // Payment row
 function payRow(milestone, pct, amount, i, isTotal = false) {
   const fill = isTotal ? NAVY : (i % 2 === 0 ? WHITE : GRAY_LIGHT);
-  return new TableRow({ children: [
-    new TableCell({ width: { size: CW - 1600 - 1400, type: WidthType.DXA }, borders: thinBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: milestone, bold: isTotal, size: 19, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing:{before:0,after:0}, children: [new TextRun({ text: pct, bold: isTotal, size: 19, color: isTotal ? WHITE : GOLD, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: 1400, type: WidthType.DXA }, borders: thinBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing:{before:0,after:0}, children: [new TextRun({ text: amount, bold: true, size: 19, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })] }),
-  ]});
+  return new TableRow({
+    children: [
+      new TableCell({ width: { size: CW - 1600 - 1400, type: WidthType.DXA }, borders: thinBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: milestone, bold: isTotal, size: 19, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: pct, bold: isTotal, size: 19, color: isTotal ? WHITE : GOLD, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: 1400, type: WidthType.DXA }, borders: thinBorders, shading: { fill, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: amount, bold: true, size: 19, color: isTotal ? WHITE : NAVY, font: "Calibri" })] })] }),
+    ]
+  });
 }
 
 // Acceptance signature row
 function sigRow(left, right) {
-  return new TableRow({ children: [
-    new TableCell({ width: { size: CW/2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: WHITE, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 160, right: 120 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: left, size: 19, color: BODY, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: CW/2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: GRAY_LIGHT, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 120, right: 160 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: right, size: 19, color: BODY, font: "Calibri" })] })] }),
-  ]});
+  return new TableRow({
+    children: [
+      new TableCell({ width: { size: CW / 2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: WHITE, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 160, right: 120 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: left, size: 19, color: BODY, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: CW / 2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: GRAY_LIGHT, type: ShadingType.CLEAR }, margins: { top: 80, bottom: 80, left: 120, right: 160 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: right, size: 19, color: BODY, font: "Calibri" })] })] }),
+    ]
+  });
 }
 
 function pageBreak() {
@@ -167,12 +181,14 @@ function pageBreak() {
 
 // Pricing table header row
 function priceHeaderRow() {
-  return new TableRow({ children: [
-    new TableCell({ width: { size: 400, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 100, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing:{before:0,after:0}, children: [new TextRun({ text: "#", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: 2400, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: "Module / Work Package", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: CW - 400 - 2400 - 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: "Key Deliverables", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
-    new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing:{before:0,after:0}, children: [new TextRun({ text: "Amount (INR)", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
-  ]});
+  return new TableRow({
+    children: [
+      new TableCell({ width: { size: 400, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 100, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "#", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: 2400, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Module / Work Package", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: CW - 400 - 2400 - 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Key Deliverables", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
+      new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Amount (INR)", bold: true, size: 18, color: WHITE, font: "Calibri" })] })] }),
+    ]
+  });
 }
 
 const doc = new Document({
@@ -180,8 +196,10 @@ const doc = new Document({
   numbering: {
     config: [{
       reference: "bullets",
-      levels: [{ level: 0, format: LevelFormat.BULLET, text: "\u2022", alignment: AlignmentType.LEFT,
-        style: { paragraph: { indent: { left: 480, hanging: 240 } }, run: { color: GOLD, size: 20 } } }]
+      levels: [{
+        level: 0, format: LevelFormat.BULLET, text: "\u2022", alignment: AlignmentType.LEFT,
+        style: { paragraph: { indent: { left: 480, hanging: 240 } }, run: { color: GOLD, size: 20 } }
+      }]
     }]
   },
   sections: [{
@@ -231,11 +249,11 @@ const doc = new Document({
         width: { size: CW, type: WidthType.DXA },
         columnWidths: [2800, CW - 2800],
         rows: [
-          metaRow("Prepared by",    "Independent Software Developer", WHITE),
-          metaRow("Prepared for",   "Canaan Global International", GRAY_LIGHT),
-          metaRow("Date",           "08 August 2026", WHITE),
-          metaRow("Quotation Ref",  "CAN-ERP-2026-002", GRAY_LIGHT),
-          metaRow("Validity",       "30 days from date of issue", WHITE),
+          metaRow("Prepared by", "Independent Software Developer", WHITE),
+          metaRow("Prepared for", "Canaan Global International", GRAY_LIGHT),
+          metaRow("Date", "08 August 2026", WHITE),
+          metaRow("Quotation Ref", "CAN-ERP-2026-002", GRAY_LIGHT),
+          metaRow("Validity", "30 days from date of issue", WHITE),
         ]
       }),
 
@@ -254,7 +272,7 @@ const doc = new Document({
       gap(100),
       body("Seven staff roles are supported, each with its own access level: Admin, Commercial Manager, Assistant Commercial Manager, Accounts, Maintenance, Trip Sheet Register, and Yard Supervisor. All screens update live via WebSocket."),
       gap(100),
-      callout("A Note on Pricing", "The \u20B93,00,000 total is a partnership rate, not the market price. A system at this scale (4 delivery targets, 221 endpoints, 46 database tables, full enterprise mobile security) typically costs \u20B95 to 6 lakhs from a senior Indian developer. This number is lower because the goal is an ongoing relationship with Canaan, not a one-time handoff."),
+      callout("A Note on Pricing", "The \u20B93,00,000 total is a partnership rate, not the market price. A system at this scale (4 delivery targets, 205 endpoints, 46 database tables, full enterprise mobile security) typically costs \u20B95 to 6 lakhs from a senior Indian developer. This number is lower because the goal is an ongoing relationship with Canaan, not a one-time handoff."),
 
       gap(200),
 
@@ -286,7 +304,7 @@ const doc = new Document({
           ["18", "Windows Desktop App", "Electron wrapper for the Next.js web app. Windows-native menu bar. Signed release build (.exe installer). Auto-update ready."],
           ["19", "Mobile App (Android and iOS)", "Flutter 3.44 codebase with 15+ screens: dashboard, current trips, trip history, sheet tracking, fleet and compliance, maintenance, attendance, P&L summary, edit approvals, and audit log. 20+ Riverpod providers. Persistent offline cache. Signed APK, App Bundle, and iOS IPA."],
           ["20", "Mobile Security Hardening", "CA-level TLS certificate pinning. AES-256-GCM encrypted secure storage. Biometric app lock. Root and jailbreak detection. Screenshot and screen-recording protection. R8 and Dart obfuscation. Backup restriction."],
-          ["21", "Backend Security Hardening", "Constant-time logins. Per-IP brute-force lockout. JWT JTI revocation denylist. Role-based middleware on all 221 endpoints. Security response headers. Authenticated file downloads. Upload magic-byte validation."],
+          ["21", "Backend Security Hardening", "Constant-time logins. Per-IP brute-force lockout. JWT JTI revocation denylist. Role-based middleware on all 205 endpoints. Security response headers. Authenticated file downloads. Upload magic-byte validation."],
         ],
         [5, 22, 73]
       ),
@@ -302,9 +320,9 @@ const doc = new Document({
       dataTable(
         ["Metric", "Delivered"],
         [
-          ["Web application screens", "47"],
+          ["Web application screens", "41"],
           ["Reusable UI components", "104"],
-          ["Backend API endpoints", "221"],
+          ["Backend API endpoints", "205"],
           ["Database tables and entities", "46"],
           ["Pydantic schema classes", "136"],
           ["TypeScript type-definition files", "28"],
@@ -332,34 +350,34 @@ const doc = new Document({
         columnWidths: [400, 2400, CW - 400 - 2400 - 1600, 1600],
         rows: [
           priceHeaderRow(),
-          priceRow("1",  "Requirements, Architecture and Database Design",    "Entity-relationship diagram; 46-table schema design; 221-endpoint API contract; 7-role access matrix; system flow diagrams; tech-stack decision",                                                                                         "\u20B912,000"),
-          priceRow("2",  "System Foundation",                                 "JWT HS256 auth; 7-role RBAC middleware; per-IP brute-force lockout (5 attempts / 15-min window); JWT JTI token revocation denylist; WebSocket real-time broadcast; security headers; CORS policy; append-only audit log",                   "\u20B912,000"),
-          priceRow("3",  "Trip Management",                                   "Booking screen; driver assignment; 7 trip statuses; sheet collection; reconciliation; verification; finalization; trip history; available, current, and completed trip screens; 28 dedicated API endpoints",                                  "\u20B928,000"),
-          priceRow("4",  "Yard Supervisor Workflow",                          "Trip-sheet collection screen with date stamps; driver advance verification dialog; Driver Advance Bill (DAB) generation; pending-collection alert popups",                                                                                    "\u20B910,000"),
-          priceRow("5",  "Accounts and Automated Invoicing",                  "Finance verification flow; automated Tax Invoice, Bill of Supply, and Transport Memo generation with separate auto-incrementing numbers; full GST and SAC code integration; LR and Consignment Note generation",                            "\u20B918,000"),
-          priceRow("6",  "Fleet and Compliance",                              "Truck master with all specs; per-document compliance tracking (FC, permits, insurance, road tax, PUC) with expiry alerts and update workflow; tyre layout diagram",                                                                           "\u20B912,000"),
-          priceRow("7",  "Tyre Management",                                   "Tyre inventory with full history; fitment records per truck position; tyre range configuration; tyre management table with status tracking",                                                                                                  "\u20B910,000"),
-          priceRow("8",  "Fuel and AdBlue",                                   "Fuel logs auto-synced from trip sheets; AdBlue manufacturer configuration; per-manufacturer price tracking; AdBlue usage logs",                                                                                                              "\u20B98,000"),
-          priceRow("9",  "Maintenance",                                       "Maintenance records per truck; configurable maintenance types with KM-interval alerts; maintenance history dialog; base cost config; 34 API endpoints",                                                                                       "\u20B912,000"),
-          priceRow("10", "Driver and Staff Management",                       "Master records for drivers and staff; photo and document storage; role and branch assignment; password management",                                                                                                                           "\u20B98,000"),
-          priceRow("11", "Attendance and Leave",                              "Daily attendance entry with remarks and late-entry log for drivers and staff; monthly reports; leave requests and approvals; edit approvals workflow",                                                                                        "\u20B910,000"),
-          priceRow("12", "Finance",                                           "EMI tracking per truck with loan details and schedule; recurring payments; driver and staff compensation with advance, salary, and full transaction history; compensation tables with payment dialog",                                         "\u20B912,000"),
-          priceRow("13", "P&L and Analytics",                                 "Per-trip gross P&L; Profitability Summary (trip and truck level, EMI and maintenance deductions, date-range presets, multi-filter); Running Cost Calculator (3 modes, per-km breakdown); Customer Route Analytics; Fleet Trip Summary",     "\u20B918,000"),
-          priceRow("14", "Dashboards and Resource Hub",                       "4 role-specific dashboards with stat cards and charts; Staff, Drivers, Fleet, Customers, and Vendors master lists with full CRUD, search, and pagination",                                                                                   "\u20B912,000"),
-          priceRow("15", "Admin Panel",                                       "Branches; Trip Expense Rates; Repair Types; SAC Codes; AdBlue Manufacturer Management; Truck Run Configuration; Tyre Range Configuration; Maintenance Alert Management; Security and Audit Log",                                            "\u20B910,000"),
-          priceRow("16", "Reports, Exports and Cloud Backup",                 "21 Excel export endpoints across all major data domains; PDF invoice print view; automated Google Drive backup with scheduling",                                                                                                              "\u20B910,000"),
-          priceRow("17", "AI ERP Agent",                                      "Natural-language query interface covering trips, fleet, finance, and attendance; intent parsing; structured response formatting",                                                                                                             "\u20B97,000"),
-          priceRow("18", "Windows Desktop App (Electron)",                    "Electron wrapper for the Next.js web app; Windows-native menu bar; signed .exe installer; auto-update ready",                                                                                                                                "\u20B95,000"),
-          priceRow("19", "Mobile App (Android and iOS)",                      "Flutter 3.44 codebase; 15+ screens; 20+ Riverpod providers; persistent offline cache with TTL and stale fallback; signed APK, App Bundle (Play Store ready), and iOS IPA (TestFlight and App Store ready)",                                "\u20B930,000"),
-          priceRow("20", "Mobile Security Hardening",                         "CA-level TLS certificate pinning; AES-256-GCM encrypted secure storage; biometric app lock; root and jailbreak detection; screenshot and screen-recording protection; R8 and Dart obfuscation; backup restriction",                         "\u20B915,000"),
-          priceRow("21", "Backend Security Hardening",                        "Constant-time logins; per-IP brute-force lockout; JWT JTI revocation denylist; role-based middleware on all 221 endpoints; security headers; authenticated file downloads; upload magic-byte validation; production safety checks",          "\u20B910,000"),
-          priceRow("22", "Testing, Deployment, Data Seeding and UAT",         "End-to-end test pass across all modules; production server deployment; MySQL schema migration and initial data seeding; UAT support with one consolidated feedback round per milestone",                                                     "\u20B910,000"),
-          priceRow("",   "Total: One-Time Development",                 "",                                                                                                                                                                                                                                           "\u20B93,00,000", true),
+          priceRow("1", "Requirements, Architecture and Database Design", "Entity-relationship diagram; 46-table schema design; 205-endpoint API contract; 7-role access matrix; system flow diagrams; tech-stack decision", "\u20B912,000"),
+          priceRow("2", "System Foundation", "JWT HS256 auth; 7-role RBAC middleware; per-IP brute-force lockout (5 attempts / 15-min window); JWT JTI token revocation denylist; WebSocket real-time broadcast; security headers; CORS policy; append-only audit log", "\u20B912,000"),
+          priceRow("3", "Trip Management", "Booking screen; driver assignment; 7 trip statuses; sheet collection; reconciliation; verification; finalization; trip history; available, current, and completed trip screens; 28 dedicated API endpoints", "\u20B928,000"),
+          priceRow("4", "Yard Supervisor Workflow", "Trip-sheet collection screen with date stamps; driver advance verification dialog; Driver Advance Bill (DAB) generation; pending-collection alert popups", "\u20B910,000"),
+          priceRow("5", "Accounts and Automated Invoicing", "Finance verification flow; automated Tax Invoice, Bill of Supply, and Transport Memo generation with separate auto-incrementing numbers; full GST and SAC code integration; LR and Consignment Note generation", "\u20B918,000"),
+          priceRow("6", "Fleet and Compliance", "Truck master with all specs; per-document compliance tracking (FC, permits, insurance, road tax, PUC) with expiry alerts and update workflow; tyre layout diagram", "\u20B912,000"),
+          priceRow("7", "Tyre Management", "Tyre inventory with full history; fitment records per truck position; tyre range configuration; tyre management table with status tracking", "\u20B910,000"),
+          priceRow("8", "Fuel and AdBlue", "Fuel logs auto-synced from trip sheets; AdBlue manufacturer configuration; per-manufacturer price tracking; AdBlue usage logs", "\u20B98,000"),
+          priceRow("9", "Maintenance", "Maintenance records per truck; configurable maintenance types with KM-interval alerts; maintenance history dialog; base cost config; 19 dedicated API endpoints", "\u20B912,000"),
+          priceRow("10", "Driver and Staff Management", "Master records for drivers and staff; photo and document storage; role and branch assignment; password management", "\u20B98,000"),
+          priceRow("11", "Attendance and Leave", "Daily attendance entry with remarks and late-entry log for drivers and staff; monthly reports; leave requests and approvals; edit approvals workflow", "\u20B910,000"),
+          priceRow("12", "Finance", "EMI tracking per truck with loan details and schedule; recurring payments; driver and staff compensation with advance, salary, and full transaction history; compensation tables with payment dialog", "\u20B912,000"),
+          priceRow("13", "P&L and Analytics", "Per-trip gross P&L; Profitability Summary (trip and truck level, EMI and maintenance deductions, date-range presets, multi-filter); Running Cost Calculator (3 modes, per-km breakdown); Customer Route Analytics; Fleet Trip Summary", "\u20B918,000"),
+          priceRow("14", "Dashboards and Resource Hub", "4 role-specific dashboards with stat cards and charts; Staff, Drivers, Fleet, Customers, and Vendors master lists with full CRUD, search, and pagination", "\u20B912,000"),
+          priceRow("15", "Admin Panel", "Branches; Trip Expense Rates; Repair Types; SAC Codes; AdBlue Manufacturer Management; Truck Run Configuration; Tyre Range Configuration; Maintenance Alert Management; Security and Audit Log", "\u20B910,000"),
+          priceRow("16", "Reports, Exports and Cloud Backup", "21 Excel export endpoints across all major data domains; PDF invoice print view; automated Google Drive backup with scheduling", "\u20B910,000"),
+          priceRow("17", "AI ERP Agent", "Natural-language query interface covering trips, fleet, finance, and attendance; intent parsing; structured response formatting", "\u20B97,000"),
+          priceRow("18", "Windows Desktop App (Electron)", "Electron wrapper for the Next.js web app; Windows-native menu bar; signed .exe installer; auto-update ready", "\u20B95,000"),
+          priceRow("19", "Mobile App (Android and iOS)", "Flutter 3.44 codebase; 15+ screens; 20+ Riverpod providers; persistent offline cache with TTL and stale fallback; signed APK, App Bundle (Play Store ready), and iOS IPA (TestFlight and App Store ready)", "\u20B930,000"),
+          priceRow("20", "Mobile Security Hardening", "CA-level TLS certificate pinning; AES-256-GCM encrypted secure storage; biometric app lock; root and jailbreak detection; screenshot and screen-recording protection; R8 and Dart obfuscation; backup restriction", "\u20B915,000"),
+          priceRow("21", "Backend Security Hardening", "Constant-time logins; per-IP brute-force lockout; JWT JTI revocation denylist; role-based middleware on all 205 endpoints; security headers; authenticated file downloads; upload magic-byte validation; production safety checks", "\u20B910,000"),
+          priceRow("22", "Testing, Deployment, Data Seeding and UAT", "End-to-end test pass across all modules; production server deployment; MySQL schema migration and initial data seeding; UAT support with one consolidated feedback round per milestone", "\u20B910,000"),
+          priceRow("", "Total: One-Time Development", "", "\u20B93,00,000", true),
         ]
       }),
 
       gap(100),
-      callout("Partner-First Rate", "All figures are in Indian Rupees. The \u20B93,00,000 total is a partnership rate. For this scope (221 API endpoints, 46 database tables, 4 delivery targets, enterprise mobile security), the market rate from a senior Indian freelance developer is \u20B95 to 6 lakhs. This price is lower because I want to keep working with Canaan after delivery, not hand over the code and disappear."),
+      callout("Partner-First Rate", "All figures are in Indian Rupees. The \u20B93,00,000 total is a partner-first rate. The market equivalent for this scope (205 API endpoints, 46 database tables, 4 delivery targets, enterprise mobile security) is \u20B95 to 6 lakhs from a senior Indian freelance developer. This price reflects the intent to build a sustained long-term relationship with Canaan, not a one-time transaction."),
 
       gap(200),
       pageBreak(),
@@ -372,15 +390,17 @@ const doc = new Document({
         width: { size: CW, type: WidthType.DXA },
         columnWidths: [CW - 1600 - 1400, 1600, 1400],
         rows: [
-          new TableRow({ children: [
-            new TableCell({ width: { size: CW-3000, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: "Milestone", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
-            new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing:{before:0,after:0}, children: [new TextRun({ text: "Share", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
-            new TableCell({ width: { size: 1400, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing:{before:0,after:0}, children: [new TextRun({ text: "Amount", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
-          ]}),
-          payRow("On project confirmation (advance)",                      "40%", "\u20B91,20,000", 0),
-          payRow("On completion of core trip and accounts modules",        "30%", "\u20B990,000",   1),
-          payRow("On final delivery and go-live across all platforms",     "30%", "\u20B990,000",   0),
-          payRow("Total",                                                  "100%", "\u20B93,00,000", 0, true),
+          new TableRow({
+            children: [
+              new TableCell({ width: { size: CW - 3000, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 80 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Milestone", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
+              new TableCell({ width: { size: 1600, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 80 }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Share", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
+              new TableCell({ width: { size: 1400, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 80, right: 120 }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Amount", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
+            ]
+          }),
+          payRow("On project confirmation (advance)", "40%", "\u20B91,20,000", 0),
+          payRow("On completion of core trip and accounts modules", "30%", "\u20B990,000", 1),
+          payRow("On final delivery and go-live across all platforms", "30%", "\u20B990,000", 0),
+          payRow("Total", "100%", "\u20B93,00,000", 0, true),
         ]
       }),
 
@@ -424,7 +444,7 @@ const doc = new Document({
       // ══════ 9. WHY THIS PRICE ══════
       h1("9.  Why This Price?"),
       gap(60),
-      body("Here is what went into the number.", { after: 120 }),
+      body("For full transparency, here is the honest basis for the total.", { after: 120 }),
 
       dataTable(
         ["Factor", "Detail"],
@@ -434,7 +454,7 @@ const doc = new Document({
           ["Market rate for this complexity", "\u20B9800 to 1,500 per hour (senior Indian freelance, 2025 to 2026)"],
           ["Market-rate equivalent total", "\u20B95 to 6 lakhs"],
           ["Codebase delivered", "~60,000 lines (TypeScript, TSX, and Python)"],
-          ["API scope", "221 endpoints across 24 router modules"],
+          ["API scope", "205 endpoints across 21 domain routers"],
           ["Data model", "46 database tables and 136 schema classes"],
           ["Delivery targets", "4 (Web, Windows Desktop, Android, iOS)"],
           ["Security controls", "10 mobile and 8 backend, all fully implemented"],
@@ -442,23 +462,25 @@ const doc = new Document({
         [45, 55]
       ),
       gap(100),
-      body("The \u20B93,00,000 is a partnership rate, not what this work would normally cost. The intent is to keep building with Canaan after go-live, not to finish the project and move on.", { italic: true }),
+      body("The \u20B93,00,000 figure is a long-term partnership rate, not the market ceiling for this work. It reflects the intent to build a sustained relationship with Canaan rather than a one-time vendor transaction.", { italic: true }),
 
       gap(200),
 
       // ══════ 10. ACCEPTANCE ══════
       h1("10.  Acceptance"),
       gap(60),
-      body("To accept, sign below or reply in writing.", { after: 120 }),
+      body("Kindly confirm acceptance by signing below or replying to this quotation with written confirmation.", { after: 120 }),
 
       new Table({
         width: { size: CW, type: WidthType.DXA },
-        columnWidths: [CW/2, CW/2],
+        columnWidths: [CW / 2, CW / 2],
         rows: [
-          new TableRow({ children: [
-            new TableCell({ width: { size: CW/2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 160, right: 120 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: "For Canaan Global International", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
-            new TableCell({ width: { size: CW/2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 160 }, children: [new Paragraph({ spacing:{before:0,after:0}, children: [new TextRun({ text: "Developer", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
-          ]}),
+          new TableRow({
+            children: [
+              new TableCell({ width: { size: CW / 2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 160, right: 120 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "For Canaan Global International", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
+              new TableCell({ width: { size: CW / 2, type: WidthType.DXA }, borders: thinBorders, shading: { fill: NAVY, type: ShadingType.CLEAR }, margins: { top: 90, bottom: 90, left: 120, right: 160 }, children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new TextRun({ text: "Developer", bold: true, size: 19, color: WHITE, font: "Calibri" })] })] }),
+            ]
+          }),
           sigRow("Name: _______________________________", "Name: _______________________________"),
           sigRow("Signature: ___________________________", "Signature: ___________________________"),
           sigRow("Date: ________________________________", "Date: ________________________________"),
@@ -471,7 +493,7 @@ const doc = new Document({
       new Paragraph({
         spacing: { before: 0, after: 0 },
         alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: "Thank you for the opportunity. I am looking forward to seeing this platform in use and to what comes next.", size: 20, color: LABEL, italic: true, font: "Calibri" })]
+        children: [new TextRun({ text: "Thank you for the opportunity and the trust placed in this partnership. I look forward to supporting Canaan's growth with this platform and beyond.", size: 20, color: LABEL, italic: true, font: "Calibri" })]
       }),
 
       gap(200),
@@ -488,6 +510,6 @@ const doc = new Document({
 });
 
 Packer.toBuffer(doc).then(buf => {
-  fs.writeFileSync(__dirname + "/Canaan_ERP_Quotation_CAN-ERP-2026-002.docx", buf);
+  fs.writeFileSync("Canaan_ERP_Quotation_CAN-ERP-2026-002.docx", buf);
   console.log("Done");
 });

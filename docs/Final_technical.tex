@@ -1,0 +1,1084 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.9in,top=1in,bottom=1in,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{enumitem}
+\usepackage{amsmath,amssymb}
+\usepackage{pifont}
+\usepackage[most]{tcolorbox}
+\usepackage{float}
+\usepackage{hyperref}
+
+% --- Color Definitions ---
+\definecolor{canaanNavy}{RGB}{15, 43, 72}
+\definecolor{canaanBlue}{RGB}{28, 90, 160}
+\definecolor{canaanLightBlue}{RGB}{238, 244, 250}
+\definecolor{canaanDark}{RGB}{30, 41, 59}
+\definecolor{canaanGray}{RGB}{100, 116, 139}
+\definecolor{canaanBorder}{RGB}{226, 232, 240}
+\definecolor{codeBg}{RGB}{248, 250, 252}
+\definecolor{codeGreen}{RGB}{22, 101, 52}
+\definecolor{codePurple}{RGB}{107, 33, 168}
+
+% --- Hyperref Setup ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=canaanBlue,
+    filecolor=canaanBlue,
+    urlcolor=canaanBlue,
+    citecolor=canaanBlue,
+    pdfauthor={Canaan Global International},
+    pdftitle={Canaan ERP - Complete Technical and Security Documentation},
+    pdfsubject={Enterprise Fleet Logistics ERP System Documentation},
+    pdfkeywords={ERP, Logistics, Fleet, FastAPI, Next.js, Flutter, MySQL, Security}
+}
+
+% --- Listings Setup ---
+\lstdefinestyle{jsonstyle}{
+    backgroundcolor=\color{codeBg},
+    basicstyle=\ttfamily\footnotesize\color{canaanDark},
+    breaklines=true,
+    breakatwhitespace=true,
+    showstringspaces=false,
+    frame=single,
+    rulecolor=\color{canaanBorder},
+    stringstyle=\color{codeGreen},
+    keywordstyle=\color{codePurple}\bfseries,
+    commentstyle=\color{canaanGray}\itshape,
+    tabsize=2
+}
+\lstset{style=jsonstyle}
+
+% --- TColorBox Styles ---
+\tcbset{
+    enhanced,
+    boxrule=0.8pt,
+    arc=4pt,
+    colback=canaanLightBlue,
+    colframe=canaanNavy,
+    fonttitle=\bfseries\color{white},
+    coltitle=white,
+    attach boxed title to top left={yshift=-2mm, xshift=4mm},
+    boxed title style={colback=canaanNavy, arc=2pt, boxrule=0pt},
+    top=3mm, bottom=3mm, left=3mm, right=3mm
+}
+
+\newtcolorbox{calloutbox}[1]{
+    colback=canaanLightBlue,
+    colframe=canaanBlue,
+    title=#1
+}
+
+\newtcolorbox{diagrambox}[1]{
+    colback=codeBg,
+    colframe=canaanNavy,
+    fontupper=\ttfamily\small,
+    title=#1
+}
+
+% --- Page Header & Footer ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\color{canaanGray}\footnotesize Canaan Global International: Fleet \& Logistics ERP}
+\fancyhead[R]{\color{canaanGray}\footnotesize Technical \& Security Reference}
+\fancyfoot[L]{\color{canaanGray}\footnotesize Confidential: For Client / Internal Use Only}
+\fancyfoot[R]{\color{canaanGray}\footnotesize Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% --- Section Styling ---
+\usepackage{titlesec}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{canaanNavy}}{\thesection}{1em}{}[{\titlerule[0.8pt]}]
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{canaanBlue}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{canaanDark}}{\thesubsubsection}{1em}{}
+
+% --- Checkmark Commands ---
+\newcommand{\cmark}{\textcolor{codeGreen}{\ding{51}}}
+\newcommand{\xmark}{\textcolor{red}{\ding{55}}}
+
+\begin{document}
+
+% ==============================================================================
+% TITLE PAGE
+% ==============================================================================
+\begin{titlepage}
+    \begin{center}
+        \vspace*{1.5cm}
+        
+        {\Huge \bfseries \color{canaanNavy} CANAAN ERP}\\[0.4cm]
+        {\LARGE \bfseries \color{canaanBlue} Fleet \& Logistics Enterprise System}\\[0.8cm]
+        {\large \color{canaanGray} Complete Technical, Architectural, and Security Documentation}\\[1.5cm]
+        
+        \rule{\linewidth}{1.2pt}\\[1.2cm]
+        
+        \begin{tcolorbox}[colback=white, colframe=canaanNavy, width=0.9\linewidth, arc=3pt]
+            \vspace{0.2cm}
+            \textbf{\Large Executive Document Summary}\\[0.3cm]
+            \small
+            This master document provides a comprehensive technical, architectural, and operational reference for the Canaan Global International Fleet ERP ecosystem. It covers the FastAPI REST Backend, MySQL Relational Database, Next.js 16 Web Application, Electron Desktop client, and Flutter Mobile Companion Application.
+            \vspace{0.2cm}
+        \end{tcolorbox}
+        
+        \vfill
+        
+        % Metadata Table
+        \begin{tabularx}{0.9\linewidth}{p{3.5cm}X}
+            \toprule
+            \textbf{System Name} & Canaan Global International: Fleet \& Logistics ERP \\
+            \textbf{Primary Components} & FastAPI Backend, Next.js 16 Web App, Flutter Mobile App, Electron \\
+            \textbf{Mobile Package} & \texttt{canaan\_mobile\_flutter} (v1.0.0+1, ID: \texttt{com.canaanglobal.erp}) \\
+            \textbf{Target Audience} & Software Engineers, System Architects, SREs, Security Auditors \\
+            \textbf{Last Updated} & August 2026 (Enterprise Hardening \& Mobile Release Pass) \\
+            \textbf{Classification} & Confidential: Enterprise Architecture Document \\
+            \bottomrule
+        \end{tabularx}
+        
+        \vspace{1.5cm}
+    \end{center}
+\end{titlepage}
+
+% ==============================================================================
+% TABLE OF CONTENTS
+% ==============================================================================
+\tableofcontents
+\newpage
+
+% ==============================================================================
+% SECTION 1: EXECUTIVE SUMMARY & SYSTEM ARCHITECTURE
+% ==============================================================================
+\section{Executive Summary \& System Architecture}
+
+Canaan ERP is a specialized, trip-centric logistics enterprise system designed specifically for container transport operations in Chennai port logistics. The platform manages the entire operational lifecycle: booking intake, vehicle and driver assignment, on-road tracking, trip-sheet reconciliation, accounts verification, and GST-compliant invoice generation, alongside fleet compliance, maintenance, tyre lifecycle management, fuel logging, staff and driver attendance, finance, and per-truck P\&L analytics.
+
+The system is deployed as a unified four-tier ecosystem:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Backend REST API \& WebSocket Server}: Built with FastAPI (Python 3.10+), serving 205 endpoints across 21 domain routers with token-guarded authentication, optimistic locking, and real-time state broadcasts.
+    \item \textbf{Relational Database}: MySQL with $\sim$40 normalized tables, document BLOB storage (\texttt{LONGBLOB} up to 25 MB), and automated startup migrations.
+    \item \textbf{Web \& Desktop Frontend}: Next.js 16 (App Router) with React 19 Single Page Application, also packageable as an Electron desktop application.
+    \item \textbf{Mobile Companion Application}: Flutter (iOS \& Android) Admin client providing real-time operational monitoring, offline caching, and biometric hardware security.
+\end{enumerate}
+
+\subsection{High-Level Ecosystem Topology}
+
+\begin{diagrambox}{System Ecosystem Architecture}
++-----------------------------------------------------------------------------+
+|                                CLIENT LAYER                                 |
+|                                                                             |
+|   +----------------------------------+   +------------------------------+   |
+|   |   Web / Desktop App (Next.js 16) |   | Mobile App (Flutter 3.44.x)  |   |
+|   |   - 41 App Router pages (React 19)|   | - Admin companion client     |   |
+|   |   - Electron desktop build       |   | - Android & iOS targets      |   |
+|   |   - Dynamic Dark/Light Theme     |   | - Riverpod + GoRouter        |   |
+|   |   - Client-side PDF generation   |   | - SharedPreferences cache    |   |
+|   +-----------------+----------------+   +--------------+---------------+   |
++---------------------|-----------------------------------|-------------------+
+                      | HTTPS (Bearer JWT)                | HTTPS (Bearer JWT)
+                      | WSS /ws (Realtime hints)          | TLS CA Pinning
+                      v                                   v
++-----------------------------------------------------------------------------+
+|                           BACKEND & SECURITY LAYER                          |
+|                                                                             |
+|   FastAPI Application (Python 3.10+, ASGI / Uvicorn)                        |
+|   |-- Security & Auth Middleware (JWT HS256, In-Memory Revocation Denylist) |
+|   |-- Role Guards (Admin, Commercial, Accounts, Maintenance, Docs, Yard)   |
+|   |-- IP + Username Brute-Force Lockout Tracker                             |
+|   |-- Real-time Broadcast Middleware (WebSocket connection registry)        |
+|   |-- Magic-Byte File Validation & Secure BLOB Serving Engine               |
+|   \-- 21 Feature Routers (205 REST Endpoints)                               |
++--------------------------------------|--------------------------------------+
+                                       | PyMySQL / SQLAlchemy 2.0
+                                       v
++-----------------------------------------------------------------------------+
+|                              DATA STORE LAYER                               |
+|                                                                             |
+|   MySQL Relational Database                                                 |
+|   |-- ~40 Normalized Tables (Optimistic Locking via version column)         |
+|   |-- Document BLOB Storage (LONGBLOB up to 25 MB)                          |
+|   |-- Append-Only Tamper-Evident Audit Trail (audit_logs)                   |
+|   \-- Startup Automated Idempotent Schema Migrations                        |
++-----------------------------------------------------------------------------+
+\end{diagrambox}
+
+\subsection{Repository Layout}
+
+\begin{diagrambox}{Repository Structure}
+Canaan-erp-v1/
+|-- backend/
+|   |-- main.py              # Bootstrap, CORS, security headers, migrations
+|   |-- models.py            # SQLAlchemy ORM models (~40 tables)
+|   |-- schemas.py           # Pydantic request/response schemas
+|   |-- security.py          # JWT auth, password policy, RBAC guards, denylist
+|   |-- audit.py             # Append-only audit logger and client IP resolver
+|   |-- database.py          # Engine and sessionmaker setup
+|   |-- websocket_manager.py # WebSocket client registry and broadcaster
+|   |-- duplicate_checks.py  # Business duplicate validation pre-insert
+|   |-- excel_utils.py       # Tabular data export helpers
+|   \-- routers/             # 21 modular feature routers
+|-- frontend/
+|   \-- src/
+|       |-- app/             # Next.js App Router (41 pages across 7 domains)
+|       |-- components/      # Reusable UI & feature React components
+|       |-- context/         # Auth, Theme, WebSocket, Notification contexts
+|       |-- hooks/           # useAutoRefresh, useIdle, state hooks
+|       \-- lib/             # Typed API client, navigation, AI agent
+|-- Canaan_mobile/
+|   |-- lib/
+|   |   |-- main.dart        # Entry point, cache init, SecurityGate mounting
+|   |   |-- app.dart         # MaterialApp.router + GoRouter routing table
+|   |   |-- core/            # API client, cache, auth, theme, security
+|   |   |-- features/        # Feature screens and Riverpod state providers
+|   |   \-- shared/          # Reusable widgets and theme tokens
+|   |-- android/             # Android native host (keystore, ProGuard)
+|   \-- ios/                 # iOS native host (Runner, SceneDelegate)
+\-- docs/                    # Technical & Security documentation
+\end{diagrambox}
+
+\newpage
+
+% ==============================================================================
+% SECTION 2: TECHNOLOGY STACK
+% ==============================================================================
+\section{Technology Stack}
+
+\subsection{Backend Technology Stack}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{3.2cm}p{3.5cm}p{3cm}X}
+\toprule
+\textbf{Layer / Concern} & \textbf{Technology} & \textbf{Version} & \textbf{Rationale} \\
+\midrule
+\textbf{Web Framework} & FastAPI & 0.104+ (Async / ASGI) & High throughput, native OpenAPI generation, dependency injection \\
+\textbf{ASGI Server} & Uvicorn / Passenger & Single-worker (\texttt{--workers 1}) & Preserves in-process lockout, broadcast, and revocation state \\
+\textbf{ORM} & SQLAlchemy & 2.0 (Declarative) & Type safety, optimistic locking support, complex joins \\
+\textbf{DB Driver} & PyMySQL + Cryptography & 1.1+ & Native Python MySQL driver supporting TLS and caching sha2 \\
+\textbf{Validation} & Pydantic & 2.5+ (V2 Core) & Fast payload parsing and response serialization \\
+\textbf{Cryptography / Auth} & python-jose + bcrypt & HS256 / passlib & Secure JWT signing and salt-hashed password storage \\
+\textbf{File Validation} & python-multipart + magic & Native binary sniffing & Validates file headers to reject disguised executables \\
+\bottomrule
+\end{tabularx}
+\caption{Backend Technology Stack Specification}
+\end{table}
+
+\subsection{Web Frontend Technology Stack}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{3.2cm}p{3.5cm}p{3cm}X}
+\toprule
+\textbf{Layer / Concern} & \textbf{Technology} & \textbf{Version} & \textbf{Rationale} \\
+\midrule
+\textbf{Framework} & Next.js & 16.2 (App Router) & Server-rendered shells, client-side SPA routing, React 19 compatibility \\
+\textbf{UI Library} & React & 19.2 & Modern concurrent rendering, hooks, context API \\
+\textbf{Language} & TypeScript & 5.x & Strict static typing across models and API clients \\
+\textbf{Styling} & Tailwind CSS & v4 (CSS Variables) & Universal dark/light theme remapping without inline class clutter \\
+\textbf{Icons \& Charts} & Lucide React + Recharts & Latest & Standardized UI iconography and interactive analytics \\
+\textbf{PDF Generation} & jsPDF + html2canvas & Client-Side & Instant in-browser generation of LR notes, invoices, and reports \\
+\textbf{Desktop Wrapper} & Electron & Optional build & Native desktop window execution for office workstations \\
+\bottomrule
+\end{tabularx}
+\caption{Web Frontend Technology Stack Specification}
+\end{table}
+
+\subsection{Mobile Client Technology Stack (Flutter)}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{3.2cm}p{3.5cm}p{3cm}X}
+\toprule
+\textbf{Layer / Concern} & \textbf{Technology} & \textbf{Version} & \textbf{Rationale} \\
+\midrule
+\textbf{Framework \& SDK} & Flutter / Dart & Flutter 3.44.x / Dart \textasciicircum 3.12.2 & Cross-platform native compilation for Android and iOS \\
+\textbf{State Management} & flutter\_riverpod & \textasciicircum 2.5.1 & Declarative, compile-safe dependency and state injection \\
+\textbf{Routing} & go\_router & \textasciicircum 14.2.7 & Declarative routing with redirection guards and shell layouts \\
+\textbf{Networking} & dio & \textasciicircum 5.7.0 & Advanced interceptor chain (TLS pinning, auth, caching, 401/403) \\
+\textbf{Secure Storage} & flutter\_secure\_storage & \textasciicircum 9.2.2 & Hardware-backed KeyStore (Android) / Keychain (iOS) \\
+\textbf{Local Cache} & shared\_preferences & \textasciicircum 2.3.2 & Persistent write-through offline fallback cache \\
+\textbf{Biometric Auth} & local\_auth & \textasciicircum 2.3.0 & Hardware fingerprint, Face ID, and PIN unlock prompt \\
+\textbf{Root Detection} & safe\_device & \textasciicircum 1.1.4 & Anti-tamper, jailbreak, and root detection (fail-closed) \\
+\bottomrule
+\end{tabularx}
+\caption{Mobile Companion Technology Stack Specification}
+\end{table}
+
+\newpage
+
+% ==============================================================================
+% SECTION 3: ROLES & ACCESS CONTROL (RBAC)
+% ==============================================================================
+\section{Roles, Permissions \& Access Control (RBAC)}
+
+The system enforces strict Role-Based Access Control mapped directly to organizational roles. Each staff member is assigned a \texttt{software\_designation} stored in their profile and encoded inside their signed JWT access token.
+
+\subsection{Organizational Roles Matrix}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{3.5cm}p{2.8cm}p{4.2cm}X}
+\toprule
+\textbf{Software Designation} & \textbf{Staff Person} & \textbf{Functional Scope} & \textbf{Primary Workspaces} \\
+\midrule
+\textbf{Admin} & Managing Director & Full unrestricted system access, security audit log, lockout resets, edit approvals, deletions & \texttt{/}, \texttt{/admin/*}, \texttt{/insights/*}, \texttt{/attendance/*} \\
+\textbf{Commercial Manager} & Kumar & Booking creation, trip and driver assignment, customer rate cards, pricing & \texttt{/trips/assign}, \texttt{/trips/current}, \texttt{/resources/customers} \\
+\textbf{Assistant Commercial Manager} & Shibu & Trip assignment, vehicle tracking, per-trip P\&L and mileage analysis, fleet master & \texttt{/trips/current}, \texttt{/trips/pnl-mileage}, \texttt{/resources/fleet} \\
+\textbf{Accounts} & Sunder, Thanamani & Trip verification, invoice generation, GST/financial accounting, EMI, compensation & \texttt{/trips/verification}, \texttt{/trips/finalization}, \texttt{/finance/*}, \texttt{/insights/pl-summary} \\
+\textbf{Maintenance} & Jebarson & Workshop records, tyre inventory and fitment, retreading, compliance renewals & \texttt{/maintenance/trucks}, \texttt{/maintenance/tyre-management}, \texttt{/maintenance/compliance} \\
+\textbf{Trip Sheet Register (Docs)} & Latha, Siva & Trip sheet reconciliation (Docs 1 \& 2), diesel logging, variance remarks, re-checking & \texttt{/trips/reconciliation}, \texttt{/maintenance/fuel-history} \\
+\textbf{Yard Supervisor} & Antony & Physical trip sheet collection, driver advance verification, gate tracking & \texttt{/trips/sheet-collection} \\
+\bottomrule
+\end{tabularx}
+\caption{System Roles, Personnel Mappings, and Operational Permissions}
+\end{table}
+
+\subsection{Enforcement Mechanisms}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Backend Route Guards}:
+    Every business router requires a valid JWT via \texttt{Depends(get\_current\_user)}. Sensitive modules enforce strict role requirements using \texttt{require\_roles(...)} dependencies (for instance, \texttt{/finance} and \texttt{/pl-summary} require the \textit{Accounts} or \textit{Admin} role). Destructive actions like \texttt{DELETE /trips/\{id\}} require admin privileges or an active temporary edit approval token.
+    
+    \item \textbf{Frontend Navigation Guards}:
+    The web client maintains a \texttt{ROLE\_HREFS} map in \texttt{Sidebar.tsx}. Unauthorized navigation items are omitted from the DOM. Upon login, roles without global dashboard access are redirected directly to their designated workspace (for example, Yard Supervisor to \texttt{/trips/sheet-collection}).
+    
+    \item \textbf{Mobile Client Gating}:
+    The mobile companion application strictly restricts login to the \textit{Admin} role, which is validated client-side prior to token storage and enforced server-side on all endpoints.
+\end{enumerate}
+
+\newpage
+
+% ==============================================================================
+% SECTION 4: DATA MODEL & ENTITY ARCHITECTURE
+% ==============================================================================
+\section{Data Model \& Entity-Relationship Architecture}
+
+The database contains $\sim$40 normalized tables across 8 logical domains. All mutable business entities implement \textbf{Optimistic Concurrency Control} through an integer \texttt{version} column and UTC timestamps (\texttt{created\_at}, \texttt{updated\_at}).
+
+\subsection{Domain Entity Structure}
+
+\begin{diagrambox}{Logical Data Domains}
+Administration
+ \-- Branch: Operating branches, halt-day fees, driver halt compensation percentage
+
+Resource Hub
+ |-- Truck: Fleet master, specifications, compliance dates, document BLOBs
+ |-- Driver: KYC, licence, Aadhaar, PAN, Form-11/ESI, credentials, document BLOBs
+ |-- Staff: Designation, credentials, KYC, department, login access
+ |-- Customer: GSTIN, GTA status, e-invoicing, Origins, Destinations, Pricing
+ \-- Vendor: Vendor master, category, GSTIN/PAN
+
+Trip Operations
+ |-- DriverAssignment: Active driver to truck pairing (one active per driver)
+ |-- Trip: Central hub: status, booking, cargo, route, pricing, LR consignment note
+ |-- TripClosure: Closure snapshot, halt days, driver halt compensation
+ |-- TripSheet: Reconciliation, expenses, driver settlement, diesel JSON entries
+ \-- TripInvoice: Tax Invoice, Bill of Supply, Transport Memo, SAC line items
+
+Attendance & HR
+ |-- DriverAttendance / StaffAttendance: Daily check-in/out logs
+ |-- DriverAttendanceRemark / DriverAttendanceLateEntryLog: 2-day bypass mechanism
+ \-- LeaveRequest: Leave lifecycle with approval workflow
+
+Maintenance
+ |-- MaintenanceRecord: Service records linked to trucks and trips
+ |-- FuelLog: Vehicle fuel logs synced automatically from Trip Sheets
+ |-- AdBlueLog / AdBlueManufacturer: AdBlue consumption and vendor rates
+ |-- TyreInventory: Stock tracking, condition, retreading count and cost
+ \-- TyreFitmentRecord: Odometer-tracked tyre mounting and dismounting
+
+Finance Hub
+ |-- EmiRecord: Truck financing, monthly and daily cost derivation
+ |-- RecurringPayment: Fixed recurring overheads and due dates
+ |-- CompensationTransaction: Driver advances, staff salary transactions
+ \-- EditApprovalRequest: 1-hour time-limited edit/delete authorization
+
+System & Audit
+ |-- AuditLog: Append-only security audit log
+ \-- Notification: System alerts and reminder dispatches
+\end{diagrambox}
+
+\subsection{Architectural Data Rules}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Decoupled Trip Hub}: The \texttt{Trip} entity holds foreign keys to \texttt{Customer}, but stores \texttt{driver\_id} and \texttt{vehicle\_id} as stable string references (\texttt{CGI-D001}, \texttt{CGI-T001}). This ensures historical trip manifests remain immutable even if driver or vehicle records are modified or archived.
+    \item \textbf{Automatic Diesel Sync}: When a \texttt{TripSheet} is saved, the backend parses its embedded \texttt{diesel\_entries} JSON array and automatically creates or updates corresponding entries in \texttt{FuelLog} tagged with \texttt{source = "Trip Sheet-\{id\}"}.
+    \item \textbf{Polymorphic Transactions}: \texttt{CompensationTransaction} and \texttt{LeaveRequest} handle both staff and driver records through polymorphic composite keys (\texttt{person\_type} + \texttt{person\_id}, \texttt{category} + \texttt{applicant\_id}).
+\end{itemize}
+
+\newpage
+
+% ==============================================================================
+% SECTION 5: CORE BUSINESS WORKFLOWS
+% ==============================================================================
+\section{Core Business Workflows}
+
+\subsection{Six-Stage Container Trip Lifecycle}
+
+\begin{diagrambox}{Trip Pipeline Stages}
+[1. ASSIGNMENT]   ==>  [2. EXECUTION]   ==>  [3. COLLECTION]
+Commercial Mgr         On-Road Tracking       Yard Supervisor
+(Kumar)                Status Lifecycle       (Antony)
+       |                                             |
+       v                                             v
+[6. INVOICING]    <==  [5. VERIFY]      <==  [4. RECONCILE]
+Accounts Auto          Accounts Team          Docs / Register
+TM / BS / Tax          Sunder / Thanamani     (Latha, Siva)
+\end{diagrambox}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Stage 1: Trip Booking \& Assignment (Commercial Manager)}:
+    \begin{itemize}
+        \item Container Number Validation: Regex verification requiring exactly 4 uppercase letters followed by 7 digits (\texttt{\textasciicircum[A-Z]\{4\}[0-9]\{7\}\$}) across up to 3 container slots.
+        \item "Self" (CGI) Rules: Billing is locked, payment forced to Credit, invoice type set to Transport Memo (no GST), driver advances hidden, and CHA locked to "CGI".
+        \item Baseline Mileage: Estimated distance (\texttt{approx\_km}) is recorded to establish the baseline for downstream variance checks.
+        \item Lift-On/Off Rules: Auto-populated from customer rate cards for standard containers; manual for Open/Shifting; forced to 0 for Coastal.
+    \end{itemize}
+
+    \item \textbf{Stage 2: Trip Execution}:
+    Trip status advances through: \texttt{Assigned} $\rightarrow$ \texttt{Started} $\rightarrow$ \texttt{Loaded} $\rightarrow$ \texttt{On-Transit} $\rightarrow$ \texttt{Reached} $\rightarrow$ \texttt{Unloaded} $\rightarrow$ \texttt{Completed}. Status changes emit real-time WebSocket notifications.
+
+    \item \textbf{Stage 3: Trip Sheet Collection (Yard Supervisor)}:
+    Yard supervisor collects physical trip sheets, verifies cash advances issued to drivers, records \texttt{ts\_received\_date}, and flags missing sheets if uncollected within 24 hours.
+
+    \item \textbf{Stage 4: Trip Sheet Reconciliation (Docs Team)}:
+    Docs team enters odometer readings, cargo weights, toll expenses, port pass, mamool, and fuel receipts.
+    \begin{itemize}
+        \item $\pm$\textbf{10\% KM Variance Alert}: If actual odometer distance deviates from \texttt{approx\_km} by more than 10\%, a mandatory remark popup blocks saving until an explanation is provided.
+        \item \textbf{Diesel Synchronization}: Fuel entries auto-replicate to the vehicle's fuel maintenance log.
+        \item \textbf{Flag for Re-Checking}: Preserves pending draft status without forwarding to accounts.
+    \end{itemize}
+
+    \item \textbf{Stage 5: Accounts Verification (Accounts Team)}:
+    Accounts verifies freight rates, driver expenses, and net margins.
+    \begin{itemize}
+        \item \textbf{Approval (Tick)}: Locks reconciliation and enables invoice creation.
+        \item \textbf{Rejection (Cross)}: Rejection reason is stored; trip shifts to \texttt{rejected} status and displays an alert banner on the Docs dashboard.
+    \end{itemize}
+
+    \item \textbf{Stage 6: Invoice \& LR Consignment Generation (Accounts Team)}:
+    \begin{itemize}
+        \item \textit{Self (CGI)}: \textbf{Transport Memo} (Freight and Halt only; no GST).
+        \item \textit{Customer + GTA Registered}: \textbf{Bill of Supply} (Freight charges under RCM; no forward GST).
+        \item \textit{Customer + Non-GTA}: \textbf{Tax Invoice} (Standard forward-charge GST applied).
+        \item Numbering Sequences: Transport Memo (\texttt{CGI\{FY\}/TM\{nnnn\}}), Bill of Supply (\texttt{CGI\{FY\}/BS\{nnnn\}}), Tax Invoice (\texttt{CGI\{FY\}/T\{nnnn\}}).
+        \item Immutable Dates: Invoice dates are locked to current IST date to prevent backdating.
+        \item LR Generation: Standardized A4 Lorry Receipts (Consignment Notes) generated via client-side PDF synthesis.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Edit \& Delete Approval Protocol}
+Modifying sensitive records (Customers, Vendors, Bookings, Trip Sheets, Closed Trips) requires an \texttt{EditApprovalRequest}. Upon Admin approval, the backend issues an authorization token granting a strict \textbf{1-hour editing window} (\texttt{expires\_at}).
+
+\subsection{Compliance Expiry Warning Engine}
+Fleet compliance documents trigger proactive dashboard warnings:
+Fitness Certificate (30 days), Permits (10 days), Road Tax (10 days), PUC and Insurance (7 days).
+
+\newpage
+
+% ==============================================================================
+% SECTION 6: BACKEND API REFERENCE & ENDPOINT CATALOG
+% ==============================================================================
+\section{Backend API Reference \& Endpoint Catalog}
+
+The FastAPI backend exposes \textbf{205 REST endpoints} distributed across 21 feature routers, plus WebSocket and health routes.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{4.5cm}p{2.5cm}X}
+\toprule
+\textbf{Router Prefix} & \textbf{Endpoints} & \textbf{Functional Scope} \\
+\midrule
+\texttt{/auth} & 5 & Login, logout, audit trail, lockout list and reset \\
+\texttt{/trips} & 28 & Full trip lifecycle, closures, sheets, verification, invoices, LR \\
+\texttt{/trucks} & 5 & Fleet master CRUD and compliance tracking \\
+\texttt{/drivers} & 8 & Driver master CRUD and truck assignments \\
+\texttt{/staff} & 5 & Staff master CRUD, credentials, and designations \\
+\texttt{/customers} & 22 & Customers, origin/destinations, rate cards, final pricing \\
+\texttt{/vendors} & 5 & Vendor master CRUD and tax categories \\
+\texttt{/attendance} & 23 & Staff/driver daily attendance, leave workflows, late logs \\
+\texttt{/maintenance} & 19 & Vehicle service records, fuel logs, AdBlue logs \\
+\texttt{/tyre-inventory} & 6 & Tyre stock, retreading lifecycle, and condition \\
+\texttt{/tyre-fitment} & 4 & Tyre mounting, removal, and axle swaps \\
+\texttt{/finance} & 15 & EMI records, recurring bills, compensation (Accounts-only) \\
+\texttt{/edit-approvals} & 6 & 1-hour time-limited edit/delete authorization workflow \\
+\texttt{/branches} & 5 & Operating branch configuration \\
+\texttt{/repair-types} & 4 & Standard vehicle repair catalogue \\
+\texttt{/sac-codes} & 6 & SAC codes, GST rates, and invoice mappings \\
+\texttt{/operating-costs} & 2 & Operating cost calculator and tyre base rates \\
+\texttt{/trip-expense-rates} & 2 & Standard default trip expense rates \\
+\texttt{/dashboard} & 2 & Role-specific aggregated KPI metrics \\
+\texttt{/pl-summary} & 1 & Per-truck P\&L financial summary (Accounts-only) \\
+\texttt{/notifications} & 4 & Notification feed and read receipts \\
+\texttt{/files} & 2 & Token-guarded document/photo upload and download \\
+\texttt{/exports} & 20 & Excel and PDF export endpoints across modules \\
+\texttt{/backup} & 3 & Database SQL, Excel, and file archive dumps \\
+\texttt{/ws} & WebSocket & Real-time data change broadcast socket \\
+\texttt{/} & GET & Public API health check \\
+\bottomrule
+\end{tabularx}
+\caption{Complete Backend API Router Distribution}
+\end{table}
+
+\newpage
+
+% ==============================================================================
+% SECTION 7: FRONTEND ARCHITECTURE (WEB & DESKTOP)
+% ==============================================================================
+\section{Frontend Architecture (Web \& Desktop)}
+
+The web application is structured under the Next.js 16 App Router (\texttt{frontend/src/app}), providing 41 operational pages.
+
+\subsection{App Router Pages Catalog}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{5.5cm}p{4cm}X}
+\toprule
+\textbf{Page Route} & \textbf{Page Title} & \textbf{Authorized Roles} \\
+\midrule
+\texttt{/} & Main Dashboard & All Roles (Role-Specific Widgets) \\
+\texttt{/login} & Login & Public Access \\
+\texttt{/insights/pl-summary} & P\&L Summary & Admin, Accounts \\
+\texttt{/insights/operating-cost-calculator} & Cost Calculator & Admin \\
+\texttt{/trips/assign} & Assign Trips & Commercial, Asst Commercial \\
+\texttt{/trips/assign-drivers} & Assign Drivers & Commercial, Asst Commercial \\
+\texttt{/trips/current} & Current Trips & Commercial, Asst Commercial \\
+\texttt{/trips/completed} & Completed Trips & Commercial, Asst Commercial \\
+\texttt{/trips/available} & Available Trips & Commercial \\
+\texttt{/trips/sheet-collection} & Sheet Collection & Yard Supervisor \\
+\texttt{/trips/reconciliation} & Trip Reconciliation & Trip Sheet Register (Docs) \\
+\texttt{/trips/verification} & Verification \& Invoicing & Accounts \\
+\texttt{/trips/finalization} & Finalization & Accounts \\
+\texttt{/trips/history} & Trip History & Admin, Commercial, Accounts \\
+\texttt{/trips/pnl-mileage} & P\&L \& Mileage & Asst Commercial Manager \\
+\texttt{/resources/staff} & Staff Directory & Admin \\
+\texttt{/resources/drivers} & Drivers Directory & Admin, Commercial \\
+\texttt{/resources/fleet} & Fleet Directory & Admin, Commercial \\
+\texttt{/resources/customers} & Customer Directory & Admin, Commercial, Accounts \\
+\texttt{/resources/vendors} & Vendor Directory & Admin \\
+\texttt{/maintenance/trucks} & Truck Maintenance & Admin, Maintenance \\
+\texttt{/maintenance/tyre-management} & Tyre Management & Admin, Maintenance \\
+\texttt{/maintenance/tyre-inventory} & Tyre Inventory & Admin, Maintenance \\
+\texttt{/maintenance/fuel-history} & Fuel History & Admin, Trip Sheet Register \\
+\texttt{/maintenance/compliance} & Compliance Renewals & Admin, Accounts \\
+\texttt{/finance/driver-compensation} & Driver Compensation & Admin, Accounts \\
+\texttt{/finance/staff-compensation} & Staff Compensation & Admin \\
+\texttt{/finance/emi-tracking} & EMI Tracking & Admin, Accounts \\
+\texttt{/finance/recurring-payments} & Recurring Payments & Admin \\
+\texttt{/attendance/mark} & Mark Attendance & All Staff \\
+\texttt{/attendance/drivers} & Driver Attendance & Admin, Commercial, Asst Commercial \\
+\texttt{/attendance/staff} & Staff Attendance & Admin \\
+\texttt{/attendance/leave-requests} & Leave Requests & All Staff \\
+\texttt{/attendance/leave-approvals} & Leave Approvals & Admin \\
+\texttt{/attendance/edit-approvals} & Edit Approvals & Admin, Commercial \\
+\texttt{/attendance/report} & Attendance Report & Admin \\
+\texttt{/admin/branches} & Branch Management & Admin \\
+\texttt{/admin/trip-expenses} & Trip Expenses Config & Admin \\
+\texttt{/admin/repairs} & Repairs Management & Admin \\
+\texttt{/admin/sac-codes} & SAC Code Config & Admin, Accounts \\
+\texttt{/admin/adblue} & AdBlue Config & Admin \\
+\texttt{/admin/security} & Security Log & Admin \\
+\bottomrule
+\end{tabularx}
+\caption{Next.js App Router Pages and Access Mapping}
+\end{table}
+
+\subsection{State \& Context Architecture}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{\texttt{AuthContext}}: Maintains user session state in \texttt{sessionStorage} (ensuring isolated per-tab sessions) and triggers token revocation on logout.
+    \item \textbf{\texttt{ThemeContext}}: Remaps Tailwind CSS variables in \texttt{globals.css} to provide dark mode with glowing blue card borders.
+    \item \textbf{\texttt{WebSocketContext}}: Maintains a shared WebSocket connection with reconnect retry caps and 30-second heartbeats.
+    \item \textbf{\texttt{NotificationContext}}: Manages in-app alerts for pending approvals and document expiry warnings.
+\end{itemize}
+
+\subsection{Global UX Standards}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{10-Rows-Per-Page Standard}: Strict 10-rows-per-page pagination with sticky/frozen table headers across all tabular views.
+    \item \textbf{15-Minute Idle Auto-Logout}: Monitored by \texttt{react-haiku} (\texttt{useIdle}) in \texttt{AppShell.tsx} to terminate abandoned sessions.
+    \item \textbf{Client-Side PDF Engine}: High-fidelity Lorry Receipts (Consignment Notes) and invoices rendered in-browser using \texttt{jsPDF} and \texttt{html2canvas}.
+\end{itemize}
+
+\newpage
+
+% ==============================================================================
+% SECTION 8: MOBILE CLIENT ARCHITECTURE (FLUTTER)
+% ==============================================================================
+\section{Mobile Client Architecture (Flutter)}
+
+The mobile companion application (\texttt{Canaan\_mobile}) is tailored for executive fleet administration on Android and iOS devices.
+
+\subsection{Layered Architecture}
+
+\begin{diagrambox}{Mobile Layered Architecture}
++-----------------------------------------------------------+
+|                     Presentation Layer                    |
+|   lib/features/<feature>/*_screen.dart + shared/widgets   |
+|   (ConsumerWidgets / ConsumerStatefulWidgets)             |
++-----------------------------------------------------------+
+|                        State Layer                        |
+|   lib/features/<feature>/*_provider.dart                  |
+|   (Riverpod FutureProvider / StateNotifierProvider)       |
++-----------------------------------------------------------+
+|                        Core Layer                         |
+|   - api (Dio Client, Interceptors, Base URLs)             |
+|   - cache (Persistent SharedPreferences Write-Through)   |
+|   - auth (Session StateNotifier & Storage)                |
+|   - security (TLS Pinning, App Lock, Root Gate, JWT)      |
+|   - theme (AppColors, AppSpacing, Typography tokens)      |
++-----------------------------------------------------------+
+|                     Data / Backend Layer                  |
+|   FastAPI REST Engine @ erpbackend.canaanglobal...com     |
++-----------------------------------------------------------+
+\end{diagrambox}
+
+\subsection{Riverpod State Providers}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{4.5cm}p{3.5cm}p{3.5cm}X}
+\toprule
+\textbf{Provider} & \textbf{Type} & \textbf{Backend Route} & \textbf{Function} \\
+\midrule
+\texttt{authProvider} & \texttt{StateNotifier} & \texttt{POST /auth/login} & Session state; checks JWT expiry on boot \\
+\texttt{dashboardProvider} & \texttt{FutureProvider} & \texttt{GET /dashboard/overview} & Executive KPI metrics \\
+\texttt{fleetProvider} & \texttt{FutureProvider} & \texttt{GET /trucks} & Fleet list with 5-minute cache TTL \\
+\texttt{currentTripsProvider} & \texttt{FutureProvider} & \texttt{GET /trips?status=active} & Active on-road trips \\
+\texttt{allTripsProvider} & \texttt{FutureProvider} & \texttt{GET /trips} & Complete trip history \\
+\texttt{attendanceProvider} & \texttt{Future.family} & \texttt{GET /attendance/summary} & Date-keyed staff attendance \\
+\texttt{driverAttendanceProvider}& \texttt{Future.family} & \texttt{GET /attendance/drivers} & Date-keyed driver attendance \\
+\texttt{plSummaryProvider} & \texttt{FutureProvider} & \texttt{GET /pl-summary} & Per-truck P\&L statement \\
+\texttt{securityLogProvider} & \texttt{Future.family} & \texttt{GET /auth/audit-logs} & Paginated security audit trail \\
+\texttt{lockoutsProvider} & \texttt{FutureProvider} & \texttt{GET /auth/lockouts} & Active login lockout records \\
+\texttt{themeProvider} & \texttt{StateNotifier} & Local Storage & Persisted Light/Dark theme mode \\
+\bottomrule
+\end{tabularx}
+\caption{Riverpod Provider Registry}
+\end{table}
+
+\subsection{Offline Caching Engine (\texttt{core/cache/api\_cache.dart})}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Write-Through Persistence}: Every successful GET response is stored in device \texttt{SharedPreferences}.
+    \item \textbf{Offline Fallback}: Network errors or 5xx server failures serve cached data tagged with a \texttt{stale} indicator.
+    \item \textbf{Cache-First Acceleration}: Stable resources (such as Fleet Master) return cached data instantly when younger than TTL (5 minutes).
+    \item \textbf{Active Eviction}: Pull-to-refresh gestures explicitly invoke \texttt{evictCache(path)} to force fresh network fetches.
+\end{enumerate}
+
+\newpage
+
+% ==============================================================================
+% SECTION 9: REAL-TIME SYNCHRONIZATION
+% ==============================================================================
+\section{Real-Time Synchronization \& Data Consistency}
+
+The platform implements a \textbf{Persist $\rightarrow$ Broadcast $\rightarrow$ Refetch} consistency model across all clients.
+
+\begin{diagrambox}{Data Consistency Workflow}
+Client Action (POST / PUT / PATCH / DELETE)
+                 |
+                 v
+     FastAPI Backend Router (DB Commit)
+                 |
+                 v
+     Realtime Broadcast Middleware
+                 |
+                 v
+     WebSocket Broadcast (/ws) ==> "data_changed" { resource: "trips" }
+                 |
+                 v
+     Frontend Clients (useAutoRefresh)
+                 |
+                 v
+     Debounced REST Re-fetch (300ms) -> UI State Updated
+\end{diagrambox}
+
+\subsection{Real-Time Pipeline Guarantees}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Zero Sensitive Data over WebSocket}: The WebSocket channel emits only lightweight resource change notifications (for example: \texttt{\{"event": "data\_changed", "resource": "trips"\}}). No personal data or business records travel over the socket frame.
+    \item \textbf{Authenticated Sockets}: \texttt{/ws?token=<jwt>} validates token signature, expiry, and revocation denylists upon connection. Sockets close automatically (\texttt{code 4001}) if a token expires mid-session.
+    \item \textbf{Debounced Throttling}: Server-side debouncing (250ms) and client-side hook debouncing (300ms) prevent refetch storms during bulk operations.
+    \item \textbf{Graceful Polling Fallback}: In environments without persistent WebSocket proxying (such as shared cPanel hosting), \texttt{useAutoRefresh} falls back to 60-second polling and tab focus refreshes.
+\end{enumerate}
+
+\newpage
+
+% ==============================================================================
+% SECTION 10: FULL-STACK SECURITY ARCHITECTURE
+% ==============================================================================
+\section{Full-Stack Security Architecture \& Hardening}
+
+\subsection{Web \& Backend Security Controls}
+
+\begin{diagrambox}{Backend Security Controls}
+1. JWT HS256 Token Auth (12-hour expiry, unique jti, fail-closed secret)
+2. Server-Side Token Revocation (Instant jti denylist on logout)
+3. IP + Username Lockout (5 failed attempts -> 15 min lock; Admin reset)
+4. Authenticated Document Access (Token-guarded /files/..., audit-logged)
+5. Magic-Byte Upload Sniffing (File signature validation; 25 MB cap)
+6. Append-Only Tamper-Evident Audit Trail (audit_logs table)
+7. Constant-Time Admin Authentication (secrets.compare_digest)
+8. Hardened Security Headers (CSP, X-Frame-Options: DENY, HSTS opt-in)
+9. Safe Error Hygiene (Generic client errors, server-only stack traces)
+\end{diagrambox}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Authenticated Document Serving}: \texttt{GET /files/\{entity\}/\{id\}/\{field\}} enforces token verification. Direct URL guessing of Aadhaar, PAN, licence, or RC documents is prevented.
+    \item \textbf{Magic-Byte Sniffing}: Uploads are validated against genuine binary signatures (PDF, JPEG, PNG, WEBP). Disguised executables (such as \texttt{payload.exe} renamed to \texttt{doc.pdf}) are rejected.
+    \item \textbf{Brute-Force Protection}: Login failures are tracked on composite \texttt{(IP + Username)} keys. 5 consecutive failures lock the source for 15 minutes without blocking other corporate users.
+    \item \textbf{Server-Side Token Revocation}: Logout places the token's \texttt{jti} in an in-memory denylist, invalidating the session across REST, WebSocket, and file download routes.
+\end{itemize}
+
+\subsection{Mobile Client Security Controls}
+
+\begin{diagrambox}{Mobile Security Controls}
+1. CA-Level Certificate Pinning (Pinned to Let's Encrypt CA chain)
+2. Hardened OS Storage (EncryptedSharedPreferences / Keychain first_unlock)
+3. Proactive + Reactive Session Expiry (Local exp check + 401/403 purge)
+4. Root / Jailbreak Detection (Fail-closed SecurityGate block screen)
+5. Biometric & Credential App Lock (local_auth, re-locks on background)
+6. Native Screen-Capture Protection (FLAG_SECURE / iOS privacy cover)
+7. Release Code Hardening (Android R8 Shrinking + Dart Symbol Obfuscation)
+8. Cleartext HTTP Blocked & Cloud Backups Disabled
+\end{diagrambox}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{CA-Level Certificate Pinning (\texttt{tls\_pinning.dart})}:
+    Pins HTTPS traffic to the Let's Encrypt intermediate (\texttt{YR1}) and root (\texttt{ISRG Root YR}) Certificate Authority chain, surviving 60-day leaf renewals while blocking proxy interception (Burp Suite, mitmproxy).
+    \item \textbf{Hardened Storage Wrapper (\texttt{secure\_store.dart})}:
+    Android uses \texttt{EncryptedSharedPreferences} (AES-256-GCM in KeyStore/StrongBox). iOS uses Keychain with \texttt{kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly}. OS cloud backups and ADB data transfers are disabled (\texttt{data\_extraction\_rules.xml}).
+    \item \textbf{Device Integrity \& Root Blocking (\texttt{device\_integrity.dart})}:
+    Detects root binaries, test-keys, and Magisk/Jailbreak hooks via \texttt{safe\_device} / RootBeer. Compromised devices are halted at a fail-closed, un-dismissible "Security Check Failed" screen.
+    \item \textbf{Biometric Session Gate (\texttt{app\_lock.dart})}:
+    Prompts for Biometric (Fingerprint/Face ID) or device PIN unlock on startup and whenever returning from background.
+    \item \textbf{Native Screen-Capture Protection}:
+    Android sets \texttt{FLAG\_SECURE} in \texttt{MainActivity.kt}. iOS adds a privacy window overlay in \texttt{SceneDelegate.swift} upon \texttt{sceneWillResignActive}.
+\end{itemize}
+
+\newpage
+
+% ==============================================================================
+% SECTION 11: DATABASE MIGRATIONS & MAINTENANCE
+% ==============================================================================
+\section{Database Migrations \& Data Maintenance}
+
+The database layer utilizes an automated startup migration pipeline inside \texttt{backend/main.py}:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{\texttt{Base.metadata.create\_all()}}: Creates any missing tables on boot.
+    \item \textbf{\texttt{\_run\_schema\_migrations()}}: Applies guarded \texttt{ALTER TABLE} statements inside independent transaction blocks. Missing columns, expanded enums, newly added indexes, and foreign keys are provisioned automatically without requiring external migration tools.
+    \item \textbf{Role-Rename Migrations}: Automatically migrates legacy role names (for example: \textit{Fleet Manager} $\rightarrow$ \textit{Commercial Manager}, \textit{Staff} $\rightarrow$ \textit{Trip Sheet Register}) with data backfills.
+    \item \textbf{BLOB Widening}: Automatically upgrades document columns from \texttt{MEDIUMBLOB} to \texttt{LONGBLOB} (supporting 25 MB document uploads).
+    \item \textbf{Default Seeds}: Seeds default \texttt{RepairType} and expense rate categories on fresh database instances.
+\end{enumerate}
+
+% ==============================================================================
+% SECTION 12: BUILD, RELEASE & DEPLOYMENT GUIDE
+% ==============================================================================
+\section{Build, Release \& Deployment Guide}
+
+\subsection{Backend Deployment}
+\begin{lstlisting}[language=bash, caption={Backend Environment Configuration (.env)}]
+APP_ENV=production
+DB_HOST=127.0.0.1
+DB_USER=canaan_dbuser
+DB_PASSWORD=SecureProductionPassword
+DB_NAME=canaan_erp
+SECRET_KEY=64HexCharactersGeneratedSecretKeyString
+ACCESS_TOKEN_EXPIRE_HOURS=12
+ADMIN_USERNAME=admin@canaanglobalinternational.com
+ADMIN_PASSWORD=ComplexSuperAdminPassword
+CORS_ORIGINS=https://erp.canaanglobalinternational.com
+ENABLE_HSTS=1
+MIN_PASSWORD_LENGTH=10
+\end{lstlisting}
+
+Execute Uvicorn in single-worker mode:
+\begin{lstlisting}[language=bash]
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+\end{lstlisting}
+
+\subsection{Web Frontend Deployment}
+\begin{lstlisting}[language=bash]
+npm install
+npm run build
+npm run start
+\end{lstlisting}
+
+\subsection{Mobile Client Release Build \& Signing}
+
+Create \texttt{Canaan\_mobile/android/key.properties} (git-ignored):
+\begin{lstlisting}[language=bash]
+storePassword=YourKeystorePassword
+keyPassword=YourKeyPassword
+keyAlias=canaan
+storeFile=canaan-release.jks
+\end{lstlisting}
+
+Build release artifacts:
+\begin{lstlisting}[language=bash]
+# 1. Android APK (Direct install / sideloading)
+flutter build apk --release --obfuscate --split-debug-info=build/symbols
+
+# 2. Android App Bundle (Google Play Store release)
+flutter build appbundle --release --obfuscate --split-debug-info=build/symbols
+
+# 3. iOS Archive (Apple App Store / TestFlight)
+flutter build ipa --release --obfuscate --split-debug-info=build/symbols
+\end{lstlisting}
+
+\newpage
+
+% ==============================================================================
+% SECTION 13: API REQUEST & RESPONSE EXAMPLES
+% ==============================================================================
+\section{API Request \& Response Examples}
+
+\subsection{Authentication (\texttt{POST /auth/login})}
+\begin{lstlisting}[caption={Login Request and Response Payload}]
+// Request
+{
+  "username": "kumar@canaanglobalinternational.com",
+  "password": "UserPassword123"
+}
+
+// 200 OK Response
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "id": 4,
+  "name": "Kumar",
+  "email": "kumar@canaanglobalinternational.com",
+  "software_designation": "Commercial Manager",
+  "staff_id": "STF-1004",
+  "photo_url": null
+}
+
+// 429 Too Many Requests (Lockout)
+{
+  "detail": "Too many failed login attempts. Try again in 15 minute(s)."
+}
+\end{lstlisting}
+
+\subsection{Trip Creation (\texttt{POST /trips})}
+\begin{lstlisting}[caption={Trip Creation Payload}]
+// Request
+{
+  "booking_reference_no": "BR-2026-0450",
+  "booking_created_date": "2026-08-10",
+  "trip_category": "OUTSTATION",
+  "customer_id": 12,
+  "cargo_classification": "EXPORT",
+  "container_specification": "40 FT CONTAINER",
+  "container_number": "TWCU2081370",
+  "origin": "Chennai Port",
+  "destination": "Bangalore ICD",
+  "scheduled_date": "2026-08-11",
+  "driver_id": "CGI-D001",
+  "vehicle_id": "CGI-T001",
+  "bill_to": "CUSTOMER",
+  "payment_type": "Credit",
+  "approx_km": 350,
+  "transport_hire_amount": 28000
+}
+
+// 201 Created Response
+{
+  "id": 1051,
+  "trip_id": "TRP-1051",
+  "status": "Assigned",
+  "booking_reference_no": "BR-2026-0450",
+  "verification_status": "pending",
+  "is_invoiced": false,
+  "trip_sheet_collected": false,
+  "created_at": "2026-08-10T09:15:00Z"
+}
+\end{lstlisting}
+
+\subsection{Standard Error Envelope}
+All API error responses adhere to a consistent JSON structure:
+\begin{lstlisting}
+{
+  "detail": "Descriptive human-readable explanation of error condition"
+}
+\end{lstlisting}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{3.5cm}X}
+\toprule
+\textbf{HTTP Status} & \textbf{Trigger Condition} \\
+\midrule
+\textbf{400 Bad Request} & Business validation conflict or malformed state transition \\
+\textbf{401 Unauthorized} & Missing, invalid, expired, or revoked Bearer token \\
+\textbf{403 Forbidden} & User software designation lacks endpoint privilege \\
+\textbf{409 Conflict} & Optimistic lock concurrency failure or unique constraint clash \\
+\textbf{422 Unprocessable} & Request body failed Pydantic schema validation \\
+\textbf{429 Rate / Lockout} & Brute-force threshold exceeded (5 failed logins) \\
+\textbf{500 Server Error} & Internal exception; sanitized message returned to client \\
+\bottomrule
+\end{tabularx}
+\caption{Standard Error Status Code Mapping}
+\end{table}
+
+\newpage
+
+% ==============================================================================
+% SECTION 14: SECURITY MATRIX & THREAT SCENARIOS
+% ==============================================================================
+\section{Security Controls Matrix \& Real-World Threat Scenarios}
+
+\subsection{Complete Security Controls Matrix}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{2.2cm}p{4.8cm}p{3.5cm}p{1.8cm}X}
+\toprule
+\textbf{Control ID} & \textbf{Security Control} & \textbf{Location} & \textbf{Web} & \textbf{Mobile} \\
+\midrule
+\textbf{CRITICAL-1} & Authenticated Document Downloads & \texttt{routers/files.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{HIGH-1} & Magic-Byte Upload Validation & \texttt{routers/files.py} & \cmark\ Active & N/A \\
+\textbf{HIGH-2} & Strict CORS Origin Whitelisting & \texttt{main.py} & \cmark\ Active & Enforced by OS \\
+\textbf{HIGH-3} & Admin Constant-Time Auth & \texttt{routers/auth.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{MEDIUM-1} & Rate Limiting Strategy & Architecture & Documented & N/A \\
+\textbf{MEDIUM-2} & Server-Side JWT Revocation & \texttt{security.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{MEDIUM-3} & Composite IP + User Lockout & \texttt{routers/auth.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{MEDIUM-4} & Security Headers (CSP, HSTS) & \texttt{main.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{MEDIUM-5} & Error Sanitization Hygiene & \texttt{main.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{MEDIUM-6} & Append-Only Audit Logging & \texttt{audit.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{LOW-2} & Password Complexity Policy & \texttt{security.py} & \cmark\ Active & \cmark\ Active \\
+\textbf{MOB-1} & CA-Level TLS Pinning & \texttt{tls\_pinning.dart} & N/A & \cmark\ Active \\
+\textbf{MOB-2} & Hardened KeyStore Storage & \texttt{secure\_store.dart} & N/A & \cmark\ Active \\
+\textbf{MOB-3} & Root \& Jailbreak Gate & \texttt{device\_integrity.dart} & N/A & \cmark\ Active \\
+\textbf{MOB-4} & Biometric / PIN App Lock & \texttt{app\_lock.dart} & N/A & \cmark\ Active \\
+\textbf{MOB-5} & Screen-Capture Protection & \texttt{MainActivity.kt} & N/A & \cmark\ Active \\
+\textbf{MOB-6} & Release Obfuscation & \texttt{build.gradle.kts} & N/A & \cmark\ Active \\
+\bottomrule
+\end{tabularx}
+\caption{Full-Stack Security Controls Matrix}
+\end{table}
+
+\subsection{Real-World Threat Scenarios \& Mitigations}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Scenario A: Unauthenticated Document Scraping (CRITICAL-1)}
+    \begin{itemize}
+        \item \textit{Threat}: An external actor attempts URL enumeration against \texttt{/files/driver/15/aadhaar} to bulk-download confidential identity cards.
+        \item \textit{Mitigation}: The backend requires an active JWT token. Unauthenticated requests receive \texttt{401 Unauthorized}, and every document access writes to \texttt{audit\_logs}.
+    \end{itemize}
+
+    \item \textbf{Scenario B: Executable Disguised as Profile Photo (HIGH-1)}
+    \begin{itemize}
+        \item \textit{Threat}: An attacker uploads an executable binary renamed to \texttt{avatar.jpg}.
+        \item \textit{Mitigation}: The server inspects the raw binary magic bytes. Non-image headers are rejected immediately regardless of the client-supplied file extension.
+    \end{itemize}
+
+    \item \textbf{Scenario C: Rogue CA / Proxy Interception (MOB-1)}
+    \begin{itemize}
+        \item \textit{Threat}: A compromised root certificate or corporate inspection proxy attempts a Man-in-the-Middle attack on mobile traffic.
+        \item \textit{Mitigation}: The mobile client trusts only the embedded Let's Encrypt CA chain. Requests through untrusted proxies fail the TLS handshake before request data is transmitted.
+    \end{itemize}
+
+    \item \textbf{Scenario D: Shared Office IP Brute-Force Lockout (MEDIUM-3)}
+    \begin{itemize}
+        \item \textit{Threat}: An attacker makes 5 failed login attempts against an administrator's email. Under simple IP lockouts, all 50+ staff in the office sharing that public IP would be locked out.
+        \item \textit{Mitigation}: Lockouts are keyed on \texttt{(IP + Username)}. Only the attacker's specific composite connection is throttled; legitimate users continue working normally.
+    \end{itemize}
+\end{itemize}
+
+\newpage
+
+% ==============================================================================
+% SECTION 15: PRODUCTION READINESS CHECKLIST
+% ==============================================================================
+\section{Production Readiness Checklist}
+
+\subsection{Web \& Backend Go-Live Checklist}
+\begin{itemize}[leftmargin=*, label=\cmark]
+    \item JWT authentication enforced across all 21 feature routers.
+    \item Server-side token revocation operational on \texttt{POST /auth/logout}.
+    \item Production \texttt{SECRET\_KEY} ($\ge$32 hex chars) generated and populated in \texttt{backend/.env}.
+    \item Default \texttt{ADMIN\_PASSWORD} changed from fallback defaults to a strong production secret.
+    \item \texttt{CORS\_ORIGINS} locked to explicit production domain (\texttt{https://erp.canaanglobalinternational.com}).
+    \item Document download routes verified behind token authorization.
+    \item Startup schema migrations verified on production MySQL instance.
+    \item HTTPS configured end-to-end; \texttt{ENABLE\_HSTS=1} enabled.
+\end{itemize}
+
+\subsection{Mobile Client Go-Live Checklist}
+\begin{itemize}[leftmargin=*, label=\cmark]
+    \item Application ID updated to \texttt{com.canaanglobal.erp} across Android and iOS configurations.
+    \item Production signing keystore (\texttt{canaan-release.jks}) generated and configured in \texttt{key.properties}.
+    \item Release APK verified signed with production certificate (\texttt{CN=Canaan...}).
+    \item Release builds compiled with R8 code shrinking and Dart symbol obfuscation (\texttt{--obfuscate}).
+    \item CA-level TLS certificate pinning enabled and verified.
+    \item Biometric lock and root detection verified on physical hardware.
+    \item Native screen-capture protection (\texttt{FLAG\_SECURE}) confirmed active.
+\end{itemize}
+
+% ==============================================================================
+% SECTION 16: TROUBLESHOOTING & KNOWN LIMITATIONS
+% ==============================================================================
+\section{Troubleshooting \& Known Limitations}
+
+\subsection{Common Issues \& Resolutions}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\linewidth}{p{2.5cm}p{4cm}p{4cm}X}
+\toprule
+\textbf{Component} & \textbf{Symptom} & \textbf{Root Cause} & \textbf{Resolution} \\
+\midrule
+\textbf{Mobile} & \texttt{Namespace not specified} & Plugin incompatible with AGP 8 & Update plugin to maintained fork (e.g. \texttt{safe\_device}) \\
+\textbf{Mobile} & Biometric prompt fails to appear & Activity is not FragmentActivity & Ensure \texttt{MainActivity.kt} extends \texttt{FlutterFragmentActivity} \\
+\textbf{Mobile} & API calls fail after cert renewal & Backend Certificate Authority changed & Run OpenSSL s\_client to retrieve new CA chain and update \texttt{security\_config.dart} \\
+\textbf{Mobile} & Release build missing Play Core & R8 stripping required classes & Add \texttt{-dontwarn com.google.android.play.core.**} to \texttt{proguard-rules.pro} \\
+\textbf{Web} & WebSockets failing on cPanel & Hosting proxy lacks persistent WS & Expected behavior; \texttt{useAutoRefresh} automatically falls back to 60s polling \\
+\textbf{Backend} & Broadcasts not reaching all users & Uvicorn running multiple workers & Run Uvicorn with \texttt{--workers 1} or migrate connection manager to Redis \\
+\bottomrule
+\end{tabularx}
+\caption{System Troubleshooting Reference}
+\end{table}
+
+\subsection{Architectural Limitations \& Future Roadmap}
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{In-Memory State Multi-Worker Scaling}:
+    The token revocation denylist, login lockout counters, and WebSocket broadcast manager operate in-process within Python memory. When scaling horizontally across multiple server instances, provision a centralized Redis cache to manage token denylists and Pub/Sub broadcasts.
+    
+    \item \textbf{Short-Lived Signed Document URLs}:
+    Files are currently served through token-guarded API endpoints. Future iterations will introduce short-lived HMAC pre-signed URLs (such as S3 or Cloud Storage presigned GET) for offloaded direct file streaming.
+    
+    \item \textbf{Multi-Factor Authentication (MFA)}:
+    Implement TOTP (Time-Based One-Time Password) second-factor authentication for administrative accounts on the web client.
+\end{enumerate}
+
+\vfill
+\begin{center}
+    \rule{0.6\linewidth}{0.4pt}\\[0.2cm]
+    \footnotesize\color{canaanGray}
+    \textit{End of Canaan ERP Unified Technical \& Security Documentation.}\\
+    \textit{Prepared for Canaan Global International. Confidential.}
+\end{center}
+
+\end{document}

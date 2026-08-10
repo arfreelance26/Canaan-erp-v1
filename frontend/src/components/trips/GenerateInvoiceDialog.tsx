@@ -84,6 +84,16 @@ function numberToWords(amount: number): string {
   return result + " Only";
 }
 
+// Round the Grand Total half-DOWN to the nearest rupee:
+//   46,020.60 → 46,021   (fraction > 0.5 rounds up)
+//   46,020.50 → 46,020   (fraction = 0.5 rounds down)
+//   46,020.40 → 46,020   (fraction < 0.5 rounds down)
+// Normalise float noise to 2 dp first, then Math.ceil(x - 0.5).
+export function roundGrandTotal(x: number): number {
+  const cents = Math.round(x * 100) / 100;
+  return Math.ceil(cents - 0.5);
+}
+
 const emptyService = (): ServiceLine => ({
   descriptionOfService: "", sacCode: "", sacId: "", gstRate: "", quantity: "", rate: "",
 });
@@ -487,9 +497,11 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const subtotalAll = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.subtotal, 0) + extraChargesTotal, [serviceCalcs, extraChargesTotal]);
   const totalGst = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.gstAmount, 0), [serviceCalcs]);
   const grandTotal = useMemo(() => subtotalAll + totalGst, [subtotalAll, totalGst]);
-  const amountInWords = useMemo(() => numberToWords(grandTotal), [grandTotal]);
+  const grandTotalRounded = useMemo(() => roundGrandTotal(grandTotal), [grandTotal]);
+  const amountInWords = useMemo(() => numberToWords(grandTotalRounded), [grandTotalRounded]);
 
   const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtWhole = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -851,7 +863,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
 
             <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
               <span className="text-sm font-semibold text-gray-700">Grand Total</span>
-              <span className="text-lg font-bold text-emerald-700">₹{grandTotal > 0 ? fmt(grandTotal) : "0.00"}</span>
+              <span className="text-lg font-bold text-emerald-700">₹{grandTotalRounded > 0 ? fmtWhole(grandTotalRounded) : "0"}</span>
             </div>
             <Field label="Amount in Words">
               <input readOnly disabled value={amountInWords} className={roClass} placeholder="Auto-calculated from Grand Total" />
@@ -907,7 +919,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
           <div className="text-sm text-gray-500">
             Trip: <span className="font-semibold text-gray-800">{trip.tripId}</span>
             &nbsp;·&nbsp;
-            Grand Total: <span className="font-semibold text-emerald-700">₹{grandTotal > 0 ? fmt(grandTotal) : "0.00"}</span>
+            Grand Total: <span className="font-semibold text-emerald-700">₹{grandTotalRounded > 0 ? fmtWhole(grandTotalRounded) : "0"}</span>
           </div>
           <div className="flex gap-3">
             <button type="button" onClick={() => { clearFormDraft(draftKey); onClose(); }} disabled={saving} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50">

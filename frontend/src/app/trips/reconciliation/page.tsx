@@ -21,9 +21,11 @@ import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
+import { todayIst } from "@/lib/format-date";
 
 type DialogMode = "add" | "view" | "edit";
 
@@ -65,6 +67,8 @@ export default function TripReconciliationPage() {
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [dateFrom, setDateFrom] = useState(todayIst());
+  const [dateTo, setDateTo] = useState(todayIst());
 
   // Edit approval state (Staff only)
   const [editRequestOpen, setEditRequestOpen] = useState(false);
@@ -317,8 +321,26 @@ export default function TripReconciliationPage() {
 
   const receivedTrips = trips.filter((t) => t.tripSheetReceived === true);
 
+  const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
+  const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
+
   async function handleDownloadPDF() {
-    if (downloading || receivedTrips.length === 0) return;
+    if (downloading) return;
+
+    // Filter received trips by tripSheetDate within the selected date range
+    const pdfTrips = receivedTrips.filter((t) => {
+      if (!t.tripSheetDate) return false;
+      const ms = new Date(t.tripSheetDate).getTime();
+      if (fromMs && ms < fromMs) return false;
+      if (toMs   && ms > toMs)   return false;
+      return true;
+    });
+
+    if (pdfTrips.length === 0) {
+      showError("No trip sheets found for the selected date range.");
+      return;
+    }
+
     setDownloading(true);
     try {
       const { default: jsPDF } = await import("jspdf");
@@ -333,6 +355,12 @@ export default function TripReconciliationPage() {
       const rowH = 8;
       const headerH = 9;
 
+      const fmtDate = (iso: string) =>
+        new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const dateRangeLabel = dateFrom && dateTo && dateFrom === dateTo
+        ? fmtDate(dateFrom)
+        : `${dateFrom ? fmtDate(dateFrom) : "start"} to ${dateTo ? fmtDate(dateTo) : "today"}`;
+
       // Total: 277mm (297 - 10*2)
       const cols: [string, number][] = [
         ["Trip ID",       28],
@@ -344,20 +372,20 @@ export default function TripReconciliationPage() {
         ["Vehicle",       24],
         ["Hire Amt",      20],
         ["Total Exp",     20],
-        ["Received On",   24],
+        ["Sheet Date",    24],
       ];
 
       function drawPageHeader(pageNum: number, totalPages: number) {
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(13);
         pdf.setTextColor(27, 43, 94);
-        pdf.text("Trip Reconciliation — Delivered & Received", marginX, marginY);
+        pdf.text("Trip Reconciliation — Trip Sheets", marginX, marginY);
 
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8);
         pdf.setTextColor(100, 100, 100);
         pdf.text(
-          `Generated on ${today}  ·  ${receivedTrips.length} trip${receivedTrips.length !== 1 ? "s" : ""}`,
+          `Generated on ${today}  ·  ${pdfTrips.length} trip${pdfTrips.length !== 1 ? "s" : ""}  ·  ${dateRangeLabel}`,
           marginX, marginY + 5,
         );
         pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
@@ -377,15 +405,11 @@ export default function TripReconciliationPage() {
         return tableTop + headerH;
       }
 
-      const rowData = receivedTrips.map((trip) => {
+      const rowData = pdfTrips.map((trip) => {
         const customer = customerById.get(trip.customerId);
         const sheet = sheets.get(trip.id);
-        const receivedOn = trip.tripSheetReceivedAt
-          ? (() => {
-              const utc = trip.tripSheetReceivedAt.endsWith("Z") || trip.tripSheetReceivedAt.includes("+")
-                ? trip.tripSheetReceivedAt : trip.tripSheetReceivedAt + "Z";
-              return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
-            })()
+        const sheetDate = trip.tripSheetDate
+          ? new Date(trip.tripSheetDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
           : "—";
         return [
           trip.tripId,
@@ -397,7 +421,7 @@ export default function TripReconciliationPage() {
           trip.truckRegistration ?? "—",
           sheet ? `Rs.${n(sheet.hireAmount).toLocaleString("en-IN")}` : "—",
           sheet ? `Rs.${n(sheet.totalExpense).toLocaleString("en-IN")}` : "—",
-          receivedOn,
+          sheetDate,
         ];
       });
 
@@ -494,14 +518,13 @@ export default function TripReconciliationPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trip Reconciliation</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            View and manage booking sheets and trip sheets for closed trips
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Trip Reconciliation</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          View and manage booking sheets and trip sheets for closed trips
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -513,11 +536,25 @@ export default function TripReconciliationPage() {
           />
         </div>
         {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Trip Date:</span>
+          <DatePickerInput
+            value={dateFrom}
+            onChange={(v) => setDateFrom(v)}
+            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <DatePickerInput
+            value={dateTo}
+            onChange={(v) => setDateTo(v)}
+            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          />
+        </div>
         <button
           type="button"
           onClick={handleDownloadPDF}
-          disabled={downloading || receivedTrips.length === 0}
-          title={receivedTrips.length === 0 ? "No received trips to export" : "Download delivered & received trips as PDF"}
+          disabled={downloading}
+          title="Download trip sheets for selected date range as PDF"
           className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           <Download className="h-4 w-4" />
@@ -531,7 +568,6 @@ export default function TripReconciliationPage() {
           <Navigation className="h-4 w-4" />
           View Current Trips
         </button>
-        </div>
       </div>
 
       {/* Status filter count cards */}

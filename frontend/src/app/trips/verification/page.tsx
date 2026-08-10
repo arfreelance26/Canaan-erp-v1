@@ -20,10 +20,12 @@ import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Clock, FileText, AlertTriangle } from "lucide-react";
+import { Search, CheckCircle2, Clock, FileText, AlertTriangle, Download } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { todayIst } from "@/lib/format-date";
 
 type SheetDialogMode = "view" | "edit";
 
@@ -89,6 +91,9 @@ export default function TripVerificationPage() {
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<"All" | "Tax Invoice" | "Bill of Supply" | "Transport Memo">("All");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [dateFrom, setDateFrom] = useState(todayIst());
+  const [dateTo, setDateTo] = useState(todayIst());
+  const [downloading, setDownloading] = useState(false);
 
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
@@ -266,6 +271,154 @@ export default function TripVerificationPage() {
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
+  const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
+
+  async function handleDownloadPDF() {
+    if (downloading) return;
+
+    // Filter invoiced trips by invoice_date within the selected date range
+    const pdfTrips = trips.filter((t) => {
+      if (!invoicedIds.has(t.id)) return false;
+      const inv = invoiceData.get(t.id);
+      if (!inv?.invoice_date) return false;
+      const ms = new Date(inv.invoice_date as string).getTime();
+      if (fromMs && ms < fromMs) return false;
+      if (toMs   && ms > toMs)   return false;
+      return true;
+    });
+
+    if (pdfTrips.length === 0) {
+      showError("No invoiced trips found for the selected date range.");
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+
+      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const marginX = 10;
+      const marginY = 14;
+      const rowH = 8;
+      const headerH = 9;
+
+      const fmtDate = (iso: string) =>
+        new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const dateRangeLabel = dateFrom && dateTo && dateFrom === dateTo
+        ? fmtDate(dateFrom)
+        : `${dateFrom ? fmtDate(dateFrom) : "start"} to ${dateTo ? fmtDate(dateTo) : "today"}`;
+
+      const cols: [string, number][] = [
+        ["Invoice No",    36],
+        ["Invoice Type",  30],
+        ["Invoice Date",  24],
+        ["Trip ID",       24],
+        ["Booking Ref",   32],
+        ["Bill To",       36],
+        ["Route",         40],
+        ["Container No",  28],
+        ["Vehicle",       27],
+      ];
+
+      function drawPageHeader(pageNum: number, totalPages: number) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text("Invoiced Trips Report", marginX, marginY);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `Generated on ${today}  ·  ${pdfTrips.length} invoice${pdfTrips.length !== 1 ? "s" : ""}  ·  ${dateRangeLabel}`,
+          marginX, marginY + 5,
+        );
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+
+        const tableTop = marginY + 10;
+        pdf.setFillColor(27, 43, 94);
+        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(255, 255, 255);
+        let x = marginX;
+        for (const [label, w] of cols) {
+          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          x += w;
+        }
+        return tableTop + headerH;
+      }
+
+      const rowData = pdfTrips.map((trip) => {
+        const inv = invoiceData.get(trip.id);
+        const invDate = inv?.invoice_date
+          ? fmtDate(inv.invoice_date as string)
+          : "—";
+        return [
+          inv?.invoice_no ?? "—",
+          inv?.invoice_type ?? "—",
+          invDate,
+          trip.tripId,
+          trip.bookingReferenceNo ?? "—",
+          inv?.bill_to ?? trip.shipperConsignee ?? "—",
+          `${trip.origin} > ${trip.destination}`,
+          trip.containerNumber ?? trip.containerNumber1 ?? "—",
+          trip.truckRegistration ?? "—",
+        ];
+      });
+
+      const usableH = pageH - marginY - 20;
+      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
+      const totalPages = Math.ceil(rowData.length / rowsPerPage);
+
+      let rowIndex = 0;
+      for (let page = 1; page <= totalPages; page++) {
+        if (page > 1) pdf.addPage();
+        const y = drawPageHeader(page, totalPages);
+
+        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
+        rowIndex += rowsPerPage;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7.5);
+
+        for (let r = 0; r < pageRows.length; r++) {
+          const rowY = y + r * rowH;
+          if (r % 2 === 1) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+          }
+          pdf.setDrawColor(229, 231, 235);
+          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+
+          pdf.setTextColor(30, 30, 30);
+          let x = marginX;
+          for (let c = 0; c < cols.length; c++) {
+            const [, w] = cols[c];
+            const clipped = pdf.splitTextToSize(String(pageRows[r][c] ?? "—"), w - 4)[0] ?? "";
+            pdf.text(clipped, x + 2, rowY + 5.5);
+            x += w;
+          }
+        }
+
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
+      }
+
+      pdf.save(`invoiced-trips-${today.replace(/ /g, "-")}.pdf`);
+    } catch {
+      showError("Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
   const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers));
@@ -311,24 +464,46 @@ export default function TripVerificationPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Verification & Invoicing</h1>
-          <p className="mt-1 text-sm text-gray-500">Verify trip data and generate invoices in one place</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Verification & Invoicing</h1>
+        <p className="mt-1 text-sm text-gray-500">Verify trip data and generate invoices in one place</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by truck no., driver, trip ID…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by truck no., driver, trip ID…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+          />
         </div>
+        <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Trip Date:</span>
+          <DatePickerInput
+            value={dateFrom}
+            onChange={(v) => { setDateFrom(v); }}
+            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <DatePickerInput
+            value={dateTo}
+            onChange={(v) => { setDateTo(v); }}
+            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleDownloadPDF}
+          disabled={downloading}
+          title="Download invoiced trips for selected date range as PDF"
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        >
+          <Download className="h-4 w-4" />
+          {downloading ? "Generating..." : "Download PDF"}
+        </button>
       </div>
 
       {/* Filter cards */}
