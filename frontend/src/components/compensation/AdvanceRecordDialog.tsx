@@ -292,7 +292,7 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
     pdf.text("Total Advance Paid (Rs)", marginX + 2, y + 6);
     pdf.text(fmtNum(grandTotal), pageW - marginX - 2, y + 6, { align: "right" });
 
-    const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7);
     pdf.setTextColor(160);

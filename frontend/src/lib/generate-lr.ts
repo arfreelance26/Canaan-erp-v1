@@ -182,7 +182,7 @@ export async function generateLR(
   pdf.setTextColor(180, 200, 240);
   pdf.text("CGI Logistics — Computer Generated Lorry Receipt", margin, footerY + 4.5);
   pdf.text(
-    `Generated: ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" })}`,
+    `Generated: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Kolkata" }).replace(/\//g, "-")}`,
     pw - margin, footerY + 4.5, { align: "right" },
   );
   pdf.setTextColor(130, 160, 210);

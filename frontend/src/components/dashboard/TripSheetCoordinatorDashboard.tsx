@@ -28,11 +28,11 @@ const QUICK_LINKS = [
 
 function fmtIST(raw: string) {
   const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
-  return new Date(s).toLocaleString("en-IN", {
+  return new Date(s).toLocaleString("en-GB", {
     timeZone: "Asia/Kolkata",
-    day: "2-digit", month: "short", year: "numeric",
+    day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: true,
-  });
+  }).replace(/\//g, "-");
 }
 
 function SectionTitle({ icon: Icon, title, badge, badgeVariant }: {
@@ -133,7 +133,7 @@ export function TripSheetCoordinatorDashboard() {
         <StatCard icon={Layers}       label="Total Closed Trips" value={loading ? "—" : closedTrips.length}    variant="blue"    caption="Ready for collection" />
         <StatCard icon={Clock}        label="Pending Collection" value={loading ? "—" : pending.length}        variant={pending.length > 0 ? "amber" : "default"} caption="Sheets not yet received" />
         <StatCard icon={CheckCircle2} label="Delivered"          value={loading ? "—" : delivered.length}      variant="emerald" caption="Sheets handed over" />
-        <StatCard icon={CalendarDays} label="Delivered Today"    value={loading ? "—" : deliveredToday.length} variant="purple"  caption={new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" })} />
+        <StatCard icon={CalendarDays} label="Delivered Today"    value={loading ? "—" : deliveredToday.length} variant="purple"  caption={new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} />
       </div>
 
       {/* Quick Access */}

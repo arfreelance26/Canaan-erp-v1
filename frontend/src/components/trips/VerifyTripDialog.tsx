@@ -182,7 +182,7 @@ export function VerifyTripDialog({
           <Row label="Container Specification" value={trip.containerSpecification} />
           <Row label="Driver Name"             value={trip.driverName ?? ""} />
           <Row label="Booking Date"            value={trip.bookingCreatedDate
-            ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+            ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
             : ""} />
         </SectionCard>
 

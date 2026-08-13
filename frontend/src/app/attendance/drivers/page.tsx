@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Lock, Download, Loader2, Info } from "lucide-react";
+import { Search, Lock, Download, Loader2, Info, FileBarChart2, X, ChevronRight } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DriverAttendanceTable } from "@/components/attendance/DriverAttendanceTable";
@@ -36,6 +36,10 @@ export default function DriverAttendancePage() {
   const [downloading, setDownloading] = useState(false);
   const [fromDate, setFromDate] = useState(todayIst());
   const [toDate, setToDate] = useState(todayIst());
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportRecords, setReportRecords] = useState<DriverAttendanceRecord[]>([]);
+  const [reportRemarks, setReportRemarks] = useState<DriverAttendanceRemark[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
   const [lateEntryLog, setLateEntryLog] = useState<{ id: string; date: string; remark: string; createdAt: string | null } | null>(null);
   const [lateEntryRemark, setLateEntryRemark] = useState("");
   const [submittingLateEntry, setSubmittingLateEntry] = useState(false);
@@ -118,6 +122,21 @@ export default function DriverAttendancePage() {
     setRemarks((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
+  async function handleViewReport() {
+    setReportLoading(true);
+    setShowReportModal(true);
+    try {
+      const [r, rm] = await Promise.all([
+        attendanceApi.listDrivers(undefined, undefined, fromDate, toDate),
+        attendanceApi.listDriverRemarks(undefined, undefined, fromDate, toDate),
+      ]);
+      setReportRecords(r);
+      setReportRemarks(rm);
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   async function handleDownloadPDF() {
     if (downloading || drivers.length === 0) return;
     setDownloading(true);
@@ -145,8 +164,8 @@ export default function DriverAttendancePage() {
 
       const isSingleDay = fromDate === toDate;
       const rangeLabel = isSingleDay
-        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
+        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
+        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}`;
 
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
@@ -177,9 +196,9 @@ export default function DriverAttendancePage() {
       type PdfRow = { dateLabel: string; idx: number; driverId: string; name: string; status: string; remarkText: string };
       const allRows: PdfRow[] = [];
       for (const d of dates) {
-        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
-          day: "2-digit", month: "short", year: "numeric", weekday: "short",
-        });
+        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-GB", {
+          day: "2-digit", month: "2-digit", year: "numeric", weekday: "short",
+        }).replace(/\//g, "-");
         drivers.forEach((driver, idx) => {
           const record = rangeRecords.find((r) => r.driverId === driver.driverId && r.date === d);
           const status = record?.status ?? "Not Marked";
@@ -396,15 +415,8 @@ export default function DriverAttendancePage() {
               className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View date picker */}
-          
-
-          <div className="h-6 w-px bg-gray-200" />
-
-          {/* Download date range pickers */}
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Download</span>
             <label className="text-sm font-medium text-gray-600">From</label>
             <DatePickerInput
               value={fromDate}
@@ -418,20 +430,15 @@ export default function DriverAttendancePage() {
               className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
-
-          <DownloadExcelButton
-            path="/exports/driver-attendance"
-            filename={`driver_attendance_${fromDate}_to_${toDate}.xlsx`}
-            params={{ from_date: fromDate, to_date: toDate }}
-          />
           <button
             type="button"
-            onClick={handleDownloadPDF}
-            disabled={downloading || drivers.length === 0}
-            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            onClick={handleViewReport}
+            disabled={reportLoading}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="h-4 w-4" />
-            {downloading ? "Generating..." : "Download PDF"}
+            {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart2 className="h-4 w-4" />}
+            View
+            {!reportLoading && <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
@@ -521,6 +528,123 @@ export default function DriverAttendancePage() {
         onUpdateRemark={handleUpdateRemark}
         onDeleteRemark={handleDeleteRemark}
       />
+
+      {showReportModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}
+        >
+          <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+              <div>
+                <p className="font-semibold text-gray-900">Driver Attendance Report</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {fromDate === toDate
+                    ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
+                    : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}`}
+                  {" · "}{drivers.length} driver{drivers.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Report table */}
+            <div className="flex-1 overflow-auto px-5 py-4">
+              {reportLoading ? (
+                <div className="flex items-center justify-center py-16 gap-2 text-sm text-gray-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Loading report…
+                </div>
+              ) : reportRecords.length === 0 && drivers.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-12">No attendance data for the selected range.</p>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      {["#", "Driver ID", "Driver Name", "Date", "Status", "Remarks"].map((col) => (
+                        <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(() => {
+                      const dates: string[] = [];
+                      const [fy, fm, fd] = fromDate.split("-").map(Number);
+                      const [ty, tm, td] = toDate.split("-").map(Number);
+                      const cur = new Date(fy, fm - 1, fd);
+                      const end = new Date(ty, tm - 1, td);
+                      while (cur <= end) {
+                        dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
+                        cur.setDate(cur.getDate() + 1);
+                      }
+                      let rowIdx = 0;
+                      return dates.flatMap((d) =>
+                        drivers.map((driver) => {
+                          rowIdx++;
+                          const record = reportRecords.find((r) => r.driverId === driver.driverId && r.date === d);
+                          const status = record?.status ?? "Not Marked";
+                          const driverRemarks = reportRemarks.filter((r) => r.driverId === driver.driverId && r.date === d);
+                          const remarkText = driverRemarks.map((r) => r.remark).join("; ") || "—";
+                          const statusColor: Record<string, string> = {
+                            "On Trip": "text-blue-700 bg-blue-50",
+                            "On Halt": "text-orange-700 bg-orange-50",
+                            "Leave": "text-yellow-700 bg-yellow-50",
+                            "On Workshop": "text-purple-700 bg-purple-50",
+                            "Not Marked": "text-gray-500 bg-gray-50",
+                          };
+                          return (
+                            <tr key={`${d}-${driver.driverId}`} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-400 text-xs">{rowIdx}</td>
+                              <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{driver.driverId}</td>
+                              <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{driver.name}</td>
+                              <td className="px-3 py-2 text-gray-500 whitespace-nowrap">
+                                {new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[status] ?? "text-gray-500 bg-gray-50"}`}>
+                                  {status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{remarkText}</td>
+                            </tr>
+                          );
+                        })
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
+              <DownloadExcelButton
+                path="/exports/driver-attendance"
+                filename={`driver_attendance_${fromDate}_to_${toDate}.xlsx`}
+                params={{ from_date: fromDate, to_date: toDate }}
+              />
+              <button
+                type="button"
+                onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }}
+                disabled={downloading || drivers.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? "Generating..." : "Download PDF"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

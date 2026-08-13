@@ -59,7 +59,7 @@ function fmt(n: number) {
 function fmtDate(d: string) {
   if (!d) return "—";
   const dt = new Date(d);
-  return dt.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+  return dt.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
 }
 
 function daysBetween(dateStr: string) {

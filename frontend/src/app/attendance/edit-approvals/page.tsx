@@ -27,15 +27,15 @@ function timeLeft(expiresAt: string | null): string {
 function formatDate(raw: string | null): string {
   if (!raw) return "—";
   const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
-  return new Date(s).toLocaleString("en-IN", {
+  return new Date(s).toLocaleString("en-GB", {
     timeZone: "Asia/Kolkata",
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
-  }) + " IST";
+  }).replace(/\//g, "-") + " IST";
 }
 
 export default function EditApprovalsPage() {

@@ -187,7 +187,7 @@ export function FleetManagerDashboard() {
       const s = d.endsWith("Z") || d.includes("+") ? d : d + "Z";
       dt = new Date(s);
     }
-    return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+    return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Kolkata" }).replace(/\//g, "-");
   };
 
   const completedTrips    = allTrips.filter((t) => t.status === "Completed");

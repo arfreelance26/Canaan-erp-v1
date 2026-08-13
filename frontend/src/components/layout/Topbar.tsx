@@ -79,11 +79,11 @@ function fmtIST(raw: string): string {
   const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
   const d = new Date(s);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-IN", {
+  return d.toLocaleString("en-GB", {
     timeZone: "Asia/Kolkata",
-    day: "2-digit", month: "short",
+    day: "2-digit", month: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: true,
-  });
+  }).replace(/\//g, "-");
 }
 
 type EditRequestNotif = {

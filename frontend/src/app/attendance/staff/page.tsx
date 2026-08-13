@@ -94,8 +94,8 @@ export default function StaffAttendancePage() {
 
       const isSingleDay = fromDate === toDate;
       const rangeLabel = isSingleDay
-        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
-        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
+        ? new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
+        : `${new Date(fromDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} – ${new Date(toDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}`;
 
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
@@ -124,9 +124,9 @@ export default function StaffAttendancePage() {
       type PdfRow = { dateLabel: string; idx: number; staffId: string; name: string; designation: string; status: string };
       const allRows: PdfRow[] = [];
       for (const d of dates) {
-        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
-          day: "2-digit", month: "short", year: "numeric", weekday: "short",
-        });
+        const displayDate = new Date(d + "T00:00:00").toLocaleDateString("en-GB", {
+          day: "2-digit", month: "2-digit", year: "numeric", weekday: "short",
+        }).replace(/\//g, "-");
         staff.forEach((member, idx) => {
           const record = rangeRecords.find((r) => r.staffId === member.id && r.date === d);
           const status = record?.status ?? "Not Marked";

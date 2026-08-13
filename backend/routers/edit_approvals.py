@@ -73,6 +73,21 @@ def get_my_active_approvals(
     ).all()
 
 
+@router.get("/mine", response_model=list[schemas.EditApprovalRequestOut])
+def get_my_requests(
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Returns all edit requests raised by the calling user (any status)."""
+    q = db.query(models.EditApprovalRequest).filter(
+        models.EditApprovalRequest.staff_db_id == current_user.id,
+    )
+    if status:
+        q = q.filter(models.EditApprovalRequest.status == status)
+    return q.order_by(models.EditApprovalRequest.created_at.desc()).all()
+
+
 @router.patch("/{request_id}/approve", response_model=schemas.EditApprovalRequestOut)
 def approve_edit_request(
     request_id: int,

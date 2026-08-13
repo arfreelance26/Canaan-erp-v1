@@ -1,12 +1,13 @@
 "use client";
 
-import { FileText, Pencil, Trash2 } from "lucide-react";
+import { Eye, FileText, Pencil, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Driver } from "@/types/driver";
 import { formatDate } from "@/lib/format-date";
 
 type DriverTableProps = {
   drivers: Driver[];
+  onView: (driver: Driver) => void;
   onEdit: (driver: Driver) => void;
   onDelete: (id: string) => void;
 };
@@ -25,7 +26,7 @@ const columns = [
   "Actions",
 ];
 
-export function DriverTable({ drivers, onEdit, onDelete }: DriverTableProps) {
+export function DriverTable({ drivers, onView, onEdit, onDelete }: DriverTableProps) {
   if (drivers.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -51,8 +52,8 @@ export function DriverTable({ drivers, onEdit, onDelete }: DriverTableProps) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {drivers.map((driver) => (
-            <tr key={driver.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3">
+            <tr key={driver.id} onClick={() => onView(driver)} className="hover:bg-gray-50 cursor-pointer">
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <Avatar photoUrl={driver.photoUrl} label={driver.name} size={44} />
               </td>
               <td className="px-4 py-3 font-medium text-gray-900">{driver.driverId}</td>
@@ -83,8 +84,16 @@ export function DriverTable({ drivers, onEdit, onDelete }: DriverTableProps) {
                   <span className="text-gray-400">—</span>
                 )}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onView(driver)}
+                    aria-label={`View ${driver.driverId}`}
+                    className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => onEdit(driver)}

@@ -1,12 +1,13 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Eye } from "lucide-react";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
 type TruckTableProps = {
   trucks: Truck[];
+  onView: (truck: Truck) => void;
   onEdit: (truck: Truck) => void;
   onDelete: (id: string) => void;
 };
@@ -24,7 +25,7 @@ const columns = [
   "Actions",
 ];
 
-export function TruckTable({ trucks, onEdit, onDelete }: TruckTableProps) {
+export function TruckTable({ trucks, onView, onEdit, onDelete }: TruckTableProps) {
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -50,7 +51,7 @@ export function TruckTable({ trucks, onEdit, onDelete }: TruckTableProps) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {trucks.map((truck) => (
-            <tr key={truck.truckId} className="hover:bg-gray-50">
+            <tr key={truck.truckId} onClick={() => onView(truck)} className="hover:bg-gray-50 cursor-pointer">
               <td className="px-4 py-3 font-medium text-gray-900">{truck.truckId}</td>
               <td className="px-4 py-3 text-gray-600">{truck.registrationNumber}</td>
               <td className="px-4 py-3 text-gray-600">{truck.manufacturer}</td>
@@ -62,8 +63,16 @@ export function TruckTable({ trucks, onEdit, onDelete }: TruckTableProps) {
               <td className="px-4 py-3 text-gray-600">{truck.odometer}</td>
               <td className="px-4 py-3 text-gray-600">{formatDate(truck.fcExpiryDate)}</td>
               <td className="px-4 py-3 text-gray-600">{formatDate(truck.insuranceExpiryDate)}</td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onView(truck)}
+                    aria-label={`View ${truck.truckId}`}
+                    className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => onEdit(truck)}

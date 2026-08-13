@@ -1,12 +1,13 @@
 "use client";
 
-import { FileText, Pencil, Trash2 } from "lucide-react";
+import { Eye, FileText, Pencil, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Staff } from "@/types/staff";
 import { formatDate } from "@/lib/format-date";
 
 type StaffTableProps = {
   staff: Staff[];
+  onView: (staff: Staff) => void;
   onEdit: (staff: Staff) => void;
   onDelete: (id: string) => void;
 };
@@ -25,7 +26,7 @@ const columns = [
   "Actions",
 ];
 
-export function StaffTable({ staff, onEdit, onDelete }: StaffTableProps) {
+export function StaffTable({ staff, onView, onEdit, onDelete }: StaffTableProps) {
   if (staff.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -51,8 +52,8 @@ export function StaffTable({ staff, onEdit, onDelete }: StaffTableProps) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {staff.map((member) => (
-            <tr key={member.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3">
+            <tr key={member.id} onClick={() => onView(member)} className="hover:bg-gray-50 cursor-pointer">
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <Avatar photoUrl={member.photoUrl} label={member.name} size={44} />
               </td>
               <td className="px-4 py-3 font-medium text-gray-900">{member.name}</td>
@@ -73,8 +74,16 @@ export function StaffTable({ staff, onEdit, onDelete }: StaffTableProps) {
                   <span className="text-gray-400">—</span>
                 )}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onView(member)}
+                    aria-label={`View ${member.staffId}`}
+                    className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => onEdit(member)}

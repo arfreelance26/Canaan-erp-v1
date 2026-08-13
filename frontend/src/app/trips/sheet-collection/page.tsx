@@ -9,7 +9,7 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList } from "lucide-react";
+import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, FileBarChart2, X } from "lucide-react";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -19,15 +19,15 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 function fmtIST(iso: string) {
   // MySQL returns datetime without timezone marker — append Z to force UTC parsing
   const utc = iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z";
-  const formatted = new Date(utc).toLocaleString("en-IN", {
+  const formatted = new Date(utc).toLocaleString("en-GB", {
     timeZone: "Asia/Kolkata",
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
-  });
+  }).replace(/\//g, "-");
   return `${formatted} (GMT+05:30)`;
 }
 
@@ -50,6 +50,7 @@ export default function SheetCollectionPage() {
   // Date range (Delivered On) — scopes the PDF export only. Defaults to today.
   const [dateFrom, setDateFrom] = useState(todayIst());
   const [dateTo, setDateTo] = useState(todayIst());
+  const [showReportModal, setShowReportModal] = useState(false);
   // Advance verification panel state
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
@@ -275,7 +276,7 @@ export default function SheetCollectionPage() {
     try {
       const { default: jsPDF } = await import("jspdf");
 
-      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
       const pageW = pdf.internal.pageSize.getWidth();   // 297mm landscape
@@ -342,7 +343,7 @@ export default function SheetCollectionPage() {
           ? (() => {
               const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+")
                 ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
-              return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+              return new Date(utc).toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
             })()
           : "—";
         return [
@@ -461,13 +462,13 @@ export default function SheetCollectionPage() {
           </div>
           <button
             type="button"
-            onClick={handleDownloadPDF}
-            disabled={downloading || collected.length === 0}
-            title={collected.length === 0 ? "No delivered sheets to export" : "Download delivered sheets as PDF"}
+            onClick={() => setShowReportModal(true)}
+            disabled={collected.length === 0}
+            title={collected.length === 0 ? "No delivered sheets to export" : "View and download delivered sheets"}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            <Download className="h-4 w-4" />
-            {downloading ? "Generating..." : "Download PDF"}
+            <FileBarChart2 className="h-4 w-4" />
+            View
           </button>
         </div>
       </div>
@@ -827,7 +828,7 @@ export default function SheetCollectionPage() {
                       <td className="px-4 py-3 text-gray-500 text-xs">
                         {trip.tripSheetCollectedAt ? (() => {
                           const utc = trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+") ? trip.tripSheetCollectedAt : trip.tripSheetCollectedAt + "Z";
-                          return new Date(utc).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric" });
+                          return new Date(utc).toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
                         })() : "—"}
                       </td>
 
@@ -911,6 +912,73 @@ export default function SheetCollectionPage() {
         </>
       )}
 
+      {showReportModal && (() => {
+        const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+        const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
+        const pdfTrips = collected.filter((t) => {
+          if (!fromMs && !toMs) return true;
+          if (!t.tripSheetCollectedAt) return false;
+          const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+") ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
+          const ms = new Date(raw).getTime();
+          if (fromMs && ms < fromMs) return false;
+          if (toMs && ms > toMs) return false;
+          return true;
+        });
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+                <div>
+                  <p className="font-semibold text-gray-900">Trip Sheet Collection Report</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
+                </div>
+                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="flex-1 overflow-auto px-5 py-4">
+                {pdfTrips.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 py-12">No delivered sheets match the selected date range.</p>
+                ) : (
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        {["#", "Trip ID", "Booking Ref", "Trip Date", "Vehicle", "Customer", "Route", "Container No", "Driver", "Delivered On"].map((col) => (
+                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pdfTrips.map((t, i) => {
+                        const customer = customerById.get(t.customerId);
+                        const deliveredOn = t.tripSheetCollectedAt ? (() => { const raw = t.tripSheetCollectedAt!.endsWith("Z") || t.tripSheetCollectedAt!.includes("+") ? t.tripSheetCollectedAt! : t.tripSheetCollectedAt! + "Z"; return new Date(raw).toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"); })() : "—";
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.scheduledDate ? new Date(t.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[140px] truncate">{customer?.name ?? t.shipperConsignee ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.driverName ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{deliveredOn}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
+                <button type="button" onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Download className="h-4 w-4" />
+                  {downloading ? "Generating..." : "Download PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

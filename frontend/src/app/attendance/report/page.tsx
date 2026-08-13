@@ -284,7 +284,7 @@ export default function AttendanceReportPage() {
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(7);
           for (let i = 0; i < dates.length; i++) {
-            const st = statusMap[r.code]?.[dates[i]] ?? "Not Marked";
+            const st = statusMap[isDriver ? r.code : r.id]?.[dates[i]] ?? "Not Marked";
             const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
             pdf.setTextColor(...(RGB[st] ?? RGB["Not Marked"]));
             pdf.text(disp.abbr, marginX + nameW + i * cellW + cellW / 2, curY + 4, { align: "center" });
@@ -539,7 +539,9 @@ export default function AttendanceReportPage() {
                         <div className="text-xs text-gray-400">{r.code}</div>
                       </td>
                       {dates.map((d) => {
-                        const st = statusMap[r.code]?.[d] ?? "Not Marked";
+                        // Drivers key the status map by driver code; staff records
+                        // key by the numeric staff id (which the summary exposes as r.id).
+                        const st = statusMap[isDriver ? r.code : r.id]?.[d] ?? "Not Marked";
                         const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
                         return (
                           <td key={d} className="px-1 py-2 text-center" title={`${formatDate(d)} — ${disp.title}`}>

@@ -78,7 +78,7 @@ export default function AssignDriversPage() {
     try {
       const { default: jsPDF } = await import("jspdf");
 
-      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       const pageW = pdf.internal.pageSize.getWidth();

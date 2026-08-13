@@ -55,17 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user && pathname !== "/login") {
       router.replace("/login");
     } else if (user) {
-      // Roles without a dashboard land on their dedicated workspace instead of "/"
-      const roleHome =
-        user.softwareDesignation === "Yard Supervisor"
-          ? "/trips/sheet-collection"
-          : user.softwareDesignation === "Trip Sheet Register"
-            ? "/trips/reconciliation"
-            : "/";
+      // Every role now has a dashboard at "/" — send authenticated users there.
       if (pathname === "/login") {
-        router.replace(roleHome);
-      } else if (roleHome !== "/" && pathname === "/") {
-        router.replace(roleHome);
+        router.replace("/");
       }
     }
   }, [user, ready, pathname, router]);
@@ -101,13 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function completeLogin(authUser: AuthUser) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
-    const home =
-      authUser.softwareDesignation === "Yard Supervisor"
-        ? "/trips/sheet-collection"
-        : authUser.softwareDesignation === "Trip Sheet Register"
-          ? "/trips/reconciliation"
-          : "/";
-    router.replace(home);
+    // All roles land on their dashboard at "/".
+    router.replace("/");
   }
 
   function logout() {

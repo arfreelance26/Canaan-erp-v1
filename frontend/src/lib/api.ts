@@ -2236,6 +2236,10 @@ export const editApprovalsApi = {
   },
   getMyActive: () =>
     req<B[]>("/edit-approvals/my-active").then((d) => d.map(toEditApproval)),
+  getMine: (status?: string) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return req<B[]>(`/edit-approvals/mine${qs}`).then((d) => d.map(toEditApproval));
+  },
   create: (payload: {
     resourceType: EditApprovalResourceType;
     resourceId: number;

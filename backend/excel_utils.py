@@ -48,6 +48,13 @@ def build_excel_response(sheets: list[tuple[str, list[str], list[list[Any]]]], f
         ws.append(headers)
         for row in rows:
             ws.append(row)
+            # Force Indian DD-MM-YYYY display on any date/datetime cells.
+            excel_row = ws.max_row
+            for col_idx, value in enumerate(row, start=1):
+                if isinstance(value, datetime):
+                    ws.cell(row=excel_row, column=col_idx).number_format = "DD-MM-YYYY HH:MM:SS"
+                elif isinstance(value, date):
+                    ws.cell(row=excel_row, column=col_idx).number_format = "DD-MM-YYYY"
         for i, header in enumerate(headers, start=1):
             ws.column_dimensions[get_column_letter(i)].width = max(len(str(header)) + 2, 12)
     buf = io.BytesIO()

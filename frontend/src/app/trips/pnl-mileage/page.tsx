@@ -215,11 +215,11 @@ export default function PnlMileagePage() {
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{t.tripId}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                     {t.scheduledDate
-                      ? new Date(t.scheduledDate).toLocaleDateString("en-IN", {
+                      ? new Date(t.scheduledDate).toLocaleDateString("en-GB", {
                           day: "2-digit",
-                          month: "short",
+                          month: "2-digit",
                           year: "numeric",
-                        })
+                        }).replace(/\//g, "-")
                       : "—"}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-gray-600">{t.driverName || "—"}</td>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Download, Loader2, Plus, Search, X } from "lucide-react";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -21,6 +21,8 @@ export default function StaffPage() {
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewingStaff, setViewingStaff] = useState<Staff | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const filteredStaff = staff.filter(s =>
     !searchQuery ||
@@ -87,6 +89,90 @@ export default function StaffPage() {
     }
   }
 
+  async function handleDownloadPDF(member: Staff) {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const marginX = 14;
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+      const fmtD = (d: string) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.setTextColor(27, 43, 94);
+      pdf.text("Staff Details", marginX, 18);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated on ${today}`, marginX, 24);
+      pdf.text(member.staffId ?? "", pageW - marginX, 24, { align: "right" });
+
+      pdf.setDrawColor(209, 213, 219);
+      pdf.line(marginX, 27, pageW - marginX, 27);
+
+      const sections: { heading: string; fields: [string, string][] }[] = [
+        {
+          heading: "General Information",
+          fields: [
+            ["Staff ID", member.staffId ?? "—"],
+            ["Name", member.name ?? "—"],
+            ["Department", member.department ?? "—"],
+            ["Designation", member.designation ?? "—"],
+            ["Software Designation", member.softwareDesignation ?? "—"],
+            ["Contact Number", member.contactNumber ?? "—"],
+            ["Email", member.email ?? "—"],
+            ["Date of Birth", fmtD(member.dateOfBirth)],
+            ["Date of Joining", fmtD(member.dateOfJoining)],
+            ["Address", member.address ?? "—"],
+          ],
+        },
+        {
+          heading: "Identity Documents",
+          fields: [
+            ["Aadhaar Number", member.aadharNumber ?? "—"],
+          ],
+        },
+      ];
+
+      let y = 33;
+      const lineH = 7;
+      const sectionGap = 5;
+
+      for (const section of sections) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(9);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text(section.heading.toUpperCase(), marginX, y);
+        y += 4;
+        pdf.setDrawColor(27, 43, 94);
+        pdf.line(marginX, y, pageW - marginX, y);
+        y += 4;
+
+        for (const [label, value] of section.fields) {
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(100, 100, 100);
+          pdf.text(label, marginX, y);
+          pdf.setTextColor(30, 30, 30);
+          pdf.setFont("helvetica", "bold");
+          pdf.text(value, pageW / 2, y);
+          y += lineH;
+        }
+        y += sectionGap;
+      }
+
+      pdf.save(`staff-${member.staffId ?? member.id}.pdf`);
+    } catch {
+      const { showError: se } = await import("@/lib/swal");
+      se("Failed to generate PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton hasSearch columns={5} />;
 
   return (
@@ -121,7 +207,7 @@ export default function StaffPage() {
         </div>
       </div>
 
-      <StaffTable staff={filteredStaff} onEdit={handleEdit} onDelete={handleDelete} />
+      <StaffTable staff={filteredStaff} onView={setViewingStaff} onEdit={handleEdit} onDelete={handleDelete} />
 
       <StaffFormDialog
         open={dialogOpen}
@@ -129,6 +215,69 @@ export default function StaffPage() {
         onSave={handleSave}
         initialData={editingStaff}
       />
+
+      {viewingStaff && (() => {
+        const m = viewingStaff;
+        const fmtD = (v: string) => v ? new Date(v + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
+        const Field = ({ label, value }: { label: string; value: string }) => (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
+            <span className="text-sm font-medium text-gray-800">{value || "—"}</span>
+          </div>
+        );
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingStaff(null); }}>
+            <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+                <div>
+                  <p className="font-semibold text-gray-900">{m.staffId} — {m.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{m.department} · {m.designation}</p>
+                </div>
+                <button type="button" onClick={() => setViewingStaff(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">General Information</p>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <Field label="Staff ID" value={m.staffId} />
+                    <Field label="Name" value={m.name} />
+                    <Field label="Department" value={m.department} />
+                    <Field label="Designation" value={m.designation} />
+                    <Field label="Software Designation" value={m.softwareDesignation} />
+                    <Field label="Contact Number" value={m.contactNumber} />
+                    <Field label="Email" value={m.email} />
+                    <Field label="Date of Birth" value={fmtD(m.dateOfBirth)} />
+                    <Field label="Date of Joining" value={fmtD(m.dateOfJoining)} />
+                    <Field label="Address" value={m.address} />
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Identity Documents</p>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <Field label="Aadhaar Number" value={m.aadharNumber ?? ""} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={async () => { await handleDownloadPDF(m); setViewingStaff(null); }}
+                  disabled={downloading}
+                  className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {downloading ? "Generating..." : "Download PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

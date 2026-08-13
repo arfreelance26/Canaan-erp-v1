@@ -20,7 +20,7 @@ import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Clock, FileText, AlertTriangle, Download } from "lucide-react";
+import { Search, CheckCircle2, Clock, FileText, AlertTriangle, Download, FileBarChart2, X } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -94,6 +94,7 @@ export default function TripVerificationPage() {
   const [dateFrom, setDateFrom] = useState(todayIst());
   const [dateTo, setDateTo] = useState(todayIst());
   const [downloading, setDownloading] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
@@ -297,7 +298,7 @@ export default function TripVerificationPage() {
     try {
       const { default: jsPDF } = await import("jspdf");
 
-      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
       const pageW = pdf.internal.pageSize.getWidth();
@@ -308,7 +309,7 @@ export default function TripVerificationPage() {
       const headerH = 9;
 
       const fmtDate = (iso: string) =>
-        new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
       const dateRangeLabel = dateFrom && dateTo && dateFrom === dateTo
         ? fmtDate(dateFrom)
         : `${dateFrom ? fmtDate(dateFrom) : "start"} to ${dateTo ? fmtDate(dateTo) : "today"}`;
@@ -479,9 +480,8 @@ export default function TripVerificationPage() {
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
         <div className="flex items-center gap-1">
-          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Trip Date:</span>
+          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Invoice Date:</span>
           <DatePickerInput
             value={dateFrom}
             onChange={(v) => { setDateFrom(v); }}
@@ -496,13 +496,12 @@ export default function TripVerificationPage() {
         </div>
         <button
           type="button"
-          onClick={handleDownloadPDF}
-          disabled={downloading}
-          title="Download invoiced trips for selected date range as PDF"
-          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          onClick={() => setShowReportModal(true)}
+          title="View and download invoiced trips for selected date range"
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
         >
-          <Download className="h-4 w-4" />
-          {downloading ? "Generating..." : "Download PDF"}
+          <FileBarChart2 className="h-4 w-4" />
+          View
         </button>
       </div>
 
@@ -673,7 +672,7 @@ export default function TripVerificationPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
                         {trip.bookingCreatedDate
-                          ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                          ? new Date(trip.bookingCreatedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
                           : "—"}
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-800">{trip.truckRegistration ?? truck?.registrationNumber ?? "—"}</td>
@@ -826,6 +825,76 @@ export default function TripVerificationPage() {
         invoiceNo={dabDialogTrip ? (invoiceData.get(dabDialogTrip.id)?.invoice_no ?? "") : ""}
         onClose={() => setDabDialogTrip(null)}
       />
+
+      {showReportModal && (() => {
+        const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+        const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
+        const pdfTrips = trips.filter((t) => {
+          if (!invoicedIds.has(t.id)) return false;
+          const inv = invoiceData.get(t.id);
+          if (!inv?.invoice_date) return false;
+          const ms = new Date(inv.invoice_date as string).getTime();
+          if (fromMs && ms < fromMs) return false;
+          if (toMs && ms > toMs) return false;
+          return true;
+        });
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+                <div>
+                  <p className="font-semibold text-gray-900">Invoiced Trips Report</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} invoice{pdfTrips.length !== 1 ? "s" : ""}</p>
+                </div>
+                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="flex-1 overflow-auto px-5 py-4">
+                {pdfTrips.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 py-12">No invoiced trips found for the selected date range.</p>
+                ) : (
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        {["#", "Invoice No", "Invoice Type", "Invoice Date", "Trip ID", "Booking Ref", "Bill To", "Route", "Container No", "Vehicle"].map((col) => (
+                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pdfTrips.map((t, i) => {
+                        const inv = invoiceData.get(t.id);
+                        const customer = customers.find((c) => c.id === t.customerId);
+                        const invoiceDateFmt = inv?.invoice_date ? new Date(inv.invoice_date as string).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{inv?.invoice_no ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{inv?.invoice_type ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{invoiceDateFmt}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[140px] truncate">{customer?.name ?? t.customerId ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
+                <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
+                <button type="button" onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Download className="h-4 w-4" />
+                  {downloading ? "Generating..." : "Download PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

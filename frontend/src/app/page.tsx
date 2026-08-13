@@ -592,10 +592,10 @@ function AdminDashboard() {
     );
   }
 
-  const dayLabel = new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short",
+  const dayLabel = new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", weekday: "short",
     day: "2-digit",
-    month: "short",
-    year: "numeric", });
+    month: "2-digit",
+    year: "numeric", }).replace(/\//g, "-");
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -784,7 +784,7 @@ function AdminDashboard() {
             const s = d.endsWith("Z") || d.includes("+") ? d : d + "Z";
             dt = new Date(s);
           }
-          return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+          return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Kolkata" }).replace(/\//g, "-");
         };
 
         const completedTrips    = trips.filter((t) => t.status === "Completed");
@@ -1039,7 +1039,7 @@ function AdminDashboard() {
 
         const fmtD = (d: string) => {
           const [y, m, day] = d.split("-").map(Number);
-          return new Date(y, m - 1, day).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+          return new Date(y, m - 1, day).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
         };
         const dayName = (d: string) => {
           const [y, m, day] = d.split("-").map(Number);

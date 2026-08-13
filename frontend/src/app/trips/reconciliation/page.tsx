@@ -16,7 +16,7 @@ import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X } from "lucide-react";
+import { Search, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, FileBarChart2 } from "lucide-react";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -63,7 +63,7 @@ export default function TripReconciliationPage() {
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected" | "Request Raised" | "Request Approved">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -78,6 +78,7 @@ export default function TripReconciliationPage() {
     rejectionContext?: string;
   } | null>(null);
   const [myActiveApprovals, setMyActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [myRequests, setMyRequests] = useState<EditApprovalRequest[]>([]);
   const [resubmitting, setResubmitting] = useState<Set<string>>(new Set());
 
   async function loadReconciliationData() {
@@ -129,6 +130,9 @@ export default function TripReconciliationPage() {
   useEffect(() => {
     loadReconciliationData().finally(() => setLoading(false));
     editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
+    // Admin sees every staff member's edit requests; everyone else sees their own.
+    (isAdmin ? editApprovalsApi.list() : editApprovalsApi.getMine())
+      .then(setMyRequests).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
@@ -140,6 +144,8 @@ export default function TripReconciliationPage() {
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_updated", () => {
     editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
+    (isAdmin ? editApprovalsApi.list() : editApprovalsApi.getMine())
+      .then(setMyRequests).catch(() => {});
   });
 
   // Admin alert: someone in reconciliation reported a missing physical sheet
@@ -315,6 +321,7 @@ export default function TripReconciliationPage() {
 
   const [showCurrentTrips, setShowCurrentTrips] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -345,7 +352,7 @@ export default function TripReconciliationPage() {
     try {
       const { default: jsPDF } = await import("jspdf");
 
-      const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
       const pageW = pdf.internal.pageSize.getWidth();
@@ -356,7 +363,7 @@ export default function TripReconciliationPage() {
       const headerH = 9;
 
       const fmtDate = (iso: string) =>
-        new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
       const dateRangeLabel = dateFrom && dateTo && dateFrom === dateTo
         ? fmtDate(dateFrom)
         : `${dateFrom ? fmtDate(dateFrom) : "start"} to ${dateTo ? fmtDate(dateTo) : "today"}`;
@@ -409,7 +416,7 @@ export default function TripReconciliationPage() {
         const customer = customerById.get(trip.customerId);
         const sheet = sheets.get(trip.id);
         const sheetDate = trip.tripSheetDate
-          ? new Date(trip.tripSheetDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+          ? new Date(trip.tripSheetDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")
           : "—";
         return [
           trip.tripId,
@@ -473,12 +480,32 @@ export default function TripReconciliationPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
+  // Edit-request filters. Admin sees every staff member's requests; Docs staff
+  // see their own. `myRequests` already holds the correct role-scoped set.
+  const TRIP_REQUEST_RESOURCES = ["TripSheet", "BookingSheet", "TripData"];
+  const tripRequests = myRequests.filter((r) => TRIP_REQUEST_RESOURCES.includes(r.resourceType));
+  const requestRaisedIds = new Set(
+    tripRequests.filter((r) => r.status === "Pending").map((r) => String(r.resourceId)),
+  );
+  const requestApprovedIds = new Set(
+    tripRequests.filter((r) => r.status === "Approved").map((r) => String(r.resourceId)),
+  );
+  // tripId -> latest edit request (list/mine come ordered newest-first) so each
+  // row can show who raised it and the reason they entered.
+  const latestRequestByTripId = new Map<string, EditApprovalRequest>();
+  for (const r of tripRequests) {
+    const key = String(r.resourceId);
+    if (!latestRequestByTripId.has(key)) latestRequestByTripId.set(key, r);
+  }
+
   const counts = {
     All:                trips.length,
     "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
     "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !sheets.has(t.id)).length,
     "Sheet Entered":    trips.filter((t) => sheets.has(t.id)).length,
     "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
+    "Request Raised":   trips.filter((t) => requestRaisedIds.has(t.id)).length,
+    "Request Approved": trips.filter((t) => requestApprovedIds.has(t.id)).length,
   };
 
   const filteredTrips = trips
@@ -487,6 +514,8 @@ export default function TripReconciliationPage() {
       if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || sheets.has(t.id))) return false;
       if (statusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
       if (statusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
+      if (statusFilter === "Request Raised" && !requestRaisedIds.has(t.id)) return false;
+      if (statusFilter === "Request Approved" && !requestApprovedIds.has(t.id)) return false;
 
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -535,7 +564,6 @@ export default function TripReconciliationPage() {
             className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
         <div className="flex items-center gap-1">
           <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Trip Date:</span>
           <DatePickerInput
@@ -552,13 +580,12 @@ export default function TripReconciliationPage() {
         </div>
         <button
           type="button"
-          onClick={handleDownloadPDF}
-          disabled={downloading}
-          title="Download trip sheets for selected date range as PDF"
-          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          onClick={() => setShowReportModal(true)}
+          title="View and download trip sheets for selected date range"
+          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
         >
-          <Download className="h-4 w-4" />
-          {downloading ? "Generating..." : "Download PDF"}
+          <FileBarChart2 className="h-4 w-4" />
+          View
         </button>
         <button
           type="button"
@@ -571,14 +598,16 @@ export default function TripReconciliationPage() {
       </div>
 
       {/* Status filter count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected"] as const).map((f) => {
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected", "Request Raised", "Request Approved"] as const).map((f) => {
           const colors: Record<string, string> = {
             "All":                  "border-gray-200 bg-white text-gray-700",
             "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
             "Pending Sheet Entry":  "border-blue-200 bg-blue-50 text-blue-700",
             "Sheet Entered":        "border-emerald-200 bg-emerald-50 text-emerald-700",
             "Rejected":             "border-rose-200 bg-rose-50 text-rose-700",
+            "Request Raised":       "border-purple-200 bg-purple-50 text-purple-700",
+            "Request Approved":     "border-teal-200 bg-teal-50 text-teal-700",
           };
           const activeRing: Record<string, string> = {
             "All":                  "ring-2 ring-gray-400",
@@ -586,6 +615,8 @@ export default function TripReconciliationPage() {
             "Pending Sheet Entry":  "ring-2 ring-blue-400",
             "Sheet Entered":        "ring-2 ring-emerald-400",
             "Rejected":             "ring-2 ring-rose-400",
+            "Request Raised":       "ring-2 ring-purple-400",
+            "Request Approved":     "ring-2 ring-teal-400",
           };
           return (
             <button
@@ -673,12 +704,12 @@ export default function TripReconciliationPage() {
                                 trip.tripSheetCollectedAt.endsWith("Z") || trip.tripSheetCollectedAt.includes("+")
                                   ? trip.tripSheetCollectedAt
                                   : trip.tripSheetCollectedAt + "Z"
-                              ).toLocaleDateString("en-IN", {
+                              ).toLocaleDateString("en-GB", {
                                 day: "2-digit",
-                                month: "short",
+                                month: "2-digit",
                                 year: "numeric",
                                 timeZone: "Asia/Kolkata",
-                              })}
+                              }).replace(/\//g, "-")}
                             </span>
                           </p>
                         )}
@@ -692,7 +723,7 @@ export default function TripReconciliationPage() {
                                   trip.tripSheetReceivedAt.endsWith("Z") || trip.tripSheetReceivedAt.includes("+")
                                     ? trip.tripSheetReceivedAt
                                     : trip.tripSheetReceivedAt + "Z"
-                                ).toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" })}
+                                ).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Kolkata" }).replace(/\//g, "-")}
                               </span>
                             )}
                           </span>
@@ -762,6 +793,30 @@ export default function TripReconciliationPage() {
                         {/* Trip Sheet */}
                         <div className="flex flex-col gap-0.5">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Trip Sheet</p>
+                          {(() => {
+                            const req = latestRequestByTripId.get(trip.id);
+                            if (!req) return null;
+                            const approved = req.status === "Approved";
+                            return (
+                              <div className={`mb-1 rounded-lg border px-2.5 py-1.5 flex flex-col gap-0.5 max-w-[220px] ${approved ? "border-teal-200 bg-teal-50" : "border-purple-200 bg-purple-50"}`}>
+                                <p className={`text-[10px] font-bold ${approved ? "text-teal-700" : "text-purple-700"}`}>
+                                  {approved ? "✓ Edit Request Approved" : "⏳ Edit Request Raised"}
+                                </p>
+                                {isAdmin && (
+                                  <p className="text-[10px] text-gray-600">
+                                    Raised by: <span className="font-semibold">{req.staffName}</span>
+                                    {req.staffCode ? ` (${req.staffCode})` : ""}
+                                  </p>
+                                )}
+                                <p className="text-[10px] text-gray-600 whitespace-normal leading-snug">
+                                  Reason: {req.reason}
+                                </p>
+                                {approved && req.approvedByName && (
+                                  <p className="text-[10px] text-emerald-600">Approved by: {req.approvedByName}</p>
+                                )}
+                              </div>
+                            );
+                          })()}
                           {trip.verificationStatus === "rejected" && (
                             <div className="mb-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 flex flex-col gap-1.5">
                               <p className="text-[11px] font-bold text-rose-700">✗ Rejected by Accounts</p>
@@ -1005,6 +1060,79 @@ export default function TripReconciliationPage() {
           rejectionContext={pendingEditAction.rejectionContext}
         />
       )}
+
+      {showReportModal && (() => {
+        const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+        const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
+        const pdfTrips = receivedTrips.filter((t) => {
+          if (!t.tripSheetDate) return false;
+          const ms = new Date(t.tripSheetDate).getTime();
+          if (fromMs && ms < fromMs) return false;
+          if (toMs && ms > toMs) return false;
+          return true;
+        });
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+                <div>
+                  <p className="font-semibold text-gray-900">Trip Reconciliation Report</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} trip sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
+                </div>
+                <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="flex-1 overflow-auto px-5 py-4">
+                {pdfTrips.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 py-12">No trip sheets found for the selected date range.</p>
+                ) : (
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        {["#", "Trip ID", "Booking Ref", "Customer", "Route", "Container No", "Driver", "Vehicle", "Hire Amt", "Total Exp", "Sheet Date"].map((col) => (
+                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pdfTrips.map((t, i) => {
+                        const sheet = sheets.get(t.id);
+                        const closure = closures.get(t.id);
+                        const hireAmt = closure?.hireAmount != null ? `₹${Number(closure.hireAmount).toLocaleString("en-IN")}` : "—";
+                        const totalExp = sheet ? fmt(
+                          [sheet.tollCharges, sheet.otherExpenses, sheet.dieselTotal].reduce((s, v) => s + (Number(v) || 0), 0)
+                        ) : "—";
+                        const customer = customers.find((c) => c.id === t.customerId);
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[130px] truncate">{customer?.name ?? t.shipperConsignee ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.driverName ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{hireAmt}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{totalExp}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.tripSheetDate ? fmtDate(t.tripSheetDate) : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
+                {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
+                <button type="button" onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Download className="h-4 w-4" />
+                  {downloading ? "Generating..." : "Download PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
