@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from database import get_db
 from security import (
     create_access_token, decode_token, revoke_token, get_current_user, IS_PRODUCTION, TokenUser,
-    DEVICE_COOKIE, DEVICE_MAX_AGE, new_device_token, hash_device_token,
+    DEVICE_LOCK_ENABLED, DEVICE_COOKIE, DEVICE_MAX_AGE, new_device_token, hash_device_token,
 )
 from audit import record_audit
 import models
@@ -152,31 +152,33 @@ def login(
     _clear_failures(lockout_key)
 
     # ── Device lock (staff only; hardcoded admin returned earlier and skips this) ──
-    device_token, bind_device = app_device or "", False
-    if member.device_hash is None:
-        # Unbound account → bind to this device now.
-        if not device_token:
-            device_token = new_device_token()
-        member.device_hash = hash_device_token(device_token)
-        db.commit()
-        bind_device = True
-    elif not device_token or hash_device_token(device_token) != member.device_hash:
-        record_audit("login.failure", outcome="failure", request=request,
-                     actor_id=member.id, actor_name=member.name, detail="wrong device")
-        raise HTTPException(
-            status_code=403,
-            detail="This account is locked to another device. Ask an Admin to reset it.",
-        )
-    if bind_device:
-        response.set_cookie(
-            key=DEVICE_COOKIE,
-            value=device_token,
-            httponly=True,
-            secure=IS_PRODUCTION,   # local HTTP dev sends over plain HTTP
-            samesite="lax",
-            path="/",
-            max_age=DEVICE_MAX_AGE,
-        )
+    # Gated by DEVICE_LOCK_ENABLED in .env — when off, no binding/cookie/lockout.
+    if DEVICE_LOCK_ENABLED:
+        device_token, bind_device = app_device or "", False
+        if member.device_hash is None:
+            # Unbound account → bind to this device now.
+            if not device_token:
+                device_token = new_device_token()
+            member.device_hash = hash_device_token(device_token)
+            db.commit()
+            bind_device = True
+        elif not device_token or hash_device_token(device_token) != member.device_hash:
+            record_audit("login.failure", outcome="failure", request=request,
+                         actor_id=member.id, actor_name=member.name, detail="wrong device")
+            raise HTTPException(
+                status_code=403,
+                detail="This account is locked to another device. Ask an Admin to reset it.",
+            )
+        if bind_device:
+            response.set_cookie(
+                key=DEVICE_COOKIE,
+                value=device_token,
+                httponly=True,
+                secure=IS_PRODUCTION,   # local HTTP dev sends over plain HTTP
+                samesite="lax",
+                path="/",
+                max_age=DEVICE_MAX_AGE,
+            )
     # ── End device lock ──────────────────────────────────────────────────────────
 
     role = member.software_designation or "Trip Sheet Register"

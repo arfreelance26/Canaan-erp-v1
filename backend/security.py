@@ -50,7 +50,11 @@ ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "12"))
 # ---------------------------------------------------------------------------
 # Device lock. Each staff account binds to the first machine it logs in from
 # via an httpOnly cookie; the DB stores only the SHA-256 of the raw token.
+# Toggle with DEVICE_LOCK_ENABLED in .env (true/false, default true). When
+# disabled, login skips binding entirely — no cookie is set and no account is
+# ever locked out, but existing device_hash values in the DB are left untouched.
 # ---------------------------------------------------------------------------
+DEVICE_LOCK_ENABLED = os.getenv("DEVICE_LOCK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 DEVICE_COOKIE = "app_device"
 DEVICE_MAX_AGE = 365 * 24 * 3600   # 1 year in seconds
 
