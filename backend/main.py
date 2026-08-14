@@ -441,6 +441,25 @@ def _normalize_shipping_lines():
 
 _normalize_shipping_lines()
 
+def _reset_all_device_locks():
+    """One-shot bulk reset of every staff device binding, triggered from .env.
+
+    Set RESET_ALL_DEVICE_LOCKS=true and restart to clear device_hash for all
+    staff (everyone can then re-bind on their next login). Remember to set it
+    back to false, otherwise every restart wipes all bindings again.
+    """
+    if os.getenv("RESET_ALL_DEVICE_LOCKS", "false").strip().lower() not in ("1", "true", "yes", "on"):
+        return
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text("UPDATE staff SET device_hash = NULL WHERE device_hash IS NOT NULL"))
+        print(f"[device-lock] RESET_ALL_DEVICE_LOCKS=true → cleared {result.rowcount} device binding(s). "
+              "Set RESET_ALL_DEVICE_LOCKS=false in .env so this does not repeat on the next restart.")
+    except Exception as e:
+        print(f"[device-lock] reset-all failed: {e}")
+
+_reset_all_device_locks()
+
 _DEFAULT_REPAIR_TYPES = [
     "Tyre Puncture", "Tyre Replacement", "Engine Oil Change", "Brake Repair",
     "Battery Replacement", "Clutch Repair", "Engine Repair", "Gearbox Repair",
