@@ -73,3 +73,14 @@ def delete_staff(staff_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Staff member not found")
     db.delete(member)
     db.commit()
+
+
+@router.post("/{staff_id}/reset-device", dependencies=[Depends(require_roles())])
+def reset_device(staff_id: int, db: Session = Depends(get_db)):
+    """Clear device binding so the staff member can re-bind from a new machine. Admin only."""
+    member = db.get(models.Staff, staff_id)
+    if not member:
+        raise HTTPException(404, "Staff member not found")
+    member.device_hash = None
+    db.commit()
+    return {"ok": True}

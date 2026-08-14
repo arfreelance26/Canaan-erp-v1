@@ -16,4 +16,5 @@ export type Staff = {
   username: string;
   password: string;
   version?: number;
+  deviceBound?: boolean;
 };

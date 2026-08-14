@@ -6,7 +6,7 @@ import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { staffApi, uploadFile, fileUrl } from "@/lib/api";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -57,6 +57,22 @@ export default function StaffPage() {
       showSuccess("Staff member deleted successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete staff member.");
+    }
+  }
+
+  async function handleResetDevice(id: string, name: string) {
+    const result = await confirmAction(
+      `Reset device binding for "${name}"?`,
+      "The staff member will be able to log in from a new machine on their next login.",
+      "Reset device",
+    );
+    if (!result.isConfirmed) return;
+    try {
+      await staffApi.resetDevice(id);
+      setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, deviceBound: false } : m)));
+      showSuccess("Device reset. The user can now log in from a new machine.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to reset device.");
     }
   }
 
@@ -207,7 +223,7 @@ export default function StaffPage() {
         </div>
       </div>
 
-      <StaffTable staff={filteredStaff} onView={setViewingStaff} onEdit={handleEdit} onDelete={handleDelete} />
+      <StaffTable staff={filteredStaff} onView={setViewingStaff} onEdit={handleEdit} onDelete={handleDelete} onResetDevice={handleResetDevice} />
 
       <StaffFormDialog
         open={dialogOpen}

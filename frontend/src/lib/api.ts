@@ -464,6 +464,7 @@ function toStaff(b: B): Staff {
     username: b.username ?? "",
     password: "",
     version: typeof b.version === "number" ? b.version : undefined,
+    deviceBound: Boolean(b.device_bound),
   };
 }
 
@@ -1219,6 +1220,7 @@ export const staffApi = {
   update: (dbId: string, member: Staff, password?: string) =>
     req<B>(`/staff/${dbId}`, { method: "PUT", body: JSON.stringify(fromStaff(member, password)) }).then(toStaff),
   delete: (dbId: string) => req<void>(`/staff/${dbId}`, { method: "DELETE" }),
+  resetDevice: (dbId: string) => req<{ ok: boolean }>(`/staff/${dbId}/reset-device`, { method: "POST" }),
 };
 
 // ---------------------------------------------------------------------------
@@ -1526,17 +1528,47 @@ export const attendanceApi = {
   getStaffSelfSummary: (staffId: number, year: number, month: number) =>
     req<{
       present: number; absent: number; on_leave: number; not_marked: number;
-      days_elapsed: number; working_days: number; percentage: number;
+      holidays: number; days_elapsed: number; working_days: number; percentage: number;
     }>(`/attendance/staff/self-summary?staff_id=${staffId}&year=${year}&month=${month}`)
     .then((b): StaffSelfSummary => ({
       present: b.present,
       absent: b.absent,
       onLeave: b.on_leave,
       notMarked: b.not_marked,
+      holidays: b.holidays ?? 0,
       daysElapsed: b.days_elapsed,
       workingDays: b.working_days,
       percentage: b.percentage,
     })),
+
+  // ── Holidays (staff attendance only; Sundays are automatic, not stored) ──
+  listHolidays: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return req<B[]>(`/attendance/holidays?${params}`).then((d) =>
+      d.map((b) => ({
+        id: String(b.id),
+        date: b.date ?? "",
+        name: b.name ?? "",
+        type: (b.type ?? "Government") as "Government" | "Company",
+        createdAt: b.created_at ?? null,
+      }))
+    );
+  },
+  createHoliday: (date: string, name: string, type: "Government" | "Company" = "Government") =>
+    req<B>("/attendance/holidays", {
+      method: "POST",
+      body: JSON.stringify({ date, name, type }),
+    }).then((b) => ({
+      id: String(b.id),
+      date: b.date ?? "",
+      name: b.name ?? "",
+      type: (b.type ?? "Government") as "Government" | "Company",
+      createdAt: b.created_at ?? null,
+    })),
+  deleteHoliday: (id: string) =>
+    req<void>(`/attendance/holidays/${id}`, { method: "DELETE" }),
 
   lookupApplicant: (code: string) =>
     req<B>(`/attendance/lookup-applicant?code=${encodeURIComponent(code)}`),

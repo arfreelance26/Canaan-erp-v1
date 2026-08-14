@@ -164,11 +164,17 @@ class Staff(Base):
     aadhar_document_blob = Column(LargeBinary(length=26214400))
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
+    device_hash = Column(String(64), nullable=True, default=None)  # SHA-256 of device token; NULL = unbound
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     attendance_records = relationship("StaffAttendance", back_populates="staff", cascade="all, delete-orphan")
+
+    @property
+    def device_bound(self) -> bool:
+        """True when this account is locked to a device (has a stored device_hash)."""
+        return bool(self.device_hash)
 
 
 class Customer(Base):
@@ -628,6 +634,18 @@ class LeaveRequest(Base):
     reason = Column(Text)
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
     applied_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Holiday(Base):
+    """Non-working calendar dates for STAFF attendance (government/company holidays).
+    Sundays are treated as holidays automatically and are NOT stored here."""
+    __tablename__ = "holidays"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=False, unique=True)
+    name = Column(String(200), nullable=False)
+    type = Column(Enum("Government", "Company"), nullable=False, default="Government")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

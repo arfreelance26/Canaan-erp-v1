@@ -1,15 +1,17 @@
 "use client";
 
-import { Eye, FileText, Pencil, Trash2 } from "lucide-react";
+import { Eye, FileText, Pencil, Smartphone, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Staff } from "@/types/staff";
 import { formatDate } from "@/lib/format-date";
+import { useAuth } from "@/context/AuthContext";
 
 type StaffTableProps = {
   staff: Staff[];
   onView: (staff: Staff) => void;
   onEdit: (staff: Staff) => void;
   onDelete: (id: string) => void;
+  onResetDevice?: (id: string, name: string) => void;
 };
 
 const columns = [
@@ -26,7 +28,9 @@ const columns = [
   "Actions",
 ];
 
-export function StaffTable({ staff, onView, onEdit, onDelete }: StaffTableProps) {
+export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice }: StaffTableProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   if (staff.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -92,6 +96,17 @@ export function StaffTable({ staff, onView, onEdit, onDelete }: StaffTableProps)
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
+                  {isAdmin && member.deviceBound && onResetDevice && (
+                    <button
+                      type="button"
+                      onClick={() => onResetDevice(member.id, member.name)}
+                      aria-label={`Reset device for ${member.staffId}`}
+                      title="Reset device binding"
+                      className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600"
+                    >
+                      <Smartphone className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onDelete(member.id)}

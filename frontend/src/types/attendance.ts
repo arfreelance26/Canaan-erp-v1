@@ -52,7 +52,16 @@ export type StaffSelfSummary = {
   absent: number;
   onLeave: number;
   notMarked: number;
+  holidays: number;
   daysElapsed: number;
   workingDays: number;
   percentage: number;
+};
+
+export type Holiday = {
+  id: string;
+  date: string;        // YYYY-MM-DD
+  name: string;
+  type: "Government" | "Company";
+  createdAt: string | null;
 };

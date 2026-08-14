@@ -96,6 +96,12 @@ export default function TripVerificationPage() {
   const [downloading, setDownloading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
+  // Trips Pending Invoice report (filtered by booking date)
+  const [pendingFrom, setPendingFrom] = useState(todayIst());
+  const [pendingTo, setPendingTo] = useState(todayIst());
+  const [pendingDownloading, setPendingDownloading] = useState(false);
+  const [showPendingModal, setShowPendingModal] = useState(false);
+
   async function loadAll() {
     const [allTrips, d, tr, c] = await Promise.all([
       tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list(),
@@ -275,6 +281,22 @@ export default function TripVerificationPage() {
   const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
   const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
 
+  const pendingFromMs = pendingFrom ? new Date(pendingFrom).setHours(0, 0, 0, 0) : null;
+  const pendingToMs   = pendingTo   ? new Date(pendingTo).setHours(23, 59, 59, 999) : null;
+
+  // Trips awaiting an invoice (has a sheet, not invoiced, not rejected), filtered by booking date.
+  function pendingInvoiceTripsInRange() {
+    return trips.filter((t) => {
+      if (invoicedIds.has(t.id)) return false;
+      if (rejectedIds.has(t.id)) return false;
+      if (!t.bookingCreatedDate) return false;
+      const ms = new Date(t.bookingCreatedDate).getTime();
+      if (pendingFromMs && ms < pendingFromMs) return false;
+      if (pendingToMs   && ms > pendingToMs)   return false;
+      return true;
+    });
+  }
+
   async function handleDownloadPDF() {
     if (downloading) return;
 
@@ -420,6 +442,141 @@ export default function TripVerificationPage() {
     }
   }
 
+  async function handleDownloadPendingPDF() {
+    if (pendingDownloading) return;
+
+    const pdfTrips = pendingInvoiceTripsInRange();
+    if (pdfTrips.length === 0) {
+      showError("No trips pending invoice found for the selected date range.");
+      return;
+    }
+
+    setPendingDownloading(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const marginX = 10;
+      const marginY = 14;
+      const rowH = 8;
+      const headerH = 9;
+
+      const fmtDate = (iso: string) =>
+        new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+      const dateRangeLabel = pendingFrom && pendingTo && pendingFrom === pendingTo
+        ? fmtDate(pendingFrom)
+        : `${pendingFrom ? fmtDate(pendingFrom) : "start"} to ${pendingTo ? fmtDate(pendingTo) : "today"}`;
+
+      const cols: [string, number][] = [
+        ["Status",        24],
+        ["Booking Date",  26],
+        ["Trip ID",       26],
+        ["Booking Ref",   34],
+        ["Bill To",       40],
+        ["Route",         44],
+        ["Container No",  30],
+        ["Vehicle",       28],
+        ["Hire Amt",      25],
+      ];
+
+      function drawPageHeader(pageNum: number, totalPages: number) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(13);
+        pdf.setTextColor(27, 43, 94);
+        pdf.text("Trips Pending Invoice Report", marginX, marginY);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `Generated on ${today}  ·  ${pdfTrips.length} trip${pdfTrips.length !== 1 ? "s" : ""}  ·  ${dateRangeLabel}`,
+          marginX, marginY + 5,
+        );
+        pdf.text(`Page ${pageNum} of ${totalPages}`, pageW - marginX, marginY + 5, { align: "right" });
+
+        const tableTop = marginY + 10;
+        pdf.setFillColor(27, 43, 94);
+        pdf.rect(marginX, tableTop, pageW - marginX * 2, headerH, "F");
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(7);
+        pdf.setTextColor(255, 255, 255);
+        let x = marginX;
+        for (const [label, w] of cols) {
+          pdf.text(label.toUpperCase(), x + 2, tableTop + 6);
+          x += w;
+        }
+        return tableTop + headerH;
+      }
+
+      const rowData = pdfTrips.map((trip) => {
+        const sheet = sheets.get(trip.id);
+        const hireAmt = sheet ? n(sheet.hireAmount) : 0;
+        const status = verifiedIds.has(trip.id) ? "Verified" : "Pending";
+        const customer = customerById.get(trip.customerId);
+        return [
+          status,
+          trip.bookingCreatedDate ? fmtDate(trip.bookingCreatedDate) : "—",
+          trip.tripId,
+          trip.bookingReferenceNo ?? "—",
+          customer?.name ?? trip.shipperConsignee ?? "—",
+          `${trip.origin} > ${trip.destination}`,
+          trip.containerNumber ?? trip.containerNumber1 ?? "—",
+          trip.truckRegistration ?? "—",
+          `Rs ${hireAmt.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        ];
+      });
+
+      const usableH = pageH - marginY - 20;
+      const rowsPerPage = Math.floor((usableH - headerH) / rowH);
+      const totalPages = Math.ceil(rowData.length / rowsPerPage);
+
+      let rowIndex = 0;
+      for (let page = 1; page <= totalPages; page++) {
+        if (page > 1) pdf.addPage();
+        const y = drawPageHeader(page, totalPages);
+
+        const pageRows = rowData.slice(rowIndex, rowIndex + rowsPerPage);
+        rowIndex += rowsPerPage;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7.5);
+
+        for (let r = 0; r < pageRows.length; r++) {
+          const rowY = y + r * rowH;
+          if (r % 2 === 1) {
+            pdf.setFillColor(249, 250, 251);
+            pdf.rect(marginX, rowY, pageW - marginX * 2, rowH, "F");
+          }
+          pdf.setDrawColor(229, 231, 235);
+          pdf.line(marginX, rowY + rowH, pageW - marginX, rowY + rowH);
+
+          pdf.setTextColor(30, 30, 30);
+          let x = marginX;
+          for (let c = 0; c < cols.length; c++) {
+            const [, w] = cols[c];
+            const clipped = pdf.splitTextToSize(String(pageRows[r][c] ?? "—"), w - 4)[0] ?? "";
+            pdf.text(clipped, x + 2, rowY + 5.5);
+            x += w;
+          }
+        }
+
+        pdf.setDrawColor(209, 213, 219);
+        pdf.rect(marginX, y, pageW - marginX * 2, pageRows.length * rowH, "S");
+      }
+
+      pdf.save(`trips-pending-invoice-${today.replace(/ /g, "-")}.pdf`);
+    } catch {
+      showError("Failed to generate PDF.");
+    } finally {
+      setPendingDownloading(false);
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
 
   const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers));
@@ -499,6 +656,34 @@ export default function TripVerificationPage() {
           onClick={() => setShowReportModal(true)}
           title="View and download invoiced trips for selected date range"
           className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
+        >
+          <FileBarChart2 className="h-4 w-4" />
+          View
+        </button>
+      </div>
+
+      {/* Trips Pending Invoice — booking-date range report */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+        <span className="text-sm font-semibold text-amber-800 whitespace-nowrap">Trips Pending Invoice</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Booking Date:</span>
+          <DatePickerInput
+            value={pendingFrom}
+            onChange={(v) => { setPendingFrom(v); }}
+            className="rounded-lg border border-gray-200 bg-white/70 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <DatePickerInput
+            value={pendingTo}
+            onChange={(v) => { setPendingTo(v); }}
+            className="rounded-lg border border-gray-200 bg-white/70 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowPendingModal(true)}
+          title="View and download trips pending invoice for selected booking-date range"
+          className="flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 whitespace-nowrap"
         >
           <FileBarChart2 className="h-4 w-4" />
           View
@@ -889,6 +1074,73 @@ export default function TripVerificationPage() {
                 <button type="button" onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showPendingModal && (() => {
+        const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+        const rangeLabel = pendingFrom === pendingTo ? fmtDate(pendingFrom) : `${fmtDate(pendingFrom)} – ${fmtDate(pendingTo)}`;
+        const pdfTrips = pendingInvoiceTripsInRange();
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowPendingModal(false); }}>
+            <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+                <div>
+                  <p className="font-semibold text-gray-900">Trips Pending Invoice</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} trip{pdfTrips.length !== 1 ? "s" : ""}</p>
+                </div>
+                <button type="button" onClick={() => setShowPendingModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="flex-1 overflow-auto px-5 py-4">
+                {pdfTrips.length === 0 ? (
+                  <p className="text-center text-sm text-gray-400 py-12">No trips pending invoice for the selected date range.</p>
+                ) : (
+                  <table className="w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b border-gray-200 bg-gray-50">
+                        {["#", "Status", "Booking Date", "Trip ID", "Booking Ref", "Bill To", "Route", "Container No", "Vehicle", "Hire Amt"].map((col) => (
+                          <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pdfTrips.map((t, i) => {
+                        const sheet = sheets.get(t.id);
+                        const hireAmt = sheet ? n(sheet.hireAmount) : 0;
+                        const customer = customers.find((c) => c.id === t.customerId);
+                        const isVerified = verifiedIds.has(t.id);
+                        const bookingDateFmt = t.bookingCreatedDate ? new Date(t.bookingCreatedDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${isVerified ? "bg-emerald-100 text-emerald-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                {isVerified ? "Verified" : "Pending"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{bookingDateFmt}</td>
+                            <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[140px] truncate">{customer?.name ?? t.shipperConsignee ?? t.customerId ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
+                            <td className="px-3 py-2 font-medium text-blue-700 whitespace-nowrap">{fmt(hireAmt)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
+                <button type="button" onClick={async () => { await handleDownloadPendingPDF(); setShowPendingModal(false); }} disabled={pendingDownloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Download className="h-4 w-4" />
+                  {pendingDownloading ? "Generating..." : "Download PDF"}
                 </button>
               </div>
             </div>

@@ -61,6 +61,7 @@ const STATUS_DOT: Record<string, string> = {
   Present: "bg-emerald-500",
   Absent: "bg-red-500",
   "On Leave": "bg-amber-400",
+  Holiday: "bg-blue-500",
   "Not Marked": "bg-gray-300",
 };
 
@@ -68,6 +69,7 @@ const STATUS_BADGE: Record<string, string> = {
   Present: "bg-emerald-100 text-emerald-700",
   Absent: "bg-red-100 text-red-700",
   "On Leave": "bg-amber-100 text-amber-700",
+  Holiday: "bg-blue-100 text-blue-700",
   "Not Marked": "bg-gray-100 text-gray-500",
 };
 
@@ -83,6 +85,8 @@ export default function MarkAttendancePage() {
 
   const [todayRecord, setTodayRecord] = useState<StaffAttendanceRecord | null | undefined>(undefined);
   const [monthRecords, setMonthRecords] = useState<StaffAttendanceRecord[]>([]);
+  const [monthHolidays, setMonthHolidays] = useState<Map<string, string>>(new Map()); // date → holiday name
+  const [todayHolidayName, setTodayHolidayName] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [summary, setSummary] = useState<StaffSelfSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
@@ -120,7 +124,20 @@ export default function MarkAttendancePage() {
       .then(setMonthRecords)
       .catch(() => {})
       .finally(() => setHistoryLoading(false));
+    attendanceApi
+      .listHolidays(from, to)
+      .then((hs) => setMonthHolidays(new Map(hs.map((h) => [h.date, h.name]))))
+      .catch(() => {});
   }, [viewYear, viewMonth, staffNumericId, ready]);
+
+  // Is today itself a government/company holiday? (Sundays handled separately, from the date.)
+  useEffect(() => {
+    if (!ready) return;
+    attendanceApi
+      .listHolidays(today, today)
+      .then((hs) => setTodayHolidayName(hs[0]?.name ?? null))
+      .catch(() => {});
+  }, [today, ready]);
 
   // Monthly summary
   useEffect(() => {
@@ -226,6 +243,11 @@ export default function MarkAttendancePage() {
 
   const todayStatus = todayRecord?.status ?? "Not Marked";
   const todayLoaded = todayRecord !== undefined;
+  // Sunday (JS getDay(): Sunday=0) or a government/company holiday → non-working day.
+  const todayIsSunday = new Date(today + "T00:00:00").getDay() === 0;
+  const todayHoliday = todayIsSunday ? "Sunday" : todayHolidayName;
+  // If it's a holiday and nobody overrode it, show the virtual "Holiday" status.
+  const displayTodayStatus = todayHoliday && todayStatus === "Not Marked" ? "Holiday" : todayStatus;
   const markedTime = fmtTime(todayRecord?.markedAt);
   const checkInTime = todayRecord?.checkInTime ?? null;
   const checkOutTime = todayRecord?.checkOutTime ?? null;
@@ -322,12 +344,13 @@ export default function MarkAttendancePage() {
                   />
                 </div>
 
-                {/* Four counts */}
-                <div className="grid grid-cols-4 gap-2 pt-1">
+                {/* Five counts */}
+                <div className="grid grid-cols-5 gap-2 pt-1">
                   {[
                     { label: "Present",  count: summary?.present  ?? 0, dot: "bg-emerald-500", text: "text-emerald-600" },
                     { label: "Absent",   count: summary?.absent   ?? 0, dot: "bg-red-500",     text: "text-red-600" },
                     { label: "On Leave", count: summary?.onLeave  ?? 0, dot: "bg-amber-400",   text: "text-amber-600" },
+                    { label: "Holiday",  count: summary?.holidays ?? 0, dot: "bg-blue-500",    text: "text-blue-600" },
                     { label: "Unmarked", count: summary?.notMarked ?? 0, dot: "bg-gray-300",   text: "text-gray-400" },
                   ].map(({ label, count, dot, text }) => (
                     <div key={label} className="flex flex-col items-center gap-1">
@@ -373,9 +396,11 @@ export default function MarkAttendancePage() {
               <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-50">
                 {historyDates.map((dateStr) => {
                   const rec = recordByDate.get(dateStr);
-                  const status = rec?.status ?? "Not Marked";
                   const isToday = dateStr === today;
                   const d = new Date(dateStr + "T00:00:00");
+                  // Holiday if Sunday or in the holiday master; a real record still wins.
+                  const holidayName = d.getDay() === 0 ? "Sunday" : (monthHolidays.get(dateStr) ?? null);
+                  const status = rec?.status ?? (holidayName ? "Holiday" : "Not Marked");
                   const dayName = d.toLocaleDateString("en-IN", { weekday: "short" });
                   const dayNum = d.getDate();
                   const monthShort = d.toLocaleDateString("en-IN", { month: "short" });
@@ -406,6 +431,8 @@ export default function MarkAttendancePage() {
                           </p>
                         ) : time ? (
                           <p className="text-[11px] text-gray-400">Marked at {time}</p>
+                        ) : holidayName && holidayName !== "Sunday" ? (
+                          <p className="text-[11px] font-medium text-blue-500">{holidayName}</p>
                         ) : (
                           <p className="text-[11px] text-gray-300">—</p>
                         )}
@@ -452,9 +479,9 @@ export default function MarkAttendancePage() {
             <p className="mt-1 text-sm font-semibold text-gray-700">{todayLabelShort}</p>
             <div className="mt-3">
               {todayLoaded ? (
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold ${STATUS_BADGE[todayStatus]}`}>
-                  <span className={`h-2 w-2 rounded-full ${STATUS_DOT[todayStatus]}`} />
-                  {todayStatus}
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold ${STATUS_BADGE[displayTodayStatus]}`}>
+                  <span className={`h-2 w-2 rounded-full ${STATUS_DOT[displayTodayStatus]}`} />
+                  {displayTodayStatus}
                 </span>
               ) : (
                 <span className="inline-block h-7 w-28 animate-pulse rounded-full bg-gray-100" />
@@ -481,8 +508,24 @@ export default function MarkAttendancePage() {
               </div>
             )}
 
-            {/* Not yet marked — show 3 action buttons (hidden if admin overrode) */}
-            {todayStatus === "Not Marked" && !adminOverridden && (
+            {/* Holiday (Sunday or government/company holiday) — locked, no marking needed */}
+            {todayHoliday && todayStatus === "Not Marked" && (
+              <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-6 text-center">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100">
+                  <CalendarOff className="h-5 w-5 text-blue-500" />
+                </div>
+                <p className="text-sm font-bold text-blue-700">
+                  {todayHoliday === "Sunday" ? "Sunday Holiday" : "Holiday"}
+                </p>
+                {todayHoliday !== "Sunday" && (
+                  <p className="text-xs font-medium text-blue-600">{todayHoliday}</p>
+                )}
+                <p className="text-[11px] text-blue-500/80">Enjoy your day off — no attendance required today.</p>
+              </div>
+            )}
+
+            {/* Not yet marked — show 3 action buttons (hidden on holidays / if admin overrode) */}
+            {todayStatus === "Not Marked" && !adminOverridden && !todayHoliday && (
               <>
                 <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Mark attendance</p>
                 {ACTIONS.map(({ status, label, icon: Icon, idle, active }) => (
@@ -554,7 +597,9 @@ export default function MarkAttendancePage() {
           {/* Footer */}
           <div className="border-t border-gray-100 px-5 py-3 text-center">
             <p className="text-[10px] text-gray-400">
-              {adminOverridden
+              {todayHoliday && todayStatus === "Not Marked"
+                ? todayHoliday === "Sunday" ? "Sunday is a weekly holiday" : `Holiday: ${todayHoliday}`
+                : adminOverridden
                 ? "Attendance updated by admin — contact admin to dispute"
                 : !todayLoaded || todayStatus === "Not Marked"
                 ? "Attendance is locked to today's date"

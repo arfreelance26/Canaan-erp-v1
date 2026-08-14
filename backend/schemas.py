@@ -228,6 +228,7 @@ class StaffUpdate(OrmBase):
 class StaffOut(StaffBase):
     id: int
     version: int = 1
+    device_bound: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -834,9 +835,28 @@ class StaffSelfSummaryOut(BaseModel):
     absent: int
     on_leave: int
     not_marked: int
+    holidays: int = 0          # Sundays + government/company holidays elapsed this month
     days_elapsed: int
     working_days: int
     percentage: float
+
+
+# ---------------------------------------------------------------------------
+# Holidays (staff attendance only — Sundays are automatic and not stored)
+# ---------------------------------------------------------------------------
+
+class HolidayCreate(BaseModel):
+    date: date
+    name: str
+    type: Literal["Government", "Company"] = "Government"
+
+
+class HolidayOut(OrmBase):
+    id: int
+    date: date
+    name: str
+    type: Literal["Government", "Company"] = "Government"
+    created_at: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import { NetworkStatus } from "./NetworkStatus";
 import { attendanceApi, editApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { formatDate } from "@/lib/format-date";
 import { useNotifications } from "@/context/NotificationContext";
 // import { useChat } from "@/context/ChatContext"; // Next phase
 import { showToast } from "@/lib/swal";
@@ -694,7 +695,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                                   <span className="ml-1.5 font-normal text-gray-400">({req.category})</span>
                                 </p>
                                 <p className="text-[11px] text-gray-500">
-                                  Leave: {req.fromDate} → {req.toDate}
+                                  Leave: {formatDate(req.fromDate)} → {formatDate(req.toDate)}
                                 </p>
                                 {req.reason && (
                                   <p className="truncate text-[11px] text-gray-400">{req.reason}</p>

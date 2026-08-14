@@ -2,6 +2,7 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/format-date";
 import type { Vendor } from "@/types/vendor";
 
 type VendorTableProps = {
@@ -73,7 +74,7 @@ export function VendorTable({ vendors, onEdit, onDelete }: VendorTableProps) {
                   {vendor.status}
                 </span>
               </td>
-              <td className="px-4 py-3 text-gray-600">{vendor.createdAt}</td>
+              <td className="px-4 py-3 text-gray-600">{formatDate(vendor.createdAt)}</td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   <button

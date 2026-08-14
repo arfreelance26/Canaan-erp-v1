@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include", // send/receive the device-lock httpOnly cookie
       body: JSON.stringify({ username, password }),
     });
     if (!res.ok) {

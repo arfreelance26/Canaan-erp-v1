@@ -20,6 +20,7 @@ import { CurrentTripsCard } from "./CurrentTripsCard";
 import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
+import { formatDate } from "@/lib/format-date";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -374,7 +375,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
                       <p className="text-[11px] font-semibold text-gray-700">
                         {r.cost ? `₹${Number(r.cost).toLocaleString("en-IN")}` : "—"}
                       </p>
-                      <p className="text-[10px] text-gray-400">{r.date}</p>
+                      <p className="text-[10px] text-gray-400">{formatDate(r.date)}</p>
                     </div>
                   </li>
                 );

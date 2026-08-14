@@ -5,6 +5,7 @@ Every router (except /auth/login and /) requires a valid Bearer token.
 Tokens are signed with SECRET_KEY from .env and expire after
 ACCESS_TOKEN_EXPIRE_HOURS (default 12h).
 """
+import hashlib
 import os
 import re
 import secrets
@@ -45,6 +46,23 @@ elif len(SECRET_KEY) < 32:
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "12"))
+
+# ---------------------------------------------------------------------------
+# Device lock. Each staff account binds to the first machine it logs in from
+# via an httpOnly cookie; the DB stores only the SHA-256 of the raw token.
+# ---------------------------------------------------------------------------
+DEVICE_COOKIE = "app_device"
+DEVICE_MAX_AGE = 365 * 24 * 3600   # 1 year in seconds
+
+
+def new_device_token() -> str:
+    """64-char hex token stored client-side in the httpOnly cookie."""
+    return secrets.token_hex(32)
+
+
+def hash_device_token(token: str) -> str:
+    """SHA-256 of the raw token — the only value persisted in the DB."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 # ---------------------------------------------------------------------------
 # Password policy (enforced when staff/driver passwords are set or changed)

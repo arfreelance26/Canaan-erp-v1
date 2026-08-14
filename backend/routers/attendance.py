@@ -14,6 +14,27 @@ _IST = ZoneInfo("Asia/Kolkata")
 def _today_ist() -> date_type:
     return datetime.now(_IST).date()
 
+
+def _holiday_dates_in_range(db: Session, start: date_type, end: date_type) -> set:
+    """Government/company holiday dates (from the Holiday master) within [start, end]."""
+    rows = db.query(models.Holiday.date).filter(
+        models.Holiday.date >= start,
+        models.Holiday.date <= end,
+    ).all()
+    return {r[0] for r in rows}
+
+
+def _non_working_dates(start: date_type, end: date_type, holiday_dates: set) -> set:
+    """All non-working staff days in [start, end] = Sundays ∪ government holidays.
+    (Python weekday(): Monday=0 … Sunday=6.)"""
+    result = set(d for d in holiday_dates if start <= d <= end)
+    d = start
+    while d <= end:
+        if d.weekday() == 6:  # Sunday
+            result.add(d)
+        d += timedelta(days=1)
+    return result
+
 def _assert_editable_date(record_date, user: Optional[TokenUser] = None, bypass_lock: bool = False) -> None:
     """Raise 403 if record_date is older than today−2 days (IST).
     Admin users and dates with an approved late-entry log bypass this restriction."""
@@ -85,6 +106,9 @@ def attendance_summary(
             models.StaffAttendance.date >= start,
             models.StaffAttendance.date <= end,
         ).all()
+        # Staff working days exclude Sundays and government/company holidays.
+        staff_non_working = len(_non_working_dates(start, end, _holiday_dates_in_range(db, start, end)))
+        staff_working_days = max(total_days - staff_non_working, 0)
         by_person: dict[int, list] = {}
         for r in records:
             by_person.setdefault(r.staff_id, []).append(r)
@@ -98,7 +122,7 @@ def attendance_summary(
             result.append(schemas.AttendanceSummaryOut(
                 id=str(p.id), code=p.staff_id, name=p.name,
                 present=counts["Present"], absent=counts["Absent"], on_leave=counts["On Leave"],
-                not_marked=max(total_days - marked, 0), total_days=total_days,
+                not_marked=max(staff_working_days - marked, 0), total_days=staff_working_days,
             ))
     return result
 @router.get("/latest-date")
@@ -293,6 +317,12 @@ def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session
     Records check_in_time (IST HH:MM AM/PM) when status is Present.
     """
     today = _today_ist()
+    # Sundays and government/company holidays are non-working days — no marking needed.
+    if today.weekday() == 6:
+        raise HTTPException(400, "Today is a Sunday holiday — attendance marking is not required.")
+    holiday = db.query(models.Holiday).filter(models.Holiday.date == today).first()
+    if holiday:
+        raise HTTPException(400, f"Today is a holiday ({holiday.name}) — attendance marking is not required.")
     existing = db.query(models.StaffAttendance).filter(
         models.StaffAttendance.staff_id == payload.staff_id,
         models.StaffAttendance.date == today,
@@ -364,8 +394,8 @@ def get_staff_self_summary(
     if effective_end < start:
         # Month hasn't started yet (future month viewed — shouldn't happen, but safe)
         return schemas.StaffSelfSummaryOut(
-            present=0, absent=0, on_leave=0, not_marked=0,
-            days_elapsed=0, working_days=_WORKING_DAYS_PER_MONTH, percentage=0.0,
+            present=0, absent=0, on_leave=0, not_marked=0, holidays=0,
+            days_elapsed=0, working_days=0, percentage=0.0,
         )
 
     records = (
@@ -383,18 +413,25 @@ def get_staff_self_summary(
         if r.status in counts:
             counts[r.status] += 1
 
+    # Working days exclude Sundays and government/company holidays elapsed so far.
+    holiday_dates = _holiday_dates_in_range(db, start, effective_end)
+    non_working = _non_working_dates(start, effective_end, holiday_dates)
     days_elapsed = (effective_end - start).days + 1
+    holidays = len(non_working)
+    working_days = max(days_elapsed - holidays, 0)
     marked = sum(counts.values())
-    not_marked = max(days_elapsed - marked, 0)
-    percentage = round(min((counts["Present"] / _WORKING_DAYS_PER_MONTH) * 100, 100.0), 1)
+    # Only working days can be "not marked" — holidays never count against staff.
+    not_marked = max(working_days - marked, 0)
+    percentage = round(min((counts["Present"] / working_days) * 100, 100.0), 1) if working_days else 0.0
 
     return schemas.StaffSelfSummaryOut(
         present=counts["Present"],
         absent=counts["Absent"],
         on_leave=counts["On Leave"],
         not_marked=not_marked,
+        holidays=holidays,
         days_elapsed=days_elapsed,
-        working_days=_WORKING_DAYS_PER_MONTH,
+        working_days=working_days,
         percentage=percentage,
     )
 
@@ -456,6 +493,57 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
     db.refresh(record)
     emit("attendance_updated", {"staff_id": record.staff_id})
     return record
+
+
+# ---------------------------------------------------------------------------
+# Holidays (staff attendance only — Sundays are automatic and not stored)
+# ---------------------------------------------------------------------------
+
+@router.get("/holidays", response_model=list[schemas.HolidayOut])
+def list_holidays(
+    date_from: Optional[str] = Query(None, alias="from", description="Range start YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, alias="to", description="Range end YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Holiday)
+    if date_from:
+        q = q.filter(models.Holiday.date >= date_from)
+    if date_to:
+        q = q.filter(models.Holiday.date <= date_to)
+    return q.order_by(models.Holiday.date.asc()).all()
+
+
+@router.post("/holidays", response_model=schemas.HolidayOut, status_code=201)
+def create_holiday(payload: schemas.HolidayCreate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    if user.role != "Admin":
+        raise HTTPException(403, "Only Admin can manage holidays.")
+    existing = db.query(models.Holiday).filter(models.Holiday.date == payload.date).first()
+    if existing:
+        # A date is either a holiday or not — update the label/type instead of duplicating.
+        existing.name = payload.name
+        existing.type = payload.type
+        db.commit()
+        db.refresh(existing)
+        emit("attendance_updated", {})
+        return existing
+    holiday = models.Holiday(**payload.model_dump())
+    db.add(holiday)
+    db.commit()
+    db.refresh(holiday)
+    emit("attendance_updated", {})
+    return holiday
+
+
+@router.delete("/holidays/{holiday_id}", status_code=204)
+def delete_holiday(holiday_id: int, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    if user.role != "Admin":
+        raise HTTPException(403, "Only Admin can manage holidays.")
+    holiday = db.get(models.Holiday, holiday_id)
+    if not holiday:
+        raise HTTPException(404, "Holiday not found")
+    db.delete(holiday)
+    db.commit()
+    emit("attendance_updated", {})
 
 
 # ---------------------------------------------------------------------------

@@ -45,6 +45,8 @@ def _run_schema_migrations():
         "ALTER TABLE trucks ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE drivers ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE staff ADD COLUMN version INT NOT NULL DEFAULT 1",
+        # Device lock — SHA-256 of the device token; NULL = unbound
+        "ALTER TABLE staff ADD COLUMN device_hash VARCHAR(64) DEFAULT NULL",
         "ALTER TABLE customers ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE vendors ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE branches ADD COLUMN version INT NOT NULL DEFAULT 1",
@@ -480,10 +482,15 @@ if _cors_env == "*":
 else:
     _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
 
+# The device-lock httpOnly cookie needs credentialed CORS. The spec forbids
+# allow_credentials=True together with a wildcard origin, so it is enabled only
+# when CORS_ORIGINS lists explicit origins (set CORS_ORIGINS in .env for dev too).
+_allow_credentials = _cors_env != "*"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=False,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
