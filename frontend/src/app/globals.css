@@ -719,6 +719,9 @@ html.dark .canaan-calendar .react-datepicker__year-select option {
   color: #eef1f6;
 }
 
+/* SweetAlert2 dialogs must sit above app modals (some use z-[9999]) */
+.swal2-container { z-index: 100000 !important; }
+
 /* ---- SweetAlert2 dark mode ---- */
 html.dark .swal2-popup {
   background-color: #1e2130 !important;
