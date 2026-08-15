@@ -225,10 +225,19 @@ class StaffUpdate(OrmBase):
     password: Optional[str] = None
 
 
+class DeviceInfo(BaseModel):
+    id: str
+    kind: str = "unknown"
+    os: Optional[str] = None
+    label: str = ""
+    bound_at: Optional[str] = None
+
+
 class StaffOut(StaffBase):
     id: int
     version: int = 1
     device_bound: bool = False
+    devices: list[DeviceInfo] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

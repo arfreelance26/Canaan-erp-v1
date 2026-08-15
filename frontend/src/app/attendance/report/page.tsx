@@ -45,12 +45,13 @@ function dateRange(from: string, to: string): string[] {
 const STATUS_DISPLAY: Record<string, { abbr: string; cls: string; title: string }> = {
   "Present":     { abbr: "P", cls: "bg-green-100 text-green-700",   title: "Present" },
   "Absent":      { abbr: "A", cls: "bg-red-100 text-red-600",       title: "Absent" },
-  "On Leave":    { abbr: "L", cls: "bg-yellow-100 text-yellow-700", title: "On Leave" },
-  "Leave":       { abbr: "L", cls: "bg-yellow-100 text-yellow-700", title: "Leave" },
-  "On Trip":     { abbr: "T", cls: "bg-blue-100 text-blue-700",     title: "On Trip" },
-  "On Halt":     { abbr: "H", cls: "bg-orange-100 text-orange-700", title: "On Halt" },
-  "On Workshop": { abbr: "W", cls: "bg-purple-100 text-purple-700", title: "On Workshop" },
-  "Not Marked":  { abbr: "·", cls: "bg-gray-50 text-gray-300",      title: "Not Marked" },
+  "On Leave":    { abbr: "L", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-600 dark:text-yellow-50", title: "On Leave" },
+  "Leave":       { abbr: "L", cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-600 dark:text-yellow-50", title: "Leave" },
+  "On Trip":     { abbr: "T", cls: "bg-blue-100 text-blue-700 dark:bg-sky-600 dark:text-sky-50",           title: "On Trip" },
+  "On Halt":     { abbr: "H", cls: "bg-orange-100 text-orange-700 dark:bg-orange-600 dark:text-orange-50", title: "On Halt" },
+  "On Workshop": { abbr: "W", cls: "bg-purple-100 text-purple-700 dark:bg-purple-600 dark:text-purple-50", title: "On Workshop" },
+  "Holiday":     { abbr: "H", cls: "bg-blue-100 text-blue-700 dark:bg-blue-600 dark:text-blue-50",         title: "Holiday" },
+  "Not Marked":  { abbr: ".", cls: "bg-gray-50 text-gray-300",      title: "Not Marked" },
 };
 
 function RemarksList({ remarks }: { remarks: DriverAttendanceRemark[] }) {
@@ -108,6 +109,8 @@ export default function AttendanceReportPage() {
   const [remarks, setRemarks] = useState<DriverAttendanceRemark[]>([]);
   // Per-day status lookup for the date-wise register: personCode -> date -> status
   const [statusMap, setStatusMap] = useState<Record<string, Record<string, string>>>({});
+  // Government/company holidays in range (staff only): date -> holiday name
+  const [holidayMap, setHolidayMap] = useState<Record<string, string>>({});
   const [latestDate, setLatestDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -153,7 +156,16 @@ export default function AttendanceReportPage() {
             }))
       : Promise.resolve();
 
-    Promise.all([summaryPromise, remarksPromise, registerPromise])
+    // Holidays are staff-attendance only (Sundays are derived from the date).
+    const holidaysPromise = (viewMode === "datewise" && category === "staff")
+      ? attendanceApi.listHolidays(fromDate, toDate).then((hs) => {
+          const map: Record<string, string> = {};
+          hs.forEach((h) => { map[h.date] = h.name; });
+          setHolidayMap(map);
+        })
+      : Promise.resolve(setHolidayMap({}));
+
+    Promise.all([summaryPromise, remarksPromise, registerPromise, holidaysPromise])
       .catch((err: unknown) => showError(err instanceof Error ? err.message : "Failed to load attendance report."))
       .finally(() => setLoading(false));
   }, [category, fromDate, toDate, viewMode]);
@@ -216,7 +228,7 @@ export default function AttendanceReportPage() {
         "Present": [22, 163, 74], "Absent": [220, 38, 38],
         "On Leave": [161, 98, 7], "Leave": [161, 98, 7],
         "On Trip": [37, 99, 235], "On Halt": [234, 88, 12],
-        "On Workshop": [124, 58, 237], "Not Marked": [156, 163, 175],
+        "On Workshop": [124, 58, 237], "Holiday": [37, 99, 235], "Not Marked": [156, 163, 175],
       };
       const NAVY: [number, number, number] = [27, 43, 94];
 
@@ -284,7 +296,10 @@ export default function AttendanceReportPage() {
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(7);
           for (let i = 0; i < dates.length; i++) {
-            const st = statusMap[isDriver ? r.code : r.id]?.[dates[i]] ?? "Not Marked";
+            const recorded = statusMap[isDriver ? r.code : r.id]?.[dates[i]];
+            const [pyy, pmm, pdd] = dates[i].split("-").map(Number);
+            const pIsHoliday = !isDriver && (new Date(pyy, pmm - 1, pdd).getDay() === 0 || Boolean(holidayMap[dates[i]]));
+            const st = recorded ?? (pIsHoliday ? "Holiday" : "Not Marked");
             const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
             pdf.setTextColor(...(RGB[st] ?? RGB["Not Marked"]));
             pdf.text(disp.abbr, marginX + nameW + i * cellW + cellW / 2, curY + 4, { align: "center" });
@@ -302,7 +317,7 @@ export default function AttendanceReportPage() {
         let lx = marginX + 16;
         const legendItems = isDriver
           ? ["On Trip", "On Halt", "Leave", "On Workshop", "Not Marked"]
-          : ["Present", "Absent", "On Leave", "Not Marked"];
+          : ["Present", "Absent", "On Leave", "Holiday", "Not Marked"];
         for (const s of legendItems) {
           const disp = STATUS_DISPLAY[s] ?? STATUS_DISPLAY["Not Marked"];
           pdf.setTextColor(...(RGB[s] ?? RGB["Not Marked"]));
@@ -492,7 +507,7 @@ export default function AttendanceReportPage() {
             <span className="font-semibold uppercase tracking-wider text-gray-500">Legend</span>
             {(isDriver
               ? ["On Trip", "On Halt", "Leave", "On Workshop", "Not Marked"]
-              : ["Present", "Absent", "On Leave", "Not Marked"]
+              : ["Present", "Absent", "On Leave", "Holiday", "Not Marked"]
             ).map((s) => {
               const d = STATUS_DISPLAY[s] ?? STATUS_DISPLAY["Not Marked"];
               return (
@@ -515,10 +530,19 @@ export default function AttendanceReportPage() {
                     const [yy, mm, dd] = d.split("-").map(Number);
                     const dt = new Date(yy, mm - 1, dd);
                     const isSunday = dt.getDay() === 0;
+                    const holidayName = !isDriver ? holidayMap[d] : undefined;
+                    const isHoliday = Boolean(holidayName) && !isSunday;
                     return (
-                      <th key={d} className={cn("min-w-[34px] border-b border-gray-200 px-1 py-2 text-center text-[10px] font-semibold", isSunday ? "bg-red-50" : "")}>
-                        <div className={isSunday ? "text-red-500" : "text-gray-700"}>{dd}</div>
-                        <div className={isSunday ? "text-red-400" : "text-gray-400"}>{dt.toLocaleDateString("en-IN", { weekday: "narrow" })}</div>
+                      <th
+                        key={d}
+                        title={isSunday ? `${formatDate(d)} — Sunday` : holidayName ? `${formatDate(d)} — ${holidayName}` : undefined}
+                        className={cn(
+                          "min-w-[34px] border-b border-gray-200 px-1 py-2 text-center text-[10px] font-semibold",
+                          isSunday ? "bg-red-50" : isHoliday ? "bg-blue-50" : ""
+                        )}
+                      >
+                        <div className={isSunday ? "text-red-500" : isHoliday ? "text-blue-600" : "text-gray-700"}>{dd}</div>
+                        <div className={isSunday ? "text-red-400" : isHoliday ? "text-blue-400" : "text-gray-400"}>{dt.toLocaleDateString("en-IN", { weekday: "narrow" })}</div>
                       </th>
                     );
                   })}
@@ -541,10 +565,20 @@ export default function AttendanceReportPage() {
                       {dates.map((d) => {
                         // Drivers key the status map by driver code; staff records
                         // key by the numeric staff id (which the summary exposes as r.id).
-                        const st = statusMap[isDriver ? r.code : r.id]?.[d] ?? "Not Marked";
+                        const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
+                        // Staff: Sunday / government holiday shows as "Holiday" unless a
+                        // real attendance record was marked that day (record wins).
+                        const [yy, mm, dd] = d.split("-").map(Number);
+                        const isSunday = new Date(yy, mm - 1, dd).getDay() === 0;
+                        const holidayName = !isDriver ? holidayMap[d] : undefined;
+                        const isHoliday = !isDriver && (isSunday || Boolean(holidayName));
+                        const st = recorded ?? (isHoliday ? "Holiday" : "Not Marked");
                         const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
+                        const cellTitle = st === "Holiday"
+                          ? `${formatDate(d)} — ${isSunday ? "Sunday" : holidayName}`
+                          : `${formatDate(d)} — ${disp.title}`;
                         return (
-                          <td key={d} className="px-1 py-2 text-center" title={`${formatDate(d)} — ${disp.title}`}>
+                          <td key={d} className="px-1 py-2 text-center" title={cellTitle}>
                             <span className={cn("inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold", disp.cls)}>
                               {disp.abbr}
                             </span>

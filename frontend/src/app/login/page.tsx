@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2, AlertCircle, Truck } from "lucide-react";
+import { useDeviceOS } from "react-haiku";
 import { useAuth } from "@/context/AuthContext";
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
@@ -17,6 +18,7 @@ function useBackendStatus() {
 
 export default function LoginPage() {
   const { login, completeLogin } = useAuth();
+  const deviceOS = useDeviceOS(); // "Windows" | "macOS" | "iOS" | "Android" | "Linux" | ...
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -36,7 +38,7 @@ export default function LoginPage() {
     setError(null);
     setLoginState("loading");
     try {
-      const authUser = await login(username.trim(), password, true);
+      const authUser = await login(username.trim(), password, true, deviceOS);
       if (!authUser) throw new Error("Failed to get user context");
       
       setLoginState("success");

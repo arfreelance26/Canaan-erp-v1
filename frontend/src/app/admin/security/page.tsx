@@ -71,7 +71,7 @@ function OutcomeBadge({ outcome }: { outcome: string }) {
     );
   if (outcome === "failure")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-100 dark:text-red-400">
         <XCircle className="h-3 w-3" /> Failed
       </span>
     );
@@ -333,7 +333,7 @@ export default function SecurityLogPage() {
         <div className="p-5">
           <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/60 dark:bg-[#0f1f3d]">
             <p className="text-sm text-blue-800 dark:text-white">
-              <strong>What is this?</strong> Device lock ties each staff account to the machine(s) it first logs
+              <strong>What is this? </strong> <br/>Device lock ties each staff account to the machine(s) it first logs
               in from, so a password alone can&apos;t be used from an unknown computer. Regular staff are limited to
               1 device; Admins can use several (e.g. desktop + mobile app). If someone is stuck on
               &quot;locked to another device&quot;, clear their binding on the Staff page, or reset everyone below.
@@ -413,7 +413,7 @@ export default function SecurityLogPage() {
                   type="button"
                   onClick={() => void handleResetAllDevices()}
                   disabled={dlResetting}
-                  className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400"
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-200 dark:text-red-400"
                 >
                   {dlResetting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
                   Reset all device locks

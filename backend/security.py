@@ -6,6 +6,7 @@ Tokens are signed with SECRET_KEY from .env and expire after
 ACCESS_TOKEN_EXPIRE_HOURS (default 12h).
 """
 import hashlib
+import json
 import os
 import re
 import secrets
@@ -80,16 +81,33 @@ def hash_device_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def parse_device_hashes(stored: str | None) -> list[str]:
-    """Split the comma-separated device_hash column into a list of hashes."""
+def parse_devices(stored: str | None) -> list[dict]:
+    """Parse the device_hash column into a list of device dicts.
+
+    New format is a JSON array of {"h": <sha256>, "kind": "web|mobile", "at": iso}.
+    Legacy values (comma-separated bare hashes) are still read and treated as
+    unknown-kind devices with no bind date, so existing bindings keep working."""
     if not stored:
         return []
-    return [h for h in (part.strip() for part in stored.split(",")) if h]
+    s = stored.strip()
+    if s.startswith("["):
+        try:
+            data = json.loads(s)
+        except ValueError:
+            return []
+        out = []
+        for d in data:
+            if isinstance(d, dict) and d.get("h"):
+                out.append({"h": str(d["h"]), "kind": d.get("kind") or "unknown",
+                            "os": d.get("os"), "at": d.get("at")})
+        return out
+    return [{"h": h, "kind": "unknown", "os": None, "at": None}
+            for h in (part.strip() for part in s.split(",")) if h]
 
 
-def serialize_device_hashes(hashes: list[str]) -> str | None:
-    """Join device hashes back into the comma-separated column value (None if empty)."""
-    return ",".join(hashes) if hashes else None
+def serialize_devices(devices: list[dict]) -> str | None:
+    """Serialise the device list back to the JSON column value (None if empty)."""
+    return json.dumps(devices, separators=(",", ":")) if devices else None
 
 # ---------------------------------------------------------------------------
 # Password policy (enforced when staff/driver passwords are set or changed)

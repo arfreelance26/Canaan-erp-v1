@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Loader2, Plus, Search, X } from "lucide-react";
+import { Download, Loader2, Plus, Search, X, Smartphone, Laptop } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -15,6 +16,8 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function StaffPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -69,8 +72,31 @@ export default function StaffPage() {
     if (!result.isConfirmed) return;
     try {
       await staffApi.resetDevice(id);
-      setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, deviceBound: false } : m)));
+      setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, deviceBound: false, devices: [] } : m)));
+      setViewingStaff((v) => (v && v.id === id ? { ...v, deviceBound: false, devices: [] } : v));
       showSuccess("Device reset. The user can now log in from a new machine.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to reset device.");
+    }
+  }
+
+  // Reset a single bound device from the staff detail view.
+  async function handleResetOneDevice(staffDbId: string, deviceId: string, label: string) {
+    const result = await confirmAction(
+      `Reset "${label}"?`,
+      "This device will need to log in and bind again on its next login.",
+      "Reset device",
+    );
+    if (!result.isConfirmed) return;
+    try {
+      await staffApi.resetDevice(staffDbId, deviceId);
+      const drop = (m: Staff): Staff => {
+        const remaining = (m.devices ?? []).filter((d) => d.id !== deviceId);
+        return { ...m, devices: remaining, deviceBound: remaining.length > 0 };
+      };
+      setStaff((prev) => prev.map((m) => (m.id === staffDbId ? drop(m) : m)));
+      setViewingStaff((v) => (v && v.id === staffDbId ? drop(v) : v));
+      showSuccess("Device removed. It can bind again on the next login.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to reset device.");
     }
@@ -235,6 +261,10 @@ export default function StaffPage() {
       {viewingStaff && (() => {
         const m = viewingStaff;
         const fmtD = (v: string) => v ? new Date(v + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
+        const fmtDateTime = (v: string) => {
+          const d = new Date(v.endsWith("Z") || v.includes("+") ? v : v + "Z");
+          return isNaN(d.getTime()) ? "—" : d.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).replace(/\//g, "-");
+        };
         const Field = ({ label, value }: { label: string; value: string }) => (
           <div className="flex flex-col gap-0.5">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
@@ -276,6 +306,42 @@ export default function StaffPage() {
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                     <Field label="Aadhaar Number" value={m.aadharNumber ?? ""} />
                   </div>
+                </div>
+
+                {/* Registered Devices — device-lock bindings, with per-device reset */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Registered Devices</p>
+                  {(m.devices ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400">No devices bound. The next login will bind a device.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {(m.devices ?? []).map((d) => (
+                        <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                              {d.kind === "mobile" ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-800">{d.label || "Device"}</p>
+                              <p className="text-xs text-gray-400">
+                                {d.boundAt ? `Bound ${fmtDateTime(d.boundAt)}` : "Bound earlier"}
+                              </p>
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetOneDevice(m.id, d.id, d.label || "this device")}
+                              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100"
+                            >
+                              <Smartphone className="h-3.5 w-3.5" />
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

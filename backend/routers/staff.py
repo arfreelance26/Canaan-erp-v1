@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from database import get_db
-from security import require_roles
+from security import require_roles, parse_devices, serialize_devices
 import models, schemas
 from duplicate_checks import check_staff_duplicates
 
@@ -75,12 +76,27 @@ def delete_staff(staff_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+class ResetDeviceRequest(BaseModel):
+    device: str | None = None  # device id (hash) to remove; None = clear all devices
+
+
 @router.post("/{staff_id}/reset-device", dependencies=[Depends(require_roles())])
-def reset_device(staff_id: int, db: Session = Depends(get_db)):
-    """Clear device binding so the staff member can re-bind from a new machine. Admin only."""
+def reset_device(
+    staff_id: int,
+    payload: ResetDeviceRequest = Body(default=ResetDeviceRequest()),
+    db: Session = Depends(get_db),
+):
+    """Reset device binding so the staff member can re-bind. Admin only.
+
+    With a `device` id, only that device is removed; without one, every bound
+    device is cleared."""
     member = db.get(models.Staff, staff_id)
     if not member:
         raise HTTPException(404, "Staff member not found")
-    member.device_hash = None
+    if payload and payload.device:
+        remaining = [d for d in parse_devices(member.device_hash) if d["h"] != payload.device]
+        member.device_hash = serialize_devices(remaining)
+    else:
+        member.device_hash = None
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "devices": member.devices}

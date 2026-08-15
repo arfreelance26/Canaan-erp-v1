@@ -12,8 +12,9 @@ from database import get_db
 from security import (
     create_access_token, decode_token, revoke_token, get_current_user, IS_PRODUCTION, TokenUser,
     DEVICE_COOKIE, DEVICE_HEADER, DEVICE_MAX_AGE, new_device_token, hash_device_token,
-    parse_device_hashes, serialize_device_hashes,
+    parse_devices, serialize_devices,
 )
+from datetime import datetime, timezone
 import settings_store
 from audit import record_audit
 import models
@@ -162,20 +163,33 @@ def login(
     if settings_store.device_lock_enabled(db):
         is_admin = (member.software_designation or "") == "Admin"
         limit = settings_store.admin_device_limit(db) if is_admin else settings_store.staff_device_limit(db)
-        device_token = (app_device or request.headers.get(DEVICE_HEADER) or "").strip()
-        stored = parse_device_hashes(member.device_hash)
+        # Device token comes from the cookie (web) or the X-Device-Id header (mobile).
+        if app_device:
+            device_token, device_kind = app_device.strip(), "web"
+        elif request.headers.get(DEVICE_HEADER):
+            device_token, device_kind = request.headers.get(DEVICE_HEADER).strip(), "mobile"
+        else:
+            device_token, device_kind = "", "web"
+        devices = parse_devices(member.device_hash)
+        known = {d["h"] for d in devices}
         bind_cookie = False
 
-        if device_token and hash_device_token(device_token) in stored:
+        if device_token and hash_device_token(device_token) in known:
             pass  # already-bound device → allow
-        elif len(stored) < limit:
+        elif len(devices) < limit:
             # Room for another device → bind this one.
             if not device_token:
                 # Web first-visit with no id yet: mint one and set it as a cookie.
                 device_token = new_device_token()
                 bind_cookie = True
-            stored.append(hash_device_token(device_token))
-            member.device_hash = serialize_device_hashes(stored)
+            device_os = (request.headers.get("X-Device-OS") or "").strip()[:40]
+            devices.append({
+                "h": hash_device_token(device_token),
+                "kind": device_kind,
+                "os": device_os or None,
+                "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            })
+            member.device_hash = serialize_devices(devices)
             db.commit()
         else:
             record_audit("login.failure", outcome="failure", request=request,

@@ -24,7 +24,7 @@ export type AuthUser = {
 type AuthContextType = {
   user: AuthUser | null;
   ready: boolean;
-  login: (username: string, password: string, preventRedirect?: boolean) => Promise<AuthUser | void>;
+  login: (username: string, password: string, preventRedirect?: boolean, deviceOS?: string) => Promise<AuthUser | void>;
   completeLogin: (user: AuthUser) => void;
   logout: () => void;
 };
@@ -62,10 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, ready, pathname, router]);
 
-  async function login(username: string, password: string, preventRedirect: boolean = false) {
+  async function login(username: string, password: string, preventRedirect: boolean = false, deviceOS?: string) {
     const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // Tag the device-lock binding with the OS so admins can identify devices.
+        ...(deviceOS ? { "X-Device-OS": deviceOS } : {}),
+      },
       credentials: "include", // send/receive the device-lock httpOnly cookie
       body: JSON.stringify({ username, password }),
     });

@@ -176,6 +176,25 @@ class Staff(Base):
         """True when this account is locked to a device (has a stored device_hash)."""
         return bool(self.device_hash)
 
+    @property
+    def devices(self) -> list:
+        """Bound devices for display: id (hash), kind label, and bind date."""
+        from security import parse_devices
+        kinds = {"web": "Web browser", "mobile": "Mobile app"}
+        out = []
+        for idx, d in enumerate(parse_devices(self.device_hash), start=1):
+            kind = d.get("kind") or "unknown"
+            os_name = d.get("os")
+            base = kinds.get(kind, f"Device {idx}")
+            out.append({
+                "id": d["h"],
+                "kind": kind,
+                "os": os_name,
+                "label": f"{os_name} · {base}" if os_name else base,
+                "bound_at": d.get("at"),
+            })
+        return out
+
 
 class AppSetting(Base):
     """Runtime-editable key/value settings (Admin-managed from the UI).

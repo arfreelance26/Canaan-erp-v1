@@ -465,6 +465,15 @@ function toStaff(b: B): Staff {
     password: "",
     version: typeof b.version === "number" ? b.version : undefined,
     deviceBound: Boolean(b.device_bound),
+    devices: Array.isArray(b.devices)
+      ? (b.devices as B[]).map((d) => ({
+          id: String(d.id ?? ""),
+          kind: String(d.kind ?? "unknown"),
+          os: d.os ? String(d.os) : null,
+          label: String(d.label ?? ""),
+          boundAt: d.bound_at ? String(d.bound_at) : null,
+        }))
+      : [],
   };
 }
 
@@ -1220,7 +1229,12 @@ export const staffApi = {
   update: (dbId: string, member: Staff, password?: string) =>
     req<B>(`/staff/${dbId}`, { method: "PUT", body: JSON.stringify(fromStaff(member, password)) }).then(toStaff),
   delete: (dbId: string) => req<void>(`/staff/${dbId}`, { method: "DELETE" }),
-  resetDevice: (dbId: string) => req<{ ok: boolean }>(`/staff/${dbId}/reset-device`, { method: "POST" }),
+  // Reset device binding. Pass a device id to reset just that device; omit it to clear all.
+  resetDevice: (dbId: string, device?: string) =>
+    req<{ ok: boolean; devices: Array<{ id: string; kind: string; label: string; bound_at: string | null }> }>(
+      `/staff/${dbId}/reset-device`,
+      { method: "POST", body: JSON.stringify({ device: device ?? null }) },
+    ),
 };
 
 // ---------------------------------------------------------------------------
