@@ -2418,5 +2418,24 @@ export const securityApi = {
       method: "POST",
       body: JSON.stringify({ ip_address: ipAddress, username }),
     }),
+  getDeviceLock: () =>
+    req<{ enabled: boolean; admin_limit: number; staff_limit: number }>("/settings/device-lock").then((r) => ({
+      enabled: Boolean(r.enabled),
+      adminLimit: Number(r.admin_limit),
+      staffLimit: Number(r.staff_limit),
+    })),
+  updateDeviceLock: (payload: { enabled?: boolean; adminLimit?: number; staffLimit?: number }) =>
+    req<{ enabled: boolean; admin_limit: number; staff_limit: number }>("/settings/device-lock", {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: payload.enabled,
+        admin_limit: payload.adminLimit,
+        staff_limit: payload.staffLimit,
+      }),
+    }).then((r) => ({ enabled: Boolean(r.enabled), adminLimit: Number(r.admin_limit), staffLimit: Number(r.staff_limit) })),
+  resetAllDevices: () =>
+    req<{ ok: boolean; cleared: number }>("/settings/device-lock/reset-all", {
+      method: "POST",
+    }),
 };
 

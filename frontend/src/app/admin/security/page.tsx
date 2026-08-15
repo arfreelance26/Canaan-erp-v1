@@ -19,9 +19,10 @@ import {
   Search,
   X,
   Eye,
+  Smartphone,
 } from "lucide-react";
 import { securityApi, fileUrl, type AuditLogEntry, type LockoutEntry } from "@/lib/api";
-import { showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError, confirmAction } from "@/lib/swal";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -100,6 +101,14 @@ export default function SecurityLogPage() {
   const [lockoutsLoading, setLockoutsLoading] = useState(true);
   const [resettingKey, setResettingKey] = useState<string | null>(null);
 
+  // Device lock settings
+  const [dlEnabled, setDlEnabled] = useState(true);
+  const [dlLimit, setDlLimit] = useState(2);
+  const [dlStaffLimit, setDlStaffLimit] = useState(1);
+  const [dlLoading, setDlLoading] = useState(true);
+  const [dlSaving, setDlSaving] = useState(false);
+  const [dlResetting, setDlResetting] = useState(false);
+
   const [showIpHelp, setShowIpHelp] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -164,6 +173,57 @@ export default function SecurityLogPage() {
       void showError("Failed to reset lockout. Please try again.");
     } finally {
       setResettingKey(null);
+    }
+  }
+
+  const fetchDeviceLock = useCallback(async () => {
+    setDlLoading(true);
+    try {
+      const s = await securityApi.getDeviceLock();
+      setDlEnabled(s.enabled);
+      setDlLimit(s.adminLimit);
+      setDlStaffLimit(s.staffLimit);
+    } catch {
+      // leave defaults
+    } finally {
+      setDlLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchDeviceLock();
+  }, [fetchDeviceLock]);
+
+  async function handleSaveDeviceLock() {
+    setDlSaving(true);
+    try {
+      const s = await securityApi.updateDeviceLock({ enabled: dlEnabled, adminLimit: dlLimit, staffLimit: dlStaffLimit });
+      setDlEnabled(s.enabled);
+      setDlLimit(s.adminLimit);
+      setDlStaffLimit(s.staffLimit);
+      await showSuccess("Device lock settings saved.");
+    } catch (err) {
+      void showError(err instanceof Error ? err.message : "Failed to save device lock settings.");
+    } finally {
+      setDlSaving(false);
+    }
+  }
+
+  async function handleResetAllDevices() {
+    const result = await confirmAction(
+      "Reset ALL device locks?",
+      "Every staff member's device binding will be cleared. They will each re-bind on their next login. This cannot be undone.",
+      "Reset all",
+    );
+    if (!result.isConfirmed) return;
+    setDlResetting(true);
+    try {
+      const r = await securityApi.resetAllDevices();
+      await showSuccess(`Cleared ${r.cleared} device binding${r.cleared === 1 ? "" : "s"}.`);
+    } catch (err) {
+      void showError(err instanceof Error ? err.message : "Failed to reset device locks.");
+    } finally {
+      setDlResetting(false);
     }
   }
 
@@ -262,6 +322,116 @@ export default function SecurityLogPage() {
           </p>
         </div>
       </div>
+
+      {/* ── Section 0: Device Lock Settings ── */}
+      <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center gap-2 border-b border-gray-200 px-5 py-4">
+          <Smartphone className="h-5 w-5 text-blue-500" />
+          <h2 className="font-semibold text-gray-900">Device Lock</h2>
+        </div>
+
+        <div className="p-5">
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/60 dark:bg-[#0f1f3d]">
+            <p className="text-sm text-blue-800 dark:text-white">
+              <strong>What is this?</strong> Device lock ties each staff account to the machine(s) it first logs
+              in from, so a password alone can&apos;t be used from an unknown computer. Regular staff are limited to
+              1 device; Admins can use several (e.g. desktop + mobile app). If someone is stuck on
+              &quot;locked to another device&quot;, clear their binding on the Staff page, or reset everyone below.
+            </p>
+          </div>
+
+          {dlLoading ? (
+            <div className="flex items-center py-4 text-gray-400">
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <div className="flex flex-col gap-5">
+              {/* Enable toggle */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white">Enforce device lock</p>
+                  <p className="text-xs text-gray-500">
+                    When off, anyone can log in from any device — no binding is checked or created.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={dlEnabled}
+                  onClick={() => setDlEnabled((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                    dlEnabled ? "bg-emerald-500" : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      dlEnabled ? "translate-x-5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Admin device limit */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white">Admin device limit</p>
+                  <p className="text-xs text-gray-500">
+                    How many devices each Admin account may use at once (desktop web + mobile app, etc.).
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={dlLimit}
+                  onChange={(e) => setDlLimit(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-center text-sm text-gray-800 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+
+              {/* Staff device limit */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white">Staff device limit</p>
+                  <p className="text-xs text-gray-500">
+                    How many devices each non-Admin staff account may use at once. Default 1.
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={dlStaffLimit}
+                  onChange={(e) => setDlStaffLimit(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-20 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-center text-sm text-gray-800 dark:bg-gray-800 dark:text-white"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => void handleResetAllDevices()}
+                  disabled={dlResetting}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400"
+                >
+                  {dlResetting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Unlock className="h-3.5 w-3.5" />}
+                  Reset all device locks
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveDeviceLock()}
+                  disabled={dlSaving}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {dlSaving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  Save settings
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Section 1: Active Lockouts ── */}
       <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">

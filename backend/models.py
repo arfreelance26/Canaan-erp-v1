@@ -164,7 +164,7 @@ class Staff(Base):
     aadhar_document_blob = Column(LargeBinary(length=26214400))
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
-    device_hash = Column(String(64), nullable=True, default=None)  # SHA-256 of device token; NULL = unbound
+    device_hash = Column(String(1024), nullable=True, default=None)  # comma-separated SHA-256(s) of bound devices; NULL = unbound
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -175,6 +175,19 @@ class Staff(Base):
     def device_bound(self) -> bool:
         """True when this account is locked to a device (has a stored device_hash)."""
         return bool(self.device_hash)
+
+
+class AppSetting(Base):
+    """Runtime-editable key/value settings (Admin-managed from the UI).
+
+    Overrides the corresponding .env default when a row is present; if no row
+    exists the .env value is used. Currently backs the device-lock controls
+    (enabled flag + admin device limit)."""
+    __tablename__ = "app_settings"
+
+    key = Column(String(64), primary_key=True)
+    value = Column(String(255), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Customer(Base):

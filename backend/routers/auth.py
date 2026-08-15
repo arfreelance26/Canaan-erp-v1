@@ -11,8 +11,10 @@ from pydantic import BaseModel
 from database import get_db
 from security import (
     create_access_token, decode_token, revoke_token, get_current_user, IS_PRODUCTION, TokenUser,
-    DEVICE_LOCK_ENABLED, DEVICE_COOKIE, DEVICE_MAX_AGE, new_device_token, hash_device_token,
+    DEVICE_COOKIE, DEVICE_HEADER, DEVICE_MAX_AGE, new_device_token, hash_device_token,
+    parse_device_hashes, serialize_device_hashes,
 )
+import settings_store
 from audit import record_audit
 import models
 
@@ -153,23 +155,40 @@ def login(
 
     # ── Device lock (staff only; hardcoded admin returned earlier and skips this) ──
     # Gated by DEVICE_LOCK_ENABLED in .env — when off, no binding/cookie/lockout.
-    if DEVICE_LOCK_ENABLED:
-        device_token, bind_device = app_device or "", False
-        if member.device_hash is None:
-            # Unbound account → bind to this device now.
+    # Each account may bind up to N devices: regular staff N=1, Admins
+    # N=ADMIN_DEVICE_LIMIT (they use the desktop web app AND the mobile app, which
+    # are separate clients that cannot share a cookie). The device token is read
+    # from the httpOnly cookie (web) or the X-Device-Id header (native mobile).
+    if settings_store.device_lock_enabled(db):
+        is_admin = (member.software_designation or "") == "Admin"
+        limit = settings_store.admin_device_limit(db) if is_admin else settings_store.staff_device_limit(db)
+        device_token = (app_device or request.headers.get(DEVICE_HEADER) or "").strip()
+        stored = parse_device_hashes(member.device_hash)
+        bind_cookie = False
+
+        if device_token and hash_device_token(device_token) in stored:
+            pass  # already-bound device → allow
+        elif len(stored) < limit:
+            # Room for another device → bind this one.
             if not device_token:
+                # Web first-visit with no id yet: mint one and set it as a cookie.
                 device_token = new_device_token()
-            member.device_hash = hash_device_token(device_token)
+                bind_cookie = True
+            stored.append(hash_device_token(device_token))
+            member.device_hash = serialize_device_hashes(stored)
             db.commit()
-            bind_device = True
-        elif not device_token or hash_device_token(device_token) != member.device_hash:
+        else:
             record_audit("login.failure", outcome="failure", request=request,
-                         actor_id=member.id, actor_name=member.name, detail="wrong device")
+                         actor_id=member.id, actor_name=member.name, detail="device limit reached")
             raise HTTPException(
                 status_code=403,
-                detail="This account is locked to another device. Ask an Admin to reset it.",
+                detail=(
+                    "This account is already active on the maximum number of devices "
+                    f"({limit}). Ask an Admin to reset its device binding."
+                ),
             )
-        if bind_device:
+
+        if bind_cookie:
             response.set_cookie(
                 key=DEVICE_COOKIE,
                 value=device_token,

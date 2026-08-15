@@ -24,7 +24,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, operating_costs
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, operating_costs, settings
 
 Base.metadata.create_all(bind=engine)
 
@@ -45,8 +45,10 @@ def _run_schema_migrations():
         "ALTER TABLE trucks ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE drivers ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE staff ADD COLUMN version INT NOT NULL DEFAULT 1",
-        # Device lock — SHA-256 of the device token; NULL = unbound
+        # Device lock — comma-separated SHA-256(s) of the bound device token(s); NULL = unbound
         "ALTER TABLE staff ADD COLUMN device_hash VARCHAR(64) DEFAULT NULL",
+        # Widen to hold multiple hashes (admins may bind several devices)
+        "ALTER TABLE staff MODIFY COLUMN device_hash VARCHAR(1024) DEFAULT NULL",
         "ALTER TABLE customers ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE vendors ADD COLUMN version INT NOT NULL DEFAULT 1",
         "ALTER TABLE branches ADD COLUMN version INT NOT NULL DEFAULT 1",
@@ -586,6 +588,7 @@ app.include_router(notifications.router, dependencies=AUTH)
 app.include_router(trip_expense_rates.router, dependencies=AUTH)
 app.include_router(backup.router, dependencies=AUTH)
 app.include_router(operating_costs.router, dependencies=AUTH)
+app.include_router(settings.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

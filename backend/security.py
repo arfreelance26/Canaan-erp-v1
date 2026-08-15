@@ -56,7 +56,18 @@ ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "12"))
 # ---------------------------------------------------------------------------
 DEVICE_LOCK_ENABLED = os.getenv("DEVICE_LOCK_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 DEVICE_COOKIE = "app_device"
+DEVICE_HEADER = "X-Device-Id"     # native clients (mobile) send their device id here
 DEVICE_MAX_AGE = 365 * 24 * 3600   # 1 year in seconds
+
+# Regular staff are locked to a single device. Admins legitimately use several
+# clients (desktop web + mobile app), so they get a configurable allowance:
+# ADMIN_DEVICE_LIMIT devices may bind; the (N+1)th is rejected until an Admin
+# resets the binding. Default 2 (one web browser + one mobile app).
+STAFF_DEVICE_LIMIT = 1
+try:
+    ADMIN_DEVICE_LIMIT = max(1, int(os.getenv("ADMIN_DEVICE_LIMIT", "2")))
+except ValueError:
+    ADMIN_DEVICE_LIMIT = 2
 
 
 def new_device_token() -> str:
@@ -67,6 +78,18 @@ def new_device_token() -> str:
 def hash_device_token(token: str) -> str:
     """SHA-256 of the raw token — the only value persisted in the DB."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def parse_device_hashes(stored: str | None) -> list[str]:
+    """Split the comma-separated device_hash column into a list of hashes."""
+    if not stored:
+        return []
+    return [h for h in (part.strip() for part in stored.split(",")) if h]
+
+
+def serialize_device_hashes(hashes: list[str]) -> str | None:
+    """Join device hashes back into the comma-separated column value (None if empty)."""
+    return ",".join(hashes) if hashes else None
 
 # ---------------------------------------------------------------------------
 # Password policy (enforced when staff/driver passwords are set or changed)
