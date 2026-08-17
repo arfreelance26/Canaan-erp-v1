@@ -27,6 +27,8 @@ import type { FuelLog, FuelStats } from "@/types/fuel-log";
 import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
 import type { SacCode } from "@/types/sac-code";
+import type { MaintenanceTypeItem } from "@/types/maintenance-type";
+import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/maintenance-status";
 
 import { cacheGet, cacheSet, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
 
@@ -1059,7 +1061,7 @@ function toTyreInventory(b: B): TyreInventoryItem {
     size: b.size ?? "",
     rangeKm: String(b.range_km ?? "0"),
     cost: String(b.cost ?? ""),
-    condition: b.condition ?? "",
+    costPerKm: String(b.cost_per_km ?? ""),
     purchaseDate: b.purchase_date ?? "",
     repairCost: String(b.repair_cost ?? ""),
     retreadCost: String(b.retread_cost ?? ""),
@@ -1076,7 +1078,7 @@ function fromTyreInventory(f: TyreInventoryItem) {
     size: f.size || null,
     range_km: parseInt(f.rangeKm) || 0,
     cost: parseFloat(f.cost) || 0,
-    condition: f.condition || "New",
+    cost_per_km: parseFloat(f.costPerKm) || null,
     purchase_date: f.purchaseDate || null,
     repair_cost: parseFloat(f.repairCost) || 0,
     retread_cost: parseFloat(f.retreadCost) || 0,
@@ -1115,6 +1117,7 @@ function toEmiRecord(b: B): EmiRecord {
     costPerMonth: String(b.cost_per_month ?? ""),
     monthlyFinanceCost: String(b.monthly_finance_cost ?? ""),
     dailyFinanceCost: String(b.daily_finance_cost ?? ""),
+    emiCostPerKm: String(b.emi_cost_per_km ?? ""),
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1134,6 +1137,7 @@ function fromEmiRecord(f: EmiRecord) {
     cost_per_month: parseFloat(f.costPerMonth) || 0,
     monthly_finance_cost: parseFloat(f.monthlyFinanceCost) || 0,
     daily_finance_cost: parseFloat(f.dailyFinanceCost) || 0,
+    emi_cost_per_km: parseFloat(f.emiCostPerKm) || 0,
     client_version: f.version,
   };
 }
@@ -1186,6 +1190,72 @@ export const trucksApi = {
   update: (dbId: string, truck: Truck) =>
     req<B>(`/trucks/${dbId}`, { method: "PUT", body: JSON.stringify(fromTruck(truck)) }).then(toTruck),
   delete: (dbId: string) => req<void>(`/trucks/${dbId}`, { method: "DELETE" }),
+  getRunConfig: () => req<B[]>("/trucks/run-config"),
+  saveRunConfig: (configs: { tyre_layout: string; km_per_month: number | null; km_per_day: number | null }[]) =>
+    req<B[]>("/trucks/run-config", { method: "PUT", body: JSON.stringify({ configs }) }),
+  getBaseTyreCost: () =>
+    req<{ id: number; tyre_layout: string; cost: string | null; updated_at: string | null }[]>("/trucks/base-tyre-cost"),
+  saveBaseTyreCost: (configs: { tyre_layout: string; cost: number | null }[]) =>
+    req<{ id: number; tyre_layout: string; cost: string | null; updated_at: string | null }[]>(
+      "/trucks/base-tyre-cost",
+      { method: "PUT", body: JSON.stringify({ configs }) }
+    ),
+  getComplianceHistory: (truckId: string) =>
+    req<{ id: number; truck_id: number; document_type: string; updated_at: string; updated_by_name: string }[]>(
+      `/trucks/${truckId}/compliance-history`
+    ),
+  getCompliancePerKmAll: () => req<Record<string, number>>("/trucks/compliance-per-km/all"),
+};
+
+// ---------------------------------------------------------------------------
+// Tyre Range Config API
+// ---------------------------------------------------------------------------
+
+export const tyreRangeConfigApi = {
+  list: () => req<{ id: number; tyre_type: string; range_km: number | null; updated_at: string | null }[]>("/tyre-range-config"),
+  save: (configs: { tyre_type: string; range_km: number | null }[]) =>
+    req<{ id: number; tyre_type: string; range_km: number | null; updated_at: string | null }[]>(
+      "/tyre-range-config",
+      { method: "PUT", body: JSON.stringify({ configs }) }
+    ),
+  delete: (tyreType: string) =>
+    req<void>(`/tyre-range-config/${encodeURIComponent(tyreType)}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// Compliance Cost Configuration API
+// ---------------------------------------------------------------------------
+
+export type ComplianceCostRow = {
+  id: number;
+  tyre_layout: string;
+  rc_cost: string;
+  fc_cost: string;
+  road_tax_cost: string;
+  national_permit_cost: string;
+  local_permit_cost: string;
+  pollution_cert_cost: string;
+  insurance_cost: string;
+};
+
+export type ComplianceCostItem = {
+  tyre_layout: string;
+  rc_cost: string;
+  fc_cost: string;
+  road_tax_cost: string;
+  national_permit_cost: string;
+  local_permit_cost: string;
+  pollution_cert_cost: string;
+  insurance_cost: string;
+};
+
+export const complianceCostApi = {
+  list: () => req<ComplianceCostRow[]>("/compliance-cost"),
+  save: (configs: ComplianceCostItem[]) =>
+    req<ComplianceCostRow[]>("/compliance-cost", {
+      method: "PUT",
+      body: JSON.stringify({ configs }),
+    }),
 };
 
 // ---------------------------------------------------------------------------
@@ -1418,6 +1488,7 @@ export const tripsApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }),
+  getCustomerProfitability: () => req<CustomerProfitabilityData[]>("/trips/customer-profitability"),
 };
 
 // ---------------------------------------------------------------------------
@@ -1627,71 +1698,33 @@ export const attendanceApi = {
 };
 
 // ---------------------------------------------------------------------------
-// Truck Status
-// ---------------------------------------------------------------------------
-
-export type TruckStatusItem = {
-  category: string;
-  item: string;
-  intervalKm: number;
-  remainingKm: number;
-  dueAtOdometer: number;
-  lastDoneOdometer: number | null;
-  lastDoneDate: string | null;
-  status: "attention" | "upcoming";
-};
-
-export type TruckStatusData = {
-  truckId: number;
-  registrationNumber: string;
-  truckLabel: string;
-  odometer: number;
-  healthStatus: "Bad" | "Average" | "Good" | "Great";
-  healthScore: number;
-  overdueCount: number;
-  upcomingCount: number;
-  overdueItems: TruckStatusItem[];
-  upcomingItems: TruckStatusItem[];
-  totalYearlyCost: number;
-  avgMonthlyCost: number;
-  avgDailyCost: number;
-  recordCountYearly: number;
-  daysSinceLastService: number | null;
-};
-
-function toTruckStatus(b: B): TruckStatusData {
-  const mapItem = (i: B): TruckStatusItem => ({
-    category:         String(i.category ?? ""),
-    item:             String(i.item ?? ""),
-    intervalKm:       Number(i.interval_km ?? 0),
-    remainingKm:      Number(i.remaining_km ?? 0),
-    dueAtOdometer:    Number(i.due_at_odometer ?? 0),
-    lastDoneOdometer: i.last_done_odometer != null ? Number(i.last_done_odometer) : null,
-    lastDoneDate:     i.last_done_date ? String(i.last_done_date) : null,
-    status:           (i.status === "attention" ? "attention" : "upcoming") as "attention" | "upcoming",
-  });
-  return {
-    truckId:              Number(b.truck_id),
-    registrationNumber:   String(b.registration_number ?? ""),
-    truckLabel:           String(b.truck_label ?? ""),
-    odometer:             Number(b.odometer ?? 0),
-    healthStatus:         String(b.health_status ?? "Average") as TruckStatusData["healthStatus"],
-    healthScore:          Number(b.health_score ?? 0),
-    overdueCount:         Number(b.overdue_count ?? 0),
-    upcomingCount:        Number(b.upcoming_count ?? 0),
-    overdueItems:         ((b.overdue_items as B[]) ?? []).map(mapItem),
-    upcomingItems:        ((b.upcoming_items as B[]) ?? []).map(mapItem),
-    totalYearlyCost:      Number(b.total_yearly_cost ?? 0),
-    avgMonthlyCost:       Number(b.avg_monthly_cost ?? 0),
-    avgDailyCost:         Number(b.avg_daily_cost ?? 0),
-    recordCountYearly:    Number(b.record_count_yearly ?? 0),
-    daysSinceLastService: b.days_since_last_service != null ? Number(b.days_since_last_service) : null,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Maintenance API
 // ---------------------------------------------------------------------------
+
+type MaintStatusBackend = {
+  truck_db_id: number; truck_id: string; registration_number: string; odometer: number;
+  overdue_count: number; due_soon_count: number;
+  items: Array<{ type_name: string; interval_km: number; last_odometer: number | null; km_since_last: number; next_due_odometer: number; status: "Overdue" | "Due Soon" | "OK" }>;
+};
+
+function toMaintStatus(b: MaintStatusBackend): TruckMaintenanceStatus {
+  return {
+    truckDbId: String(b.truck_db_id),
+    truckId: b.truck_id,
+    registrationNumber: b.registration_number,
+    odometer: b.odometer,
+    overdueCount: b.overdue_count,
+    dueSoonCount: b.due_soon_count,
+    items: b.items.map((i): MaintenanceStatusItem => ({
+      typeName: i.type_name,
+      intervalKm: i.interval_km,
+      lastOdometer: i.last_odometer,
+      kmSinceLast: i.km_since_last,
+      nextDueOdometer: i.next_due_odometer,
+      status: i.status,
+    })),
+  };
+}
 
 export const maintenanceApi = {
   listRecords: (truckId?: string) =>
@@ -1721,10 +1754,12 @@ export const maintenanceApi = {
       }),
     }).then(toMaintenanceRecord),
   deleteRecord: (id: string) => req<void>(`/maintenance/records/${id}`, { method: "DELETE" }),
-  getStatus: () => req<B[]>("/maintenance/status"),
   getCompliance: () => req<B[]>("/maintenance/compliance"),
+  getStatus: () => req<MaintStatusBackend[]>("/maintenance/status").then((d) => d.map(toMaintStatus)),
   getTruckStatus: (truckDbId: string) =>
-    req<B>(`/maintenance/trucks/${truckDbId}/status`).then(toTruckStatus),
+    req<MaintStatusBackend>(`/maintenance/trucks/${truckDbId}/status`).then(toMaintStatus),
+  getMaintenanceCostPerDay: () => req<Record<string, number>>("/maintenance/cost-per-day/all"),
+  getMaintenanceCostPerKm: () => req<Record<string, number>>("/maintenance/cost-per-km/all"),
 };
 
 export const fuelLogsApi = {
@@ -1747,6 +1782,8 @@ export const fuelLogsApi = {
     }).then(toFuelLog),
   getFuelStats: (truckId: string) =>
     req<B>(`/maintenance/trucks/${truckId}/fuel-stats`).then(toFuelStats),
+  getAllFuelStats: () =>
+    req<Record<string, number>>("/maintenance/fuel-stats/all"),
   updateFuelLog: (id: string, log: Partial<FuelLog>) =>
     req<B>(`/maintenance/fuel-logs/${id}`, {
       method: "PUT",
@@ -1762,11 +1799,47 @@ export const fuelLogsApi = {
       }),
     }).then(toFuelLog),
   deleteFuelLog: (id: string) => req<void>(`/maintenance/fuel-logs/${id}`, { method: "DELETE" }),
+  getBaseConfig: () => req<{ id: number; cost_per_litre: number | null; updated_at: string | null }>("/maintenance/fuel-base-config"),
+  setBaseConfig: (costPerLitre: number | null) =>
+    req<{ id: number; cost_per_litre: number | null; updated_at: string | null }>(
+      "/maintenance/fuel-base-config",
+      { method: "PUT", body: JSON.stringify({ cost_per_litre: costPerLitre }) }
+    ),
 };
 
 // ---------------------------------------------------------------------------
 // AdBlue API
 // ---------------------------------------------------------------------------
+
+export type CustomerProfitabilityData = {
+  customer_id: string;
+  customer_name: string;
+  trip_count: number;
+  total_revenue: number;
+  total_expense: number;
+  total_profit: number;
+  profit_margin_pct: number;
+  total_km: number;
+  routes: {
+    route: string;
+    trip_count: number;
+    revenue: number;
+    expense: number;
+    profit: number;
+    margin_pct: number;
+    avg_km: number;
+  }[];
+  recent_trips: {
+    trip_id: string;
+    date: string | null;
+    route: string;
+    revenue: number;
+    expense: number;
+    profit: number;
+    margin_pct: number;
+    km: number;
+  }[];
+};
 
 export type AdBlueManufacturer = {
   id: string;
@@ -1894,6 +1967,7 @@ function toBranch(b: B): Branch {
     haltDayFee20ft: String(b.halt_day_fee_20ft ?? "0"),
     haltDayFee40ft: String(b.halt_day_fee_40ft ?? "0"),
     driverHaltDayPercentage: String(b.driver_halt_day_percentage ?? "0"),
+    cleanerBattaFee: String(b.cleaner_batta_fee ?? "0"),
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1904,6 +1978,7 @@ function fromBranch(f: Branch) {
     halt_day_fee_20ft: f.haltDayFee20ft ? parseFloat(f.haltDayFee20ft) : 0,
     halt_day_fee_40ft: f.haltDayFee40ft ? parseFloat(f.haltDayFee40ft) : 0,
     driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
+    cleaner_batta_fee: f.cleanerBattaFee ? parseFloat(f.cleanerBattaFee) : 0,
     client_version: f.version,
   };
 }
@@ -1946,6 +2021,38 @@ export const repairTypesApi = {
       body: JSON.stringify({ name: payload.name, default_cost: payload.defaultCost !== undefined ? parseFloat(payload.defaultCost) || 0 : undefined, client_version: payload.version }),
     }).then(toRepairType),
   delete: (id: string) => req<void>(`/repair-types/${id}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// Maintenance Types API
+// ---------------------------------------------------------------------------
+
+type MTypeBackend = { id: number; name: string; interval_km: number; version?: number };
+type MaintBaseConfigBackend = { cost_per_km: string | null; updated_at: string | null };
+
+function toMaintenanceType(b: MTypeBackend): MaintenanceTypeItem {
+  return { id: String(b.id), name: b.name, intervalKm: b.interval_km, version: b.version };
+}
+
+export const maintenanceTypesApi = {
+  list: () => req<MTypeBackend[]>("/maintenance-types").then((d) => d.map(toMaintenanceType)),
+  create: (name: string, intervalKm: number) =>
+    req<MTypeBackend>("/maintenance-types", {
+      method: "POST",
+      body: JSON.stringify({ name, interval_km: intervalKm }),
+    }).then(toMaintenanceType),
+  update: (id: string, name: string, intervalKm: number, version?: number) =>
+    req<MTypeBackend>(`/maintenance-types/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, interval_km: intervalKm, client_version: version }),
+    }).then(toMaintenanceType),
+  delete: (id: string) => req<void>(`/maintenance-types/${id}`, { method: "DELETE" }),
+  getBaseConfig: () => req<MaintBaseConfigBackend>("/maintenance-types/base-config"),
+  setBaseConfig: (costPerKm: number) =>
+    req<MaintBaseConfigBackend>("/maintenance-types/base-config", {
+      method: "PUT",
+      body: JSON.stringify({ cost_per_km: costPerKm }),
+    }),
 };
 
 export const sacCodesApi = {
@@ -2450,6 +2557,123 @@ export const securityApi = {
   resetAllDevices: () =>
     req<{ ok: boolean; cleared: number }>("/settings/device-lock/reset-all", {
       method: "POST",
+    }),
+};
+
+// ---------------------------------------------------------------------------
+// Running Cost Calculator API
+// ---------------------------------------------------------------------------
+
+type RccModeData = {
+  costPerLitre: string;
+  tyreEntries: Record<string, { cost: string; range: string }>;
+  runEntries: Record<string, { month: string; day: string }>;
+  adbluePrices: Record<string, string>;
+  truckMetrics: Record<string, {
+    emiAmount: string;
+    emiPerDay: string;
+    emiPerKm: string;
+    mileage: string;
+    adblueConsumeLKm: string;
+    adblueConsumeL1000: string;
+    adblueManufacturer: string;
+    adbluePerKm: string;
+    tyreType: string;
+    tyrePerKm: string;
+    maintenancePerKm: string;
+    complianceCostPerYear: string;
+  }>;
+};
+
+export type RccState = {
+  Manual: RccModeData;
+  Basic: RccModeData;
+  Advanced: RccModeData;
+};
+
+function _parseModeData(d: Record<string, any>): RccModeData {
+  return {
+    costPerLitre: d.cost_per_litre ?? "",
+    tyreEntries: Object.fromEntries(
+      Object.entries(d.tyre_entries ?? {}).map(([k, v]: [string, any]) => [k, { cost: v.cost ?? "", range: v.range ?? "" }])
+    ),
+    runEntries: Object.fromEntries(
+      Object.entries(d.run_entries ?? {}).map(([k, v]: [string, any]) => [k, { month: v.month ?? "", day: v.day ?? "" }])
+    ),
+    adbluePrices: Object.fromEntries(
+      Object.entries(d.adblue_prices ?? {}).map(([k, v]: [string, any]) => [k, String(v ?? "")])
+    ),
+    truckMetrics: Object.fromEntries(
+      Object.entries(d.truck_metrics ?? {}).map(([k, v]: [string, any]) => {
+        const lkm = v.adblue_consume_l_per_km ?? "";
+        return [k, {
+          emiAmount: v.emi_amount ?? "",
+          emiPerDay: v.emi_per_day ?? "",
+          emiPerKm:  v.emi_per_km  ?? "",
+          mileage: v.mileage ?? "",
+          adblueConsumeLKm: lkm,
+          adblueConsumeL1000: lkm ? String(+(parseFloat(lkm) * 1000).toFixed(4)) : "",
+          adblueManufacturer: v.adblue_manufacturer_id ? String(v.adblue_manufacturer_id) : "",
+          adbluePerKm: v.adblue_per_km ?? "",
+          tyreType: v.tyre_type ?? "",
+          tyrePerKm: v.tyre_per_km ?? "",
+          maintenancePerKm: v.maintenance_per_km ?? "",
+          complianceCostPerYear: v.compliance_cost_per_year ?? "",
+        }];
+      })
+    ),
+  };
+}
+
+function _serializeModeData(d: RccModeData) {
+  return {
+    cost_per_litre: d.costPerLitre,
+    tyre_entries: Object.fromEntries(
+      Object.entries(d.tyreEntries).map(([k, v]) => [k, { cost: v.cost, range: v.range }])
+    ),
+    run_entries: Object.fromEntries(
+      Object.entries(d.runEntries).map(([k, v]) => [k, { month: v.month, day: v.day }])
+    ),
+    adblue_prices: d.adbluePrices,
+    truck_metrics: Object.fromEntries(
+      Object.entries(d.truckMetrics).map(([k, v]) => [k, {
+        emi_amount:  v.emiAmount,
+        emi_per_day: v.emiPerDay,
+        emi_per_km:  v.emiPerKm,
+        mileage: v.mileage,
+        adblue_consume_l_per_km: v.adblueConsumeLKm,
+        adblue_manufacturer_id: v.adblueManufacturer,
+        adblue_per_km: v.adbluePerKm,
+        tyre_type: v.tyreType,
+        tyre_per_km: v.tyrePerKm,
+        maintenance_per_km: v.maintenancePerKm,
+        compliance_cost_per_year: v.complianceCostPerYear,
+      }])
+    ),
+  };
+}
+
+const _emptyRccModeData = (): RccModeData => ({
+  costPerLitre: "", tyreEntries: {}, runEntries: {}, adbluePrices: {}, truckMetrics: {},
+});
+// _emptyRccModeData is available for callers that need a typed empty state
+
+export const runningCostApi = {
+  getState: (): Promise<RccState> =>
+    req<Record<string, any>>("/running-cost/state").then((d) => ({
+      Manual:   _parseModeData(d.Manual   ?? {}),
+      Basic:    _parseModeData(d.Basic    ?? {}),
+      Advanced: _parseModeData(d.Advanced ?? {}),
+    })),
+
+  saveState: (state: RccState): Promise<void> =>
+    req<void>("/running-cost/state", {
+      method: "PUT",
+      body: JSON.stringify({
+        Manual:   _serializeModeData(state.Manual),
+        Basic:    _serializeModeData(state.Basic),
+        Advanced: _serializeModeData(state.Advanced),
+      }),
     }),
 };
 

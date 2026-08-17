@@ -43,10 +43,7 @@ import {
   editApprovalsApi,
   downloadExcel,
 } from "@/lib/api";
-import {
-  getMaintenanceStatus,
-  getTruckMaintenanceSummary,
-} from "@/lib/truck-maintenance-data";
+import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { getComplianceStatus } from "@/lib/compliance";
 import type { Truck as TruckType } from "@/types/truck";
 import type { Driver } from "@/types/driver";
@@ -207,6 +204,7 @@ function AdminDashboard() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [pendingEditApprovals, setPendingEditApprovals] = useState<EditApprovalRequest[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
+  const [maintenanceStatus, setMaintenanceStatus] = useState<TruckMaintenanceStatus[]>([]);
   const [tyreInventory, setTyreInventory] = useState<TyreInventoryItem[]>([]);
   const [emiRecords, setEmiRecords] = useState<EmiRecord[]>([]);
   const [recurringPayments, setRecurringPayments] = useState<RecurringPayment[]>([]);
@@ -281,8 +279,9 @@ function AdminDashboard() {
       financeApi.listRecurring(),
       financeApi.listDriverCompensation(),
       financeApi.listStaffCompensation(),
+      maintenanceApi.getStatus(),
     ])
-      .then(([t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, dtx, stx]) => {
+      .then(([t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, dtx, stx, ms]) => {
         setTrucks(t);
         setDrivers(d);
         setStaffList(s);
@@ -298,42 +297,10 @@ function AdminDashboard() {
         setRecurringPayments(rp);
         setDriverTransactions(dtx);
         setStaffTransactions(stx);
+        setMaintenanceStatus(ms);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {}).finally(() => setLoading(false));
   }, [today, refreshKey]);
-
-  // ── Maintenance ───────────────────────────────────────────────────────────
-  const truckSummaries = useMemo(
-    () =>
-      trucks.map((truck) => ({
-        truck,
-        summary: getTruckMaintenanceSummary(truck, maintenanceRecords),
-        status: getMaintenanceStatus(truck, maintenanceRecords),
-      })),
-    [trucks, maintenanceRecords]
-  );
-
-  const maintenanceItems = useMemo(
-    () =>
-      truckSummaries.flatMap((item) =>
-        item.status.map((status) => ({
-          ...status,
-          registrationNumber: item.truck.registrationNumber,
-        }))
-      ),
-    [truckSummaries]
-  );
-
-  const maintenanceCounts = useMemo(() => {
-    const counts = { attention: 0, upcoming: 0 };
-    for (const item of maintenanceItems) counts[item.status] += 1;
-    return counts;
-  }, [maintenanceItems]);
-
-  const topMaintenanceItems = useMemo(
-    () => [...maintenanceItems].sort((a, b) => a.remainingKm - b.remainingKm).slice(0, 8),
-    [maintenanceItems]
-  );
 
   // ── Compliance ────────────────────────────────────────────────────────────
   const complianceCounts = useMemo(() => {
@@ -483,23 +450,30 @@ function AdminDashboard() {
       }
     }
 
-    for (const item of maintenanceItems) {
-      if (item.status === "attention") {
+    for (const s of maintenanceStatus) {
+      if (s.overdueCount > 0) {
+        const overdueNames = s.items.filter((i) => i.status === "Overdue").map((i) => i.typeName);
         items.push({
-          id: `${item.registrationNumber}-maint-${item.item}`,
+          id: `maint-overdue-${s.truckDbId}`,
           type: "maintenance",
           critical: true,
-          truck: item.registrationNumber,
-          detail: `${item.item} overdue`,
+          truck: s.registrationNumber,
+          detail: `${s.overdueCount} maintenance overdue: ${overdueNames.slice(0, 2).join(", ")}${overdueNames.length > 2 ? ` +${overdueNames.length - 2} more` : ""}`,
         });
       }
     }
 
-    return items.sort((a, b) => Number(b.critical) - Number(a.critical)).slice(0, 8);
-  }, [trucks, maintenanceItems]);
+    return items.sort((a, b) => Number(b.critical) - Number(a.critical)).slice(0, 10);
+  }, [trucks, maintenanceStatus]);
+
+  // ── Maintenance overdue (from DB-driven types) ────────────────────────────
+  const maintenanceOverdueCount = useMemo(
+    () => maintenanceStatus.reduce((sum, t) => sum + t.overdueCount, 0),
+    [maintenanceStatus]
+  );
 
   // ── Derived totals ────────────────────────────────────────────────────────
-  const criticalAlerts = complianceCounts.Expired + maintenanceCounts.attention;
+  const criticalAlerts = complianceCounts.Expired + maintenanceOverdueCount;
   const totalAlerts = criticalAlerts + complianceCounts["Expiring Soon"];
   const presentToday = driverAttendanceToday.Present + staffAttendanceToday.Present;
   const totalWorkforce = drivers.length + staffList.length;
@@ -724,7 +698,7 @@ function AdminDashboard() {
         <StatCard
           label="Urgent Alerts"
           value={String(criticalAlerts)}
-          caption={`${complianceCounts.Expired} expired · ${maintenanceCounts.attention} maint. overdue`}
+          caption={`${complianceCounts.Expired} docs expired · ${maintenanceOverdueCount} maint. overdue`}
           icon={AlertTriangle}
           variant={criticalAlerts > 0 ? "red" : "emerald"}
         />

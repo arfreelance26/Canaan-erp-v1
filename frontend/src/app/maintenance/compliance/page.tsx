@@ -22,7 +22,7 @@ export default function CompliancePage() {
   const [exportTo, setExportTo] = useState("");
 
   useEffect(() => {
-        trucksApi.list().then(setTrucks).finally(() => setLoading(false));
+        trucksApi.list().then(setTrucks).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

@@ -35,7 +35,7 @@ export default function LeaveApprovalsPage() {
   const [exportTo, setExportTo] = useState("");
 
   useEffect(() => {
-        attendanceApi.listLeaveRequests().then(setRequests).finally(() => setLoading(false));
+        attendanceApi.listLeaveRequests().then(setRequests).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

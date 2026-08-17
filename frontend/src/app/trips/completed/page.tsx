@@ -47,7 +47,7 @@ export default function CompletedTripsPage() {
             );
             setClosedTripIds(closed);
           })
-          .finally(() => setLoading(false));
+          .catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

@@ -13,6 +13,7 @@ export type EmiRecord = {
   costPerMonth: string;
   monthlyFinanceCost: string;
   dailyFinanceCost: string;
+  emiCostPerKm: string;
   version?: number;
 };
 

@@ -118,13 +118,13 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
   // ── Tyre type summary for this truck ──────────────────────────────────────
   const activeFitments = fitmentRecords.filter(
-    (f) => f.truckId === truck.id && f.removedDate === null
+    (f) => f.truckId === truck.id && f.removedOdometer === null
   );
   const tyreTypeCounts: Record<string, number> = {};
   for (const f of activeFitments) {
     const tyre = tyres.find((t) => t.id === f.tyreId);
     if (!tyre) continue;
-    const label = tyre.condition === "Rethreaded" ? "Retreaded" : (tyre.tyreType || "Unknown");
+    const label = tyre.tyreType || "Unknown";
     tyreTypeCounts[label] = (tyreTypeCounts[label] ?? 0) + 1;
   }
   const tyreTypePills = Object.entries(tyreTypeCounts);
@@ -484,11 +484,8 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                           Fitted at {fitment.fittedOdometer.toLocaleString()} km on {formatDate(fitment.fittedDate)}
                         </span>
                       </div>
-                      <span className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-medium",
-                        attachedTyre.condition === "New" ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
-                      )}>
-                        {attachedTyre.condition || "Unknown"}
+                      <span className="rounded-full px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-700">
+                        {attachedTyre.tyreType || "Unknown"}
                       </span>
                     </div>
 
@@ -575,11 +572,8 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                               >
                                 <div className="flex justify-between items-start mb-2 gap-2">
                                   <span className="font-semibold text-sm text-gray-900 truncate">{t.brand}</span>
-                                  <span className={cn(
-                                    "text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0",
-                                    t.condition === "New" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
-                                  )}>
-                                    {t.condition || "Unknown"}
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0 bg-blue-100 text-blue-700">
+                                    {t.tyreType || "Unknown"}
                                   </span>
                                 </div>
                                 <div className="flex flex-col gap-0.5">

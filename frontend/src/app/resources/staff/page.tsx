@@ -34,7 +34,7 @@ export default function StaffPage() {
   );
 
   useEffect(() => {
-        staffApi.list().then(setStaff).finally(() => setLoading(false));
+        staffApi.list().then(setStaff).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

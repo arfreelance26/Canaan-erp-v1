@@ -30,7 +30,7 @@ export default function RepairsManagementPage() {
   }, [ready, user, router]);
 
   useEffect(() => {
-    repairTypesApi.list().then(setRepairs).finally(() => setLoading(false));
+    repairTypesApi.list().then(setRepairs).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useAutoRefresh(() => { repairTypesApi.list().then(setRepairs); }, 10000);

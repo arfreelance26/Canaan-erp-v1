@@ -2,6 +2,7 @@ from typing import Optional
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
@@ -10,26 +11,39 @@ from security import get_current_user, TokenUser
 
 router = APIRouter(tags=["Maintenance"])
 
-MAINTENANCE_SCHEDULE = [
-    {"category": "Service A", "interval_km": 10000, "items": [
-        "Brake inspection", "Steering inspection", "Greasing",
-        "Air filter cleaning", "Transmission oil check", "Differential oil check",
-    ]},
-    {"category": "Service B", "interval_km": 20000, "items": [
-        "Engine oil change", "Oil filter replacement",
-        "Fuel filter inspection/replacement", "Clutch inspection",
-    ]},
-    {"category": "Service C", "interval_km": 40000, "items": [
-        "Fuel filter replacement", "Air filter replacement", "Complete brake inspection",
-    ]},
-    {"category": "Major Service", "interval_km": 80000, "items": [
-        "Transmission oil replacement", "Differential oil replacement",
-        "Full drivetrain inspection", "Suspension inspection",
-    ]},
-]
-
-UPCOMING_WINDOW_KM = 1000
 EXPIRING_SOON_DAYS = 30
+UPCOMING_WINDOW_KM = 1000
+
+
+def _compute_maint_status(truck_odo: int, last_odo_map: dict, maint_types: list) -> dict:
+    """Return overdue_count, due_soon_count, items for a single truck."""
+    items = []
+    overdue_count = 0
+    due_soon_count = 0
+    for mt in maint_types:
+        type_lower = mt.name.lower()
+        last_odo = last_odo_map.get(type_lower)
+        km_since_last = truck_odo - last_odo if last_odo is not None else truck_odo
+        if km_since_last >= mt.interval_km:
+            status = "Overdue"
+            overdue_count += 1
+        elif km_since_last >= mt.interval_km - UPCOMING_WINDOW_KM:
+            status = "Due Soon"
+            due_soon_count += 1
+        else:
+            status = "OK"
+        items.append({
+            "type_name": mt.name,
+            "interval_km": mt.interval_km,
+            "last_odometer": last_odo,
+            "km_since_last": km_since_last,
+            "next_due_odometer": (last_odo + mt.interval_km) if last_odo is not None else mt.interval_km,
+            "status": status,
+        })
+    # Sort: Overdue first, then Due Soon, then OK, then alphabetical
+    priority = {"Overdue": 0, "Due Soon": 1, "OK": 2}
+    items.sort(key=lambda x: (priority[x["status"]], x["type_name"]))
+    return {"overdue_count": overdue_count, "due_soon_count": due_soon_count, "items": items}
 
 
 def _compliance_status(expiry_date) -> str:
@@ -41,37 +55,6 @@ def _compliance_status(expiry_date) -> str:
     if expiry_date <= today + timedelta(days=EXPIRING_SOON_DAYS):
         return "Expiring Soon"
     return "Valid"
-
-
-def _maintenance_status(truck: models.Truck, records: list) -> list:
-    current_odometer = int(truck.odometer or 0)
-    result = []
-    for group in MAINTENANCE_SCHEDULE:
-        for item in group["items"]:
-            matching = sorted(
-                [r for r in records if r.truck_id == truck.id and r.maintenance_type == item],
-                key=lambda r: r.odometer,
-                reverse=True,
-            )
-            last = matching[0] if matching else None
-            last_odometer = last.odometer if last else 0
-            due_at = last_odometer + group["interval_km"]
-            remaining = due_at - current_odometer
-            if remaining > UPCOMING_WINDOW_KM:
-                continue
-            result.append({
-                "truck_id": truck.id,
-                "registration_number": truck.registration_number,
-                "category": group["category"],
-                "item": item,
-                "interval_km": group["interval_km"],
-                "last_done_odometer": last_odometer if last else None,
-                "last_done_date": str(last.date) if last else None,
-                "due_at_odometer": due_at,
-                "remaining_km": remaining,
-                "status": "attention" if remaining <= 0 else "upcoming",
-            })
-    return sorted(result, key=lambda x: x["remaining_km"])
 
 
 # ---------------------------------------------------------------------------
@@ -162,89 +145,6 @@ def delete_maintenance_record(record_id: int, db: Session = Depends(get_db)):
     emit("maintenance_updated", {})
 
 
-@router.get("/maintenance/trucks/{truck_id}/status", tags=["Maintenance"])
-def get_truck_status(truck_id: int, db: Session = Depends(get_db)):
-    """Return full health + cost breakdown for a single truck."""
-    truck = db.get(models.Truck, truck_id)
-    if not truck:
-        raise HTTPException(404, "Truck not found")
-
-    records = (
-        db.query(models.MaintenanceRecord)
-        .filter(models.MaintenanceRecord.truck_id == truck_id)
-        .order_by(models.MaintenanceRecord.date.desc())
-        .all()
-    )
-
-    # ── Health score ──────────────────────────────────────────────────────────
-    status_items = _maintenance_status(truck, records)
-    overdue_items  = [s for s in status_items if s["status"] == "attention"]
-    upcoming_items = [s for s in status_items if s["status"] == "upcoming"]
-
-    score = 100
-
-    # −20 per overdue item, capped at −60
-    score -= min(len(overdue_items) * 20, 60)
-
-    # −8 per upcoming item, capped at −24
-    score -= min(len(upcoming_items) * 8, 24)
-
-    # Recency of last service
-    days_since_last = None
-    if not records:
-        score -= 20
-    else:
-        days_since_last = (date.today() - records[0].date).days
-        if days_since_last > 180:
-            score -= 20
-        elif days_since_last > 90:
-            score -= 10
-
-    score = max(0, min(100, score))
-
-    if score >= 80:
-        health_status = "Great"
-    elif score >= 60:
-        health_status = "Good"
-    elif score >= 40:
-        health_status = "Average"
-    else:
-        health_status = "Bad"
-
-    # ── 12-month cost averages ────────────────────────────────────────────────
-    today = date.today()
-    one_year_ago = today.replace(year=today.year - 1)
-    year_records = [r for r in records if r.date and r.date >= one_year_ago]
-    total_yearly  = round(sum(float(r.cost or 0) for r in year_records), 2)
-    avg_monthly   = round(total_yearly / 12, 2)
-    avg_daily     = round(avg_monthly / 26, 2)
-
-    return {
-        "truck_id":             truck.id,
-        "registration_number":  truck.registration_number,
-        "truck_label":          truck.truck_id or "",
-        "odometer":             int(truck.odometer or 0),
-        "health_status":        health_status,
-        "health_score":         score,
-        "overdue_count":        len(overdue_items),
-        "upcoming_count":       len(upcoming_items),
-        "overdue_items":        overdue_items,
-        "upcoming_items":       upcoming_items,
-        "total_yearly_cost":    total_yearly,
-        "avg_monthly_cost":     avg_monthly,
-        "avg_daily_cost":       avg_daily,
-        "record_count_yearly":  len(year_records),
-        "days_since_last_service": days_since_last,
-    }
-
-
-@router.get("/maintenance/status", tags=["Maintenance"])
-def get_maintenance_status(db: Session = Depends(get_db)):
-    trucks = db.query(models.Truck).all()
-    records = db.query(models.MaintenanceRecord).all()
-    return [item for truck in trucks for item in _maintenance_status(truck, records)]
-
-
 # ---------------------------------------------------------------------------
 # Compliance
 # ---------------------------------------------------------------------------
@@ -273,6 +173,167 @@ def get_compliance(db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Maintenance Status (DB-driven — uses maintenance_types table)
+# ---------------------------------------------------------------------------
+
+@router.get("/maintenance/status", tags=["Maintenance"])
+def get_maintenance_status(db: Session = Depends(get_db)):
+    """Fleet-wide maintenance status for all trucks, driven by DB maintenance types."""
+    trucks = db.query(models.Truck).all()
+    maint_types = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
+    if not maint_types:
+        return []
+
+    # Latest odometer per (truck_id, normalized type name) across all trucks
+    rows = (
+        db.query(
+            models.MaintenanceRecord.truck_id,
+            func.lower(models.MaintenanceRecord.maintenance_type).label("type_lower"),
+            func.max(models.MaintenanceRecord.odometer).label("last_odometer"),
+        )
+        .group_by(models.MaintenanceRecord.truck_id, func.lower(models.MaintenanceRecord.maintenance_type))
+        .all()
+    )
+    # {truck_db_id: {type_lower: last_odometer}}
+    fleet_map: dict[int, dict[str, int]] = {}
+    for row in rows:
+        fleet_map.setdefault(row.truck_id, {})[row.type_lower] = int(row.last_odometer)
+
+    result = []
+    for truck in trucks:
+        truck_odo = int(truck.odometer or 0)
+        computed = _compute_maint_status(truck_odo, fleet_map.get(truck.id, {}), maint_types)
+        result.append({
+            "truck_db_id": truck.id,
+            "truck_id": truck.truck_id,
+            "registration_number": truck.registration_number,
+            "odometer": truck_odo,
+            **computed,
+        })
+    return result
+
+
+@router.get("/maintenance/cost-per-day/all", tags=["Maintenance"])
+def get_maintenance_cost_per_day_all(db: Session = Depends(get_db)):
+    """
+    Per-truck average daily maintenance cost for the past 12 months.
+    Mirrors TruckStatusDialog 'Avg / Day': (12-month total) / 12 / 26.
+    Returns { "<truck_db_id>": avg_daily_cost_float, ... } — only trucks with data.
+    """
+    from datetime import date as _date
+
+    today = _date.today()
+    try:
+        one_year_ago = today.replace(year=today.year - 1)
+    except ValueError:
+        one_year_ago = today.replace(year=today.year - 1, day=28)
+
+    cost_rows = (
+        db.query(
+            models.MaintenanceRecord.truck_id,
+            func.sum(models.MaintenanceRecord.cost).label("year_total"),
+        )
+        .filter(models.MaintenanceRecord.date >= one_year_ago)
+        .filter(models.MaintenanceRecord.date <= today)
+        .group_by(models.MaintenanceRecord.truck_id)
+        .all()
+    )
+    return {
+        str(row.truck_id): float(row.year_total) / 12 / 26
+        for row in cost_rows
+        if float(row.year_total or 0) > 0
+    }
+
+
+@router.get("/maintenance/cost-per-km/all", tags=["Maintenance"])
+def get_maintenance_cost_per_km_all(db: Session = Depends(get_db)):
+    """
+    Per-truck maintenance cost/km for Advanced mode in the Running Cost Calculator.
+    Mirrors TruckStatusDialog 'Cost / Km': (12-month total) / 12 / 26 / km_per_day.
+    Returns { "<truck_db_id>": cost_per_km_float, ... } — only trucks with data and km_per_day set.
+    """
+    from datetime import date as _date
+
+    today = _date.today()
+    try:
+        one_year_ago = today.replace(year=today.year - 1)
+    except ValueError:
+        one_year_ago = today.replace(year=today.year - 1, day=28)
+
+    # Sum maintenance costs per truck for the past 12 months
+    cost_rows = (
+        db.query(
+            models.MaintenanceRecord.truck_id,
+            func.sum(models.MaintenanceRecord.cost).label("year_total"),
+        )
+        .filter(models.MaintenanceRecord.date >= one_year_ago)
+        .filter(models.MaintenanceRecord.date <= today)
+        .group_by(models.MaintenanceRecord.truck_id)
+        .all()
+    )
+    if not cost_rows:
+        return {}
+
+    year_total_map: dict[int, float] = {
+        row.truck_id: float(row.year_total or 0) for row in cost_rows if float(row.year_total or 0) > 0
+    }
+    if not year_total_map:
+        return {}
+
+    trucks = db.query(models.Truck).filter(models.Truck.id.in_(list(year_total_map.keys()))).all()
+    tyre_layouts = {t.tyre_layout for t in trucks if t.tyre_layout}
+    run_configs = (
+        db.query(models.TruckRunConfig)
+        .filter(models.TruckRunConfig.tyre_layout.in_(tyre_layouts))
+        .all()
+    )
+    kpd_map: dict[str, float] = {
+        rc.tyre_layout: float(rc.km_per_day or 0) for rc in run_configs
+    }
+
+    result: dict[str, float] = {}
+    for truck in trucks:
+        year_total = year_total_map.get(truck.id, 0)
+        kpd = kpd_map.get(truck.tyre_layout or "", 0)
+        if year_total <= 0 or kpd <= 0:
+            continue
+        cost_per_km = year_total / 12 / 26 / kpd
+        if cost_per_km > 0:
+            result[str(truck.id)] = cost_per_km
+    return result
+
+
+@router.get("/maintenance/trucks/{truck_db_id}/status", tags=["Maintenance"])
+def get_truck_maintenance_status(truck_db_id: int, db: Session = Depends(get_db)):
+    """Detailed per-type maintenance status for a single truck."""
+    truck = db.get(models.Truck, truck_db_id)
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    maint_types = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
+
+    rows = (
+        db.query(
+            func.lower(models.MaintenanceRecord.maintenance_type).label("type_lower"),
+            func.max(models.MaintenanceRecord.odometer).label("last_odometer"),
+        )
+        .filter(models.MaintenanceRecord.truck_id == truck_db_id)
+        .group_by(func.lower(models.MaintenanceRecord.maintenance_type))
+        .all()
+    )
+    last_odo_map = {row.type_lower: int(row.last_odometer) for row in rows}
+    truck_odo = int(truck.odometer or 0)
+
+    computed = _compute_maint_status(truck_odo, last_odo_map, maint_types)
+    return {
+        "truck_db_id": truck.id,
+        "truck_id": truck.truck_id,
+        "registration_number": truck.registration_number,
+        "odometer": truck_odo,
+        **computed,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Fuel Logs
 # ---------------------------------------------------------------------------
 
@@ -297,6 +358,30 @@ def list_fuel_stations(db: Session = Depends(get_db)):
     rows = db.query(models.FuelLog.fuel_station).filter(models.FuelLog.fuel_station.isnot(None)).distinct().all()
     stations = {r[0].strip() for r in rows if r[0] and r[0].strip()}
     return sorted(list(stations))
+
+
+@router.get("/maintenance/fuel-base-config", response_model=schemas.FuelBaseConfigOut, tags=["Fuel Logs"])
+def get_fuel_base_config(db: Session = Depends(get_db)):
+    row = db.query(models.FuelBaseConfig).first()
+    if not row:
+        row = models.FuelBaseConfig(cost_per_litre=None)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+@router.put("/maintenance/fuel-base-config", response_model=schemas.FuelBaseConfigOut, tags=["Fuel Logs"])
+def update_fuel_base_config(payload: schemas.FuelBaseConfigUpdate, db: Session = Depends(get_db)):
+    row = db.query(models.FuelBaseConfig).first()
+    if not row:
+        row = models.FuelBaseConfig(cost_per_litre=payload.cost_per_litre)
+        db.add(row)
+    else:
+        row.cost_per_litre = payload.cost_per_litre
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 @router.post("/maintenance/fuel-logs", response_model=schemas.FuelLogOut, status_code=201, tags=["Fuel Logs"])
@@ -334,6 +419,23 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
     db.refresh(log)
     emit("fuel_updated", {})
     return log
+
+
+@router.get("/maintenance/fuel-stats/all", tags=["Fuel Logs"])
+def get_all_fuel_stats(db: Session = Depends(get_db)):
+    """Returns average mileage in km/L keyed by truck_id (as string) for every truck that has fuel logs."""
+    logs = db.query(models.FuelLog).filter(models.FuelLog.distance > 0).all()
+    totals: dict[int, dict] = {}
+    for log in logs:
+        tid = log.truck_id
+        if tid not in totals:
+            totals[tid] = {"distance": 0.0, "fuel": 0.0}
+        totals[tid]["distance"] += float(log.distance or 0)
+        totals[tid]["fuel"]     += float(log.litres  or 0)
+    return {
+        str(tid): round(d["distance"] / d["fuel"], 6) if d["fuel"] > 0 else 0
+        for tid, d in totals.items()
+    }
 
 
 @router.get("/maintenance/trucks/{truck_id}/fuel-stats", response_model=schemas.FuelStats, tags=["Fuel Logs"])

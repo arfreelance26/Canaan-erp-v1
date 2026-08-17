@@ -29,7 +29,7 @@ export default function AdblueManagementPage() {
     ])
       .then(([mfrs, trks]) => { setManufacturers(mfrs); setTrucks(trks); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   function openDialog() {

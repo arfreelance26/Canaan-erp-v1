@@ -65,7 +65,7 @@ export default function PnlMileagePage() {
         const m = new Map<string, TripClosureData>();
         for (const r of results) { if (r) m.set(r.id, r.closure); }
         setClosures(m);
-      }).finally(() => setLoading(false));
+      }).catch(() => {}).finally(() => setLoading(false));
     }).catch(() => setLoading(false));
   }, []);
 

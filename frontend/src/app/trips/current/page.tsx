@@ -38,7 +38,7 @@ export default function CurrentTripsPage() {
             setTrucks(tr);
             setCustomers(c);
           })
-          .finally(() => setLoading(false));
+          .catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

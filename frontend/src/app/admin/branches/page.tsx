@@ -29,7 +29,7 @@ export default function BranchesPage() {
   }, [ready, user, router]);
 
   useEffect(() => {
-    branchesApi.list().then(setBranches).finally(() => setLoading(false));
+    branchesApi.list().then(setBranches).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useAutoRefresh(() => {

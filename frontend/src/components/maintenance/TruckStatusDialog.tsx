@@ -1,260 +1,304 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { maintenanceApi, type TruckStatusData } from "@/lib/api";
-import type { Truck } from "@/types/truck";
-import {
-  AlertTriangle, CheckCircle2, TrendingUp, TrendingDown,
-  Minus, Wrench, CalendarDays, IndianRupee, Gauge, Loader2,
-} from "lucide-react";
-
-type HealthStatus = "Bad" | "Average" | "Good" | "Great";
-
-function fmt(v: number) {
-  return `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-const HEALTH_CONFIG: Record<HealthStatus, {
-  ring: string; bg: string; text: string; sub: string;
-  icon: React.ReactNode; bar: string;
-}> = {
-  Great:   { ring: "border-emerald-200", bg: "bg-emerald-50",  text: "text-emerald-700", sub: "text-emerald-500", icon: <TrendingUp  className="h-6 w-6" />, bar: "bg-emerald-500" },
-  Good:    { ring: "border-blue-200",    bg: "bg-blue-50",     text: "text-blue-700",    sub: "text-blue-500",   icon: <CheckCircle2 className="h-6 w-6" />, bar: "bg-blue-500"    },
-  Average: { ring: "border-amber-200",   bg: "bg-amber-50",    text: "text-amber-700",   sub: "text-amber-500",  icon: <Minus        className="h-6 w-6" />, bar: "bg-amber-500"   },
-  Bad:     { ring: "border-red-200",     bg: "bg-red-50",      text: "text-red-700",     sub: "text-red-500",    icon: <TrendingDown className="h-6 w-6" />, bar: "bg-red-500"     },
-};
+import { AlertTriangle, Clock, CheckCircle2, Gauge, IndianRupee, CalendarDays } from "lucide-react";
+import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
+import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import { trucksApi } from "@/lib/api";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  truck: Truck | null;
+  status: TruckMaintenanceStatus | null;
+  records: MaintenanceRecord[];
+  tyreLayout?: string;
 };
 
-export function TruckStatusDialog({ open, onClose, truck }: Props) {
-  const [data, setData] = useState<TruckStatusData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function StatusBadge({ status }: { status: "Overdue" | "Due Soon" | "OK" }) {
+  if (status === "Overdue")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <AlertTriangle className="h-3 w-3" /> Overdue
+      </span>
+    );
+  if (status === "Due Soon")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <Clock className="h-3 w-3" /> Due Soon
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+      <CheckCircle2 className="h-3 w-3" /> OK
+    </span>
+  );
+}
+
+function fmt(n: number) {
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }: Props) {
+  const [kmPerDay, setKmPerDay] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!open || !truck) return;
-    setData(null);
-    setError(null);
-    setLoading(true);
-    maintenanceApi
-      .getTruckStatus(truck.id)
-      .then(setData)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load truck status"))
-      .finally(() => setLoading(false));
-  }, [open, truck]);
+    if (!open || !tyreLayout) return;
+    trucksApi.getRunConfig().then((configs: Array<{ tyre_layout: string; km_per_day: string | null }>) => {
+      const match = configs.find((c) => c.tyre_layout === tyreLayout);
+      const val = match?.km_per_day ? parseFloat(String(match.km_per_day)) : null;
+      setKmPerDay(val && val > 0 ? val : null);
+    }).catch(() => {});
+  }, [open, tyreLayout]);
 
-  if (!truck) return null;
+  const { yearTotal, avgMonthlyCost, avgDailyCost, periodFrom, periodTo } = useMemo(() => {
+    const today = new Date();
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
 
-  const healthStatus = (data?.healthStatus ?? "Average") as HealthStatus;
-  const cfg = HEALTH_CONFIG[healthStatus];
+    const toIso = (d: Date) => d.toISOString().split("T")[0];
+    const from = toIso(oneYearAgo);
+    const to   = toIso(today);
+
+    const yearRecords = records.filter((r) => r.date >= from && r.date <= to);
+    const total   = yearRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
+    const monthly = total / 12;
+    const daily   = monthly / 26;
+
+    return { yearTotal: total, avgMonthlyCost: monthly, avgDailyCost: daily, periodFrom: from, periodTo: to };
+  }, [records]);
+
+  if (!status) return null;
+
+  const costPerKm = avgDailyCost > 0 && kmPerDay !== null
+    ? avgDailyCost / kmPerDay
+    : null;
+
+  const overdueItems = status.items.filter((i) => i.status === "Overdue");
+  const dueSoonItems = status.items.filter((i) => i.status === "Due Soon");
+  const okItems      = status.items.filter((i) => i.status === "OK");
+  const hasAlerts    = status.overdueCount > 0 || status.dueSoonCount > 0;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Truck Status — ${truck.registrationNumber}`}
+      title={`Maintenance Status — ${status.registrationNumber}`}
+      className="max-w-2xl"
     >
-      <div className="flex flex-col gap-5">
+      {/* ── Top summary cards ── */}
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
-        {/* Truck identity strip */}
-        <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-          <Gauge className="h-5 w-5 text-gray-400 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-800">{truck.registrationNumber}</p>
-            <p className="text-xs text-gray-400">
-              {truck.truckId && <span className="mr-3">{truck.truckId}</span>}
-              Odometer: {Number(data?.odometer ?? truck.odometer).toLocaleString()} km
+        {/* Truck info card */}
+        <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60">
+          <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700">
+              <Gauge className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">Truck ID</p>
+              <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{status.truckId}</p>
+            </div>
+          </div>
+
+          <div className="mx-4 border-t border-slate-200 dark:border-slate-700" />
+
+          {/* Row 1: Odometer + alert chips */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">Odometer</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-300">
+                {status.odometer.toLocaleString("en-IN")} km
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              {hasAlerts ? (
+                <>
+                  {status.overdueCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                      <AlertTriangle className="h-3 w-3" /> {status.overdueCount} Overdue
+                    </span>
+                  )}
+                  {status.dueSoonCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                      <Clock className="h-3 w-3" /> {status.dueSoonCount} Due Soon
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3 w-3" /> All Good
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Tyre Layout + Km/Day */}
+          <div className="mx-4 border-t border-slate-200 dark:border-slate-700" />
+          <div className="grid grid-cols-2 divide-x divide-slate-200 px-4 py-3 dark:divide-slate-700">
+            <div className="pr-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">Tyre Layout</p>
+              <p className="mt-0.5 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                {tyreLayout ?? <span className="italic text-slate-400">—</span>}
+              </p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">Km / Day</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-300">
+                {kmPerDay !== null
+                  ? <>{kmPerDay.toLocaleString("en-IN")} <span className="text-xs font-normal text-slate-400">km</span></>
+                  : <span className="italic text-slate-400">Not set</span>}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Cost stats card */}
+        <div className="flex flex-col gap-0 overflow-hidden rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/30">
+          {/* Card header */}
+          <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-200 dark:bg-blue-800/60">
+              <IndianRupee className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 dark:text-blue-400">
+              Maintenance Costs
             </p>
           </div>
-        </div>
 
-        {/* Loading state */}
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-10 text-gray-400">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-sm">Loading truck status…</span>
+          <div className="mx-4 border-t border-blue-200 dark:border-blue-800/50" />
+
+          {/* 2×2 stat grid */}
+          <div className="flex flex-col divide-y divide-blue-200 px-4 dark:divide-blue-800/50">
+            {/* Row 1: 12-Mo Total | Avg/Month */}
+            <div className="grid grid-cols-2 divide-x divide-blue-200 py-3 dark:divide-blue-800/50">
+              <div className="pr-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400 dark:text-blue-500">12-Mo Total</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-slate-800 dark:text-slate-200">
+                  {yearTotal > 0 ? fmt(yearTotal) : <span className="text-slate-400">—</span>}
+                </p>
+              </div>
+              <div className="pl-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400 dark:text-blue-500">Avg / Month</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-blue-700 dark:text-blue-300">
+                  {yearTotal > 0 ? fmt(avgMonthlyCost) : <span className="text-slate-400">—</span>}
+                </p>
+              </div>
+            </div>
+
+            {/* Row 2: Avg/Day | Cost/Km */}
+            <div className="grid grid-cols-2 divide-x divide-blue-200 py-3 dark:divide-blue-800/50">
+              <div className="pr-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400 dark:text-blue-500">Avg / Day</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-blue-700 dark:text-blue-300">
+                  {yearTotal > 0 ? fmt(avgDailyCost) : <span className="text-slate-400">—</span>}
+                </p>
+              </div>
+              <div className="pl-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400 dark:text-blue-500">Cost / Km</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {costPerKm !== null
+                    ? `₹${costPerKm.toFixed(4)}`
+                    : <span className="text-slate-400">—</span>}
+                </p>
+              </div>
+            </div>
           </div>
-        )}
 
-        {/* Error state */}
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-            {error}
-          </div>
-        )}
-
-        {/* Data loaded */}
-        {data && !loading && (
-          <>
-            {/* ── Health Status card ─────────────────────────────────────────── */}
-            <div className={`rounded-2xl border ${cfg.ring} ${cfg.bg} px-5 py-4`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
-                Health Status
+          {/* Formula note */}
+          <div className="mx-4 mb-4 rounded-lg border border-blue-200 bg-white/60 px-3 py-2.5 dark:border-blue-800/50 dark:bg-blue-950/50">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <CalendarDays className="h-3 w-3 text-blue-400 dark:text-blue-500" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-400 dark:text-blue-500">Period</span>
+            </div>
+            <p className="text-[11px] font-medium tabular-nums text-blue-600 dark:text-blue-400">
+              {periodFrom} → {periodTo}
+            </p>
+            <div className="mt-2 flex flex-col gap-0.5 border-t border-blue-100 pt-2 dark:border-blue-800/50">
+              <p className="text-[10px] text-blue-400 dark:text-blue-500">Avg/month = 12-month total ÷ 12</p>
+              <p className="text-[10px] text-blue-400 dark:text-blue-500">Avg/day = Avg/month ÷ 26 working days</p>
+              <p className="text-[10px] text-blue-400 dark:text-blue-500">
+                Cost/km = Avg/day ÷ km/day
+                {tyreLayout && kmPerDay !== null
+                  ? ` (${tyreLayout} · ${kmPerDay} km/day)`
+                  : tyreLayout
+                  ? ` — km/day not configured for ${tyreLayout}`
+                  : ""}
               </p>
-              <div className="flex items-center gap-4 mb-4">
-                <div className={`flex items-center gap-2 ${cfg.text}`}>
-                  {cfg.icon}
-                  <span className="text-3xl font-extrabold tracking-tight">{data.healthStatus}</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs font-semibold ${cfg.sub}`}>Score</span>
-                    <span className={`text-sm font-bold ${cfg.text}`}>{data.healthScore}/100</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-gray-200">
-                    <div
-                      className={`h-2 rounded-full ${cfg.bar} transition-all duration-500`}
-                      style={{ width: `${data.healthScore}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Overdue/upcoming chips */}
-              <div className="flex flex-wrap gap-2">
-                {data.overdueCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-white/70 border border-red-200 px-2.5 py-0.5 text-[11px] font-medium text-red-700">
-                    <AlertTriangle className="h-3 w-3 shrink-0" />
-                    {data.overdueCount} overdue maintenance item{data.overdueCount > 1 ? "s" : ""}
-                  </span>
-                )}
-                {data.upcomingCount > 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-white/70 border border-amber-200 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">
-                    <Wrench className="h-3 w-3 shrink-0" />
-                    {data.upcomingCount} service item{data.upcomingCount > 1 ? "s" : ""} due soon
-                  </span>
-                )}
-                {data.daysSinceLastService != null ? (
-                  <span className={`flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-medium ${
-                    data.daysSinceLastService > 180
-                      ? "border border-red-200 text-red-700"
-                      : data.daysSinceLastService > 90
-                        ? "border border-amber-200 text-amber-700"
-                        : "border border-emerald-200 text-emerald-700"
-                  }`}>
-                    <CheckCircle2 className="h-3 w-3 shrink-0" />
-                    {data.daysSinceLastService > 90
-                      ? `Last serviced ${data.daysSinceLastService} days ago`
-                      : `Recently serviced (${data.daysSinceLastService} days ago)`}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 rounded-full bg-white/70 border border-red-200 px-2.5 py-0.5 text-[11px] font-medium text-red-700">
-                    <AlertTriangle className="h-3 w-3 shrink-0" /> No maintenance records on file
-                  </span>
-                )}
-                {data.overdueCount === 0 && (
-                  <span className="flex items-center gap-1 rounded-full bg-white/70 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                    <CheckCircle2 className="h-3 w-3 shrink-0" /> No overdue maintenance items
-                  </span>
-                )}
-              </div>
             </div>
-
-            {/* ── Cost cards ─────────────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <IndianRupee className="h-4 w-4 text-blue-400" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400">
-                    Avg Monthly Maintenance Cost
-                  </p>
-                </div>
-                <p className="text-2xl font-bold text-blue-700">{fmt(data.avgMonthlyCost)}</p>
-                <p className="mt-1 text-xs text-blue-400">
-                  Based on {fmt(data.totalYearlyCost)} total over {data.recordCountYearly} record{data.recordCountYearly !== 1 ? "s" : ""} in the past 12 months ÷ 12
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-purple-100 bg-purple-50 px-5 py-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CalendarDays className="h-4 w-4 text-purple-400" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
-                    Avg Daily Maintenance Cost
-                  </p>
-                </div>
-                <p className="text-2xl font-bold text-purple-700">{fmt(data.avgDailyCost)}</p>
-                <p className="mt-1 text-xs text-purple-400">
-                  Monthly avg ÷ 26 working days
-                </p>
-              </div>
-            </div>
-
-            {/* ── Stats summary ───────────────────────────────────────────────── */}
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl border border-gray-100 bg-white px-3 py-3">
-                <p className="text-xl font-bold text-red-600">{data.overdueCount}</p>
-                <p className="mt-0.5 text-[11px] font-medium text-gray-400">Overdue Items</p>
-              </div>
-              <div className="rounded-xl border border-gray-100 bg-white px-3 py-3">
-                <p className="text-xl font-bold text-amber-600">{data.upcomingCount}</p>
-                <p className="mt-0.5 text-[11px] font-medium text-gray-400">Due Soon</p>
-              </div>
-              <div className="rounded-xl border border-gray-100 bg-white px-3 py-3">
-                <p className="text-xl font-bold text-blue-600">{data.recordCountYearly}</p>
-                <p className="mt-0.5 text-[11px] font-medium text-gray-400">Records (1 yr)</p>
-              </div>
-            </div>
-
-            {/* ── Overdue items detail list ────────────────────────────────────── */}
-            {data.overdueCount > 0 && (
-              <div className="rounded-xl border border-red-100 bg-red-50/60 px-4 py-3">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-red-400 flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5" /> Overdue Items
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {data.overdueItems.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg bg-white/80 border border-red-100 px-3 py-2">
-                      <div>
-                        <p className="text-xs font-semibold text-red-700">{s.item}</p>
-                        <p className="text-[11px] text-red-400">{s.category}</p>
-                      </div>
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
-                        {Math.abs(s.remainingKm).toLocaleString()} km overdue
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── Due-soon items detail list ───────────────────────────────────── */}
-            {data.upcomingCount > 0 && (
-              <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
-                  <Wrench className="h-3.5 w-3.5" /> Due Soon
-                </p>
-                <div className="flex flex-col gap-1.5">
-                  {data.upcomingItems.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between rounded-lg bg-white/80 border border-amber-100 px-3 py-2">
-                      <div>
-                        <p className="text-xs font-semibold text-amber-700">{s.item}</p>
-                        <p className="text-[11px] text-amber-400">{s.category}</p>
-                      </div>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                        {s.remainingKm.toLocaleString()} km left
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Close
-          </button>
+          </div>
         </div>
+      </div>
+
+      {/* ── Maintenance schedule table ── */}
+      {status.items.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-400">
+          No maintenance types configured. Visit Admin › Maintenance Alert Management to add types.
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            Maintenance Schedule &nbsp;·&nbsp; {status.items.length} types
+          </p>
+          <div className="max-h-[38vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400">Type</th>
+                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Interval</th>
+                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Last Done</th>
+                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Km Since</th>
+                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                {[...overdueItems, ...dueSoonItems, ...okItems].map((item) => (
+                  <tr
+                    key={item.typeName}
+                    className={
+                      item.status === "Overdue"
+                        ? "border-l-2 border-l-red-400 bg-red-50/60 dark:bg-red-900/10"
+                        : item.status === "Due Soon"
+                        ? "border-l-2 border-l-amber-400 bg-amber-50/60 dark:bg-amber-900/10"
+                        : "bg-white dark:bg-slate-900"
+                    }
+                  >
+                    <td className="px-3 py-2.5 font-medium text-slate-800 dark:text-slate-200">{item.typeName}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
+                      every {item.intervalKm.toLocaleString("en-IN")} km
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
+                      {item.lastOdometer !== null
+                        ? `${item.lastOdometer.toLocaleString("en-IN")} km`
+                        : <span className="italic text-slate-400">Never</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      <span className={
+                        item.status === "Overdue"  ? "font-semibold text-red-600 dark:text-red-400" :
+                        item.status === "Due Soon" ? "font-semibold text-amber-600 dark:text-amber-400" :
+                        "text-slate-500"
+                      }>
+                        {item.kmSinceLast.toLocaleString("en-IN")} km
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <StatusBadge status={item.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <div className="mt-4 flex justify-end border-t border-slate-100 pt-4 dark:border-slate-700">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+        >
+          Close
+        </button>
       </div>
     </Dialog>
   );

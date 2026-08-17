@@ -39,7 +39,7 @@ export default function StaffAttendancePage() {
         setStaff(s);
         setRecords(r);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);

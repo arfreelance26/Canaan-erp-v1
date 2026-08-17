@@ -290,7 +290,6 @@ export async function executeTool(
           completed_pending_closure: d.completed_pending_closure,
           compliance_expired: d.compliance_expired,
           compliance_expiring_soon: d.compliance_expiring_soon,
-          maintenance_alerts: d.maintenance_alerts,
           pending_leave_requests: d.pending_leave_requests,
           total_trucks: d.total_trucks,
           total_drivers: d.total_drivers,

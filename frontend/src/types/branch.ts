@@ -4,5 +4,6 @@ export type Branch = {
   haltDayFee20ft: string;
   haltDayFee40ft: string;
   driverHaltDayPercentage: string;
+  cleanerBattaFee: string;
   version?: number;
 };

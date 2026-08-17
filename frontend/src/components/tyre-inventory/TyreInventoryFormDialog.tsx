@@ -4,9 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { TYRE_BRAND_OPTIONS, TYRE_CONDITION_OPTIONS, TYRE_TYPE_OPTIONS } from "@/lib/tyre-inventory-data";
+import { TYRE_BRAND_OPTIONS, TYRE_TYPE_OPTIONS } from "@/lib/tyre-inventory-data";
+import { tyreRangeConfigApi } from "@/lib/api";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -24,12 +24,12 @@ type TyreInventoryFormDialogProps = {
 
 const emptyForm: Omit<TyreInventoryItem, "id"> = {
   brand: "",
-  tyreType: "Radial",
+  tyreType: "RADIAL",
   tyreNumber: "",
   size: "",
   rangeKm: "0",
   cost: "",
-  condition: "",
+  costPerKm: "",
   purchaseDate: todayIst(),
   repairCost: "0",
   retreadCost: "0",
@@ -44,7 +44,38 @@ export function TyreInventoryFormDialog({
   existingTyres,
 }: TyreInventoryFormDialogProps) {
   const [form, setForm] = useState<Omit<TyreInventoryItem, "id">>(emptyForm);
+  const [tyreTypeOptions, setTyreTypeOptions] = useState<string[]>(TYRE_TYPE_OPTIONS);
+  const [rangeConfigMap, setRangeConfigMap] = useState<Record<string, number | null>>({});
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    tyreRangeConfigApi.list().then((rows) => {
+      if (rows.length > 0) {
+        setTyreTypeOptions(rows.map((r) => r.tyre_type));
+        const map: Record<string, number | null> = {};
+        for (const r of rows) map[r.tyre_type] = r.range_km ?? null;
+        setRangeConfigMap(map);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Auto-populate rangeKm when tyreType changes
+  useEffect(() => {
+    if (!form.tyreType) return;
+    const km = rangeConfigMap[form.tyreType];
+    setForm((prev) => ({ ...prev, rangeKm: km != null ? String(km) : "0" }));
+  }, [form.tyreType, rangeConfigMap]);
+
+  // Compute Cost Per KM = Purchase Cost ÷ Expected Range
+  const expectedRange = form.tyreType ? (rangeConfigMap[form.tyreType] ?? null) : null;
+  const costPerKm =
+    form.cost && expectedRange != null && expectedRange > 0
+      ? (Number(form.cost) / expectedRange).toFixed(4)
+      : "";
+
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, costPerKm }));
+  }, [costPerKm]);
 
   useEffect(() => {
     if (open) {
@@ -102,7 +133,7 @@ export function TyreInventoryFormDialog({
               value={form.tyreType}
               onChange={(val) => update("tyreType", val)}
               placeholder="Select or type a type"
-              options={TYRE_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+              options={tyreTypeOptions.map(opt => ({ value: opt, label: opt }))}
             />
           </Field>
 
@@ -142,17 +173,6 @@ export function TyreInventoryFormDialog({
             />
           </Field>
 
-          <Field label="Status" required>
-            <GlassSelect
-              value={form.condition}
-              onChange={(val) => update("condition", val as TyreInventoryItem["condition"])}
-              options={[
-                { value: "", label: "Select status" },
-                ...TYRE_CONDITION_OPTIONS.map(o => ({ value: o, label: o }))
-              ]}
-            />
-          </Field>
-
           <Field label="Purchase Date" required>
             <DatePickerInput
               value={form.purchaseDate}
@@ -170,9 +190,45 @@ export function TyreInventoryFormDialog({
               placeholder="Total repair cost so far"
             />
           </Field>
+
+          <Field label="Expected Range">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={
+                form.tyreType && rangeConfigMap[form.tyreType] != null
+                  ? `${Number(rangeConfigMap[form.tyreType]).toLocaleString("en-IN")} km`
+                  : ""
+              }
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder={
+                !form.tyreType
+                  ? "Select a tyre type first"
+                  : "No range configured for this type"
+              }
+            />
+          </Field>
+
+          <Field label="Cost Per KM">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={costPerKm ? `₹ ${Number(costPerKm).toLocaleString("en-IN", { minimumFractionDigits: 4 })}` : ""}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder={
+                !form.cost
+                  ? "Enter Purchase Cost first"
+                  : !form.tyreType || expectedRange == null
+                  ? "No range configured for this type"
+                  : "Purchase Cost ÷ Expected Range"
+              }
+            />
+          </Field>
         </div>
 
-        {form.condition === "Rethreaded" && (
+        {form.tyreType === "RETREADED" && (
           <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-yellow-700">
               Retreading Details — required for Rethreaded tyres

@@ -41,7 +41,7 @@ export default function DriverCompensationPage() {
     });
   }
 
-  useEffect(() => { loadData().finally(() => setLoading(false)); }, [refreshKey]);
+  useEffect(() => { loadData().catch(() => {}).finally(() => setLoading(false)); }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));

@@ -35,7 +35,7 @@ export default function AvailableTripsPage() {
             setTrucks(tr);
             setCustomers(c);
           })
-          .finally(() => setLoading(false));
+          .catch(() => {}).finally(() => setLoading(false));
       }, []);
       useAutoRefresh(() => {
     Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -45,7 +45,7 @@ export default function AvailableTripsPage() {
     setTrucks(tr);
     setCustomers(c);
     })
-    .finally(() => setLoading(false));
+    .catch(() => {}).finally(() => setLoading(false));
       }, 5000);
 
 

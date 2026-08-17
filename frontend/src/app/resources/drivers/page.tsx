@@ -32,7 +32,7 @@ export default function DriversPage() {
   );
 
   useEffect(() => {
-        driversApi.list().then(setDrivers).finally(() => setLoading(false));
+        driversApi.list().then(setDrivers).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

@@ -21,6 +21,7 @@ const emptyForm: Omit<Branch, "id"> = {
   haltDayFee20ft: "",
   haltDayFee40ft: "",
   driverHaltDayPercentage: "",
+  cleanerBattaFee: "",
 };
 
 export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchFormDialogProps) {
@@ -30,7 +31,7 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
     if (open) {
       if (initialData) {
         const { id: _id, ...rest } = initialData;
-        setForm(rest);
+        setForm({ ...emptyForm, ...rest });
       } else {
         setForm(emptyForm);
       }
@@ -101,6 +102,18 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
               onWheel={(e) => e.currentTarget.blur()}
               className={inputClass}
               placeholder="e.g. 10"
+            />
+          </Field>
+
+          <Field label="Cleaner Batta Fee (₹)">
+            <DecimalInput type="number"
+              min="0"
+              step="0.01"
+              value={form.cleanerBattaFee}
+              onChange={(e) => setForm((p) => ({ ...p, cleanerBattaFee: e.target.value }))}
+              onWheel={(e) => e.currentTarget.blur()}
+              className={inputClass}
+              placeholder="e.g. 200"
             />
           </Field>
         </div>

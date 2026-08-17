@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { TyreManagementTable } from "@/components/maintenance/TyreManagementTable";
 import { ManageTyresDialog } from "@/components/maintenance/ManageTyresDialog";
-import { trucksApi, tyreApi } from "@/lib/api";
+import { ViewTyreDataDialog } from "@/components/maintenance/ViewTyreDataDialog";
+import { trucksApi, tyreApi, tyreRangeConfigApi } from "@/lib/api";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 
 import type { Truck } from "@/types/truck";
@@ -19,12 +20,22 @@ export default function TyreManagementPage() {
 
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [viewTyreDataOpen, setViewTyreDataOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
 
   const { setTyres, setFitmentRecords } = useTyreInventory();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [rangeConfigMap, setRangeConfigMap] = useState<Record<string, number | null>>({});
+
+  useEffect(() => {
+    tyreRangeConfigApi.list().then((rows) => {
+      const map: Record<string, number | null> = {};
+      for (const r of rows) map[r.tyre_type.toUpperCase()] = r.range_km ?? null;
+      setRangeConfigMap(map);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
         Promise.all([
@@ -37,7 +48,7 @@ export default function TyreManagementPage() {
             setTyres(inv);
             setFitmentRecords(fit);
           })
-          .finally(() => setLoading(false));
+          .catch(() => {}).finally(() => setLoading(false));
       }, [setTyres, setFitmentRecords, refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
@@ -47,6 +58,11 @@ export default function TyreManagementPage() {
   function handleManageTyres(truck: Truck) {
     setSelectedTruck(truck);
     setManageDialogOpen(true);
+  }
+
+  function handleViewTyreData(truck: Truck) {
+    setSelectedTruck(truck);
+    setViewTyreDataOpen(true);
   }
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
@@ -99,9 +115,10 @@ export default function TyreManagementPage() {
         </div>
       </div>
 
-      <TyreManagementTable trucks={filteredTrucks} onManageTyres={handleManageTyres} />
+      <TyreManagementTable trucks={filteredTrucks} onManageTyres={handleManageTyres} onViewTyreData={handleViewTyreData} />
 
       <ManageTyresDialog open={manageDialogOpen} onClose={() => setManageDialogOpen(false)} truck={selectedTruck} />
+      <ViewTyreDataDialog open={viewTyreDataOpen} onClose={() => { setViewTyreDataOpen(false); setSelectedTruck(null); }} truck={selectedTruck} rangeConfigMap={rangeConfigMap} />
     </div>
   );
 }

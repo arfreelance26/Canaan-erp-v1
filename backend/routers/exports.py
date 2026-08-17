@@ -16,8 +16,8 @@ router = APIRouter(prefix="/exports", tags=["Exports"])
 @router.get("/branches")
 def export_branches(db: Session = Depends(get_db)):
     rows = db.query(models.Branch).order_by(models.Branch.name).all()
-    headers = ["Branch Name", "Halt Day Fee (20ft)", "Halt Day Fee (40ft)", "Driver Halt Day %"]
-    data = [[r.name, r.halt_day_fee_20ft, r.halt_day_fee_40ft, r.driver_halt_day_percentage] for r in rows]
+    headers = ["Branch Name", "Halt Day Fee (20ft)", "Halt Day Fee (40ft)", "Driver Halt Day %", "Cleaner Batta Fee"]
+    data = [[r.name, r.halt_day_fee_20ft, r.halt_day_fee_40ft, r.driver_halt_day_percentage, r.cleaner_batta_fee] for r in rows]
     return build_excel_response([("Branches", headers, data)], "branches.xlsx")
 
 
@@ -27,6 +27,14 @@ def export_repair_types(db: Session = Depends(get_db)):
     headers = ["Repair Type", "Default Cost"]
     data = [[r.name, r.default_cost] for r in rows]
     return build_excel_response([("Repair Types", headers, data)], "repair_types.xlsx")
+
+
+@router.get("/maintenance-types")
+def export_maintenance_types(db: Session = Depends(get_db)):
+    rows = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
+    headers = ["Maintenance Type", "KM Interval"]
+    data = [[r.name, r.interval_km] for r in rows]
+    return build_excel_response([("Maintenance Types", headers, data)], "maintenance_types.xlsx")
 
 
 @router.get("/sac-codes")
@@ -330,11 +338,13 @@ def export_emi(db: Session = Depends(get_db)):
     headers = [
         "EMI Name", "Truck Registration", "Loan Number", "Bank Name",
         "Loan Amount", "EMI Amount", "Tenure (Months)", "Cost Per Month",
+        "Monthly Finance Cost", "Daily Finance Cost", "EMI Cost Per KM",
         "EMI Start Date", "EMI End Date", "EMI Payment Date",
     ]
     data = [
         [r.emi_name, r.truck_registration, r.loan_number, r.bank_name,
          r.loan_amount, r.emi_amount, r.tenure_months, r.cost_per_month,
+         r.monthly_finance_cost, r.daily_finance_cost, r.emi_cost_per_km,
          r.emi_start_date, r.emi_end_date, r.emi_payment_date]
         for r in rows
     ]
@@ -433,12 +443,12 @@ def export_tyre_inventory(
     rows = q.order_by(models.TyreInventory.brand).all()
     headers = [
         "Brand", "Tyre Type", "Tyre Number", "Size", "Range (KM)",
-        "Cost", "Condition", "Purchase Date",
+        "Cost", "Purchase Date",
         "Repair Cost", "Retread Cost", "Retread Count",
     ]
     data = [
         [r.brand, r.tyre_type, r.tyre_number, r.size, r.range_km,
-         r.cost, r.condition, r.purchase_date, r.repair_cost, r.retread_cost, r.retread_count]
+         r.cost, r.purchase_date, r.repair_cost, r.retread_cost, r.retread_count]
         for r in rows
     ]
     suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""

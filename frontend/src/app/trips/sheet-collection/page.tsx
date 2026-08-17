@@ -73,7 +73,7 @@ export default function SheetCollectionPage() {
   }
 
   useEffect(() => {
-    loadData().finally(() => setLoading(false));
+    loadData().catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);

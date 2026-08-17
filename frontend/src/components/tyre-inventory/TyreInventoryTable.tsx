@@ -24,15 +24,9 @@ const columns = [
   "Tyre Size",
   "Cost",
   "Purchase Date",
-  "Condition",
   "Status",
   "Actions",
 ];
-
-const conditionStyles: Record<string, string> = {
-  New: "bg-green-50 text-green-700",
-  Rethreaded: "bg-yellow-50 text-yellow-700",
-};
 
 export function TyreInventoryTable({
   tyres,
@@ -79,18 +73,6 @@ export function TyreInventoryTable({
                 <td className="px-4 py-3 text-gray-600">₹{Number(tyre.cost).toLocaleString()}</td>
                 <td className="px-4 py-3 text-gray-600">
                   {formatDate(tyre.purchaseDate)}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col items-start gap-1">
-                    <span
-                      className={cn(
-                        "rounded-full px-2.5 py-1 text-xs font-medium",
-                        conditionStyles[tyre.condition] ?? "bg-gray-100 text-gray-600"
-                      )}
-                    >
-                      {tyre.condition}
-                    </span>
-                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-col items-start gap-1">

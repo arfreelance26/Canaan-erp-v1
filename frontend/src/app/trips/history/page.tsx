@@ -96,7 +96,7 @@ export default function TripHistoryPage() {
     setSheets(sheetMap);
   }
 
-  useEffect(() => { loadAll().finally(() => setLoading(false)); }, [refreshKey]);
+  useEffect(() => { loadAll().catch(() => {}).finally(() => setLoading(false)); }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);
 
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));

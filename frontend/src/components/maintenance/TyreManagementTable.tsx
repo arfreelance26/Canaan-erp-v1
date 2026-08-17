@@ -7,12 +7,13 @@ import type { Truck } from "@/types/truck";
 type TyreManagementTableProps = {
   trucks: Truck[];
   onManageTyres: (truck: Truck) => void;
+  onViewTyreData: (truck: Truck) => void;
 };
 
 const columns = ["Truck Photo", "Truck Registration", "Upcoming Maintenance"];
 
 
-export function TyreManagementTable({ trucks, onManageTyres }: TyreManagementTableProps) {
+export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData }: TyreManagementTableProps) {
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -46,13 +47,22 @@ export function TyreManagementTable({ trucks, onManageTyres }: TyreManagementTab
                 </td>
                 <td className="px-4 py-3 font-medium text-gray-900">{truck.registrationNumber}</td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onManageTyres(truck)}
-                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                  >
-                    Manage Tyres
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onManageTyres(truck)}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                    >
+                      Manage Tyres
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onViewTyreData(truck)}
+                      className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                    >
+                      View Tyre Data
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

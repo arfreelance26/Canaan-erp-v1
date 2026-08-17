@@ -1,11 +1,11 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { Paperclip, X } from "lucide-react";
+import { Paperclip, X, IndianRupee } from "lucide-react";
 import { showSuccess, showError, validateFileSize } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
-import { Field, inputClass } from "@/components/ui/Field";
+import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { trucksApi, uploadFile } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
@@ -16,50 +16,58 @@ type DocumentMeta = {
   label: string;
   dateKey: keyof Truck;
   fileNameKey: keyof Truck;
+  expensesKey: keyof Truck;
   uploadField: string;
 };
 
 const DOCUMENTS: DocumentMeta[] = [
   {
-    label: "RC",
-    dateKey: "rcValidityDate",
+    label:       "RC",
+    dateKey:     "rcValidityDate",
     fileNameKey: "rcDocumentUrl",
+    expensesKey: "rcExpenses",
     uploadField: "rc",
   },
   {
-    label: "FC (Fitness Certificate)",
-    dateKey: "fcExpiryDate",
+    label:       "FC (Fitness Certificate)",
+    dateKey:     "fcExpiryDate",
     fileNameKey: "fcDocumentFileName",
+    expensesKey: "fcExpenses",
     uploadField: "fc",
   },
   {
-    label: "Road Tax",
-    dateKey: "roadTaxDate",
+    label:       "Road Tax",
+    dateKey:     "roadTaxDate",
     fileNameKey: "roadTaxDocumentFileName",
+    expensesKey: "roadTaxExpenses",
     uploadField: "road_tax",
   },
   {
-    label: "National Permit",
-    dateKey: "nationalPermitDate",
+    label:       "National Permit",
+    dateKey:     "nationalPermitDate",
     fileNameKey: "nationalPermitProofFileName",
+    expensesKey: "nationalPermitExpenses",
     uploadField: "national_permit",
   },
   {
-    label: "Local Permit",
-    dateKey: "localPermitDate",
+    label:       "Local Permit",
+    dateKey:     "localPermitDate",
     fileNameKey: "localPermitProofFileName",
+    expensesKey: "localPermitExpenses",
     uploadField: "local_permit",
   },
   {
-    label: "Pollution Certificate",
-    dateKey: "pollutionCertificateDate",
+    label:       "Pollution Certificate",
+    dateKey:     "pollutionCertificateDate",
     fileNameKey: "pollutionCertificateProofFileName",
+    expensesKey: "pollutionCertificateExpenses",
     uploadField: "pollution_cert",
   },
   {
-    label: "Insurance",
-    dateKey: "insuranceExpiryDate",
+    label:       "Insurance",
+    dateKey:     "insuranceExpiryDate",
     fileNameKey: "insuranceDocumentProofFileName",
+    expensesKey: "insuranceExpenses",
     uploadField: "insurance",
   },
 ];
@@ -75,23 +83,28 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
   const [truckId, setTruckId]   = useState("");
   const [docIndex, setDocIndex] = useState<number | "">("");
   const [newDate, setNewDate]   = useState("");
+  const [expenses, setExpenses] = useState("");
   const [file, setFile]         = useState<File | null>(null);
   const [saving, setSaving]     = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const selectedTruck = trucks.find((t) => t.id === truckId) ?? null;
-  const selectedDoc   = docIndex !== "" ? DOCUMENTS[docIndex] : null;
-  const currentDate   = selectedTruck && selectedDoc
+  const selectedTruck    = trucks.find((t) => t.id === truckId) ?? null;
+  const selectedDoc      = docIndex !== "" ? DOCUMENTS[docIndex] : null;
+  const currentDate      = selectedTruck && selectedDoc
     ? (selectedTruck[selectedDoc.dateKey] as string)
     : "";
-  const currentFile   = selectedTruck && selectedDoc
+  const currentFile      = selectedTruck && selectedDoc
     ? (selectedTruck[selectedDoc.fileNameKey] as string | null)
     : null;
+  const currentExpenses  = selectedTruck && selectedDoc
+    ? (selectedTruck[selectedDoc.expensesKey] as string)
+    : "";
 
   function handleClose() {
     setTruckId("");
     setDocIndex("");
     setNewDate("");
+    setExpenses("");
     setFile(null);
     onClose();
   }
@@ -103,7 +116,8 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
     try {
       const updated = await trucksApi.update(selectedTruck.id, {
         ...selectedTruck,
-        [selectedDoc.dateKey]: newDate,
+        [selectedDoc.dateKey]:     newDate,
+        [selectedDoc.expensesKey]: expenses,
         ...(file ? { [selectedDoc.fileNameKey]: file.name } : {}),
       });
       if (file) {
@@ -142,6 +156,7 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
             onChange={(v) => {
               setDocIndex(v === "" ? "" : Number(v));
               setFile(null);
+              setExpenses("");
             }}
             options={[
               { value: "", label: "Select document" },
@@ -155,6 +170,14 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
             <p>
               Current validity date:{" "}
               <span className="font-medium text-gray-700">{currentDate ? formatDate(currentDate) : "—"}</span>
+            </p>
+            <p>
+              Current expenses:{" "}
+              <span className="font-medium text-gray-700">
+                {currentExpenses && parseFloat(currentExpenses) > 0
+                  ? `₹${parseFloat(currentExpenses).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : "—"}
+              </span>
             </p>
             {currentFile && (
               <div className="mt-2">
@@ -178,6 +201,25 @@ export function UpdateDocumentDialog({ open, onClose, trucks, onUpdated }: Props
             className={inputClass}
           />
         </Field>
+
+        {selectedDoc && (
+          <Field label={`Expenses for ${selectedDoc.label}`}>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                <IndianRupee className="h-4 w-4" />
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={expenses}
+                onChange={(e) => setExpenses(e.target.value)}
+                placeholder="0.00"
+                className={`${inputClassLower} pl-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+              />
+            </div>
+          </Field>
+        )}
 
         <Field label="New Document (PDF / Image) (Max 25MB)">
           <input

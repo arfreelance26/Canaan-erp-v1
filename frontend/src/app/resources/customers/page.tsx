@@ -100,7 +100,7 @@ export default function CustomersPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-        customersApi.list().then(setCustomers).finally(() => setLoading(false));
+        customersApi.list().then(setCustomers).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
@@ -134,19 +134,19 @@ export default function CustomersPage() {
       setLoadingPricing(true);
       Promise.all(customers.map((c) => customersApi.listPricing(c.id)))
         .then((results) => setPricing(results.flat()))
-        .finally(() => setLoadingPricing(false));
+        .catch(() => {}).finally(() => setLoadingPricing(false));
     }
     if ((activeTab === "destinations" || activeTab === "pricing") && customers.length > 0 && destinations.length === 0) {
       setLoadingDestinations(true);
       Promise.all(customers.map((c) => customersApi.listDestinations(c.id)))
         .then((results) => setDestinations(results.flat()))
-        .finally(() => setLoadingDestinations(false));
+        .catch(() => {}).finally(() => setLoadingDestinations(false));
     }
     if (activeTab === "finalPricing" && customers.length > 0 && finalPricing.length === 0) {
       setLoadingFinalPricing(true);
       Promise.all(customers.map((c) => customersApi.listFinalPricing(c.id)))
         .then((results) => setFinalPricing(results.flat()))
-        .finally(() => setLoadingFinalPricing(false));
+        .catch(() => {}).finally(() => setLoadingFinalPricing(false));
     }
   }, [activeTab, customers, pricing.length, destinations.length, finalPricing.length]);
 

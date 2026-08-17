@@ -11,25 +11,6 @@ ACTIVE_TRIP_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached"
 # Only trips that have actually started (Assigned excluded from the stat-card count)
 CURRENT_TRIP_STATUSES = {"Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
 EXPIRING_SOON_DAYS = 30
-UPCOMING_WINDOW_KM = 1000
-
-MAINTENANCE_SCHEDULE = [
-    {"interval_km": 10000, "items": [
-        "Brake inspection", "Steering inspection", "Greasing",
-        "Air filter cleaning", "Transmission oil check", "Differential oil check",
-    ]},
-    {"interval_km": 20000, "items": [
-        "Engine oil change", "Oil filter replacement",
-        "Fuel filter inspection/replacement", "Clutch inspection",
-    ]},
-    {"interval_km": 40000, "items": [
-        "Fuel filter replacement", "Air filter replacement", "Complete brake inspection",
-    ]},
-    {"interval_km": 80000, "items": [
-        "Transmission oil replacement", "Differential oil replacement",
-        "Full drivetrain inspection", "Suspension inspection",
-    ]},
-]
 
 
 def _compliance_status(expiry_date) -> str:
@@ -85,34 +66,10 @@ def get_overview(db: Session = Depends(get_db)):
         db.query(func.coalesce(func.sum(models.EmiRecord.emi_amount), 0)).scalar() or 0
     )
 
-    # Single aggregate query: max odometer per (truck_id, maintenance_type)
-    maint_agg = {
-        (row.truck_id, row.maintenance_type): int(row.last_km or 0)
-        for row in db.query(
-            models.MaintenanceRecord.truck_id,
-            models.MaintenanceRecord.maintenance_type,
-            func.max(models.MaintenanceRecord.odometer).label("last_km"),
-        ).group_by(
-            models.MaintenanceRecord.truck_id,
-            models.MaintenanceRecord.maintenance_type,
-        ).all()
-    }
-
-    maintenance_alerts = 0
     compliance_expired = 0
     compliance_expiring_soon = 0
 
     for truck in trucks:
-        current_km = int(truck.odometer or 0)
-
-        # Maintenance alerts — O(trucks × items), dict lookup instead of list scan
-        for group in MAINTENANCE_SCHEDULE:
-            for item in group["items"]:
-                last_km = maint_agg.get((truck.id, item), 0)
-                if (last_km + group["interval_km"]) - current_km <= 0:
-                    maintenance_alerts += 1
-
-        # Compliance
         for expiry_date in [
             truck.fc_expiry_date,
             truck.road_tax_date,
@@ -134,7 +91,6 @@ def get_overview(db: Session = Depends(get_db)):
         "total_drivers": total_drivers,
         "total_staff": total_staff,
         "pending_leave_requests": pending_leave,
-        "maintenance_alerts": maintenance_alerts,
         "compliance_expired": compliance_expired,
         "compliance_expiring_soon": compliance_expiring_soon,
         "monthly_emi_total": monthly_emi_total,

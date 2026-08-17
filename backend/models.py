@@ -19,6 +19,7 @@ class Branch(Base):
     halt_day_fee_20ft = Column(Numeric(10, 2), default=0)
     halt_day_fee_40ft = Column(Numeric(10, 2), default=0)
     driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
+    cleaner_batta_fee = Column(Numeric(10, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -725,6 +726,14 @@ class FuelLog(Base):
     truck = relationship("Truck", back_populates="fuel_logs")
 
 
+class FuelBaseConfig(Base):
+    __tablename__ = "fuel_base_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cost_per_litre = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class AdBlueLog(Base):
     __tablename__ = "adblue_logs"
 
@@ -764,7 +773,7 @@ class TyreInventory(Base):
     size = Column(String(50))
     range_km = Column(Integer, default=0)
     cost = Column(Numeric(10, 2), default=0)
-    condition = Column(Enum("New", "Rethreaded"), default="New")
+    cost_per_km = Column(Numeric(10, 6), nullable=True)
     purchase_date = Column(Date)
     repair_cost = Column(Numeric(10, 2), default=0)
     retread_cost = Column(Numeric(10, 2), default=0)
@@ -792,17 +801,6 @@ class TyreFitmentRecord(Base):
 
     tyre = relationship("TyreInventory", back_populates="fitment_records")
     truck = relationship("Truck", back_populates="tyre_fitments")
-
-
-class TyreBaseRate(Base):
-    """Admin-configured base price and expected range per tyre type, used by the Operating Cost Calculator."""
-    __tablename__ = "tyre_base_rates"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    tyre_type = Column(Enum("Radial", "Tubeless", "Nylon", "Retread"), nullable=False, unique=True)
-    price = Column(Numeric(10, 2), default=0)
-    expected_range_km = Column(Integer, default=0)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -863,6 +861,25 @@ class RepairType(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class MaintenanceType(Base):
+    __tablename__ = "maintenance_types"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)
+    interval_km = Column(Integer, nullable=False, default=5000)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class MaintenanceBaseConfig(Base):
+    __tablename__ = "maintenance_base_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cost_per_km = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 # ---------------------------------------------------------------------------
 # Finance Hub
 # ---------------------------------------------------------------------------
@@ -884,8 +901,62 @@ class EmiRecord(Base):
     cost_per_month = Column(Numeric(10, 2), default=0)
     monthly_finance_cost = Column(Numeric(10, 2), default=0, server_default="0")
     daily_finance_cost = Column(Numeric(10, 4), default=0, server_default="0")
+    emi_cost_per_km = Column(Numeric(10, 6), default=0, server_default="0")
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TruckRunConfig(Base):
+    __tablename__ = "truck_run_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_layout = Column(String(100), nullable=False, unique=True)
+    km_per_month = Column(Numeric(10, 2), nullable=True)
+    km_per_day = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TyreLayoutCostConfig(Base):
+    __tablename__ = "tyre_layout_cost_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_layout = Column(String(100), nullable=False, unique=True)
+    cost = Column(Numeric(12, 2), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class ComplianceUpdateHistory(Base):
+    __tablename__ = "compliance_update_history"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id        = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    document_type   = Column(String(100), nullable=False)
+    updated_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_by_name = Column(String(200), nullable=False, default="")
+
+
+class ComplianceCostConfig(Base):
+    __tablename__ = "compliance_cost_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_layout = Column(String(100), nullable=False, unique=True)
+    rc_cost = Column(Numeric(12, 2), nullable=True)
+    fc_cost = Column(Numeric(12, 2), nullable=True)
+    road_tax_cost = Column(Numeric(12, 2), nullable=True)
+    national_permit_cost = Column(Numeric(12, 2), nullable=True)
+    local_permit_cost = Column(Numeric(12, 2), nullable=True)
+    pollution_cert_cost = Column(Numeric(12, 2), nullable=True)
+    insurance_cost = Column(Numeric(12, 2), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TyreRangeConfig(Base):
+    __tablename__ = "tyre_range_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_type = Column(String(50), nullable=False, unique=True)
+    range_km = Column(Integer, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
@@ -976,3 +1047,77 @@ class AuditLog(Base):
     user_agent = Column(String(300))
     detail = Column(Text)                                  # short human context (no secrets/PII values)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Running Cost Calculator — persisted state
+# ---------------------------------------------------------------------------
+
+class RunningCostConfig(Base):
+    """One row per calculator mode — stores cost_per_litre for that mode."""
+    __tablename__ = "running_cost_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False, unique=True, default="Manual")
+    cost_per_litre = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class RunningCostTyreEntry(Base):
+    """Per-mode, per-tyre-type cost and expected range entered in the calculator."""
+    __tablename__ = "running_cost_tyre_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False, default="Manual")
+    tyre_type = Column(String(50), nullable=False)
+    cost_per_tyre = Column(Numeric(12, 2), nullable=True)
+    expected_range_km = Column(Integer, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("mode", "tyre_type", name="uq_rcc_tyre_mode"),)
+
+
+class RunningCostLayoutEntry(Base):
+    """Per-mode, per-tyre-layout km/month and km/day entered in the calculator."""
+    __tablename__ = "running_cost_layout_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False, default="Manual")
+    tyre_layout = Column(String(50), nullable=False)
+    km_per_month = Column(Numeric(10, 2), nullable=True)
+    km_per_day = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("mode", "tyre_layout", name="uq_rcc_layout_mode"),)
+
+
+class RunningCostAdblueEntry(Base):
+    """Per-mode, per-AdBlue-manufacturer price entered in the calculator."""
+    __tablename__ = "running_cost_adblue_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False, default="Manual")
+    manufacturer_id = Column(Integer, nullable=False)
+    price_per_litre = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("mode", "manufacturer_id", name="uq_rcc_adblue_mode"),)
+
+
+class RunningCostTruckMetrics(Base):
+    """Per-mode, per-truck calculator inputs (EMI, mileage, adblue consumption, tyre type, maintenance)."""
+    __tablename__ = "running_cost_truck_metrics"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False, default="Manual")
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    emi_amount = Column(Numeric(12, 2), nullable=True)
+    mileage = Column(Numeric(8, 4), nullable=True)
+    adblue_consume_l_per_km = Column(Numeric(10, 6), nullable=True)
+    adblue_manufacturer_id = Column(Integer, nullable=True)
+    adblue_per_km = Column(Numeric(10, 6), nullable=True)  # manual override; when set, L/km inputs are hidden
+    tyre_type = Column(String(50), nullable=True)
+    tyre_per_km = Column(Numeric(10, 6), nullable=True)  # manual override; when set, auto-calc from tyre type is ignored
+    emi_per_day = Column(Numeric(10, 4), nullable=True)  # manual override; used in Basic mode
+    emi_per_km  = Column(Numeric(10, 6), nullable=True)  # manual override; used in Basic mode
+    maintenance_per_km = Column(Numeric(10, 6), nullable=True)
+    compliance_cost_per_year = Column(Numeric(12, 2), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("mode", "truck_id", name="uq_rcc_truck_mode"),)

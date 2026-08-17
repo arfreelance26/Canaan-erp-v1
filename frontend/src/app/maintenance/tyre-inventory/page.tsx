@@ -37,7 +37,7 @@ export default function TyreInventoryPage() {
         setFitmentRecords(f);
         setTrucks(tr);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
@@ -89,24 +89,20 @@ export default function TyreInventoryPage() {
     setHistoryDialogOpen(true);
   }
 
-  const [filterCondition, setFilterCondition] = useState<"All" | "New" | "Rethreaded">("All");
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredTyres = tyres.filter((t) => {
-    const matchesCondition = filterCondition === "All" || t.condition === filterCondition;
-    const matchesSearch =
+    return (
       !searchQuery ||
       t.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.tyreNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCondition && matchesSearch;
+      t.tyreNumber.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   });
 
   const attachedIds = new Set(fitmentRecords.filter((f) => !f.removedDate).map((f) => f.tyreId));
   const totalCount = tyres.length;
   const availableCount = tyres.filter((t) => !attachedIds.has(t.id)).length;
   const attachedCount = tyres.filter((t) => attachedIds.has(t.id)).length;
-  const newCount = tyres.filter((t) => t.condition === "New").length;
-  const rethreadedCount = tyres.filter((t) => t.condition === "Rethreaded").length;
 
   if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 
@@ -155,40 +151,6 @@ export default function TyreInventoryPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-500 mr-2">Filter by Condition:</span>
-          <button
-            onClick={() => setFilterCondition("All")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-              filterCondition === "All"
-                ? "bg-blue-100 text-blue-700 shadow-sm"
-                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilterCondition("New")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-              filterCondition === "New"
-                ? "bg-emerald-100 text-emerald-700 shadow-sm"
-                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
-            }`}
-          >
-            New
-          </button>
-          <button
-            onClick={() => setFilterCondition("Rethreaded")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-              filterCondition === "Rethreaded"
-                ? "bg-amber-100 text-amber-700 shadow-sm"
-                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
-            }`}
-          >
-            Retreaded
-          </button>
-        </div>
-
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -201,13 +163,11 @@ export default function TyreInventoryPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
           { label: "Total Tyres", value: totalCount, color: "bg-gray-50 border-gray-200 text-gray-700" },
           { label: "Available", value: availableCount, color: "bg-blue-50 border-blue-200 text-blue-700" },
           { label: "Attached", value: attachedCount, color: "bg-purple-50 border-purple-200 text-purple-700" },
-          { label: "New", value: newCount, color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
-          { label: "Rethreaded", value: rethreadedCount, color: "bg-amber-50 border-amber-200 text-amber-700" },
         ].map(({ label, value, color }) => (
           <div key={label} className={`rounded-xl border px-4 py-3 flex flex-col gap-0.5 ${color}`}>
             <span className="text-xs font-medium opacity-70">{label}</span>

@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useIdle } from "react-haiku";
+import { showToast } from "@/lib/swal";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -25,6 +26,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       logout();
     }
   }, [isIdle, user, logout]);
+
+  // Catch NetworkError instances that escape page-level useEffect calls
+  // (pages that call Promise.all without a .catch()). Prevents a crash and
+  // shows a non-blocking toast instead.
+  useEffect(() => {
+    const handler = (e: PromiseRejectionEvent) => {
+      if (e.reason?.name === "NetworkError") {
+        e.preventDefault();
+        showToast(e.reason.message, "error", "Connection error");
+      }
+    };
+    window.addEventListener("unhandledrejection", handler);
+    return () => window.removeEventListener("unhandledrejection", handler);
+  }, []);
 
   if (pathname === "/login" || pathname === "/login/") {
     return <>{children}</>;

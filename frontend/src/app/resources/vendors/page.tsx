@@ -40,7 +40,7 @@ export default function VendorsPage() {
   );
 
   useEffect(() => {
-        vendorsApi.list().then(setVendors).finally(() => setLoading(false));
+        vendorsApi.list().then(setVendors).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

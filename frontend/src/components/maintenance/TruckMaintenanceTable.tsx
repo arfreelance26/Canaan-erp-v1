@@ -1,23 +1,51 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
+import { AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 
 type TruckMaintenanceTableProps = {
   trucks: Truck[];
   records: MaintenanceRecord[];
+  statusByTruckDbId: Map<string, TruckMaintenanceStatus>;
   onUpdateRecord: (truck: Truck) => void;
   onViewRecord: (truck: Truck) => void;
   onViewStatus: (truck: Truck) => void;
 };
 
-const VISIBLE_CHIPS = 3;
+function StatusChip({ status }: { status: TruckMaintenanceStatus | undefined }) {
+  if (!status) {
+    return <span className="text-xs text-gray-400">—</span>;
+  }
+  if (status.overdueCount > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+        <AlertTriangle className="h-3 w-3" />
+        {status.overdueCount} Overdue
+      </span>
+    );
+  }
+  if (status.dueSoonCount > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+        <Clock className="h-3 w-3" />
+        {status.dueSoonCount} Due Soon
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+      <CheckCircle2 className="h-3 w-3" />
+      All OK
+    </span>
+  );
+}
 
 export function TruckMaintenanceTable({
   trucks,
   records,
+  statusByTruckDbId,
   onUpdateRecord,
   onViewRecord,
   onViewStatus,
@@ -44,48 +72,14 @@ export function TruckMaintenanceTable({
         </thead>
         <tbody className="divide-y divide-gray-100">
           {trucks.map((truck) => {
-            const items = getMaintenanceStatus(truck, records);
-            const overdue = items.filter((i) => i.status === "attention");
-
-            const overdueVisible = overdue.slice(0, VISIBLE_CHIPS);
-            const overdueExtra   = overdue.length - overdueVisible.length;
-
+            const status = statusByTruckDbId.get(truck.id);
             return (
-              <tr key={truck.id} className={overdue.length > 0 ? "bg-red-50/40 hover:bg-red-50/70" : "hover:bg-gray-50"}>
+              <tr key={truck.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{truck.registrationNumber}</td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{Number(truck.odometer).toLocaleString()} km</td>
-
-                {/* Maintenance Status */}
-                <td className="px-4 py-3">
-                  {overdue.length === 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                      <CheckCircle2 className="h-3 w-3" /> All OK
-                    </span>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {overdueVisible.map((item) => (
-                        <span
-                          key={item.item}
-                          title={`${item.item} — ${Math.abs(item.remainingKm).toLocaleString()} km overdue`}
-                          className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 border border-red-200"
-                        >
-                          <AlertTriangle className="h-3 w-3 shrink-0" />
-                          {item.item}
-                        </span>
-                      ))}
-                      {overdueExtra > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => onViewStatus(truck)}
-                          className="inline-flex items-center gap-1 rounded-full bg-red-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-red-700"
-                        >
-                          +{overdueExtra} more overdue
-                        </button>
-                      )}
-                    </div>
-                  )}
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <StatusChip status={status} />
                 </td>
-
                 <td className="px-4 py-3 whitespace-nowrap">
                   <div className="flex gap-2">
                     <button
@@ -105,7 +99,7 @@ export function TruckMaintenanceTable({
                     <button
                       type="button"
                       onClick={() => onViewStatus(truck)}
-                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Full Status
                     </button>

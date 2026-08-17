@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Printer } from "lucide-react";
+import { Printer, SlidersHorizontal } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { inputClass } from "@/components/ui/Field";
@@ -21,41 +21,34 @@ type MaintenanceRecordHistoryDialogProps = {
 const columns = ["Date", "Odometer", "Maintenance Type", "Description", "Cost"];
 
 const DATE_FILTER_OPTIONS = [
-  { id: "all", label: "All Time" },
-  { id: "month", label: "This Month" },
-  { id: "3months", label: "Past 3 Months" },
-  { id: "6months", label: "Past 6 Months" },
-  { id: "year", label: "Past Year" },
-  { id: "custom", label: "Custom Range" },
+  { id: "all",      label: "All Time" },
+  { id: "month",    label: "This Month" },
+  { id: "3months",  label: "Past 3 Months" },
+  { id: "6months",  label: "Past 6 Months" },
+  { id: "year",     label: "Past Year" },
+  { id: "custom",   label: "Custom Range" },
 ] as const;
 
 type DateFilter = (typeof DATE_FILTER_OPTIONS)[number]["id"];
 
 function getDateRange(filter: DateFilter, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
   const now = new Date();
-
   switch (filter) {
     case "month":
       return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
     case "3months": {
-      const from = new Date(now);
-      from.setMonth(from.getMonth() - 3);
-      return { from, to: now };
+      const from = new Date(now); from.setMonth(from.getMonth() - 3); return { from, to: now };
     }
     case "6months": {
-      const from = new Date(now);
-      from.setMonth(from.getMonth() - 6);
-      return { from, to: now };
+      const from = new Date(now); from.setMonth(from.getMonth() - 6); return { from, to: now };
     }
     case "year": {
-      const from = new Date(now);
-      from.setFullYear(from.getFullYear() - 1);
-      return { from, to: now };
+      const from = new Date(now); from.setFullYear(from.getFullYear() - 1); return { from, to: now };
     }
     case "custom":
       return {
         from: customFrom ? new Date(customFrom) : null,
-        to: customTo ? new Date(customTo) : null,
+        to:   customTo   ? new Date(customTo)   : null,
       };
     default:
       return { from: null, to: null };
@@ -65,33 +58,34 @@ function getDateRange(filter: DateFilter, customFrom: string, customTo: string):
 export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }: MaintenanceRecordHistoryDialogProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
 
   useEffect(() => {
-    if (open) {
-      setDateFilter("all");
-      setCustomFrom("");
-      setCustomTo("");
-    }
+    if (open) { setDateFilter("all"); setCustomFrom(""); setCustomTo(""); }
   }, [open]);
 
   const truckRecords = useMemo(() => {
     if (!truck) return [];
     return records
-      .filter((record) => record.truckId === truck.id)
+      .filter((r) => r.truckId === truck.id)
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }, [records, truck]);
 
   const filteredRecords = useMemo(() => {
     if (dateFilter === "all") return truckRecords;
     const { from, to } = getDateRange(dateFilter, customFrom, customTo);
-    return truckRecords.filter((record) => {
-      const recordDate = new Date(record.date);
-      if (from && recordDate < from) return false;
-      if (to && recordDate > to) return false;
+    return truckRecords.filter((r) => {
+      const d = new Date(r.date);
+      if (from && d < from) return false;
+      if (to   && d > to)   return false;
       return true;
     });
   }, [truckRecords, dateFilter, customFrom, customTo]);
+
+  const totalCost = useMemo(
+    () => filteredRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0),
+    [filteredRecords]
+  );
 
   if (!truck) return null;
 
@@ -101,15 +95,13 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
     if (!printWindow) return;
 
     const rows = filteredRecords
-      .map(
-        (record) => `<tr>
-          <td>${formatDate(record.date)}</td>
-          <td>${Number(record.odometer).toLocaleString()} km</td>
-          <td>${record.maintenanceType}</td>
-          <td>${record.description}</td>
-          <td>₹${Number(record.cost).toLocaleString()}</td>
-        </tr>`
-      )
+      .map((r) => `<tr>
+        <td>${formatDate(r.date)}</td>
+        <td>${Number(r.odometer).toLocaleString()} km</td>
+        <td>${r.maintenanceType}</td>
+        <td>${r.description}</td>
+        <td>₹${Number(r.cost).toLocaleString()}</td>
+      </tr>`)
       .join("");
 
     printWindow.document.write(`
@@ -147,34 +139,31 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
       title={`Maintenance Record — ${truck.registrationNumber}`}
       className="max-w-3xl"
     >
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-gray-700">Filter by date</span>
-            <GlassSelect
-              value={dateFilter}
-              onChange={(val) => setDateFilter(val as DateFilter)}
-              options={DATE_FILTER_OPTIONS.map(opt => ({ value: opt.id, label: opt.label }))}
-            />
-          </label>
+      {/* ── Filter toolbar ── */}
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            Filter
+          </span>
+        </div>
+
+        <div className="flex flex-1 flex-wrap items-end gap-3">
+          <GlassSelect
+            value={dateFilter}
+            onChange={(val) => setDateFilter(val as DateFilter)}
+            options={DATE_FILTER_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+          />
 
           {dateFilter === "custom" && (
             <>
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-gray-700">From</span>
-                <DatePickerInput
-                  value={customFrom}
-                  onChange={(v) => setCustomFrom(v)}
-                  className={inputClass}
-                />
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">From</span>
+                <DatePickerInput value={customFrom} onChange={setCustomFrom} className={inputClass} />
               </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-gray-700">To</span>
-                <DatePickerInput
-                  value={customTo}
-                  onChange={(v) => setCustomTo(v)}
-                  className={inputClass}
-                />
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">To</span>
+                <DatePickerInput value={customTo} onChange={setCustomTo} className={inputClass} />
               </label>
             </>
           )}
@@ -183,38 +172,69 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records }
         <button
           type="button"
           onClick={handlePrint}
-          className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
         >
-          <Printer className="h-4 w-4" />
+          <Printer className="h-3.5 w-3.5" />
           Print
         </button>
       </div>
 
+      {/* ── Record count + total ── */}
+      {filteredRecords.length > 0 && (
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            {filteredRecords.length} {filteredRecords.length === 1 ? "record" : "records"}
+          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            Total:{" "}
+            <span className="tabular-nums text-blue-600 dark:text-blue-400">
+              ₹{totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </p>
+        </div>
+      )}
+
+      {/* ── Table ── */}
       {filteredRecords.length === 0 ? (
-        <p className="text-sm text-gray-500">No maintenance records found for this period.</p>
+        <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+          No maintenance records found for this period.
+        </p>
       ) : (
-        <div className="overflow-auto max-h-72 rounded-xl border border-gray-200">
-          <table className="w-full min-w-[600px] text-left text-sm whitespace-nowrap">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                {columns.map((column) => (
+        <div className="max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
+          <table className="w-full min-w-[600px] whitespace-nowrap text-left text-xs">
+            <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+              <tr>
+                {columns.map((col) => (
                   <th
-                    key={column}
-                    className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase"
+                    key={col}
+                    className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500"
                   >
-                    {column}
+                    {col}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
               {filteredRecords.map((record) => (
-                <tr key={record.id}>
-                  <td className="px-4 py-3 text-gray-600">{formatDate(record.date)}</td>
-                  <td className="px-4 py-3 text-gray-600">{Number(record.odometer).toLocaleString()} km</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{record.maintenanceType}</td>
-                  <td className="px-4 py-3 text-gray-600">{record.description}</td>
-                  <td className="px-4 py-3 text-gray-600">₹{Number(record.cost).toLocaleString()}</td>
+                <tr
+                  key={record.id}
+                  className="bg-white transition-colors hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/50"
+                >
+                  <td className="px-4 py-2.5 tabular-nums text-slate-600 dark:text-slate-400">
+                    {formatDate(record.date)}
+                  </td>
+                  <td className="px-4 py-2.5 tabular-nums text-slate-600 dark:text-slate-400">
+                    {Number(record.odometer).toLocaleString("en-IN")} km
+                  </td>
+                  <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200">
+                    {record.maintenanceType}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                    {record.description || <span className="italic text-slate-400">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700 dark:text-blue-400">
+                    ₹{Number(record.cost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                 </tr>
               ))}
             </tbody>

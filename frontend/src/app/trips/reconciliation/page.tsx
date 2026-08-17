@@ -128,7 +128,7 @@ export default function TripReconciliationPage() {
   }
 
   useEffect(() => {
-    loadReconciliationData().finally(() => setLoading(false));
+    loadReconciliationData().catch(() => {}).finally(() => setLoading(false));
     editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
     // Admin sees every staff member's edit requests; everyone else sees their own.
     (isAdmin ? editApprovalsApi.list() : editApprovalsApi.getMine())

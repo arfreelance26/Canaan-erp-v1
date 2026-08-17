@@ -12,20 +12,18 @@ export const TYRE_BRAND_OPTIONS = [
   "Yokohama",
 ];
 
-export const TYRE_TYPE_OPTIONS = ["Radial", "Bias-Ply", "Tube", "Tubeless", "Nylon"];
-
-export const TYRE_CONDITION_OPTIONS = ["New", "Rethreaded"];
+export const TYRE_TYPE_OPTIONS = ["RADIAL", "TUBELESS", "NYLON", "RETREADED"];
 
 export const initialTyreInventory: TyreInventoryItem[] = [
   {
     id: "1",
     brand: "MRF",
-    tyreType: "Radial",
+    tyreType: "RADIAL",
     tyreNumber: "MRF-2026-0001",
     size: "295/95 R22.5",
     rangeKm: "80000",
     cost: "18500",
-    condition: "New",
+    costPerKm: "",
     purchaseDate: "",
     repairCost: "0",
     retreadCost: "0",

@@ -55,7 +55,7 @@ export default function SacCodeManagementPage() {
   }, [ready, canView, router]);
 
   useEffect(() => {
-    sacCodesApi.list().then(setSacCodes).finally(() => setLoading(false));
+    sacCodesApi.list().then(setSacCodes).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useAutoRefresh(() => { sacCodesApi.list().then(setSacCodes); }, 10000);

@@ -207,7 +207,7 @@ export default function TripExpensesPage() {
     tripExpenseRatesApi.getConfig()
       .then((r) => { setConfig(r); setForm(rateToForm(r)); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {}).finally(() => setLoading(false));
   }, [ready, user, router]);
 
   const persist = useCallback(async () => {

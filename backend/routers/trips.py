@@ -130,6 +130,119 @@ def list_trips(
     return [_enrich(t, driver_names, truck_regs) for t in trips]
 
 
+@router.get("/customer-profitability", response_model=list[schemas.CustomerProfitabilityOut], tags=["Trips"])
+def get_customer_profitability(db: Session = Depends(get_db)):
+    """
+    Per-customer profitability aggregated from completed trips that have a trip sheet.
+    Revenue = trip_sheet.hire_amount, Expense = trip_sheet.total_expense.
+    Returns customers ranked by total net profit, with route breakdown and last 20 trips each.
+    """
+    from collections import defaultdict
+
+    rows = (
+        db.query(
+            models.Trip.customer_id,
+            models.Customer.name.label("customer_name"),
+            models.TripSheet.hire_amount,
+            models.TripSheet.total_expense,
+            models.TripSheet.total_km,
+            models.TripSheet.from_location,
+            models.TripSheet.to_location,
+            models.TripSheet.trip_completed_date,
+            models.Trip.trip_id,
+        )
+        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .join(models.Customer, models.Customer.id == models.Trip.customer_id)
+        .filter(models.Trip.status == "Completed")
+        .order_by(models.TripSheet.trip_completed_date.desc())
+        .all()
+    )
+
+    customer_map: dict = {}
+    customer_trips: dict = defaultdict(list)
+
+    for row in rows:
+        cid = str(row.customer_id)
+        hire = float(row.hire_amount or 0)
+        expense = float(row.total_expense or 0)
+        km = float(row.total_km or 0)
+
+        if cid not in customer_map:
+            customer_map[cid] = {
+                "customer_id": cid,
+                "customer_name": row.customer_name or "—",
+                "trip_count": 0,
+                "total_revenue": 0.0,
+                "total_expense": 0.0,
+                "total_km": 0.0,
+                "routes": defaultdict(lambda: {"trip_count": 0, "revenue": 0.0, "expense": 0.0, "km": 0.0}),
+            }
+
+        d = customer_map[cid]
+        d["trip_count"] += 1
+        d["total_revenue"] += hire
+        d["total_expense"] += expense
+        d["total_km"] += km
+
+        route_key = f"{(row.from_location or '').strip() or '—'} → {(row.to_location or '').strip() or '—'}"
+        r = d["routes"][route_key]
+        r["trip_count"] += 1
+        r["revenue"] += hire
+        r["expense"] += expense
+        r["km"] += km
+
+        if len(customer_trips[cid]) < 20:
+            trip_profit = hire - expense
+            customer_trips[cid].append({
+                "trip_id": row.trip_id,
+                "date": row.trip_completed_date.isoformat() if row.trip_completed_date else None,
+                "route": route_key,
+                "revenue": round(hire, 2),
+                "expense": round(expense, 2),
+                "profit": round(trip_profit, 2),
+                "margin_pct": round((trip_profit / hire * 100) if hire > 0 else 0.0, 2),
+                "km": round(km, 2),
+            })
+
+    result = []
+    for cid, d in customer_map.items():
+        revenue = d["total_revenue"]
+        expense = d["total_expense"]
+        profit = revenue - expense
+        margin = round((profit / revenue * 100) if revenue > 0 else 0.0, 2)
+
+        routes = []
+        for route_name, r in d["routes"].items():
+            r_profit = r["revenue"] - r["expense"]
+            r_margin = round((r_profit / r["revenue"] * 100) if r["revenue"] > 0 else 0.0, 2)
+            routes.append({
+                "route": route_name,
+                "trip_count": r["trip_count"],
+                "revenue": round(r["revenue"], 2),
+                "expense": round(r["expense"], 2),
+                "profit": round(r_profit, 2),
+                "margin_pct": r_margin,
+                "avg_km": round(r["km"] / r["trip_count"] if r["trip_count"] > 0 else 0, 2),
+            })
+        routes.sort(key=lambda x: x["profit"], reverse=True)
+
+        result.append({
+            "customer_id": cid,
+            "customer_name": d["customer_name"],
+            "trip_count": d["trip_count"],
+            "total_revenue": round(revenue, 2),
+            "total_expense": round(expense, 2),
+            "total_profit": round(profit, 2),
+            "profit_margin_pct": margin,
+            "total_km": round(d["total_km"], 2),
+            "routes": routes,
+            "recent_trips": customer_trips[cid],
+        })
+
+    result.sort(key=lambda x: x["total_profit"], reverse=True)
+    return result
+
+
 @router.post("", response_model=schemas.TripOut, status_code=201)
 def create_trip(
     payload: schemas.TripCreate,

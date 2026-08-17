@@ -71,7 +71,8 @@
     "sweetalert2": "^11.26.25",
     "sweetalert2-react-content": "^5.1.2",
     "tailwind-merge": "^3.6.0",
-    "ts-morph": "^28.0.0"
+    "ts-morph": "^28.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

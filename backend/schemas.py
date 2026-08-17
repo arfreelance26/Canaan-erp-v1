@@ -1028,6 +1028,16 @@ class FuelLogOut(OrmBase):
     created_at: Optional[datetime] = None
 
 
+class FuelBaseConfigOut(OrmBase):
+    id: int
+    cost_per_litre: Optional[Decimal] = None
+    updated_at: Optional[datetime] = None
+
+
+class FuelBaseConfigUpdate(OrmBase):
+    cost_per_litre: Optional[Decimal] = None
+
+
 class FuelStats(OrmBase):
     total_distance: Decimal
     total_fuel: Decimal
@@ -1095,7 +1105,6 @@ class AdBlueManufacturerOut(OrmBase):
 # Tyre Inventory
 # ---------------------------------------------------------------------------
 
-TyreCondition = Literal["New", "Rethreaded"]
 
 
 class TyreInventoryBase(OrmBase):
@@ -1105,7 +1114,7 @@ class TyreInventoryBase(OrmBase):
     size: Optional[str] = None
     range_km: Optional[int] = 0
     cost: Optional[Decimal] = None
-    condition: Optional[TyreCondition] = "New"
+    cost_per_km: Optional[Decimal] = None
     purchase_date: Optional[date] = None
     repair_cost: Optional[Decimal] = None
     retread_cost: Optional[Decimal] = None
@@ -1123,7 +1132,7 @@ class TyreInventoryUpdate(OrmBase):
     size: Optional[str] = None
     range_km: Optional[int] = None
     cost: Optional[Decimal] = None
-    condition: Optional[TyreCondition] = None
+    cost_per_km: Optional[Decimal] = None
     purchase_date: Optional[date] = None
     repair_cost: Optional[Decimal] = None
     retread_cost: Optional[Decimal] = None
@@ -1169,26 +1178,6 @@ class TyreFitmentOut(OrmBase):
 
 
 # ---------------------------------------------------------------------------
-# Operating Cost Calculator — Tyre Base Rates
-# ---------------------------------------------------------------------------
-
-TyreBaseRateType = Literal["Radial", "Tubeless", "Nylon", "Retread"]
-
-
-class TyreBaseRateOut(OrmBase):
-    id: int
-    tyre_type: TyreBaseRateType
-    price: Optional[Decimal] = None
-    expected_range_km: Optional[int] = None
-    updated_at: Optional[datetime] = None
-
-
-class TyreBaseRateUpdate(OrmBase):
-    price: Optional[Decimal] = None
-    expected_range_km: Optional[int] = None
-
-
-# ---------------------------------------------------------------------------
 # Finance — EMI
 # ---------------------------------------------------------------------------
 
@@ -1206,6 +1195,7 @@ class EmiRecordBase(OrmBase):
     cost_per_month: Optional[Decimal] = None
     monthly_finance_cost: Optional[Decimal] = None
     daily_finance_cost: Optional[Decimal] = None
+    emi_cost_per_km: Optional[Decimal] = None
 
 
 class EmiRecordCreate(EmiRecordBase):
@@ -1227,6 +1217,7 @@ class EmiRecordUpdate(OrmBase):
     cost_per_month: Optional[Decimal] = None
     monthly_finance_cost: Optional[Decimal] = None
     daily_finance_cost: Optional[Decimal] = None
+    emi_cost_per_km: Optional[Decimal] = None
 
 
 class EmiRecordOut(EmiRecordBase):
@@ -1234,6 +1225,136 @@ class EmiRecordOut(EmiRecordBase):
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Truck Run Configuration
+# ---------------------------------------------------------------------------
+
+class TruckRunConfigItem(OrmBase):
+    tyre_layout: str
+    km_per_month: Optional[Decimal] = None
+    km_per_day: Optional[Decimal] = None
+
+
+class TruckRunConfigOut(TruckRunConfigItem):
+    id: int
+    updated_at: Optional[datetime] = None
+
+
+class TruckRunConfigBulkSave(OrmBase):
+    configs: list[TruckRunConfigItem]
+
+
+class TyreLayoutCostItem(OrmBase):
+    tyre_layout: str
+    cost: Optional[Decimal] = None
+
+
+class TyreLayoutCostOut(TyreLayoutCostItem):
+    id: int
+    updated_at: Optional[datetime] = None
+
+
+class TyreLayoutCostBulkSave(OrmBase):
+    configs: list[TyreLayoutCostItem]
+
+
+# ---------------------------------------------------------------------------
+# Compliance Update History
+# ---------------------------------------------------------------------------
+
+class ComplianceUpdateHistoryOut(BaseModel):
+    id:               int
+    truck_id:         int
+    document_type:    str
+    updated_at:       datetime
+    updated_by_name:  str
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Compliance Cost Configuration
+# ---------------------------------------------------------------------------
+
+class ComplianceCostConfigItem(BaseModel):
+    tyre_layout: str
+    rc_cost: Optional[str] = ""
+    fc_cost: Optional[str] = ""
+    road_tax_cost: Optional[str] = ""
+    national_permit_cost: Optional[str] = ""
+    local_permit_cost: Optional[str] = ""
+    pollution_cert_cost: Optional[str] = ""
+    insurance_cost: Optional[str] = ""
+
+
+class ComplianceCostConfigOut(ComplianceCostConfigItem):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class ComplianceCostBulkSave(BaseModel):
+    configs: list[ComplianceCostConfigItem]
+
+
+# ---------------------------------------------------------------------------
+# Tyre Range Configuration
+# ---------------------------------------------------------------------------
+
+class TyreRangeConfigItem(OrmBase):
+    tyre_type: str
+    range_km: Optional[int] = None
+
+
+class TyreRangeConfigOut(TyreRangeConfigItem):
+    id: int
+    updated_at: Optional[datetime] = None
+
+
+class TyreRangeConfigBulkSave(OrmBase):
+    configs: list[TyreRangeConfigItem]
+
+
+# ---------------------------------------------------------------------------
+# Running Cost Calculator
+# ---------------------------------------------------------------------------
+
+class RccTyreEntryIn(BaseModel):
+    cost: Optional[str] = ""
+    range: Optional[str] = ""
+
+class RccLayoutEntryIn(BaseModel):
+    month: Optional[str] = ""
+    day: Optional[str] = ""
+
+class RccTruckMetricsIn(BaseModel):
+    emi_amount: Optional[str] = ""
+    emi_per_day: Optional[str] = ""
+    emi_per_km: Optional[str] = ""
+    mileage: Optional[str] = ""
+    adblue_consume_l_per_km: Optional[str] = ""
+    adblue_manufacturer_id: Optional[str] = ""
+    adblue_per_km: Optional[str] = ""
+    tyre_type: Optional[str] = ""
+    tyre_per_km: Optional[str] = ""
+    maintenance_per_km: Optional[str] = ""
+    compliance_cost_per_year: Optional[str] = ""
+
+class RccModeDataIn(BaseModel):
+    cost_per_litre: Optional[str] = ""
+    tyre_entries: dict[str, RccTyreEntryIn] = {}
+    run_entries: dict[str, RccLayoutEntryIn] = {}
+    adblue_prices: dict[str, str] = {}
+    truck_metrics: dict[str, RccTruckMetricsIn] = {}
+
+class RunningCostStateIn(BaseModel):
+    Manual: RccModeDataIn = RccModeDataIn()
+    Basic: RccModeDataIn = RccModeDataIn()
+    Advanced: RccModeDataIn = RccModeDataIn()
 
 
 # ---------------------------------------------------------------------------
@@ -1313,6 +1434,7 @@ class BranchBase(OrmBase):
     halt_day_fee_20ft: Optional[Decimal] = None
     halt_day_fee_40ft: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
+    cleaner_batta_fee: Optional[Decimal] = None
 
 
 class BranchCreate(BranchBase):
@@ -1325,6 +1447,7 @@ class BranchUpdate(OrmBase):
     halt_day_fee_20ft: Optional[Decimal] = None
     halt_day_fee_40ft: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
+    cleaner_batta_fee: Optional[Decimal] = None
 
 
 class BranchOut(BranchBase):
@@ -1415,6 +1538,39 @@ class RepairTypeOut(OrmBase):
 
 
 # ---------------------------------------------------------------------------
+# Maintenance Types
+# ---------------------------------------------------------------------------
+
+class MaintenanceTypeCreate(OrmBase):
+    name: str
+    interval_km: int
+
+
+class MaintenanceTypeUpdate(OrmBase):
+    client_version: Optional[int] = None
+    name: Optional[str] = None
+    interval_km: Optional[int] = None
+
+
+class MaintenanceTypeOut(OrmBase):
+    id: int
+    name: str
+    interval_km: int
+    version: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class MaintenanceBaseConfigSet(OrmBase):
+    cost_per_km: Optional[Decimal] = None
+
+
+class MaintenanceBaseConfigOut(OrmBase):
+    cost_per_km: Optional[Decimal] = None
+    updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
 # SAC Codes
 # ---------------------------------------------------------------------------
 
@@ -1447,6 +1603,53 @@ class SacCodeOut(SacCodeBase):
 
 
 # ---------------------------------------------------------------------------
+# Customer Profitability Analytics
+# ---------------------------------------------------------------------------
+
+class CustomerProfitabilityRouteOut(BaseModel):
+    route: str
+    trip_count: int
+    revenue: float
+    expense: float
+    profit: float
+    margin_pct: float
+    avg_km: float
+
+    class Config:
+        from_attributes = True
+
+
+class CustomerProfitabilityTripOut(BaseModel):
+    trip_id: str
+    date: Optional[str] = None
+    route: str
+    revenue: float
+    expense: float
+    profit: float
+    margin_pct: float
+    km: float
+
+    class Config:
+        from_attributes = True
+
+
+class CustomerProfitabilityOut(BaseModel):
+    customer_id: str
+    customer_name: str
+    trip_count: int
+    total_revenue: float
+    total_expense: float
+    total_profit: float
+    profit_margin_pct: float
+    total_km: float
+    routes: list[CustomerProfitabilityRouteOut]
+    recent_trips: list[CustomerProfitabilityTripOut]
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
 
@@ -1456,7 +1659,6 @@ class DashboardOverview(OrmBase):
     total_drivers: int
     total_staff: int
     pending_leave_requests: int
-    maintenance_alerts: int
     compliance_expired: int
     compliance_expiring_soon: int
     monthly_emi_total: Decimal

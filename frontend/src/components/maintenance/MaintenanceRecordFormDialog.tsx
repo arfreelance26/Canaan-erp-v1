@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { MAINTENANCE_TYPE_OPTIONS } from "@/lib/truck-maintenance-data";
+import { maintenanceTypesApi } from "@/lib/api";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -28,6 +28,13 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
 
 export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: MaintenanceRecordFormDialogProps) {
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
+  const [typeOptions, setTypeOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    maintenanceTypesApi.list()
+      .then((items) => setTypeOptions(items.map((t) => ({ value: t.name, label: t.name }))))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -90,7 +97,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
               value={form.maintenanceType}
               onChange={(val) => update("maintenanceType", val)}
               placeholder="Select or type a maintenance type"
-              options={MAINTENANCE_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+              options={typeOptions}
             />
           </Field>
 

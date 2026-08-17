@@ -31,7 +31,7 @@ export default function EmiTrackingPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    financeApi.listEmi().then(setRecords).finally(() => setLoading(false));
+    financeApi.listEmi().then(setRecords).catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

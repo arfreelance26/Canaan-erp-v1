@@ -51,7 +51,7 @@ export default function DriverAttendancePage() {
         setRecords(r);
         setRemarks(rm);
       })
-      .finally(() => setLoading(false));
+      .catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);

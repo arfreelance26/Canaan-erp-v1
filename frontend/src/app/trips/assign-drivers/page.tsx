@@ -32,7 +32,7 @@ export default function AssignDriversPage() {
             setTrucks(t);
             setAssignments(a);
           })
-          .finally(() => setLoading(false));
+          .catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

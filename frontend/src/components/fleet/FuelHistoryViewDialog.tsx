@@ -36,6 +36,7 @@ function StatCard({ title, value, icon: Icon, trend, subtitle }: any) {
 export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewDialogProps) {
   const [logs, setLogs] = useState<FuelLog[]>([]);
   const [stats, setStats] = useState<FuelStats | null>(null);
+  const [baseCostPerLitre, setBaseCostPerLitre] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,10 +45,12 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
       Promise.all([
         fuelLogsApi.listFuelLogs(truck.id),
         fuelLogsApi.getFuelStats(truck.id),
+        fuelLogsApi.getBaseConfig(),
       ])
-        .then(([logsData, statsData]) => {
+        .then(([logsData, statsData, baseConfig]) => {
           setLogs(logsData);
           setStats(statsData);
+          setBaseCostPerLitre(baseConfig.cost_per_litre ?? null);
         })
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -84,12 +87,21 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                   icon={TrendingUp}
                   subtitle={`Total: ${Number(stats?.totalDistance).toLocaleString()} km`}
                 />
-                <StatCard
-                  title="Cost Per Kilometer"
-                  value={`₹${Number(stats?.costPerKm).toFixed(2)}`}
-                  icon={IndianRupee}
-                  subtitle="Across all logged intervals"
-                />
+                {(() => {
+                  const avg = Number(stats?.averageMileage);
+                  const costPerKm =
+                    avg > 0 && baseCostPerLitre != null
+                      ? baseCostPerLitre / avg
+                      : null;
+                  return (
+                    <StatCard
+                      title="Cost Per Kilometer"
+                      value={costPerKm != null ? `₹${costPerKm.toFixed(4)}` : "—"}
+                      icon={IndianRupee}
+                      subtitle="Fuel Price per Litre ÷ Mileage"
+                    />
+                  );
+                })()}
                 <StatCard
                   title="Best Ever"
                   value={`${Number(stats?.bestMileage).toFixed(2)} km/L`}
@@ -100,6 +112,24 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                   value={`${Number(stats?.worstMileage).toFixed(2)} km/L`}
                   icon={ArrowDownRight}
                 />
+                <StatCard
+                  title="Base Fuel Cost"
+                  value={baseCostPerLitre != null ? `₹${Number(baseCostPerLitre).toFixed(2)}/L` : "Not set"}
+                  icon={Droplets}
+                  subtitle="Configured base litre rate"
+                />
+                {(() => {
+                  const avg = Number(stats?.averageMileage);
+                  const fuelPerKm = avg > 0 ? (1 / avg) : null;
+                  return (
+                    <StatCard
+                      title="Fuel Amount For a KM"
+                      value={fuelPerKm != null ? `${fuelPerKm.toFixed(4)} L/km` : "—"}
+                      icon={Droplets}
+                      subtitle="Formula: 1 ÷ Lifetime Average (km/L)"
+                    />
+                  );
+                })()}
               </div>
 
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">

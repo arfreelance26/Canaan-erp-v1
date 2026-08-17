@@ -25,7 +25,7 @@ export default function RecurringPaymentsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-        financeApi.listRecurring().then(setPayments).finally(() => setLoading(false));
+        financeApi.listRecurring().then(setPayments).catch(() => {}).finally(() => setLoading(false));
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
