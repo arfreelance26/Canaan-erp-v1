@@ -38,7 +38,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
 
   useEffect(() => {
     if (open) {
-      setForm({ ...emptyForm, odometer: truck?.odometer ?? "" });
+      setForm(emptyForm);
     }
   }, [open, truck?.id]);
 
@@ -52,9 +52,14 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const currentOdometer = truck ? Number(truck.odometer) : null;
+  const enteredOdometer = form.odometer !== "" ? Number(form.odometer) : null;
+  const odometerTooHigh = enteredOdometer !== null && currentOdometer !== null && enteredOdometer > currentOdometer;
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!truck) return;
+    if (odometerTooHigh) return;
     clearFormDraft(draftKey);
     onSave({
       id: crypto.randomUUID(),
@@ -70,6 +75,12 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
       title={truck ? `Update Maintenance Record — ${truck.registrationNumber}` : "Update Maintenance Record"}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {currentOdometer !== null && currentOdometer > 0 && (
+          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Current Odometer</span>
+            <span className="ml-auto text-sm font-bold text-blue-800">{currentOdometer.toLocaleString("en-IN")} km</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Date" required>
             <DatePickerInput
@@ -84,11 +95,20 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
             <DecimalInput type="number"
               required
               min="0"
+              max={currentOdometer !== null && currentOdometer > 0 ? currentOdometer : undefined}
               value={form.odometer}
               onChange={(e) => update("odometer", e.target.value)}
-              className={inputClass}
+              className={`${inputClass} ${odometerTooHigh ? "border-red-400 ring-2 ring-red-100" : ""}`}
               placeholder="e.g. 85000"
             />
+            {odometerTooHigh && (
+              <p className="mt-1 text-xs text-red-600">
+                Must be less than or equal to the current odometer ({currentOdometer!.toLocaleString("en-IN")} km).
+              </p>
+            )}
+            {!odometerTooHigh && currentOdometer !== null && currentOdometer > 0 && (
+              <p className="mt-1 text-xs text-gray-400">Enter the odometer reading when this maintenance was done.</p>
+            )}
           </Field>
 
           <Field label="Maintenance Type" required>

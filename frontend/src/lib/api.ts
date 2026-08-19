@@ -674,6 +674,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     verificationRejectionReason: b.verification_rejection_reason ?? null,
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,
+    invoiceWaived: b.invoice_waived ?? false,
     driverName: b.driver_name ?? null,
     truckRegistration: b.truck_registration ?? null,
     lrConsignor: b.lr_consignor ?? undefined,
@@ -1015,6 +1016,8 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     maintenanceType: b.maintenance_type ?? "",
     description: b.description ?? "",
     cost: String(b.cost ?? ""),
+    enteredByName: b.entered_by_name ?? null,
+    source: b.source ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1063,9 +1066,9 @@ function toTyreInventory(b: B): TyreInventoryItem {
     cost: String(b.cost ?? ""),
     costPerKm: String(b.cost_per_km ?? ""),
     purchaseDate: b.purchase_date ?? "",
-    repairCost: String(b.repair_cost ?? ""),
     retreadCost: String(b.retread_cost ?? ""),
     retreadCount: String(b.retread_count ?? ""),
+    condition: (b.condition ?? ((parseInt(b.retread_count) || 0) > 0 ? "Rethreaded" : "New")) as "New" | "Rethreaded",
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1080,9 +1083,9 @@ function fromTyreInventory(f: TyreInventoryItem) {
     cost: parseFloat(f.cost) || 0,
     cost_per_km: parseFloat(f.costPerKm) || null,
     purchase_date: f.purchaseDate || null,
-    repair_cost: parseFloat(f.repairCost) || 0,
     retread_cost: parseFloat(f.retreadCost) || 0,
     retread_count: parseInt(f.retreadCount) || 0,
+    condition: f.condition,
     client_version: f.version,
   };
 }
@@ -1190,7 +1193,7 @@ export const trucksApi = {
   update: (dbId: string, truck: Truck) =>
     req<B>(`/trucks/${dbId}`, { method: "PUT", body: JSON.stringify(fromTruck(truck)) }).then(toTruck),
   delete: (dbId: string) => req<void>(`/trucks/${dbId}`, { method: "DELETE" }),
-  getRunConfig: () => req<B[]>("/trucks/run-config"),
+  getRunConfig: () => req<{ tyre_layout: string; km_per_month: string | null; km_per_day: string | null }[]>("/trucks/run-config"),
   saveRunConfig: (configs: { tyre_layout: string; km_per_month: number | null; km_per_day: number | null }[]) =>
     req<B[]>("/trucks/run-config", { method: "PUT", body: JSON.stringify({ configs }) }),
   getBaseTyreCost: () =>
@@ -1212,14 +1215,23 @@ export const trucksApi = {
 // ---------------------------------------------------------------------------
 
 export const tyreRangeConfigApi = {
-  list: () => req<{ id: number; tyre_type: string; range_km: number | null; updated_at: string | null }[]>("/tyre-range-config"),
-  save: (configs: { tyre_type: string; range_km: number | null }[]) =>
-    req<{ id: number; tyre_type: string; range_km: number | null; updated_at: string | null }[]>(
+  list: () => req<{ id: number; tyre_type: string; range_km: number | null; base_tyre_cost: number | null; base_cost_per_km: number | null; updated_at: string | null }[]>("/tyre-range-config"),
+  save: (configs: { tyre_type: string; range_km: number | null; base_tyre_cost: number | null; base_cost_per_km: number | null }[]) =>
+    req<{ id: number; tyre_type: string; range_km: number | null; base_tyre_cost: number | null; base_cost_per_km: number | null; updated_at: string | null }[]>(
       "/tyre-range-config",
       { method: "PUT", body: JSON.stringify({ configs }) }
     ),
   delete: (tyreType: string) =>
     req<void>(`/tyre-range-config/${encodeURIComponent(tyreType)}`, { method: "DELETE" }),
+};
+
+export const tyreLayoutTypeConfigApi = {
+  list: () => req<{ id: number; tyre_layout: string; tyre_type: string; quantity: number | null }[]>("/tyre-layout-type-config"),
+  save: (configs: { tyre_layout: string; tyre_type: string; quantity: number | null }[]) =>
+    req<{ id: number; tyre_layout: string; tyre_type: string; quantity: number | null }[]>(
+      "/tyre-layout-type-config",
+      { method: "PUT", body: JSON.stringify({ configs }) }
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -1449,6 +1461,7 @@ export const tripsApi = {
 
   // Workflow
   verify: (dbId: string) => req<B>(`/trips/${dbId}/verify`, { method: "POST" }).then(toTrip),
+  waiveInvoice: (dbId: string) => req<B>(`/trips/${dbId}/waive-invoice`, { method: "POST" }).then(toTrip),
   flag: (dbId: string) => req<B>(`/trips/${dbId}/flag`, { method: "POST" }).then(toTrip),
   rejectVerification: (dbId: string, reason: string) =>
     req<B>(`/trips/${dbId}/reject-verification`, {
@@ -1754,6 +1767,16 @@ export const maintenanceApi = {
       }),
     }).then(toMaintenanceRecord),
   deleteRecord: (id: string) => req<void>(`/maintenance/records/${id}`, { method: "DELETE" }),
+  requestDeletion: (payload: {
+    resource_id: number;
+    resource_name: string;
+    log_details: Record<string, unknown>;
+    reason: string;
+  }) =>
+    req<{ id: number }>("/deletion-approvals", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, resource_type: "MaintenanceRecord" }),
+    }),
   getCompliance: () => req<B[]>("/maintenance/compliance"),
   getStatus: () => req<MaintStatusBackend[]>("/maintenance/status").then((d) => d.map(toMaintStatus)),
   getTruckStatus: (truckDbId: string) =>
@@ -1799,12 +1822,82 @@ export const fuelLogsApi = {
       }),
     }).then(toFuelLog),
   deleteFuelLog: (id: string) => req<void>(`/maintenance/fuel-logs/${id}`, { method: "DELETE" }),
+  requestFuelLogDeletion: (payload: {
+    resource_id: number;
+    resource_name: string;
+    log_details: Record<string, unknown>;
+    reason: string;
+  }) =>
+    req<{ id: number }>("/deletion-approvals", {
+      method: "POST",
+      body: JSON.stringify({ ...payload, resource_type: "FuelLog" }),
+    }),
   getBaseConfig: () => req<{ id: number; cost_per_litre: number | null; updated_at: string | null }>("/maintenance/fuel-base-config"),
   setBaseConfig: (costPerLitre: number | null) =>
     req<{ id: number; cost_per_litre: number | null; updated_at: string | null }>(
       "/maintenance/fuel-base-config",
       { method: "PUT", body: JSON.stringify({ cost_per_litre: costPerLitre }) }
     ),
+};
+
+// ---------------------------------------------------------------------------
+// Deletion Approvals API
+// ---------------------------------------------------------------------------
+
+export type DeletionApprovalRequest = {
+  id: number;
+  resourceType: string;
+  resourceId: number;
+  resourceName: string;
+  logDetails: Record<string, unknown> | null;
+  requestedByStaffId: number;
+  requestedByName: string;
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected";
+  adminNote: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  createdAt: string | null;
+};
+
+function toDeletionApproval(b: B): DeletionApprovalRequest {
+  return {
+    id: b.id,
+    resourceType: b.resource_type,
+    resourceId: b.resource_id,
+    resourceName: b.resource_name,
+    logDetails: b.log_details ?? null,
+    requestedByStaffId: b.requested_by_staff_id,
+    requestedByName: b.requested_by_name,
+    reason: b.reason,
+    status: b.status,
+    adminNote: b.admin_note ?? null,
+    approvedByName: b.approved_by_name ?? null,
+    approvedAt: b.approved_at ?? null,
+    createdAt: b.created_at ?? null,
+  };
+}
+
+export const deletionApprovalsApi = {
+  list: (status?: string, resourceType?: string): Promise<DeletionApprovalRequest[]> => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (resourceType) params.set("resource_type", resourceType);
+    const qs = params.toString();
+    return req<B[]>(`/deletion-approvals${qs ? `?${qs}` : ""}`).then((d) =>
+      d.map(toDeletionApproval)
+    );
+  },
+  approve: (id: number, adminNote?: string): Promise<DeletionApprovalRequest> =>
+    req<B>(`/deletion-approvals/${id}/approve`, {
+      method: "PUT",
+      body: JSON.stringify({ admin_note: adminNote ?? null }),
+    }).then(toDeletionApproval),
+  reject: (id: number, adminNote?: string): Promise<DeletionApprovalRequest> =>
+    req<B>(`/deletion-approvals/${id}/reject`, {
+      method: "PUT",
+      body: JSON.stringify({ admin_note: adminNote ?? null }),
+    }).then(toDeletionApproval),
 };
 
 // ---------------------------------------------------------------------------
@@ -2370,6 +2463,7 @@ function toEditApproval(b: B): EditApprovalRequest {
     resourceName: String(b.resource_name ?? ""),
     action: b.action as EditApprovalAction,
     reason: String(b.reason ?? ""),
+    proposedChanges: (b.proposed_changes as Record<string, unknown>) ?? null,
     adminNote: b.admin_note ?? null,
     approvedByName: b.approved_by_name ?? null,
     status: (b.status ?? "Pending") as EditApprovalRequest["status"],
@@ -2399,6 +2493,7 @@ export const editApprovalsApi = {
     resourceName: string;
     action: EditApprovalAction;
     reason: string;
+    proposedChanges?: Record<string, unknown>;
   }) =>
     req<B>("/edit-approvals", {
       method: "POST",
@@ -2408,6 +2503,7 @@ export const editApprovalsApi = {
         resource_name: payload.resourceName,
         action: payload.action,
         reason: payload.reason,
+        proposed_changes: payload.proposedChanges ?? null,
       }),
     }).then(toEditApproval),
   approve: (id: string, adminNote?: string) =>

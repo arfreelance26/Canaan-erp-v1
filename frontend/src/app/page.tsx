@@ -26,6 +26,8 @@ import {
   FileSpreadsheet,
   Database,
   FolderArchive,
+  Fuel,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -41,6 +43,7 @@ import {
   tyreApi,
   financeApi,
   editApprovalsApi,
+  fuelLogsApi,
   downloadExcel,
 } from "@/lib/api";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
@@ -218,6 +221,9 @@ function AdminDashboard() {
   const [sheetReceivedDate, setSheetReceivedDate] = useState("");
   const [sheetEnteredDate, setSheetEnteredDate] = useState("");
   const [backupLoading, setBackupLoading] = useState<"excel" | "sql" | "files" | null>(null);
+  const [fuelRate, setFuelRate] = useState<{ costPerLitre: number | null; updatedAt: string | null }>({ costPerLitre: null, updatedAt: null });
+  const [fuelRateInput, setFuelRateInput] = useState("");
+  const [fuelRateSaving, setFuelRateSaving] = useState(false);
 
   const today = todayIst();
 
@@ -231,6 +237,21 @@ function AdminDashboard() {
       alert(`Backup failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBackupLoading(null);
+    }
+  }
+
+  async function handleSaveFuelRate() {
+    const val = parseFloat(fuelRateInput);
+    if (isNaN(val) || val <= 0) return;
+    setFuelRateSaving(true);
+    try {
+      const cfg = await fuelLogsApi.setBaseConfig(val);
+      setFuelRate({ costPerLitre: cfg.cost_per_litre, updatedAt: cfg.updated_at });
+      setFuelRateInput("");
+    } catch {
+      alert("Failed to update fuel rate. Please try again.");
+    } finally {
+      setFuelRateSaving(false);
     }
   }
 
@@ -261,6 +282,12 @@ function AdminDashboard() {
   useEffect(() => {
     editApprovalsApi.list("Pending").then(setPendingEditApprovals).catch(() => {});
   }, [refreshKey]);
+
+  useEffect(() => {
+    fuelLogsApi.getBaseConfig()
+      .then((cfg) => setFuelRate({ costPerLitre: cfg.cost_per_litre, updatedAt: cfg.updated_at }))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -676,6 +703,76 @@ function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* ── Today's Fuel Rate ────────────────────────────────────────────── */}
+      {(() => {
+        const updatedToday = fuelRate.updatedAt
+          ? fuelRate.updatedAt.slice(0, 10) === today
+          : false;
+        return (
+          <div className={cn(
+            "rounded-2xl border px-5 py-4 flex flex-wrap items-center gap-4",
+            updatedToday ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"
+          )}>
+            <div className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              updatedToday ? "bg-emerald-100" : "bg-amber-100"
+            )}>
+              <Fuel className={cn("h-5 w-5", updatedToday ? "text-emerald-600" : "text-amber-600")} />
+            </div>
+
+            {/* Label + current value */}
+            <div className="flex flex-col min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Today&apos;s Fuel Rate</p>
+              <div className="mt-0.5 flex items-baseline gap-2">
+                <span className={cn("text-xl font-bold", updatedToday ? "text-emerald-800" : "text-amber-800")}>
+                  {fuelRate.costPerLitre !== null ? `₹ ${Number(fuelRate.costPerLitre).toFixed(2)} / L` : "Not set"}
+                </span>
+                {fuelRate.updatedAt && (
+                  <span className="text-xs text-gray-400">
+                    Updated {updatedToday ? "today" : fuelRate.updatedAt.slice(0, 10)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Always-visible input + button */}
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              {!updatedToday && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                  Update needed
+                </span>
+              )}
+              <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 shadow-sm">
+                <span className="text-sm text-gray-400">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={fuelRateInput}
+                  onChange={(e) => setFuelRateInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSaveFuelRate(); }}
+                  className="w-20 bg-transparent text-sm font-semibold text-gray-800 focus:outline-none"
+                  placeholder="e.g. 102.50"
+                />
+                <span className="text-sm text-gray-400">/ L</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveFuelRate}
+                disabled={fuelRateSaving || !fuelRateInput}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40",
+                  updatedToday ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-amber-600 text-white hover:bg-amber-700"
+                )}
+              >
+                <Pencil className="h-3 w-3" />
+                {fuelRateSaving ? "Saving…" : "Update"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Section 1: Hero KPIs ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">

@@ -443,12 +443,11 @@ def export_tyre_inventory(
     rows = q.order_by(models.TyreInventory.brand).all()
     headers = [
         "Brand", "Tyre Type", "Tyre Number", "Size", "Range (KM)",
-        "Cost", "Purchase Date",
-        "Repair Cost", "Retread Cost", "Retread Count",
+        "Cost", "Purchase Date", "Retread Cost", "Retread Count",
     ]
     data = [
         [r.brand, r.tyre_type, r.tyre_number, r.size, r.range_km,
-         r.cost, r.purchase_date, r.repair_cost, r.retread_cost, r.retread_count]
+         r.cost, r.purchase_date, r.retread_cost, r.retread_count]
         for r in rows
     ]
     suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""

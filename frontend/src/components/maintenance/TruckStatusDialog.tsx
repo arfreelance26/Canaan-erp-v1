@@ -5,12 +5,14 @@ import { Dialog } from "@/components/ui/Dialog";
 import { AlertTriangle, Clock, CheckCircle2, Gauge, IndianRupee, CalendarDays } from "lucide-react";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
-import { trucksApi } from "@/lib/api";
+import { trucksApi, maintenanceApi } from "@/lib/api";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   status: TruckMaintenanceStatus | null;
+  truckDbId?: string;
   records: MaintenanceRecord[];
   tyreLayout?: string;
 };
@@ -39,8 +41,16 @@ function fmt(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }: Props) {
+export function TruckStatusDialog({ open, onClose, status, truckDbId, records, tyreLayout }: Props) {
   const [kmPerDay, setKmPerDay] = useState<number | null>(null);
+  const [freshStatus, setFreshStatus] = useState<TruckMaintenanceStatus | null>(null);
+
+  useEffect(() => {
+    if (!open) { setFreshStatus(null); return; }
+    if (truckDbId) {
+      maintenanceApi.getTruckStatus(truckDbId).then(setFreshStatus).catch(() => {});
+    }
+  }, [open, truckDbId]);
 
   useEffect(() => {
     if (!open || !tyreLayout) return;
@@ -51,12 +61,20 @@ export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }
     }).catch(() => {});
   }, [open, tyreLayout]);
 
+  useWebSocketEvent("maintenance_updated", () => {
+    if (!open || !truckDbId) return;
+    maintenanceApi.getTruckStatus(truckDbId).then(setFreshStatus).catch(() => {});
+  });
+
+  const effectiveStatus = freshStatus ?? status;
+
   const { yearTotal, avgMonthlyCost, avgDailyCost, periodFrom, periodTo } = useMemo(() => {
     const today = new Date();
     const oneYearAgo = new Date(today);
     oneYearAgo.setFullYear(today.getFullYear() - 1);
 
-    const toIso = (d: Date) => d.toISOString().split("T")[0];
+    const toIso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const from = toIso(oneYearAgo);
     const to   = toIso(today);
 
@@ -68,22 +86,22 @@ export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }
     return { yearTotal: total, avgMonthlyCost: monthly, avgDailyCost: daily, periodFrom: from, periodTo: to };
   }, [records]);
 
-  if (!status) return null;
+  if (!effectiveStatus) return null;
 
   const costPerKm = avgDailyCost > 0 && kmPerDay !== null
     ? avgDailyCost / kmPerDay
     : null;
 
-  const overdueItems = status.items.filter((i) => i.status === "Overdue");
-  const dueSoonItems = status.items.filter((i) => i.status === "Due Soon");
-  const okItems      = status.items.filter((i) => i.status === "OK");
-  const hasAlerts    = status.overdueCount > 0 || status.dueSoonCount > 0;
+  const overdueItems = effectiveStatus.items.filter((i) => i.status === "Overdue");
+  const dueSoonItems = effectiveStatus.items.filter((i) => i.status === "Due Soon");
+  const okItems      = effectiveStatus.items.filter((i) => i.status === "OK");
+  const hasAlerts    = effectiveStatus.overdueCount > 0 || effectiveStatus.dueSoonCount > 0;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Maintenance Status — ${status.registrationNumber}`}
+      title={`Maintenance Status — ${effectiveStatus.registrationNumber}`}
       className="max-w-2xl"
     >
       {/* ── Top summary cards ── */}
@@ -97,7 +115,7 @@ export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">Truck ID</p>
-              <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{status.truckId}</p>
+              <p className="text-base font-bold leading-tight text-slate-800 dark:text-slate-100">{effectiveStatus.truckId}</p>
             </div>
           </div>
 
@@ -108,20 +126,20 @@ export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">Odometer</p>
               <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-300">
-                {status.odometer.toLocaleString("en-IN")} km
+                {effectiveStatus.odometer.toLocaleString("en-IN")} km
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
               {hasAlerts ? (
                 <>
-                  {status.overdueCount > 0 && (
+                  {effectiveStatus.overdueCount > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                      <AlertTriangle className="h-3 w-3" /> {status.overdueCount} Overdue
+                      <AlertTriangle className="h-3 w-3" /> {effectiveStatus.overdueCount} Overdue
                     </span>
                   )}
-                  {status.dueSoonCount > 0 && (
+                  {effectiveStatus.dueSoonCount > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      <Clock className="h-3 w-3" /> {status.dueSoonCount} Due Soon
+                      <Clock className="h-3 w-3" /> {effectiveStatus.dueSoonCount} Due Soon
                     </span>
                   )}
                 </>
@@ -230,14 +248,14 @@ export function TruckStatusDialog({ open, onClose, status, records, tyreLayout }
       </div>
 
       {/* ── Maintenance schedule table ── */}
-      {status.items.length === 0 ? (
+      {effectiveStatus.items.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-400">
           No maintenance types configured. Visit Admin › Maintenance Alert Management to add types.
         </p>
       ) : (
         <>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-            Maintenance Schedule &nbsp;·&nbsp; {status.items.length} types
+            Maintenance Schedule &nbsp;·&nbsp; {effectiveStatus.items.length} types
           </p>
           <div className="max-h-[38vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
             <table className="w-full text-xs">

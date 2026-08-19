@@ -69,7 +69,9 @@ def get_run_config(db: Session = Depends(get_db)):
 
 
 @router.put("/run-config", response_model=list[schemas.TruckRunConfigOut])
-def save_run_config(payload: schemas.TruckRunConfigBulkSave, db: Session = Depends(get_db)):
+def save_run_config(payload: schemas.TruckRunConfigBulkSave, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role != "Admin":
+        raise HTTPException(403, "Only Admins can modify Truck Run Configuration.")
     for item in payload.configs:
         existing = db.query(models.TruckRunConfig).filter(
             models.TruckRunConfig.tyre_layout == item.tyre_layout

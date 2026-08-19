@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useMemo, Fragment, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  TrendingUp, TrendingDown, ChevronDown, ChevronUp,
-  Loader2, Search, Truck, BarChart3, ArrowRight,
-  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays,
-  SlidersHorizontal, Check, X,
+  TrendingUp, TrendingDown,
+  Loader2, BarChart3, ArrowRight,
+  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, FileDown, X,
 } from "lucide-react";
 import { plSummaryApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import logoSrc from "@/app/companylogo.png";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
 function toISO(d: Date) { return d.toISOString().slice(0, 10); }
@@ -97,7 +97,7 @@ function SortTh({ label, col, current, dir, onSort }: {
   );
 }
 
-// ── Filter helpers ─────────────────────────────────────────────────────────────
+// ── Label helpers ──────────────────────────────────────────────────────────────
 
 const LABEL_MAP: Record<string, string> = {
   "20 FT CONTAINER":        "20 FT",
@@ -118,169 +118,40 @@ const LABEL_MAP: Record<string, string> = {
 };
 function shortLabel(v: string) { return LABEL_MAP[v] ?? v; }
 
-function tog(set: Set<string>, val: string, setter: (s: Set<string>) => void) {
-  const next = new Set(set);
-  next.has(val) ? next.delete(val) : next.add(val);
-  setter(next);
-}
-
-function profitableSet(trips: EnrichedTrip[], key: (t: EnrichedTrip) => string): Set<string> {
-  const m = new Map<string, number>();
-  for (const t of trips) {
-    const k = key(t);
-    if (k) m.set(k, (m.get(k) ?? 0) + t.tripPl);
-  }
-  return new Set([...m.entries()].filter(([, v]) => v > 0).map(([k]) => k));
-}
-
-function FilterPillRow({ label, options, selected, onToggle, labelFn }: {
-  label: string;
-  options: string[];
-  selected: Set<string>;
-  onToggle: (v: string) => void;
-  labelFn?: (v: string) => string;
-}) {
-  if (options.length === 0) return null;
-  const display = labelFn ?? shortLabel;
-  return (
-    <div className="flex items-start gap-3">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-24 shrink-0 pt-1">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => {
-          const active = selected.has(opt);
-          return (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => onToggle(opt)}
-              className={`rounded-full px-3 py-0.5 text-xs font-semibold border transition-all ${
-                active
-                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                  : "border-gray-200 bg-gray-50 text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-              }`}
-            >
-              {active && <Check className="inline h-2.5 w-2.5 mr-1 -mt-0.5" />}
-              {display(opt)}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-const ADV_FILTERS = [
-  { key: "profitableTrips",     label: "Profitable Trips",     tip: "Only trips where Hire > Expenses" },
-  { key: "profitableCustomers", label: "Profitable Customers",  tip: "Only trips from customers with net +ve P&L in period" },
-  { key: "profitableCategory",  label: "Profitable Trip Type",  tip: "Only trips from trip categories with net +ve P&L" },
-  { key: "profitableCargo",     label: "Profitable Cargo",      tip: "Only trips from cargo types with net +ve P&L" },
-  { key: "profitableContainer", label: "Profitable Container",  tip: "Only trips from container types with net +ve P&L" },
-] as const;
-
 // ── Trip Profitability tab ─────────────────────────────────────────────────────
-function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
-  // ── Sort ──────────────────────────────────────────────────────────────────
-  const [search,  setSearch]  = useState("");
+function TripProfitabilityTab({ trips, mode }: { trips: EnrichedTrip[]; mode: "Manual" | "Basic" | "Advanced" }) {
   const [sortKey, setSortKey] = useState<TripSortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // ── Basic filter state (empty Set = show all) ─────────────────────────────
-  const [fCargo,     setFCargo]     = useState<Set<string>>(new Set());
-  const [fCategory,  setFCategory]  = useState<Set<string>>(new Set());
-  const [fContainer, setFContainer] = useState<Set<string>>(new Set());
-  const [fCustomer,  setFCustomer]  = useState<Set<string>>(new Set());
-  const [fTruck,     setFTruck]     = useState<Set<string>>(new Set());
-
-  // ── Advanced filter state ─────────────────────────────────────────────────
-  const [advTrips,     setAdvTrips]     = useState(false);
-  const [advCustomers, setAdvCustomers] = useState(false);
-  const [advCategory,  setAdvCategory]  = useState(false);
-  const [advCargo,     setAdvCargo]     = useState(false);
-  const [advContainer, setAdvContainer] = useState(false);
-
-  // ── Option sets (unique values present in the period) ─────────────────────
-  const cargoOpts     = useMemo(() => [...new Set(trips.map(t => t.cargoClassification).filter(Boolean))].sort(), [trips]);
-  const categoryOpts  = useMemo(() => [...new Set(trips.map(t => t.tripCategory).filter(Boolean))].sort(), [trips]);
-  const containerOpts = useMemo(() => [...new Set(trips.map(t => t.containerSpecification).filter(Boolean))].sort(), [trips]);
-  const customerOpts  = useMemo(() => [...new Set(trips.map(t => t.customerName).filter(Boolean))].sort(), [trips]);
-  const truckOpts     = useMemo(() => [...new Set(trips.map(t => t.truckId).filter(Boolean))].sort(), [trips]);
-
-  // ── Profitable-group sets (computed from ALL trips in period, not filtered) ─
-  const profCustomers  = useMemo(() => profitableSet(trips, t => t.customerName), [trips]);
-  const profCategories = useMemo(() => profitableSet(trips, t => t.tripCategory), [trips]);
-  const profCargos     = useMemo(() => profitableSet(trips, t => t.cargoClassification), [trips]);
-  const profContainers = useMemo(() => profitableSet(trips, t => t.containerSpecification), [trips]);
-
-  // ── Active filter count (for badge) ───────────────────────────────────────
-  const activeBasic = fCargo.size + fCategory.size + fContainer.size + fCustomer.size + fTruck.size;
-  const activeAdv   = [advTrips, advCustomers, advCategory, advCargo, advContainer].filter(Boolean).length;
-  const hasFilters  = activeBasic + activeAdv > 0;
-
-  function clearFilters() {
-    setFCargo(new Set()); setFCategory(new Set()); setFContainer(new Set());
-    setFCustomer(new Set()); setFTruck(new Set());
-    setAdvTrips(false); setAdvCustomers(false);
-    setAdvCategory(false); setAdvCargo(false); setAdvContainer(false);
-  }
+  // Cost-per-km map written by Running Cost Calculator, keyed by truckId (fleet ID) per mode
+  const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("canaan_rcc_cost_per_km");
+      if (raw) setCostPerKmMap(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, [mode]);
 
   function toggleSort(col: TripSortKey) {
     if (sortKey === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortKey(col); setSortDir("desc"); }
   }
 
-  // ── Filtered + sorted trips ───────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return trips
-      .filter((t) => {
-        // Text search
-        if (q && ![t.truckId, t.registrationNumber, t.tripSheetNo, t.bookingReferenceNo,
-                    t.fromLocation, t.toLocation, t.customerName]
-                   .some(f => (f || "").toLowerCase().includes(q))) return false;
-        // Basic filters (OR within dimension, AND across)
-        if (fCargo.size     && !fCargo.has(t.cargoClassification))     return false;
-        if (fCategory.size  && !fCategory.has(t.tripCategory))         return false;
-        if (fContainer.size && !fContainer.has(t.containerSpecification)) return false;
-        if (fCustomer.size  && !fCustomer.has(t.customerName))         return false;
-        if (fTruck.size     && !fTruck.has(t.truckId))                 return false;
-        // Advanced filters (all AND)
-        if (advTrips     && t.tripPl <= 0)                                    return false;
-        if (advCustomers && !profCustomers.has(t.customerName))               return false;
-        if (advCategory  && !profCategories.has(t.tripCategory))              return false;
-        if (advCargo     && !profCargos.has(t.cargoClassification))           return false;
-        if (advContainer && !profContainers.has(t.containerSpecification))    return false;
-        return true;
-      })
-      .sort((a, b) => {
-        let d = 0;
-        if (sortKey === "date")    d = a.tripSheetDate.localeCompare(b.tripSheetDate);
-        if (sortKey === "hire")    d = a.hireAmount - b.hireAmount;
-        if (sortKey === "expense") d = a.totalExpense - b.totalExpense;
-        if (sortKey === "pl")      d = a.tripPl - b.tripPl;
-        return sortDir === "asc" ? d : -d;
-      });
-  }, [trips, search, sortKey, sortDir,
-      fCargo, fCategory, fContainer, fCustomer, fTruck,
-      advTrips, advCustomers, advCategory, advCargo, advContainer,
-      profCustomers, profCategories, profCargos, profContainers]);
+  // ── Sorted trips ──────────────────────────────────────────────────────────
+  const sorted = useMemo(() => [...trips].sort((a, b) => {
+    let d = 0;
+    if (sortKey === "date")    d = a.tripSheetDate.localeCompare(b.tripSheetDate);
+    if (sortKey === "hire")    d = a.hireAmount - b.hireAmount;
+    if (sortKey === "expense") d = a.totalExpense - b.totalExpense;
+    if (sortKey === "pl")      d = a.tripPl - b.tripPl;
+    return sortDir === "asc" ? d : -d;
+  }), [trips, sortKey, sortDir]);
 
-  // ── Summary stats (always from full trip set) ─────────────────────────────
+  // ── Summary stats ─────────────────────────────────────────────────────────
   const profitable = trips.filter((t) => t.tripPl >= 0).length;
   const totalHire  = trips.reduce((s, t) => s + t.hireAmount, 0);
   const totalExp   = trips.reduce((s, t) => s + t.totalExpense, 0);
   const netPl      = trips.reduce((s, t) => s + t.tripPl, 0);
-  const fHire      = filtered.reduce((s, t) => s + t.hireAmount, 0);
-  const fExp       = filtered.reduce((s, t) => s + t.totalExpense, 0);
-  const fPl        = filtered.reduce((s, t) => s + t.tripPl, 0);
-
-  // ── Advanced filter toggle map ────────────────────────────────────────────
-  const advState: Record<string, [boolean, () => void]> = {
-    profitableTrips:     [advTrips,     () => setAdvTrips(v => !v)],
-    profitableCustomers: [advCustomers, () => setAdvCustomers(v => !v)],
-    profitableCategory:  [advCategory,  () => setAdvCategory(v => !v)],
-    profitableCargo:     [advCargo,     () => setAdvCargo(v => !v)],
-    profitableContainer: [advContainer, () => setAdvContainer(v => !v)],
-  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -297,119 +168,15 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
           color={netPl >= 0 ? "emerald" : "red"} />
       </div>
 
-      {/* Filter pills panel */}
-      {trips.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          {/* Panel header */}
-          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-gray-400" />
-              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Filters</span>
-              {hasFilters && (
-                <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
-                  {activeBasic + activeAdv}
-                </span>
-              )}
-            </div>
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
-              >
-                <X className="h-3 w-3" /> Clear all
-              </button>
-            )}
-          </div>
-
-          {/* Basic filters */}
-          <div className="px-5 py-4 space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">Basic Filters</p>
-            <FilterPillRow label="Cargo"     options={cargoOpts}     selected={fCargo}     onToggle={v => tog(fCargo, v, setFCargo)} />
-            <FilterPillRow label="Trip Type" options={categoryOpts}  selected={fCategory}  onToggle={v => tog(fCategory, v, setFCategory)} />
-            <FilterPillRow label="Container" options={containerOpts} selected={fContainer} onToggle={v => tog(fContainer, v, setFContainer)} />
-            <div className="flex items-start gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-24 shrink-0 pt-1">Customer</span>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                {customerOpts.map(opt => (
-                  <button key={opt} type="button" onClick={() => tog(fCustomer, opt, setFCustomer)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-all ${fCustomer.has(opt) ? "border-blue-500 bg-blue-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"}`}>
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 w-24 shrink-0 pt-1">Truck</span>
-              <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
-                {truckOpts.map(opt => (
-                  <button key={opt} type="button" onClick={() => tog(fTruck, opt, setFTruck)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-all ${fTruck.has(opt) ? "border-blue-500 bg-blue-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"}`}>
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Advanced filters */}
-          <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3">
-              Advanced Filters — Profitability Based
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {ADV_FILTERS.map(({ key, label, tip }) => {
-                const [active, toggle] = advState[key];
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    title={tip}
-                    onClick={toggle}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
-                      active
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                    }`}
-                  >
-                    <TrendingUp className={`h-3 w-3 ${active ? "text-white" : "text-emerald-400"}`} />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
-          <Search className="h-4 w-4 text-gray-400 shrink-0" />
-          <input
-            type="text" placeholder="Search by truck, customer, route, sheet no…"
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder-gray-400"
-          />
-          {search && <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
-          <span className="text-xs text-gray-400 shrink-0">
-            {filtered.length}{trips.length !== filtered.length ? ` / ${trips.length}` : ""} trips
-          </span>
-        </div>
-
-        {filtered.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="py-14 text-center">
-            <SlidersHorizontal className="mx-auto mb-2 h-7 w-7 text-gray-300" />
-            <p className="text-sm text-gray-400">No trips match the active filters.</p>
-            {hasFilters && (
-              <button onClick={clearFilters} className="mt-2 text-xs text-blue-500 hover:underline">
-                Clear all filters
-              </button>
-            )}
+            <p className="text-sm text-gray-400">No trips found for this period.</p>
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
-            <table className="w-full min-w-[900px] text-sm">
+            <table className="w-full min-w-[1160px] text-sm">
               <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 cursor-pointer hover:text-blue-600 select-none"
@@ -420,13 +187,15 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Truck</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Customer</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Route</th>
-                  <SortTh label="Hire"     col="hire"    current={sortKey} dir={sortDir} onSort={toggleSort} />
-                  <SortTh label="Expenses" col="expense" current={sortKey} dir={sortDir} onSort={toggleSort} />
-                  <SortTh label="Trip P&L" col="pl"      current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="Hire"           col="hire"    current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="Trip Expenses"  col="expense" current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">Gross Profit</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">Truck Expenses</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">Final Profit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((t, i) => (
+                {sorted.map((t, i) => (
                   <tr key={i} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(t.tripSheetDate)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -461,18 +230,55 @@ function TripProfitabilityTab({ trips }: { trips: EnrichedTrip[] }) {
                     </td>
                     <td className="px-4 py-3 text-right text-sm font-semibold text-blue-700">{fmt(t.hireAmount)}</td>
                     <td className="px-4 py-3 text-right text-xs text-gray-600">{fmt(t.totalExpense)}</td>
-                    <td className="px-4 py-3 text-right"><PlBadge value={t.tripPl} /></td>
+                    <td className="px-4 py-3 text-right"><PlBadge value={t.hireAmount - t.totalExpense} /></td>
+                    <td className="px-4 py-3 text-right text-xs text-gray-600">
+                      {(() => {
+                        const cpk = costPerKmMap[mode]?.[t.truckId];
+                        return (cpk != null && t.totalKm > 0) ? fmt(t.totalKm * cpk) : <span className="text-gray-400">—</span>;
+                      })()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {(() => {
+                        const cpk = costPerKmMap[mode]?.[t.truckId];
+                        const truckExp = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
+                        const grossProfit = t.hireAmount - t.totalExpense;
+                        return truckExp != null
+                          ? <PlBadge value={grossProfit - truckExp} />
+                          : <span className="text-gray-400 text-xs">—</span>;
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
                   <td colSpan={5} className="px-4 py-3 text-xs font-semibold text-gray-600">
-                    Total ({filtered.length} trips{trips.length !== filtered.length ? `, filtered from ${trips.length}` : ""})
+                    Total ({trips.length} trips)
                   </td>
-                  <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">{fmt(fHire)}</td>
-                  <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">{fmt(fExp)}</td>
-                  <td className="px-4 py-3 text-right"><PlBadge value={fPl} /></td>
+                  <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">{fmt(totalHire)}</td>
+                  <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">{fmt(totalExp)}</td>
+                  <td className="px-4 py-3 text-right"><PlBadge value={totalHire - totalExp} /></td>
+                  <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">
+                    {(() => {
+                      const total = trips.reduce((sum, t) => {
+                        const cpk = costPerKmMap[mode]?.[t.truckId];
+                        return sum + (cpk != null && t.totalKm > 0 ? t.totalKm * cpk : 0);
+                      }, 0);
+                      return total > 0 ? fmt(total) : <span className="text-gray-400">—</span>;
+                    })()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {(() => {
+                      let hasCpk = false;
+                      const total = trips.reduce((sum, t) => {
+                        const cpk = costPerKmMap[mode]?.[t.truckId];
+                        const truckExp = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
+                        if (truckExp != null) { hasCpk = true; return sum + (t.hireAmount - t.totalExpense - truckExp); }
+                        return sum;
+                      }, 0);
+                      return hasCpk ? <PlBadge value={total} /> : <span className="text-gray-400 text-xs">—</span>;
+                    })()}
+                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -688,31 +494,16 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
   );
 }
 
-// ── Truck filter constants ─────────────────────────────────────────────────────
-const ADV_TRUCK_FILTERS = [
-  { key: "netProfitable",  label: "Net Profitable",   tip: "Only trucks with Net P&L > 0 (after EMI & maintenance)" },
-  { key: "tripProfitable", label: "Trip Profitable",  tip: "Only trucks with gross Trip P&L > 0 (before overhead)" },
-  { key: "hasEmi",         label: "EMI Active",       tip: "Only trucks with an active EMI loan in this period" },
-  { key: "hasMaint",       label: "Has Maintenance",  tip: "Only trucks with maintenance records in this period" },
-  { key: "activeOnly",     label: "Active Trucks",    tip: "Only trucks that completed at least one trip" },
-] as const;
-
 // ── Truck Profitability tab ────────────────────────────────────────────────────
-function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
-  const [search, setSearch] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  // ── Basic filter state ──────────────────────────────────────────────────────
-  const [fCargo,    setFCargo]    = useState<Set<string>>(new Set());
-  const [fCategory, setFCategory] = useState<Set<string>>(new Set());
-  const [fEmi,      setFEmi]      = useState<Set<string>>(new Set()); // "With EMI" | "No EMI"
-
-  // ── Advanced filter state ───────────────────────────────────────────────────
-  const [advNetProfit,  setAdvNetProfit]  = useState(false);
-  const [advTripProfit, setAdvTripProfit] = useState(false);
-  const [advHasEmi,     setAdvHasEmi]     = useState(false);
-  const [advHasMaint,   setAdvHasMaint]   = useState(false);
-  const [advActiveOnly, setAdvActiveOnly] = useState(false);
+function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Manual" | "Basic" | "Advanced" }) {
+  // Cost-per-km map written by Running Cost Calculator, keyed by truckId (fleet ID) per mode
+  const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("canaan_rcc_cost_per_km");
+      if (raw) setCostPerKmMap(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, [mode]);
 
   const enriched = useMemo<EnrichedTruck[]>(() =>
     data.map((e) => ({
@@ -723,214 +514,38 @@ function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
     [data],
   );
 
-  // ── Option sets (derived from all trucks' tripRows) ─────────────────────────
-  const cargoOpts = useMemo(() => {
-    const vals = new Set<string>();
-    for (const e of enriched) for (const t of (e.tripRows ?? [])) if (t.cargoClassification) vals.add(t.cargoClassification);
-    return [...vals].sort();
-  }, [enriched]);
-
-  const categoryOpts = useMemo(() => {
-    const vals = new Set<string>();
-    for (const e of enriched) for (const t of (e.tripRows ?? [])) if (t.tripCategory) vals.add(t.tripCategory);
-    return [...vals].sort();
-  }, [enriched]);
-
-  // "With EMI" / "No EMI" pills — only show a label if at least one truck has it
-  const emiOpts = useMemo(() => {
-    const w = enriched.some(e => e.emiShare > 0);
-    const n = enriched.some(e => e.emiShare === 0);
-    return [...(w ? ["With EMI"] : []), ...(n ? ["No EMI"] : [])];
-  }, [enriched]);
-
-  // ── Active filter count ─────────────────────────────────────────────────────
-  const activeBasic = fCargo.size + fCategory.size + fEmi.size;
-  const activeAdv   = [advNetProfit, advTripProfit, advHasEmi, advHasMaint, advActiveOnly].filter(Boolean).length;
-  const hasFilters  = activeBasic + activeAdv > 0;
-
-  function clearFilters() {
-    setFCargo(new Set()); setFCategory(new Set()); setFEmi(new Set());
-    setAdvNetProfit(false); setAdvTripProfit(false);
-    setAdvHasEmi(false); setAdvHasMaint(false); setAdvActiveOnly(false);
-  }
-
-  // Advanced toggle map
-  const advState: Record<string, [boolean, () => void]> = {
-    netProfitable:  [advNetProfit,  () => setAdvNetProfit(v  => !v)],
-    tripProfitable: [advTripProfit, () => setAdvTripProfit(v => !v)],
-    hasEmi:         [advHasEmi,     () => setAdvHasEmi(v     => !v)],
-    hasMaint:       [advHasMaint,   () => setAdvHasMaint(v   => !v)],
-    activeOnly:     [advActiveOnly, () => setAdvActiveOnly(v => !v)],
-  };
-
-  // ── Filtered trucks ─────────────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return enriched.filter((e) => {
-      // Text search
-      if (q && !e.truckId.toLowerCase().includes(q) && !e.registrationNumber.toLowerCase().includes(q)) return false;
-
-      // Basic: Cargo — truck must have ≥1 trip in any of the selected cargo types
-      if (fCargo.size) {
-        const truckCargos = new Set((e.tripRows ?? []).map(t => t.cargoClassification).filter(Boolean));
-        if (![...fCargo].some(c => truckCargos.has(c))) return false;
-      }
-
-      // Basic: Trip Type — truck must have ≥1 trip in any of the selected categories
-      if (fCategory.size) {
-        const truckCats = new Set((e.tripRows ?? []).map(t => t.tripCategory).filter(Boolean));
-        if (![...fCategory].some(c => truckCats.has(c))) return false;
-      }
-
-      // Basic: EMI status pill
-      if (fEmi.size) {
-        const label = e.emiShare > 0 ? "With EMI" : "No EMI";
-        if (!fEmi.has(label)) return false;
-      }
-
-      // Advanced filters (AND)
-      if (advNetProfit  && e.netTruckPl          <= 0) return false;
-      if (advTripProfit && e.tripPl              <= 0) return false;
-      if (advHasEmi     && e.emiShare            <= 0) return false;
-      if (advHasMaint   && e.maintenanceExpenses <= 0) return false;
-      if (advActiveOnly && e.tripCount           === 0) return false;
-
-      return true;
-    });
-  }, [enriched, search, fCargo, fCategory, fEmi,
-      advNetProfit, advTripProfit, advHasEmi, advHasMaint, advActiveOnly]);
+  const filtered = enriched;
 
   const totals = useMemo(() => ({
-    trips: filtered.reduce((s, e) => s + e.tripCount, 0),
-    hire:  filtered.reduce((s, e) => s + e.totalHireAmount, 0),
-    tExp:  filtered.reduce((s, e) => s + e.tripExpenses, 0),
-    tPl:   filtered.reduce((s, e) => s + e.tripPl, 0),
-    emi:   filtered.reduce((s, e) => s + e.emiShare, 0),
-    maint: filtered.reduce((s, e) => s + e.maintenanceExpenses, 0),
-    net:   filtered.reduce((s, e) => s + e.netTruckPl, 0),
+    trips:   filtered.reduce((s, e) => s + e.tripCount, 0),
+    hire:    filtered.reduce((s, e) => s + e.totalHireAmount, 0),
+    tExp:    filtered.reduce((s, e) => s + e.tripExpenses, 0),
+    totalKm: filtered.reduce((s, e) => s + e.totalKm, 0),
+    tPl:     filtered.reduce((s, e) => s + e.tripPl, 0),
   }), [filtered]);
-
-  const profitable = filtered.filter((e) => e.netTruckPl >= 0).length;
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard
-          label="Active Trucks" value={String(filtered.length)}
-          sub={`${profitable} profitable`}
-          icon={<Truck className="h-4 w-4" />} color="blue" />
-        <StatCard
-          label="Total EMI Deducted" value={totals.emi > 0 ? fmt(totals.emi) : "None"}
-          sub={totals.emi > 0 ? "Active loans in period" : "No EMI active"}
-          icon={<Landmark className="h-4 w-4" />} color="purple" />
-        <StatCard
-          label="Total Maintenance" value={fmt(totals.maint)}
-          sub={`Across ${filtered.length} trucks`}
-          icon={<Wrench className="h-4 w-4" />} color="amber" />
-        <StatCard
-          label="Net Fleet P&L" value={fmt(totals.net)}
-          sub={totals.net >= 0 ? "Fleet is profitable" : "Fleet is at loss"}
-          icon={totals.net >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-          color={totals.net >= 0 ? "emerald" : "red"} />
-      </div>
-
-      {/* Filter pills panel */}
-      {enriched.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          {/* Panel header */}
-          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-gray-400" />
-              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Filters</span>
-              {hasFilters && (
-                <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white leading-none">
-                  {activeBasic + activeAdv}
-                </span>
-              )}
-            </div>
-            {hasFilters && (
-              <button type="button" onClick={clearFilters}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors">
-                <X className="h-3 w-3" /> Clear all
-              </button>
-            )}
-          </div>
-
-          {/* Basic filters */}
-          <div className="px-5 py-4 space-y-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">Basic Filters</p>
-            <FilterPillRow label="Cargo"     options={cargoOpts}    selected={fCargo}    onToggle={v => tog(fCargo, v, setFCargo)} />
-            <FilterPillRow label="Trip Type" options={categoryOpts} selected={fCategory} onToggle={v => tog(fCategory, v, setFCategory)} />
-            <FilterPillRow label="EMI"       options={emiOpts}      selected={fEmi}      onToggle={v => tog(fEmi, v, setFEmi)} labelFn={v => v} />
-          </div>
-
-          {/* Advanced filters */}
-          <div className="border-t border-gray-100 bg-gray-50/40 px-5 py-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-3">
-              Advanced Filters — Profitability Based
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {ADV_TRUCK_FILTERS.map(({ key, label, tip }) => {
-                const [active, toggle] = advState[key];
-                return (
-                  <button
-                    key={key} type="button" title={tip} onClick={toggle}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
-                      active
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                    }`}
-                  >
-                    <TrendingUp className={`h-3 w-3 ${active ? "text-white" : "text-emerald-400"}`} />
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
-          <Search className="h-4 w-4 text-gray-400 shrink-0" />
-          <input
-            type="text" placeholder="Search by truck ID or registration…"
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder-gray-400"
-          />
-          {search && <button onClick={() => setSearch("")} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>}
-          <span className="text-xs text-gray-400 shrink-0">
-            {filtered.length}{enriched.length !== filtered.length ? ` / ${enriched.length}` : ""} trucks
-          </span>
-        </div>
-
         {filtered.length === 0 ? (
           <div className="py-14 text-center">
-            <SlidersHorizontal className="mx-auto mb-2 h-7 w-7 text-gray-300" />
-            <p className="text-sm text-gray-400">No trucks match the active filters.</p>
-            {hasFilters && (
-              <button onClick={clearFilters} className="mt-2 text-xs text-blue-500 hover:underline">
-                Clear all filters
-              </button>
-            )}
+            <p className="text-sm text-gray-400">No trucks found for this period.</p>
           </div>
         ) : (
           <div className="overflow-auto">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className="w-full min-w-[1020px] text-sm">
               <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {["Truck", "Trips", "Hire Revenue", "Trip Expenses", "Gross Trip P&L", "− EMI", "− Maintenance", "Net Truck P&L", ""].map((h, i) => (
+                  {["Truck", "No of Trips", "Total KM Covered", "Total Hire Amount", "Total Trip Expenses", "Total Gross Profit", "Total Truck Expenses", "Final Profit"].map((h, i) => (
                     <th key={i} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((entry) => (
-                  <Fragment key={entry.truckId}>
-                    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={entry.truckId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <p className="font-semibold text-gray-900">{entry.truckId}</p>
                         <p className="text-xs text-gray-400">{entry.registrationNumber}</p>
@@ -940,44 +555,31 @@ function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
                           {entry.tripCount}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-gray-700 font-medium tabular-nums">
+                        {entry.totalKm > 0 ? `${entry.totalKm.toLocaleString("en-IN")} km` : <span className="text-gray-400">—</span>}
+                      </td>
                       <td className="px-4 py-3 font-semibold text-blue-700">{fmt(entry.totalHireAmount)}</td>
                       <td className="px-4 py-3 text-gray-600">{fmt(entry.tripExpenses)}</td>
                       <td className="px-4 py-3"><PlBadge value={entry.tripPl} /></td>
                       <td className="px-4 py-3">
-                        {entry.emiShare > 0
-                          ? <span className="font-medium text-purple-700">− {fmt(entry.emiShare)}</span>
-                          : <span className="text-xs text-gray-400">—</span>}
+                        {(() => {
+                          const cpk = costPerKmMap[mode]?.[entry.truckId];
+                          return (cpk != null && entry.totalKm > 0)
+                            ? <span className="text-gray-700 font-medium">{fmt(entry.totalKm * cpk)}</span>
+                            : <span className="text-gray-400">—</span>;
+                        })()}
                       </td>
                       <td className="px-4 py-3">
-                        {entry.maintenanceExpenses > 0
-                          ? <span className="font-medium text-orange-700">− {fmt(entry.maintenanceExpenses)}</span>
-                          : <span className="text-xs text-gray-400">—</span>}
+                        {(() => {
+                          const cpk = costPerKmMap[mode]?.[entry.truckId];
+                          const truckExp = (cpk != null && entry.totalKm > 0) ? entry.totalKm * cpk : null;
+                          const grossProfit = entry.totalHireAmount - entry.tripExpenses;
+                          return truckExp != null
+                            ? <PlBadge value={grossProfit - truckExp} />
+                            : <span className="text-gray-400 text-xs">—</span>;
+                        })()}
                       </td>
-                      <td className="px-4 py-3"><PlBadge value={entry.netTruckPl} /></td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={() => setOpenId(openId === entry.truckId ? null : entry.truckId)}
-                          className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                            openId === entry.truckId
-                              ? "border-blue-300 bg-blue-50 text-blue-700"
-                              : "border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600"
-                          }`}
-                        >
-                          {openId === entry.truckId
-                            ? <><ChevronUp className="h-3.5 w-3.5" /> Hide</>
-                            : <><ChevronDown className="h-3.5 w-3.5" /> Details</>}
-                        </button>
-                      </td>
-                    </tr>
-                    {openId === entry.truckId && (
-                      <tr>
-                        <td colSpan={9} className="border-b border-gray-200 p-0">
-                          <TruckDetailPanel entry={entry} netTruckPl={entry.netTruckPl} />
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                  </tr>
                 ))}
               </tbody>
               <tfoot>
@@ -985,17 +587,39 @@ function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
                   <td className="px-4 py-3 text-gray-700">
                     Fleet Total
                     <span className="ml-1.5 text-xs font-normal text-gray-400">
-                      ({filtered.length}{enriched.length !== filtered.length ? ` / ${enriched.length}` : ""} trucks)
+                      ({enriched.length} trucks)
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center text-blue-700">{totals.trips}</td>
+                  <td className="px-4 py-3 text-gray-700 tabular-nums">
+                    {totals.totalKm > 0 ? `${totals.totalKm.toLocaleString("en-IN")} km` : "—"}
+                  </td>
                   <td className="px-4 py-3 text-blue-700">{fmt(totals.hire)}</td>
                   <td className="px-4 py-3 text-gray-700">{fmt(totals.tExp)}</td>
                   <td className="px-4 py-3"><PlBadge value={totals.tPl} /></td>
-                  <td className="px-4 py-3 text-purple-700">{totals.emi > 0 ? `− ${fmt(totals.emi)}` : "—"}</td>
-                  <td className="px-4 py-3 text-orange-700">{totals.maint > 0 ? `− ${fmt(totals.maint)}` : "—"}</td>
-                  <td className="px-4 py-3"><PlBadge value={totals.net} /></td>
-                  <td />
+                  <td className="px-4 py-3">
+                    {(() => {
+                      let hasCpk = false;
+                      const total = filtered.reduce((sum, e) => {
+                        const cpk = costPerKmMap[mode]?.[e.truckId];
+                        if (cpk != null && e.totalKm > 0) { hasCpk = true; return sum + e.totalKm * cpk; }
+                        return sum;
+                      }, 0);
+                      return hasCpk ? <span className="font-semibold text-gray-700">{fmt(total)}</span> : <span className="text-gray-400">—</span>;
+                    })()}
+                  </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      let hasCpk = false;
+                      const total = filtered.reduce((sum, e) => {
+                        const cpk = costPerKmMap[mode]?.[e.truckId];
+                        const truckExp = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
+                        if (truckExp != null) { hasCpk = true; return sum + (e.totalHireAmount - e.tripExpenses - truckExp); }
+                        return sum;
+                      }, 0);
+                      return hasCpk ? <PlBadge value={total} /> : <span className="text-gray-400 text-xs">—</span>;
+                    })()}
+                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -1004,7 +628,7 @@ function TruckProfitabilityTab({ data }: { data: TruckPLEntry[] }) {
       </div>
 
       <p className="text-[11px] text-gray-400 italic">
-        Net Truck P&L = Gross Trip P&L (Hire − Trip Expenses) − EMI Share for Period − Maintenance Expenses in Period.
+        Total Gross Profit = Total Hire Amount − Total Trip Expenses. Final Profit = Total Gross Profit − Total Truck Expenses.
       </p>
     </div>
   );
@@ -1020,24 +644,138 @@ export default function PLSummaryPage() {
   const [loading, setLoading]                = useState(false);
   const [error, setError]                    = useState<string | null>(null);
   const [tab, setTab]                        = useState<Tab>("trips");
+  const [mode, setMode]                      = useState<"Manual" | "Basic" | "Advanced">("Manual");
+  const [showPreview, setShowPreview]        = useState(false);
+  const [previewCostMap, setPreviewCostMap]  = useState<Record<string, Record<string, number | null>>>({});
 
   useEffect(() => { fetchData(); }, []); // auto-load current month on mount
+
+  function openPreview() {
+    if (!data) return;
+    let costMap: Record<string, Record<string, number | null>> = {};
+    try { const raw = localStorage.getItem("canaan_rcc_cost_per_km"); if (raw) costMap = JSON.parse(raw); } catch { /* ignore */ }
+    setPreviewCostMap(costMap);
+    setShowPreview(true);
+  }
+
+  function printReport() {
+    if (!data) return;
+    const isTrips = tab === "trips";
+    const period  = `${fmtDate(startDate)} to ${fmtDate(endDate)}`;
+    const logoUrl = `${window.location.origin}${logoSrc.src}`;
+
+    let bodyHtml = "";
+    if (isTrips) {
+      const rows = allTrips.map((t) => {
+        const cpk = previewCostMap[mode]?.[t.truckId];
+        const gp = t.hireAmount - t.totalExpense;
+        const te = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
+        const fp = te != null ? gp - te : null;
+        return `<tr>
+          <td>${fmtDate(t.tripSheetDate)}</td>
+          <td>${t.tripSheetNo || "—"}</td>
+          <td>${t.truckId}</td>
+          <td>${t.customerName || "—"}</td>
+          <td>${t.fromLocation && t.toLocation ? `${t.fromLocation} → ${t.toLocation}` : "—"}</td>
+          <td class="num">${fmt(t.hireAmount)}</td>
+          <td class="num">${fmt(t.totalExpense)}</td>
+          <td class="num ${gp >= 0 ? "pos" : "neg"}">${gp >= 0 ? "+" : "−"}${fmt(gp)}</td>
+          <td class="num">${te != null ? fmt(te) : "—"}</td>
+          <td class="num ${fp != null ? (fp >= 0 ? "pos" : "neg") : ""}">${fp != null ? `${fp >= 0 ? "+" : "−"}${fmt(fp)}` : "—"}</td>
+        </tr>`;
+      }).join("");
+      bodyHtml = `<table><thead><tr>
+        <th>Date</th><th>Sheet No</th><th>Truck</th><th>Customer</th><th>Route</th>
+        <th class="num">Hire</th><th class="num">Trip Expenses</th><th class="num">Gross Profit</th>
+        <th class="num">Truck Expenses</th><th class="num">Final Profit</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+    } else {
+      const rows = data.map((e) => {
+        const cpk = previewCostMap[mode]?.[e.truckId];
+        const gp = e.totalHireAmount - e.tripExpenses;
+        const te = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
+        const fp = te != null ? gp - te : null;
+        return `<tr>
+          <td>${e.truckId}<br><small>${e.registrationNumber}</small></td>
+          <td class="num">${e.tripCount}</td>
+          <td class="num">${e.totalKm > 0 ? `${e.totalKm.toLocaleString("en-IN")} km` : "—"}</td>
+          <td class="num">${fmt(e.totalHireAmount)}</td>
+          <td class="num">${fmt(e.tripExpenses)}</td>
+          <td class="num ${gp >= 0 ? "pos" : "neg"}">${gp >= 0 ? "+" : "−"}${fmt(gp)}</td>
+          <td class="num">${te != null ? fmt(te) : "—"}</td>
+          <td class="num ${fp != null ? (fp >= 0 ? "pos" : "neg") : ""}">${fp != null ? `${fp >= 0 ? "+" : "−"}${fmt(fp)}` : "—"}</td>
+        </tr>`;
+      }).join("");
+      bodyHtml = `<table><thead><tr>
+        <th>Truck</th><th class="num">No of Trips</th><th class="num">Total KM</th>
+        <th class="num">Total Hire Amount</th><th class="num">Total Trip Expenses</th>
+        <th class="num">Total Gross Profit</th><th class="num">Total Truck Expenses</th>
+        <th class="num">Final Profit</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+<title>${isTrips ? "Trip" : "Truck"} Profitability — ${period}</title>
+<style>
+  @page{size:A4 landscape;margin:15mm}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a}
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;border-bottom:2px solid #2563eb;padding-bottom:12px}
+  .logo{height:52px;width:auto;object-fit:contain}
+  .rt{font-size:13px;font-weight:600;color:#374151;margin-top:4px}
+  .per{font-size:10px;color:#6b7280;margin-top:3px}
+  .badge{font-size:10px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;padding:2px 8px}
+  table{width:100%;border-collapse:collapse}
+  th{background:#f1f5f9;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#475569;padding:7px 8px;border-bottom:1px solid #e2e8f0;text-align:left}
+  td{padding:6px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tr:nth-child(even) td{background:#fafafa}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .pos{color:#059669;font-weight:600}
+  .neg{color:#dc2626;font-weight:600}
+  .foot{margin-top:14px;font-size:9px;color:#9ca3af}
+  small{font-size:9px;color:#9ca3af}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<div class="hdr">
+  <div style="display:flex;align-items:center;gap:14px">
+    <img src="${logoUrl}" class="logo" alt="Canaan ERP" />
+    <div>
+      <div class="rt">${isTrips ? "Trip Profitability Report" : "Truck Profitability Report"}</div>
+      <div class="per">Period: ${period}</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <span class="badge">Mode: ${mode}</span>
+    <div class="per" style="margin-top:6px">Generated: ${new Date().toLocaleDateString("en-IN")}</div>
+  </div>
+</div>
+${bodyHtml}
+<div class="foot">Gross Profit = Hire − Trip Expenses &nbsp;|&nbsp; Final Profit = Gross Profit − Truck Expenses &nbsp;|&nbsp; Truck Expenses = Total KM × Cost/KM (${mode} mode)</div>
+</body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 400);
+  }
 
   function applyPreset(p: (typeof PRESETS)[number]) {
     const { start, end } = p.fn();
     setStartDate(start);
     setEndDate(end);
     setActivePreset(p.label);
+    fetchData(start, end); // pass dates directly — state hasn't updated yet
   }
 
-  async function fetchData() {
-    if (!startDate || !endDate) return;
+  async function fetchData(overrideStart?: string, overrideEnd?: string) {
+    const s = overrideStart ?? startDate;
+    const e = overrideEnd   ?? endDate;
+    if (!s || !e) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await plSummaryApi.get(startDate, endDate));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load data");
+      setData(await plSummaryApi.get(s, e));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -1056,8 +794,6 @@ export default function PLSummaryPage() {
     );
   }, [data]);
 
-  const periodLabel = startDate && endDate ? `${fmtDate(startDate)} → ${fmtDate(endDate)}` : "";
-
   return (
     <div className="animate-stagger flex flex-col gap-6">
 
@@ -1073,9 +809,13 @@ export default function PLSummaryPage() {
           </p>
         </div>
         {data && (
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-            {periodLabel}
-          </span>
+          <button
+            type="button" onClick={openPreview}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <FileDown className="h-4 w-4" />
+            Generate Report
+          </button>
         )}
       </div>
 
@@ -1100,26 +840,22 @@ export default function PLSummaryPage() {
             <label className="text-xs font-medium text-gray-500">From</label>
             <DatePickerInput
               value={startDate}
-              onChange={(v) => { setStartDate(v); setActivePreset(""); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+              onChange={(v) => { setStartDate(v); setActivePreset(""); if (v && endDate) fetchData(v, endDate); }}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-500">To</label>
             <DatePickerInput
               value={endDate}
-              onChange={(v) => { setEndDate(v); setActivePreset(""); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-400 focus:outline-none"
+              onChange={(v) => { setEndDate(v); setActivePreset(""); if (startDate && v) fetchData(startDate, v); }}
             />
           </div>
-          <button
-            type="button" onClick={fetchData}
-            disabled={loading || !startDate || !endDate}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
-            {loading ? "Loading…" : "Generate Report"}
-          </button>
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 pb-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading…
+            </div>
+          )}
         </div>
       </div>
 
@@ -1151,40 +887,208 @@ export default function PLSummaryPage() {
             </div>
           </div>
 
-          {/* Tab bar */}
-          <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 w-fit">
-            {([
-              { key: "trips"  as Tab, label: "Trip Profitability",  count: allTrips.length },
-              { key: "trucks" as Tab, label: "Truck Profitability", count: data.length },
-            ]).map(({ key, label, count }) => (
-              <button
-                key={key} type="button" onClick={() => setTab(key)}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                  tab === key ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {label}
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                  tab === key ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-500"
-                }`}>{count}</span>
-              </button>
-            ))}
+          {/* Tab bar + Mode selector row */}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            {/* Tab bar */}
+            <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 w-fit">
+              {([
+                { key: "trips"  as Tab, label: "Trip Profitability",  count: allTrips.length },
+                { key: "trucks" as Tab, label: "Truck Profitability", count: data.length },
+              ]).map(({ key, label, count }) => (
+                <button
+                  key={key} type="button" onClick={() => setTab(key)}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                    tab === key ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {label}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                    tab === key ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-500"
+                  }`}>{count}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Mode selector */}
+            <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {(["Manual", "Basic", "Advanced"] as const).map((m) => (
+                <button
+                  key={m} type="button" onClick={() => setMode(m)}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                    mode === m ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {tab === "trips"  && <TripProfitabilityTab trips={allTrips} />}
-          {tab === "trucks" && <TruckProfitabilityTab data={data} />}
+          {tab === "trips"  && <TripProfitabilityTab trips={allTrips} mode={mode} />}
+          {tab === "trucks" && <TruckProfitabilityTab data={data} mode={mode} />}
         </>
       )}
 
       {data === null && !loading && (
         <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-14 text-center">
           <BarChart3 className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-          <p className="text-sm font-semibold text-gray-500">Select a period and click Generate Report</p>
+          <p className="text-sm font-semibold text-gray-500">Select a period to load profitability data</p>
           <p className="mt-2 text-xs text-gray-400 max-w-sm mx-auto leading-relaxed">
-            Trip P&L = Hire Income − Trip Expenses
+            Gross Profit = Hire − Trip Expenses
             <br />
-            Truck P&L = Trip P&L − EMI (if active) − Maintenance
+            Final Profit = Gross Profit − Truck Expenses
           </p>
+        </div>
+      )}
+
+      {/* ── Report Preview Modal ───────────────────────────────────────────────── */}
+      {showPreview && data && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Report Preview</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {tab === "trips" ? "Trip Profitability" : "Truck Profitability"} · {fmtDate(startDate)} to {fmtDate(endDate)} · Mode: {mode}
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowPreview(false)}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Preview content */}
+            <div className="flex-1 overflow-auto px-6 py-5">
+
+              {/* Report header block */}
+              <div className="flex items-start justify-between border-b-2 border-blue-600 pb-4 mb-5">
+                <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logoSrc.src} alt="Canaan ERP" className="h-14 w-auto object-contain" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {tab === "trips" ? "Trip Profitability Report" : "Truck Profitability Report"}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Period: {fmtDate(startDate)} to {fmtDate(endDate)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded px-2.5 py-1">
+                    Mode: {mode}
+                  </span>
+                  <p className="text-xs text-gray-400 mt-1.5">Generated: {new Date().toLocaleDateString("en-IN")}</p>
+                </div>
+              </div>
+
+              {/* Preview table */}
+              {tab === "trips" ? (
+                <div className="overflow-auto">
+                  <table className="w-full min-w-[900px] text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        {["Date","Sheet No","Truck","Customer","Route","Hire","Trip Expenses","Gross Profit","Truck Expenses","Final Profit"].map((h) => (
+                          <th key={h} className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 text-[10px] whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allTrips.map((t, i) => {
+                        const cpk = previewCostMap[mode]?.[t.truckId];
+                        const gp = t.hireAmount - t.totalExpense;
+                        const te = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
+                        const fp = te != null ? gp - te : null;
+                        return (
+                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/60"}>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(t.tripSheetDate)}</td>
+                            <td className="px-3 py-2 text-gray-700">{t.tripSheetNo || "—"}</td>
+                            <td className="px-3 py-2 font-medium text-gray-800">{t.truckId}</td>
+                            <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{t.customerName || "—"}</td>
+                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                              {t.fromLocation && t.toLocation ? `${t.fromLocation} → ${t.toLocation}` : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{fmt(t.hireAmount)}</td>
+                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{fmt(t.totalExpense)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              <span className={gp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>
+                                {gp >= 0 ? "+" : "−"}{fmt(gp)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{te != null ? fmt(te) : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {fp != null
+                                ? <span className={fp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>{fp >= 0 ? "+" : "−"}{fmt(fp)}</span>
+                                : <span className="text-gray-300">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="overflow-auto">
+                  <table className="w-full min-w-[820px] text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        {["Truck","No of Trips","Total KM","Total Hire Amount","Total Trip Expenses","Total Gross Profit","Total Truck Expenses","Final Profit"].map((h) => (
+                          <th key={h} className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 text-[10px] whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.map((e, i) => {
+                        const cpk = previewCostMap[mode]?.[e.truckId];
+                        const gp = e.totalHireAmount - e.tripExpenses;
+                        const te = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
+                        const fp = te != null ? gp - te : null;
+                        return (
+                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/60"}>
+                            <td className="px-3 py-2">
+                              <p className="font-semibold text-gray-800">{e.truckId}</p>
+                              <p className="text-[10px] text-gray-400">{e.registrationNumber}</p>
+                            </td>
+                            <td className="px-3 py-2 text-center font-semibold text-blue-700">{e.tripCount}</td>
+                            <td className="px-3 py-2 text-gray-600 tabular-nums">{e.totalKm > 0 ? `${e.totalKm.toLocaleString("en-IN")} km` : "—"}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{fmt(e.totalHireAmount)}</td>
+                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{fmt(e.tripExpenses)}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              <span className={gp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>{gp >= 0 ? "+" : "−"}{fmt(gp)}</span>
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{te != null ? fmt(te) : <span className="text-gray-300">—</span>}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {fp != null
+                                ? <span className={fp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>{fp >= 0 ? "+" : "−"}{fmt(fp)}</span>
+                                : <span className="text-gray-300">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <p className="mt-4 text-[10px] text-gray-400 italic">
+                Gross Profit = Hire − Trip Expenses · Final Profit = Gross Profit − Truck Expenses · Truck Expenses = Total KM × Cost/KM ({mode} mode)
+              </p>
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
+              <button type="button" onClick={() => setShowPreview(false)}
+                className="rounded-lg border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={printReport}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">
+                <FileDown className="h-4 w-4" />
+                Generate PDF
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

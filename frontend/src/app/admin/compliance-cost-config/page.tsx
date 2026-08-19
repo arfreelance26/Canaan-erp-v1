@@ -5,6 +5,7 @@ import { trucksApi, complianceCostApi, type ComplianceCostItem } from "@/lib/api
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ShieldCheck, LayoutGrid, CheckCircle2, IndianRupee } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 type CostFields = Omit<ComplianceCostItem, "tyre_layout">;
 
@@ -38,6 +39,7 @@ function fmtInr(n: number, decimals = 2): string {
 }
 
 export default function ComplianceCostConfigPage() {
+  const { user } = useAuth();
   const [layouts,   setLayouts]   = useState<string[]>([]);
   const [costs,     setCosts]     = useState<Record<string, CostFields>>({});
   const [kmPerDay,  setKmPerDay]  = useState<Record<string, number | null>>({});
@@ -99,10 +101,11 @@ export default function ComplianceCostConfigPage() {
     setSaving(false);
   }
 
+  if (user && user.softwareDesignation !== "Admin") return null;
   if (loading) return <PageSkeleton hasButton={false} hasSearch={false} columns={1} />;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

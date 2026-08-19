@@ -25,8 +25,9 @@ export default function RepairsManagementPage() {
   const [form, setForm] = useState({ name: "", defaultCost: "" });
   const [searchQuery, setSearchQuery] = useState("");
 
+  const ALLOWED = ["Admin", "Commercial Manager", "Yard Supervisor"];
   useEffect(() => {
-    if (ready && user?.softwareDesignation !== "Admin") router.replace("/");
+    if (ready && user && !ALLOWED.includes(user.softwareDesignation)) router.replace("/");
   }, [ready, user, router]);
 
   useEffect(() => {
@@ -78,7 +79,7 @@ export default function RepairsManagementPage() {
     }
   }
 
-  if (!ready || user?.softwareDesignation !== "Admin") return null;
+  if (!ready || !user || !ALLOWED.includes(user.softwareDesignation)) return null;
   if (loading) return <PageSkeleton hasButton hasSearch columns={3} />;
 
   const filteredRepairs = repairs.filter((rt) => !searchQuery || rt.name.toLowerCase().includes(searchQuery.toLowerCase()));

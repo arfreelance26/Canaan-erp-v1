@@ -176,7 +176,7 @@ function TruckComplianceDialog({ truck, onClose }: { truck: Truck; onClose: () =
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[92vh]">
@@ -209,12 +209,12 @@ function TruckComplianceDialog({ truck, onClose }: { truck: Truck; onClose: () =
           {(["Valid", "Expiring Soon", "Expired"] as const).map((s) => (
             <div key={s} className="flex flex-col items-center py-3">
               <span className={cn(
-                "text-2xl font-black tabular-nums",
+                "text-2xl font-bold tabular-nums",
                 s === "Valid" ? "text-green-600" : s === "Expiring Soon" ? "text-amber-500" : "text-red-500"
               )}>
                 {counts[s]}
               </span>
-              <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">{s}</span>
+              <span className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-gray-400">{s}</span>
             </div>
           ))}
         </div>
@@ -242,11 +242,11 @@ function TruckComplianceDialog({ truck, onClose }: { truck: Truck; onClose: () =
                     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", doc.iconBg)}>
                       <Icon className={cn("h-4 w-4", doc.iconText)} />
                     </div>
-                    <span className="flex-1 text-xs font-bold uppercase tracking-wider text-gray-500">
+                    <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {doc.label}
                     </span>
                     <span className={cn(
-                      "shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ring-1",
+                      "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1",
                       STATUS_PILL[status]
                     )}>
                       {status}
@@ -255,10 +255,10 @@ function TruckComplianceDialog({ truck, onClose }: { truck: Truck; onClose: () =
 
                   {/* Expiry date */}
                   <div>
-                    <p className="text-xl font-black tabular-nums text-gray-900">
+                    <p className="text-lg font-semibold tabular-nums text-gray-900">
                       {date ? formatDate(date) : "—"}
                     </p>
-                    <p className={cn("mt-0.5 text-xs font-semibold", days === null ? "text-gray-400" : STATUS_DAYS[status])}>
+                    <p className={cn("mt-0.5 text-xs font-medium", days === null ? "text-gray-400" : STATUS_DAYS[status])}>
                       {daysLabel(days)}
                     </p>
                   </div>

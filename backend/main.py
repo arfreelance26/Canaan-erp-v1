@@ -24,7 +24,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, operating_costs, settings
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, compliance_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config
 
 Base.metadata.create_all(bind=engine)
 
@@ -129,6 +129,9 @@ def _run_schema_migrations():
         # Delete request workflow — add Trip to resource_type enum + admin_note column
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip') NOT NULL",
         "ALTER TABLE edit_approval_requests ADD COLUMN admin_note TEXT NULL",
+        # Fuel log edit requests — add FuelLog resource type + proposed_changes JSON column
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip','FuelLog') NOT NULL",
+        "ALTER TABLE edit_approval_requests ADD COLUMN proposed_changes JSON NULL",
         # Approximate KM entered by Commercial Manager at assignment (used for ±10% variance check in trip sheet)
         "ALTER TABLE trips ADD COLUMN approx_km DECIMAL(10,2) NULL",
         # Lift-on amount and remarks (0 for COASTAL, manual for SHIFTING/EMPTY/OPEN, rate-table for others)
@@ -224,6 +227,19 @@ def _run_schema_migrations():
         # Trip sheet — individual driver advance breakdown (base + additional), separate from the computed total
         "ALTER TABLE trip_sheets ADD COLUMN driver_advance DECIMAL(10,2) NULL",
         "ALTER TABLE trip_sheets ADD COLUMN additional_driver_advance DECIMAL(10,2) NULL",
+        # maintenance_records — who entered / source of entry (Web / App)
+        "ALTER TABLE maintenance_records ADD COLUMN entered_by_name VARCHAR(100) NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN source VARCHAR(200) NULL",
+        # deletion_approval_requests — expand resource_type to include MaintenanceRecord
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord') NOT NULL",
+
+        # tyre_range_configs — base cost per tyre type and derived cost per km
+        "ALTER TABLE tyre_range_configs ADD COLUMN base_tyre_cost DECIMAL(12,2) NULL",
+        "ALTER TABLE tyre_range_configs ADD COLUMN base_cost_per_km DECIMAL(10,4) NULL",
+        # trips — invoice waiver flag (verified trips where invoicing is intentionally skipped)
+        "ALTER TABLE trips ADD COLUMN invoice_waived TINYINT(1) NOT NULL DEFAULT 0",
+        # tyre_inventory — repair_cost field removed from UI and schema
+        "ALTER TABLE tyre_inventory DROP COLUMN repair_cost",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -587,8 +603,13 @@ app.include_router(edit_approvals.router, dependencies=AUTH)
 app.include_router(notifications.router, dependencies=AUTH)
 app.include_router(trip_expense_rates.router, dependencies=AUTH)
 app.include_router(backup.router, dependencies=AUTH)
-app.include_router(operating_costs.router, dependencies=AUTH)
 app.include_router(settings.router, dependencies=AUTH)
+app.include_router(running_cost.router, dependencies=AUTH)
+app.include_router(maintenance_types.router, dependencies=AUTH)
+app.include_router(compliance_cost.router, dependencies=AUTH)
+app.include_router(tyre_range_config.router, dependencies=AUTH)
+app.include_router(tyre_layout_type_config.router, dependencies=AUTH)
+app.include_router(deletion_approvals.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

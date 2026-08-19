@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ProfileModal } from "./ProfileModal";
 import { DisplaySettings } from "./DisplaySettings";
 import { NetworkStatus } from "./NetworkStatus";
-import { attendanceApi, editApprovalsApi } from "@/lib/api";
+import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate } from "@/lib/format-date";
@@ -18,7 +18,7 @@ import { useNotifications } from "@/context/NotificationContext";
 // import { useChat } from "@/context/ChatContext"; // Next phase
 import { showToast } from "@/lib/swal";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 // Trip pages whose local search is driven by the Topbar global search
 const SEARCHABLE_TRIP_PATHS = new Set([
@@ -105,6 +105,14 @@ type EditApprovalNotif = {
   notifiedAt: string;
 };
 
+type DeletionRequestNotif = {
+  id: number;
+  requestedByName: string;
+  resourceType: string;
+  resourceName: string;
+  createdAt: string;
+};
+
 export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const pathname = usePathname();
   const router   = useRouter();
@@ -132,13 +140,16 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen]             = useState(false);
   const [leaveRequests, setLeaveRequests]         = useState<LeaveRequest[]>([]);
-  const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);   // Admin
-  const [editApprovalNotifs, setEditApprovalNotifs] = useState<EditApprovalNotif[]>([]); // Staff
+  const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);       // Admin
+  const [editApprovalNotifs, setEditApprovalNotifs] = useState<EditApprovalNotif[]>([]);    // Staff
+  const [deletionRequestNotifs, setDeletionRequestNotifs] = useState<DeletionRequestNotif[]>([]); // Admin
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
-  const shownEditReqIds = useRef(new Set<number>());
-  const editReqFirstLoad = useRef(true);
+  const shownEditReqIds     = useRef(new Set<number>());
+  const shownDeletionReqIds = useRef(new Set<number>());
+  const editReqFirstLoad     = useRef(true);
+  const deletionReqFirstLoad = useRef(true);
 
   function getInitials(name: string) {
     return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
@@ -174,15 +185,49 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     }).catch(() => {});
   }, [isAdmin, isFleetManager]);
 
+  const loadDeletionRequests = useCallback(() => {
+    if (!isAdmin) return;
+    deletionApprovalsApi.list("Pending").then((reqs) => {
+      const updated: DeletionRequestNotif[] = reqs.map((r) => ({
+        id: r.id,
+        requestedByName: r.requestedByName,
+        resourceType: r.resourceType,
+        resourceName: r.resourceName,
+        createdAt: r.createdAt ?? new Date().toISOString(),
+      }));
+      if (deletionReqFirstLoad.current) {
+        for (const r of updated) shownDeletionReqIds.current.add(r.id);
+        deletionReqFirstLoad.current = false;
+      } else {
+        for (const req of updated) {
+          if (!shownDeletionReqIds.current.has(req.id)) {
+            shownDeletionReqIds.current.add(req.id);
+            showToast(
+              `${req.requestedByName} is requesting deletion of "${req.resourceName}"`,
+              "warning",
+              "New Deletion Request",
+            );
+          }
+        }
+      }
+      setDeletionRequestNotifs(updated);
+    }).catch(() => {});
+  }, [isAdmin]);
+
   useEffect(() => {
     if (!isAdmin && !isFleetManager) return;
     if (isAdmin) {
       attendanceApi.listLeaveRequests("Pending").then(setLeaveRequests).catch(() => {});
+      loadDeletionRequests();
+      const delId = setInterval(loadDeletionRequests, 5000);
+      loadEditRequests();
+      const editId = setInterval(loadEditRequests, 5000);
+      return () => { clearInterval(delId); clearInterval(editId); };
     }
     loadEditRequests();
     const id = setInterval(loadEditRequests, 5000);
     return () => clearInterval(id);
-  }, [isAdmin, isFleetManager, loadEditRequests]);
+  }, [isAdmin, isFleetManager, loadEditRequests, loadDeletionRequests]);
 
   // New leave request submitted by any staff — add immediately
   useWebSocketEvent("leave_request_created", (payload) => {
@@ -252,6 +297,33 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
       approxKm: String(payload.approx_km ?? ""),
       kmRemark: String(payload.km_remark ?? ""),
     });
+  });
+
+  // Staff submitted a deletion request — Admin gets notified
+  useWebSocketEvent("deletion_approval_created", (payload) => {
+    if (!isAdmin) return;
+    const reqId = Number(payload.id);
+    if (shownDeletionReqIds.current.has(reqId)) return;
+    shownDeletionReqIds.current.add(reqId);
+    const notif: DeletionRequestNotif = {
+      id: reqId,
+      requestedByName: String(payload.requested_by_name ?? ""),
+      resourceType: String(payload.resource_type ?? ""),
+      resourceName: String(payload.resource_name ?? ""),
+      createdAt: new Date().toISOString(),
+    };
+    setDeletionRequestNotifs((prev) => [notif, ...prev]);
+    showToast(
+      `${notif.requestedByName} is requesting deletion of "${notif.resourceName}"`,
+      "warning",
+      "New Deletion Request",
+    );
+  });
+
+  // Admin approved / rejected deletion — remove from pending list
+  useWebSocketEvent("deletion_approval_updated", (payload) => {
+    if (!isAdmin) return;
+    setDeletionRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
   });
 
   // Staff submitted an edit request — Admin + Commercial Manager get notified
@@ -405,7 +477,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
               sheetAlerts.length +
               kmVarianceAlerts.length +
               reminders.length +
-              (isAdmin ? leaveRequests.length + complianceAlertCount : 0) +
+              (isAdmin ? leaveRequests.length + complianceAlertCount + deletionRequestNotifs.length : 0) +
               ((isAdmin || isFleetManager) ? editRequestNotifs.length : 0) +
               editApprovalNotifs.length;
             return (
@@ -441,7 +513,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                     sheetAlerts.length +
                     kmVarianceAlerts.length +
                     reminders.length +
-                    (isAdmin ? leaveRequests.length + editRequestNotifs.length + complianceAlertCount : 0) +
+                    (isAdmin ? leaveRequests.length + editRequestNotifs.length + deletionRequestNotifs.length + complianceAlertCount : 0) +
                     editApprovalNotifs.length;
                   return count > 0 ? (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
@@ -504,6 +576,54 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                           className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
                         >
                           View all in Edit Approvals →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Deletion Requests (Admin only) ── */}
+                  {isAdmin && deletionRequestNotifs.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                        Deletion Requests
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {deletionRequestNotifs.map((notif, i) => (
+                          <li key={`del-req-${notif.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeletionRequestNotifs((prev) => prev.filter((_, idx) => idx !== i));
+                                setIsNotifOpen(false);
+                                router.push("/attendance/deletion-approvals");
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
+                                <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">
+                                  {notif.requestedByName} is requesting{" "}
+                                  <span className="text-red-700">deletion</span>
+                                </p>
+                                <p className="text-[11px] text-gray-600">
+                                  {notif.resourceType}: <span className="font-semibold">{notif.resourceName}</span>
+                                </p>
+                                <p className="text-[11px] text-red-700 font-medium">Tap to review — approve or reject</p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="border-t border-gray-100 px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => { setIsNotifOpen(false); router.push("/attendance/deletion-approvals"); }}
+                          className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
+                        >
+                          View all in Deletion Approvals →
                         </button>
                       </div>
                     </div>
@@ -777,7 +897,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                    kmVarianceAlerts.length === 0 &&
                    reminders.length === 0 &&
                    editApprovalNotifs.length === 0 &&
-                   (isStaff || isFinanceManager || (isFleetManager && editRequestNotifs.length === 0) || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && complianceAlertCount === 0)) && (
+                   (isStaff || isFinanceManager || (isFleetManager && editRequestNotifs.length === 0) || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && deletionRequestNotifs.length === 0 && complianceAlertCount === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Bell className="h-8 w-8 text-gray-200" />
                       <p className="text-sm font-medium text-gray-500">No notifications</p>

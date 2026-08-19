@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { trucksApi } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { trucksApi, tyreRangeConfigApi, tyreLayoutTypeConfigApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { IndianRupee, LayoutGrid, Info, CheckCircle2 } from "lucide-react";
+import { LayoutGrid, Info, CircleDot, Loader2, Check } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+
+type TyreRangeRow = {
+  tyre_type: string;
+  base_cost_per_km: number | null;
+};
 
 function groupLayouts(trucks: Truck[]): string[] {
   const set = new Set<string>();
@@ -13,74 +19,108 @@ function groupLayouts(trucks: Truck[]): string[] {
 }
 
 export default function TyreCostConfigPage() {
-  const [layouts, setLayouts]   = useState<string[]>([]);
-  const [costs, setCosts]       = useState<Record<string, string>>({});
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const { user } = useAuth();
+  const [layouts, setLayouts]       = useState<string[]>([]);
+  const [tyreRows, setTyreRows]     = useState<TyreRangeRow[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, Record<string, string>>>({});
+  const [loading, setLoading]       = useState(true);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const qtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     Promise.all([
       trucksApi.list(),
       trucksApi.getBaseTyreCost(),
-    ]).then(([trucks, rows]) => {
+      tyreRangeConfigApi.list(),
+      tyreLayoutTypeConfigApi.list(),
+    ]).then(([trucks, _rows, rangeRows, qtyRows]) => {
       const ls = groupLayouts(trucks);
-      const fromDb: Record<string, string> = {};
-      for (const r of rows) {
-        fromDb[r.tyre_layout] = r.cost ? String(parseFloat(r.cost)) : "";
-      }
       setLayouts(ls);
-      setCosts(Object.fromEntries(ls.map((l) => [l, fromDb[l] ?? ""])));
+      setTyreRows(rangeRows.map((r) => ({ tyre_type: r.tyre_type, base_cost_per_km: r.base_cost_per_km })));
+
+      const qMap: Record<string, Record<string, string>> = {};
+      for (const l of ls) qMap[l] = {};
+      for (const q of qtyRows) {
+        if (!qMap[q.tyre_layout]) qMap[q.tyre_layout] = {};
+        qMap[q.tyre_layout][q.tyre_type] = q.quantity != null ? String(q.quantity) : "";
+      }
+      setQuantities(qMap);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  async function handleSave() {
-    setSaving(true);
-    setSaved(false);
-    const payload = layouts.map((l) => ({
-      tyre_layout: l,
-      cost: costs[l] !== "" ? Number(costs[l]) : null,
-    }));
-    try {
-      await trucksApi.saveBaseTyreCost(payload);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch {}
-    setSaving(false);
+  function calcLayoutTotal(layout: string, qtyMap: Record<string, Record<string, string>>): number {
+    let total = 0;
+    for (const row of tyreRows) {
+      const qtyStr = qtyMap[layout]?.[row.tyre_type] ?? "";
+      const qty = qtyStr !== "" ? Number(qtyStr) : 0;
+      const cpm = row.base_cost_per_km ?? 0;
+      if (qty > 0 && cpm > 0) total += qty * cpm;
+    }
+    return total;
   }
 
+  function updateQuantity(layout: string, tyreType: string, value: string) {
+    const newQty = {
+      ...quantities,
+      [layout]: { ...(quantities[layout] ?? {}), [tyreType]: value },
+    };
+    setQuantities(newQty);
+
+    if (qtyTimer.current) clearTimeout(qtyTimer.current);
+    setSaveStatus("saving");
+    qtyTimer.current = setTimeout(async () => {
+      const qtyConfigs: { tyre_layout: string; tyre_type: string; quantity: number | null }[] = [];
+      for (const [l, typeMap] of Object.entries(newQty)) {
+        for (const [t, v] of Object.entries(typeMap)) {
+          qtyConfigs.push({ tyre_layout: l, tyre_type: t, quantity: v !== "" ? Number(v) : null });
+        }
+      }
+
+      const costPayload = layouts.map((l) => ({
+        tyre_layout: l,
+        cost: calcLayoutTotal(l, newQty) || null,
+      }));
+
+      try {
+        await Promise.all([
+          tyreLayoutTypeConfigApi.save(qtyConfigs),
+          trucksApi.saveBaseTyreCost(costPayload),
+        ]);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+      } catch {
+        setSaveStatus("idle");
+      }
+    }, 700);
+  }
+
+  if (user && user.softwareDesignation !== "Admin") return null;
   if (loading) return <PageSkeleton hasButton={false} hasSearch={false} columns={1} />;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tyre Cost Configuration</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Set the base tyre cost per kilometre for each tyre layout
+            Set tyre quantities per layout — Base Cost per KM is auto-calculated
           </p>
         </div>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={handleSave}
-          className="mt-1 flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {saved ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Saved
-            </>
-          ) : saving ? (
-            "Saving…"
-          ) : (
-            <>
-              <IndianRupee className="h-4 w-4" />
-              Save Configuration
-            </>
+
+        {/* Auto-save status */}
+        <div className="mt-2 h-6">
+          {saveStatus === "saving" && (
+            <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+            </span>
           )}
-        </button>
+          {saveStatus === "saved" && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+              <Check className="h-3.5 w-3.5" /> Saved
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Info note */}
@@ -89,62 +129,114 @@ export default function TyreCostConfigPage() {
         <div className="text-xs text-blue-800 space-y-1">
           <p className="font-bold">How this is used</p>
           <p>
-            The base tyre cost (₹ per km) is used by the{" "}
-            <span className="font-semibold">Running Cost Calculator</span> to compute tyre charges per
-            kilometre. Each tyre layout can have a different cost based on tyre type, count, and expected
-            range.
+            Enter how many tyres of each type are installed in the layout. The{" "}
+            <span className="font-semibold">Base Cost (₹ / km)</span> is the sum of{" "}
+            <span className="font-semibold">Quantity × Base Cost Per KM</span> across all tyre types —
+            used by the <span className="font-semibold">Running Cost Calculator</span>.
           </p>
         </div>
       </div>
 
-      {/* Cost rows */}
+      {/* Layout cards */}
       {layouts.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
           No tyre layouts found. Add trucks with a tyre layout first.
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {/* Column headers */}
-          <div className="grid grid-cols-[1fr_260px] items-center gap-6 px-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Tyre Layout</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Base Cost (₹ / km)
-            </span>
-          </div>
+        <div className="flex flex-col gap-4">
+          {layouts.map((layout) => {
+            const totalCostPerKm = calcLayoutTotal(layout, quantities);
 
-          {layouts.map((layout) => (
-            <div
-              key={layout}
-              className="grid grid-cols-[1fr_260px] items-center gap-6 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                  <LayoutGrid className="h-3.5 w-3.5" />
+            return (
+              <div
+                key={layout}
+                className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden"
+              >
+                {/* Card header — layout name + auto-calculated base cost */}
+                <div className="flex items-center gap-4 border-b border-gray-100 bg-gray-50 px-5 py-3.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="flex-1 text-sm font-bold text-gray-800">{layout}</span>
+
+                  {/* Auto-calculated base cost per km */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                      Base Cost (₹ / km)
+                    </span>
+                    <div className="relative w-44">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">₹</span>
+                      <input
+                        type="text"
+                        readOnly
+                        value={totalCostPerKm > 0 ? totalCostPerKm.toFixed(4) : ""}
+                        placeholder="Auto-calculated"
+                        className="w-full rounded-lg border border-gray-100 bg-gray-100 py-2 pl-7 pr-10 text-sm font-semibold text-gray-500 outline-none cursor-default"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">/ km</span>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-sm font-semibold text-gray-800">{layout}</span>
-              </div>
 
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">
-                  ₹
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0.00"
-                  value={costs[layout] ?? ""}
-                  onChange={(e) =>
-                    setCosts((prev) => ({ ...prev, [layout]: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-7 pr-14 text-sm font-semibold text-gray-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">
-                  / km
-                </span>
+                {/* Tyre types section */}
+                {tyreRows.length > 0 && (
+                  <div className="px-5 py-4">
+                    <div className="mb-3 flex items-center gap-6">
+                      <p className="w-36 text-[10px] font-bold uppercase tracking-wider text-gray-400">Tyre Type</p>
+                      <p className="w-32 text-[10px] font-bold uppercase tracking-wider text-gray-400">Quantity</p>
+                      <p className="w-48 text-[10px] font-bold uppercase tracking-wider text-gray-400">Cost Per KM</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {tyreRows.map((row) => {
+                        const qtyStr = quantities[layout]?.[row.tyre_type] ?? "";
+                        const qty = qtyStr !== "" ? Number(qtyStr) : null;
+                        const costPerKm =
+                          qty != null && qty > 0 && row.base_cost_per_km != null && row.base_cost_per_km > 0
+                            ? qty * row.base_cost_per_km
+                            : null;
+
+                        return (
+                          <div key={row.tyre_type} className="flex items-center gap-6">
+                            {/* Tyre type label */}
+                            <div className="flex w-36 items-center gap-2">
+                              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-400">
+                                <CircleDot className="h-3.5 w-3.5" />
+                              </div>
+                              <span className="text-xs font-semibold text-gray-700">{row.tyre_type}</span>
+                            </div>
+
+                            {/* Quantity input */}
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              placeholder="0"
+                              value={qtyStr}
+                              onChange={(e) => updateQuantity(layout, row.tyre_type, e.target.value)}
+                              className="w-32 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-semibold text-gray-800 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+                            />
+
+                            {/* Cost Per KM — auto-calculated */}
+                            <div className="relative w-48">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">₹</span>
+                              <input
+                                type="text"
+                                readOnly
+                                value={costPerKm != null ? costPerKm.toFixed(4) : ""}
+                                placeholder="—"
+                                className="w-full rounded-lg border border-gray-100 bg-gray-100 py-1.5 pl-7 pr-10 text-sm font-semibold text-gray-500 outline-none cursor-default"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">/ km</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

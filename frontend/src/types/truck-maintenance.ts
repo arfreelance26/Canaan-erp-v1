@@ -6,5 +6,15 @@ export type MaintenanceRecord = {
   maintenanceType: string;
   description: string;
   cost: string;
+  enteredByName?: string | null;
+  source?: string | null;
   version?: number;
+};
+
+export type MaintenanceStatusItem = {
+  truckId: string;
+  item: string;
+  remainingKm: number;
+  category: string;
+  status: "ok" | "attention";
 };

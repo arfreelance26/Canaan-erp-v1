@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Truck as TruckIcon, LayoutGrid, Settings2, X, Info } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export const RUN_CONFIG_STORAGE_KEY = "erp_truck_run_config";
 
@@ -236,6 +238,7 @@ function TruckCard({ truck }: { truck: Truck }) {
 
 
 export default function TruckRunConfigPage() {
+  const { user } = useAuth();
   const [trucks, setTrucks]                     = useState<Truck[]>([]);
   const [loading, setLoading]                   = useState(true);
   const [showConfig, setShowConfig]     = useState(false);
@@ -258,13 +261,14 @@ export default function TruckRunConfigPage() {
     }).catch(() => {});
   }, []);
 
+  if (user && user.softwareDesignation !== "Admin") return null;
   if (loading) return <PageSkeleton hasButton={false} hasSearch={false} columns={1} />;
 
   const groups  = groupByTyreLayout(trucks);
   const layouts = [...groups.keys()];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Truck Run Configuration</h1>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CircleDot, Plus, X, Check, Loader2, Trash2 } from "lucide-react";
 import { tyreRangeConfigApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 const DEFAULT_TYPES = ["RADIAL", "TUBELESS", "NYLON", "RETREADED"];
 
@@ -28,10 +29,11 @@ function AddTyreTypeDialog({
   onClose,
 }: {
   existing: string[];
-  onAdd: (name: string) => void;
+  onAdd: (name: string, baseCost: string) => void;
   onClose: () => void;
 }) {
   const [value, setValue] = useState("");
+  const [baseCost, setBaseCost] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -41,7 +43,7 @@ function AddTyreTypeDialog({
     const name = value.trim().toUpperCase();
     if (!name) { setError("Tyre type name cannot be empty."); return; }
     if (existing.includes(name)) { setError(`"${name}" already exists.`); return; }
-    onAdd(name);
+    onAdd(name, baseCost);
   }
 
   return createPortal(
@@ -75,6 +77,21 @@ function AddTyreTypeDialog({
             <p className="mt-1.5 text-[11px] text-gray-400">Name will be saved in uppercase automatically.</p>
           </div>
 
+          <div>
+            <label className="mb-1.5 block text-xs font-semibold text-gray-600">Base Tyre Cost (₹)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">₹</span>
+              <input
+                type="number"
+                min="0"
+                value={baseCost}
+                onChange={(e) => setBaseCost(e.target.value)}
+                placeholder="e.g. 12000"
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-7 pr-3 text-sm font-semibold text-gray-800 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+              />
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
               Cancel
@@ -91,8 +108,10 @@ function AddTyreTypeDialog({
 }
 
 export default function TyreRangeConfigPage() {
+  const { user } = useAuth();
   const [tyreTypes, setTyreTypes] = useState<string[]>([]);
   const [ranges, setRanges] = useState<Record<string, string>>({});
+  const [costs, setCosts] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -103,24 +122,35 @@ export default function TyreRangeConfigPage() {
       if (rows.length === 0) {
         setTyreTypes(DEFAULT_TYPES);
         setRanges(Object.fromEntries(DEFAULT_TYPES.map((t) => [t, ""])));
+        setCosts(Object.fromEntries(DEFAULT_TYPES.map((t) => [t, ""])));
       } else {
         const types = rows.map((r) => r.tyre_type);
         setTyreTypes(types);
         setRanges(Object.fromEntries(rows.map((r) => [r.tyre_type, r.range_km != null ? String(r.range_km) : ""])));
+        setCosts(Object.fromEntries(rows.map((r) => [r.tyre_type, r.base_tyre_cost != null ? String(r.base_tyre_cost) : ""])));
       }
     }).catch(() => {
       setTyreTypes(DEFAULT_TYPES);
       setRanges(Object.fromEntries(DEFAULT_TYPES.map((t) => [t, ""])));
+      setCosts(Object.fromEntries(DEFAULT_TYPES.map((t) => [t, ""])));
     });
   }, []);
 
-  function triggerSave(currentTypes: string[], currentRanges: Record<string, string>) {
+  function calcCostPerKm(cost: string, range: string): number | null {
+    const c = parseFloat(cost);
+    const r = parseFloat(range);
+    return c > 0 && r > 0 ? c / r : null;
+  }
+
+  function triggerSave(currentTypes: string[], currentRanges: Record<string, string>, currentCosts: Record<string, string>) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async () => {
       const configs = currentTypes.map((t) => ({
         tyre_type: t,
         range_km: currentRanges[t] !== "" ? Number(currentRanges[t]) : null,
+        base_tyre_cost: currentCosts[t] !== "" ? Number(currentCosts[t]) : null,
+        base_cost_per_km: calcCostPerKm(currentCosts[t] ?? "", currentRanges[t] ?? ""),
       }));
       try { await tyreRangeConfigApi.save(configs); } catch {}
       setSaveStatus("saved");
@@ -131,16 +161,24 @@ export default function TyreRangeConfigPage() {
   function updateRange(tyreType: string, value: string) {
     const newRanges = { ...ranges, [tyreType]: value };
     setRanges(newRanges);
-    triggerSave(tyreTypes, newRanges);
+    triggerSave(tyreTypes, newRanges, costs);
   }
 
-  function handleAddType(name: string) {
+  function updateCost(tyreType: string, value: string) {
+    const newCosts = { ...costs, [tyreType]: value };
+    setCosts(newCosts);
+    triggerSave(tyreTypes, ranges, newCosts);
+  }
+
+  function handleAddType(name: string, baseCost: string) {
     const newTypes = [...tyreTypes, name];
     const newRanges = { ...ranges, [name]: "" };
+    const newCosts = { ...costs, [name]: baseCost };
     setTyreTypes(newTypes);
     setRanges(newRanges);
+    setCosts(newCosts);
     setShowAdd(false);
-    triggerSave(newTypes, newRanges);
+    triggerSave(newTypes, newRanges, newCosts);
   }
 
   async function handleDelete(tyreType: string) {
@@ -149,11 +187,14 @@ export default function TyreRangeConfigPage() {
     } catch {}
     setTyreTypes((prev) => prev.filter((t) => t !== tyreType));
     setRanges((prev) => { const next = { ...prev }; delete next[tyreType]; return next; });
+    setCosts((prev) => { const next = { ...prev }; delete next[tyreType]; return next; });
     setConfirmDelete(null);
   }
 
+  if (user && user.softwareDesignation !== "Admin") return null;
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -214,7 +255,7 @@ export default function TyreRangeConfigPage() {
               </div>
 
               {/* Expected Range input */}
-              <div className="shrink-0 w-56">
+              <div className="shrink-0 w-52">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Expected Range</p>
                 <div className="relative">
                   <input
@@ -228,6 +269,40 @@ export default function TyreRangeConfigPage() {
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">
                     km
                   </span>
+                </div>
+              </div>
+
+              {/* Base Tyre Cost input */}
+              <div className="shrink-0 w-52">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Base Tyre Cost</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 12000"
+                    value={costs[tyreType] ?? ""}
+                    onChange={(e) => updateCost(tyreType, e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-7 pr-3 text-sm font-semibold text-gray-800 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+                  />
+                </div>
+              </div>
+
+              {/* Base Cost Per KM — auto-calculated, read-only */}
+              <div className="shrink-0 w-48">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Base Cost Per KM</p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400">₹</span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={(() => {
+                      const v = calcCostPerKm(costs[tyreType] ?? "", ranges[tyreType] ?? "");
+                      return v != null ? v.toFixed(4) : "";
+                    })()}
+                    placeholder="Auto-calculated"
+                    className="w-full rounded-lg border border-gray-100 bg-gray-100 py-2 pl-7 pr-3 text-sm font-semibold text-gray-500 outline-none cursor-default"
+                  />
                 </div>
               </div>
 

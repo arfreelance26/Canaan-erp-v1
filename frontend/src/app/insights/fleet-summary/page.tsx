@@ -7,7 +7,7 @@ import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { Truck as TruckIcon, History, FileSearch, X, Loader2, ShieldCheck, Gauge, Wrench, Download, ChevronDown } from "lucide-react";
+import { Truck as TruckIcon, History, FileSearch, X, Loader2, ShieldCheck, Gauge, Wrench, Download, ChevronDown, ArrowRight } from "lucide-react";
 
 function Pill({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -61,11 +61,28 @@ async function downloadExcel(rows: ReturnType<typeof buildExcelRows>, filename: 
   writeFile(wb, filename);
 }
 
+const CAT_COLOR: Record<string, string> = {
+  "LOCAL":       "bg-blue-100 text-blue-700",
+  "LOCAL CFS":   "bg-cyan-100 text-cyan-700",
+  "OUTSTATION":  "bg-purple-100 text-purple-700",
+  "SHIFTING":    "bg-amber-100 text-amber-700",
+  "RETURN TRIP": "bg-orange-100 text-orange-700",
+};
+const STATUS_COLOR: Record<string, string> = {
+  "Completed":  "bg-emerald-100 text-emerald-700",
+  "On-Transit": "bg-blue-100 text-blue-700",
+  "Started":    "bg-indigo-100 text-indigo-700",
+  "Loaded":     "bg-indigo-100 text-indigo-700",
+  "Reached":    "bg-teal-100 text-teal-700",
+  "Unloaded":   "bg-teal-100 text-teal-700",
+  "Cancelled":  "bg-red-100 text-red-600",
+  "Assigned":   "bg-gray-100 text-gray-500",
+};
+
 function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [sheets, setSheets]     = useState<Map<string, TripSheetData>>(new Map());
   const [loading, setLoading]   = useState(true);
-
   const [dateFrom, setDateFrom] = useState(defaultDateRange().from);
   const [dateTo,   setDateTo]   = useState(defaultDateRange().to);
   const [dlOpen,   setDlOpen]   = useState(false);
@@ -73,181 +90,211 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
   useEffect(() => {
     async function load() {
       const all = await tripsApi.list();
-      const truckTrips = all.filter((t) => t.vehicleId === truck.id);
+      const truckTrips = all.filter((t) => t.vehicleId === truck.truckId);
       setAllTrips(truckTrips);
-
       const withSheet = truckTrips.filter((t) => t.hasSheet);
       const results = await Promise.all(
         withSheet.map((t) => tripsApi.getSheet(t.id).then((s) => ({ id: t.id, sheet: s })).catch(() => null))
       );
       const map = new Map<string, TripSheetData>();
-      for (const r of results) if (r) map.set(r.id, r.sheet);
+      for (const r of results) if (r && r.sheet) map.set(r.id, r.sheet);
       setSheets(map);
     }
     load().catch(() => {}).finally(() => setLoading(false));
-  }, [truck.id]);
+  }, [truck.truckId]);
 
-  const trips = allTrips.filter((t) => {
-    if (!t.bookingCreatedDate) return true;
-    const d = t.bookingCreatedDate.slice(0, 10);
-    return d >= dateFrom && d <= dateTo;
-  });
+  // Filter then sort latest first
+  const trips = allTrips
+    .filter((t) => {
+      if (!t.bookingCreatedDate) return true;
+      const d = t.bookingCreatedDate.slice(0, 10);
+      return d >= dateFrom && d <= dateTo;
+    })
+    .sort((a, b) => (b.bookingCreatedDate || "").localeCompare(a.bookingCreatedDate || ""));
 
-  const regFormatted = truck.registrationNumber.replace(
-    /^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{1,4})$/,
-    "$1 $2 $3 $4"
-  );
+  // Summary stats
+  const completedCount = trips.filter((t) => t.status === "Completed").length;
+  const totalKmSum  = trips.reduce((s, t) => s + (sheets.get(t.id)?.totalKm  ? Number(sheets.get(t.id)!.totalKm)  : 0), 0);
+  const totalHireSum = trips.reduce((s, t) => s + (sheets.get(t.id)?.hireAmount ? Number(sheets.get(t.id)!.hireAmount) : 0), 0);
+
+  const regFormatted = truck.registrationNumber.replace(/^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{1,4})$/, "$1 $2 $3 $4");
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={() => dlOpen && setDlOpen(false)}
-    >
-      <div className="flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" onClick={() => dlOpen && setDlOpen(false)}>
+      <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl animate-dialog-enter" onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
+        {/* ── Header ── */}
+        <div className="shrink-0 flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-600 text-white">
-              <History className="h-4 w-4" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <History className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-gray-900">Trip History — {regFormatted}</h2>
-              <p className="text-xs text-gray-400">
-                {loading ? "Loading…" : `${trips.length} trip${trips.length !== 1 ? "s" : ""} in range`}
+              <p className="mt-0.5 text-xs text-gray-400">
+                {truck.manufacturer} {truck.truckType}
+                {!loading && (
+                  <> · <span className="font-semibold text-gray-600">{trips.length} trip{trips.length !== 1 ? "s" : ""}</span> in selected range</>
+                )}
               </p>
             </div>
           </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
-          {/* Date range pickers */}
+        {/* ── Summary strip ── */}
+        {!loading && trips.length > 0 && (
+          <div className="shrink-0 flex flex-wrap gap-3 border-b border-gray-100 bg-gray-50/60 px-6 py-3">
+            <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+              <span className="text-xs text-gray-400">Trips</span>
+              <span className="text-xs font-semibold text-gray-700">{trips.length}</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+              <span className="text-xs text-gray-400">Completed</span>
+              <span className="text-xs font-semibold text-emerald-600">{completedCount}</span>
+            </div>
+            {totalKmSum > 0 && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+                <span className="text-xs text-gray-400">Total KM</span>
+                <span className="text-xs font-semibold text-gray-700">{totalKmSum.toLocaleString("en-IN")} km</span>
+              </div>
+            )}
+            {totalHireSum > 0 && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+                <span className="text-xs text-gray-400">Total Hire</span>
+                <span className="text-xs font-semibold text-blue-600">₹{totalHireSum.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Toolbar ── */}
+        <div className="shrink-0 flex items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-6 py-3 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">From</span>
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="text-xs font-semibold text-gray-700 outline-none"
-              />
+              <input type="date" value={dateFrom} max={dateTo} onChange={(e) => setDateFrom(e.target.value)}
+                className="text-xs font-semibold text-gray-700 outline-none" />
             </div>
-            <span className="text-gray-400">—</span>
+            <span className="text-gray-300">→</span>
             <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">To</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="text-xs font-semibold text-gray-700 outline-none"
-              />
+              <input type="date" value={dateTo} min={dateFrom} onChange={(e) => setDateTo(e.target.value)}
+                className="text-xs font-semibold text-gray-700 outline-none" />
             </div>
-            {/* Download Excel dropdown */}
-            <div className="relative ml-2">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => setDlOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" />
-                Download Excel
-                <ChevronDown className="h-3 w-3" />
-              </button>
-
-              {dlOpen && (
-                <div className="absolute right-0 top-full z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDlOpen(false);
-                      downloadExcel(
-                        buildExcelRows(trips, sheets),
-                        `${truck.registrationNumber}_trips_${dateFrom}_to_${dateTo}.xlsx`
-                      );
-                    }}
-                    className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="text-xs font-semibold text-gray-800">Selected Timeline</span>
-                    <span className="text-[10px] text-gray-400">{dateFrom} → {dateTo}</span>
-                  </button>
-                  <div className="h-px bg-gray-100" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDlOpen(false);
-                      downloadExcel(
-                        buildExcelRows(allTrips, sheets),
-                        `${truck.registrationNumber}_full_trip_report.xlsx`
-                      );
-                    }}
-                    className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="text-xs font-semibold text-gray-800">Full Report</span>
-                    <span className="text-[10px] text-gray-400">All {allTrips.length} trips for this truck</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="ml-2 rounded-lg border border-gray-200 p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-            >
-              <X className="h-4 w-4" />
+          </div>
+          <div className="relative">
+            <button type="button" disabled={loading} onClick={() => setDlOpen((v) => !v)}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
+              <Download className="h-3.5 w-3.5 text-gray-500" />
+              Download Excel
+              <ChevronDown className="h-3 w-3 text-gray-400" />
             </button>
+            {dlOpen && (
+              <div className="absolute right-0 top-full z-20 mt-1.5 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                <button type="button"
+                  onClick={() => { setDlOpen(false); downloadExcel(buildExcelRows(trips, sheets), `${truck.registrationNumber}_trips_${dateFrom}_to_${dateTo}.xlsx`); }}
+                  className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                  <span className="text-xs font-semibold text-gray-800">Selected Timeline</span>
+                  <span className="text-[10px] text-gray-400">{dateFrom} → {dateTo}</span>
+                </button>
+                <div className="h-px bg-gray-100" />
+                <button type="button"
+                  onClick={() => { setDlOpen(false); downloadExcel(buildExcelRows(allTrips, sheets), `${truck.registrationNumber}_full_trip_report.xlsx`); }}
+                  className="flex w-full flex-col gap-0.5 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                  <span className="text-xs font-semibold text-gray-800">Full Report</span>
+                  <span className="text-[10px] text-gray-400">All {allTrips.length} trips for this truck</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Body */}
+        {/* ── Body ── */}
         <div className="flex-1 overflow-auto">
           {loading ? (
-            <div className="flex h-full items-center justify-center gap-3 text-gray-400">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Fetching trip history…</span>
+            <div className="flex h-full items-center justify-center gap-2.5 text-gray-400">
+              <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+              <span className="text-sm">Loading trip history…</span>
             </div>
           ) : trips.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-gray-400">
-              No trips found for this truck in the selected date range.
+            <div className="flex h-full flex-col items-center justify-center gap-2">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                <History className="h-7 w-7 text-gray-300" />
+              </div>
+              <p className="text-sm font-semibold text-gray-500">No trips in this date range</p>
+              <p className="text-xs text-gray-400">Try expanding the date range above</p>
             </div>
           ) : (
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead className="sticky top-0 z-10">
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Trip ID", "Booking Date", "Trip Category", "Origin", "Destination", "Total KM", "Hire Amount"].map((col) => (
-                    <th key={col} className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      {col}
-                    </th>
+            <table className="w-full min-w-[960px] text-left">
+              <thead className="sticky top-0 z-10 border-b border-gray-200 bg-gray-50">
+                <tr>
+                  {["#", "Trip ID", "Date", "Category", "Route", "Cargo", "Status", "KM", "Hire Amount"].map((col) => (
+                    <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-400 whitespace-nowrap">{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {trips.map((trip) => {
+                {trips.map((trip, idx) => {
                   const sheet = sheets.get(trip.id);
-                  const totalKm   = sheet?.totalKm   ? `${Number(sheet.totalKm).toLocaleString("en-IN")} km` : "—";
-                  const hireAmt   = sheet?.hireAmount
-                    ? `₹${Number(sheet.hireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
-                    : "—";
+                  const km   = sheet?.totalKm   ? Number(sheet.totalKm)   : null;
+                  const hire = sheet?.hireAmount ? Number(sheet.hireAmount) : null;
                   return (
                     <tr key={trip.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3 font-semibold text-blue-700">{trip.tripId}</td>
-                      <td className="px-5 py-3 text-gray-600">{fmt(trip.bookingCreatedDate)}</td>
-                      <td className="px-5 py-3">
-                        {trip.tripCategory ? (
-                          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                            {trip.tripCategory}
-                          </span>
-                        ) : "—"}
+                      <td className="px-4 py-3 text-sm text-gray-300 tabular-nums select-none">{idx + 1}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-blue-600">{trip.tripId}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{fmt(trip.bookingCreatedDate)}</td>
+                      <td className="px-4 py-3">
+                        {trip.tripCategory
+                          ? <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${CAT_COLOR[trip.tripCategory] ?? "bg-gray-100 text-gray-600"}`}>{trip.tripCategory}</span>
+                          : <span className="text-gray-300 text-sm">—</span>}
                       </td>
-                      <td className="px-5 py-3 text-gray-700">{trip.origin || "—"}</td>
-                      <td className="px-5 py-3 text-gray-700">{trip.destination || "—"}</td>
-                      <td className="px-5 py-3 font-medium text-gray-800">{totalKm}</td>
-                      <td className="px-5 py-3 font-semibold text-emerald-700">{hireAmt}</td>
+                      <td className="px-4 py-3">
+                        {trip.origin || trip.destination ? (
+                          <div className="flex items-center gap-1 text-sm text-gray-600">
+                            <span className="max-w-[100px] truncate">{trip.origin || "—"}</span>
+                            <ArrowRight className="h-3 w-3 text-gray-300 shrink-0" />
+                            <span className="max-w-[100px] truncate">{trip.destination || "—"}</span>
+                          </div>
+                        ) : <span className="text-gray-300 text-sm">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {trip.cargoClassification
+                          ? <span className="inline-flex rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-500">{trip.cargoClassification}</span>
+                          : <span className="text-gray-300 text-sm">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[trip.status] ?? "bg-gray-100 text-gray-600"}`}>
+                          {trip.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 tabular-nums whitespace-nowrap">
+                        {km != null ? `${km.toLocaleString("en-IN")} km` : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-emerald-700 tabular-nums whitespace-nowrap">
+                        {hire != null ? `₹${hire.toLocaleString("en-IN", { minimumFractionDigits: 0 })}` : <span className="text-gray-300 font-normal">—</span>}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
+              {(totalKmSum > 0 || totalHireSum > 0) && (
+                <tfoot>
+                  <tr className="border-t border-gray-200 bg-gray-50">
+                    <td colSpan={7} className="px-4 py-3 text-sm text-gray-500">
+                      Total · {trips.length} trip{trips.length !== 1 ? "s" : ""}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-700 tabular-nums whitespace-nowrap">
+                      {totalKmSum > 0 ? `${totalKmSum.toLocaleString("en-IN")} km` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-emerald-700 tabular-nums whitespace-nowrap">
+                      {totalHireSum > 0 ? `₹${totalHireSum.toLocaleString("en-IN", { minimumFractionDigits: 0 })}` : "—"}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           )}
         </div>

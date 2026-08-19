@@ -150,6 +150,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   verificationRejectionReason: null,
   isInvoiced: false,
   invoiceRequired: true,
+  invoiceWaived: false,
   driverName: null,
   truckRegistration: null,
 };

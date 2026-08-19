@@ -8,8 +8,8 @@ export type TyreInventoryItem = {
   cost: string;
   costPerKm: string;
   purchaseDate: string;
-  repairCost: string;
   retreadCost: string;
   retreadCount: string;
+  condition: "New" | "Rethreaded";
   version?: number;
 };

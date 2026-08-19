@@ -31,7 +31,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 const STORAGE_KEY = "canaan_erp_user";
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -42,9 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setUser(JSON.parse(stored));
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<AuthUser>;
+        // Reject sessions missing critical fields — forces a clean re-login
+        if (parsed.token && parsed.softwareDesignation && parsed.name) {
+          setUser(parsed as AuthUser);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
     } catch {
-      /* ignore corrupt storage */
+      localStorage.removeItem(STORAGE_KEY);
     }
     setReady(true);
   }, []);

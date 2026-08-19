@@ -404,6 +404,7 @@ class Trip(Base):
     verification_rejection_reason = Column(Text, nullable=True)
     is_invoiced = Column(Boolean, default=False)
     invoice_required = Column(Boolean, default=True, nullable=False)
+    invoice_waived = Column(Boolean, default=False, nullable=False, server_default="0")
     trip_sheet_collected = Column(Boolean, default=False, nullable=False)
     trip_sheet_collected_at = Column(DateTime, nullable=True)
     trip_sheet_received = Column(Boolean, default=False, nullable=False)
@@ -697,6 +698,8 @@ class MaintenanceRecord(Base):
     maintenance_type = Column(String(200), nullable=False)
     description = Column(Text)
     cost = Column(Numeric(10, 2), default=0)
+    entered_by_name = Column(String(100), nullable=True)
+    source = Column(String(200), nullable=True)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -775,9 +778,9 @@ class TyreInventory(Base):
     cost = Column(Numeric(10, 2), default=0)
     cost_per_km = Column(Numeric(10, 6), nullable=True)
     purchase_date = Column(Date)
-    repair_cost = Column(Numeric(10, 2), default=0)
     retread_cost = Column(Numeric(10, 2), default=0)
     retread_count = Column(Integer, default=0)
+    condition = Column(String(50), nullable=True, default="New")
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -957,6 +960,19 @@ class TyreRangeConfig(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     tyre_type = Column(String(50), nullable=False, unique=True)
     range_km = Column(Integer, nullable=True)
+    base_tyre_cost = Column(Numeric(12, 2), nullable=True)
+    base_cost_per_km = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TyreLayoutTypeConfig(Base):
+    __tablename__ = "tyre_layout_type_configs"
+    __table_args__ = (UniqueConstraint("tyre_layout", "tyre_type", name="uq_layout_type"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_layout = Column(String(100), nullable=False)
+    tyre_type = Column(String(50), nullable=False)
+    quantity = Column(Integer, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
@@ -975,6 +991,24 @@ class RecurringPayment(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class DeletionApprovalRequest(Base):
+    __tablename__ = "deletion_approval_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord"), nullable=False)
+    resource_id = Column(Integer, nullable=False)
+    resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
+    log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request
+    requested_by_staff_id = Column(Integer, nullable=False)
+    requested_by_name = Column(String(100), nullable=False)
+    reason = Column(Text, nullable=False)
+    status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
+    admin_note = Column(Text, nullable=True)
+    approved_by_name = Column(String(100), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class EditApprovalRequest(Base):
     __tablename__ = "edit_approval_requests"
 
@@ -982,10 +1016,11 @@ class EditApprovalRequest(Base):
     staff_db_id = Column(Integer, nullable=False)        # staff.id (numeric)
     staff_name = Column(String(100), nullable=False)
     staff_code = Column(String(20))                      # STF-1001
-    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip"), nullable=False)
+    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(200), nullable=False)
     action = Column(Enum("Edit", "Delete"), nullable=False)
+    proposed_changes = Column(JSON, nullable=True)       # new field values for FuelLog edits
     reason = Column(Text, nullable=False)
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
     admin_note = Column(Text, nullable=True)

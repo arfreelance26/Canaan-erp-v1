@@ -114,7 +114,6 @@ def main():
                 condition=condition,
                 purchase_date=purchase_date,
                 retread_count=retread_count,
-                repair_cost=0,
                 retread_cost=0
             )
 

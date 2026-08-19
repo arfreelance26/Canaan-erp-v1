@@ -2,18 +2,20 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2, AlertCircle, Truck } from "lucide-react";
-import { useDeviceOS } from "react-haiku";
 import { useAuth } from "@/context/AuthContext";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
-
-function useBackendStatus() {
-  const [online, setOnline] = useState<boolean | null>(null);
-  if (typeof window !== "undefined") {
-    // intentionally light — just show status, no useEffect needed here;
-    // done via inline effect below
-  }
-  return online;
+function useDeviceOS(): string {
+  const [os, setOS] = useState("");
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    if (/Windows/i.test(ua)) setOS("Windows");
+    else if (/iPhone|iPad/i.test(ua)) setOS("iOS");
+    else if (/Android/i.test(ua)) setOS("Android");
+    else if (/Mac/i.test(ua)) setOS("macOS");
+    else if (/Linux/i.test(ua)) setOS("Linux");
+    else setOS("Unknown");
+  }, []);
+  return os;
 }
 
 export default function LoginPage() {
@@ -24,14 +26,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginState, setLoginState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
-
-  // Check backend connectivity once on mount
-  useEffect(() => {
-    fetch(`${API_URL}/`)
-      .then(() => setBackendOnline(true))
-      .catch(() => setBackendOnline(false));
-  }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

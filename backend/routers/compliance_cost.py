@@ -1,9 +1,10 @@
 from decimal import Decimal, InvalidOperation
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
 import models, schemas
+from security import get_current_user, TokenUser
 
 router = APIRouter(prefix="/compliance-cost", tags=["Compliance Cost Configuration"])
 
@@ -33,7 +34,9 @@ def get_compliance_costs(db: Session = Depends(get_db)):
 
 
 @router.put("", response_model=list[schemas.ComplianceCostConfigOut])
-def save_compliance_costs(payload: schemas.ComplianceCostBulkSave, db: Session = Depends(get_db)):
+def save_compliance_costs(payload: schemas.ComplianceCostBulkSave, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role != "Admin":
+        raise HTTPException(403, "Only Admins can modify Compliance Cost Configuration.")
     for item in payload.configs:
         row = db.query(models.ComplianceCostConfig).filter_by(tyre_layout=item.tyre_layout).first()
         if row:

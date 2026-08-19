@@ -10,9 +10,10 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
-import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
+import { repairTypesApi, fuelLogsApi, tripsApi, trucksApi, tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
+import type { FuelLog } from "@/types/fuel-log";
 import { showError, MySwal } from "@/lib/swal";
-import { todayIst } from "@/lib/format-date";
+import { todayIst, formatDate } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Trash2, PlusCircle } from "lucide-react";
@@ -107,6 +108,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [repairTypes, setRepairTypes] = useState<RepairType[]>([]);
   const [fuelStations, setFuelStations] = useState<string[]>([]);
   const [costPerKm, setCostPerKm] = useState<string>("");
+  const [lastFuelLog, setLastFuelLog] = useState<FuelLog | null>(null);
   const [saving, setSaving] = useState(false);
   const [invoiceRequired, setInvoiceRequired] = useState(true);
   // driverAdvance and additionalDriverAdvance live in form (TripSheetData) — not local state
@@ -129,10 +131,17 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   );
 
   useEffect(() => {
-    if (!truckDbId) { setCostPerKm(""); return; }
+    if (!truckDbId) { setCostPerKm(""); setLastFuelLog(null); return; }
     fuelLogsApi.getFuelStats(truckDbId)
       .then((stats) => setCostPerKm(stats.costPerKm ?? ""))
       .catch(() => setCostPerKm(""));
+    fuelLogsApi.listFuelLogs(truckDbId)
+      .then((logs) => {
+        if (!logs.length) { setLastFuelLog(null); return; }
+        const sorted = [...logs].sort((a, b) => Number(b.odometer) - Number(a.odometer));
+        setLastFuelLog(sorted[0]);
+      })
+      .catch(() => setLastFuelLog(null));
   }, [truckDbId]);
 
   useEffect(() => {
@@ -342,6 +351,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         showError(err instanceof Error ? err.message : "Failed to save trip details.");
         setSaving(false);
         return;
+      }
+      // Update truck's current odometer from End Km if it's higher
+      const endKmVal = n(form.endKm);
+      const truckToUpdate = trucks.find((t) => t.truckId === form.vehicleId);
+      if (endKmVal > 0 && truckToUpdate && endKmVal > Number(truckToUpdate.odometer)) {
+        trucksApi.update(truckToUpdate.id, { ...truckToUpdate, odometer: String(endKmVal) }).catch(() => {});
       }
       setSaving(false);
     }
@@ -645,6 +660,51 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             </button>
           )}
         </div>
+        {/* Last recorded fill for this truck — reference for spotting odometer gaps */}
+        {lastFuelLog && (() => {
+          const lastOdo  = Number(lastFuelLog.odometer);
+          const startOdo = Number(form.startKm);
+          const gap      = startOdo > 0 ? startOdo - lastOdo : null;
+          const hugeGap  = gap !== null && Math.abs(gap) > 5000;
+          return (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${hugeGap ? "border-amber-300 bg-amber-50" : "border-indigo-200 bg-indigo-50"}`}>
+              <p className={`text-[11px] font-bold uppercase tracking-wider mb-2 ${hugeGap ? "text-amber-700" : "text-indigo-600"}`}>
+                Last Recorded Fill for this Truck
+              </p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Date</span>
+                  <p className="font-semibold text-gray-800">{formatDate(lastFuelLog.date)}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Odometer</span>
+                  <p className="font-semibold text-gray-800">{lastOdo.toLocaleString("en-IN")} km</p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">Fuel Filled</span>
+                  <p className="font-semibold text-gray-800">{Number(lastFuelLog.litres).toFixed(1)} L</p>
+                </div>
+                {lastFuelLog.fuelStation && (
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">Station</span>
+                    <p className="font-semibold text-gray-800">{lastFuelLog.fuelStation}</p>
+                  </div>
+                )}
+              </div>
+              {gap !== null && (
+                <p className={`mt-2 text-xs font-medium ${hugeGap ? "text-amber-800" : "text-indigo-700"}`}>
+                  Distance since last fill: <span className="font-bold">{gap.toLocaleString("en-IN")} km</span>
+                  {hugeGap && (
+                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                      ⚠ Unusually large gap — please verify the Start KM
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
         <div className="flex flex-col gap-5">
           {form.dieselEntries.map((entry, idx) => (
             <div key={idx} className="rounded-xl border border-gray-200 bg-gray-50 p-4">

@@ -126,6 +126,7 @@ export type Trip = {
   verificationRejectionReason: string | null;
   isInvoiced: boolean;
   invoiceRequired: boolean;
+  invoiceWaived: boolean;
   driverName: string | null;
   truckRegistration: string | null;
   // Lorry Receipt

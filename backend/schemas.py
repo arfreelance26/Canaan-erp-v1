@@ -516,6 +516,7 @@ class TripOut(TripBase):
     verification_status: VerificationStatus = "pending"
     verification_rejection_reason: Optional[str] = None
     is_invoiced: bool = False
+    invoice_waived: bool = False
     has_closure: bool = False
     has_sheet: bool = False
     trip_sheet_collected: bool = False
@@ -873,8 +874,36 @@ class HolidayOut(OrmBase):
 # ---------------------------------------------------------------------------
 
 EditApprovalAction = Literal["Edit", "Delete"]
-EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog"]
 EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
+
+
+class DeletionApprovalRequestCreate(OrmBase):
+    resource_type: str          # "FuelLog"
+    resource_id: int
+    resource_name: str
+    log_details: Optional[dict] = None
+    reason: str
+
+
+class DeletionApprovalRequestOut(OrmBase):
+    id: int
+    resource_type: str
+    resource_id: int
+    resource_name: str
+    log_details: Optional[dict] = None
+    requested_by_staff_id: int
+    requested_by_name: str
+    reason: str
+    status: str
+    admin_note: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class DeletionApprovalActionPayload(OrmBase):
+    admin_note: Optional[str] = None
 
 
 class EditApprovalRequestCreate(OrmBase):
@@ -883,6 +912,7 @@ class EditApprovalRequestCreate(OrmBase):
     resource_name: str
     action: EditApprovalAction
     reason: str
+    proposed_changes: Optional[dict] = None
 
 
 class EditApprovalRequestOut(OrmBase):
@@ -895,6 +925,7 @@ class EditApprovalRequestOut(OrmBase):
     resource_name: str
     action: EditApprovalAction
     reason: str
+    proposed_changes: Optional[dict] = None
     admin_note: Optional[str] = None
     approved_by_name: Optional[str] = None
     status: EditApprovalStatus
@@ -975,6 +1006,8 @@ class MaintenanceRecordOut(OrmBase):
     maintenance_type: str
     description: Optional[str] = None
     cost: Optional[Decimal] = None
+    entered_by_name: Optional[str] = None
+    source: Optional[str] = None
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -1116,9 +1149,9 @@ class TyreInventoryBase(OrmBase):
     cost: Optional[Decimal] = None
     cost_per_km: Optional[Decimal] = None
     purchase_date: Optional[date] = None
-    repair_cost: Optional[Decimal] = None
     retread_cost: Optional[Decimal] = None
     retread_count: Optional[int] = 0
+    condition: Optional[str] = "New"
 
 
 class TyreInventoryCreate(TyreInventoryBase):
@@ -1134,9 +1167,9 @@ class TyreInventoryUpdate(OrmBase):
     cost: Optional[Decimal] = None
     cost_per_km: Optional[Decimal] = None
     purchase_date: Optional[date] = None
-    repair_cost: Optional[Decimal] = None
     retread_cost: Optional[Decimal] = None
     retread_count: Optional[int] = None
+    condition: Optional[str] = None
 
 
 class TyreInventoryOut(TyreInventoryBase):
@@ -1289,6 +1322,20 @@ class ComplianceCostConfigItem(BaseModel):
     pollution_cert_cost: Optional[str] = ""
     insurance_cost: Optional[str] = ""
 
+    @field_validator(
+        "rc_cost", "fc_cost", "road_tax_cost", "national_permit_cost",
+        "local_permit_cost", "pollution_cert_cost", "insurance_cost",
+        mode="before",
+    )
+    @classmethod
+    def coerce_decimal_to_str(cls, v: object) -> str:
+        if v is None:
+            return ""
+        s = str(v)
+        if "." in s:
+            s = s.rstrip("0").rstrip(".")
+        return s
+
 
 class ComplianceCostConfigOut(ComplianceCostConfigItem):
     id: int
@@ -1308,6 +1355,8 @@ class ComplianceCostBulkSave(BaseModel):
 class TyreRangeConfigItem(OrmBase):
     tyre_type: str
     range_km: Optional[int] = None
+    base_tyre_cost: Optional[float] = None
+    base_cost_per_km: Optional[float] = None
 
 
 class TyreRangeConfigOut(TyreRangeConfigItem):
@@ -1317,6 +1366,21 @@ class TyreRangeConfigOut(TyreRangeConfigItem):
 
 class TyreRangeConfigBulkSave(OrmBase):
     configs: list[TyreRangeConfigItem]
+
+
+class TyreLayoutTypeConfigItem(OrmBase):
+    tyre_layout: str
+    tyre_type: str
+    quantity: Optional[int] = None
+
+
+class TyreLayoutTypeConfigOut(TyreLayoutTypeConfigItem):
+    id: int
+    updated_at: Optional[datetime] = None
+
+
+class TyreLayoutTypeConfigBulkSave(OrmBase):
+    configs: list[TyreLayoutTypeConfigItem]
 
 
 # ---------------------------------------------------------------------------

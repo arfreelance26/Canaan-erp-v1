@@ -140,6 +140,8 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
             continue
         adblue_mid = _to_int(m.adblue_manufacturer_id) if m.adblue_manufacturer_id else None
         row = db.query(models.RunningCostTruckMetrics).filter_by(mode=mode, truck_id=tid).first()
+        if row is None and not db.query(models.Truck).filter_by(id=tid).first():
+            continue  # truck deleted; skip to avoid FK violation
         if row:
             row.emi_amount  = _to_decimal(m.emi_amount)
             row.emi_per_day = _to_decimal(m.emi_per_day)

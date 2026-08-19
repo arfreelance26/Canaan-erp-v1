@@ -13,6 +13,7 @@ import { FuelHistoryViewDialog } from "@/components/fleet/FuelHistoryViewDialog"
 import { Search, Fuel, X } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { useAuth } from "@/context/AuthContext";
 
 function BaseLitreCostDialog({
   onClose,
@@ -106,6 +107,8 @@ function BaseLitreCostDialog({
 }
 
 export default function FuelHistoryPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -193,14 +196,16 @@ export default function FuelHistoryPage() {
                 ...(exportTo ? { to_date: exportTo } : {}),
               }}
             />
-            <button
-              type="button"
-              onClick={() => setBaseLitreCostOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors whitespace-nowrap"
-            >
-              <Fuel className="h-4 w-4" />
-              Set Base Litre Cost
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setBaseLitreCostOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors whitespace-nowrap"
+              >
+                <Fuel className="h-4 w-4" />
+                Set Base Litre Cost
+              </button>
+            )}
           </div>
         </div>
       </div>

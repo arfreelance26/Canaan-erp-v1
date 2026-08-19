@@ -31,9 +31,9 @@ const emptyForm: Omit<TyreInventoryItem, "id"> = {
   cost: "",
   costPerKm: "",
   purchaseDate: todayIst(),
-  repairCost: "0",
   retreadCost: "0",
   retreadCount: "0",
+  condition: "New",
 };
 
 export function TyreInventoryFormDialog({
@@ -181,16 +181,6 @@ export function TyreInventoryFormDialog({
             />
           </Field>
 
-          <Field label="Repair Cost" required>
-            <DecimalInput type="number"
-              min="0"
-              value={form.repairCost}
-              onChange={(e) => update("repairCost", e.target.value)}
-              className={inputClass}
-              placeholder="Total repair cost so far"
-            />
-          </Field>
-
           <Field label="Expected Range">
             <input
               type="text"
@@ -227,38 +217,6 @@ export function TyreInventoryFormDialog({
             />
           </Field>
         </div>
-
-        {form.tyreType === "RETREADED" && (
-          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-yellow-700">
-              Retreading Details — required for Rethreaded tyres
-            </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Retreading Cost (₹)" required>
-                <DecimalInput type="number"
-                  required
-                  min="1"
-                  value={form.retreadCost}
-                  onChange={(e) => update("retreadCost", e.target.value)}
-                  className={inputClass}
-                  placeholder="e.g. 4500"
-                />
-              </Field>
-
-              <Field label="Number of Retreads" required>
-                <DecimalInput type="number"
-                  required
-                  min="1"
-                  value={form.retreadCount}
-                  onChange={(e) => update("retreadCount", e.target.value)}
-                  className={inputClass}
-                  placeholder="e.g. 1"
-                />
-              </Field>
-            </div>
-          </div>
-        )}
-
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 

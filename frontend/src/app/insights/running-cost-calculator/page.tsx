@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/context/ThemeContext";
-import { tyreRangeConfigApi, tyreApi, adblueApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceTypesApi, maintenanceApi, complianceCostApi, type AdBlueManufacturer } from "@/lib/api";
+import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceTypesApi, maintenanceApi, complianceCostApi, type AdBlueManufacturer } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
 import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Search, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
 import type { Truck } from "@/types/truck";
@@ -20,10 +20,11 @@ type ModeData = {
   runEntries: Record<string, { month: string; day: string }>;
   adbluePrices: Record<string, string>;
   truckMetrics: Record<string, Record<string, string>>;
+  tyreCostConfigQty: Record<string, Record<string, string>>; // layout → tyreType → quantity
 };
 
 function emptyModeData(): ModeData {
-  return { costPerLitre: "", tyreEntries: {}, runEntries: {}, adbluePrices: {}, truckMetrics: {} };
+  return { costPerLitre: "", tyreEntries: {}, runEntries: {}, adbluePrices: {}, truckMetrics: {}, tyreCostConfigQty: {} };
 }
 
 type SavedStore = { mode: string; Manual: Partial<ModeData>; Basic: Partial<ModeData>; Advanced: Partial<ModeData> };
@@ -110,6 +111,7 @@ function TruckCostCard({
   basicAdblue,
   advancedAdblue,
   basicTyrePerKm,
+  manualTyrePerKm,
   advancedTyrePerKm,
   advancedMaintenancePerKm,
   advancedComplianceCost,
@@ -117,6 +119,7 @@ function TruckCostCard({
   advancedEmi,
   advancedMileage,
   mode,
+  onCostChange,
 }: {
   truck: Truck;
   metrics: Record<string, string>;
@@ -131,6 +134,7 @@ function TruckCostCard({
   basicAdblue?: BasicAdblue | null;
   advancedAdblue?: BasicAdblue | null;
   basicTyrePerKm?: string;
+  manualTyrePerKm?: string;
   advancedTyrePerKm?: string | null;
   basicMaintenancePerKm?: string;
   advancedMaintenancePerKm?: string | null;
@@ -140,6 +144,7 @@ function TruckCostCard({
   advancedEmi?: BasicEmi | null;
   advancedMileage?: string | null;
   mode: string;
+  onCostChange?: (cost: number | null) => void;
 }) {
   const isAdvancedMode = mode === "Advanced";
   const isBasicMode    = mode === "Basic";
@@ -245,6 +250,9 @@ function TruckCostCard({
       const v = parseFloat(basicTyrePerKm ?? "");
       return !isNaN(v) && v > 0 ? v : null;
     }
+    // Manual mode: use total from Tyre Cost Configuration card (sum of qty × cost/range per type)
+    const v = parseFloat(manualTyrePerKm ?? "");
+    if (!isNaN(v) && v > 0) return v;
     return tyreChargesCalc;
   })();
 
@@ -347,6 +355,10 @@ function TruckCostCard({
     ? costComponents.reduce<number>((sum, v) => sum + (v ?? 0), 0)
     : null;
 
+  useEffect(() => {
+    onCostChange?.(totalCostPerKm);
+  }, [totalCostPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* Card header */}
@@ -375,7 +387,7 @@ function TruckCostCard({
           // Base Fuel Cost is Advanced-mode only — skip rendering in other modes
           if (key === "baseFuelCost" && !isAdvancedMode) return null;
           // Tyre Type does not exist in Advanced mode
-          if (key === "tyreType" && isAdvancedMode) return null;
+          if (key === "tyreType") return null;
 
           const isEmiField = key === "emiAmount" || key === "emiPerDay" || key === "emiPerKm";
           const cv    = calculated ? calcValue[key] ?? null : null;
@@ -517,7 +529,7 @@ function TruckCostCard({
                 }`}>
                   {cvStr ?? "—"}
                 </div>
-              ) : key === "tyreType" ? (
+              ) : (key as string) === "tyreType" ? (
                 isBasicMode ? (
                   <div className="flex w-full items-center justify-center rounded-lg border border-gray-100 bg-gray-50 px-1.5 py-1.5 text-center text-xs font-bold text-gray-300">
                     —
@@ -663,14 +675,14 @@ function TruckCostCard({
                   placeholder={
                     isBasicMode
                       ? (parseFloat(basicTyrePerKm ?? "") > 0 ? parseFloat(basicTyrePerKm!).toFixed(4) : "0")
-                      : (tyreChargesCalc !== null ? tyreChargesCalc.toFixed(4) : "0")
+                      : (parseFloat(manualTyrePerKm ?? "") > 0 ? parseFloat(manualTyrePerKm!).toFixed(4) : "0")
                   }
                   value={metrics[key] ?? ""}
                   onChange={(e) => onMetricChange("tyrePerKm", e.target.value)}
                   className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
                     hasTyreOverride
                       ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : (isBasicMode && parseFloat(basicTyrePerKm ?? "") > 0)
+                      : (isBasicMode && parseFloat(basicTyrePerKm ?? "") > 0) || (!isBasicMode && parseFloat(manualTyrePerKm ?? "") > 0)
                         ? "border-teal-200 bg-teal-50 text-teal-600 placeholder:text-teal-400 focus:border-teal-400 focus:ring-teal-100"
                         : "border-gray-200 bg-white text-gray-800 placeholder:text-blue-300 focus:border-blue-400 focus:ring-blue-100"
                   }`}
@@ -1855,6 +1867,7 @@ export default function RunningCostCalculatorPage() {
   // AdBlue Details state
   const [adblueManufacturers, setAdblueManufacturers] = useState<AdBlueManufacturer[]>([]);
   const [adblueCardOpen, setAdblueCardOpen] = useState(false);
+  const [tyreCostConfigCardOpen, setTyreCostConfigCardOpen] = useState(false);
 
   // Fleet trucks
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -1926,13 +1939,23 @@ export default function RunningCostCalculatorPage() {
   const saveTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
 
+  // Persists computed cost-per-km per truck (keyed by fleet truckId) per mode for use in pl-summary
+  const costPerKmMapRef = useRef<Record<string, Record<string, number | null>>>({ Manual: {}, Basic: {}, Advanced: {} });
+  function handleTruckCostChange(truckFleetId: string, truckMode: string, cost: number | null) {
+    costPerKmMapRef.current = {
+      ...costPerKmMapRef.current,
+      [truckMode]: { ...costPerKmMapRef.current[truckMode], [truckFleetId]: cost },
+    };
+    try { localStorage.setItem("canaan_rcc_cost_per_km", JSON.stringify(costPerKmMapRef.current)); } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     // Read localStorage synchronously BEFORE the first await so the persist effect
     // (which fires with empty state on mount) cannot overwrite it first.
     const localSaved = loadSaved();
 
     async function fetchAll() {
-      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, tyreCostResult, maintCostResult, complianceResult, allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult] = await Promise.allSettled([
+      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, , maintCostResult, complianceResult, allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult] = await Promise.allSettled([
         tyreRangeConfigApi.list(),
         trucksApi.getRunConfig(),
         adblueApi.listManufacturers(),
@@ -1948,6 +1971,7 @@ export default function RunningCostCalculatorPage() {
         tyreApi.listFitments(undefined, true),
         maintenanceApi.getMaintenanceCostPerKm(),
         trucksApi.getCompliancePerKmAll(),
+        tyreLayoutTypeConfigApi.list(),
       ]);
 
       const backendData = backendResult.status === "fulfilled" ? backendResult.value : null;
@@ -2001,10 +2025,26 @@ export default function RunningCostCalculatorPage() {
         setBasicFuelCost(String(fuelBaseResult.value.cost_per_litre));
       }
 
-      if (tyreCostResult.status === "fulfilled") {
+      if (layoutTypeConfigResult.status === "fulfilled" && tyreResult.status === "fulfilled") {
+        const baseCpmMap: Record<string, number> = {};
+        for (const r of tyreResult.value) {
+          if (r.base_cost_per_km != null) baseCpmMap[r.tyre_type] = r.base_cost_per_km;
+        }
+        const qtyByLayout: Record<string, Record<string, number>> = {};
+        for (const q of layoutTypeConfigResult.value) {
+          if (q.quantity != null && q.quantity > 0) {
+            if (!qtyByLayout[q.tyre_layout]) qtyByLayout[q.tyre_layout] = {};
+            qtyByLayout[q.tyre_layout][q.tyre_type] = q.quantity;
+          }
+        }
         const tyreCostMap: Record<string, string> = {};
-        for (const r of tyreCostResult.value) {
-          if (r.tyre_layout && r.cost) tyreCostMap[r.tyre_layout] = r.cost;
+        for (const [layout, typeQtys] of Object.entries(qtyByLayout)) {
+          let total = 0;
+          for (const [tyreType, qty] of Object.entries(typeQtys)) {
+            const cpm = baseCpmMap[tyreType] ?? 0;
+            if (cpm > 0) total += qty * cpm;
+          }
+          if (total > 0) tyreCostMap[layout] = String(total);
         }
         setBasicTyreCostMap(tyreCostMap);
       }
@@ -2138,14 +2178,19 @@ export default function RunningCostCalculatorPage() {
               : (savedM.adblueConsumeL1000 ?? "");
             return [t.id, { ...emptyMetrics, ...savedM, adblueConsumeL1000: l1000 }];
           })),
+          tyreCostConfigQty: saved.tyreCostConfigQty ?? {},
         };
       }
 
       if (emiResult.status === "fulfilled") setEmiRecords(emiResult.value);
 
       initializedRef.current = true;
+      const manualData = buildModeData(manualSaved);
+      if (fuelBaseResult.status === "fulfilled" && fuelBaseResult.value.cost_per_litre != null) {
+        manualData.costPerLitre = String(fuelBaseResult.value.cost_per_litre);
+      }
       setAllModeData({
-        Manual:   buildModeData(manualSaved),
+        Manual:   manualData,
         Basic:    buildModeData(basicSaved),
         Advanced: buildModeData(advSaved),
       });
@@ -2377,6 +2422,18 @@ export default function RunningCostCalculatorPage() {
                   basicAdblue={mode === "Basic" ? (adblueByTruck.get(truck.id) ?? null) : undefined}
                   advancedAdblue={mode === "Advanced" ? (adblueByTruck.get(truck.id) ?? null) : undefined}
                   basicTyrePerKm={mode === "Basic" ? (basicTyreCostMap[truck.tyreLayout] ?? "") : undefined}
+                  manualTyrePerKm={mode === "Manual" ? (() => {
+                    const layout = truck.tyreLayout ?? "";
+                    const total = tyreTypes.reduce((sum, tyreType) => {
+                      const qtyStr = modeData.tyreCostConfigQty[layout]?.[tyreType] ?? "";
+                      const qty = qtyStr !== "" ? Number(qtyStr) : 0;
+                      const entry = modeData.tyreEntries[tyreType];
+                      const cost = parseFloat(entry?.cost ?? "");
+                      const range = parseFloat(entry?.range ?? "");
+                      return sum + (qty > 0 && cost > 0 && range > 0 ? (cost / range) * qty : 0);
+                    }, 0);
+                    return total > 0 ? String(total) : "";
+                  })() : undefined}
                   advancedTyrePerKm={mode === "Advanced" ? (advancedTyreCostMap[truck.id] ?? null) : undefined}
                   basicMaintenancePerKm={mode === "Basic" ? basicMaintenanceCostPerKm : undefined}
                   advancedMaintenancePerKm={mode === "Advanced" ? (advancedMaintenanceCostMap[truck.id] ?? null) : undefined}
@@ -2384,6 +2441,7 @@ export default function RunningCostCalculatorPage() {
                   advancedCompliancePerKm={mode === "Advanced" ? (advancedCompliancePerKmMap[truck.id] ?? null) : undefined}
                   basicCompliance={mode === "Basic" ? (basicComplianceMap[truck.tyreLayout] ?? undefined) : undefined}
                   mode={mode}
+                  onCostChange={(cost) => handleTruckCostChange(truck.truckId, mode, cost)}
                 />
               ));
             })()}
@@ -2579,6 +2637,125 @@ export default function RunningCostCalculatorPage() {
                     className={inputClass}
                   />
                 </div>
+              </div>
+            </div>}
+
+            {/* Tyre Cost Configuration card — Manual only */}
+            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <button
+                type="button"
+                onClick={() => setTyreCostConfigCardOpen((o) => !o)}
+                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${tyreCostConfigCardOpen ? "border-b border-gray-100" : ""}`}
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                  <CircleDot className="h-4 w-4" />
+                </div>
+                <h2 className="flex-1 text-sm font-bold text-gray-800">Tyre Cost Configuration</h2>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${tyreCostConfigCardOpen ? "rotate-180" : "rotate-0"}`}
+                />
+              </button>
+
+              <div className={`overflow-hidden transition-all duration-300 ${tyreCostConfigCardOpen ? "max-h-[4000px] opacity-100" : "max-h-0 opacity-0"}`}>
+                {tyreLayouts.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-xs text-gray-400">
+                    No tyre layouts found.
+                  </div>
+                ) : (
+                  <div className="flex flex-col divide-y divide-gray-100">
+                    {tyreLayouts.map((layout) => {
+                      const layoutTotal = tyreTypes.reduce((sum, tyreType) => {
+                        const qtyStr = modeData.tyreCostConfigQty[layout]?.[tyreType] ?? "";
+                        const qty = qtyStr !== "" ? Number(qtyStr) : 0;
+                        const entry = modeData.tyreEntries[tyreType];
+                        const cost = parseFloat(entry?.cost ?? "");
+                        const range = parseFloat(entry?.range ?? "");
+                        return sum + (qty > 0 && cost > 0 && range > 0 ? (cost / range) * qty : 0);
+                      }, 0);
+
+                      return (
+                      <div key={layout} className="px-4 py-4">
+                        {/* Layout header */}
+                        <div className="mb-3 flex items-center gap-2">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
+                            <CircleDot className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="flex-1 text-xs font-bold text-gray-800">{layout}</span>
+                          {/* Total Cost Per KM for this layout */}
+                          <div className={`flex items-center gap-1 rounded-lg px-2.5 py-1 ${layoutTotal > 0 ? "bg-emerald-600" : "bg-gray-100"}`}>
+                            <span className={`text-[10px] font-bold tabular-nums ${layoutTotal > 0 ? "text-white" : "text-gray-400"}`}>
+                              {layoutTotal > 0 ? `₹ ${layoutTotal.toFixed(4)}` : "—"}
+                            </span>
+                            {layoutTotal > 0 && <span className="text-[9px] font-semibold text-emerald-300">/ km</span>}
+                          </div>
+                        </div>
+
+                        {/* Tyre types under this layout */}
+                        <div className="flex flex-col gap-2 pl-2">
+                          {tyreTypes.length === 0 ? (
+                            <p className="text-[11px] text-gray-300">No tyre types configured.</p>
+                          ) : (
+                            tyreTypes.map((tyreType) => {
+                              const qtyStr = modeData.tyreCostConfigQty[layout]?.[tyreType] ?? "";
+                              const qty = qtyStr !== "" ? Number(qtyStr) : null;
+                              const entry = modeData.tyreEntries[tyreType];
+                              const cost = parseFloat(entry?.cost ?? "");
+                              const range = parseFloat(entry?.range ?? "");
+                              const costPerKm = qty != null && qty > 0 && cost > 0 && range > 0
+                                ? (cost / range) * qty
+                                : null;
+
+                              return (
+                                <div key={tyreType} className="flex items-center gap-2">
+                                  <span className="w-20 shrink-0 text-[11px] font-semibold text-gray-600">{tyreType}</span>
+
+                                  {/* Box 1 — quantity input */}
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="Qty"
+                                    value={qtyStr}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setAllModeData((prev) => ({
+                                        ...prev,
+                                        [mode]: {
+                                          ...prev[mode],
+                                          tyreCostConfigQty: {
+                                            ...prev[mode].tyreCostConfigQty,
+                                            [layout]: {
+                                              ...(prev[mode].tyreCostConfigQty[layout] ?? {}),
+                                              [tyreType]: v,
+                                            },
+                                          },
+                                        },
+                                      }));
+                                    }}
+                                    className="h-7 w-20 rounded-lg border border-gray-200 bg-gray-50 px-2 text-center text-xs font-semibold text-gray-800 outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 transition"
+                                  />
+
+                                  {/* Box 2 — Cost Per KM, auto-calculated */}
+                                  <div className="relative h-7 w-28">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">₹</span>
+                                    <input
+                                      type="text"
+                                      readOnly
+                                      value={costPerKm != null ? costPerKm.toFixed(4) : ""}
+                                      placeholder="—"
+                                      className="h-full w-full rounded-lg border border-gray-100 bg-gray-100 pl-5 pr-2 text-center text-xs font-semibold text-gray-500 outline-none cursor-default"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>}
 

@@ -7,7 +7,7 @@ import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { sidebarSections, type NavSection } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { editApprovalsApi } from "@/lib/api";
+import { editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -30,6 +30,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
     "/attendance/edit-approvals",
     "/attendance/report",
+    "/admin/repairs",
   ],
   "Assistant Commercial Manager": [
     "/",
@@ -70,6 +71,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/trips/sheet-collection",
     "/attendance/mark",
     "/attendance/leave-requests",
+    "/admin/repairs",
   ],
   "Trip Sheet Register": [
     "/trips/reconciliation",
@@ -117,19 +119,33 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
     : {};
 
   const [pendingEditApprovals, setPendingEditApprovals] = useState(0);
+  const [pendingDeletionApprovals, setPendingDeletionApprovals] = useState(0);
+
   useEffect(() => {
     if (!isAdmin) return;
     editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
+    deletionApprovalsApi.list("Pending").then((r) => setPendingDeletionApprovals(r.length)).catch(() => {});
   }, [isAdmin]);
+
   const refreshPendingEditApprovals = () => {
     if (!isAdmin) return;
     editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
   };
+  const refreshPendingDeletionApprovals = () => {
+    if (!isAdmin) return;
+    deletionApprovalsApi.list("Pending").then((r) => setPendingDeletionApprovals(r.length)).catch(() => {});
+  };
+
   useWebSocketEvent("edit_approval_created", refreshPendingEditApprovals);
   useWebSocketEvent("edit_approval_updated", refreshPendingEditApprovals);
+  useWebSocketEvent("deletion_approval_created", refreshPendingDeletionApprovals);
+  useWebSocketEvent("deletion_approval_updated", refreshPendingDeletionApprovals);
 
-  const badgeFor = (href: string): number =>
-    href === "/attendance/edit-approvals" ? pendingEditApprovals : 0;
+  const badgeFor = (href: string): number => {
+    if (href === "/attendance/edit-approvals") return pendingEditApprovals;
+    if (href === "/attendance/deletion-approvals") return pendingDeletionApprovals;
+    return 0;
+  };
 
   const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
 

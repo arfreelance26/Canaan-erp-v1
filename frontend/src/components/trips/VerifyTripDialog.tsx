@@ -17,6 +17,7 @@ type VerifyTripDialogProps = {
   closure: TripClosureData | undefined;
   sheet: TripSheetData | undefined;
   customer?: Customer;
+  readOnly?: boolean;
   onClose: () => void;
   onViewSheet: () => void;
   onEditSheet: () => void;
@@ -49,7 +50,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 }
 
 export function VerifyTripDialog({
-  open, trip, closure, sheet, customer,
+  open, trip, closure, sheet, customer, readOnly = false,
   onClose, onViewSheet, onEditSheet, onViewBookingSheet, onEditBookingSheet, onConfirm, onReject,
 }: VerifyTripDialogProps) {
   const [markedLabels, setMarkedLabels] = useState<Set<string>>(new Set());
@@ -158,17 +159,31 @@ export function VerifyTripDialog({
       <div className="flex flex-col gap-4">
 
         {/* Status banner */}
-        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 px-4 py-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-gray-800 dark:text-white">Trip sheet pending verification</p>
-            <p className="text-xs text-gray-500 dark:text-white">Uploaded by Commercial Manager · Review all details before confirming.</p>
+        {readOnly ? (
+          <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 px-4 py-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 dark:text-white">Trip Verified</p>
+              <p className="text-xs text-gray-500 dark:text-white">This trip has been verified. All details are read-only.</p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 px-4 py-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-gray-800 dark:text-white">Trip sheet pending verification</p>
+              <p className="text-xs text-gray-500 dark:text-white">Uploaded by Commercial Manager · Review all details before confirming.</p>
+            </div>
+          </div>
+        )}
 
         {/* Trip Identification */}
         <SectionCard title="Trip Identification" accent="bg-slate-50 text-slate-500">
@@ -311,8 +326,8 @@ export function VerifyTripDialog({
                           {fmt(value)}
                         </span>
 
-                        {/* ✓ / ✗ verification buttons — only on non-zero expenses */}
-                        {!isZero && (
+                        {/* ✓ / ✗ verification buttons — only on non-zero expenses in edit mode */}
+                        {!isZero && !readOnly && (
                           <span className="flex items-center gap-1">
                             <button
                               type="button"
@@ -388,29 +403,35 @@ export function VerifyTripDialog({
               className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors">
               View Trip Sheet
             </button>
-            <button type="button" onClick={onEditSheet}
-              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
-              Edit Trip Sheet
-            </button>
+            {!readOnly && (
+              <button type="button" onClick={onEditSheet}
+                className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
+                Edit Trip Sheet
+              </button>
+            )}
             <button type="button" onClick={onViewBookingSheet}
               className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-colors">
               View Booking Sheet
             </button>
-            <button type="button" onClick={onEditBookingSheet}
-              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
-              Edit Booking Sheet
-            </button>
-            <button type="button" onClick={() => setDirectReject(true)}
-              className="ml-auto flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-colors">
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Reject Trip
-            </button>
+            {!readOnly && (
+              <>
+                <button type="button" onClick={onEditBookingSheet}
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm hover:bg-blue-50 transition-colors">
+                  Edit Booking Sheet
+                </button>
+                <button type="button" onClick={() => setDirectReject(true)}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm hover:bg-red-50 hover:border-red-300 transition-colors">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Reject Trip
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Verification Decision — auto-derived from tick/untick marks */}
-          <div className="border-t border-gray-100 pt-3">
+          {/* Verification Decision — auto-derived from tick/untick marks — hidden in read-only mode */}
+          {!readOnly && <div className="border-t border-gray-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-white">Verification Decision</p>
 
             {/* Direct reject — bypasses expense verification entirely */}
@@ -511,7 +532,7 @@ export function VerifyTripDialog({
                 Send Back to Docs
               </button>
             )}
-          </div>
+          </div>}
         </div>
 
       </div>

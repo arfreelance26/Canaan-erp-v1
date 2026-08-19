@@ -63,7 +63,7 @@ export function TruckMaintenanceTable({
       <table className="w-full text-left text-sm">
         <thead className="sticky top-0 z-10">
           <tr className="border-b border-gray-200 bg-gray-50">
-            {["Registration Number", "Current Odometer", "Maintenance Status", "Actions"].map((col) => (
+            {["Registration Number", "Maintenance Status", "Actions"].map((col) => (
               <th key={col} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase whitespace-nowrap">
                 {col}
               </th>
@@ -76,7 +76,6 @@ export function TruckMaintenanceTable({
             return (
               <tr key={truck.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{truck.registrationNumber}</td>
-                <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{Number(truck.odometer).toLocaleString()} km</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   <StatusChip status={status} />
                 </td>

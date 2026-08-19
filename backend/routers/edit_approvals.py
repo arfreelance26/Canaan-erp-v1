@@ -27,6 +27,7 @@ def create_edit_approval(
         resource_name=payload.resource_name,
         action=payload.action,
         reason=payload.reason,
+        proposed_changes=payload.proposed_changes,
     )
     db.add(req)
     db.commit()
@@ -111,6 +112,45 @@ def approve_edit_request(
             db.delete(trip)
             db.commit()
             emit("trip_deleted", {"trip_id": req.resource_id, "trip_id_str": req.resource_name})
+        req.expires_at = None
+    elif req.action == "Edit" and req.resource_type == "FuelLog":
+        # Apply the proposed field changes to the fuel log immediately
+        log = db.get(models.FuelLog, req.resource_id)
+        if log:
+            changes = req.proposed_changes or {}
+            if "date" in changes:
+                log.date = changes["date"]
+            if "odometer" in changes:
+                log.odometer = changes["odometer"]
+            if "litres" in changes:
+                log.litres = changes["litres"]
+            if "price_per_litre" in changes:
+                log.price_per_litre = changes["price_per_litre"]
+            if "total_cost" in changes:
+                log.total_cost = changes["total_cost"]
+            if "fuel_station" in changes:
+                log.fuel_station = changes["fuel_station"]
+            log.version = (log.version or 1) + 1
+
+            # Re-sequence distance/mileage for all logs of this truck
+            truck_id = log.truck_id
+            db.flush()
+            remaining = (
+                db.query(models.FuelLog)
+                .filter(models.FuelLog.truck_id == truck_id)
+                .order_by(models.FuelLog.odometer.asc())
+                .all()
+            )
+            for i, row in enumerate(remaining):
+                if i == 0:
+                    row.distance = 0
+                    row.mileage = 0
+                else:
+                    prev = remaining[i - 1]
+                    dist = max(float(row.odometer) - float(prev.odometer), 0)
+                    row.distance = dist
+                    row.mileage = (dist / float(row.litres)) if float(row.litres) > 0 and dist > 0 else 0
+            emit("fuel_updated", {})
         req.expires_at = None
     else:
         req.expires_at = req.approved_at + timedelta(hours=1)

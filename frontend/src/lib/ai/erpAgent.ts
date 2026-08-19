@@ -265,7 +265,7 @@ function daysUntil(dateStr: string | null): number | null {
 }
 
 async function apiFetch(path: string, token: string) {
-  const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
   const res = await fetch(`${base}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });

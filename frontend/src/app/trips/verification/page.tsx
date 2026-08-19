@@ -10,6 +10,7 @@ import { GenerateInvoiceDialog, type InvoiceType, type InvoiceFormData } from "@
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 import { LRConsignmentDialog } from "@/components/trips/LRConsignmentDialog";
 import { DABDialog } from "@/components/trips/DABDialog";
+import { CABDialog } from "@/components/trips/CABDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -41,16 +42,17 @@ type PreviewState = {
 
 type InvoiceDialogState = { trip: Trip; savedInvoice: Partial<InvoiceFormData> | null };
 
-type StatusFilter = "All" | "Pending" | "Verified" | "Invoiced" | "Rejected";
+type StatusFilter = "All" | "Pending" | "Verified" | "Invoiced" | "Rejected" | "Waived Invoice";
 
-function StatusBadge({ status }: { status: "pending" | "verified" | "invoiced" | "rejected" }) {
+function StatusBadge({ status }: { status: "pending" | "verified" | "invoiced" | "rejected" | "waived" }) {
   const map = {
     pending:  "bg-yellow-100 text-yellow-700",
     verified: "bg-emerald-100 text-emerald-700",
     invoiced: "bg-blue-100 text-blue-700",
     rejected: "bg-rose-100 text-rose-700",
+    waived:   "bg-purple-100 text-purple-700",
   };
-  const labels = { pending: "Pending", verified: "Verified", invoiced: "Invoiced", rejected: "Rejected" };
+  const labels = { pending: "Pending", verified: "Verified", invoiced: "Invoiced", rejected: "Rejected", waived: "Waived Invoice" };
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${map[status]}`}>
       {labels[status]}
@@ -73,9 +75,11 @@ export default function TripVerificationPage() {
   const [invoicedIds, setInvoicedIds]   = useState<Set<string>>(new Set());
   const [invoiceData, setInvoiceData] = useState<Map<string, any>>(new Map());
   const [invoiceTypes, setInvoiceTypes] = useState<Map<string, InvoiceType>>(new Map());
+  const [waivedIds, setWaivedIds]       = useState<Set<string>>(new Set());
 
   // Dialog state
   const [verifyTrip, setVerifyTrip]           = useState<Trip | null>(null);
+  const [verifyTripReadOnly, setVerifyTripReadOnly] = useState(false);
   const [sheetTrip, setSheetTrip]             = useState<Trip | null>(null);
   const [sheetMode, setSheetMode]             = useState<SheetDialogMode>("view");
   const [bookingSheetTrip, setBookingSheetTrip] = useState<Trip | null>(null);
@@ -84,6 +88,7 @@ export default function TripVerificationPage() {
   const [preview, setPreview]                 = useState<PreviewState | null>(null);
   const [lrDialogTrip, setLrDialogTrip]       = useState<Trip | null>(null);
   const [dabDialogTrip, setDabDialogTrip]     = useState<Trip | null>(null);
+  const [cabDialogTrip, setCabDialogTrip]     = useState<Trip | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
@@ -115,7 +120,8 @@ export default function TripVerificationPage() {
     const verified  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "verified").map((t) => t.id));
     const rejected  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "rejected").map((t) => t.id));
     const invoiced  = new Set<string>(allTrips.filter((t) => (t as any).isInvoiced === true).map((t) => t.id));
-    setVerifiedIds(verified); setRejectedIds(rejected); setInvoicedIds(invoiced);
+    const waived    = new Set<string>(allTrips.filter((t) => (t as any).invoiceWaived === true).map((t) => t.id));
+    setVerifiedIds(verified); setRejectedIds(rejected); setInvoicedIds(invoiced); setWaivedIds(waived);
 
     const invoicedTrips = allTrips.filter((t) => (t as any).isInvoiced === true);
 
@@ -198,6 +204,14 @@ export default function TripVerificationPage() {
       setVerifyTrip(null);
       showSuccess("Trip sheet sent back to Docs team with rejection reason.");
     } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to reject trip."); }
+  }
+
+  async function handleWaiveInvoice(trip: Trip) {
+    try {
+      await tripsApi.waiveInvoice(trip.id);
+      setWaivedIds((prev) => new Set([...prev, trip.id]));
+      showSuccess("Invoice waived. Trip marked as complete without invoicing.");
+    } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to waive invoice."); }
   }
 
   // ── Invoice handlers ───────────────────────────────────────────────────────
@@ -289,6 +303,7 @@ export default function TripVerificationPage() {
     return trips.filter((t) => {
       if (invoicedIds.has(t.id)) return false;
       if (rejectedIds.has(t.id)) return false;
+      if (waivedIds.has(t.id)) return false;
       if (!t.bookingCreatedDate) return false;
       const ms = new Date(t.bookingCreatedDate).getTime();
       if (pendingFromMs && ms < pendingFromMs) return false;
@@ -582,16 +597,18 @@ export default function TripVerificationPage() {
   const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers));
 
   // Counts for filter cards
-  const pendingCount  = allFiltered.filter((t) => !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id)).length;
-  const rejectedCount = allFiltered.filter((t) => rejectedIds.has(t.id)).length;
-  const verifiedCount = allFiltered.filter((t) => verifiedIds.has(t.id) && !invoicedIds.has(t.id)).length;
-  const invoicedCount = allFiltered.filter((t) => invoicedIds.has(t.id)).length;
+  const pendingCount       = allFiltered.filter((t) => !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id)).length;
+  const rejectedCount      = allFiltered.filter((t) => rejectedIds.has(t.id)).length;
+  const verifiedCount      = allFiltered.filter((t) => verifiedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id)).length;
+  const invoicedCount      = allFiltered.filter((t) => invoicedIds.has(t.id)).length;
+  const waivedInvoiceCount = allFiltered.filter((t) => waivedIds.has(t.id) && !invoicedIds.has(t.id)).length;
 
   const filteredTrips = allFiltered
     .filter((t) => {
-      if (statusFilter === "Pending")  return !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id);
-      if (statusFilter === "Rejected") return rejectedIds.has(t.id);
-      if (statusFilter === "Verified") return verifiedIds.has(t.id) && !invoicedIds.has(t.id);
+      if (statusFilter === "Pending")        return !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id);
+      if (statusFilter === "Rejected")       return rejectedIds.has(t.id);
+      if (statusFilter === "Verified")       return verifiedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id);
+      if (statusFilter === "Waived Invoice") return waivedIds.has(t.id) && !invoicedIds.has(t.id);
       if (statusFilter === "Invoiced") {
         if (!invoicedIds.has(t.id)) return false;
         if (invoiceTypeFilter !== "All") {
@@ -603,7 +620,7 @@ export default function TripVerificationPage() {
       return true;
     })
     .sort((a, b) => {
-      const order = (t: Trip) => invoicedIds.has(t.id) ? 4 : verifiedIds.has(t.id) ? 1 : rejectedIds.has(t.id) ? 2 : 0;
+      const order = (t: Trip) => invoicedIds.has(t.id) ? 4 : waivedIds.has(t.id) ? 3 : verifiedIds.has(t.id) ? 1 : rejectedIds.has(t.id) ? 2 : 0;
       return order(a) - order(b);
     });
 
@@ -612,11 +629,12 @@ export default function TripVerificationPage() {
   const paginatedTrips = filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const FILTER_CARDS: { key: StatusFilter; label: string; count: number; color: string }[] = [
-    { key: "All",      label: "All Trips",  count: allFiltered.length,  color: "border-gray-200 bg-white text-gray-900" },
-    { key: "Pending",  label: "Pending",    count: pendingCount,         color: "border-yellow-200 bg-yellow-50 text-yellow-700" },
-    { key: "Rejected", label: "Rejected",   count: rejectedCount,        color: "border-rose-200 bg-rose-50 text-rose-700" },
-    { key: "Verified", label: "Verified",   count: verifiedCount,        color: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-    { key: "Invoiced", label: "Invoiced",   count: invoicedCount,        color: "border-blue-200 bg-blue-50 text-blue-700" },
+    { key: "All",            label: "All Trips",      count: allFiltered.length,   color: "border-gray-200 bg-white text-gray-900" },
+    { key: "Pending",        label: "Pending",        count: pendingCount,          color: "border-yellow-200 bg-yellow-50 text-yellow-700" },
+    { key: "Rejected",       label: "Rejected",       count: rejectedCount,         color: "border-rose-200 bg-rose-50 text-rose-700" },
+    { key: "Verified",       label: "Verified",       count: verifiedCount,         color: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+    { key: "Invoiced",       label: "Invoiced",       count: invoicedCount,         color: "border-blue-200 bg-blue-50 text-blue-700" },
+    { key: "Waived Invoice", label: "Waived Invoice", count: waivedInvoiceCount,    color: "border-purple-200 bg-purple-50 text-purple-700" },
   ];
 
   return (
@@ -691,7 +709,7 @@ export default function TripVerificationPage() {
       </div>
 
       {/* Filter cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
         {FILTER_CARDS.map(({ key, label, count, color }) => (
           <button
             key={key}
@@ -764,6 +782,7 @@ export default function TripVerificationPage() {
                   const isVerified  = verifiedIds.has(trip.id);
                   const isRejected  = rejectedIds.has(trip.id);
                   const isInvoiced  = invoicedIds.has(trip.id);
+                  const isWaived    = waivedIds.has(trip.id) && !isInvoiced;
                   const inv         = invoiceData.get(trip.id);
 
                   const hireAmt    = sheet ? n(sheet.hireAmount) : 0;
@@ -774,9 +793,9 @@ export default function TripVerificationPage() {
                     : invType === "Transport Memo" ? "bg-orange-100 text-orange-700"
                     : invType === "Tax Invoice" ? "bg-blue-100 text-blue-700" : "";
 
-                  const tripStatus = isInvoiced ? "invoiced" : isVerified ? "verified" : isRejected ? "rejected" : "pending";
-                  // Row tint matches the filter cards: Invoiced→blue, Verified→emerald, Rejected→rose, Pending→yellow.
-                  const stageColor: StageColor = isInvoiced ? "blue" : isVerified ? "emerald" : isRejected ? "rose" : "yellow";
+                  const tripStatus = isInvoiced ? "invoiced" : isWaived ? "waived" : isVerified ? "verified" : isRejected ? "rejected" : "pending";
+                  // Row tint matches the filter cards: Invoiced→blue, Waived→purple, Verified→emerald, Rejected→rose, Pending→yellow.
+                  const stageColor: StageColor = isInvoiced ? "blue" : isWaived ? "purple" : isVerified ? "emerald" : isRejected ? "rose" : "yellow";
 
                   return (
                     <tr
@@ -811,6 +830,28 @@ export default function TripVerificationPage() {
                                 Generate DAB
                               </button>
                             )}
+                            {parseFloat(trip.customerCashAdvance || "0") > 0 &&
+                              (trip.paymentType === "Cash" || trip.paymentType === "Credit") && (
+                              <button type="button" onClick={() => setCabDialogTrip(trip)}
+                                className="flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800 hover:bg-green-100">
+                                Generate CAB
+                              </button>
+                            )}
+                          </div>
+                        ) : isWaived ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-purple-700">Invoice Waived</span>
+                            <button
+                              type="button"
+                              onClick={() => setInvoiceDialog({ trip, savedInvoice: null })}
+                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                            >
+                              GENERATE INVOICE
+                            </button>
+                            <button type="button" onClick={() => { setVerifyTripReadOnly(true); setVerifyTrip(trip); }}
+                              className="w-fit rounded-lg border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50">
+                              View Details
+                            </button>
                           </div>
                         ) : isVerified ? (
                           <div className="flex flex-col gap-1">
@@ -825,7 +866,11 @@ export default function TripVerificationPage() {
                               className="rounded-lg border border-blue-900/30 bg-white px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-50">
                               GENERATE LR
                             </button>
-                            <button type="button" onClick={() => setVerifyTrip(trip)}
+                            <button type="button" onClick={() => handleWaiveInvoice(trip)}
+                              className="rounded-lg border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-50">
+                              WAIVE INVOICE
+                            </button>
+                            <button type="button" onClick={() => { setVerifyTripReadOnly(true); setVerifyTrip(trip); }}
                               className="w-fit rounded-lg border border-gray-300 px-2.5 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-50">
                               View Details
                             </button>
@@ -840,7 +885,7 @@ export default function TripVerificationPage() {
                                 {trip.verificationRejectionReason}
                               </p>
                             )}
-                            <button type="button" onClick={() => setVerifyTrip(trip)}
+                            <button type="button" onClick={() => { setVerifyTripReadOnly(false); setVerifyTrip(trip); }}
                               className="w-fit rounded-lg border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">
                               Review
                             </button>
@@ -848,7 +893,7 @@ export default function TripVerificationPage() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setVerifyTrip(trip)}
+                            onClick={() => { setVerifyTripReadOnly(false); setVerifyTrip(trip); }}
                             className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
                           >
                             VERIFY TRIP DATA
@@ -936,7 +981,8 @@ export default function TripVerificationPage() {
         closure={verifyTrip ? closures.get(verifyTrip.id) : undefined}
         sheet={verifyTrip ? sheets.get(verifyTrip.id) : undefined}
         customer={verifyTrip ? customerById.get(verifyTrip.customerId) : undefined}
-        onClose={() => setVerifyTrip(null)}
+        readOnly={verifyTripReadOnly}
+        onClose={() => { setVerifyTrip(null); setVerifyTripReadOnly(false); }}
         onViewSheet={() => verifyTrip && openSheetDialog(verifyTrip, "view")}
         onEditSheet={() => verifyTrip && openSheetDialog(verifyTrip, "edit")}
         onViewBookingSheet={() => verifyTrip && openBookingSheet(verifyTrip, true)}
@@ -1009,6 +1055,15 @@ export default function TripVerificationPage() {
         customer={dabDialogTrip ? customerById.get(dabDialogTrip.customerId) : undefined}
         invoiceNo={dabDialogTrip ? (invoiceData.get(dabDialogTrip.id)?.invoice_no ?? "") : ""}
         onClose={() => setDabDialogTrip(null)}
+      />
+
+      <CABDialog
+        open={cabDialogTrip !== null}
+        trip={cabDialogTrip}
+        truck={cabDialogTrip ? truckById.get(cabDialogTrip.vehicleId) : undefined}
+        customer={cabDialogTrip ? customerById.get(cabDialogTrip.customerId) : undefined}
+        invoiceNo={cabDialogTrip ? (invoiceData.get(cabDialogTrip.id)?.invoice_no ?? "") : ""}
+        onClose={() => setCabDialogTrip(null)}
       />
 
       {showReportModal && (() => {

@@ -12,12 +12,15 @@ import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useAuth } from "@/context/AuthContext";
 import { Search, IndianRupee } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
 export default function TruckMaintenancePage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [allStatus, setAllStatus] = useState<TruckMaintenanceStatus[]>([]);
@@ -80,10 +83,6 @@ export default function TruckMaintenancePage() {
     try {
       const created = await maintenanceApi.createRecord(record, truck.id);
       setRecords((prev) => [...prev, created]);
-      if (Number(record.odometer) > Number(truck.odometer)) {
-        const updatedTruck = await trucksApi.update(truck.id, { ...truck, odometer: record.odometer });
-        setTrucks((prev) => prev.map((t) => (t.id === truck.id ? updatedTruck : t)));
-      }
       setUpdateDialogOpen(false);
       // Refresh status after a new record is saved
       maintenanceApi.getStatus().then(setAllStatus).catch(() => {});
@@ -144,19 +143,21 @@ export default function TruckMaintenancePage() {
                 ...(exportTo ? { to_date: exportTo } : {}),
               }}
             />
-            <button
-              type="button"
-              onClick={() => setBaseCostDialogOpen(true)}
-              className="flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <IndianRupee className="h-4 w-4" />
-              Set Base Maintenance Cost
-              {baseRate !== null && (
-                <span className="rounded bg-white/25 px-1.5 py-0.5 text-[11px] font-bold tabular-nums">
-                  ₹{baseRate}/km
-                </span>
-              )}
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setBaseCostDialogOpen(true)}
+                className="flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <IndianRupee className="h-4 w-4" />
+                Set Base Maintenance Cost
+                {baseRate !== null && (
+                  <span className="rounded bg-white/25 px-1.5 py-0.5 text-[11px] font-bold tabular-nums">
+                    ₹{baseRate}/km
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -182,12 +183,14 @@ export default function TruckMaintenancePage() {
         onClose={() => setHistoryDialogOpen(false)}
         truck={selectedTruck}
         records={records}
+        onDelete={(id) => setRecords((prev) => prev.filter((r) => r.id !== id))}
       />
 
       <TruckStatusDialog
         open={statusDialogOpen}
         onClose={() => setStatusDialogOpen(false)}
         status={selectedTruck ? statusByTruckDbId.get(selectedTruck.id) ?? null : null}
+        truckDbId={selectedTruck?.id}
         records={selectedTruck ? records.filter((r) => r.truckId === selectedTruck.id) : []}
         tyreLayout={selectedTruck?.tyreLayout}
       />

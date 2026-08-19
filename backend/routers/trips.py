@@ -828,6 +828,22 @@ def reject_verification(trip_id: int, body: RejectVerificationBody, db: Session 
     return _enrich(trip)
 
 
+@router.post("/{trip_id}/waive-invoice", response_model=schemas.TripOut)
+def waive_invoice(trip_id: int, db: Session = Depends(get_db)):
+    """Mark a verified trip's invoice as waived — trip is complete without invoicing."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if trip.verification_status != "verified":
+        raise HTTPException(400, "Only verified trips can have their invoice waived")
+    trip.invoice_waived = True
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
 @router.post("/{trip_id}/flag", response_model=schemas.TripOut)
 def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(

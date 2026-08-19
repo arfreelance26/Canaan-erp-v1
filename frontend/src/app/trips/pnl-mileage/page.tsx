@@ -117,7 +117,7 @@ export default function PnlMileagePage() {
     <div className="flex flex-col gap-6">
       {/* Page title */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">P&L — Per Trip</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Trip Summary</h1>
         <p className="mt-1 text-sm text-gray-500">
           Profit / Loss breakdown for all completed trip sheets
         </p>

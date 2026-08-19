@@ -2,8 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from security import get_current_user, TokenUser
 
 router = APIRouter(prefix="/repair-types", tags=["Repair Types"])
+
+_REPAIRS_ROLES = {"Admin", "Commercial Manager", "Yard Supervisor"}
 
 
 @router.get("", response_model=list[schemas.RepairTypeOut])
@@ -12,7 +15,9 @@ def list_repair_types(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=schemas.RepairTypeOut, status_code=201)
-def create_repair_type(payload: schemas.RepairTypeCreate, db: Session = Depends(get_db)):
+def create_repair_type(payload: schemas.RepairTypeCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role not in _REPAIRS_ROLES:
+        raise HTTPException(403, "Not authorized to manage Repair Types.")
     if db.query(models.RepairType).filter(models.RepairType.name == payload.name).first():
         raise HTTPException(400, f"Repair type '{payload.name}' already exists")
     record = models.RepairType(**payload.model_dump())
@@ -23,7 +28,9 @@ def create_repair_type(payload: schemas.RepairTypeCreate, db: Session = Depends(
 
 
 @router.put("/{repair_type_id}", response_model=schemas.RepairTypeOut)
-def update_repair_type(repair_type_id: int, payload: schemas.RepairTypeUpdate, db: Session = Depends(get_db)):
+def update_repair_type(repair_type_id: int, payload: schemas.RepairTypeUpdate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role not in _REPAIRS_ROLES:
+        raise HTTPException(403, "Not authorized to manage Repair Types.")
     record = db.query(models.RepairType).with_for_update().filter(models.RepairType.id == repair_type_id).first()
     if not record:
         raise HTTPException(404, "Repair type not found")
@@ -42,7 +49,9 @@ def update_repair_type(repair_type_id: int, payload: schemas.RepairTypeUpdate, d
 
 
 @router.delete("/{repair_type_id}", status_code=204)
-def delete_repair_type(repair_type_id: int, db: Session = Depends(get_db)):
+def delete_repair_type(repair_type_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role not in _REPAIRS_ROLES:
+        raise HTTPException(403, "Not authorized to manage Repair Types.")
     record = db.get(models.RepairType, repair_type_id)
     if not record:
         raise HTTPException(404, "Repair type not found")

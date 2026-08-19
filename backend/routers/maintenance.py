@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -13,6 +13,42 @@ router = APIRouter(tags=["Maintenance"])
 
 EXPIRING_SOON_DAYS = 30
 UPCOMING_WINDOW_KM = 1000
+
+
+def _iqr_filter(intervals: list[dict]) -> list[dict]:
+    """Remove outlier intervals using the Modified Z-score (MAD-based) method.
+
+    More robust than Tukey IQR for small datasets because median and MAD are
+    both resistant to the outlier that would otherwise widen the IQR fences.
+
+    Requires ≥ 4 intervals; fewer → returned unchanged.
+    Threshold = 3.5 (standard Iglewicz-Hoaglin recommendation).
+    """
+    if len(intervals) < 4:
+        return intervals
+    mileages = [r["mileage"] for r in intervals if r["mileage"] > 0]
+    if len(mileages) < 4:
+        return intervals
+
+    sorted_m = sorted(mileages)
+    n = len(sorted_m)
+    # Median
+    mid = n // 2
+    median = (sorted_m[mid - 1] + sorted_m[mid]) / 2 if n % 2 == 0 else sorted_m[mid]
+    # Median Absolute Deviation
+    abs_devs = sorted(abs(m - median) for m in sorted_m)
+    mad = (abs_devs[mid - 1] + abs_devs[mid]) / 2 if n % 2 == 0 else abs_devs[mid]
+
+    if mad == 0:
+        # All values identical — no outliers possible
+        return intervals
+
+    # Modified Z-score: 0.6745 = 1 / qnorm(0.75), so score ~ standard deviations
+    threshold = 3.5
+    return [
+        r for r in intervals
+        if (0.6745 * abs(r["mileage"] - median) / mad) <= threshold
+    ]
 
 
 def _compute_maint_status(truck_odo: int, last_odo_map: dict, maint_types: list) -> dict:
@@ -104,10 +140,14 @@ def list_maintenance_records(
 
 
 @router.post("/maintenance/records", response_model=schemas.MaintenanceRecordOut, status_code=201, tags=["Maintenance"])
-def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Session = Depends(get_db)):
-    if not db.get(models.Truck, payload.truck_id):
+def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    truck = db.get(models.Truck, payload.truck_id)
+    if not truck:
         raise HTTPException(404, "Truck not found")
-    record = models.MaintenanceRecord(**payload.model_dump())
+    current_odo = int(truck.odometer or 0)
+    if current_odo > 0 and int(payload.odometer) > current_odo:
+        raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
+    record = models.MaintenanceRecord(**payload.model_dump(), entered_by_name=current_user.name, source="Web")
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -116,7 +156,7 @@ def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Sess
 
 
 @router.put("/maintenance/records/{record_id}", response_model=schemas.MaintenanceRecordOut, tags=["Maintenance"])
-def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecordUpdate, db: Session = Depends(get_db)):
+def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecordUpdate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     record = db.query(models.MaintenanceRecord).with_for_update().filter(models.MaintenanceRecord.id == record_id).first()
     if not record:
         raise HTTPException(404, "Maintenance record not found")
@@ -126,8 +166,15 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
             "This maintenance record was modified by someone else while you were editing. "
             "Please refresh the page to get the latest data and try again."
         )
+    if payload.odometer is not None:
+        truck = db.get(models.Truck, record.truck_id)
+        if truck:
+            current_odo = int(truck.odometer or 0)
+            if current_odo > 0 and int(payload.odometer) > current_odo:
+                raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(record, field, value)
+    record.entered_by_name = current_user.name
     record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)
@@ -136,7 +183,9 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
 
 
 @router.delete("/maintenance/records/{record_id}", status_code=204, tags=["Maintenance"])
-def delete_maintenance_record(record_id: int, db: Session = Depends(get_db)):
+def delete_maintenance_record(record_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role != "Admin" and current_user.id is not None:
+        raise HTTPException(403, "Only admins can delete maintenance records directly.")
     record = db.get(models.MaintenanceRecord, record_id)
     if not record:
         raise HTTPException(404, "Maintenance record not found")
@@ -372,13 +421,16 @@ def get_fuel_base_config(db: Session = Depends(get_db)):
 
 
 @router.put("/maintenance/fuel-base-config", response_model=schemas.FuelBaseConfigOut, tags=["Fuel Logs"])
-def update_fuel_base_config(payload: schemas.FuelBaseConfigUpdate, db: Session = Depends(get_db)):
+def update_fuel_base_config(payload: schemas.FuelBaseConfigUpdate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role != "Admin":
+        raise HTTPException(403, "Only Admins can update the fuel base rate.")
     row = db.query(models.FuelBaseConfig).first()
     if not row:
         row = models.FuelBaseConfig(cost_per_litre=payload.cost_per_litre)
         db.add(row)
     else:
         row.cost_per_litre = payload.cost_per_litre
+        row.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)
     return row
@@ -424,42 +476,76 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
 @router.get("/maintenance/fuel-stats/all", tags=["Fuel Logs"])
 def get_all_fuel_stats(db: Session = Depends(get_db)):
     """Returns average mileage in km/L keyed by truck_id (as string) for every truck that has fuel logs."""
-    logs = db.query(models.FuelLog).filter(models.FuelLog.distance > 0).all()
-    totals: dict[int, dict] = {}
+    logs = (
+        db.query(models.FuelLog)
+        .order_by(models.FuelLog.truck_id, models.FuelLog.odometer.asc())
+        .all()
+    )
+    # Group raw intervals per truck
+    raw: dict[int, list[dict]] = {}
+    prev: dict[int, models.FuelLog] = {}
     for log in logs:
         tid = log.truck_id
-        if tid not in totals:
-            totals[tid] = {"distance": 0.0, "fuel": 0.0}
-        totals[tid]["distance"] += float(log.distance or 0)
-        totals[tid]["fuel"]     += float(log.litres  or 0)
-    return {
-        str(tid): round(d["distance"] / d["fuel"], 6) if d["fuel"] > 0 else 0
-        for tid, d in totals.items()
-    }
+        litres = float(log.litres or 0)
+        if tid in prev and litres > 0:
+            dist = max(float(log.odometer) - float(prev[tid].odometer), 0)
+            if dist > 0:
+                raw.setdefault(tid, []).append({"distance": dist, "litres": litres,
+                                                 "mileage": dist / litres})
+        prev[tid] = log
+    # Apply IQR filter per truck, then compute weighted average
+    result = {}
+    for tid, intervals in raw.items():
+        filtered = _iqr_filter(intervals)
+        total_d = sum(r["distance"] for r in filtered)
+        total_f = sum(r["litres"]   for r in filtered)
+        result[str(tid)] = round(total_d / total_f, 6) if total_f > 0 else 0
+    return result
 
 
 @router.get("/maintenance/trucks/{truck_id}/fuel-stats", response_model=schemas.FuelStats, tags=["Fuel Logs"])
 def get_fuel_stats(truck_id: int, db: Session = Depends(get_db)):
     if not db.get(models.Truck, truck_id):
         raise HTTPException(404, "Truck not found")
-        
-    logs = db.query(models.FuelLog)\
-        .filter(models.FuelLog.truck_id == truck_id)\
-        .order_by(models.FuelLog.odometer.asc())\
+
+    logs = (
+        db.query(models.FuelLog)
+        .filter(models.FuelLog.truck_id == truck_id)
+        .order_by(models.FuelLog.odometer.asc())
         .all()
-        
-    total_distance = sum(float(log.distance) for log in logs)
-    # Only sum fuel/cost for intervals where we know the distance (not the baseline)
-    interval_logs = [log for log in logs if float(log.distance) > 0]
-    total_fuel = sum(float(log.litres) for log in interval_logs)
-    total_cost = sum(float(log.total_cost) for log in interval_logs)
+    )
 
-    average_mileage = (total_distance / total_fuel) if total_fuel > 0 else 0
-    cost_per_km = (total_cost / total_distance) if total_distance > 0 else 0
+    if not logs:
+        return schemas.FuelStats(
+            total_distance=0, total_fuel=0, average_mileage=0,
+            last_mileage=0, best_mileage=0, worst_mileage=0,
+            trend_percentage=0, cost_per_km=0,
+        )
 
-    mileages = [float(log.mileage) for log in interval_logs if float(log.mileage) > 0]
-    last_mileage = mileages[-1] if mileages else 0
-    best_mileage = max(mileages) if mileages else 0
+    # Derive stats live from raw odometer values so that any stale stored
+    # distance/mileage columns (from old code paths) never affect the output.
+    raw_intervals = []
+    for i in range(1, len(logs)):
+        dist   = max(float(logs[i].odometer) - float(logs[i - 1].odometer), 0)
+        litres = float(logs[i].litres or 0)
+        cost   = float(logs[i].total_cost or 0)
+        if dist > 0 and litres > 0:
+            raw_intervals.append({"distance": dist, "litres": litres, "cost": cost,
+                                   "mileage": dist / litres})
+
+    # IQR outlier removal — keeps stat cards robust against bad odometer entries.
+    intervals = _iqr_filter(raw_intervals)
+
+    total_distance = sum(r["distance"] for r in intervals)
+    total_fuel     = sum(r["litres"]   for r in intervals)
+    total_cost     = sum(r["cost"]     for r in intervals)
+
+    average_mileage = total_distance / total_fuel if total_fuel > 0 else 0
+    cost_per_km     = total_cost / total_distance if total_distance > 0 else 0
+
+    mileages      = [r["mileage"] for r in intervals]
+    last_mileage  = mileages[-1]  if mileages else 0
+    best_mileage  = max(mileages) if mileages else 0
     worst_mileage = min(mileages) if mileages else 0
 
     trend_percentage = 0
@@ -507,15 +593,28 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version", "source"}).items():
         setattr(log, field, value)
     log.entered_by_name = current_user.name
-    prev_log = db.query(models.FuelLog)\
-        .filter(models.FuelLog.truck_id == log.truck_id, models.FuelLog.odometer < log.odometer)\
-        .order_by(models.FuelLog.odometer.desc())\
-        .first()
-    distance = float(log.odometer - prev_log.odometer) if prev_log else 0
-    mileage = (distance / float(log.litres)) if (float(log.litres) > 0 and distance > 0) else 0
-    log.distance = distance
-    log.mileage = mileage
     log.version = (log.version or 1) + 1
+    db.flush()  # persist field changes before re-sequencing
+
+    # Re-sequence distance/mileage for ALL logs of this truck so that editing
+    # any log (odometer or litres) keeps every subsequent row's values correct.
+    truck_id = log.truck_id
+    all_logs = (
+        db.query(models.FuelLog)
+        .filter(models.FuelLog.truck_id == truck_id)
+        .order_by(models.FuelLog.odometer.asc())
+        .all()
+    )
+    for i, row in enumerate(all_logs):
+        if i == 0:
+            row.distance = 0
+            row.mileage = 0
+        else:
+            prev = all_logs[i - 1]
+            dist = max(float(row.odometer) - float(prev.odometer), 0)
+            row.distance = dist
+            row.mileage = (dist / float(row.litres)) if float(row.litres) > 0 and dist > 0 else 0
+
     db.commit()
     db.refresh(log)
     emit("fuel_updated", {})
@@ -523,11 +622,34 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
 
 
 @router.delete("/maintenance/fuel-logs/{log_id}", status_code=204, tags=["Fuel Logs"])
-def delete_fuel_log(log_id: int, db: Session = Depends(get_db)):
+def delete_fuel_log(log_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role != "Admin" and current_user.id is not None:
+        raise HTTPException(403, "Only admins can delete fuel logs directly.")
     log = db.get(models.FuelLog, log_id)
     if not log:
         raise HTTPException(404, "Fuel log not found")
+    truck_id = log.truck_id
     db.delete(log)
+    db.flush()  # remove from session so it's excluded from the query below
+
+    # Re-sequence distance & mileage for all remaining logs of this truck so
+    # that deleting a middle entry doesn't leave stale values in subsequent rows.
+    remaining = (
+        db.query(models.FuelLog)
+        .filter(models.FuelLog.truck_id == truck_id)
+        .order_by(models.FuelLog.odometer.asc())
+        .all()
+    )
+    for i, row in enumerate(remaining):
+        if i == 0:
+            row.distance = 0
+            row.mileage = 0
+        else:
+            prev = remaining[i - 1]
+            dist = float(row.odometer) - float(prev.odometer)
+            row.distance = max(dist, 0)
+            row.mileage = (dist / float(row.litres)) if float(row.litres) > 0 and dist > 0 else 0
+
     db.commit()
     emit("fuel_updated", {})
 

@@ -25,8 +25,8 @@ export const initialTyreInventory: TyreInventoryItem[] = [
     cost: "18500",
     costPerKm: "",
     purchaseDate: "",
-    repairCost: "0",
     retreadCost: "0",
     retreadCount: "0",
+    condition: "New",
   },
 ];

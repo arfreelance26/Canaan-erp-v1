@@ -993,7 +993,7 @@ export default function TripProfitabilityCalculatorPage() {
       if (cfg.cost_per_litre != null) {
         setSystemFuelCostPerLitre(cfg.cost_per_litre);
         // Only use API value as fallback; don't overwrite a saved user value
-        setFuelCostPerLitre(prev => prev !== "" ? prev : String(cfg.cost_per_litre));
+        setFuelCostPerLitre((prev: string) => prev !== "" ? prev : String(cfg.cost_per_litre));
       }
     }).catch(() => {});
 
