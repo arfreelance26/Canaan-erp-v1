@@ -100,3 +100,17 @@ def reset_device(
         member.device_hash = None
     db.commit()
     return {"ok": True, "devices": member.devices}
+
+
+@router.post("/{staff_id}/force-logout", dependencies=[Depends(require_roles())])
+def force_logout(staff_id: int, db: Session = Depends(get_db)):
+    """Invalidate every active session/JWT for a staff member. Admin only.
+
+    Bumps `token_version`; any token whose `tv` claim no longer matches is
+    rejected on its next request, so the user must log in again everywhere."""
+    member = db.get(models.Staff, staff_id)
+    if not member:
+        raise HTTPException(404, "Staff member not found")
+    member.token_version = (member.token_version or 0) + 1
+    db.commit()
+    return {"ok": True, "token_version": member.token_version}

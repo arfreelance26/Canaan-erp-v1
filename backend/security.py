@@ -146,13 +146,14 @@ class TokenUser:
     staff_id: str | None
 
 
-def create_access_token(*, user_id: int | None, name: str, role: str, staff_id: str | None) -> str:
+def create_access_token(*, user_id: int | None, name: str, role: str, staff_id: str | None, token_version: int = 0) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id) if user_id is not None else "admin",
         "name": name,
         "role": role,
         "staff_id": staff_id,
+        "tv": token_version,  # token_version — must match Staff.token_version or the token is rejected
         "iat": now,
         "jti": secrets.token_hex(16),  # unique token id — enables future server-side revocation
         "exp": now + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS),
@@ -204,8 +205,24 @@ def get_current_user(request: Request) -> TokenUser:
     except JWTError:
         raise _credentials_error("Session expired or invalid. Please log in again.")
     sub = payload.get("sub")
+    user_id = int(sub) if sub and sub != "admin" else None
+
+    # Token-version check — an Admin can "force logout" a user by bumping
+    # Staff.token_version, which instantly invalidates every JWT they hold.
+    # Lazy imports avoid a circular import at module load.
+    if user_id is not None:
+        from database import SessionLocal
+        from models import Staff
+        db = SessionLocal()
+        try:
+            current_tv = db.query(Staff.token_version).filter(Staff.id == user_id).scalar()
+        finally:
+            db.close()
+        if current_tv is not None and int(payload.get("tv", 0)) != int(current_tv):
+            raise _credentials_error("Your session was ended. Please log in again.")
+
     return TokenUser(
-        id=int(sub) if sub and sub != "admin" else None,
+        id=user_id,
         name=payload.get("name", ""),
         role=payload.get("role", "Trip Sheet Register"),
         staff_id=payload.get("staff_id"),

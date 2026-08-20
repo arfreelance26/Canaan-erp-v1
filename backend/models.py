@@ -166,6 +166,7 @@ class Staff(Base):
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
     device_hash = Column(String(1024), nullable=True, default=None)  # comma-separated SHA-256(s) of bound devices; NULL = unbound
+    token_version = Column(Integer, default=0, nullable=False, server_default="0")  # bump to invalidate all of this user's JWTs (force logout)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

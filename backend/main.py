@@ -248,6 +248,8 @@ def _run_schema_migrations():
         "ALTER TABLE tyre_inventory ADD COLUMN cost_per_km DECIMAL(10,6) NULL",
         # trip_sheets — driver compensation type (Normal / FIXED), carried from trip assignment
         "ALTER TABLE trip_sheets ADD COLUMN driver_compensation_type VARCHAR(50) NULL",
+        # staff — token_version for JWT invalidation (force-logout / revoke all sessions)
+        "ALTER TABLE staff ADD COLUMN token_version INT NOT NULL DEFAULT 0",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

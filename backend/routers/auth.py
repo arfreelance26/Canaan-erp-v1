@@ -128,7 +128,7 @@ def login(
                 db.add(admin_staff)
                 db.commit()
                 db.refresh(admin_staff)
-        token = create_access_token(user_id=admin_staff.id, name=admin_staff.name, role="Admin", staff_id=admin_staff.staff_id)
+        token = create_access_token(user_id=admin_staff.id, name=admin_staff.name, role="Admin", staff_id=admin_staff.staff_id, token_version=admin_staff.token_version or 0)
         record_audit("login.success", request=request, actor_id=admin_staff.id,
                      actor_name=admin_staff.name, actor_role="Admin", detail="built-in admin")
         return LoginResponse(
@@ -215,7 +215,7 @@ def login(
     # ── End device lock ──────────────────────────────────────────────────────────
 
     role = member.software_designation or "Trip Sheet Register"
-    token = create_access_token(user_id=member.id, name=member.name, role=role, staff_id=member.staff_id)
+    token = create_access_token(user_id=member.id, name=member.name, role=role, staff_id=member.staff_id, token_version=member.token_version or 0)
     record_audit("login.success", request=request, actor_id=member.id,
                  actor_name=member.name, actor_role=role)
     return LoginResponse(
