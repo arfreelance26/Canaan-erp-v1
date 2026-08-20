@@ -240,6 +240,14 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN invoice_waived TINYINT(1) NOT NULL DEFAULT 0",
         # tyre_inventory — repair_cost field removed from UI and schema
         "ALTER TABLE tyre_inventory DROP COLUMN repair_cost",
+        # emi_records — cost per km derived from EMI amount and expected km
+        "ALTER TABLE emi_records ADD COLUMN emi_cost_per_km DECIMAL(10,6) NOT NULL DEFAULT 0",
+        # branches — cleaner batta daily fee
+        "ALTER TABLE branches ADD COLUMN cleaner_batta_fee DECIMAL(10,2) DEFAULT 0",
+        # tyre_inventory — cost per km derived from cost / range_km
+        "ALTER TABLE tyre_inventory ADD COLUMN cost_per_km DECIMAL(10,6) NULL",
+        # trip_sheets — driver compensation type (Normal / FIXED), carried from trip assignment
+        "ALTER TABLE trip_sheets ADD COLUMN driver_compensation_type VARCHAR(50) NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

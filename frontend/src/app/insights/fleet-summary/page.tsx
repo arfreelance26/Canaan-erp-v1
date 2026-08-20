@@ -69,14 +69,14 @@ const CAT_COLOR: Record<string, string> = {
   "RETURN TRIP": "bg-orange-100 text-orange-700",
 };
 const STATUS_COLOR: Record<string, string> = {
-  "Completed":  "bg-emerald-100 text-emerald-700",
-  "On-Transit": "bg-blue-100 text-blue-700",
-  "Started":    "bg-indigo-100 text-indigo-700",
-  "Loaded":     "bg-indigo-100 text-indigo-700",
-  "Reached":    "bg-teal-100 text-teal-700",
-  "Unloaded":   "bg-teal-100 text-teal-700",
-  "Cancelled":  "bg-red-100 text-red-600",
-  "Assigned":   "bg-gray-100 text-gray-500",
+  "Completed":  "bg-emerald-100 text-emerald-700 dark:text-emerald-900",
+  "On-Transit": "bg-blue-100    text-blue-700    dark:text-blue-900",
+  "Started":    "bg-indigo-100  text-indigo-700  dark:text-indigo-900",
+  "Loaded":     "bg-indigo-100  text-indigo-700  dark:text-indigo-900",
+  "Reached":    "bg-teal-100    text-teal-700    dark:text-teal-900",
+  "Unloaded":   "bg-teal-100    text-teal-700    dark:text-teal-900",
+  "Cancelled":  "bg-red-100     text-red-600     dark:text-red-900",
+  "Assigned":   "bg-gray-100    text-gray-500    dark:text-gray-700",
 };
 
 function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {

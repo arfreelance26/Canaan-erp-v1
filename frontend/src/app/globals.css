@@ -284,6 +284,16 @@ html.dark aside nav a.hover\:bg-white\/40:hover {
   border-color: rgba(79, 126, 240, 0.25) !important;
 }
 
+/* ── Focused inputs — the `focus:bg-white` utility sets a literal white background
+   that the `.bg-white` remap can't reach. Target inputs semantically on focus
+   (no escaped utility class in the selector, so the v4 compiler keeps this rule). ── */
+html.dark input:focus:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="file"]):not([type="range"]),
+html.dark textarea:focus,
+html.dark select:focus {
+  background-color: #141929;
+  color: var(--color-gray-900);
+}
+
 @layer utilities {
   .bg-mesh-light {
     background-color: #f8fafc;

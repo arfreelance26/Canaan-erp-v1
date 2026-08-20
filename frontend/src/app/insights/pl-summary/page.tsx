@@ -70,7 +70,7 @@ function StatCard({ label, value, sub, icon, color }: {
 
 function PlBadge({ value, size = "sm" }: { value: number; size?: "sm" | "lg" }) {
   const p = value >= 0;
-  const base = p ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600";
+  const base = p ? "bg-emerald-100 text-emerald-700 dark:text-emerald-900" : "bg-red-100 text-red-600 dark:text-red-900";
   const cls  = size === "lg"
     ? `inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold ${base}`
     : `inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${base}`;
@@ -534,7 +534,7 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
             <p className="text-sm text-gray-400">No trucks found for this period.</p>
           </div>
         ) : (
-          <div className="overflow-auto">
+          <div className="overflow-auto max-h-[70vh]">
             <table className="w-full min-w-[1020px] text-sm">
               <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                 <tr>

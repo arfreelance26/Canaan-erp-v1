@@ -322,6 +322,7 @@ export default function TripReconciliationPage() {
   const [showCurrentTrips, setShowCurrentTrips] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [modalStatusFilter, setModalStatusFilter] = useState<"All" | "Sheet Entered" | "Pending Sheet Entry" | "Rejected">("All");
 
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -331,17 +332,8 @@ export default function TripReconciliationPage() {
   const fromMs = dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : null;
   const toMs   = dateTo   ? new Date(dateTo).setHours(23, 59, 59, 999) : null;
 
-  async function handleDownloadPDF() {
+  async function handleDownloadPDF(pdfTrips: Trip[]) {
     if (downloading) return;
-
-    // Filter received trips by tripSheetDate within the selected date range
-    const pdfTrips = receivedTrips.filter((t) => {
-      if (!t.tripSheetDate) return false;
-      const ms = new Date(t.tripSheetDate).getTime();
-      if (fromMs && ms < fromMs) return false;
-      if (toMs   && ms > toMs)   return false;
-      return true;
-    });
 
     if (pdfTrips.length === 0) {
       showError("No trip sheets found for the selected date range.");
@@ -889,7 +881,7 @@ export default function TripReconciliationPage() {
                               disabled={!trip.tripSheetReceived}
                               title={!trip.tripSheetReceived ? "Mark the trip sheet as received first" : undefined}
                               onClick={() => openDialog(trip, "add")}
-                              className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="self-start rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               ADD
                             </button>
@@ -1064,11 +1056,17 @@ export default function TripReconciliationPage() {
       {showReportModal && (() => {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
         const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
-        const pdfTrips = receivedTrips.filter((t) => {
+        const dateFilteredTrips = receivedTrips.filter((t) => {
           if (!t.tripSheetDate) return false;
           const ms = new Date(t.tripSheetDate).getTime();
           if (fromMs && ms < fromMs) return false;
           if (toMs && ms > toMs) return false;
+          return true;
+        });
+        const pdfTrips = dateFilteredTrips.filter((t) => {
+          if (modalStatusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
+          if (modalStatusFilter === "Pending Sheet Entry" && sheets.has(t.id)) return false;
+          if (modalStatusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
           return true;
         });
         return (
@@ -1080,6 +1078,31 @@ export default function TripReconciliationPage() {
                   <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} trip sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
                 </div>
                 <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+              {/* Modal filters */}
+              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-gray-50">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status:</span>
+                  <select
+                    value={modalStatusFilter}
+                    onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
+                    className="rounded-lg border border-gray-200 bg-white py-1.5 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                  >
+                    <option value="All">All</option>
+                    <option value="Sheet Entered">Sheet Entered</option>
+                    <option value="Pending Sheet Entry">Pending Sheet Entry</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+                {modalStatusFilter !== "All" && (
+                  <button
+                    type="button"
+                    onClick={() => setModalStatusFilter("All")}
+                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
               <div className="flex-1 overflow-auto px-5 py-4">
                 {pdfTrips.length === 0 ? (
@@ -1124,7 +1147,7 @@ export default function TripReconciliationPage() {
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
                 {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
-                <button type="button" onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
                 </button>

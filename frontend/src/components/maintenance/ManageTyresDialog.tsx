@@ -14,6 +14,7 @@ import {
 } from "@/lib/tyre-fitment-data";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 import { tyreApi } from "@/lib/api";
+import { ArrowLeftRight, ArrowUpDown } from "lucide-react";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
@@ -296,9 +297,9 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       const allPairs = axleEntries.flatMap(getLRSwapPairs);
                       openConfirm(allPairs, "Swap Left ↔ Right across all axles");
                     }}
-                    className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors"
                   >
-                    ⇄ Swap Left ↔ Right (All Axles)
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> Swap Left ↔ Right (All Axles)
                   </button>
 
                   <button
@@ -308,14 +309,14 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       isSelectingAxle && swapStep.type === "lr" ? null : { step: "select-axle", type: "lr" }
                     )}
                     className={cn(
-                      "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                       isSelectingAxle && swapStep.type === "lr"
                         ? "border-blue-500 bg-blue-600 text-white"
                         : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100",
                       swapping && "opacity-50"
                     )}
                   >
-                    ⇄ Swap Left ↔ Right (Selected Axle)
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> Swap Left ↔ Right (Selected Axle)
                   </button>
 
                   <button
@@ -325,14 +326,14 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       isSelectingAxle && swapStep.type === "io" ? null : { step: "select-axle", type: "io" }
                     )}
                     className={cn(
-                      "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                       isSelectingAxle && swapStep.type === "io"
                         ? "border-purple-500 bg-purple-600 text-white"
                         : "border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100",
                       (swapping || dualAxles.length === 0) && "opacity-50 cursor-not-allowed"
                     )}
                   >
-                    ↕ Swap Inner ↔ Outer Tyres
+                    <ArrowUpDown className="h-3.5 w-3.5" /> Swap Inner ↔ Outer Tyres
                   </button>
                 </div>
               )}

@@ -467,13 +467,13 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-4">
+        <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-slate-700 to-slate-800 dark:from-slate-100 dark:to-slate-200 px-5 py-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20">
             <HelpCircle className="h-4 w-4 text-white" />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-bold text-white">How is this Calculated?</h2>
-            <p className="text-[11px] text-slate-400">Formula reference for every field in the truck card</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-600">Formula reference for every field in the truck card</p>
           </div>
           <button
             type="button"
@@ -885,27 +885,27 @@ function TruckProfitCard({
 
       {/* Footer — Total Expenses / Total Profit / Total Loss */}
       <div className="grid grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-b-xl">
-        <div className="flex items-center justify-between gap-2 bg-slate-800 px-3 py-2">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 leading-tight">
+        <div className="flex items-center justify-between gap-2 bg-slate-800 dark:bg-slate-100 px-3 py-2">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-600 leading-tight">
             Total<br />Expenses
           </span>
-          <span className="text-xs font-extrabold tabular-nums text-white">
+          <span className="text-xs font-extrabold tabular-nums text-white dark:text-gray-900">
             {hasExpenses ? `₹${totalExpenses.toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss >= 0 ? "bg-blue-600" : "bg-blue-900"}`}>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-blue-200 leading-tight">
+        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss >= 0 ? "bg-blue-600 dark:bg-blue-400" : "bg-blue-900 dark:bg-blue-50"}`}>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-blue-200 dark:text-blue-700 leading-tight">
             Total<br />Profit
           </span>
-          <span className="text-xs font-extrabold tabular-nums text-white">
+          <span className="text-xs font-extrabold tabular-nums text-white dark:text-blue-900">
             {profitOrLoss !== null && profitOrLoss >= 0 ? `₹${profitOrLoss.toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss < 0 ? "bg-red-600" : "bg-red-900"}`}>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-red-300 leading-tight">
+        <div className={`flex items-center justify-between gap-2 px-3 py-2 ${profitOrLoss !== null && profitOrLoss < 0 ? "bg-red-600 dark:bg-red-400" : "bg-red-900 dark:bg-red-50"}`}>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-red-300 dark:text-red-700 leading-tight">
             Total<br />Loss
           </span>
-          <span className="text-xs font-extrabold tabular-nums text-white">
+          <span className="text-xs font-extrabold tabular-nums text-white dark:text-red-900">
             {profitOrLoss !== null && profitOrLoss < 0 ? `₹${Math.abs(profitOrLoss).toFixed(2)}` : "—"}
           </span>
         </div>

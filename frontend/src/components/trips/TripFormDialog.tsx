@@ -861,7 +861,7 @@ export function TripFormDialog({
   const selectedCustomer = customers.find((c) => c.id === form.customerId);
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-5xl">
+    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-4xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Booking Information */}
         <section className="flex flex-col gap-5">

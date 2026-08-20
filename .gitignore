@@ -85,6 +85,9 @@ frontend/.env.local
 # client data files (sensitive Excel imports)
 data/
 
+# internal docs — kept local, not published
+docs/
+
 # built installers & release artifacts
 desktop/release/
 desktop/build/

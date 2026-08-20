@@ -86,9 +86,9 @@ function Wheel({
         rx={rx}
         className={cn(
           "transition-all duration-500 ease-out",
-          isAnimating 
-            ? "fill-green-400 scale-[1.3] drop-shadow-[0_0_15px_rgba(74,222,128,0.8)]" 
-            : filled ? "fill-slate-800 scale-100" : "fill-gray-200 scale-100"
+          isAnimating
+            ? "fill-green-400 scale-[1.3] drop-shadow-[0_0_15px_rgba(74,222,128,0.8)]"
+            : filled ? "fill-[#1e293b] scale-100" : "fill-[#e5e7eb] scale-100"
         )}
         style={{ transformOrigin: `${cx}px ${cy}px` }}
         stroke={isAnimating ? "#22c55e" : filled ? "#0f172a" : "#94a3b8"}
@@ -110,7 +110,7 @@ function Wheel({
         r={Math.min(width, height) * 0.18}
         className={cn(
           "transition-[fill] duration-500 ease-out",
-          filled ? "fill-slate-300" : "fill-transparent"
+          filled ? "fill-[#cbd5e1]" : "fill-transparent"
         )}
       />
     </g>

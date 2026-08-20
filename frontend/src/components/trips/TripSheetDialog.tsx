@@ -460,7 +460,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const startKmTooLow  = !ro && !existingSheet && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
 
   return (
-    <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-6xl">
+    <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-4xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {/* ── 1. Trip Information ── */}
         <p className={sh}>Trip Information</p>

@@ -198,22 +198,15 @@ function ModeSlider({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             onClick={() => onChange(m.id)}
             className="relative z-10 flex flex-col items-center px-6 py-2 rounded-lg"
           >
-            <span style={{
-              fontSize: 12,
-              fontWeight: active ? 600 : 400,
-              color: active ? "#111827" : "#9ca3af",
-              transition: "color 0.18s ease, font-weight 0.18s ease",
-              lineHeight: 1.4,
-              whiteSpace: "nowrap",
-            }}>
+            <span
+              className={`text-xs whitespace-nowrap transition-all ${active ? "font-semibold text-gray-900" : "font-normal text-gray-400"}`}
+              style={{ lineHeight: 1.4 }}
+            >
               {m.label}
             </span>
-            <span style={{
-              fontSize: 9,
-              color: active ? "#6b7280" : "#d1d5db",
-              transition: "color 0.18s ease",
-              letterSpacing: "0.04em",
-            }}>
+            <span
+              className={`text-[9px] tracking-[0.04em] transition-colors ${active ? "text-gray-500" : "text-gray-300"}`}
+            >
               {m.sub}
             </span>
           </button>
@@ -237,6 +230,11 @@ function RankBadge({ rank }: { rank: number }) {
 
 function BasicView({ data }: { data: CustomerProfitabilityData[] }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [search, setSearch]     = useState("");
+
+  const filtered = search.trim()
+    ? data.filter((c) => c.customer_name.toLowerCase().includes(search.trim().toLowerCase()))
+    : data;
 
   const totalRevenue = data.reduce((s, d) => s + d.total_revenue, 0);
   const totalProfit  = data.reduce((s, d) => s + d.total_profit, 0);
@@ -272,15 +270,27 @@ function BasicView({ data }: { data: CustomerProfitabilityData[] }) {
 
       {/* Leaderboard table */}
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-amber-500" />
-          <h2 className="text-sm font-bold text-gray-800">Customer Leaderboard</h2>
-          <span className="ml-auto text-xs text-gray-400">{data.length} customers · sorted by net profit</span>
+        <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-3">
+          <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
+          <h2 className="text-sm font-bold text-gray-800 shrink-0">Customer Leaderboard</h2>
+          <div className="relative ml-auto w-56">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search customer…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+            />
+          </div>
+          <span className="shrink-0 text-xs text-gray-400">
+            {search.trim() ? `${filtered.length} of ${data.length}` : `${data.length} customers`}
+          </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[70vh]">
           <table className="w-full text-left min-w-[720px]">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-gray-50">
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 {["#", "Customer", "Trips", "Revenue", "Expenses", "Net Profit", "Margin", ""].map((h, i) => (
                   <th key={i} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 2 && i <= 6 ? "text-right" : ""} ${i === 7 ? "w-8" : ""} ${i === 0 ? "w-12" : ""}`}>
@@ -290,7 +300,14 @@ function BasicView({ data }: { data: CustomerProfitabilityData[] }) {
               </tr>
             </thead>
             <tbody>
-              {data.map((c, i) => {
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
+                    No customers match &quot;{search}&quot;.
+                  </td>
+                </tr>
+              )}
+              {filtered.map((c) => {
                 const isOpen = expanded.has(c.customer_id);
                 return (
                   <React.Fragment key={c.customer_id}>
@@ -298,7 +315,7 @@ function BasicView({ data }: { data: CustomerProfitabilityData[] }) {
                       className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors"
                       onClick={() => toggle(c.customer_id)}
                     >
-                      <td className="px-4 py-3"><RankBadge rank={i + 1} /></td>
+                      <td className="px-4 py-3"><RankBadge rank={data.indexOf(c) + 1} /></td>
                       <td className="px-4 py-3">
                         <p className="text-sm font-bold text-gray-900">{c.customer_name}</p>
                         <p className="text-[10px] text-gray-400">{c.total_km.toFixed(0)} km · {c.routes.length} route{c.routes.length !== 1 ? "s" : ""}</p>
@@ -377,6 +394,8 @@ function quadrant(c: CustomerProfitabilityData, medRev: number, medMgn: number):
 
 function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [search, setSearch]         = useState("");
+  const q = search.trim().toLowerCase();
 
   if (data.length === 0) return <p className="py-20 text-center text-sm text-gray-400">No data.</p>;
 
@@ -401,31 +420,51 @@ function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Search bar */}
+      <div className="flex items-center gap-3">
+        <div className="relative w-72">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search customer across quadrants…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+          />
+        </div>
+        {q && (
+          <span className="text-xs text-gray-400">
+            {BOARD_ORDER.reduce((n, qq) => n + groups[qq].filter((c) => c.customer_name.toLowerCase().includes(q)).length, 0)} match{" "}of {data.length}
+          </span>
+        )}
+      </div>
+
       {/* 2×2 Matrix board */}
       <div className="grid grid-cols-2 gap-px rounded-2xl overflow-hidden border border-gray-200 bg-gray-200 shadow-sm">
-        {BOARD_ORDER.map((q) => {
-          const m     = QUADRANT_META[q];
-          const group = groups[q];
-          const rev   = group.reduce((s, c) => s + c.total_revenue, 0);
-          const profit = group.reduce((s, c) => s + c.total_profit, 0);
+        {BOARD_ORDER.map((quad) => {
+          const m       = QUADRANT_META[quad];
+          const group   = groups[quad];
+          const visible = q ? group.filter((c) => c.customer_name.toLowerCase().includes(q)) : group;
+          const rev     = group.reduce((s, c) => s + c.total_revenue, 0);
+          const profit  = group.reduce((s, c) => s + c.total_profit, 0);
 
           return (
             <div
-              key={q}
+              key={quad}
               className="flex flex-col gap-0 bg-white"
               style={{ minHeight: 260 }}
             >
-              {/* Quadrant header strip */}
+              {/* Quadrant header strip — translucent tint adapts to light & dark */}
               <div
                 className="flex items-center gap-2 px-4 py-2.5"
-                style={{ background: m.fill }}
+                style={{ background: m.color + "1f" }}
               >
                 <div className="h-2 w-2 rounded-full shrink-0" style={{ background: m.color }} />
-                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: m.text }}>
+                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: m.color }}>
                   {m.label}
                 </span>
                 <span className="ml-auto text-[10px] font-medium" style={{ color: m.color + "bb" }}>
-                  {group.length} customer{group.length !== 1 ? "s" : ""}
+                  {q ? `${visible.length} of ${group.length}` : `${group.length} customer${group.length !== 1 ? "s" : ""}`}
                 </span>
               </div>
 
@@ -451,7 +490,10 @@ function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
                 {group.length === 0 && (
                   <p className="py-6 text-center text-[11px] text-gray-300 italic">No customers here yet.</p>
                 )}
-                {group.map((c) => {
+                {group.length > 0 && visible.length === 0 && (
+                  <p className="py-6 text-center text-[11px] text-gray-300 italic">No match in this quadrant.</p>
+                )}
+                {visible.map((c) => {
                   const isOpen = expandedId === c.customer_id;
                   return (
                     <div key={c.customer_id}>
@@ -464,7 +506,7 @@ function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
                           <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{c.customer_name}</span>
                           <span
                             className="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums"
-                            style={{ borderColor: m.color + "50", color: m.text, background: m.color + "0e" }}
+                            style={{ borderColor: m.color + "50", color: m.color, background: m.color + "1f" }}
                           >
                             {c.profit_margin_pct.toFixed(1)}%
                           </span>
@@ -534,8 +576,14 @@ function AdvancedView({ data }: { data: CustomerProfitabilityData[] }) {
             className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
           />
         </div>
-        <div className="flex flex-col gap-1 max-h-[620px] overflow-y-auto">
-          {list.map((c, i) => {
+        <p className="px-1 text-[10px] font-medium text-gray-400">
+          {search.trim() ? `${list.length} of ${data.length} customers` : `${data.length} customers`}
+        </p>
+        <div className="flex flex-col gap-1 max-h-[100vh] overflow-y-auto">
+          {list.length === 0 && (
+            <p className="px-3 py-6 text-center text-[11px] text-gray-400">No customers match &quot;{search}&quot;.</p>
+          )}
+          {list.map((c) => {
             const active = selectedId === c.customer_id;
             return (
               <button
@@ -598,12 +646,13 @@ function AdvancedView({ data }: { data: CustomerProfitabilityData[] }) {
 
         {/* Route breakdown table */}
         <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-          <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+          <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-2">
             <h3 className="text-sm font-bold text-gray-800">Route Breakdown</h3>
+            <span className="ml-auto text-xs text-gray-400">{selected.routes.length} route{selected.routes.length !== 1 ? "s" : ""}</span>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[70vh]">
             <table className="w-full text-left min-w-[600px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr className="border-b border-gray-50 bg-gray-50/40">
                   {["Route", "Trips", "Revenue", "Expenses", "Profit", "Margin", "Avg KM"].map((h, i) => (
                     <th key={h} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 1 ? "text-right" : ""}`}>{h}</th>
@@ -640,9 +689,9 @@ function AdvancedView({ data }: { data: CustomerProfitabilityData[] }) {
               <h3 className="text-sm font-bold text-gray-800">Recent Trips</h3>
               <span className="text-xs text-gray-400">last {selected.recent_trips.length}</span>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[45vh]">
               <table className="w-full text-left min-w-[560px]">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-gray-50">
                   <tr className="border-b border-gray-50 bg-gray-50/40">
                     {["Trip ID", "Date", "Route", "Revenue", "Profit", "Margin"].map((h, i) => (
                       <th key={h} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 3 ? "text-right" : ""}`}>{h}</th>

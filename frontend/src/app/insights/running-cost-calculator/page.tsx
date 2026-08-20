@@ -381,9 +381,9 @@ function TruckCostCard({
         </div>
       </div>
 
-      {/* Metrics row */}
-      <div className="flex bg-gray-50">
-        {TRUCK_METRICS.map(({ label, key, calculated }, index) => {
+      {/* Metrics grid — 4 columns, wraps across rows */}
+      <div className="grid grid-cols-4 border-t border-l border-gray-100 bg-gray-50">
+        {TRUCK_METRICS.map(({ label, key, calculated }) => {
           // Base Fuel Cost is Advanced-mode only — skip rendering in other modes
           if (key === "baseFuelCost" && !isAdvancedMode) return null;
           // Tyre Type does not exist in Advanced mode
@@ -396,13 +396,11 @@ function TruckCostCard({
           return (
             <div
               key={key}
-              className={`flex flex-col flex-1 min-w-0 py-3 px-2.5 ${index > 0 ? "border-l border-gray-100" : ""}`}
+              className="flex flex-col px-3 py-3 border-b border-r border-gray-100"
             >
-              <div className="flex h-9 items-end justify-center pb-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 leading-tight text-center">
-                  {label}
-                </span>
-              </div>
+              <span className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 leading-tight">
+                {label}
+              </span>
               {isAdvancedMode && isEmiField ? (
                 // Advanced mode — read-only display; no manual entry allowed.
                 // Uses computed values so Per Day / Per Km fall back to arithmetic

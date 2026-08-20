@@ -163,7 +163,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
       open={open}
       onClose={onClose}
       title={readOnly ? `View Booking Sheet — ${trip.tripId}` : `Edit Booking Sheet — ${trip.tripId}`}
-      className="max-w-3xl"
+      className="max-w-4xl"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 

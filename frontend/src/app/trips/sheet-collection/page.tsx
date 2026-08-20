@@ -51,6 +51,7 @@ export default function SheetCollectionPage() {
   const [dateFrom, setDateFrom] = useState(todayIst());
   const [dateTo, setDateTo] = useState(todayIst());
   const [showReportModal, setShowReportModal] = useState(false);
+  const [modalStatusFilter, setModalStatusFilter] = useState<"All" | "Pending" | "Delivered" | "Overdue">("All");
   // Advance verification panel state
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
@@ -252,21 +253,9 @@ export default function SheetCollectionPage() {
     }
   }
 
-  async function handleDownloadPDF() {
-    if (downloading || collected.length === 0) return;
+  async function handleDownloadPDF(pdfTrips: Trip[]) {
+    if (downloading || pdfTrips.length === 0) return;
 
-    // Filter by "Delivered On" date (tripSheetCollectedAt). The date range scopes
-    // the export only, not the table.
-    const pdfTrips = collected.filter((t) => {
-      if (!fromMs && !toMs) return true; // no date filter → all delivered sheets
-      if (!t.tripSheetCollectedAt) return false;
-      const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+")
-        ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
-      const ms = new Date(raw).getTime();
-      if (fromMs && ms < fromMs) return false;
-      if (toMs   && ms > toMs)   return false;
-      return true;
-    });
     if (pdfTrips.length === 0) {
       showError("No delivered trips match the selected date range.");
       return;
@@ -915,13 +904,17 @@ export default function SheetCollectionPage() {
       {showReportModal && (() => {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
         const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
-        const pdfTrips = collected.filter((t) => {
-          if (!fromMs && !toMs) return true;
-          if (!t.tripSheetCollectedAt) return false;
-          const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+") ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
-          const ms = new Date(raw).getTime();
-          if (fromMs && ms < fromMs) return false;
-          if (toMs && ms > toMs) return false;
+        const pdfTrips = trips.filter((t) => {
+          if (modalStatusFilter === "Pending" && t.tripSheetCollected) return false;
+          if (modalStatusFilter === "Delivered" && !t.tripSheetCollected) return false;
+          if (modalStatusFilter === "Overdue" && !overdueIds.has(t.id)) return false;
+          // Date filter applies only to delivered trips (pending trips have no collection date)
+          if (t.tripSheetCollectedAt && (fromMs || toMs)) {
+            const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+") ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
+            const ms = new Date(raw).getTime();
+            if (fromMs && ms < fromMs) return false;
+            if (toMs && ms > toMs) return false;
+          }
           return true;
         });
         return (
@@ -933,6 +926,25 @@ export default function SheetCollectionPage() {
                   <p className="text-xs text-gray-500 mt-0.5">{rangeLabel} · {pdfTrips.length} sheet{pdfTrips.length !== 1 ? "s" : ""}</p>
                 </div>
                 <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+              </div>
+              {/* Modal status filter */}
+              <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-gray-50">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Status:</span>
+                  <select
+                    value={modalStatusFilter}
+                    onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
+                    className="rounded-lg border border-gray-200 bg-white py-1.5 px-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                  >
+                    <option value="All">All</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Overdue">Entry Overdue</option>
+                  </select>
+                </div>
+                {modalStatusFilter !== "All" && (
+                  <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100">Clear</button>
+                )}
               </div>
               <div className="flex-1 overflow-auto px-5 py-4">
                 {pdfTrips.length === 0 ? (
@@ -970,7 +982,7 @@ export default function SheetCollectionPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
-                <button type="button" onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
                 </button>
