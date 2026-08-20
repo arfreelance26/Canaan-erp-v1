@@ -302,10 +302,10 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         className="max-w-5xl"
       >
         {/* ── Filter toolbar ── */}
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
               Filter
             </span>
           </div>
@@ -320,11 +320,11 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
             {dateFilter === "custom" && (
               <>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">From</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">From</span>
                   <DatePickerInput value={customFrom} onChange={setCustomFrom} className={inputClass} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">To</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">To</span>
                   <DatePickerInput value={customTo} onChange={setCustomTo} className={inputClass} />
                 </label>
               </>
@@ -334,7 +334,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
           <button
             type="button"
             onClick={handlePrint}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
           >
             <Printer className="h-3.5 w-3.5" />
             Print
@@ -344,12 +344,12 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         {/* ── Record count + total ── */}
         {filteredRecords.length > 0 && (
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
               {filteredRecords.length} {filteredRecords.length === 1 ? "record" : "records"}
             </p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
               Total:{" "}
-              <span className="tabular-nums text-blue-600 dark:text-blue-400">
+              <span className="tabular-nums text-blue-600">
                 ₹{totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </p>
@@ -358,49 +358,49 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
 
         {/* ── Table ── */}
         {filteredRecords.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+          <p className="py-8 text-center text-sm text-slate-400">
             No maintenance records found for this period.
           </p>
         ) : (
-          <div className="max-h-72 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="max-h-72 overflow-auto rounded-xl border border-slate-200">
             <table className="w-full min-w-[700px] whitespace-nowrap text-left text-xs">
-              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
                 <tr>
                   {DATA_COLUMNS.map((col, i) => (
                     <th
                       key={i}
-                      className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500"
+                      className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400"
                     >
                       {col}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+              <tbody className="divide-y divide-slate-100">
                 {filteredRecords.map((record) => (
                   <tr
                     key={record.id}
-                    className="bg-white transition-colors hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/50"
+                    className="bg-white transition-colors hover:bg-slate-50"
                   >
-                    <td className="px-4 py-2.5 tabular-nums text-slate-600 dark:text-slate-400">
+                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
                       {formatDate(record.date)}
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200">
+                    <td className="px-4 py-2.5 font-medium text-slate-800">
                       {record.maintenanceType}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                    <td className="px-4 py-2.5 text-slate-500">
                       {record.description || <span className="italic text-slate-400">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums text-slate-600 dark:text-slate-400">
+                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
                       {Number(record.odometer).toLocaleString("en-IN")} km
                     </td>
-                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">
+                    <td className="px-4 py-2.5 text-slate-600">
                       {record.enteredByName || <span className="italic text-slate-400">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                    <td className="px-4 py-2.5 text-slate-500">
                       {record.source || <span className="italic text-slate-400">—</span>}
                     </td>
-                    <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700 dark:text-blue-400">
+                    <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700">
                       ₹{Number(record.cost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-2.5 text-right">

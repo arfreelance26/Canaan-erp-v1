@@ -156,11 +156,12 @@ export default function FuelHistoryPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div>
           <h1 className="text-2xl font-bold text-gray-900">Truck&apos;s Fuel History</h1>
           <p className="mt-1 text-sm text-gray-500">Track and manage fuel consumption for every truck in the fleet</p>
         </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        
         <div className="flex items-center gap-3">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

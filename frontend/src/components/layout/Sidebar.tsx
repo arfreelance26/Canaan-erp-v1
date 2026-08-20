@@ -164,11 +164,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         // Shared
         "flex flex-col border-r border-white/50 bg-white/60 backdrop-blur-xl shadow-sm overflow-hidden",
         // Mobile: fixed overlay drawer, slides in/out
-        "fixed inset-y-0 left-0 z-50 w-[295px] transition-transform duration-300 ease-in-out",
+        "fixed inset-y-0 left-0 z-50 w-[310px] transition-transform duration-300 ease-in-out",
         mobileOpen ? "translate-x-0" : "-translate-x-full",
         // Desktop (md+): in-layout, overrides fixed, collapsible
         "md:static md:inset-auto md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:transition-[width]",
-        collapsed ? "md:w-16" : "md:w-[295px]"
+        collapsed ? "md:w-16" : "md:w-[310px]"
       )}
     >
       {/* Header — logo + toggle */}
