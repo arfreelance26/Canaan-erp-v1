@@ -78,16 +78,66 @@ def parse_purchase_date(val):
     return None
 
 
-def ply_to_tyre_type(ply: str) -> str:
-    return "RETREADED" if str(ply).strip().upper() == "RETREADED" else "RADIAL"
+# Canonical tyre-type values used by the frontend (TYRE_TYPE_OPTIONS).
+CANON_TYPES = {"RADIAL", "TUBELESS", "NYLON", "RETREADED"}
 
 
-def ply_to_condition(ply: str) -> str:
-    return "Rethreaded" if str(ply).strip().upper() == "RETREADED" else "New"
+def norm_tyre_type(val: str) -> str:
+    """Preserve the source tyre type, normalised to the frontend's uppercase canon.
+    e.g. 'Radial'->'RADIAL', 'Nylon'->'NYLON', 'Tubeless'->'TUBELESS', 'RETREADED'->'RETREADED'.
+    Blank falls back to 'RADIAL'."""
+    s = str(val).strip().upper()
+    return s if s else "RADIAL"
 
 
-def ply_to_retread_count(ply: str) -> int:
-    return 1 if str(ply).strip().upper() == "RETREADED" else 0
+def type_to_condition(val: str) -> str:
+    return "Rethreaded" if str(val).strip().upper() == "RETREADED" else "New"
+
+
+def type_to_retread_count(val: str) -> int:
+    return 1 if str(val).strip().upper() == "RETREADED" else 0
+
+
+def resolve_columns(df) -> dict:
+    """Map logical fields → actual column names, supporting both the original
+    combined_updated schema and the newer combined.xlsx schema.
+
+      logical      original            newer (combined.xlsx)
+      -----------  ------------------  ---------------------
+      tyre_no      Tyre No             Tyre No
+      brand        Brand               Brand
+      size         Size                Size
+      tyre_type    Ply Rating          TYRE TYPE
+      range_km     Used Range          (absent → range 0, cost_per_km NULL)
+      cost         Cost                TYRE COST
+      pdate        Purchase Date       Purchase Date
+      truck        Truck               Truck
+      position     Tyre Position       Tyre Position
+    """
+    cols = set(df.columns)
+
+    def pick(*names, required=True):
+        for n in names:
+            if n in cols:
+                return n
+        if required:
+            raise SystemExit(
+                f"[ABORT] none of the expected columns {names} present. "
+                f"Available: {sorted(cols)}"
+            )
+        return None
+
+    return {
+        "tyre_no":   pick("Tyre No"),
+        "brand":     pick("Brand"),
+        "size":      pick("Size"),
+        "tyre_type": pick("Ply Rating", "TYRE TYPE"),
+        "range_km":  pick("Used Range", required=False),
+        "cost":      pick("Cost", "TYRE COST"),
+        "pdate":     pick("Purchase Date"),
+        "truck":     pick("Truck"),
+        "position":  pick("Tyre Position"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +158,11 @@ def main():
     df = pd.read_excel(args.xlsx, engine="calamine")
     print(f"Rows loaded: {len(df)}")
 
+    C = resolve_columns(df)
+    print(f"Resolved columns: {C}")
+    if C["range_km"] is None:
+        print("NOTE: no 'Used Range' column — range_km=0 and cost_per_km=NULL for all rows.")
+
     db = SessionLocal()
 
     # ------------------------------------------------------------------ #
@@ -118,12 +173,27 @@ def main():
     print(f"Trucks in DB: {len(truck_map)}")
 
     # Validate all trucks in Excel exist in DB before touching anything
-    missing_trucks = set(df["Truck"].astype(str).str.strip()) - set(truck_map.keys())
+    missing_trucks = set(df[C["truck"]].astype(str).str.strip()) - set(truck_map.keys())
     if missing_trucks:
         print(f"\n[ABORT] Trucks in Excel not found in DB: {missing_trucks}")
         print("Add these trucks to the DB first, then re-run.")
         db.close()
         sys.exit(1)
+
+    # ------------------------------------------------------------------ #
+    # 0b. Snapshot existing range_km by tyre_number BEFORE wiping.
+    #     When the source file has no range column, we carry range_km
+    #     forward for any tyre that reappears (matched by tyre_number)
+    #     and recompute cost_per_km from the NEW cost. New tyres not in
+    #     the DB keep range_km=0 / cost_per_km=NULL.
+    # ------------------------------------------------------------------ #
+    existing_range = {
+        tn: int(rk)
+        for tn, rk in db.query(TyreInventory.tyre_number, TyreInventory.range_km).all()
+        if rk and int(rk) > 0
+    }
+    print(f"Carry-forward pool: {len(existing_range)} existing tyres with range_km>0")
+    carried = 0
 
     # ------------------------------------------------------------------ #
     # 1. Wipe existing data  (fitments first due to FK, then inventory)
@@ -148,20 +218,24 @@ def main():
     errors = []
 
     for idx, row in df.iterrows():
-        tyre_no   = str(row.get("Tyre No", "")).strip()
-        truck_reg = str(row.get("Truck", "")).strip()
-        position  = str(row.get("Tyre Position", "")).strip()
-        ply       = str(row.get("Ply Rating", "")).strip()
+        tyre_no   = str(row.get(C["tyre_no"], "")).strip()
+        truck_reg = str(row.get(C["truck"], "")).strip()
+        position  = str(row.get(C["position"], "")).strip()
+        ply       = str(row.get(C["tyre_type"], "")).strip()
 
         try:
-            range_km      = parse_range_km(row.get("Used Range", 0))
-            cost          = float(row.get("Cost", 0) or 0)
-            purchase_date = parse_purchase_date(row.get("Purchase Date"))
-            brand         = str(row.get("Brand", "")).strip() or "Unknown"
-            size          = str(row.get("Size", "")).strip()
-            tyre_type     = ply_to_tyre_type(ply)
-            condition     = ply_to_condition(ply)
-            retread_count = ply_to_retread_count(ply)
+            range_km      = parse_range_km(row.get(C["range_km"], 0)) if C["range_km"] else 0
+            # Carry range forward from the pre-wipe snapshot when the file lacks it.
+            if range_km == 0 and tyre_no in existing_range:
+                range_km = existing_range[tyre_no]
+                carried += 1
+            cost          = float(row.get(C["cost"], 0) or 0)
+            purchase_date = parse_purchase_date(row.get(C["pdate"]))
+            brand         = str(row.get(C["brand"], "")).strip() or "Unknown"
+            size          = str(row.get(C["size"], "")).strip()
+            tyre_type     = norm_tyre_type(ply)
+            condition     = type_to_condition(ply)
+            retread_count = type_to_retread_count(ply)
             cost_per_km   = (
                 round(cost / range_km, 6) if cost > 0 and range_km > 0 else None
             )
@@ -216,6 +290,7 @@ def main():
     print(f"\n{'='*50}")
     print(f"Migration complete")
     print(f"  Imported: {ok}")
+    print(f"  Range carried forward (matched tyre_number): {carried}")
     print(f"  Errors  : {len(errors)}")
     if errors:
         print("\nError details:")

@@ -99,13 +99,6 @@ export function TyreInventoryTable({
                     </button>
                     <button
                       type="button"
-                      onClick={() => showInfo(`Locating tyre ${tyre.tyreNumber}...`, "Locate Tyre")}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors whitespace-nowrap"
-                    >
-                      Locate Tyre
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => showInfo(`Flagging tyre ${tyre.tyreNumber} for rethreading...`, "Flag Tyre")}
                       className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors whitespace-nowrap"
                     >

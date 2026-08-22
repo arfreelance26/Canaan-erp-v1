@@ -46,6 +46,40 @@ function recalcDerived(s: TripSheetData, haltPay: number): TripSheetData {
   return out;
 }
 
+// Single source of truth for every field the trip sheet *mirrors* from the Trip record.
+// These are re-synced from the live trip every time the dialog opens — for BOTH new and
+// existing sheets — so an edit made to the booking after a sheet was saved never leaves
+// the sheet showing a stale value. Add any new "auto-fetched from trip" field here (and
+// only here) so it can never drift out of sync in the future.
+//
+// NOTE: sheet-OWNED fields (start/end km, diesel, expenses, advances, remarks, computed
+// batta/driverPay) are intentionally NOT listed — those belong to the sheet and must be
+// preserved from the saved sheet, not overwritten by the trip.
+function tripMirroredFields(trip: Trip, battaCompType: string): Partial<TripSheetData> {
+  return {
+    bookingReferenceNo:     trip.bookingReferenceNo ?? "",
+    tripSheetNo:            (trip.bookingReferenceNo ?? "").replace(/^CGI/, "TS"),
+    containerNumber:        trip.containerNumber ?? "",
+    containerNumber1:       trip.containerNumber1 ?? "",
+    containerNumber2:       trip.containerNumber2 ?? "",
+    containerType:          trip.containerSpecification ?? "",
+    line:                   trip.shippingLine ?? "",
+    tripType:               trip.tripCategory ?? "",
+    vehicleId:              trip.vehicleId ?? "",
+    driverId:               trip.driverId ?? "",
+    bookingDate:            trip.bookingCreatedDate ?? "",
+    tripScheduledDate:      trip.scheduledDate ?? "",
+    from:                   trip.origin ?? "",
+    to:                     trip.destination ?? "",
+    clearingAgent:          trip.chaName ?? "",
+    cargoWeight:            trip.cargoWeight ?? "",
+    openLoadHireType:       trip.openLoadHireType ?? "",
+    ratePerTon:             trip.ratePerTon ?? "",
+    hireAmount:             trip.transportHireAmount ?? "",
+    driverCompensationType: trip.driverCompensationType || battaCompType,
+  };
+}
+
 const emptySheet = (tripId: string): TripSheetData => ({
   tripId,
   tripSheetNo: "",
@@ -195,36 +229,20 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     if (existingSheet) {
       setForm(recalcDerived({
         ...existingSheet,
+        // Re-sync every trip-mirrored field from the live trip so a saved sheet can never
+        // display a value that was changed on the booking afterwards (e.g. hire amount).
+        ...tripMirroredFields(trip, battaCompType),
         dieselEntries: existingSheet.dieselEntries?.length
           ? existingSheet.dieselEntries
           : [emptyDieselEntry(existingSheet.tripSheetDate || todayIst())],
-        driverCompensationType: existingSheet.driverCompensationType || trip.driverCompensationType || battaCompType,
         // Fallback to closure for old sheets saved before these columns existed
         driverAdvance:           existingSheet.driverAdvance           || String(closure?.driverAdvance           ?? ""),
         additionalDriverAdvance: existingSheet.additionalDriverAdvance || String(closure?.additionalDriverAdvance  ?? ""),
       }, hp));
     } else {
       const sheet = emptySheet(trip.id);
-      sheet.bookingReferenceNo  = trip.bookingReferenceNo ?? "";
-      sheet.tripSheetNo         = (trip.bookingReferenceNo ?? "").replace(/^CGI/, "TS");
-      sheet.containerNumber     = trip.containerNumber ?? "";
-      sheet.containerNumber1    = trip.containerNumber1 ?? "";
-      sheet.containerNumber2    = trip.containerNumber2 ?? "";
-      sheet.containerType       = trip.containerSpecification ?? "";
-      sheet.line                = trip.shippingLine ?? "";
-      sheet.tripType            = trip.tripCategory ?? "";
-      sheet.vehicleId           = trip.vehicleId ?? "";
-      sheet.driverId            = trip.driverId ?? "";
-      sheet.bookingDate         = trip.bookingCreatedDate ?? "";
-      sheet.tripScheduledDate   = trip.scheduledDate ?? "";
-      sheet.from                = trip.origin ?? "";
-      sheet.to                  = trip.destination ?? "";
-      sheet.clearingAgent       = trip.chaName ?? "";
-      sheet.cargoWeight         = trip.cargoWeight ?? "";
-      sheet.openLoadHireType    = trip.openLoadHireType ?? "";
-      sheet.ratePerTon          = trip.ratePerTon ?? "";
-      sheet.hireAmount              = trip.transportHireAmount ?? "";
-      sheet.driverCompensationType  = trip.driverCompensationType || battaCompType;
+      // Pull every trip-mirrored field from the live trip (same list used on re-open).
+      Object.assign(sheet, tripMirroredFields(trip, battaCompType));
       sheet.driverPay               = trip.driverAdvanceAmount ?? "";
       // Store the individual advance breakdown so each field is independently editable.
       sheet.driverAdvance           = String(closure?.driverAdvance           ?? "");
@@ -573,7 +591,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             />
           </Field>
           <Field label="Clearing Agent">
-            <input className={fc} value={form.clearingAgent} readOnly={ro} onChange={(e) => set("clearingAgent", e.target.value)} placeholder="e.g. ABC Clearing" />
+            <input className={roClass} value={form.clearingAgent} readOnly disabled placeholder="Auto-fetched from trip" />
           </Field>
         </div>
 

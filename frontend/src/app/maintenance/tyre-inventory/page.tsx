@@ -200,6 +200,7 @@ export default function TyreInventoryPage() {
         onClose={() => setHistoryDialogOpen(false)}
         tyre={historyTyre}
         records={fitmentRecords}
+        trucks={trucks}
       />
 
     </div>

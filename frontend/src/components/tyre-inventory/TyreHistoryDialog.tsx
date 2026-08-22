@@ -1,19 +1,20 @@
 "use client";
 
 import { Dialog } from "@/components/ui/Dialog";
-import { initialTrucks } from "@/lib/truck-data";
 import { formatDate } from "@/lib/format-date";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
+import type { Truck } from "@/types/truck";
 
 type TyreHistoryDialogProps = {
   open: boolean;
   onClose: () => void;
   tyre: TyreInventoryItem | null;
   records: TyreFitmentRecord[];
+  trucks: Truck[];
 };
 
-export function TyreHistoryDialog({ open, onClose, tyre, records }: TyreHistoryDialogProps) {
+export function TyreHistoryDialog({ open, onClose, tyre, records, trucks }: TyreHistoryDialogProps) {
   if (!tyre) return null;
 
   const tyreRecords = records
@@ -27,7 +28,7 @@ export function TyreHistoryDialog({ open, onClose, tyre, records }: TyreHistoryD
       ) : (
         <ul className="flex flex-col gap-3">
           {tyreRecords.map((record) => {
-            const truck = initialTrucks.find((t) => t.id === record.truckId);
+            const truck = trucks.find((t) => t.id === record.truckId);
 
             return (
               <li key={record.id} className="rounded-lg border border-gray-200 p-3">
