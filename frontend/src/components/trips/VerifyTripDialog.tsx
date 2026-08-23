@@ -95,7 +95,10 @@ export function VerifyTripDialog({
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const hireAmount    = sheet ? n(sheet.hireAmount) : 0;
+  // Hire comes from the live trip (source of truth). The trip-sheet snapshot can be
+  // stale if the booking hire was edited after the sheet was saved, so only fall back
+  // to it when the trip has no hire recorded.
+  const hireAmount    = trip.transportHireAmount ? n(trip.transportHireAmount) : (sheet ? n(sheet.hireAmount) : 0);
   const compHD        = closure ? Number(closure.companyHaltDays || 0) : 0;
   const partHD        = closure ? Number(closure.partyHaltDays   || 0) : 0;
   const totalHD       = compHD + partHD;

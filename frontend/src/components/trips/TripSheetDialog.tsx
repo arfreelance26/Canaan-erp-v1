@@ -72,7 +72,9 @@ function tripMirroredFields(trip: Trip, battaCompType: string): Partial<TripShee
     from:                   trip.origin ?? "",
     to:                     trip.destination ?? "",
     clearingAgent:          trip.chaName ?? "",
-    cargoWeight:            trip.cargoWeight ?? "",
+    // cargoWeight is intentionally NOT mirrored on re-open: trip.cargoWeight is a category
+    // ("NORMAL", "Between 20-25 Tons") while the sheet's cargoWeight is numeric tons. It is
+    // seeded once on new-sheet creation only (below), never re-synced from the trip.
     openLoadHireType:       trip.openLoadHireType ?? "",
     ratePerTon:             trip.ratePerTon ?? "",
     hireAmount:             trip.transportHireAmount ?? "",
@@ -243,6 +245,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       const sheet = emptySheet(trip.id);
       // Pull every trip-mirrored field from the live trip (same list used on re-open).
       Object.assign(sheet, tripMirroredFields(trip, battaCompType));
+      sheet.cargoWeight             = trip.cargoWeight ?? "";  // seed once (new sheet only)
       sheet.driverPay               = trip.driverAdvanceAmount ?? "";
       // Store the individual advance breakdown so each field is independently editable.
       sheet.driverAdvance           = String(closure?.driverAdvance           ?? "");

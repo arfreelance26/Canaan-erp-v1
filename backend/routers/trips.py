@@ -1,5 +1,6 @@
 import re
 import json
+from decimal import Decimal
 from datetime import date as date_type, datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -417,6 +418,67 @@ def get_trip(trip_id: int, db: Session = Depends(get_db)):
     return _enrich(trip)
 
 
+# Fields the trip sheet MIRRORS from the trip (booking). The trip is the source of
+# truth; whenever one of these changes on the trip, the linked sheet's copy must be
+# updated too — otherwise every screen and P&L calc that reads the sheet copy goes
+# stale (this is the general form of the hire-amount drift bug). Keep this in sync with
+# the frontend `tripMirroredFields()` in TripSheetDialog.tsx.
+#   trip column                →  trip_sheet column
+TRIP_TO_SHEET_MIRROR = {
+    "booking_reference_no":     "booking_reference_no",
+    "container_number":         "container_number",
+    "container_number_1":       "container_number_1",
+    "container_number_2":       "container_number_2",
+    "container_specification":  "container_type",
+    "shipping_line":            "line",
+    "trip_category":            "trip_type",
+    "vehicle_id":               "vehicle_id",
+    "driver_id":                "driver_id",
+    "booking_created_date":     "booking_date",
+    "scheduled_date":           "trip_scheduled_date",
+    "origin":                   "from_location",
+    "destination":              "to_location",
+    "cha_name":                 "clearing_agent",
+    # NOTE: cargo_weight is deliberately NOT mirrored — trips.cargo_weight is a category
+    # string ("NORMAL", "Between 20-25 Tons"), whereas trip_sheets.cargo_weight is numeric
+    # tons. They share a name but are different fields; syncing would corrupt the sheet.
+    "open_load_hire_type":      "open_load_hire_type",
+    "rate_per_ton":             "rate_per_ton",
+    "transport_hire_amount":    "hire_amount",
+    "driver_compensation_type": "driver_compensation_type",
+}
+
+
+def _sync_sheet_from_trip(trip: "models.Trip", changed_keys: set) -> None:
+    """Propagate every changed mirrored field from the trip to its sheet (if one exists),
+    so a booking edit can never leave the sheet — or anything that reads it — stale."""
+    sheet = trip.sheet
+    if sheet is None:
+        return
+    for trip_attr, sheet_attr in TRIP_TO_SHEET_MIRROR.items():
+        if trip_attr in changed_keys:
+            setattr(sheet, sheet_attr, getattr(trip, trip_attr))
+    # trip_sheet_no is derived from the booking reference (CGI… → TS…)
+    if "booking_reference_no" in changed_keys and (trip.booking_reference_no or "").startswith("CGI"):
+        sheet.trip_sheet_no = "TS" + trip.booking_reference_no[3:]
+
+    # RETURN TRIP driver batta is DERIVED from hire: round(10% of (hire − weight sheet)).
+    # When hire changes it must be recomputed, or the stored batta (and the expense totals
+    # that include it) go stale. batta feeds calcTripExpenses only, so we adjust
+    # trip_expenses_total / total_expense by the delta (driver_expenses_total is unaffected).
+    if "transport_hire_amount" in changed_keys and (sheet.trip_type or "").upper() == "RETURN TRIP":
+        base = float(sheet.hire_amount or 0) - float(sheet.weight_sheet_expense or 0)
+        new_batta = round(base * 0.10) if base > 0 else 0
+        old_batta = float(sheet.driver_pay or 0)
+        delta = new_batta - old_batta
+        if delta:
+            sheet.driver_pay = Decimal(str(new_batta))
+            if sheet.trip_expenses_total is not None:
+                sheet.trip_expenses_total = Decimal(str(round(float(sheet.trip_expenses_total) + delta, 2)))
+            if sheet.total_expense is not None:
+                sheet.total_expense = Decimal(str(round(float(sheet.total_expense) + delta, 2)))
+
+
 @router.put("/{trip_id}", response_model=schemas.TripOut)
 def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(
@@ -439,6 +501,9 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
         )
     for field, value in update_data.items():
         setattr(trip, field, value)
+    # Keep the trip sheet's mirrored copies in sync with the booking (see
+    # TRIP_TO_SHEET_MIRROR). Prevents the hire-drift class of bug for ANY mirrored field.
+    _sync_sheet_from_trip(trip, set(update_data.keys()))
     db.commit()
     db.refresh(trip)
     _remember_customer_origin(db, trip.customer_id, trip.origin)
