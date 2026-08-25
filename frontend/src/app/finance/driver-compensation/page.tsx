@@ -107,6 +107,7 @@ export default function DriverCompensationPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Driver Compensation</h1>
           <p className="mt-1 text-sm text-gray-500">View advance and salary records for drivers</p>
+          <p className="mt-1 text-sm font-semibold text-indigo-600">Total Drivers: {people.length}{search.trim() && ` (showing ${filteredPeople.length})`}</p>
         </div>
         <DownloadExcelButton path="/exports/driver-compensation" filename="driver_compensation.xlsx" />
       </div>
@@ -147,6 +148,7 @@ export default function DriverCompensationPage() {
         onViewHistory={setHistoryTarget}
         photoLabel="Driver Photo"
         nameLabel="Driver Name"
+        idLabel="Driver ID"
       />
 
       <AdvanceRecordDialog

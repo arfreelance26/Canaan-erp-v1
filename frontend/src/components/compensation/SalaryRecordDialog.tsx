@@ -332,6 +332,34 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
     pdf.save(`Salary_Record_${(driver?.name ?? "Driver").replace(/\s+/g, "_")}_${filterMode}.pdf`);
   }
 
+  async function downloadExcel() {
+    const { utils, writeFile } = await import("xlsx");
+    const data = rows.map((row) => ({
+      "Trip ID": row.tripId,
+      "Truck Reg": row.truckReg,
+      "Branch": row.truckBranch,
+      "Container Spec": row.containerSpec,
+      "Container No": row.containerNo,
+      "Booking Date": fmtDate(row.bookingDate),
+      "Trip Category": row.tripCategory,
+      "Cargo Type": row.cargoClassification,
+      "Origin": row.origin,
+      "Destination": row.destination,
+      "Lift On/Off (Rs)": row.hasSheet ? row.liftOnOff : "—",
+      "Total Expenses (Rs)": row.hasSheet ? row.totalExpenses : "—",
+      "Total Advance (Rs)": row.hasSheet ? row.totalAdvance : "—",
+      "Outstanding (Rs)": row.hasSheet ? row.outstandingAdvance : "—",
+      "Hire Amount (Rs)": row.hasSheet ? row.hireAmount : "—",
+      "Regular Pay (Rs)": row.hasSheet ? row.regularPay : "—",
+      "Net Payable (Rs)": row.hasSheet ? row.netPayable : "—",
+    }));
+    data.push({ "Trip ID": "Total Net Payable (Rs)", "Net Payable (Rs)": totalNetPayable } as (typeof data)[number]);
+    const ws = utils.json_to_sheet(data);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Salary Record");
+    writeFile(wb, `Salary_Record_${(driver?.name ?? "Driver").replace(/\s+/g, "_")}_${filterMode}.xlsx`);
+  }
+
   const filterBubble = (label: string, mode: FilterMode) => (
     <button
       type="button"
@@ -404,6 +432,15 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
           >
             <Download className="h-3 w-3" />
             Download PDF
+          </button>
+          <button
+            type="button"
+            disabled={rows.length === 0}
+            onClick={downloadExcel}
+            className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3.5 py-1.5 text-xs font-semibold text-green-700 shadow-sm transition-all hover:bg-green-100 disabled:opacity-40"
+          >
+            <Download className="h-3 w-3" />
+            Download Excel
           </button>
           <button
             type="button"

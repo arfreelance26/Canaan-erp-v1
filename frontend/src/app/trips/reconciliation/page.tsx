@@ -1057,8 +1057,18 @@ export default function TripReconciliationPage() {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
         const rangeLabel = dateFrom === dateTo ? fmtDate(dateFrom) : `${fmtDate(dateFrom)} – ${fmtDate(dateTo)}`;
         const dateFilteredTrips = receivedTrips.filter((t) => {
-          if (!t.tripSheetDate) return false;
-          const ms = new Date(t.tripSheetDate).getTime();
+          if (!fromMs && !toMs) return true;
+          // Date filter reference depends on status:
+          //  - Sheet entered → filter by tripSheetDate (when the sheet was entered)
+          //  - Pending Sheet Entry → filter by tripSheetReceivedAt (when the trip sheet register marked it received), since there is no sheet-entered date yet
+          let ms: number | null = null;
+          if (sheets.has(t.id) && t.tripSheetDate) {
+            ms = new Date(t.tripSheetDate).getTime();
+          } else if (t.tripSheetReceivedAt) {
+            const raw = t.tripSheetReceivedAt.endsWith("Z") || t.tripSheetReceivedAt.includes("+") ? t.tripSheetReceivedAt : t.tripSheetReceivedAt + "Z";
+            ms = new Date(raw).getTime();
+          }
+          if (ms === null) return false;
           if (fromMs && ms < fromMs) return false;
           if (toMs && ms > toMs) return false;
           return true;

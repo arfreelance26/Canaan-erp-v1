@@ -20,6 +20,7 @@ type CompensationTableProps = {
   onViewHistory: (person: CompensationPerson) => void;
   photoLabel: string;
   nameLabel: string;
+  idLabel?: string;
 };
 
 export function CompensationTable({
@@ -30,6 +31,7 @@ export function CompensationTable({
   onViewHistory,
   photoLabel,
   nameLabel,
+  idLabel,
 }: CompensationTableProps) {
   if (people.length === 0) {
     return (
@@ -47,6 +49,11 @@ export function CompensationTable({
             <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               {photoLabel}
             </th>
+            {idLabel && (
+              <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                {idLabel}
+              </th>
+            )}
             <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               {nameLabel}
             </th>
@@ -64,6 +71,9 @@ export function CompensationTable({
               <td className="px-4 py-3">
                 <Avatar photoUrl={person.photoUrl} label={person.name} size={44} />
               </td>
+              {idLabel && (
+                <td className="px-4 py-3 font-mono text-xs text-gray-600">{person.driverId ?? "—"}</td>
+              )}
               <td className="px-4 py-3 font-medium text-gray-900">{person.name}</td>
               <td className="px-4 py-3">
                 <StatusBadge status={person.status} />

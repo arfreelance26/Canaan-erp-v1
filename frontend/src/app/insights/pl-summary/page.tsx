@@ -26,7 +26,13 @@ const PRESETS = [
 ] as const;
 
 // ── Formatting ─────────────────────────────────────────────────────────────────
-function fmt(v: number) { return `₹${Math.abs(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`; }
+// Indian abbreviated currency: ≥1 crore → Cr, ≥1 lakh → L, otherwise full ₹ amount.
+function fmt(v: number) {
+  const abs = Math.abs(v);
+  if (abs >= 1e7) return `₹${(abs / 1e7).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr`;
+  if (abs >= 1e5) return `₹${(abs / 1e5).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`;
+  return `₹${abs.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+}
 function fmtDate(iso: string) {
   if (!iso) return "—";
   const [y, m, d] = iso.split("-");

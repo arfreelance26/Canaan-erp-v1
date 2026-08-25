@@ -325,6 +325,7 @@ export default function TripVerificationPage() {
         ["Invoice Date",  24],
         ["Trip ID",       24],
         ["Booking Ref",   32],
+        ["Trip Date",     24],
         ["Bill To",       36],
         ["Route",         40],
         ["Container No",  28],
@@ -372,6 +373,7 @@ export default function TripVerificationPage() {
           invDate,
           trip.tripId,
           trip.bookingReferenceNo ?? "—",
+          trip.scheduledDate ? fmtDate(trip.scheduledDate + "T00:00:00") : "—",
           inv?.bill_to ?? trip.shipperConsignee ?? "—",
           `${trip.origin} > ${trip.destination}`,
           trip.containerNumber ?? trip.containerNumber1 ?? "—",
@@ -883,11 +885,18 @@ export default function TripVerificationPage() {
           if (modalStatusFilter === "Verified" && (!verifiedIds.has(t.id) || invoicedIds.has(t.id) || waivedIds.has(t.id))) return false;
           if (modalStatusFilter === "Invoiced" && !invoicedIds.has(t.id)) return false;
           if (modalStatusFilter === "Waived Invoice" && !(waivedIds.has(t.id) && !invoicedIds.has(t.id))) return false;
-          // Date filter only applies to Invoiced trips
-          if (invoicedIds.has(t.id)) {
+          // Date filter reference depends on status:
+          //  - Invoiced trips → filter by invoice_date (when the invoice was raised)
+          //  - Otherwise (Pending etc.) → filter by scheduledDate (the trip date), since there is no invoice date yet
+          if (fromMs || toMs) {
+            let ms: number | null = null;
             const inv = invoiceData.get(t.id);
-            if (inv?.invoice_date) {
-              const ms = new Date(inv.invoice_date as string).getTime();
+            if (invoicedIds.has(t.id) && inv?.invoice_date) {
+              ms = new Date(inv.invoice_date as string).getTime();
+            } else if (t.scheduledDate) {
+              ms = new Date(t.scheduledDate + "T00:00:00").getTime();
+            }
+            if (ms !== null) {
               if (fromMs && ms < fromMs) return false;
               if (toMs && ms > toMs) return false;
             }
@@ -938,7 +947,7 @@ export default function TripVerificationPage() {
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b border-gray-200 bg-gray-50">
-                        {["#", "Status", "Trip ID", "Booking Ref", "Vehicle", "Route", "Container No", "Invoice No", "Invoice Type", "Invoice Date"].map((col) => (
+                        {["#", "Status", "Trip ID", "Booking Ref", "Trip Date", "Vehicle", "Route", "Container No", "Invoice No", "Invoice Type", "Invoice Date"].map((col) => (
                           <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
@@ -964,6 +973,7 @@ export default function TripVerificationPage() {
                             </td>
                             <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{t.tripId ?? t.id}</td>
                             <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.bookingReferenceNo ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{t.scheduledDate ? new Date(t.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—"}</td>
                             <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.truckRegistration ?? "—"}</td>
                             <td className="px-3 py-2 text-gray-500 whitespace-nowrap max-w-[140px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
                             <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{t.containerNumber ?? "—"}</td>

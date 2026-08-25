@@ -908,12 +908,21 @@ export default function SheetCollectionPage() {
           if (modalStatusFilter === "Pending" && t.tripSheetCollected) return false;
           if (modalStatusFilter === "Delivered" && !t.tripSheetCollected) return false;
           if (modalStatusFilter === "Overdue" && !overdueIds.has(t.id)) return false;
-          // Date filter applies only to delivered trips (pending trips have no collection date)
-          if (t.tripSheetCollectedAt && (fromMs || toMs)) {
-            const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+") ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
-            const ms = new Date(raw).getTime();
-            if (fromMs && ms < fromMs) return false;
-            if (toMs && ms > toMs) return false;
+          // Date filter reference depends on status:
+          //  - Delivered sheets  → filter by tripSheetCollectedAt (when the sheet was collected)
+          //  - Pending sheets    → filter by scheduledDate (the trip date), since there is no collection date yet
+          if (fromMs || toMs) {
+            let ms: number | null = null;
+            if (t.tripSheetCollected && t.tripSheetCollectedAt) {
+              const raw = t.tripSheetCollectedAt.endsWith("Z") || t.tripSheetCollectedAt.includes("+") ? t.tripSheetCollectedAt : t.tripSheetCollectedAt + "Z";
+              ms = new Date(raw).getTime();
+            } else if (t.scheduledDate) {
+              ms = new Date(t.scheduledDate + "T00:00:00").getTime();
+            }
+            if (ms !== null) {
+              if (fromMs && ms < fromMs) return false;
+              if (toMs && ms > toMs) return false;
+            }
           }
           return true;
         });

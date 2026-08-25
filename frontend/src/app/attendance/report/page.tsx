@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Search, Download } from "lucide-react";
+import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Search, Download, Eye, FileSpreadsheet, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
@@ -115,6 +115,7 @@ export default function AttendanceReportPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
@@ -397,6 +398,72 @@ export default function AttendanceReportPage() {
     }
   }
 
+  async function handleDownloadExcel() {
+    if (filteredRows.length === 0) return;
+    try {
+      const { utils, writeFile } = await import("xlsx");
+      const who = isDriver ? "Driver" : "Staff";
+      let data: Record<string, string | number>[];
+
+      if (viewMode === "datewise") {
+        // Register grid: one row per person, one column per date (abbreviation).
+        data = filteredRows.map((r) => {
+          const row: Record<string, string | number> = {
+            [isDriver ? "Driver ID" : "Staff ID"]: r.code,
+            Name: r.name,
+          };
+          dates.forEach((d) => {
+            const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
+            const [yy, mm, dd] = d.split("-").map(Number);
+            const isHoliday = !isDriver && (new Date(yy, mm - 1, dd).getDay() === 0 || Boolean(holidayMap[d]));
+            const st = recorded ?? (isHoliday ? "Holiday" : "Not Marked");
+            row[String(dd)] = (STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"]).abbr;
+          });
+          return row;
+        });
+      } else if (isDriver) {
+        data = filteredRows.map((r, idx) => {
+          const active = r.onTrip + r.onHalt + r.onWorkshop;
+          const pct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
+          return {
+            "#": idx + 1,
+            "Driver ID": r.code,
+            Name: r.name,
+            "On Trip": r.onTrip,
+            "On Halt": r.onHalt,
+            Leave: r.leave,
+            "On Workshop": r.onWorkshop,
+            "Not Marked": r.notMarked,
+            "Active %": `${pct}%`,
+          };
+        });
+      } else {
+        data = filteredRows.map((r, idx) => {
+          const pct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
+          return {
+            "#": idx + 1,
+            "Staff ID": r.code,
+            Name: r.name,
+            Present: r.present,
+            Absent: r.absent,
+            "On Leave": r.onLeave,
+            "Not Marked": r.notMarked,
+            "% Present": `${pct}%`,
+          };
+        });
+      }
+
+      const ws = utils.json_to_sheet(data);
+      const wb = utils.book_new();
+      const sheetName = viewMode === "datewise" ? "Register" : "Summary";
+      utils.book_append_sheet(wb, ws, sheetName);
+      const kind = viewMode === "datewise" ? "Register" : "Report";
+      writeFile(wb, `${who}_Attendance_${kind}_${fromDate}_to_${toDate}.xlsx`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to generate Excel.");
+    }
+  }
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -488,12 +555,13 @@ export default function AttendanceReportPage() {
           </div>
           <button
             type="button"
-            onClick={handleDownloadPDF}
-            disabled={downloading || filteredRows.length === 0}
-            className="flex h-[38px] items-center gap-1.5 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => setShowReportModal(true)}
+            disabled={filteredRows.length === 0}
+            title={filteredRows.length === 0 ? "No data to view" : "View and download report"}
+            className="flex h-[38px] items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Download className="h-4 w-4" />
-            {downloading ? "Generating…" : "Download PDF"}
+            <Eye className="h-4 w-4" />
+            View
           </button>
         </div>
       </div>
@@ -711,6 +779,125 @@ export default function AttendanceReportPage() {
             </table>
           </div>
         </>
+      )}
+
+      {showReportModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}>
+          <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
+              <div>
+                <p className="font-semibold text-gray-900">{isDriver ? "Driver" : "Staff"} Attendance {viewMode === "datewise" ? "Register" : "Report"}</p>
+                <p className="text-xs text-gray-500">
+                  Period: {fromDate === toDate ? formatDate(fromDate) : `${formatDate(fromDate)} – ${formatDate(toDate)}`} · {filteredRows.length} {isDriver ? "driver" : "staff"}{filteredRows.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="overflow-auto p-4">
+              {viewMode === "datewise" ? (
+                <table className="border-collapse text-xs">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-gray-50">
+                      <th className="sticky left-0 z-20 min-w-[150px] border-b border-r border-gray-200 bg-gray-50 px-3 py-2 text-left font-semibold uppercase tracking-wider text-gray-500">{isDriver ? "Driver" : "Staff"}</th>
+                      {dates.map((d) => (
+                        <th key={d} className="min-w-[28px] border-b border-gray-200 px-1 py-2 text-center font-semibold text-gray-600">{Number(d.split("-")[2])}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredRows.map((r) => (
+                      <tr key={r.id} className="hover:bg-gray-50">
+                        <td className="sticky left-0 z-10 border-r border-gray-200 bg-white px-3 py-1.5">
+                          <div className="whitespace-nowrap font-medium text-gray-900">{r.name}</div>
+                          <div className="text-[10px] text-gray-400">{r.code}</div>
+                        </td>
+                        {dates.map((d) => {
+                          const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
+                          const [yy, mm, dd] = d.split("-").map(Number);
+                          const isHoliday = !isDriver && (new Date(yy, mm - 1, dd).getDay() === 0 || Boolean(holidayMap[d]));
+                          const st = recorded ?? (isHoliday ? "Holiday" : "Not Marked");
+                          const disp = STATUS_DISPLAY[st] ?? STATUS_DISPLAY["Not Marked"];
+                          return (
+                            <td key={d} className="px-1 py-1.5 text-center">
+                              <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold", disp.cls)}>{disp.abbr}</span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      {(isDriver
+                        ? ["#", "Driver ID", "Name", "On Trip", "On Halt", "Leave", "On Workshop", "Not Marked", "Active %"]
+                        : ["#", "Staff ID", "Name", "Present", "Absent", "On Leave", "Not Marked", "% Present"]
+                      ).map((col) => (
+                        <th key={col} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredRows.map((r, idx) => {
+                      const active = r.onTrip + r.onHalt + r.onWorkshop;
+                      const dPct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
+                      const sPct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
+                      return (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-gray-400 text-xs">{idx + 1}</td>
+                          <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{r.code}</td>
+                          <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{r.name}</td>
+                          {isDriver ? (
+                            <>
+                              <td className="px-3 py-2 font-semibold text-blue-700">{r.onTrip}</td>
+                              <td className="px-3 py-2 font-semibold text-orange-600">{r.onHalt}</td>
+                              <td className="px-3 py-2 font-semibold text-yellow-700">{r.leave}</td>
+                              <td className="px-3 py-2 font-semibold text-purple-700">{r.onWorkshop}</td>
+                              <td className="px-3 py-2 text-gray-500">{r.notMarked}</td>
+                              <td className="px-3 py-2 text-gray-700">{dPct}%</td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-3 py-2 font-semibold text-green-700">{r.present}</td>
+                              <td className="px-3 py-2 font-semibold text-red-600">{r.absent}</td>
+                              <td className="px-3 py-2 font-semibold text-yellow-700">{r.onLeave}</td>
+                              <td className="px-3 py-2 text-gray-500">{r.notMarked}</td>
+                              <td className="px-3 py-2 text-gray-700">{sPct}%</td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDownloadExcel}
+                disabled={filteredRows.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Download Excel
+              </button>
+              <button
+                type="button"
+                onClick={async () => { await handleDownloadPDF(); }}
+                disabled={downloading || filteredRows.length === 0}
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? "Generating…" : "Download PDF"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -300,6 +300,30 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
     pdf.save(`Advance_Record_${(driver?.name ?? "Driver").replace(/\s+/g, "_")}_${filterMode}.pdf`);
   }
 
+  async function downloadExcel() {
+    const { utils, writeFile } = await import("xlsx");
+    const data = rows.map((row) => ({
+      "Trip ID": row.tripId,
+      "Truck Reg": row.truckReg,
+      "Branch": row.truckBranch,
+      "Container Spec": row.containerSpec,
+      "Container No": row.containerNo,
+      "Booking Date": fmtDate(row.bookingDate),
+      "Trip Category": row.tripCategory,
+      "Cargo Type": row.cargoClassification,
+      "Origin": row.origin,
+      "Destination": row.destination,
+      "Driver Advance (Rs)": row.hasClosure ? row.driverAdvance : "—",
+      "Additional Advance (Rs)": row.hasClosure ? row.additionalDriverAdvance : "—",
+      "Total Advance (Rs)": row.hasClosure ? row.totalAdvance : "—",
+    }));
+    data.push({ "Trip ID": "Total Advance Paid (Rs)", "Total Advance (Rs)": grandTotal } as (typeof data)[number]);
+    const ws = utils.json_to_sheet(data);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Advance Record");
+    writeFile(wb, `Advance_Record_${(driver?.name ?? "Driver").replace(/\s+/g, "_")}_${filterMode}.xlsx`);
+  }
+
   const filterBubble = (label: string, mode: FilterMode) => (
     <button
       type="button"
@@ -347,15 +371,26 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
             </div>
           )}
         </div>
-        <button
-          type="button"
-          disabled={rows.length === 0}
-          onClick={downloadPdf}
-          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 disabled:opacity-40"
-        >
-          <Download className="h-3 w-3" />
-          Download PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={rows.length === 0}
+            onClick={downloadPdf}
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 disabled:opacity-40"
+          >
+            <Download className="h-3 w-3" />
+            Download PDF
+          </button>
+          <button
+            type="button"
+            disabled={rows.length === 0}
+            onClick={downloadExcel}
+            className="inline-flex items-center gap-1.5 rounded-full border border-green-300 bg-green-50 px-3.5 py-1.5 text-xs font-semibold text-green-700 shadow-sm transition-all hover:bg-green-100 disabled:opacity-40"
+          >
+            <Download className="h-3 w-3" />
+            Download Excel
+          </button>
+        </div>
       </div>
 
       {loading ? (
