@@ -78,11 +78,11 @@ function PlBadge({ value, size = "sm" }: { value: number; size?: "sm" | "lg" }) 
   const p = value >= 0;
   const base = p ? "bg-emerald-100 text-emerald-700 dark:text-emerald-900" : "bg-red-100 text-red-600 dark:text-red-900";
   const cls  = size === "lg"
-    ? `inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold ${base}`
-    : `inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${base}`;
+    ? `inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-bold ${base}`
+    : `inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${base}`;
   return (
     <span className={cls}>
-      {p ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+      {p ? <TrendingUp className="h-3.5 w-3.5 shrink-0" /> : <TrendingDown className="h-3.5 w-3.5 shrink-0" />}
       {p ? "+" : "−"}{fmt(value)}
     </span>
   );
