@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, Search, MapPin, Flag } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";

@@ -130,7 +130,12 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
           (b) => b.name.trim().toLowerCase() === (truck?.branchRegisteredTo ?? "").trim().toLowerCase()
         );
         const compensationPct = branch ? (parseFloat(branch.driverHaltDayPercentage) || 10) : 10;
-        const regularPay = Math.round(hireAmount * compensationPct / 100);
+        // SHIFTING trips pay a hardcoded driver batta (set per container type on the trip
+        // sheet, see BATTA_RULES in TripSheetDialog) instead of a % of the hire amount.
+        const isShifting = t.tripCategory === "SHIFTING";
+        const regularPay = isShifting
+          ? parseFloat(sheet?.driverPay ?? "0") || 0
+          : Math.round(hireAmount * compensationPct / 100);
         const netPayable = regularPay - outstandingAdvance;
 
         const containerNo =
@@ -181,7 +186,15 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
     });
   }, [allRows, filterMode, customFrom, customTo]);
 
-  const totalNetPayable = rows.reduce((sum, r) => sum + r.netPayable, 0);
+  // RETURN TRIP rows are still fully calculated (Regular Pay, Net Payable, everything) so
+  // they're visible in the table and exports, but they don't count toward what's actually
+  // paid out — a return trip isn't separately compensated, it rides along with the outbound
+  // trip's pay. Excluding them here is the single source of truth: PDF/Excel/summary/the
+  // "Record Salary Payment" button all derive from this one total.
+  const totalNetPayable = rows.reduce(
+    (sum, r) => sum + (r.tripCategory === "RETURN TRIP" ? 0 : r.netPayable),
+    0
+  );
 
   function filterLabel(): string {
     if (filterMode === "all") return "All Trips";
@@ -577,6 +590,13 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                         Falls back to 10% if the truck&apos;s branch has no compensation % configured
                       </p>
                     </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">SHIFTING</span>
+                      <p className="text-[11px] leading-relaxed text-slate-500">
+                        Exception: for SHIFTING trips, Regular Pay is instead the fixed <span className="font-semibold text-slate-700">Driver Batta</span> amount
+                        set on the trip sheet for that container type — not a % of hire amount.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -600,6 +620,13 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-px text-[10px] font-bold text-gray-400">Outstanding = 0</span>
                       <p className="text-[11px] leading-relaxed text-slate-500">No adjustment — Net Payable equals Regular Pay exactly</p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">RETURN TRIP</span>
+                      <p className="text-[11px] leading-relaxed text-slate-500">
+                        Exception: still fully calculated and shown in the table (marked with an asterisk *), but <span className="font-semibold text-slate-700">excluded from Total Net Payable</span> —
+                        a return trip rides along with the outbound trip&apos;s pay and isn&apos;t separately compensated.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -647,8 +674,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((row, i) => (
-                  <tr key={`${row.tripId}-${i}`} className="hover:bg-gray-50">
+                {rows.map((row, i) => {
+                  const isReturnTrip = row.tripCategory === "RETURN TRIP";
+                  return (
+                  <tr key={`${row.tripId}-${i}`} className={`hover:bg-gray-50 ${isReturnTrip ? "bg-purple-50/40" : ""}`}>
                     <td className="px-3 py-2.5 font-medium text-indigo-700">{row.tripId}</td>
                     <td className="px-3 py-2.5 text-gray-700">{row.driverName}</td>
                     <td className="px-3 py-2.5 font-mono text-gray-700">{row.truckReg}</td>
@@ -656,7 +685,17 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                     <td className="px-3 py-2.5 text-gray-600 max-w-[140px] truncate">{row.containerSpec}</td>
                     <td className="px-3 py-2.5 font-mono text-gray-700">{row.containerNo}</td>
                     <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.bookingDate)}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{row.tripCategory}</td>
+                    <td className="px-3 py-2.5 text-gray-600">
+                      {row.tripCategory}
+                      {isReturnTrip && (
+                        <span
+                          title="Return trip — rides along with the outbound trip's pay, not separately compensated"
+                          className="ml-1.5 inline-block rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-600"
+                        >
+                          Excluded
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 text-gray-600">{row.cargoClassification}</td>
                     <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.origin}</td>
                     <td className="px-3 py-2.5 text-gray-700 max-w-[130px] truncate">{row.destination}</td>
@@ -677,14 +716,35 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                     </td>
                     <td className="px-3 py-2.5 text-right text-blue-700 font-semibold">
                       {row.hasSheet ? (
-                        <span title={`${row.compensationPct}% of hire amount`}>{fmtCur(row.regularPay)}</span>
+                        <span
+                          title={
+                            row.tripCategory === "SHIFTING"
+                              ? "Driver Batta (fixed amount from trip sheet)"
+                              : `${row.compensationPct}% of hire amount`
+                          }
+                        >
+                          {fmtCur(row.regularPay)}
+                        </span>
                       ) : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">
-                      {row.hasSheet ? <NetPayableCell v={row.netPayable} /> : <span className="text-gray-400">—</span>}
+                      {row.hasSheet ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <NetPayableCell v={row.netPayable} />
+                          {isReturnTrip && (
+                            <span
+                              title="Shown for reference only — not included in Total Net Payable below"
+                              className="text-gray-400"
+                            >
+                              *
+                            </span>
+                          )}
+                        </span>
+                      ) : <span className="text-gray-400">—</span>}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -699,6 +759,12 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
               Outstanding &lt; 0: driver spent own money — company owes reimbursement
             </span>
+            {rows.some((r) => r.tripCategory === "RETURN TRIP") && (
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-400" />
+                Net Payable marked * (RETURN TRIP): calculated for reference, not included in Total Net Payable
+              </span>
+            )}
           </div>
 
           {/* Net payable summary */}

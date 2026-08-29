@@ -30,7 +30,7 @@ const TriggerInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTML
   ({ value, onClick, onChange, placeholder, required, disabled }, ref) => (
     <div
       onClick={onClick}
-      className="relative flex w-full cursor-pointer items-center rounded-lg border border-gray-200 bg-white/80 px-3 py-2 backdrop-blur-sm transition-all duration-200 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] hover:border-gray-300 hover:bg-white/90"
+      className="relative flex w-full cursor-pointer items-center rounded-lg border-2 border-brand-gold bg-white/80 px-3 py-2 backdrop-blur-sm transition-all duration-200 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(201,162,39,0.2)] hover:bg-white/90"
     >
       <input
         ref={ref}
@@ -43,7 +43,7 @@ const TriggerInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTML
         disabled={disabled}
         className="w-full cursor-pointer bg-transparent text-sm uppercase text-gray-900 outline-none placeholder:normal-case placeholder:text-gray-400"
       />
-      <CalendarDays className="ml-2 h-4 w-4 shrink-0 text-blue-400" />
+      <CalendarDays className="ml-2 h-4 w-4 shrink-0 text-brand-gold" />
     </div>
   )
 );

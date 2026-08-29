@@ -122,7 +122,7 @@ export default function LeaveApprovalsPage() {
             type="date"
             value={exportFrom}
             onChange={(e) => setExportFrom(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            className="uppercase rounded-lg border-2 border-brand-gold bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:bg-white focus:ring-4 focus:ring-brand-gold/20"
             title="Report from date"
           />
           <span className="text-xs text-gray-400">to</span>
@@ -130,7 +130,7 @@ export default function LeaveApprovalsPage() {
             type="date"
             value={exportTo}
             onChange={(e) => setExportTo(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            className="uppercase rounded-lg border-2 border-brand-gold bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:bg-white focus:ring-4 focus:ring-brand-gold/20"
             title="Report to date"
           />
           <DownloadExcelButton

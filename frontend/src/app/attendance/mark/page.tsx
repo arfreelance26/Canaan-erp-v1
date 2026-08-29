@@ -261,6 +261,7 @@ export default function MarkAttendancePage() {
   const ringColor = pct >= 75 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
   const standingLabel = pct >= 75 ? "Good standing" : pct >= 50 ? "Needs improvement" : "Below threshold";
   const standingColor = pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-red-600";
+  const standingBg = pct >= 75 ? "bg-emerald-50" : pct >= 50 ? "bg-amber-50" : "bg-red-50";
 
   if (!ready) return null;
 
@@ -307,7 +308,7 @@ export default function MarkAttendancePage() {
           <div className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-opacity ${summaryLoading ? "opacity-50" : ""}`}>
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
               <p className="text-sm font-bold text-gray-800">Monthly Attendance</p>
-              <span className={`text-xs font-semibold ${standingColor}`}>{standingLabel}</span>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${standingBg} ${standingColor}`}>{standingLabel}</span>
             </div>
 
             <div className="flex items-center gap-6 p-5">
@@ -347,14 +348,14 @@ export default function MarkAttendancePage() {
                 {/* Five counts */}
                 <div className="grid grid-cols-5 gap-2 pt-1">
                   {[
-                    { label: "Present",  count: summary?.present  ?? 0, dot: "bg-emerald-500", text: "text-emerald-600" },
-                    { label: "Absent",   count: summary?.absent   ?? 0, dot: "bg-red-500",     text: "text-red-600" },
-                    { label: "On Leave", count: summary?.onLeave  ?? 0, dot: "bg-amber-400",   text: "text-amber-600" },
-                    { label: "Holiday",  count: summary?.holidays ?? 0, dot: "bg-blue-500",    text: "text-blue-600" },
-                    { label: "Unmarked", count: summary?.notMarked ?? 0, dot: "bg-gray-300",   text: "text-gray-400" },
-                  ].map(({ label, count, dot, text }) => (
-                    <div key={label} className="flex flex-col items-center gap-1">
-                      <span className={`h-2 w-2 rounded-full ${dot}`} />
+                    { label: "Present",  count: summary?.present  ?? 0, dot: "bg-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50" },
+                    { label: "Absent",   count: summary?.absent   ?? 0, dot: "bg-red-500",     text: "text-red-600",     bg: "bg-red-50" },
+                    { label: "On Leave", count: summary?.onLeave  ?? 0, dot: "bg-amber-400",   text: "text-amber-600",   bg: "bg-amber-50" },
+                    { label: "Holiday",  count: summary?.holidays ?? 0, dot: "bg-blue-500",    text: "text-blue-600",    bg: "bg-blue-50" },
+                    { label: "Unmarked", count: summary?.notMarked ?? 0, dot: "bg-gray-300",   text: "text-gray-400",    bg: "bg-gray-50" },
+                  ].map(({ label, count, dot, text, bg }) => (
+                    <div key={label} className={`flex flex-col items-center gap-1 rounded-xl py-2 ${bg}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
                       <p className={`text-lg font-bold leading-none ${text}`}>{count}</p>
                       <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">{label}</p>
                     </div>
@@ -372,7 +373,7 @@ export default function MarkAttendancePage() {
                 <button
                   type="button"
                   onClick={prevMonth}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-brand-navy/5 hover:text-brand-navy"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
@@ -381,7 +382,7 @@ export default function MarkAttendancePage() {
                   type="button"
                   onClick={nextMonth}
                   disabled={!canGoNext}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-25"
+                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-brand-navy/5 hover:text-brand-navy disabled:opacity-25"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -408,25 +409,25 @@ export default function MarkAttendancePage() {
                   return (
                     <div
                       key={dateStr}
-                      className={`flex items-center gap-3 px-5 py-2.5 ${isToday ? "bg-indigo-50/60" : "hover:bg-gray-50/40"}`}
+                      className={`flex items-center gap-3 px-5 py-2.5 ${isToday ? "bg-brand-navy/5" : "hover:bg-gray-50/40"}`}
                     >
-                      {/* Date block */}
-                      <div className={`flex w-10 shrink-0 flex-col items-center rounded-lg py-1 ${isToday ? "bg-indigo-100" : "bg-gray-50"}`}>
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isToday ? "text-indigo-400" : "text-gray-400"}`}>{dayName}</span>
-                        <span className={`text-base font-extrabold leading-tight ${isToday ? "text-indigo-700" : "text-gray-700"}`}>{dayNum}</span>
-                        <span className={`text-[9px] font-medium ${isToday ? "text-indigo-400" : "text-gray-400"}`}>{monthShort}</span>
+                      {/* Date block — today gets the same navy+gold treatment as the app's active nav state */}
+                      <div className={`flex w-10 shrink-0 flex-col items-center rounded-lg border py-1 ${isToday ? "border-brand-gold/40 bg-brand-navy" : "border-transparent bg-gray-50"}`}>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isToday ? "text-brand-gold/80" : "text-gray-400"}`}>{dayName}</span>
+                        <span className={`text-base font-extrabold leading-tight ${isToday ? "text-brand-gold" : "text-gray-700"}`}>{dayNum}</span>
+                        <span className={`text-[9px] font-medium ${isToday ? "text-brand-gold/80" : "text-gray-400"}`}>{monthShort}</span>
                       </div>
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">
                         {isToday && (
-                          <span className="mb-0.5 inline-block text-[9px] font-bold uppercase tracking-wider text-indigo-500">Today</span>
+                          <span className="mb-0.5 inline-block text-[9px] font-bold uppercase tracking-wider text-brand-navy">Today</span>
                         )}
                         {rec?.checkInTime ? (
                           <p className="text-[11px] text-gray-500">
                             <span className="font-semibold text-emerald-600">In</span> {rec.checkInTime}
                             {rec.checkOutTime && (
-                              <> &nbsp;<span className="font-semibold text-indigo-500">Out</span> {rec.checkOutTime}</>
+                              <> &nbsp;<span className="font-semibold text-brand-navy">Out</span> {rec.checkOutTime}</>
                             )}
                           </p>
                         ) : time ? (
@@ -455,7 +456,7 @@ export default function MarkAttendancePage() {
         <div className="sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
 
           {/* User profile */}
-          <div className="flex flex-col items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-indigo-50 to-blue-50/20 px-6 py-8 text-center">
+          <div className="flex flex-col items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-navy/5 to-transparent px-6 py-8 text-center">
             {user?.photoUrl ? (
               <img
                 src={user.photoUrl}
@@ -463,7 +464,7 @@ export default function MarkAttendancePage() {
                 className="h-20 w-20 rounded-full border-4 border-white object-cover shadow-md"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-indigo-600 text-2xl font-bold text-white shadow-md">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-brand-navy text-2xl font-bold text-white shadow-md">
                 {getInitials(user?.name ?? "U")}
               </div>
             )}
@@ -563,19 +564,19 @@ export default function MarkAttendancePage() {
 
                 {/* Check-out row or Close Shift button (only if not admin-overridden) */}
                 {checkOutTime ? (
-                  <div className="flex items-center justify-between rounded-xl bg-indigo-50 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-xl bg-brand-navy/5 px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <LogOut className="h-4 w-4 text-indigo-500" />
-                      <span className="text-xs font-semibold text-indigo-700">Close shift</span>
+                      <LogOut className="h-4 w-4 text-brand-navy" />
+                      <span className="text-xs font-semibold text-brand-navy">Close shift</span>
                     </div>
-                    <span className="text-xs font-bold text-indigo-700">{checkOutTime}</span>
+                    <span className="text-xs font-bold text-brand-navy">{checkOutTime}</span>
                   </div>
                 ) : !adminOverridden ? (
                   <button
                     type="button"
                     disabled={closingShift}
                     onClick={handleCloseShift}
-                    className="flex w-full items-center gap-3 rounded-xl border-2 border-indigo-200 bg-indigo-50 px-4 py-3.5 text-sm font-semibold text-indigo-700 transition-all duration-150 hover:border-indigo-400 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-xl border-2 border-brand-navy/20 bg-brand-navy/5 px-4 py-3.5 text-sm font-semibold text-brand-navy transition-all duration-150 hover:border-brand-navy/40 hover:bg-brand-navy/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <LogOut className="h-5 w-5 shrink-0" />
                     <span className="flex-1 text-left">{closingShift ? "Closing…" : "Close Shift"}</span>
@@ -642,7 +643,7 @@ export default function MarkAttendancePage() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Logo */}
-              <div className="flex justify-center border-b border-gray-100 px-8 py-7">
+              <div className="flex justify-center border-b border-gray-100 bg-gradient-to-b from-brand-navy/5 to-transparent px-8 py-7">
                 <img
                   src="/companylogo.png"
                   alt="Canaan"
@@ -683,7 +684,7 @@ export default function MarkAttendancePage() {
               {/* Auto-dismiss progress bar — drains over 6 seconds */}
               <div className="mx-8 mb-6 h-0.5 overflow-hidden rounded-full bg-gray-100">
                 <div
-                  className="h-full rounded-full bg-indigo-300"
+                  className="h-full rounded-full bg-brand-gold"
                   style={{
                     transformOrigin: "left",
                     animation: "drainBar 6s linear forwards",

@@ -169,13 +169,192 @@ html.dark select:not([class*="bg-"]) {
   color: var(--color-gray-900);
 }
 
-/* Login logo — white background so it doesn't merge with the dark card */
-html.dark .login-logo-wrap {
-  background-color: rgba(255, 255, 255, 0.92);
-  border-radius: 16px;
-  padding: 12px 24px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+/* ── Login page ───────────────────────────────────────────── */
+
+/*
+ * Optional hero photograph. Drop a file at public/login-hero.jpg and it takes
+ * over; until then the element resolves to nothing and the gradient below shows
+ * through, so the panel is never empty.
+ */
+.login-hero-photo {
+  background-image: url("/login-hero.jpg");
+  background-size: cover;
+  background-position: 60% center;
 }
+
+/*
+ * Navy scrim over the photo. Darkest at the top-left where the logo and headline
+ * sit, so type keeps its contrast whatever the photograph underneath is doing.
+ */
+.login-hero-wash {
+  background:
+    linear-gradient(115deg, rgba(9, 20, 46, 0.94) 0%, rgba(11, 26, 58, 0.72) 42%, rgba(12, 30, 64, 0.55) 100%),
+    radial-gradient(120% 80% at 20% 12%, rgba(9, 20, 46, 0.85) 0%, transparent 65%),
+    linear-gradient(180deg, #0a1733 0%, #10305c 55%, #0d2748 100%);
+}
+
+/*
+ * A gentle diagonal tone shift instead of one flat swatch — the light side
+ * needs some tonal variation of its own before anything else is layered on.
+ */
+.login-shell {
+  background: linear-gradient(160deg, #f8f9fb 0%, #eef0f4 55%, #e8eaf0 100%);
+}
+
+/*
+ * Corner depth — two soft, low-contrast glows in the top-right and
+ * bottom-right, drifting slowly so the page reads as alive rather than a
+ * static image. No lines, no visible edges: pure soft light in motion.
+ */
+.login-glass-blobs::before,
+.login-glass-blobs::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+}
+.login-glass-blobs::before {
+  top: -6%;
+  right: -4%;
+  width: 460px;
+  height: 460px;
+  background: rgba(11, 26, 58, 0.16);
+  animation: login-blob-drift-a 22s ease-in-out infinite alternate;
+}
+.login-glass-blobs::after {
+  bottom: -8%;
+  right: 2%;
+  width: 500px;
+  height: 500px;
+  background: rgba(224, 169, 43, 0.15);
+  animation: login-blob-drift-b 27s ease-in-out infinite alternate;
+}
+@keyframes login-blob-drift-a {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-6%, 5%) scale(1.12); }
+}
+@keyframes login-blob-drift-b {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-4%, -6%) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-glass-blobs::before,
+  .login-glass-blobs::after {
+    animation: none;
+  }
+}
+
+/* Fine grain over the whole light side — texture, not a visible pattern */
+.login-grain {
+  /* overlay is a no-op on a near-white base — multiply is what actually darkens it */
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/*
+ * Liquid-glass card — translucent frosted panel over the blobs above, with a
+ * bright top-left sheen and a hairline rim to sell the sense of thickness.
+ */
+.login-card {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.34));
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 24px 60px -24px rgba(11, 26, 58, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 22px rgba(255, 255, 255, 0.18);
+}
+.login-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(120% 65% at 18% -12%, rgba(255, 255, 255, 0.65), transparent 62%);
+}
+
+/* Input shells — one bordered box per field, icon parked on the left */
+.login-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid rgba(11, 26, 58, 0.12);
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.55);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+.login-field:focus-within {
+  border-color: #0b1a3a;
+  background-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 3px rgba(11, 26, 58, 0.08);
+}
+.login-field-icon {
+  flex-shrink: 0;
+  color: #0b1a3a;
+}
+
+/* Dark mode — the hero is already dark, so only the form side has to move */
+/*
+ * `background:` (shorthand) in the light rule above sets background-image to
+ * that gradient — overriding only background-color here leaves the opaque
+ * light gradient sitting on top of this color, so the shell stays looking
+ * light. Shorthand here too, so background-image resets to none.
+ */
+html.dark .login-shell {
+  /* Vignette on top of the diagonal tone: keeps the middle (where the card
+     sits) a touch lighter and lets the far corners fall off toward black,
+     which is what actually reads as depth rather than a flat dark fill. */
+  background:
+    radial-gradient(130% 110% at 48% 38%, transparent 45%, rgba(0, 0, 0, 0.4) 100%),
+    linear-gradient(160deg, #101a30 0%, #0a0f1c 55%, #05070d 100%);
+}
+/* Blue-on-navy is low contrast at the old opacity — brighter and slightly
+   cooler so it actually separates from the base instead of just muddying it */
+html.dark .login-glass-blobs::before { background: rgba(96, 150, 255, 0.22); }
+html.dark .login-glass-blobs::after { background: rgba(224, 169, 43, 0.17); }
+/* multiply is a no-op on a near-black base — screen is what lightens it */
+html.dark .login-grain { mix-blend-mode: screen; opacity: 0.05; }
+html.dark .login-card {
+  /* Lighter than the shell behind it, and a brighter rim, so the panel reads
+     as raised glass instead of blending into the page. */
+  background: linear-gradient(155deg, rgba(48, 58, 92, 0.68), rgba(24, 30, 50, 0.6));
+  border: 1px solid rgba(120, 155, 235, 0.32);
+  box-shadow:
+    0 28px 70px -20px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 0 26px rgba(79, 126, 240, 0.08);
+}
+html.dark .login-card::before {
+  background: radial-gradient(120% 65% at 18% -12%, rgba(255, 255, 255, 0.12), transparent 62%);
+}
+html.dark .login-card h2 { color: #e8ecf6; }
+
+/* Logo plate — only needed where the mark can land on a dark surface */
+.login-logo-wrap { transition: background-color 0.2s; }
+html.dark .login-logo-wrap {
+  background-color: rgba(255, 255, 255, 0.94);
+  border-radius: 16px;
+  padding: 10px 22px;
+}
+html.dark .login-field {
+  background-color: rgba(15, 20, 34, 0.55);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+html.dark .login-field:focus-within {
+  border-color: #e0a92b;
+  background-color: rgba(15, 20, 34, 0.8);
+  box-shadow: 0 0 0 3px rgba(224, 169, 43, 0.12);
+}
+html.dark .login-field input { color: #e8ecf6; }
+html.dark .login-field-icon { color: #e0a92b; }
 
 /* Page background — deep navy-black, not flat grey */
 html.dark body { background-color: #090c14; }
@@ -807,4 +986,16 @@ html.dark .swal2-toast .swal2-html-container {
 }
 html.dark .swal2-toast .swal2-timer-progress-bar {
   background: rgba(212, 175, 55, 0.5) !important;
+}
+/* ── Date pickers — strong gold border, site-wide ──────────────────────────
+   Unlayered rules always outrank Tailwind's layered utilities, so this wins
+   over whatever border/focus classes each page already had on its <input
+   type="date">, without editing every call site individually. */
+input[type="date"] {
+  border: 2px solid #c9a227;
+}
+input[type="date"]:focus {
+  outline: none;
+  border-color: #c9a227;
+  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.2);
 }
