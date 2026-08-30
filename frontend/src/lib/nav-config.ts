@@ -40,6 +40,8 @@ import {
   Navigation,
   DollarSign,
   LineChart,
+  MessageSquare,
+  IndianRupee,
   type LucideIcon,
 } from "lucide-react";
 
@@ -60,6 +62,10 @@ export const sidebarSections: NavSection[] = [
     items: [{ label: "Dashboard", href: "/", icon: LayoutDashboard }],
   },
   {
+    title: "Connect",
+    items: [{ label: "Canaan Chat", href: "/connect/chat", icon: MessageSquare }],
+  },
+  {
     title: "Insights",
     items: [
       { label: "Profitability", href: "/insights/pl-summary", icon: TrendingUp },
@@ -71,13 +77,14 @@ export const sidebarSections: NavSection[] = [
     ],
   },
   {
-    title: "Attendance",
+    title: "Attendance & Approvals",
     items: [
       { label: "Mark Attendance", href: "/attendance/mark", icon: UserCheck },
       { label: "Driver Attendance", href: "/attendance/drivers", icon: ClipboardCheck },
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
       { label: "Staff Holidays", href: "/attendance/holidays", icon: CalendarOff },
       { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
+      { label: "Payment Requests", href: "/attendance/payment-requests", icon: IndianRupee },
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
       { label: "Edit Approvals", href: "/attendance/edit-approvals", icon: ShieldAlert },
       { label: "Deletion Approvals", href: "/attendance/deletion-approvals", icon: ShieldX },

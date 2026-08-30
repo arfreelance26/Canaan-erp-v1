@@ -143,7 +143,10 @@ def list_driver_compensation(
 def add_driver_compensation(payload: schemas.CompensationTransactionCreate, db: Session = Depends(get_db)):
     if payload.person_type != "driver":
         raise HTTPException(400, "person_type must be 'driver' for this endpoint")
-    tx = models.CompensationTransaction(**payload.model_dump())
+    driver = db.get(models.Driver, payload.person_id)
+    if not driver:
+        raise HTTPException(404, "Driver not found.")
+    tx = models.CompensationTransaction(**payload.model_dump(), person_name=driver.name)
     db.add(tx)
     db.commit()
     db.refresh(tx)
@@ -172,7 +175,10 @@ def list_staff_compensation(
 def add_staff_compensation(payload: schemas.CompensationTransactionCreate, db: Session = Depends(get_db)):
     if payload.person_type != "staff":
         raise HTTPException(400, "person_type must be 'staff' for this endpoint")
-    tx = models.CompensationTransaction(**payload.model_dump())
+    staff = db.get(models.Staff, payload.person_id)
+    if not staff:
+        raise HTTPException(404, "Staff member not found.")
+    tx = models.CompensationTransaction(**payload.model_dump(), person_name=staff.name)
     db.add(tx)
     db.commit()
     db.refresh(tx)

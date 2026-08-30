@@ -329,10 +329,14 @@ def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session
     ).first()
     if existing:
         raise HTTPException(400, "Attendance already marked for today. Use close-shift to record shift end.")
+    staff = db.get(models.Staff, payload.staff_id)
+    if not staff:
+        raise HTTPException(404, "Staff member not found.")
     now_ist = datetime.now(_IST)
     check_in = now_ist.strftime("%I:%M %p") if payload.status == "Present" else None
     record = models.StaffAttendance(
         staff_id=payload.staff_id,
+        staff_name=staff.name,
         date=today,
         status=payload.status,
         check_in_time=check_in,
@@ -459,6 +463,9 @@ def list_staff_attendance(
 
 @router.post("/staff", response_model=schemas.StaffAttendanceOut, status_code=201)
 def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = Depends(get_db)):
+    staff = db.get(models.Staff, payload.staff_id)
+    if not staff:
+        raise HTTPException(404, "Staff member not found.")
     existing = db.query(models.StaffAttendance).filter(
         models.StaffAttendance.staff_id == payload.staff_id,
         models.StaffAttendance.date == payload.date,
@@ -466,12 +473,13 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
     if existing:
         for field, value in payload.model_dump().items():
             setattr(existing, field, value)
+        existing.staff_name = staff.name
         existing.admin_override = True
         db.commit()
         db.refresh(existing)
         emit("attendance_updated", {"staff_id": existing.staff_id})
         return existing
-    record = models.StaffAttendance(**payload.model_dump())
+    record = models.StaffAttendance(**payload.model_dump(), staff_name=staff.name)
     record.admin_override = True
     db.add(record)
     db.commit()

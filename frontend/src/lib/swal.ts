@@ -127,7 +127,7 @@ export const showSuccess = async (message: string, title = 'Success') => {
  */
 export const showToast = (
   message: string,
-  icon: 'success' | 'error' | 'info' | 'warning' = 'info',
+  icon: 'success' | 'error' | 'info' | 'warning' | 'chat' = 'info',
   title?: string,
 ) => {
   // Defer to a macrotask (not just a microtask): base-ui's Toast.Root calls

@@ -29,6 +29,8 @@ import type { RepairType } from "@/types/repair-type";
 import type { SacCode } from "@/types/sac-code";
 import type { MaintenanceTypeItem } from "@/types/maintenance-type";
 import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/maintenance-status";
+import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail } from "@/types/chat";
+import type { PaymentRequest } from "@/types/payment-request";
 
 import { cacheGet, cacheSet, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
 
@@ -982,6 +984,7 @@ function toStaffAttendance(b: B): StaffAttendanceRecord {
   return {
     id: String(b.id),
     staffId: String(b.staff_id ?? ""),
+    staffName: b.staff_name ?? null,
     date: b.date ?? "",
     status: b.status ?? "Not Marked",
     checkInTime: b.check_in_time ?? null,
@@ -1174,6 +1177,7 @@ function toCompensationTransaction(b: B): CompensationTransaction {
   return {
     id: String(b.id),
     personId: String(b.person_id ?? ""),
+    personName: b.person_name ?? null,
     type: b.type ?? "Salary",
     amount: b.amount ?? 0,
     date: b.date ?? "",
@@ -2773,3 +2777,384 @@ export const runningCostApi = {
     }),
 };
 
+
+// ---------------------------------------------------------------------------
+// Canaan Chat
+//
+// Chat deliberately bypasses the SWR layer used by every other resource. `req`
+// persists GET responses to localStorage, which for chat would mean writing
+// decrypted private message bodies to disk on the user's machine — undoing the
+// point of encrypting them at rest on the server. `chatReq` goes straight to the
+// network instead: nothing is cached, nothing is persisted. Freshness comes from
+// the WebSocket push, not from polling.
+// ---------------------------------------------------------------------------
+
+function chatReq<T>(path: string, options?: RequestInit): Promise<T> {
+  return rawReq<T>(path, options);
+}
+
+function toChatMember(b: B): ChatMember {
+  return {
+    staffId: String(b.staff_id),
+    name: b.name ?? "",
+    designation: b.designation ?? null,
+    department: b.department ?? null,
+    softwareDesignation: b.software_designation ?? null,
+    photoUrl: b.photo_url ? fileUrl("staff", String(b.staff_id), "photo") : null,
+    role: (b.role as ChatMember["role"]) ?? null,
+  };
+}
+
+// Exported so the chat page's WebSocket handlers can decode "chat_message" /
+// "chat_message_updated" / "chat_message_deleted" payloads with the exact same
+// mapping as a regular API response — both are the same snake_case JSON shape
+// off the wire, so hand-rolling a second parser there would just be a second
+// place for this list of fields to drift out of sync.
+export function toChatMessage(b: B): ChatMessage {
+  return {
+    id: Number(b.id),
+    conversationId: Number(b.conversation_id),
+    senderId: b.sender_id == null ? null : Number(b.sender_id),
+    senderName: b.sender_name ?? null,
+    text: b.text ?? "",
+    contentType: b.content_type ?? "text",
+    mediaMime: b.media_mime ?? null,
+    durationMs: b.duration_ms == null ? null : Number(b.duration_ms),
+    mediaFilename: b.media_filename ?? null,
+    mediaSize: b.media_size == null ? null : Number(b.media_size),
+    paymentStatus: b.payment_status ?? null,
+    paymentDecidedBy: b.payment_decided_by == null ? null : Number(b.payment_decided_by),
+    paymentDecidedByName: b.payment_decided_by_name ?? null,
+    paymentDecidedAt: b.payment_decided_at ?? null,
+    replyToId: b.reply_to_id == null ? null : Number(b.reply_to_id),
+    createdAt: b.created_at ?? null,
+    editedAt: b.edited_at ?? null,
+    deleted: Boolean(b.deleted),
+  };
+}
+
+function toChatConversation(b: B): ChatConversation {
+  return {
+    id: Number(b.id),
+    kind: (b.kind as ChatConversation["kind"]) ?? "direct",
+    title: b.title ?? null,
+    peer: b.peer ? toChatMember(b.peer as B) : null,
+    memberCount: Number(b.member_count ?? 0),
+    unreadCount: Number(b.unread_count ?? 0),
+    muted: Boolean(b.muted),
+    myRole: (b.my_role as ChatConversation["myRole"]) ?? "member",
+    lastMessage: b.last_message ? toChatMessage(b.last_message as B) : null,
+    lastMessageAt: b.last_message_at ?? null,
+    createdAt: b.created_at ?? null,
+  };
+}
+
+function toChatConversationDetail(b: B): ChatConversationDetail {
+  return {
+    ...toChatConversation(b),
+    members: Array.isArray(b.members) ? (b.members as B[]).map(toChatMember) : [],
+  };
+}
+
+export const chatApi = {
+  /** Everyone the current user can start a conversation with. */
+  listContacts: (): Promise<ChatMember[]> =>
+    chatReq<B[]>("/chat/contacts").then((d) => d.map(toChatMember)),
+
+  /** Sidebar: every thread the user is in, most recent activity first. */
+  listConversations: (): Promise<ChatConversation[]> =>
+    chatReq<B[]>("/chat/conversations").then((d) => d.map(toChatConversation)),
+
+  getConversation: (id: number): Promise<ChatConversationDetail> =>
+    chatReq<B>(`/chat/conversations/${id}`).then(toChatConversationDetail),
+
+  /** Open (or reopen) the 1:1 thread with someone — safe to call repeatedly. */
+  openDirect: (staffId: number): Promise<ChatConversationDetail> =>
+    chatReq<B>("/chat/conversations/direct", {
+      method: "POST",
+      body: JSON.stringify({ staff_id: staffId }),
+    }).then(toChatConversationDetail),
+
+  createGroup: (title: string, memberIds: number[]): Promise<ChatConversationDetail> =>
+    chatReq<B>("/chat/conversations/group", {
+      method: "POST",
+      body: JSON.stringify({ title, member_ids: memberIds }),
+    }).then(toChatConversationDetail),
+
+  renameGroup: (id: number, title: string): Promise<ChatConversationDetail> =>
+    chatReq<B>(`/chat/conversations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }).then(toChatConversationDetail),
+
+  addMembers: (id: number, memberIds: number[]): Promise<ChatConversationDetail> =>
+    chatReq<B>(`/chat/conversations/${id}/members`, {
+      method: "POST",
+      body: JSON.stringify({ member_ids: memberIds }),
+    }).then(toChatConversationDetail),
+
+  removeMember: (id: number, staffId: number): Promise<ChatConversationDetail> =>
+    chatReq<B>(`/chat/conversations/${id}/members/${staffId}`, { method: "DELETE" })
+      .then(toChatConversationDetail),
+
+  /** One page of history. Pass `beforeId` to walk further back (keyset paging). */
+  listMessages: (id: number, opts?: { beforeId?: number; limit?: number }): Promise<ChatMessage[]> => {
+    const p = new URLSearchParams();
+    if (opts?.beforeId) p.set("before_id", String(opts.beforeId));
+    if (opts?.limit) p.set("limit", String(opts.limit));
+    const qs = p.toString();
+    return chatReq<B[]>(`/chat/conversations/${id}/messages${qs ? `?${qs}` : ""}`)
+      .then((d) => d.map(toChatMessage));
+  },
+
+  sendMessage: (id: number, text: string, replyToId?: number): Promise<ChatMessage> =>
+    chatReq<B>(`/chat/conversations/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text, reply_to_id: replyToId ?? null }),
+    }).then(toChatMessage),
+
+  /**
+   * Send a WhatsApp-Pay-style payment note — a formatted "₹500, for fuel" card,
+   * not a real transfer. Goes through the same text-message endpoint as an
+   * ordinary message, just tagged content_type "payment".
+   */
+  sendPayment: (id: number, amount: number, note?: string): Promise<ChatMessage> =>
+    chatReq<B>(`/chat/conversations/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ content_type: "payment", amount, note: note?.trim() || undefined }),
+    }).then(toChatMessage),
+
+  /** Approve or reject a payment note. The sender can't decide their own; the
+   * first decision made by anyone else in the thread is terminal. */
+  decidePayment: (messageId: number, status: "approved" | "rejected"): Promise<ChatMessage> =>
+    chatReq<B>(`/chat/messages/${messageId}/payment-status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }).then(toChatMessage),
+
+  editMessage: (messageId: number, text: string): Promise<ChatMessage> =>
+    chatReq<B>(`/chat/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    }).then(toChatMessage),
+
+  deleteMessage: (messageId: number): Promise<ChatMessage> =>
+    chatReq<B>(`/chat/messages/${messageId}`, { method: "DELETE" }).then(toChatMessage),
+
+  markRead: (id: number, messageId: number): Promise<void> =>
+    chatReq<void>(`/chat/conversations/${id}/read`, {
+      method: "POST",
+      body: JSON.stringify({ message_id: messageId }),
+    }),
+
+  setMuted: (id: number, muted: boolean): Promise<void> =>
+    chatReq<void>(`/chat/conversations/${id}/mute`, {
+      method: "POST",
+      body: JSON.stringify({ muted }),
+    }),
+
+  /**
+   * Send a recorded voice note. Uses a raw multipart upload (like `uploadFile`)
+   * rather than `chatReq` — the body is audio bytes, not JSON, so the browser
+   * must set its own multipart Content-Type boundary.
+   */
+  sendVoiceMessage: async (conversationId: number, blob: Blob, durationMs: number): Promise<ChatMessage> => {
+    const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "audio";
+    const form = new FormData();
+    form.append("file", blob, `voice.${ext}`);
+    form.append("duration_ms", String(Math.max(1, Math.round(durationMs))));
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/chat/conversations/${conversationId}/voice`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+      });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (res.status === 413) {
+      throw new Error(await extractDetail(res, "Voice message is too long."));
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, `Could not send voice message: HTTP ${res.status}`));
+    }
+    return toChatMessage(await res.json());
+  },
+
+  /**
+   * Fetch a voice note's decrypted audio as a same-origin blob: URL. Never a
+   * plain `<audio src>` to the API — the endpoint requires the same Bearer auth
+   * as every other chat route, so the bytes are pulled via fetch() first.
+   * Caller is responsible for URL.revokeObjectURL() when done with it.
+   */
+  getVoiceBlobUrl: async (messageId: number): Promise<string> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/chat/messages/${messageId}/voice`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, "Could not load this voice message."));
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+
+  /**
+   * Send a file — photo or any other document (the "paperclip" attach button).
+   * Raw multipart upload like `sendVoiceMessage`, not `chatReq` — the body is
+   * file bytes, not JSON.
+   */
+  sendAttachment: async (conversationId: number, file: File): Promise<ChatMessage> => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/chat/conversations/${conversationId}/attachment`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+      });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (res.status === 413) {
+      throw new Error(await extractDetail(res, "File is too large."));
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, `Could not send file: HTTP ${res.status}`));
+    }
+    return toChatMessage(await res.json());
+  },
+
+  /**
+   * Fetch an image/file attachment's decrypted bytes as a same-origin blob:
+   * URL — same reasoning as `getVoiceBlobUrl`: the file is encrypted at rest,
+   * so it's never a plain `<img src>`/`<a href>` to the API. Caller is
+   * responsible for URL.revokeObjectURL() when done with it.
+   */
+  getAttachmentBlobUrl: async (messageId: number): Promise<string> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/chat/messages/${messageId}/attachment`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, "Could not load this attachment."));
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Payment Requests (Accounts/Admin) — finance's second-stage view of chat
+// payment notes a colleague has already peer-approved. Unlike chatApi, this
+// goes through the normal cached `req()` — the data here is already
+// decrypted server-side for this specific narrow purpose, not the general
+// chat content that api-cache.ts's localStorage persistence was a concern for.
+// ---------------------------------------------------------------------------
+
+function toPaymentRequest(b: B): PaymentRequest {
+  return {
+    id: Number(b.id),
+    conversationId: Number(b.conversation_id),
+    amount: b.amount ?? "0",
+    description: b.description ?? "",
+    askedById: b.asked_by_id == null ? null : Number(b.asked_by_id),
+    askedByName: b.asked_by_name ?? null,
+    askedAt: b.asked_at ?? null,
+    paymentStatus: (b.payment_status as PaymentRequest["paymentStatus"]) ?? "approved",
+    approvedById: b.approved_by_id == null ? null : Number(b.approved_by_id),
+    approvedByName: b.approved_by_name ?? null,
+    approvedAt: b.approved_at ?? null,
+    financeStatus: (b.finance_status as PaymentRequest["financeStatus"]) ?? null,
+    financeDecidedById: b.finance_decided_by_id == null ? null : Number(b.finance_decided_by_id),
+    financeDecidedByName: b.finance_decided_by_name ?? null,
+    financeDecidedAt: b.finance_decided_at ?? null,
+    paidById: b.paid_by_id == null ? null : Number(b.paid_by_id),
+    paidByName: b.paid_by_name ?? null,
+    paidAt: b.paid_at ?? null,
+    hasProof: b.has_proof === true,
+  };
+}
+
+export const paymentRequestsApi = {
+  list: (): Promise<PaymentRequest[]> =>
+    req<B[]>("/payment-requests").then((d) => d.map(toPaymentRequest)),
+
+  /** "Approve for Payment" (-> "approved", i.e. Unpaid) or "Reject" (terminal).
+   * Once decided, the same request can't be decided again here. */
+  decide: (id: number, status: "approved" | "rejected"): Promise<PaymentRequest> =>
+    req<B>(`/payment-requests/${id}/decision`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }).then(toPaymentRequest),
+
+  /** Mark an already-approved (Unpaid) request as actually paid — a separate,
+   * later action from `decide`, often performed by a different person. A
+   * proof-of-payment photo is mandatory, so this is a raw multipart upload
+   * like `chatApi.sendAttachment`, not the JSON-only `req()` helper. */
+  markPaid: async (id: number, proof: File): Promise<PaymentRequest> => {
+    const form = new FormData();
+    form.append("proof", proof, proof.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/payment-requests/${id}/mark-paid`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+      });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, `Could not mark this as paid: HTTP ${res.status}`));
+    }
+    return toPaymentRequest(await res.json());
+  },
+
+  /** Fetch the decrypted proof-of-payment photo as a same-origin blob: URL —
+   * same reasoning as `chatApi.getAttachmentBlobUrl`: the file is encrypted at
+   * rest. Caller is responsible for URL.revokeObjectURL() when done with it. */
+  getProofBlobUrl: async (id: number): Promise<string> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/payment-requests/${id}/proof`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, "Could not load the proof photo."));
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
+};

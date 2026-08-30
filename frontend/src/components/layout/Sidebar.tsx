@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { sidebarSections, type NavSection } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
+import { editApprovalsApi, deletionApprovalsApi, chatApi, paymentRequestsApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -16,6 +16,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
   Admin: "all",
   "Commercial Manager": [
     "/",
+    "/connect/chat",
     "/trips/assign-drivers",
     "/trips/assign",
     "/trips/current",
@@ -34,6 +35,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
   ],
   "Assistant Commercial Manager": [
     "/",
+    "/connect/chat",
     "/trips/assign-drivers",
     "/trips/assign",
     "/trips/current",
@@ -49,6 +51,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
   ],
   Accounts: [
     "/",
+    "/connect/chat",
     "/trips/verification",
     "/trips/history",
     "/resources/customers",
@@ -57,10 +60,12 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/compliance",
     "/attendance/mark",
     "/attendance/leave-requests",
+    "/attendance/payment-requests",
     "/admin/sac-codes",
   ],
   Maintenance: [
     "/",
+    "/connect/chat",
     "/maintenance/tyre-management",
     "/maintenance/tyre-inventory",
     "/maintenance/trucks",
@@ -68,12 +73,14 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
   ],
   "Yard Supervisor": [
+    "/connect/chat",
     "/trips/sheet-collection",
     "/attendance/mark",
     "/attendance/leave-requests",
     "/admin/repairs",
   ],
   "Trip Sheet Register": [
+    "/connect/chat",
     "/trips/reconciliation",
     "/maintenance/fuel-history",
     "/attendance/mark",
@@ -114,6 +121,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   const { user, logout } = useAuth();
   const { theme } = useTheme();
   const isAdmin = user?.softwareDesignation === "Admin";
+  const isAccounts = user?.softwareDesignation === "Accounts";
   const logoBg = theme === "dark"
     ? { backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }
     : {};
@@ -141,9 +149,84 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   useWebSocketEvent("deletion_approval_created", refreshPendingDeletionApprovals);
   useWebSocketEvent("deletion_approval_updated", refreshPendingDeletionApprovals);
 
+  // Canaan Chat — total unread messages across every conversation. Chat isn't
+  // covered by the generic "data_changed" realtime channel (it's exempted —
+  // see main.py), and reading a thread happens via mark-read calls that don't
+  // themselves emit a WS event, so this refreshes on the chat-specific events
+  // that DO fire (new/edited/deleted messages, conversations appearing), plus
+  // whenever the route changes (covers leaving /connect/chat after reading),
+  // plus a light poll as a final fallback.
+  const [chatUnread, setChatUnread] = useState(0);
+  const refreshChatUnread = useCallback(() => {
+    chatApi
+      .listConversations()
+      .then((convs) => setChatUnread(convs.reduce((sum, c) => sum + c.unreadCount, 0)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    refreshChatUnread();
+  }, [refreshChatUnread]);
+
+  useEffect(() => {
+    const t = setTimeout(refreshChatUnread, 400);
+    return () => clearTimeout(t);
+  }, [pathname, refreshChatUnread]);
+
+  useEffect(() => {
+    const id = setInterval(refreshChatUnread, 20000);
+    return () => clearInterval(id);
+  }, [refreshChatUnread]);
+
+  useWebSocketEvent("chat_message", refreshChatUnread);
+  useWebSocketEvent("chat_message_updated", refreshChatUnread);
+  useWebSocketEvent("chat_message_deleted", refreshChatUnread);
+  useWebSocketEvent("chat_conversation_created", refreshChatUnread);
+  useWebSocketEvent("chat_conversation_updated", refreshChatUnread);
+
+  // Payment Requests — count of notes peer-approved but still awaiting an
+  // Accounts/Admin decision (the page's "Pending" bucket: paymentStatus
+  // "approved" and financeStatus still NULL). Only Admin/Accounts ever see
+  // this page (see ROLE_HREFS above), so the fetch is gated the same way.
+  const canSeePaymentRequests = isAdmin || isAccounts;
+  const [pendingPaymentRequests, setPendingPaymentRequests] = useState(0);
+  const refreshPendingPaymentRequests = useCallback(() => {
+    if (!canSeePaymentRequests) return;
+    paymentRequestsApi
+      .list()
+      .then((reqs) =>
+        setPendingPaymentRequests(
+          reqs.filter((r) => r.paymentStatus === "approved" && r.financeStatus === null).length
+        )
+      )
+      .catch(() => {});
+  }, [canSeePaymentRequests]);
+
+  useEffect(() => {
+    refreshPendingPaymentRequests();
+  }, [refreshPendingPaymentRequests]);
+
+  useEffect(() => {
+    const t = setTimeout(refreshPendingPaymentRequests, 400);
+    return () => clearTimeout(t);
+  }, [pathname, refreshPendingPaymentRequests]);
+
+  useEffect(() => {
+    const id = setInterval(refreshPendingPaymentRequests, 20000);
+    return () => clearInterval(id);
+  }, [refreshPendingPaymentRequests]);
+
+  // A payment note becomes/leaves this bucket only via chat events (peer
+  // approves/rejects in Canaan Chat) — there's no dedicated payment-request
+  // WS event, so reuse the same chat message events chatUnread listens to.
+  useWebSocketEvent("chat_message", refreshPendingPaymentRequests);
+  useWebSocketEvent("chat_message_updated", refreshPendingPaymentRequests);
+
   const badgeFor = (href: string): number => {
     if (href === "/attendance/edit-approvals") return pendingEditApprovals;
     if (href === "/attendance/deletion-approvals") return pendingDeletionApprovals;
+    if (href === "/connect/chat") return chatUnread;
+    if (href === "/attendance/payment-requests") return pendingPaymentRequests;
     return 0;
   };
 

@@ -14,6 +14,11 @@ export type DriverAttendanceRecord = {
 export type StaffAttendanceRecord = {
   id: string;
   staffId: string;
+  /** Snapshot of the staff member's name taken when this record was created —
+   * stays populated even if that staff member is later deleted (staffId then
+   * comes back as "", since the backend column goes NULL). Prefer this over
+   * looking the name up by staffId when it's available. */
+  staffName?: string | null;
   date: string;
   status: AttendanceStatus;
   checkInTime: string | null;

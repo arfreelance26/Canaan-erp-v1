@@ -808,7 +808,8 @@ class StaffAttendanceUpdate(OrmBase):
 
 class StaffAttendanceOut(OrmBase):
     id: int
-    staff_id: int
+    staff_id: Optional[int] = None   # NULL once that staff member is hard-deleted
+    staff_name: Optional[str] = None   # snapshot at creation — survives staff_id going NULL
     date: date
     status: AttendanceStatus
     check_in_time: Optional[str] = None
@@ -1481,6 +1482,7 @@ class CompensationTransactionOut(OrmBase):
     id: int
     person_type: PersonType
     person_id: int
+    person_name: Optional[str] = None   # snapshot at creation — survives the driver/staff record being deleted
     type: CompensationType
     amount: Decimal
     date: date
@@ -1745,3 +1747,211 @@ class NotificationOut(OrmBase):
     created_by_role: Optional[str] = None
     is_read: bool = False
     created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Canaan Chat
+#
+# Wire schemas carry plaintext `text`; the encrypted envelope never leaves the
+# server. Bodies are encrypted on write and decrypted on read in routers/chat.py.
+# ---------------------------------------------------------------------------
+
+ChatConversationKind = Literal["direct", "group"]
+ChatParticipantRole = Literal["member", "admin"]
+
+# Mirrors chat_crypto.MAX_PLAINTEXT_BYTES; enforced here too so an oversized body
+# is rejected by validation with a clean 422 before any crypto work happens.
+CHAT_MAX_MESSAGE_CHARS = 4000
+
+
+class ChatMemberOut(OrmBase):
+    """Lightweight person summary — deliberately excludes contact details and blobs."""
+    staff_id: int
+    name: str
+    designation: Optional[str] = None
+    department: Optional[str] = None
+    software_designation: Optional[str] = None
+    photo_url: Optional[str] = None
+    role: Optional[ChatParticipantRole] = None
+
+
+class ChatMessageOut(OrmBase):
+    id: int
+    conversation_id: int
+    sender_id: Optional[int] = None
+    sender_name: Optional[str] = None
+    text: str
+    content_type: str = "text"
+    media_mime: Optional[str] = None
+    duration_ms: Optional[int] = None
+    media_filename: Optional[str] = None
+    media_size: Optional[int] = None
+    # Payment notes only — the recipient's decision, if any.
+    payment_status: Optional[str] = None
+    payment_decided_by: Optional[int] = None
+    payment_decided_by_name: Optional[str] = None
+    payment_decided_at: Optional[datetime] = None
+    reply_to_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    edited_at: Optional[datetime] = None
+    deleted: bool = False
+
+
+CHAT_MAX_PAYMENT_AMOUNT = Decimal("10000000")   # 1 crore — a sane ceiling for a chat note, not a real transfer
+CHAT_MAX_PAYMENT_NOTE_CHARS = 200
+
+
+class ChatPaymentDecision(BaseModel):
+    status: Literal["approved", "rejected"]
+
+
+# ---------------------------------------------------------------------------
+# Payment Requests (Accounts/Admin) — the second-stage, company-wide view of
+# chat payment notes a colleague has already peer-approved. Deliberately a
+# narrow, separate shape from ChatMessageOut: this is the only place a payment
+# note is ever visible to someone who isn't a participant in that chat, so it
+# surfaces exactly the fields needed for finance processing and nothing else
+# (no conversation content, no ability to read/edit/delete the underlying chat
+# message — those stay behind the normal participant-only chat routes).
+# ---------------------------------------------------------------------------
+
+class PaymentRequestOut(BaseModel):
+    id: int
+    conversation_id: int
+    amount: str
+    description: str
+    asked_by_id: Optional[int] = None
+    asked_by_name: Optional[str] = None
+    asked_at: Optional[datetime] = None
+    # The peer's chat-level decision: "approved" or "rejected". A "rejected"
+    # note never reaches finance — approved_by/at below is who made THIS
+    # decision either way, not necessarily an approval.
+    payment_status: str
+    approved_by_id: Optional[int] = None
+    approved_by_name: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    # NULL = awaiting a finance decision (only reachable when payment_status is
+    # "approved"). "approved" = Unpaid (authorized, not yet disbursed). "paid"
+    # (terminal, only reachable from "approved") and "rejected" (terminal) are
+    # the two end states.
+    finance_status: Optional[str] = None
+    finance_decided_by_id: Optional[int] = None
+    finance_decided_by_name: Optional[str] = None
+    finance_decided_at: Optional[datetime] = None
+    # Set only once "Mark as Paid" is used — a separate, later action from
+    # "Approve for Payment", often performed by a different person.
+    paid_by_id: Optional[int] = None
+    paid_by_name: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    # True once a proof-of-payment photo has been attached — the photo itself
+    # is fetched separately (GET /payment-requests/{id}/proof), not embedded
+    # here, so the list stays lightweight.
+    has_proof: bool = False
+
+
+class PaymentRequestDecision(BaseModel):
+    status: Literal["approved", "rejected"]
+
+
+class ChatMessageCreate(BaseModel):
+    """A regular text message, or a WhatsApp-Pay-style "payment" card.
+
+    A payment message is cosmetic only — it records "₹500, for fuel" as a
+    distinctly-styled chat bubble for the two people to see. No money moves,
+    no bank/UPI integration is involved; it's a formatted note, not a transfer.
+    """
+    text: str = ""
+    reply_to_id: Optional[int] = None
+    content_type: Literal["text", "payment"] = "text"
+    amount: Optional[Decimal] = None
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_by_type(self) -> "ChatMessageCreate":
+        if self.content_type == "text":
+            if not self.text or not self.text.strip():
+                raise ValueError("Message cannot be empty.")
+            if len(self.text) > CHAT_MAX_MESSAGE_CHARS:
+                raise ValueError(f"Message is too long (limit {CHAT_MAX_MESSAGE_CHARS} characters).")
+        else:  # payment
+            if self.amount is None or self.amount <= 0:
+                raise ValueError("Enter an amount greater than zero.")
+            if self.amount > CHAT_MAX_PAYMENT_AMOUNT:
+                raise ValueError(f"Amount is too large (limit ₹{CHAT_MAX_PAYMENT_AMOUNT:,}).")
+            if self.note and len(self.note) > CHAT_MAX_PAYMENT_NOTE_CHARS:
+                raise ValueError(f"Note is too long (limit {CHAT_MAX_PAYMENT_NOTE_CHARS} characters).")
+        return self
+
+
+class ChatMessageEdit(BaseModel):
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def non_empty(cls, v: str) -> str:
+        if v is None or not v.strip():
+            raise ValueError("Message cannot be empty.")
+        if len(v) > CHAT_MAX_MESSAGE_CHARS:
+            raise ValueError(f"Message is too long (limit {CHAT_MAX_MESSAGE_CHARS} characters).")
+        return v
+
+
+class ChatConversationOut(OrmBase):
+    id: int
+    kind: ChatConversationKind
+    title: Optional[str] = None                  # group name, or the peer's name for a direct thread
+    peer: Optional[ChatMemberOut] = None         # direct threads only
+    member_count: int = 0
+    unread_count: int = 0
+    muted: bool = False
+    my_role: ChatParticipantRole = "member"
+    last_message: Optional[ChatMessageOut] = None
+    last_message_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class ChatConversationDetail(ChatConversationOut):
+    members: list[ChatMemberOut] = []
+
+
+class ChatDirectCreate(BaseModel):
+    staff_id: int
+
+
+class ChatGroupCreate(BaseModel):
+    title: str
+    member_ids: list[int] = []
+
+    @field_validator("title")
+    @classmethod
+    def valid_title(cls, v: str) -> str:
+        if v is None or not v.strip():
+            raise ValueError("Group name cannot be empty.")
+        if len(v) > 150:
+            raise ValueError("Group name is too long (limit 150 characters).")
+        return v.strip()
+
+
+class ChatGroupUpdate(BaseModel):
+    title: str
+
+    @field_validator("title")
+    @classmethod
+    def valid_title(cls, v: str) -> str:
+        if v is None or not v.strip():
+            raise ValueError("Group name cannot be empty.")
+        if len(v) > 150:
+            raise ValueError("Group name is too long (limit 150 characters).")
+        return v.strip()
+
+
+class ChatMembersAdd(BaseModel):
+    member_ids: list[int]
+
+
+class ChatReadPayload(BaseModel):
+    message_id: int
+
+
+class ChatMutePayload(BaseModel):
+    muted: bool

@@ -12,6 +12,38 @@ import time
 
 _log = logging.getLogger("canaan.app")
 
+# ---------------------------------------------------------------------------
+# Redact session tokens out of the WebSocket connection log line.
+#
+# The frontend authenticates its realtime connection as `GET /ws?token=<jwt>`
+# (a WebSocket handshake can't carry an Authorization header from a browser),
+# and uvicorn's own access/error loggers print the full request target —
+# including that query string — for every connect/reconnect. Canaan Chat
+# reconnects on every tab open and network blip, so without this a valid,
+# still-live session token was landing in plaintext in the server log on a
+# very regular basis; anyone with log access could hijack that session until
+# it expired. This applies unconditionally, independent of whether the
+# app's own structured logging (logging_config.setup_logging) is enabled,
+# because uvicorn's default handlers emit the line before that ever runs.
+# ---------------------------------------------------------------------------
+class _RedactTokenFilter(logging.Filter):
+    _TOKEN_RE = re.compile(r'([?&]token=)[^&\s"\']+')
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str) and "token=" in record.msg:
+            record.msg = self._TOKEN_RE.sub(r"\1[redacted]", record.msg)
+        if record.args:
+            record.args = tuple(
+                self._TOKEN_RE.sub(r"\1[redacted]", a) if isinstance(a, str) and "token=" in a else a
+                for a in record.args
+            )
+        return True
+
+
+_token_filter = _RedactTokenFilter()
+for _logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    logging.getLogger(_logger_name).addFilter(_token_filter)
+
 from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
@@ -24,7 +56,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, compliance_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, compliance_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests
 
 Base.metadata.create_all(bind=engine)
 
@@ -395,6 +427,310 @@ def _run_schema_migrations():
                     pass
             conn.commit()
 
+def _chat_column_exists(conn, table: str, column: str) -> bool:
+    return bool(conn.execute(text(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = :c"
+    ), {"t": table, "c": column}).scalar())
+
+
+def _run_chat_migrations():
+    """Canaan Chat schema, applied idempotently on top of create_all.
+
+    create_all builds the three chat tables on a fresh database but never alters
+    existing ones, so this handles installations that already carry an earlier
+    draft of the chat schema — which stored message bodies in a plaintext `body`
+    TEXT column. That column is migrated into the encrypted `ciphertext` envelope
+    and then dropped, so no readable message text is left behind in the database.
+
+    Everything here is in-place and re-runnable. There is deliberately no DROP
+    TABLE: a startup path must never be able to destroy a populated table.
+    """
+    with engine.connect() as conn:
+        # -- 1. Add the current columns (ignored when already present) ---------
+        additive = [
+            "ALTER TABLE chat_conversations ADD COLUMN kind ENUM('direct','group') NOT NULL DEFAULT 'direct'",
+            "ALTER TABLE chat_conversations ADD COLUMN title VARCHAR(150) NULL",
+            "ALTER TABLE chat_conversations ADD COLUMN direct_key VARCHAR(64) NULL",
+            "ALTER TABLE chat_conversations ADD COLUMN last_message_at DATETIME NULL",
+            "ALTER TABLE chat_conversations ADD COLUMN updated_at DATETIME NULL",
+            # Snapshot of created_by's name at creation time — created_by itself goes
+            # NULL if that staff member is later hard-deleted from "Our Staff"; this
+            # keeps "who created it" readable regardless.
+            "ALTER TABLE chat_conversations ADD COLUMN created_by_name VARCHAR(100) NULL",
+            "ALTER TABLE chat_participants ADD COLUMN role ENUM('member','admin') NOT NULL DEFAULT 'member'",
+            "ALTER TABLE chat_participants ADD COLUMN last_read_message_id INT NOT NULL DEFAULT 0",
+            "ALTER TABLE chat_participants ADD COLUMN muted BOOLEAN NOT NULL DEFAULT FALSE",
+            "ALTER TABLE chat_participants ADD COLUMN left_at DATETIME NULL",
+            # Nullable for now: it is backfilled below, then tightened to NOT NULL.
+            "ALTER TABLE chat_messages ADD COLUMN ciphertext MEDIUMBLOB NULL",
+            "ALTER TABLE chat_messages ADD COLUMN content_type VARCHAR(20) NOT NULL DEFAULT 'text'",
+            "ALTER TABLE chat_messages ADD COLUMN reply_to_id INT NULL",
+            # Snapshot of the sender's name at send time — see chat_conversations.created_by_name above.
+            "ALTER TABLE chat_messages ADD COLUMN sender_name VARCHAR(100) NULL",
+            # Voice notes — mime type + duration, added once WhatsApp-style recording shipped.
+            "ALTER TABLE chat_messages ADD COLUMN media_mime VARCHAR(100) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN media_duration_ms INT NULL",
+            # Images/files — original filename + byte size, added once attachments shipped.
+            "ALTER TABLE chat_messages ADD COLUMN media_filename VARCHAR(255) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN media_size INT NULL",
+            # Payment notes — approve/reject decision, added once that workflow shipped.
+            "ALTER TABLE chat_messages ADD COLUMN payment_status VARCHAR(20) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN payment_decided_by INT NULL",
+            "ALTER TABLE chat_messages ADD COLUMN payment_decided_by_name VARCHAR(100) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN payment_decided_at DATETIME NULL",
+            # Finance's second-stage decision, added once the Payment Requests page shipped.
+            "ALTER TABLE chat_messages ADD COLUMN finance_status VARCHAR(20) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN finance_decided_by INT NULL",
+            "ALTER TABLE chat_messages ADD COLUMN finance_decided_by_name VARCHAR(100) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN finance_decided_at DATETIME NULL",
+            # "Mark as Paid" — a separate, later action from "Approve for Payment"
+            # above, added once the Unpaid/Paid split shipped.
+            "ALTER TABLE chat_messages ADD COLUMN paid_by INT NULL",
+            "ALTER TABLE chat_messages ADD COLUMN paid_by_name VARCHAR(100) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN paid_at DATETIME NULL",
+            # Proof-of-payment photo, required to mark a request paid.
+            "ALTER TABLE chat_messages ADD COLUMN paid_proof_ciphertext LONGBLOB NULL",
+            "ALTER TABLE chat_messages ADD COLUMN paid_proof_mime VARCHAR(100) NULL",
+            "ALTER TABLE chat_messages ADD COLUMN edited_at DATETIME NULL",
+            "ALTER TABLE chat_messages ADD COLUMN deleted_at DATETIME NULL",
+        ]
+        for stmt in additive:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+        conn.commit()
+
+        # Backfill: any payment note created before this migration added
+        # payment_status (i.e. while the feature was cosmetic-only, before the
+        # approve/reject workflow shipped) would otherwise sit permanently
+        # un-actionable — neither party could ever decide it, since the UI's
+        # "pending" check would never match a NULL. One run, then a no-op.
+        try:
+            conn.execute(text(
+                "UPDATE chat_messages SET payment_status = 'pending' "
+                "WHERE content_type = 'payment' AND payment_status IS NULL AND deleted_at IS NULL"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+        # Backfill name snapshots for rows written before these columns existed,
+        # from whichever staff records are still alive today. One-shot and
+        # best-effort: a staff member already deleted before this backfill runs
+        # is unrecoverable (there was never anywhere the name could have come
+        # from), but going forward every new row is written with its snapshot
+        # already in place (see routers/chat.py, routers/payment_requests.py).
+        backfill_snapshots = [
+            "UPDATE chat_conversations c JOIN staff s ON s.id = c.created_by "
+            "SET c.created_by_name = s.name WHERE c.created_by_name IS NULL",
+            "UPDATE chat_messages m JOIN staff s ON s.id = m.sender_id "
+            "SET m.sender_name = s.name WHERE m.sender_name IS NULL",
+            "UPDATE chat_messages m JOIN staff s ON s.id = m.payment_decided_by "
+            "SET m.payment_decided_by_name = s.name WHERE m.payment_decided_by_name IS NULL",
+            "UPDATE chat_messages m JOIN staff s ON s.id = m.finance_decided_by "
+            "SET m.finance_decided_by_name = s.name WHERE m.finance_decided_by_name IS NULL",
+            "UPDATE chat_messages m JOIN staff s ON s.id = m.paid_by "
+            "SET m.paid_by_name = s.name WHERE m.paid_by_name IS NULL",
+        ]
+        for stmt in backfill_snapshots:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+        # -- 2. Carry legacy values across before the old columns go ----------
+        if _chat_column_exists(conn, "chat_conversations", "is_group"):
+            try:
+                conn.execute(text(
+                    "UPDATE chat_conversations SET kind = IF(is_group = 1, 'group', 'direct')"
+                ))
+            except Exception:
+                pass
+        if _chat_column_exists(conn, "chat_conversations", "name"):
+            try:
+                conn.execute(text(
+                    "UPDATE chat_conversations SET title = name WHERE title IS NULL"
+                ))
+            except Exception:
+                pass
+        conn.commit()
+
+        # Encrypt any plaintext bodies from the earlier draft schema. Done in
+        # Python because only the app holds the key. Batched so a large table
+        # cannot exhaust memory.
+        if _chat_column_exists(conn, "chat_messages", "body"):
+            from chat_crypto import encrypt_message
+            while True:
+                rows = conn.execute(text(
+                    "SELECT id, conversation_id, sender_id, body FROM chat_messages "
+                    "WHERE ciphertext IS NULL AND body IS NOT NULL LIMIT 500"
+                )).fetchall()
+                if not rows:
+                    break
+                for msg_id, conv_id, sender_id, body in rows:
+                    try:
+                        envelope = encrypt_message(
+                            body or "", conversation_id=conv_id, sender_id=sender_id
+                        )
+                    except Exception:
+                        continue
+                    conn.execute(
+                        text("UPDATE chat_messages SET ciphertext = :ct WHERE id = :id"),
+                        {"ct": envelope, "id": msg_id},
+                    )
+                conn.commit()
+            _log.info("Canaan Chat: migrated legacy plaintext message bodies to encrypted storage.")
+
+        # Any row still without a body (shouldn't happen) gets an empty envelope
+        # so the NOT NULL tightening below cannot fail.
+        try:
+            from chat_crypto import encrypt_message
+            orphans = conn.execute(text(
+                "SELECT id, conversation_id, sender_id FROM chat_messages WHERE ciphertext IS NULL"
+            )).fetchall()
+            for msg_id, conv_id, sender_id in orphans:
+                conn.execute(
+                    text("UPDATE chat_messages SET ciphertext = :ct WHERE id = :id"),
+                    {"ct": encrypt_message("", conversation_id=conv_id, sender_id=sender_id), "id": msg_id},
+                )
+            conn.commit()
+        except Exception:
+            pass
+
+        # -- 3. Retire the legacy columns -------------------------------------
+        for table, column in (
+            ("chat_messages", "body"),          # plaintext — must not survive
+            ("chat_conversations", "is_group"),
+            ("chat_conversations", "name"),
+        ):
+            if _chat_column_exists(conn, table, column):
+                try:
+                    conn.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
+                except Exception:
+                    pass
+        conn.commit()
+
+        # -- 4. Constraints and indexes ---------------------------------------
+        # A deleted staff member must not take their messages out of everyone
+        # else's threads, so sender_id becomes nullable with ON DELETE SET NULL
+        # (the earlier draft had NOT NULL + ON DELETE CASCADE).
+        try:
+            fk = conn.execute(text(
+                "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chat_messages' "
+                "AND COLUMN_NAME = 'sender_id' AND REFERENCED_TABLE_NAME = 'staff'"
+            )).scalar()
+            if fk:
+                conn.execute(text(f"ALTER TABLE chat_messages DROP FOREIGN KEY `{fk}`"))
+            conn.execute(text("ALTER TABLE chat_messages MODIFY COLUMN sender_id INT NULL"))
+            conn.execute(text(
+                "ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_message_sender "
+                "FOREIGN KEY (sender_id) REFERENCES staff (id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+        final = [
+            # Widening MEDIUMBLOB -> LONGBLOB is safe on a populated table: MySQL
+            # copies every existing byte unchanged, no truncation. Needed so a
+            # 25 MB attachment (the app-wide upload standard) fits the envelope.
+            "ALTER TABLE chat_messages MODIFY COLUMN ciphertext LONGBLOB NOT NULL",
+            "ALTER TABLE chat_participants MODIFY COLUMN last_read_message_id INT NOT NULL DEFAULT 0",
+            # Indexes behind the two hot paths (conversation list, history paging).
+            "CREATE INDEX ix_chat_message_conv_id ON chat_messages (conversation_id, id)",
+            "CREATE INDEX ix_chat_participant_staff ON chat_participants (staff_id, conversation_id)",
+            "CREATE INDEX ix_chat_conversations_last_message_at ON chat_conversations (last_message_at)",
+            # Makes "open a DM with X" idempotent under concurrent requests.
+            "CREATE UNIQUE INDEX uq_chat_direct_key ON chat_conversations (direct_key)",
+            "ALTER TABLE chat_participants ADD CONSTRAINT uq_chat_participant UNIQUE (conversation_id, staff_id)",
+            # A deleted staff member must not strand a payment note's decision
+            # metadata pointing at a nonexistent row — same ON DELETE SET NULL
+            # rule already applied to sender_id above.
+            "ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_message_payment_decided_by "
+            "FOREIGN KEY (payment_decided_by) REFERENCES staff (id) ON DELETE SET NULL",
+            "ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_message_finance_decided_by "
+            "FOREIGN KEY (finance_decided_by) REFERENCES staff (id) ON DELETE SET NULL",
+            "ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_message_paid_by "
+            "FOREIGN KEY (paid_by) REFERENCES staff (id) ON DELETE SET NULL",
+        ]
+        for stmt in final:
+            try:
+                conn.execute(text(stmt))
+            except Exception:
+                pass
+        conn.commit()
+
+
+def _run_staff_history_migrations():
+    """Make sure historical records survive a staff member being hard-deleted
+    from "Our Staff" (routers/staff.py's DELETE is a real DELETE, not a
+    deactivation). Two independent fixes:
+
+    1. staff_attendance.staff_id was ON DELETE CASCADE — deleting a staff row
+       destroyed their entire attendance history outright. Switched to SET
+       NULL, with a staff_name snapshot so the record still reads sensibly
+       once staff_id is gone.
+    2. compensation_transactions.person_id has no FK at all (shared between
+       drivers and staff), so it was never at risk of being deleted or nulled
+       — but it also never stored a name, so once the driver/staff record was
+       later removed there was no way left to display who the transaction was
+       for. Added person_name for the same reason.
+
+    Idempotent and re-run on every startup, like _run_chat_migrations above.
+    """
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE staff_attendance ADD COLUMN staff_name VARCHAR(100) NULL"))
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE compensation_transactions ADD COLUMN person_name VARCHAR(100) NULL"))
+        except Exception:
+            pass
+        conn.commit()
+
+        # Backfill names for rows written before these columns existed, from
+        # whichever staff/driver records are still alive today (best-effort —
+        # see the equivalent note in _run_chat_migrations).
+        backfill = [
+            "UPDATE staff_attendance a JOIN staff s ON s.id = a.staff_id "
+            "SET a.staff_name = s.name WHERE a.staff_name IS NULL",
+            "UPDATE compensation_transactions t JOIN staff s ON s.id = t.person_id "
+            "SET t.person_name = s.name WHERE t.person_type = 'staff' AND t.person_name IS NULL",
+            "UPDATE compensation_transactions t JOIN drivers d ON d.id = t.person_id "
+            "SET t.person_name = d.name WHERE t.person_type = 'driver' AND t.person_name IS NULL",
+        ]
+        for stmt in backfill:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+        # staff_attendance.staff_id: CASCADE -> SET NULL, and nullable so a
+        # deleted staff member's rows survive instead of vanishing with them.
+        try:
+            fk = conn.execute(text(
+                "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staff_attendance' "
+                "AND COLUMN_NAME = 'staff_id' AND REFERENCED_TABLE_NAME = 'staff'"
+            )).scalar()
+            if fk:
+                conn.execute(text(f"ALTER TABLE staff_attendance DROP FOREIGN KEY `{fk}`"))
+            conn.execute(text("ALTER TABLE staff_attendance MODIFY COLUMN staff_id INT NULL"))
+            conn.execute(text(
+                "ALTER TABLE staff_attendance ADD CONSTRAINT fk_staff_attendance_staff "
+                "FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+
+
 def _widen_blob_columns():
     """Widen document BLOB columns MEDIUMBLOB (16 MB) → LONGBLOB (up to 4 GB) so the
     standardized 25 MB upload limit is not truncated at the old ceiling.
@@ -445,6 +781,8 @@ def _widen_blob_columns():
 
 
 _run_schema_migrations()
+_run_chat_migrations()
+_run_staff_history_migrations()
 _widen_blob_columns()
 
 def _normalize_shipping_lines():
@@ -566,8 +904,12 @@ async def security_headers(request: Request, call_next):
 
 
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-# Paths whose mutations should NOT trigger a broadcast (auth = login attempts, ws = n/a)
-_REALTIME_EXEMPT_PREFIXES = ("/auth", "/ws")
+# Paths whose mutations should NOT trigger a broadcast (auth = login attempts, ws = n/a).
+# /chat is exempt for two reasons: it pushes its own events to the participants'
+# sockets only, and this middleware would otherwise broadcast the request path —
+# leaking conversation ids to every connected client — and make every browser in
+# the company refetch on each message sent.
+_REALTIME_EXEMPT_PREFIXES = ("/auth", "/ws", "/chat")
 
 
 @app.middleware("http")
@@ -620,6 +962,8 @@ app.include_router(compliance_cost.router, dependencies=AUTH)
 app.include_router(tyre_range_config.router, dependencies=AUTH)
 app.include_router(tyre_layout_type_config.router, dependencies=AUTH)
 app.include_router(deletion_approvals.router, dependencies=AUTH)
+app.include_router(payment_requests.router, dependencies=FINANCE)
+app.include_router(chat.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)
@@ -694,7 +1038,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str = ""):
         return
     token_exp = payload.get("exp", 0)
 
-    if not await ws_manager.connect(websocket):
+    # Bind the socket to its authenticated user so chat can address events to
+    # specific participants instead of broadcasting them to everyone.
+    _sub = payload.get("sub")
+    ws_user_id = int(_sub) if _sub and _sub != "admin" else None
+
+    if not await ws_manager.connect(websocket, user_id=ws_user_id):
         return  # server at connection capacity
     try:
         while True:

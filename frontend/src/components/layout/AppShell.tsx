@@ -7,6 +7,7 @@ import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useIdle } from "react-haiku";
 import { showToast } from "@/lib/swal";
+import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -20,6 +21,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // initialState:false — otherwise the hook reports "idle" on first render and
   // the effect below would log the user out immediately on every refresh.
   const isIdle = useIdle(IDLE_TIMEOUT_MS, { initialState: false });
+
+  useChatMessageToasts();
 
   useEffect(() => {
     if (isIdle && user) {

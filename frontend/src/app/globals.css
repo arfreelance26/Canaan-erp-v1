@@ -999,3 +999,89 @@ input[type="date"]:focus {
   border-color: #c9a227;
   box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.2);
 }
+
+/* ── Canaan Chat — day-separator entrance ─────────────────────────────────
+   Fires once per day-pill mount (never re-triggers on unrelated re-renders,
+   since the element isn't remounted). Per-message entrance animations live
+   further down (chat-bubble-sent / chat-bubble-received). */
+@keyframes chat-day-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-chat-day {
+  animation: chat-day-in 0.3s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-day {
+    animation: none;
+  }
+}
+
+/* ── Canaan Chat — live send/receive entrance (distinct from bulk history load) ──
+   Historical messages loaded when a thread opens render instantly, no per-item
+   animation — fifty bubbles all popping in at once reads as noisy, not smooth.
+   These two only fire for messages that arrive *during* the session: a message
+   you just sent settles in with a touch of overshoot (it's landing where it's
+   going), one you just received drifts in from the side it's grouped against. */
+@keyframes chat-bubble-sent {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.92); }
+  65%  { opacity: 1; transform: translateY(-2px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-chat-bubble-sent {
+  animation: chat-bubble-sent 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes chat-bubble-received {
+  from { opacity: 0; transform: translateX(-8px) translateY(6px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) translateY(0) scale(1); }
+}
+.animate-chat-bubble-received {
+  animation: chat-bubble-received 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-bubble-sent, .animate-chat-bubble-received {
+    animation: none;
+  }
+}
+
+/* ── Canaan Chat — payment note decided (fires once, on the pending→decided
+   transition only; see PaymentBubble's justDecided guard) ────────────────── */
+@keyframes payment-approved-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); transform: scale(1); }
+  35%  { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); transform: scale(1.015); }
+  100% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); transform: scale(1); }
+}
+.animate-payment-approved {
+  animation: payment-approved-flash 0.6s ease-out;
+}
+@keyframes payment-rejected-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  35% { transform: translateX(5px); }
+  55% { transform: translateX(-4px); }
+  75% { transform: translateX(2px); }
+  90% { transform: translateX(-1px); }
+}
+.animate-payment-rejected {
+  animation: payment-rejected-shake 0.45s ease-in-out;
+}
+@keyframes payment-status-pop {
+  0%   { opacity: 0; transform: scale(0.4) translateY(4px); }
+  65%  { opacity: 1; transform: scale(1.12) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-payment-status-pop {
+  animation: payment-status-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes payment-ring {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0; transform: scale(2.4); }
+}
+.animate-payment-ring {
+  animation: payment-ring 0.55s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-payment-approved, .animate-payment-rejected, .animate-payment-status-pop, .animate-payment-ring {
+    animation: none;
+  }
+}

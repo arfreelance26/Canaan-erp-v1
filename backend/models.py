@@ -1,6 +1,6 @@
 from datetime import datetime, date, timezone
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Enum, ForeignKey,
+    Boolean, Column, Date, DateTime, Enum, ForeignKey, Index,
     Integer, JSON, LargeBinary, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
@@ -171,7 +171,13 @@ class Staff(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    attendance_records = relationship("StaffAttendance", back_populates="staff", cascade="all, delete-orphan")
+    # No delete-orphan cascade here (unlike Driver.attendance_records above):
+    # attendance history must survive a staff member being hard-deleted from
+    # "Our Staff", not be destroyed along with them. The DB-level FK
+    # (staff_attendance.staff_id, ON DELETE SET NULL) is what actually
+    # preserves the rows; an ORM cascade would delete them in Python before
+    # that constraint ever got a say.
+    attendance_records = relationship("StaffAttendance", back_populates="staff")
 
     @property
     def device_bound(self) -> bool:
@@ -644,7 +650,12 @@ class StaffAttendance(Base):
     __table_args__ = (UniqueConstraint("staff_id", "date", name="uq_staff_date"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    # SET NULL (not CASCADE) — attendance history must survive a staff member
+    # being hard-deleted from "Our Staff", not vanish with them. staff_name is
+    # a snapshot taken when the record was created, so "who" stays readable
+    # even after staff_id goes NULL.
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    staff_name = Column(String(100), nullable=True)
     date = Column(Date, nullable=False)
     status = Column(Enum("Present", "Absent", "On Leave", "Not Marked"), nullable=False, default="Not Marked")
     check_in_time = Column(String(20))
@@ -1037,6 +1048,10 @@ class CompensationTransaction(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     person_type = Column(Enum("driver", "staff"), nullable=False)
     person_id = Column(Integer, nullable=False)                         # driver.id or staff.id
+    # Snapshot taken at creation — person_id has no FK (by design, it's shared
+    # between drivers and staff), so without this the name becomes unrecoverable
+    # once that driver/staff record is deleted.
+    person_name = Column(String(100), nullable=True)
     type = Column(Enum("Advance", "Salary"), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     date = Column(Date, nullable=False)
@@ -1157,3 +1172,130 @@ class RunningCostTruckMetrics(Base):
     compliance_cost_per_year = Column(Numeric(12, 2), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     __table_args__ = (UniqueConstraint("mode", "truck_id", name="uq_rcc_truck_mode"),)
+
+
+# ---------------------------------------------------------------------------
+# Canaan Chat
+#
+# Message bodies are never stored in plaintext: `ChatMessage.ciphertext` holds an
+# AES-256-GCM envelope produced by chat_crypto.py, bound to its conversation and
+# sender. See that module for the key configuration and rotation procedure.
+# ---------------------------------------------------------------------------
+
+class ChatConversation(Base):
+    """A direct (1:1) thread or a named group."""
+    __tablename__ = "chat_conversations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    kind = Column(Enum("direct", "group"), nullable=False, default="direct")
+    title = Column(String(150))                       # groups only; direct threads render the peer's name
+    # Canonical "<lowId>:<highId>" for direct threads, NULL for groups. The unique
+    # index is what makes "open a DM with X" idempotent even if two requests race:
+    # the loser gets an IntegrityError and re-reads the winner's row.
+    direct_key = Column(String(64), unique=True)
+    created_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"))
+    # Snapshot taken at creation — created_by goes NULL if that staff member is
+    # later hard-deleted, but this keeps "who created it" readable regardless.
+    created_by_name = Column(String(100), nullable=True)
+    # Denormalised from the newest message so the conversation list can sort
+    # without touching chat_messages at all.
+    last_message_at = Column(DateTime, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    participants = relationship("ChatParticipant", back_populates="conversation", cascade="all, delete-orphan")
+    messages = relationship("ChatMessage", back_populates="conversation", cascade="all, delete-orphan")
+
+
+class ChatParticipant(Base):
+    """Membership row — also the read-cursor, which is what keeps unread counts cheap."""
+    __tablename__ = "chat_participants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(Integer, ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    role = Column(Enum("member", "admin"), nullable=False, default="member")   # group admin may rename/add/remove
+    # Highest message id this person has read. Unread is a counted range scan on
+    # (conversation_id, id) — no per-message receipt rows, so the cost is O(unread)
+    # instead of O(participants x messages).
+    last_read_message_id = Column(Integer, nullable=False, default=0)
+    muted = Column(Boolean, nullable=False, default=False)
+    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    left_at = Column(DateTime, nullable=True)          # set on leave/remove; history is retained
+
+    conversation = relationship("ChatConversation", back_populates="participants")
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "staff_id", name="uq_chat_participant"),
+        # Drives "every conversation I'm in", the first query of every chat page load.
+        Index("ix_chat_participant_staff", "staff_id", "conversation_id"),
+    )
+
+
+class ChatMessage(Base):
+    """One encrypted message. Edits and deletes are soft so threads stay consistent."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(Integer, ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"))
+    # Snapshot of the sender's name at send time. sender_id goes NULL if that
+    # staff member is later hard-deleted (see below); this is what keeps
+    # "who sent this" readable in history regardless.
+    sender_name = Column(String(100), nullable=True)
+    # AES-256-GCM envelope (see chat_crypto.py) — never plaintext. LONGBLOB (not
+    # MEDIUMBLOB) so a 25 MB attachment — the same standard cap used for every
+    # other upload in this app (see files.py) — comfortably fits envelope and all.
+    ciphertext = Column(LargeBinary(length=26214400), nullable=False)   # LONGBLOB, app-capped at 25 MB
+    content_type = Column(String(20), nullable=False, default="text")   # "text" | "voice" | "image" | "file" | "payment"
+    # Payment notes only — the recipient's approve/reject decision. This is plain
+    # workflow metadata (comparable to last_read_message_id / muted elsewhere in
+    # this schema), not message content, so unlike the amount/note it is not
+    # part of the encrypted envelope — it's queryable and never needs re-encryption.
+    payment_status = Column(String(20), nullable=True)   # "pending" | "approved" | "rejected"
+    payment_decided_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    payment_decided_by_name = Column(String(100), nullable=True)   # snapshot, same reasoning as sender_name
+    payment_decided_at = Column(DateTime, nullable=True)
+    # Second-stage decision, made on the Payment Requests page (Accounts/Admin
+    # only) — separate from payment_status above, which is the peer's chat-level
+    # decision. A note only becomes actionable here once payment_status is
+    # "approved". finance_status is NULL (awaiting) until Accounts/Admin acts:
+    #   NULL -> "approved" (Unpaid — authorized, money not yet moved)
+    #        -> "paid"     (actually disbursed; only reachable from "approved")
+    #   NULL -> "rejected" (terminal, finance overrode the peer approval)
+    # finance_decided_by/at record the "approved"/"rejected" call; paid_by/at
+    # separately record who actually marked it paid, since that's often a
+    # different action at a different time (sometimes a different person).
+    finance_status = Column(String(20), nullable=True)
+    finance_decided_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    finance_decided_by_name = Column(String(100), nullable=True)   # snapshot, same reasoning as sender_name
+    finance_decided_at = Column(DateTime, nullable=True)
+    paid_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    paid_by_name = Column(String(100), nullable=True)   # snapshot, same reasoning as sender_name
+    paid_at = Column(DateTime, nullable=True)
+    # Proof-of-payment photo, required to mark a request paid. Encrypted the
+    # same way as every other binary in this app (see chat_crypto.py) — this
+    # is often a screenshot of a bank/UPI transfer, not something to leave in
+    # the clear just because it lives in a different column than the note itself.
+    paid_proof_ciphertext = Column(LargeBinary(length=26214400), nullable=True)   # LONGBLOB, capped at 25 MB
+    paid_proof_mime = Column(String(100), nullable=True)
+    # Voice notes: the sniffed MIME (e.g. "audio/webm") and recorded length, so
+    # the player can show a duration before the audio itself is fetched.
+    # Images/files: sniffed/declared MIME, original filename, and byte size, so
+    # the bubble can render a preview or file card before downloading anything.
+    media_mime = Column(String(100), nullable=True)
+    media_duration_ms = Column(Integer, nullable=True)
+    media_filename = Column(String(255), nullable=True)
+    media_size = Column(Integer, nullable=True)
+    reply_to_id = Column(Integer, ForeignKey("chat_messages.id", ondelete="SET NULL"))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    edited_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+
+    conversation = relationship("ChatConversation", back_populates="messages")
+
+    __table_args__ = (
+        # Covers both history paging (WHERE conversation_id = ? AND id < ? ORDER BY id DESC)
+        # and the unread count (WHERE conversation_id = ? AND id > ?).
+        Index("ix_chat_message_conv_id", "conversation_id", "id"),
+    )
