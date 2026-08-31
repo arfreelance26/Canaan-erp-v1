@@ -5,7 +5,7 @@ import { History, FileText, ClipboardList, Receipt, Search, Trash2 } from "lucid
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
@@ -36,6 +36,7 @@ export default function TripHistoryPage() {
   const { user } = useAuth();
   const isFleetManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
   const isAdmin = user?.softwareDesignation === "Admin";
+  const isAuditor = user?.softwareDesignation === "Auditor";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -53,7 +54,10 @@ export default function TripHistoryPage() {
   useGlobalSearchQuery(setSearchQuery);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Assigned" | "Current" | "Completed" | "Invoiced" | "Cancelled">("All");
+  type StatusFilter = "All" | "Assigned" | "Current" | "Completed" | "Invoiced" | "Waived Invoice" | "Cancelled";
+  // Auditor only ever sees three of these cards, so default straight to one of
+  // them instead of "All" — a card-less filter state would be confusing.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(isAuditor ? "Invoiced" : "All");
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -179,14 +183,13 @@ export default function TripHistoryPage() {
 
   async function handleDeleteRequest(trip: Trip, reason: string) {
     try {
-      await editApprovalsApi.create({
+      await deletionApprovalsApi.create({
         resourceType: "Trip",
         resourceId: parseInt(trip.id),
         resourceName: trip.bookingReferenceNo || trip.tripId,
-        action: "Delete",
         reason,
       });
-      showSuccess("Delete request sent to Admin.");
+      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
       setDeleteRequestTrip(null);
     } catch (err) {
       showError(err instanceof Error ? err.message : "Failed to send delete request.");
@@ -209,6 +212,7 @@ export default function TripHistoryPage() {
     Current:   trips.filter((t) => CURRENT_STATUSES.has(t.status)).length,
     Completed: trips.filter((t) => (t as any).hasClosure === true && t.status !== "Cancelled").length,
     Invoiced:  trips.filter((t) => (t as any).isInvoiced === true).length,
+    "Waived Invoice": trips.filter((t) => (t as any).invoiceWaived === true && (t as any).isInvoiced !== true).length,
     Cancelled: trips.filter((t) => t.status === "Cancelled").length,
   };
 
@@ -218,6 +222,7 @@ export default function TripHistoryPage() {
       if (statusFilter === "Current")   return CURRENT_STATUSES.has(t.status);
       if (statusFilter === "Completed") return (t as any).hasClosure === true && t.status !== "Cancelled";
       if (statusFilter === "Invoiced")  return (t as any).isInvoiced === true;
+      if (statusFilter === "Waived Invoice") return (t as any).invoiceWaived === true && (t as any).isInvoiced !== true;
       if (statusFilter === "Cancelled") return t.status === "Cancelled";
       return true;
     })
@@ -283,15 +288,19 @@ export default function TripHistoryPage() {
         </div>
       </div>
 
-      {/* Summary count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
-        {(["All", "Assigned", "Current", "Completed", "Invoiced", "Cancelled"] as const).map((f) => {
+      {/* Summary count cards — Auditor only gets the three audit-relevant ones */}
+      <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${isAuditor ? "" : "md:grid-cols-6"}`}>
+        {(isAuditor
+          ? (["Invoiced", "Waived Invoice", "Completed"] as const)
+          : (["All", "Assigned", "Current", "Completed", "Invoiced", "Waived Invoice", "Cancelled"] as const)
+        ).map((f) => {
           const colors: Record<string, string> = {
             All:       "border-gray-200 bg-white text-gray-700",
             Assigned:  "border-blue-200 bg-blue-50 text-blue-700",
             Current:   "border-amber-200 bg-amber-50 text-amber-700",
             Completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
             Invoiced:  "border-purple-200 bg-purple-50 text-purple-700",
+            "Waived Invoice": "border-violet-200 bg-violet-50 text-violet-700",
             Cancelled: "border-red-200 bg-red-50 text-red-700",
           };
           const activeRing: Record<string, string> = {
@@ -300,6 +309,7 @@ export default function TripHistoryPage() {
             Current:   "ring-2 ring-amber-400",
             Completed: "ring-2 ring-emerald-400",
             Invoiced:  "ring-2 ring-purple-400",
+            "Waived Invoice": "ring-2 ring-violet-400",
             Cancelled: "ring-2 ring-red-400",
           };
           return (
@@ -325,7 +335,7 @@ export default function TripHistoryPage() {
             <> — filtered by <span className="font-semibold text-gray-800">{statusFilter}</span></>
           )}
         </span>
-        {statusFilter !== "All" && (
+        {!isAuditor && statusFilter !== "All" && (
           <button
             type="button"
             onClick={() => setStatusFilter("All")}
@@ -399,6 +409,7 @@ export default function TripHistoryPage() {
               {paginatedTrips.map((trip) => {
                 const customer   = customerById.get(trip.customerId);
                 const isInvoiced = (trip as any).isInvoiced === true;
+                const isWaived   = (trip as any).invoiceWaived === true && !isInvoiced;
                 const hasSheet   = sheets.has(trip.id);
                 const sheet      = sheets.get(trip.id);
                 const hire       = sheet ? n(sheet.hireAmount)   : null;
@@ -409,6 +420,7 @@ export default function TripHistoryPage() {
                 const stage: { color: StageColor; label: string } =
                   trip.status === "Cancelled"               ? { color: "red",     label: "Cancelled" }
                   : isInvoiced                              ? { color: "purple",  label: "Invoiced" }
+                  : isWaived                                ? { color: "indigo",  label: "Waived Invoice" }
                   : (trip as any).hasClosure === true       ? { color: "emerald", label: "Completed" }
                   : CURRENT_STATUSES.has(trip.status)       ? { color: "amber",   label: "Current" }
                   : trip.status === "Assigned"              ? { color: "blue",    label: "Assigned" }
@@ -521,6 +533,10 @@ export default function TripHistoryPage() {
                           <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                             Invoiced
                           </span>
+                        ) : isWaived ? (
+                          <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                            Waived
+                          </span>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
                             Not Invoiced
@@ -540,7 +556,7 @@ export default function TripHistoryPage() {
                           Delete
                         </button>
                       )}
-                      {isFleetManager && (
+                      {!isAdmin && !isAuditor && (
                         <button
                           type="button"
                           onClick={() => setDeleteRequestTrip(trip)}
@@ -565,17 +581,20 @@ export default function TripHistoryPage() {
                           Booking Sheet
                         </button>
 
-                        {/* Trip Sheet — only if sheet exists */}
-                        <button
-                          type="button"
-                          onClick={() => setSheetTrip(trip)}
-                          disabled={!hasSheet}
-                          className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={hasSheet ? undefined : "No trip sheet recorded for this trip"}
-                        >
-                          <ClipboardList className="h-3.5 w-3.5" />
-                          Trip Sheet
-                        </button>
+                        {/* Trip Sheet — only if sheet exists. In the Completed filter, only
+                            Auditor gets this button; every other filter is unaffected. */}
+                        {(isAuditor || statusFilter !== "Completed") && (
+                          <button
+                            type="button"
+                            onClick={() => setSheetTrip(trip)}
+                            disabled={!hasSheet}
+                            className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={hasSheet ? undefined : "No trip sheet recorded for this trip"}
+                          >
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            Trip Sheet
+                          </button>
+                        )}
 
                         {/* Invoice — only if generated and role is not Fleet Manager */}
                         {isInvoiced && !isFleetManager && (

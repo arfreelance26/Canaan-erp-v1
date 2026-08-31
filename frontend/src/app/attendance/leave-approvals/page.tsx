@@ -21,6 +21,7 @@ const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Maintenance: "Maintenance",
   "Trip Sheet Register": "Trip Sheet Registers",
   "Yard Supervisor": "Yard Supervisors",
+  Auditor: "Auditors",
 };
 
 type FilterValue = "All" | LeaveApplicantCategory;
@@ -73,6 +74,7 @@ export default function LeaveApprovalsPage() {
       Maintenance: 0,
       "Trip Sheet Register": 0,
       "Yard Supervisor": 0,
+      Auditor: 0,
     };
     for (const request of requests) {
       if (request.status !== "Pending") continue;

@@ -86,6 +86,15 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/mark",
     "/attendance/leave-requests",
   ],
+  // Audit-specific pages are being added one by one.
+  Auditor: [
+    "/",
+    "/connect/chat",
+    "/insights/fleet-summary",
+    "/trips/pnl-mileage",
+    "/maintenance/truck-records",
+    "/trips/history",
+  ],
 };
 
 function getFilteredSections(role: string): NavSection[] {
@@ -122,21 +131,29 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   const { theme } = useTheme();
   const isAdmin = user?.softwareDesignation === "Admin";
   const isAccounts = user?.softwareDesignation === "Accounts";
+  const isCommercialManager = user?.softwareDesignation === "Commercial Manager";
   const logoBg = theme === "dark"
     ? { backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }
     : {};
 
+  // Edit Requests — visible to both Admin and Commercial Manager (both can review/approve
+  // them, see routers/edit_approvals.py's require_roles("Admin", "Commercial Manager")).
+  // Deletion approvals stay Admin-only — Commercial Manager has no route to that page.
+  const canSeeEditApprovals = isAdmin || isCommercialManager;
   const [pendingEditApprovals, setPendingEditApprovals] = useState(0);
   const [pendingDeletionApprovals, setPendingDeletionApprovals] = useState(0);
 
   useEffect(() => {
-    if (!isAdmin) return;
-    editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
-    deletionApprovalsApi.list("Pending").then((r) => setPendingDeletionApprovals(r.length)).catch(() => {});
-  }, [isAdmin]);
+    if (canSeeEditApprovals) {
+      editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
+    }
+    if (isAdmin) {
+      deletionApprovalsApi.list("Pending").then((r) => setPendingDeletionApprovals(r.length)).catch(() => {});
+    }
+  }, [isAdmin, canSeeEditApprovals]);
 
   const refreshPendingEditApprovals = () => {
-    if (!isAdmin) return;
+    if (!canSeeEditApprovals) return;
     editApprovalsApi.list("Pending").then((r) => setPendingEditApprovals(r.length)).catch(() => {});
   };
   const refreshPendingDeletionApprovals = () => {

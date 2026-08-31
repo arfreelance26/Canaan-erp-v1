@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { CheckCircle, XCircle, Clock, Fuel, Wrench, User, Calendar, FileText, Layers } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
@@ -61,14 +61,15 @@ function RequestCard({
   const d = req.logDetails;
   const isPending = req.status === "Pending";
   const isMaintenance = req.resourceType === "MaintenanceRecord";
+  const isTrip = req.resourceType === "Trip";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       {/* Top bar */}
       <div className="flex items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isMaintenance ? "bg-blue-100 text-blue-600" : "bg-red-100 text-red-600"}`}>
-            {isMaintenance ? <Wrench className="h-4 w-4" /> : <Fuel className="h-4 w-4" />}
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isTrip ? "bg-purple-100 text-purple-600" : isMaintenance ? "bg-blue-100 text-blue-600" : "bg-red-100 text-red-600"}`}>
+            {isTrip ? <Truck className="h-4 w-4" /> : isMaintenance ? <Wrench className="h-4 w-4" /> : <Fuel className="h-4 w-4" />}
           </div>
           <div>
             <p className="text-sm font-bold text-gray-900">{req.resourceName}</p>
@@ -109,7 +110,7 @@ function RequestCard({
                 )}
               </p>
               {req.adminNote && (
-                <p className="mt-1 text-xs text-gray-500 italic">"{req.adminNote}"</p>
+                <p className="mt-1 text-xs text-gray-500 italic">&ldquo;{req.adminNote}&rdquo;</p>
               )}
             </div>
           )}
@@ -187,8 +188,10 @@ export default function DeletionApprovalsPage() {
 
   function load() {
     setLoading(true);
+    // No resource_type filter — Fuel Log, Maintenance Record, and Trip deletion
+    // requests are all reviewed from this one page, distinguished by icon/color.
     deletionApprovalsApi
-      .list(filter === "all" ? undefined : filter, "MaintenanceRecord")
+      .list(filter === "all" ? undefined : filter)
       .then(setRequests)
       .catch(() => {})
       .finally(() => setLoading(false));

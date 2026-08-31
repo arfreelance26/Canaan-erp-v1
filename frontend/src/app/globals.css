@@ -654,6 +654,46 @@ html.dark * {
   opacity: 0;
 }
 
+/*
+ * Login page "split join" entrance — the hero and form panels start fully
+ * off-screen on their own side and slide in like double doors closing,
+ * meeting at the S-curve seam that already divides them. translateX(±100%)
+ * is relative to each panel's own width, so this is a full off-to-on slide,
+ * not a nudge — the point is for the split itself to visibly be the motion.
+ * Runs every time the page mounts, including the client-side route change
+ * straight after logout (the component remounts, so the animation replays
+ * with no JS needed). transform-only, so it stays smooth on modest hardware.
+ */
+/*
+ * The 100% keyframe lands on `transform: none` rather than `translate3d(0,0,0)`
+ * — mathematically identical, but `none` is the only value that does NOT keep
+ * establishing a stacking context / forcing its own compositing layer. Landing
+ * on any non-none transform (even the identity) pinned the panel to its own
+ * GPU layer forever after the animation finished, and Chromium composited that
+ * layer as an opaque tile — which is what was cutting a hard rectangular seam
+ * right along the S-curve instead of blending into the gradient/glow behind it.
+ */
+@keyframes login-panel-join-left {
+  0%   { transform: translate3d(-100%, 0, 0); }
+  100% { transform: none; }
+}
+@keyframes login-panel-join-right {
+  0%   { transform: translate3d(100%, 0, 0); }
+  100% { transform: none; }
+}
+.login-hero {
+  animation: login-panel-join-left 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.login-form-side {
+  animation: login-panel-join-right 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-hero,
+  .login-form-side {
+    animation: none;
+  }
+}
+
 @keyframes beam-sweep {
   0% { transform: translateY(-100%) rotate(-45deg); opacity: 0; }
   25% { opacity: 0.15; }

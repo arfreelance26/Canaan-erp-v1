@@ -42,6 +42,7 @@ import {
   LineChart,
   MessageSquare,
   IndianRupee,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -73,6 +74,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Profitability Calculator", href: "/insights/trip-profitability-calculator", icon: PieChart },
       { label: "Fleet Summary", href: "/insights/fleet-summary", icon: Map },
       { label: "Trip Summary", href: "/trips/pnl-mileage", icon: BarChart2 },
+      { label: "Truck Maintenance Record", href: "/maintenance/truck-records", icon: Wrench },
       { label: "Customer Profitability Analytics", href: "/insights/customer-profitability-analytics", icon: LineChart },
     ],
   },
@@ -103,6 +105,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Reconciliation", href: "/trips/reconciliation", icon: ClipboardList },
       { label: "Verification & Invoicing", href: "/trips/verification", icon: ClipboardCheck },
       { label: "Trip History", href: "/trips/history", icon: History },
+      { label: "Deleted Trips", href: "/trips/deleted", icon: Trash2 },
     ],
   },
   {

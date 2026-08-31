@@ -106,7 +106,7 @@ def list_trips(
     q = db.query(models.Trip).options(
         joinedload(models.Trip.closure),
         joinedload(models.Trip.sheet),
-    )
+    ).filter(models.Trip.deleted_at.is_(None))
     if status:
         q = q.filter(models.Trip.status == status)
     if search:
@@ -408,6 +408,19 @@ def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
     return {"invoice_no": _next_invoice_no(db, invoice_type, _current_fy())}
 
 
+@router.get("/deleted-ids", dependencies=[Depends(require_roles())])
+def list_deleted_trip_ids(db: Session = Depends(get_db)):
+    """Admin only: ids of trips currently soft-deleted (deleted_at IS NOT NULL).
+
+    Lets the "Deleted Trips" page (which lists from the deletion_approval_requests
+    audit trail) tell apart a still-deleted trip from one that was since restored —
+    the audit row itself never changes on restore, since it's a historical record,
+    not a live status flag.
+    """
+    rows = db.query(models.Trip.id).filter(models.Trip.deleted_at.isnot(None)).all()
+    return [i for (i,) in rows]
+
+
 @router.get("/{trip_id}", response_model=schemas.TripOut)
 def get_trip(trip_id: int, db: Session = Depends(get_db)):
     trip = db.query(models.Trip).options(
@@ -534,8 +547,62 @@ def update_trip_status(
 
 
 @router.delete("/{trip_id}", status_code=204, dependencies=[Depends(require_roles())])
-def delete_trip(trip_id: int, db: Session = Depends(get_db)):
-    """Admin only: permanently delete a trip (cascades to closure/sheet/invoice)."""
+def delete_trip(trip_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Admin only: soft-delete a trip (hides it from every normal listing, keeps its
+    closure/sheet/invoice intact). Recoverable from "Deleted Trips" via /restore;
+    only /permanent there does an actual, unrecoverable DELETE.
+
+    No approval step needed here (Admin has full authority), but a self-approved
+    DeletionApprovalRequest row is still logged so this trip shows up on the
+    "Deleted Trips" audit page the same way an Accounts/Commercial-Manager-requested
+    deletion does — otherwise the most common deletion path (Admin deleting
+    directly) would be invisible in that audit trail.
+    """
+    trip = db.get(models.Trip, trip_id)
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if trip.deleted_at is not None:
+        raise HTTPException(409, "Trip is already deleted")
+    trip_id_str = trip.trip_id
+    booking_ref = trip.booking_reference_no
+    now = datetime.now(timezone.utc)
+    trip.deleted_at = now
+    if current_user.id is not None:
+        db.add(models.DeletionApprovalRequest(
+            resource_type="Trip",
+            resource_id=trip_id,
+            resource_name=booking_ref or trip_id_str,
+            requested_by_staff_id=current_user.id,
+            requested_by_name=current_user.name,
+            reason="Deleted directly by Admin — no approval required.",
+            status="Approved",
+            approved_by_name=current_user.name,
+            approved_at=now,
+        ))
+    db.commit()
+    emit("trip_deleted", {"trip_db_id": trip_id, "trip_id_str": trip_id_str})
+
+
+@router.post("/{trip_id}/restore", response_model=schemas.TripOut, dependencies=[Depends(require_roles())])
+def restore_trip(trip_id: int, db: Session = Depends(get_db)):
+    """Admin only: undo a soft-delete — the trip reappears in Trip History (and
+    everywhere else) exactly as it was, with its closure/sheet/invoice untouched."""
+    trip = db.get(models.Trip, trip_id)
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if trip.deleted_at is None:
+        raise HTTPException(409, "Trip is not deleted")
+    trip.deleted_at = None
+    db.commit()
+    db.refresh(trip)
+    emit("trip_updated", {"trip_id": trip.trip_id, "id": trip.id})
+    return _enrich(trip)
+
+
+@router.delete("/{trip_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
+def permanently_delete_trip(trip_id: int, db: Session = Depends(get_db)):
+    """Admin only: irreversibly delete an already soft-deleted trip (cascades to
+    closure/sheet/invoice). Only reachable from the "Deleted Trips" page."""
     trip = db.get(models.Trip, trip_id)
     if not trip:
         raise HTTPException(404, "Trip not found")
@@ -848,6 +915,13 @@ def verify_trip(trip_id: int, db: Session = Depends(get_db)):
     trip.verification_status = "verified"
     if trip.invoice_required is False:
         trip.is_invoiced = True
+    # SHIFTING trips are never billed to a customer (no bill_to/hire), so there is
+    # nothing to invoice — verifying one goes straight to "Waived Invoice" instead
+    # of landing in Verified and waiting on a manual Waive Invoice click. This only
+    # fires on a genuine approval; a rejected SHIFTING trip sheet still goes back
+    # to Docs for correction like any other trip.
+    if trip.trip_category == "SHIFTING":
+        trip.invoice_waived = True
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

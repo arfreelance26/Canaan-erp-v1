@@ -66,6 +66,10 @@ type Row = {
   netPayable: number;
   completedDate: string;
   hasSheet: boolean;
+  // RETURN TRIP only: batta is normally paid beforehand, so it's excluded from
+  // Total Net Payable by default — unless the Commercial Manager explicitly
+  // marked it applicable (still owed) on the trip itself.
+  excludedFromTotal: boolean;
 };
 
 export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branches, onRecordPayment }: Props) {
@@ -137,6 +141,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
           ? parseFloat(sheet?.driverPay ?? "0") || 0
           : Math.round(hireAmount * compensationPct / 100);
         const netPayable = regularPay - outstandingAdvance;
+        const excludedFromTotal = t.tripCategory === "RETURN TRIP" && !t.isBattaApplicable;
 
         const containerNo =
           t.containerSpecification === "2 X 20 FEET CONTAINERS"
@@ -165,6 +170,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
           netPayable,
           completedDate: sheet?.tripCompletedDate ?? "",
           hasSheet: !!sheet,
+          excludedFromTotal,
         };
       }),
     [driverTrips, sheets, trucks, driver]
@@ -187,12 +193,14 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
   }, [allRows, filterMode, customFrom, customTo]);
 
   // RETURN TRIP rows are still fully calculated (Regular Pay, Net Payable, everything) so
-  // they're visible in the table and exports, but they don't count toward what's actually
-  // paid out — a return trip isn't separately compensated, it rides along with the outbound
-  // trip's pay. Excluding them here is the single source of truth: PDF/Excel/summary/the
-  // "Record Salary Payment" button all derive from this one total.
+  // they're visible in the table and exports, but by default they don't count toward what's
+  // actually paid out — a return trip's batta is normally paid beforehand, riding along with
+  // the outbound trip's pay, not separately compensated. If the Commercial Manager marked
+  // "Is Batta Applicable" = Yes on that trip (still owed), it's included instead. Excluding
+  // here is the single source of truth: PDF/Excel/summary/the "Record Salary Payment" button
+  // all derive from this one total.
   const totalNetPayable = rows.reduce(
-    (sum, r) => sum + (r.tripCategory === "RETURN TRIP" ? 0 : r.netPayable),
+    (sum, r) => sum + (r.excludedFromTotal ? 0 : r.netPayable),
     0
   );
 
@@ -624,8 +632,9 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">RETURN TRIP</span>
                       <p className="text-[11px] leading-relaxed text-slate-500">
-                        Exception: still fully calculated and shown in the table (marked with an asterisk *), but <span className="font-semibold text-slate-700">excluded from Total Net Payable</span> —
-                        a return trip rides along with the outbound trip&apos;s pay and isn&apos;t separately compensated.
+                        Exception: still fully calculated and shown in the table, but by default <span className="font-semibold text-slate-700">excluded from Total Net Payable</span> (marked with an asterisk *) —
+                        a return trip&apos;s batta is normally paid beforehand and rides along with the outbound trip&apos;s pay. If <span className="font-semibold text-slate-700">Is Batta Applicable</span> was set to Yes on
+                        that trip (batta still owed), it&apos;s included instead.
                       </p>
                     </div>
                   </div>
@@ -677,7 +686,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                 {rows.map((row, i) => {
                   const isReturnTrip = row.tripCategory === "RETURN TRIP";
                   return (
-                  <tr key={`${row.tripId}-${i}`} className={`hover:bg-gray-50 ${isReturnTrip ? "bg-purple-50/40" : ""}`}>
+                  <tr key={`${row.tripId}-${i}`} className={`hover:bg-gray-50 ${row.excludedFromTotal ? "bg-purple-50/40" : ""}`}>
                     <td className="px-3 py-2.5 font-medium text-indigo-700">{row.tripId}</td>
                     <td className="px-3 py-2.5 text-gray-700">{row.driverName}</td>
                     <td className="px-3 py-2.5 font-mono text-gray-700">{row.truckReg}</td>
@@ -687,12 +696,20 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                     <td className="px-3 py-2.5 text-gray-600">{fmtDate(row.bookingDate)}</td>
                     <td className="px-3 py-2.5 text-gray-600">
                       {row.tripCategory}
-                      {isReturnTrip && (
+                      {row.excludedFromTotal && (
                         <span
-                          title="Return trip — rides along with the outbound trip's pay, not separately compensated"
+                          title="Return trip — batta paid beforehand, rides along with the outbound trip's pay, not separately compensated"
                           className="ml-1.5 inline-block rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-600"
                         >
                           Excluded
+                        </span>
+                      )}
+                      {isReturnTrip && !row.excludedFromTotal && (
+                        <span
+                          title="Batta marked applicable on this trip — still owed, included in Net Payable"
+                          className="ml-1.5 inline-block rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-600"
+                        >
+                          Batta Applicable
                         </span>
                       )}
                     </td>
@@ -731,7 +748,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                       {row.hasSheet ? (
                         <span className="inline-flex items-center gap-1.5">
                           <NetPayableCell v={row.netPayable} />
-                          {isReturnTrip && (
+                          {row.excludedFromTotal && (
                             <span
                               title="Shown for reference only — not included in Total Net Payable below"
                               className="text-gray-400"
@@ -759,10 +776,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-400" />
               Outstanding &lt; 0: driver spent own money — company owes reimbursement
             </span>
-            {rows.some((r) => r.tripCategory === "RETURN TRIP") && (
+            {rows.some((r) => r.excludedFromTotal) && (
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-400" />
-                Net Payable marked * (RETURN TRIP): calculated for reference, not included in Total Net Payable
+                Net Payable marked * (RETURN TRIP, batta not applicable): calculated for reference, not included in Total Net Payable
               </span>
             )}
           </div>

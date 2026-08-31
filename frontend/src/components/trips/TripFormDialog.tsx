@@ -127,6 +127,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   driverAdvancePaymentMethod: "",
   driverAdvance: "",
   driverCompensationType: "",
+  isBattaApplicable: false,
   openLoadHireType: "",
   ratePerTon: "",
   transportHireAmount: "",
@@ -901,6 +902,7 @@ export function TripFormDialog({
                       origin: "",
                       destination: "",
                       transportHireAmount: "",
+                      isBattaApplicable: false,
                     }));
                   } else if (val === "RETURN TRIP") {
                     setForm((prev) => ({
@@ -908,9 +910,10 @@ export function TripFormDialog({
                       tripCategory: val as Trip["tripCategory"],
                       driverAdvance: "",
                       driverCompensationType: "FIXED",
+                      isBattaApplicable: false,
                     }));
                   } else {
-                    update("tripCategory", val as Trip["tripCategory"]);
+                    setForm((prev) => ({ ...prev, tripCategory: val as Trip["tripCategory"], isBattaApplicable: false }));
                   }
                 }}
                 options={[
@@ -1300,15 +1303,15 @@ export function TripFormDialog({
             <Field label="Origin Location" required>
               {isShifting ? (
                 <>
-                  <input
-                    type="text"
-                    required
+                  <GlassSelect
                     value={form.origin}
-                    onChange={(e) => update("origin", e.target.value)}
-                    className={inputClass}
-                    placeholder="Enter origin location"
+                    onChange={(val) => update("origin", val)}
+                    options={[
+                      { value: "TUTICORIN", label: "TUTICORIN" },
+                      { value: "CHENNAI", label: "CHENNAI" },
+                    ]}
                   />
-                  <span className="mt-1 text-xs text-amber-600">Shifting trips — enter origin manually, no auto-fill from customer</span>
+                  <span className="mt-1 text-xs text-amber-600">Shifting trips — origin restricted to Tuticorin or Chennai</span>
                 </>
               ) : isExport ? (
                 <>
@@ -1617,6 +1620,38 @@ export function TripFormDialog({
                 <span className="mt-1 text-xs text-blue-600">Fixed for Return Trip</span>
               )}
             </Field>
+
+            {isReturnTrip && (
+              <Field label="Is Batta Applicable">
+                <div className="relative flex w-fit rounded-full border border-gray-200 bg-gray-100 p-1">
+                  <span
+                    className={`absolute top-1 bottom-1 left-1 w-20 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
+                      form.isBattaApplicable ? "translate-x-20" : "translate-x-0"
+                    }`}
+                  />
+                  {(["No", "Yes"] as const).map((label) => {
+                    const value = label === "Yes";
+                    const active = form.isBattaApplicable === value;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => update("isBattaApplicable", value)}
+                        className={`relative z-10 w-20 rounded-full py-1.5 text-sm font-semibold transition-colors focus:outline-none ${
+                          active ? "text-blue-700" : "text-gray-500"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="mt-1 text-xs text-gray-500">
+                  Return trip batta is normally paid beforehand and excluded from Net Payable — set
+                  to &ldquo;Yes&rdquo; only if this driver still needs to be paid for it.
+                </span>
+              </Field>
+            )}
 
             <Field label="Driver Advance Payment Method" required>
               <GlassCombobox

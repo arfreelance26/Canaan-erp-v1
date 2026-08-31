@@ -148,7 +148,7 @@ class Staff(Base):
     department = Column(String(100))
     designation = Column(String(100))
     software_designation = Column(
-        Enum("Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"),
+        Enum("Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor", "Auditor"),
         nullable=False,
         default="Trip Sheet Register",
     )
@@ -383,6 +383,11 @@ class Trip(Base):
     driver_advance = Column(Numeric(10, 2), nullable=True)
     initial_disbursed_advance = Column(Numeric(10, 2), nullable=True)
     driver_compensation_type = Column(Enum("Normal", "FIXED"))
+    # RETURN TRIP only: a return trip's driver batta is normally paid beforehand
+    # (rides along with the outbound trip), so it's excluded from Net Payable by
+    # default. This flag lets the Commercial Manager mark it as still owed for a
+    # specific return trip, so it counts toward Net Payable after all.
+    is_batta_applicable = Column(Boolean, nullable=False, default=False, server_default="0")
     # Transport Cost
     open_load_hire_type = Column(Enum("Ton Based", "Fixed"), nullable=True)
     rate_per_ton = Column(Numeric(10, 2), nullable=True)
@@ -412,6 +417,12 @@ class Trip(Base):
     is_invoiced = Column(Boolean, default=False)
     invoice_required = Column(Boolean, default=True, nullable=False)
     invoice_waived = Column(Boolean, default=False, nullable=False, server_default="0")
+    # Soft delete — set when a trip is deleted (directly by Admin, or via an approved
+    # deletion request). The row and all its related data (closure/sheet/invoice) are
+    # kept intact so it can be restored from the "Deleted Trips" page; a NULL row is
+    # excluded from every normal trip listing. Only "Permanently Delete" on that page
+    # does a real DELETE.
+    deleted_at = Column(DateTime, nullable=True)
     trip_sheet_collected = Column(Boolean, default=False, nullable=False)
     trip_sheet_collected_at = Column(DateTime, nullable=True)
     trip_sheet_received = Column(Boolean, default=False, nullable=False)
@@ -671,7 +682,7 @@ class LeaveRequest(Base):
     __tablename__ = "leave_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(Enum("Driver", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"), nullable=False)
+    category = Column(Enum("Driver", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor", "Auditor"), nullable=False)
     applicant_id = Column(Integer, nullable=False)                      # driver.id or staff.id
     applicant_name = Column(String(100), nullable=False)
     applicant_code = Column(String(20))                                 # CGI-D001 / STF-1001
@@ -1007,7 +1018,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request
@@ -1038,7 +1049,7 @@ class EditApprovalRequest(Base):
     admin_note = Column(Text, nullable=True)
     approved_by_name = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
-    expires_at = Column(DateTime, nullable=True)         # approved_at + 1 hour
+    expires_at = Column(DateTime, nullable=True)         # approved_at + 5 hours (Edit action only)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Toast } from "@base-ui-components/react/toast";
 import { X, CheckCircle2, AlertTriangle, Info, XCircle, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,17 @@ function ToastViewport() {
 }
 
 export function Toaster() {
+  // Mount one tick after first paint, in its own commit. base-ui's Toast.Root
+  // calls flushSync from a layout effect when it measures a toast's height;
+  // if <Toaster/> mounts as part of the same giant initial commit as the rest
+  // of the provider tree (RootLayout -> ThemeProvider -> ... -> AppShell),
+  // React is still mid-commit for that whole tree and refuses the flush
+  // ("flushSync was called from inside a lifecycle method"). Deferring the
+  // real mount by a tick gives Toast's effects a standalone commit to run in.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
   return (
     <Toast.Provider toastManager={toastManager} timeout={6000} limit={5}>
       <ToastViewport />

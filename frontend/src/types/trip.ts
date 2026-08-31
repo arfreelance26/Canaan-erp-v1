@@ -87,6 +87,9 @@ export type Trip = {
   driverAdvance: string;
   initialDisbursedAdvance?: string;
   driverCompensationType: DriverCompensationType | "";
+  // RETURN TRIP only: batta is normally paid beforehand and excluded from Net
+  // Payable; set true to mark this return trip's batta as still owed.
+  isBattaApplicable: boolean;
 
   // Transport Cost Details
   openLoadHireType?: "Ton Based" | "Fixed" | "";

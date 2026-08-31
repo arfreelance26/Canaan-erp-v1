@@ -1,0 +1,60 @@
+diff --git a/node_modules/@base-ui-components/react/esm/toast/root/ToastRoot.js b/node_modules/@base-ui-components/react/esm/toast/root/ToastRoot.js
+index 7a4b511..48ab8c8 100644
+--- a/node_modules/@base-ui-components/react/esm/toast/root/ToastRoot.js
++++ b/node_modules/@base-ui-components/react/esm/toast/root/ToastRoot.js
+@@ -155,14 +155,19 @@ export const ToastRoot = /*#__PURE__*/React.forwardRef(function ToastRoot(compon
+     element.style.height = 'auto';
+     const height = element.offsetHeight;
+     element.style.height = previousHeight;
+-    ReactDOM.flushSync(() => {
+-      setToasts(prev => prev.map(t => t.id === toast.id ? {
+-        ...t,
+-        ref: rootRef,
+-        height,
+-        transitionStatus: undefined
+-      } : t));
+-    });
++    // PATCHED (patches/@base-ui-components+react+*.patch): upstream wraps this in
++    // ReactDOM.flushSync, which throws "flushSync was called from inside a
++    // lifecycle method" whenever this mount-time layout effect happens to land in
++    // the same commit as an unrelated layout-effect-heavy render elsewhere in the
++    // tree (e.g. a toast appearing while other app providers are still settling).
++    // A plain setState here is unbatched-safe in a layout effect and does not need
++    // the synchronous flush; it removes the crash without changing toast behavior.
++    setToasts(prev => prev.map(t => t.id === toast.id ? {
++      ...t,
++      ref: rootRef,
++      height,
++      transitionStatus: undefined
++    } : t));
+   });
+   useIsoLayoutEffect(recalculateHeight, [recalculateHeight]);
+   function applyDirectionalDamping(deltaX, deltaY) {
+diff --git a/node_modules/@base-ui-components/react/toast/root/ToastRoot.js b/node_modules/@base-ui-components/react/toast/root/ToastRoot.js
+index 5d88755..5e9531e 100644
+--- a/node_modules/@base-ui-components/react/toast/root/ToastRoot.js
++++ b/node_modules/@base-ui-components/react/toast/root/ToastRoot.js
+@@ -161,14 +161,15 @@ const ToastRoot = exports.ToastRoot = /*#__PURE__*/React.forwardRef(function Toa
+     element.style.height = 'auto';
+     const height = element.offsetHeight;
+     element.style.height = previousHeight;
+-    ReactDOM.flushSync(() => {
+-      setToasts(prev => prev.map(t => t.id === toast.id ? {
+-        ...t,
+-        ref: rootRef,
+-        height,
+-        transitionStatus: undefined
+-      } : t));
+-    });
++    // PATCHED (patches/@base-ui-components+react+*.patch): see esm/toast/root/ToastRoot.js
++    // for the full explanation — removes the unconditional flushSync that crashes
++    // when this layout effect lands in the same commit as another layout-effect wave.
++    setToasts(prev => prev.map(t => t.id === toast.id ? {
++      ...t,
++      ref: rootRef,
++      height,
++      transitionStatus: undefined
++    } : t));
+   });
+   (0, _useIsoLayoutEffect.useIsoLayoutEffect)(recalculateHeight, [recalculateHeight]);
+   function applyDirectionalDamping(deltaX, deltaY) {

@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
+import { useAuth } from "@/context/AuthContext";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import type { EditApprovalRequest } from "@/types/edit-approval";
 import { VerifyTripDialog } from "@/components/trips/VerifyTripDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
@@ -61,6 +64,9 @@ function StatusBadge({ status }: { status: "pending" | "verified" | "invoiced" |
 }
 
 export default function TripVerificationPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
+
   const [trips, setTrips]         = useState<Trip[]>([]);
   const [drivers, setDrivers]     = useState<Driver[]>([]);
   const [trucks, setTrucks]       = useState<Truck[]>([]);
@@ -89,6 +95,13 @@ export default function TripVerificationPage() {
   const [lrDialogTrip, setLrDialogTrip]       = useState<Trip | null>(null);
   const [dabDialogTrip, setDabDialogTrip]     = useState<Trip | null>(null);
   const [cabDialogTrip, setCabDialogTrip]     = useState<Trip | null>(null);
+
+  // Editing an already-Invoiced trip's invoice is Admin-only by default. Anyone else
+  // (Accounts) must send an Edit Request to Admin first — approving it grants the same
+  // 5-hour window used everywhere else in the app (see routers/edit_approvals.py).
+  const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [editRequestOpen, setEditRequestOpen] = useState(false);
+  const [pendingEditInvoiceTrip, setPendingEditInvoiceTrip] = useState<Trip | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
@@ -146,6 +159,25 @@ export default function TripVerificationPage() {
   useWebSocketEvent("sheet_collected", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_entered",   () => setRefreshKey(k => k + 1));
 
+  useEffect(() => {
+    if (isAdmin) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  }, [isAdmin]);
+  useWebSocketEvent("edit_approval_updated", () => {
+    if (isAdmin) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  });
+
+  function hasActiveEditInvoiceApproval(tripId: string): boolean {
+    return activeApprovals.some((a) =>
+      a.resourceType === "Trip" &&
+      String(a.resourceId) === tripId &&
+      a.action === "Edit" &&
+      a.expiresAt != null &&
+      new Date(a.expiresAt.endsWith("Z") ? a.expiresAt : a.expiresAt + "Z") > new Date()
+    );
+  }
+
   const driverById   = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById    = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
@@ -182,11 +214,20 @@ export default function TripVerificationPage() {
   async function handleConfirmVerification() {
     if (!verifyTrip) return;
     try {
-      await tripsApi.verify(verifyTrip.id);
+      const updated = await tripsApi.verify(verifyTrip.id);
       setVerifiedIds((prev) => new Set([...prev, verifyTrip.id]));
       setRejectedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
+      // SHIFTING trips are auto-waived by the backend on verify (never billed to a
+      // customer) — reflect that immediately instead of waiting for the next refresh.
+      if (updated.invoiceWaived) {
+        setWaivedIds((prev) => new Set([...prev, verifyTrip.id]));
+      }
       setVerifyTrip(null);
-      showSuccess("Trip verified successfully.");
+      showSuccess(
+        updated.invoiceWaived
+          ? "Trip verified — SHIFTING trips are not invoiced, so this one was automatically marked Waived Invoice."
+          : "Trip verified successfully."
+      );
     } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to verify trip."); }
   }
 
@@ -265,9 +306,32 @@ export default function TripVerificationPage() {
   }
 
   async function handleEditInvoice(trip: Trip) {
+    if (!isAdmin && !hasActiveEditInvoiceApproval(trip.id)) {
+      setPendingEditInvoiceTrip(trip);
+      setEditRequestOpen(true);
+      return;
+    }
     const raw = await tripsApi.getInvoice(trip.id).catch(() => null);
     if (!raw) return;
     setInvoiceDialog({ trip, savedInvoice: rawToSavedInvoice(raw as Record<string, unknown>) });
+  }
+
+  async function handleEditInvoiceRequestSubmit(reason: string) {
+    if (!pendingEditInvoiceTrip) return;
+    try {
+      await editApprovalsApi.create({
+        resourceType: "Trip",
+        resourceId: parseInt(pendingEditInvoiceTrip.id, 10),
+        resourceName: pendingEditInvoiceTrip.bookingReferenceNo || pendingEditInvoiceTrip.tripId,
+        action: "Edit",
+        reason,
+      });
+      showSuccess("Edit request sent to Admin.");
+      setEditRequestOpen(false);
+      setPendingEditInvoiceTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to send edit request.");
+    }
   }
 
   async function openPreview(trip: Trip, autoDownload = false) {
@@ -873,6 +937,15 @@ export default function TripVerificationPage() {
         customer={cabDialogTrip ? customerById.get(cabDialogTrip.customerId) : undefined}
         invoiceNo={cabDialogTrip ? (invoiceData.get(cabDialogTrip.id)?.invoice_no ?? "") : ""}
         onClose={() => setCabDialogTrip(null)}
+      />
+
+      <EditRequestDialog
+        open={editRequestOpen}
+        resourceType="Trip"
+        resourceName={pendingEditInvoiceTrip ? (pendingEditInvoiceTrip.bookingReferenceNo || pendingEditInvoiceTrip.tripId) : ""}
+        action="Edit"
+        onSubmit={handleEditInvoiceRequestSubmit}
+        onClose={() => { setEditRequestOpen(false); setPendingEditInvoiceTrip(null); }}
       />
 
       {showReportModal && (() => {

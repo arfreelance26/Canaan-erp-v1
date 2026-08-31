@@ -22,7 +22,7 @@ def list_staff(db: Session = Depends(get_db)):
     return db.query(models.Staff).order_by(models.Staff.staff_id).all()
 
 
-@router.post("", response_model=schemas.StaffOut, status_code=201)
+@router.post("", response_model=schemas.StaffOut, status_code=201, dependencies=[Depends(require_roles())])
 def create_staff(payload: schemas.StaffCreate, db: Session = Depends(get_db)):
     check_staff_duplicates(db, payload)
     if db.query(models.Staff).filter(models.Staff.staff_id == payload.staff_id).first():
@@ -44,7 +44,7 @@ def get_staff(staff_id: int, db: Session = Depends(get_db)):
     return member
 
 
-@router.put("/{staff_id}", response_model=schemas.StaffOut)
+@router.put("/{staff_id}", response_model=schemas.StaffOut, dependencies=[Depends(require_roles())])
 def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depends(get_db)):
     check_staff_duplicates(db, payload, exclude_id=staff_id)
     member = db.query(models.Staff).with_for_update().filter(models.Staff.id == staff_id).first()

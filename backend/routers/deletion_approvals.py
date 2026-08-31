@@ -74,6 +74,13 @@ def approve_deletion(
         if record:
             db.delete(record)
             emit("maintenance_updated", {})
+    elif req.resource_type == "Trip":
+        # Soft delete — keeps the trip (and its closure/sheet/invoice) recoverable
+        # from the "Deleted Trips" page instead of destroying it outright.
+        trip = db.get(models.Trip, req.resource_id)
+        if trip and trip.deleted_at is None:
+            trip.deleted_at = datetime.now(timezone.utc)
+            emit("trip_deleted", {"trip_id": req.resource_id, "trip_id_str": req.resource_name})
 
     req.status = "Approved"
     req.approved_by_name = current_user.name

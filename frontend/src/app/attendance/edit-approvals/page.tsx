@@ -12,7 +12,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { showSuccess, showError, confirmDelete } from "@/lib/swal";
 import { Trash2 } from "lucide-react";
 
-type FilterValue = "All" | "Pending" | "Approved" | "Rejected";
+type FilterValue = "Pending" | "Approved" | "Rejected";
 
 function timeLeft(expiresAt: string | null): string {
   if (!expiresAt) return "";
@@ -41,7 +41,7 @@ function formatDate(raw: string | null): string {
 export default function EditApprovalsPage() {
   const [requests, setRequests] = useState<EditApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterValue>("All");
+  const [filter, setFilter] = useState<FilterValue>("Pending");
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewing, setViewing] = useState<EditApprovalRequest | null>(null);
@@ -73,8 +73,7 @@ export default function EditApprovalsPage() {
   }, [requests]);
 
   const filtered = useMemo(() => {
-    let result = requests;
-    if (filter !== "All") result = result.filter((r) => r.status === filter);
+    let result = requests.filter((r) => r.status === filter);
     const q = search.trim().toLowerCase();
     if (q) result = result.filter((r) =>
       r.staffName.toLowerCase().includes(q) ||
@@ -92,7 +91,7 @@ export default function EditApprovalsPage() {
       } else if (updated.action === "Edit" && updated.resourceType === "FuelLog") {
         showSuccess("Fuel log updated — changes applied immediately.");
       } else {
-        showSuccess("Edit access approved — Staff has 1 hour to make changes.");
+        showSuccess("Edit access approved — Staff has 5 hours to make changes.");
       }
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to approve request.");
@@ -148,7 +147,7 @@ export default function EditApprovalsPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={5} />;
 
-  const FILTERS: FilterValue[] = ["All", "Pending", "Approved", "Rejected"];
+  const FILTERS: FilterValue[] = ["Pending", "Approved", "Rejected"];
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

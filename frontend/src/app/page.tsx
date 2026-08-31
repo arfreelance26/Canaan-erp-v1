@@ -8,6 +8,7 @@ import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboar
 import { FinanceManagerDashboard } from "@/components/dashboard/FinanceManagerDashboard";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
+import { AuditorDashboard } from "@/components/dashboard/AuditorDashboard";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import Link from "next/link";
 import {
@@ -188,6 +189,9 @@ export default function DashboardPage() {
   }
   if (user?.softwareDesignation === "Yard Supervisor") {
     return <TripSheetCoordinatorDashboard />;
+  }
+  if (user?.softwareDesignation === "Auditor") {
+    return <AuditorDashboard />;
   }
 
   return <AdminDashboard />;

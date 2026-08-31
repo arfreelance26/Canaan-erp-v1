@@ -539,13 +539,10 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <p className={sh}>Invoice Type</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {INVOICE_TYPES.map((type) => {
-                const lockedMemo = isSelf && type !== "Transport Memo";
                 const lockedBos = isBillOfSupplyLocked && type !== "Bill of Supply";
                 const blocked = !isSelf && !isBillOfSupplyLocked && type === "Tax Invoice" && !taxSelected;
-                const disabled = lockedMemo || lockedBos || blocked;
-                const lockTitle = lockedMemo
-                  ? "Locked — Bill To is Self/CGI"
-                  : lockedBos
+                const disabled = lockedBos || blocked;
+                const lockTitle = lockedBos
                   ? `Locked — customer is ${customer?.isGta === "Yes" ? "a GTA" : "a Transporter"}`
                   : type === "Transport Memo"
                   ? "Billed to Canaan Global International"
@@ -572,10 +569,10 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
               })}
             </div>
             <p className="text-xs text-gray-400">
-              {isSelf
-                ? "Locked to Transport Memo — this trip is billed to Canaan Global International."
-                : isBillOfSupplyLocked
+              {isBillOfSupplyLocked
                 ? `Locked to Bill of Supply — customer is ${customer?.isGta === "Yes" ? "a registered GTA" : "a Transporter"} (GST-exempt under Notification 12/2017).`
+                : isSelf && form.invoiceType === "Transport Memo"
+                ? "Defaults to Transport Memo — this trip is billed to Canaan Global International. Change it above if a different invoice type is needed."
                 : form.invoiceType === "Bill of Supply"
                 ? "GST-exempt supply invoice — for GTA-to-GTA services under Notification 12/2017."
                 : form.invoiceType === "Transport Memo"

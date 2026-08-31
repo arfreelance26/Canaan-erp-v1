@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "patch-package",
     "electron:compile": "tsc -p tsconfig.electron.json",
     "electron:dev": "NODE_ENV=development npm run electron:compile && electron .",
     "electron:build": "next build && npm run electron:compile && electron-builder",
@@ -84,6 +85,7 @@
     "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "patch-package": "^8.0.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

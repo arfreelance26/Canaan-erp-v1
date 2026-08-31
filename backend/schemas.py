@@ -164,10 +164,10 @@ class DriverOut(DriverBase):
 # Staff
 # ---------------------------------------------------------------------------
 
-SoftwareDesignation = Literal["Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"]
+SoftwareDesignation = Literal["Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor", "Auditor"]
 
 
-VALID_DESIGNATIONS = {"Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"}
+VALID_DESIGNATIONS = {"Admin", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor", "Auditor"}
 
 
 class StaffBase(OrmBase):
@@ -446,6 +446,7 @@ class TripBase(OrmBase):
     driver_advance: Optional[Decimal] = None
     initial_disbursed_advance: Optional[Decimal] = None
     driver_compensation_type: Optional[DriverCompensationType] = None
+    is_batta_applicable: bool = False
     open_load_hire_type: Optional[Literal["Ton Based", "Fixed"]] = None
     rate_per_ton: Optional[Decimal] = None
     transport_hire_amount: Optional[Decimal] = None
@@ -474,6 +475,11 @@ class TripBase(OrmBase):
             self.customer_cash_advance = None
             self.customer_fuel_advance_amount = None
             self.customer_fuel_advance_litres = None
+        # "Is Batta Applicable" only means anything on a RETURN TRIP; force it off
+        # anywhere else so it can never accidentally flip a non-return trip's batta
+        # out of Net Payable.
+        if self.trip_category != "RETURN TRIP":
+            self.is_batta_applicable = False
         return self
 
 
@@ -943,7 +949,7 @@ class ApproveDeletePayload(OrmBase):
 # Leave Requests
 # ---------------------------------------------------------------------------
 
-LeaveCategory = Literal["Driver", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor"]
+LeaveCategory = Literal["Driver", "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor", "Auditor"]
 LeaveStatus = Literal["Pending", "Approved", "Rejected"]
 
 class ApplicantLookupOut(OrmBase):

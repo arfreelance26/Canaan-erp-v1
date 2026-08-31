@@ -11,6 +11,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 import { ChatProvider } from "@/context/ChatContext";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,6 +60,7 @@ export default function RootLayout({
       <body className="h-full bg-mesh-light font-sans text-gray-900">
         <UppercaseInputs />
         <NoScrollNumberInputs />
+        <Toaster />
         <ThemeProvider>
         <AuthProvider>
           <WebSocketProvider>

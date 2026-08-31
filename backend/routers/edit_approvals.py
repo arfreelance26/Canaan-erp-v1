@@ -153,7 +153,7 @@ def approve_edit_request(
             emit("fuel_updated", {})
         req.expires_at = None
     else:
-        req.expires_at = req.approved_at + timedelta(hours=1)
+        req.expires_at = req.approved_at + timedelta(minutes=300)
 
     db.commit()
     db.refresh(req)

@@ -34,6 +34,7 @@ const ROLE_CAPABILITIES: Record<string, string> = {
   Accounts: "verification, invoice generation (TM/BS/Tax Invoice)",
   "Assistant Commercial Manager": "P&L, mileage, fleet master, plus Commercial Manager actions",
   Maintenance: "maintenance records, tyre management, compliance expiry",
+  Auditor: "audit dashboard (pages being added incrementally)",
 };
 
 export function buildSystemPrompt(role: string, name: string): string {

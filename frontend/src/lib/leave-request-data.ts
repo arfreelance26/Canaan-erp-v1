@@ -8,6 +8,7 @@ export const LEAVE_CATEGORIES: LeaveApplicantCategory[] = [
   "Maintenance",
   "Trip Sheet Register",
   "Yard Supervisor",
+  "Auditor",
 ];
 
 export const initialLeaveRequests: LeaveRequest[] = [

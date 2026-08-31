@@ -282,6 +282,33 @@ def _run_schema_migrations():
         "ALTER TABLE trip_sheets ADD COLUMN driver_compensation_type VARCHAR(50) NULL",
         # staff — token_version for JWT invalidation (force-logout / revoke all sessions)
         "ALTER TABLE staff ADD COLUMN token_version INT NOT NULL DEFAULT 0",
+        # trips — RETURN TRIP driver batta already paid beforehand by default; this flag lets
+        # the Commercial Manager mark it as still owed, so it counts toward Net Payable
+        "ALTER TABLE trips ADD COLUMN is_batta_applicable TINYINT(1) NOT NULL DEFAULT 0",
+        # trips — soft-delete marker so a deleted trip can be restored from the
+        # "Deleted Trips" page instead of being gone forever
+        "ALTER TABLE trips ADD COLUMN deleted_at DATETIME NULL",
+        # deletion_approval_requests — non-Admin trip deletion requests (see trips/history
+        # page) now go through this same system instead of edit_approval_requests, so
+        # "Deleted Trips" has one consistent, admin-reviewable audit trail across all
+        # deletable resource types.
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip') NOT NULL",
+        # chat_messages.reply_to_id — the column has existed since replies shipped, but the
+        # self-referential FK the model declares (ON DELETE SET NULL) was never actually
+        # added to the DB. Low-risk in practice (a reply is only ever created within the same
+        # conversation as its parent, so both are always removed together by the conversation's
+        # own CASCADE), but the constraint should exist to match models.py and catch anything
+        # that could otherwise leave a dangling reply_to_id.
+        "ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_message_reply_to "
+        "FOREIGN KEY (reply_to_id) REFERENCES chat_messages(id) ON DELETE SET NULL",
+        # New role: Auditor. Widen both role-list enums that mirror staff.software_designation
+        # (see the historical role-rename block below for why these two columns are kept in sync).
+        "ALTER TABLE staff MODIFY COLUMN software_designation "
+        "ENUM('Admin','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Trip Sheet Register','Yard Supervisor','Auditor') "
+        "NOT NULL DEFAULT 'Trip Sheet Register'",
+        "ALTER TABLE leave_requests MODIFY COLUMN category "
+        "ENUM('Driver','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Trip Sheet Register','Yard Supervisor','Auditor') "
+        "NOT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

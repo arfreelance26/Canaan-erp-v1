@@ -649,6 +649,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     driverAdvance: String(b.driver_advance ?? ""),
     initialDisbursedAdvance: b.initial_disbursed_advance != null ? String(b.initial_disbursed_advance) : undefined,
     driverCompensationType: b.driver_compensation_type ?? "",
+    isBattaApplicable: b.is_batta_applicable ?? false,
     openLoadHireType: b.open_load_hire_type ?? "",
     ratePerTon: String(b.rate_per_ton ?? ""),
     transportHireAmount: String(b.transport_hire_amount ?? ""),
@@ -731,6 +732,7 @@ function fromTrip(f: Trip) {
     driver_advance: f.driverAdvance ? parseFloat(f.driverAdvance) : null,
     initial_disbursed_advance: f.initialDisbursedAdvance ? parseFloat(f.initialDisbursedAdvance) : null,
     driver_compensation_type: f.driverCompensationType || null,
+    is_batta_applicable: f.tripCategory === "RETURN TRIP" ? !!f.isBattaApplicable : false,
     open_load_hire_type: f.openLoadHireType || null,
     rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
@@ -1487,6 +1489,9 @@ export const tripsApi = {
   listShippingLines: () => req<string[]>("/trips/shipping-lines"),
   listCargoReferences: () => req<string[]>("/trips/cargo-references"),
   remove: (dbId: string) => req<void>(`/trips/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/trips/${dbId}/restore`, { method: "POST" }).then(toTrip),
+  removePermanent: (dbId: string) => req<void>(`/trips/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/trips/deleted-ids"),
   collectSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),
   receiveSheet: (dbId: string) =>
@@ -1883,6 +1888,23 @@ function toDeletionApproval(b: B): DeletionApprovalRequest {
 }
 
 export const deletionApprovalsApi = {
+  create: (payload: {
+    resourceType: string;
+    resourceId: number;
+    resourceName: string;
+    reason: string;
+    logDetails?: Record<string, unknown>;
+  }): Promise<DeletionApprovalRequest> =>
+    req<B>("/deletion-approvals", {
+      method: "POST",
+      body: JSON.stringify({
+        resource_type: payload.resourceType,
+        resource_id: payload.resourceId,
+        resource_name: payload.resourceName,
+        log_details: payload.logDetails ?? null,
+        reason: payload.reason,
+      }),
+    }).then(toDeletionApproval),
   list: (status?: string, resourceType?: string): Promise<DeletionApprovalRequest[]> => {
     const params = new URLSearchParams();
     if (status) params.set("status", status);

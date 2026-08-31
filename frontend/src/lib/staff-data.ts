@@ -15,6 +15,7 @@ export const SOFTWARE_DESIGNATION_OPTIONS = [
   "Maintenance",
   "Yard Supervisor",
   "Trip Sheet Register",
+  "Auditor",
 ];
 
 export const initialStaff: Staff[] = [
