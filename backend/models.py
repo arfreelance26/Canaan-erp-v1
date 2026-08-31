@@ -3,7 +3,7 @@ from sqlalchemy import (
     Boolean, Column, Date, DateTime, Enum, ForeignKey, Index,
     Integer, JSON, LargeBinary, Numeric, String, Text, UniqueConstraint, func,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 from database import Base
 
 
@@ -1200,6 +1200,15 @@ class ChatConversation(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     kind = Column(Enum("direct", "group"), nullable=False, default="direct")
     title = Column(String(150))                       # groups only; direct threads render the peer's name
+    # Group icon — groups only. Original filename kept purely for a sane
+    # Content-Disposition; MIME is always re-derived from magic bytes on read.
+    photo_url = Column(String(255), nullable=True)
+    # Deferred: the conversation list is a hot, tightly-bounded-query path (see
+    # module docstring) that loads full ChatConversation rows in bulk — an eager
+    # LONGBLOB here would drag every group's icon bytes over the wire on every
+    # list refresh. Only the dedicated photo endpoint (which queries it directly)
+    # ever touches this column.
+    photo_blob = deferred(Column(LargeBinary(length=26214400), nullable=True))
     # Canonical "<lowId>:<highId>" for direct threads, NULL for groups. The unique
     # index is what makes "open a DM with X" idempotent even if two requests race:
     # the loser gets an IntegrityError and re-reads the winner's row.

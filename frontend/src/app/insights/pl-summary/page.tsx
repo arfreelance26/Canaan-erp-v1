@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Fragment, useState, useMemo, useEffect } from "react";
 import {
   TrendingUp, TrendingDown,
   Loader2, BarChart3, ArrowRight,
-  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, FileDown, X,
+  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, FileDown, X, ShieldCheck, ChevronDown,
+  Calculator, Compass, Route, FileText, Fuel, MousePointerClick, SlidersHorizontal,
 } from "lucide-react";
 import { plSummaryApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
@@ -103,6 +104,266 @@ function SortTh({ label, col, current, dir, onSort }: {
   );
 }
 
+// ── Guide modal shell ────────────────────────────────────────────────────────────
+type GuideTab = "Overview" | "Manual" | "Basic" | "Advanced";
+const GUIDE_TABS: GuideTab[] = ["Overview", "Manual", "Basic", "Advanced"];
+const MODE_DOT: Record<GuideTab, string> = { Overview: "bg-blue-500", Manual: "bg-amber-400", Basic: "bg-teal-500", Advanced: "bg-violet-500" };
+
+function ModalShell({ title, subtitle, icon, onClose, tabBar, children }: {
+  title: string; subtitle?: string; icon: React.ReactNode; onClose: () => void;
+  tabBar?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600 shrink-0">{icon}</div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+              {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
+          <button type="button" onClick={onClose}
+            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors shrink-0">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {tabBar && <div className="px-6 pt-4 shrink-0">{tabBar}</div>}
+        <div className="flex-1 overflow-auto px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ModeTabBar({ active, onChange }: { active: GuideTab; onChange: (t: GuideTab) => void }) {
+  return (
+    <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 w-fit">
+      {GUIDE_TABS.map((t) => (
+        <button
+          key={t} type="button" onClick={() => onChange(t)}
+          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+            active === t ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${MODE_DOT[t]}`} />
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Formula({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg bg-slate-900 px-4 py-3 font-mono text-[11px] leading-relaxed text-slate-100 overflow-x-auto">
+      {children}
+    </div>
+  );
+}
+
+function GuideSection({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="mb-5 last:mb-0">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+        {icon}{title}
+      </p>
+      <div className="space-y-2 text-sm text-gray-700 leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+// ── "How is it Calculated" modal ─────────────────────────────────────────────────
+function HowCalculatedModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<GuideTab>("Overview");
+  return (
+    <ModalShell
+      title="How is it Calculated"
+      subtitle="Formulas behind every figure on this page"
+      icon={<Calculator className="h-5 w-5" />}
+      onClose={onClose}
+      tabBar={<ModeTabBar active={tab} onChange={setTab} />}
+    >
+      {tab === "Overview" && (
+        <>
+          <GuideSection title="Data source" icon={<FileText className="h-3.5 w-3.5" />}>
+            <p>
+              Every figure comes from the backend <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px]">/pl-summary</code> endpoint
+              for your selected date range. It pulls trip hire &amp; expenses, maintenance records, EMI loans, and document/compliance
+              validity windows (RC, FC, Road Tax, Insurance, National/Local Permit, Pollution Certificate) — all pro-rated to the exact days
+              that fall inside your period.
+            </p>
+          </GuideSection>
+
+          <GuideSection title="Trip Profitability tab" icon={<Route className="h-3.5 w-3.5" />}>
+            <p>Per trip:</p>
+            <Formula>Gross Profit&nbsp;&nbsp;=&nbsp;&nbsp;Hire Amount − Trip Expenses</Formula>
+            <Formula>Truck Expenses&nbsp;&nbsp;=&nbsp;&nbsp;Total KM × Cost/KM&nbsp;&nbsp;(from the selected mode)</Formula>
+            <Formula>Final Profit&nbsp;&nbsp;=&nbsp;&nbsp;Gross Profit − Truck Expenses</Formula>
+          </GuideSection>
+
+          <GuideSection title="Truck Profitability tab" icon={<Wrench className="h-3.5 w-3.5" />}>
+            <p>Aggregated per truck across every trip in the period:</p>
+            <Formula>Total Gross Profit&nbsp;&nbsp;=&nbsp;&nbsp;Total Hire Amount − Total Trip Expenses</Formula>
+            <Formula>Final Profit&nbsp;&nbsp;=&nbsp;&nbsp;Total Gross Profit − (Total KM × Cost/KM)</Formula>
+            <Formula>
+              Net P&amp;L&nbsp;&nbsp;=&nbsp;&nbsp;Total Gross Profit − EMI Share − Maintenance − Document/Compliance Share
+            </Formula>
+            <p className="text-xs text-gray-500">
+              <b>Net P&amp;L</b> is calculated entirely from real backend records (loans, maintenance bills, document renewals) and does
+              <b> not</b> depend on the Cost/KM mode. <b>Final Profit</b> is the only figure that changes per mode, since it depends on the
+              Running Cost Calculator&rsquo;s Cost/KM value. Click any truck row to expand the full breakdown.
+            </p>
+            <ul className="ml-4 list-disc space-y-1 text-xs text-gray-600">
+              <li><b>EMI Share</b> — monthly EMI × (days of the period the loan was active ÷ 30), summed across every active loan.</li>
+              <li><b>Maintenance</b> — sum of all maintenance record costs dated inside the period.</li>
+              <li><b>Document/Compliance Share</b> — each document&rsquo;s renewal cost spread evenly across its validity window, then the days that overlap your period are billed.</li>
+            </ul>
+          </GuideSection>
+
+          <GuideSection title="Cost/KM modes" icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
+            <p>
+              Switch to the <b>Manual</b>, <b>Basic</b>, or <b>Advanced</b> tab above for how each one sources its Cost/KM figure —
+              the number that drives every &ldquo;Truck Expenses&rdquo; and &ldquo;Final Profit&rdquo; column on this page.
+            </p>
+          </GuideSection>
+        </>
+      )}
+
+      {tab === "Manual" && (
+        <>
+          <GuideSection title="How Manual mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
+            <p>
+              Every cost input — diesel price/litre, mileage, tyre cost, EMI, AdBlue, maintenance and compliance cost per km — is
+              typed in by hand on the <b>Running Cost Calculator</b> page. One set of values is applied uniformly to whichever trucks
+              you assign it to; nothing is auto-fetched.
+            </p>
+          </GuideSection>
+          <GuideSection title="What that means here">
+            <p>
+              Truck Expenses = Total KM × the Cost/KM you manually entered for that truck under Manual mode. If you haven&rsquo;t set a
+              value for a truck yet, its Truck Expenses / Final Profit columns show <span className="text-gray-400">—</span>.
+            </p>
+            <p className="text-xs text-gray-500">Best for: quick, rough what-if estimates without needing live fleet data.</p>
+          </GuideSection>
+        </>
+      )}
+
+      {tab === "Basic" && (
+        <>
+          <GuideSection title="How Basic mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
+            <p>
+              Blends auto-fetched defaults with a few editable fields: diesel price is pulled from Maintenance → Fuel History
+              (&ldquo;Set Base Litre Cost&rdquo;), tyre cost comes from Admin → Tyre Cost Configuration, and AdBlue defaults come from the
+              manufacturer&rsquo;s default price/consumption. EMI fields (amount, per-day, per-km) stay manually editable, falling back to a
+              fetched value only if left blank.
+            </p>
+          </GuideSection>
+          <GuideSection title="What that means here">
+            <p>
+              Truck Expenses = Total KM × the Cost/KM computed under Basic mode for that truck. It updates automatically when the
+              underlying fuel price or tyre configuration changes, but still needs a value to be present for each truck.
+            </p>
+            <p className="text-xs text-gray-500">Best for: day-to-day estimates that track real fuel/tyre pricing without full per-truck automation.</p>
+          </GuideSection>
+        </>
+      )}
+
+      {tab === "Advanced" && (
+        <>
+          <GuideSection title="How Advanced mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
+            <p>Fully automatic and read-only — nothing is typed in. Every input is strictly fetched per truck:</p>
+            <ul className="ml-4 list-disc space-y-1 text-xs text-gray-600">
+              <li>Mileage — lifetime average (km/L) from Maintenance → Fuel History</li>
+              <li>Tyre cost/km — Tyre Management → View Tyre Data</li>
+              <li>Maintenance cost/km — Truck Maintenance → Full Status</li>
+              <li>Compliance cost/km — Compliance &amp; Renewals → View Cost Breakdown</li>
+              <li>EMI — fetched directly, no manual override</li>
+              <li>AdBlue cost/km — AdBlue Management page</li>
+            </ul>
+          </GuideSection>
+          <GuideSection title="What that means here">
+            <p>
+              Truck Expenses = Total KM × the Cost/KM computed under Advanced mode — the most accurate figure available, since it&rsquo;s
+              built entirely from each truck&rsquo;s own live records rather than a shared estimate. A truck with incomplete records (e.g. no
+              Fuel History entries) may still show <span className="text-gray-400">—</span> for that field.
+            </p>
+            <p className="text-xs text-gray-500">Best for: final, audit-grade profitability figures once a truck&rsquo;s data is fully maintained.</p>
+          </GuideSection>
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+// ── "Quick Start Guide" modal ─────────────────────────────────────────────────────
+function QuickStartModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<GuideTab>("Overview");
+  return (
+    <ModalShell
+      title="Quick Start Guide"
+      subtitle="Get comfortable with this page in under a minute"
+      icon={<Compass className="h-5 w-5" />}
+      onClose={onClose}
+      tabBar={<ModeTabBar active={tab} onChange={setTab} />}
+    >
+      {tab === "Overview" && (
+        <div className="space-y-4">
+          {[
+            { n: 1, title: "Pick a period", body: "Use a quick preset (This Month, Last 3 Months, …) or set a custom From/To date. Data loads automatically." },
+            { n: 2, title: "Choose a tab", body: "Trip Profitability lists every individual trip; Truck Profitability aggregates everything per truck for the period." },
+            { n: 3, title: "Pick a Cost/KM mode", body: "Manual, Basic or Advanced — controls only the \"Truck Expenses\" and \"Final Profit\" columns. Set actual values first on the Running Cost Calculator page (see the mode tabs above for how each one works)." },
+            { n: 4, title: "Expand a truck row", body: "In Truck Profitability, click any row to open the full Net P&L walkthrough — EMI loans, maintenance records, document/compliance share, and the trip list behind the numbers." },
+            { n: 5, title: "Read the summary cards", body: "Total Trips/Trucks, Profitable count, Hire Revenue, Net P&L and Final Profit — a snapshot before you dig into the table." },
+            { n: 6, title: "Generate a report", body: "Click \"Generate Report\" top-right to preview the current tab/period/mode, then export it as a PDF." },
+          ].map((s) => (
+            <div key={s.n} className="flex gap-3">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{s.n}</div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{s.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{s.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "Manual" && (
+        <div className="space-y-4">
+          <GuideSection title="Getting started with Manual mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
+            <p>1. Go to <b>Running Cost Calculator</b> → switch to the Manual tab.</p>
+            <p>2. Type in diesel price/litre, mileage, tyre cost, EMI and AdBlue figures for a truck.</p>
+            <p>3. Come back here, select the <b>Manual</b> mode pill next to the tab bar — Truck Expenses / Final Profit fill in immediately.</p>
+          </GuideSection>
+          <p className="text-xs text-gray-500">Nothing here is fetched automatically, so revisit the Calculator whenever diesel prices or other costs change.</p>
+        </div>
+      )}
+
+      {tab === "Basic" && (
+        <div className="space-y-4">
+          <GuideSection title="Getting started with Basic mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
+            <p>1. Make sure Maintenance → Fuel History has a base litre cost set, and Admin → Tyre Cost Configuration is filled in.</p>
+            <p>2. Go to <b>Running Cost Calculator</b> → Basic tab — fuel/tyre pull in automatically; fill in the EMI fields if they&rsquo;re blank.</p>
+            <p>3. Come back here and select the <b>Basic</b> mode pill — figures update to match.</p>
+          </GuideSection>
+          <p className="text-xs text-gray-500">A lighter-touch option than Manual — most inputs stay current on their own.</p>
+        </div>
+      )}
+
+      {tab === "Advanced" && (
+        <div className="space-y-4">
+          <GuideSection title="Getting started with Advanced mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
+            <p>1. Make sure each truck has real records in Fuel History, Tyre Management, Truck Maintenance and Compliance &amp; Renewals.</p>
+            <p>2. Go to <b>Running Cost Calculator</b> → Advanced tab to confirm every field is populated (it&rsquo;s read-only — nothing to type).</p>
+            <p>3. Come back here and select the <b>Advanced</b> mode pill for the most accurate Truck Expenses / Final Profit figures.</p>
+          </GuideSection>
+          <p className="text-xs text-gray-500">If a truck is missing source data, its Truck Expenses / Final Profit will show as &ldquo;—&rdquo; until that data exists.</p>
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
 // ── Label helpers ──────────────────────────────────────────────────────────────
 
 const LABEL_MAP: Record<string, string> = {
@@ -158,11 +419,17 @@ function TripProfitabilityTab({ trips, mode }: { trips: EnrichedTrip[]; mode: "M
   const totalHire  = trips.reduce((s, t) => s + t.hireAmount, 0);
   const totalExp   = trips.reduce((s, t) => s + t.totalExpense, 0);
   const netPl      = trips.reduce((s, t) => s + t.tripPl, 0);
+  const { total: finalProfit, hasCpk: hasCpkTrips } = trips.reduce((acc, t) => {
+    const cpk = costPerKmMap[mode]?.[t.truckId];
+    const truckExp = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
+    if (truckExp != null) return { total: acc.total + (t.hireAmount - t.totalExpense - truckExp), hasCpk: true };
+    return acc;
+  }, { total: 0, hasCpk: false });
 
   return (
     <div className="flex flex-col gap-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <StatCard label="Total Trips"      value={String(trips.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trips" value={`${profitable} / ${trips.length}`}
           sub={trips.length ? `${((profitable / trips.length) * 100).toFixed(0)}% success rate` : ""}
@@ -172,6 +439,10 @@ function TripProfitabilityTab({ trips, mode }: { trips: EnrichedTrip[]; mode: "M
         <StatCard label="Net Trip P&L" value={fmt(netPl)} sub={netPl >= 0 ? "Overall Profit" : "Overall Loss"}
           icon={netPl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           color={netPl >= 0 ? "emerald" : "red"} />
+        <StatCard label="Final Profit" value={hasCpkTrips ? fmt(finalProfit) : "—"}
+          sub={hasCpkTrips ? (finalProfit >= 0 ? "After Truck Expenses" : "After Truck Expenses (Loss)") : `No cost-per-km set (${mode})`}
+          icon={finalProfit >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          color={!hasCpkTrips ? "slate" : (finalProfit >= 0 ? "emerald" : "red")} />
       </div>
 
       {/* Table */}
@@ -351,9 +622,16 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
               </span>
               <span className="font-semibold text-orange-700">− {fmt(entry.maintenanceExpenses)}</span>
             </div>
+            <div className="flex justify-between py-1 text-xs border-t border-slate-100 mt-1">
+              <span className="text-teal-700 flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3" />
+                Document/Compliance Share
+              </span>
+              <span className="font-semibold text-teal-700">− {fmt(entry.documentShare)}</span>
+            </div>
             <div className="flex justify-between border-t border-slate-200 mt-1 pt-2">
               <span className="text-xs font-bold text-slate-600">Total Deductions</span>
-              <span className="text-xs font-bold text-slate-700">− {fmt(entry.emiShare + entry.maintenanceExpenses)}</span>
+              <span className="text-xs font-bold text-slate-700">− {fmt(entry.emiShare + entry.maintenanceExpenses + entry.documentShare)}</span>
             </div>
           </div>
 
@@ -504,6 +782,7 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
 function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Manual" | "Basic" | "Advanced" }) {
   // Cost-per-km map written by Running Cost Calculator, keyed by truckId (fleet ID) per mode
   const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
+  const [expandedTruck, setExpandedTruck] = useState<string | null>(null);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("canaan_rcc_cost_per_km");
@@ -515,7 +794,7 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
     data.map((e) => ({
       ...e,
       tripPl:      e.totalHireAmount - e.tripExpenses,
-      netTruckPl:  e.totalHireAmount - e.tripExpenses - e.emiShare - e.maintenanceExpenses,
+      netTruckPl:  e.netPl,
     })),
     [data],
   );
@@ -528,10 +807,36 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
     tExp:    filtered.reduce((s, e) => s + e.tripExpenses, 0),
     totalKm: filtered.reduce((s, e) => s + e.totalKm, 0),
     tPl:     filtered.reduce((s, e) => s + e.tripPl, 0),
+    netPl:   filtered.reduce((s, e) => s + e.netTruckPl, 0),
   }), [filtered]);
+
+  const { total: finalProfit, hasCpk: hasCpkTrucks } = filtered.reduce((acc, e) => {
+    const cpk = costPerKmMap[mode]?.[e.truckId];
+    const truckExp = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
+    if (truckExp != null) return { total: acc.total + (e.totalHireAmount - e.tripExpenses - truckExp), hasCpk: true };
+    return acc;
+  }, { total: 0, hasCpk: false });
+  const profitableTrucks = filtered.filter((e) => e.tripPl >= 0).length;
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <StatCard label="Total Trucks" value={String(filtered.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
+        <StatCard label="Profitable Trucks" value={`${profitableTrucks} / ${filtered.length}`}
+          sub={filtered.length ? `${((profitableTrucks / filtered.length) * 100).toFixed(0)}% success rate` : ""}
+          icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
+        <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} sub={`Expenses: ${fmt(totals.tExp)}`}
+          icon={<DollarSign className="h-4 w-4" />} color="blue" />
+        <StatCard label="Net P&L" value={fmt(totals.netPl)} sub={totals.netPl >= 0 ? "Overall Profit" : "Overall Loss"}
+          icon={totals.netPl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          color={totals.netPl >= 0 ? "emerald" : "red"} />
+        <StatCard label="Final Profit" value={hasCpkTrucks ? fmt(finalProfit) : "—"}
+          sub={hasCpkTrucks ? (finalProfit >= 0 ? "After Truck Expenses" : "After Truck Expenses (Loss)") : `No cost-per-km set (${mode})`}
+          icon={finalProfit >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          color={!hasCpkTrucks ? "slate" : (finalProfit >= 0 ? "emerald" : "red")} />
+      </div>
 
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
@@ -544,14 +849,23 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
             <table className="w-full min-w-[1020px] text-sm">
               <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {["Truck", "No of Trips", "Total KM Covered", "Total Hire Amount", "Total Trip Expenses", "Total Gross Profit", "Total Truck Expenses", "Final Profit"].map((h, i) => (
+                  {["", "Truck", "No of Trips", "Total KM Covered", "Total Hire Amount", "Total Trip Expenses", "Total Gross Profit", "Total Truck Expenses", "Final Profit", "Net P&L"].map((h, i) => (
                     <th key={i} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry) => (
-                  <tr key={entry.truckId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                {filtered.map((entry) => {
+                  const isOpen = expandedTruck === entry.truckId;
+                  return (
+                  <Fragment key={entry.truckId}>
+                  <tr
+                    onClick={() => setExpandedTruck(isOpen ? null : entry.truckId)}
+                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                      <td className="px-2 py-3 text-center">
+                        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      </td>
                       <td className="px-4 py-3">
                         <p className="font-semibold text-gray-900">{entry.truckId}</p>
                         <p className="text-xs text-gray-400">{entry.registrationNumber}</p>
@@ -585,11 +899,22 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
                             : <span className="text-gray-400 text-xs">—</span>;
                         })()}
                       </td>
+                      <td className="px-4 py-3"><PlBadge value={entry.netTruckPl} /></td>
                   </tr>
-                ))}
+                  {isOpen && (
+                    <tr className="border-b border-gray-100">
+                      <td colSpan={9} className="p-0">
+                        <TruckDetailPanel entry={entry} netTruckPl={entry.netTruckPl} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+                  <td className="px-2 py-3"></td>
                   <td className="px-4 py-3 text-gray-700">
                     Fleet Total
                     <span className="ml-1.5 text-xs font-normal text-gray-400">
@@ -626,6 +951,7 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
                       return hasCpk ? <PlBadge value={total} /> : <span className="text-gray-400 text-xs">—</span>;
                     })()}
                   </td>
+                  <td className="px-4 py-3"><PlBadge value={totals.netPl} /></td>
                 </tr>
               </tfoot>
             </table>
@@ -634,7 +960,8 @@ function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Ma
       </div>
 
       <p className="text-[11px] text-gray-400 italic">
-        Total Gross Profit = Total Hire Amount − Total Trip Expenses. Final Profit = Total Gross Profit − Total Truck Expenses.
+        Total Gross Profit = Total Hire Amount − Total Trip Expenses. Final Profit = Total Gross Profit − Total Truck Expenses (cost-per-km based).
+        Net P&L = Total Gross Profit − EMI Share − Maintenance − Document/Compliance Share. Click a row to see the full breakdown.
       </p>
     </div>
   );
@@ -653,6 +980,8 @@ export default function PLSummaryPage() {
   const [mode, setMode]                      = useState<"Manual" | "Basic" | "Advanced">("Manual");
   const [showPreview, setShowPreview]        = useState(false);
   const [previewCostMap, setPreviewCostMap]  = useState<Record<string, Record<string, number | null>>>({});
+  const [showHowCalculated, setShowHowCalculated] = useState(false);
+  const [showQuickStart, setShowQuickStart]  = useState(false);
 
   useEffect(() => { fetchData(); }, []); // auto-load current month on mount
 
@@ -814,15 +1143,31 @@ ${bodyHtml}
             Trip-wise and truck-wise P&L for the selected period.
           </p>
         </div>
-        {data && (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            type="button" onClick={openPreview}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+            type="button" onClick={() => setShowQuickStart(true)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
           >
-            <FileDown className="h-4 w-4" />
-            Generate Report
+            <Compass className="h-4 w-4" />
+            Quick Start Guide
           </button>
-        )}
+          <button
+            type="button" onClick={() => setShowHowCalculated(true)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+          >
+            <Calculator className="h-4 w-4" />
+            How is it Calculated
+          </button>
+          {data && (
+            <button
+              type="button" onClick={openPreview}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <FileDown className="h-4 w-4" />
+              Generate Report
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Controls */}
@@ -946,6 +1291,9 @@ ${bodyHtml}
           </p>
         </div>
       )}
+
+      {showHowCalculated && <HowCalculatedModal onClose={() => setShowHowCalculated(false)} />}
+      {showQuickStart && <QuickStartModal onClose={() => setShowQuickStart(false)} />}
 
       {/* ── Report Preview Modal ───────────────────────────────────────────────── */}
       {showPreview && data && (

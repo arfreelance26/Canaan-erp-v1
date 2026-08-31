@@ -1751,6 +1751,9 @@ function toMaintStatus(b: MaintStatusBackend): TruckMaintenanceStatus {
 export const maintenanceApi = {
   listRecords: (truckId?: string) =>
     req<B[]>(`/maintenance/records${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toMaintenanceRecord)),
+  // Read-only EMI listing — routers/finance.py's /finance/emi requires Accounts/Admin;
+  // this is the same data via a login-only endpoint, for roles like Auditor.
+  listEmiRecordsReadOnly: () => req<B[]>("/maintenance/emi-records").then((d) => d.map(toEmiRecord)),
   createRecord: (record: MaintenanceRecord, truckDbId: string) =>
     req<B>("/maintenance/records", {
       method: "POST",
@@ -2861,6 +2864,7 @@ function toChatConversation(b: B): ChatConversation {
     kind: (b.kind as ChatConversation["kind"]) ?? "direct",
     title: b.title ?? null,
     peer: b.peer ? toChatMember(b.peer as B) : null,
+    hasPhoto: Boolean(b.has_photo),
     memberCount: Number(b.member_count ?? 0),
     unreadCount: Number(b.unread_count ?? 0),
     muted: Boolean(b.muted),
@@ -2908,6 +2912,58 @@ export const chatApi = {
       method: "PATCH",
       body: JSON.stringify({ title }),
     }).then(toChatConversationDetail),
+
+  /**
+   * A plain `<img src>` for a group's icon. Served by a dedicated route (not
+   * `fileUrl`'s generic `/files/...` pattern) so access stays participant-only,
+   * same as every other conversation read — the token travels as `?token=`
+   * since an <img> tag can't send an Authorization header.
+   */
+  groupPhotoUrl: (id: number): string => {
+    const base = `${BASE}/chat/conversations/${id}/photo`;
+    if (typeof window === "undefined") return base;
+    try {
+      const stored = localStorage.getItem("canaan_erp_user");
+      const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
+      return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+    } catch {
+      return base;
+    }
+  },
+
+  /** Admin-only. Raw multipart upload like `sendAttachment` — the body is file bytes, not JSON. */
+  uploadGroupPhoto: async (id: number, file: File): Promise<ChatConversationDetail> => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/chat/conversations/${id}/photo`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+      });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (res.status === 413) {
+      throw new Error(await extractDetail(res, "Image is too large."));
+    }
+    if (res.status === 415) {
+      throw new Error(await extractDetail(res, "Unsupported file type."));
+    }
+    if (!res.ok) {
+      throw new Error(await extractDetail(res, `Could not upload photo: HTTP ${res.status}`));
+    }
+    return toChatConversationDetail(await res.json());
+  },
+
+  /** Admin-only. */
+  removeGroupPhoto: (id: number): Promise<ChatConversationDetail> =>
+    chatReq<B>(`/chat/conversations/${id}/photo`, { method: "DELETE" }).then(toChatConversationDetail),
 
   addMembers: (id: number, memberIds: number[]): Promise<ChatConversationDetail> =>
     chatReq<B>(`/chat/conversations/${id}/members`, {

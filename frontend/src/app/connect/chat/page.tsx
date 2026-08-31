@@ -30,6 +30,7 @@ import {
   Download,
   File as FileIcon,
   IndianRupee,
+  Camera,
 } from "lucide-react";
 import { chatApi, toChatMessage } from "@/lib/api";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
@@ -49,6 +50,30 @@ function getInitials(name: string): string {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+/**
+ * Deterministic per-sender color for group chats — so at a glance you can tell
+ * two consecutive senders apart by their avatar/name color alone, not just by
+ * re-reading the name label on every run.
+ */
+const SENDER_PALETTE = [
+  { bg: "bg-rose-500", text: "text-rose-600" },
+  { bg: "bg-orange-500", text: "text-orange-600" },
+  { bg: "bg-amber-500", text: "text-amber-700" },
+  { bg: "bg-emerald-500", text: "text-emerald-600" },
+  { bg: "bg-teal-500", text: "text-teal-600" },
+  { bg: "bg-cyan-600", text: "text-cyan-700" },
+  { bg: "bg-blue-500", text: "text-blue-600" },
+  { bg: "bg-indigo-500", text: "text-indigo-600" },
+  { bg: "bg-violet-500", text: "text-violet-600" },
+  { bg: "bg-fuchsia-500", text: "text-fuchsia-600" },
+  { bg: "bg-pink-500", text: "text-pink-600" },
+] as const;
+
+function senderColor(id: number | null): (typeof SENDER_PALETTE)[number] {
+  const key = id ?? 0;
+  return SENDER_PALETTE[Math.abs(key) % SENDER_PALETTE.length];
 }
 
 function formatTime(iso: string | null): string {
@@ -532,6 +557,8 @@ export default function CanaanChatPage() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState("");
   const [savingTitle, setSavingTitle] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const groupPhotoInputRef = useRef<HTMLInputElement>(null);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [addMemberIds, setAddMemberIds] = useState<number[]>([]);
   const [addingMembers, setAddingMembers] = useState(false);
@@ -740,7 +767,7 @@ export default function CanaanChatPage() {
       key: `conv-${c.id}`,
       conversation: c as ChatConversation | null,
       isGroup,
-      photoUrl: c.peer?.photoUrl ?? null,
+      photoUrl: isGroup ? (c.hasPhoto ? chatApi.groupPhotoUrl(c.id) : null) : (c.peer?.photoUrl ?? null),
       name: c.title ?? (isGroup ? "Group" : c.peer?.name ?? "Unknown"),
       subtitle: preview,
       time: formatTime(c.lastMessageAt),
@@ -1175,6 +1202,42 @@ export default function CanaanChatPage() {
     }
   }
 
+  async function handleUploadGroupPhoto(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file next time
+    if (!file || !selected || savingPhoto) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showError("Image is too large. The maximum allowed size is 5 MB.");
+      return;
+    }
+    setSavingPhoto(true);
+    try {
+      const detail = await chatApi.uploadGroupPhoto(selected.id, file);
+      setGroupDetail(detail);
+      refreshConversations();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Could not upload the group photo.");
+    } finally {
+      setSavingPhoto(false);
+    }
+  }
+
+  async function handleRemoveGroupPhoto() {
+    if (!selected || savingPhoto) return;
+    const result = await confirmAction("Remove group photo?", "The group will fall back to its default icon.", "Remove");
+    if (!result.isConfirmed) return;
+    setSavingPhoto(true);
+    try {
+      const detail = await chatApi.removeGroupPhoto(selected.id);
+      setGroupDetail(detail);
+      refreshConversations();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Could not remove the group photo.");
+    } finally {
+      setSavingPhoto(false);
+    }
+  }
+
   async function handleAddMembers() {
     if (!selected || addMemberIds.length === 0 || addingMembers) return;
     setAddingMembers(true);
@@ -1399,7 +1462,7 @@ export default function CanaanChatPage() {
                 >
                   <Avatar
                     name={selected.title ?? ""}
-                    photoUrl={selected.peer?.photoUrl}
+                    photoUrl={selected.kind === "group" ? (selected.hasPhoto ? chatApi.groupPhotoUrl(selected.id) : null) : selected.peer?.photoUrl}
                     size={40}
                     group={selected.kind === "group"}
                   />
@@ -1506,7 +1569,19 @@ export default function CanaanChatPage() {
                               </span>
                             </div>
                           ) : (
-                          <div className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
+                          <div className={`flex items-end gap-1.5 ${fromMe ? "justify-end" : "justify-start"}`}>
+                            {selected.kind === "group" && !fromMe && (
+                              showSender ? (
+                                <div
+                                  className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${senderColor(m.senderId).bg}`}
+                                  title={m.senderName ?? "Unknown"}
+                                >
+                                  {getInitials(m.senderName || "?")}
+                                </div>
+                              ) : (
+                                <div className="w-6 shrink-0" />
+                              )
+                            )}
                             <div
                               className={`${entranceAnim} max-w-[70%] text-[14px] shadow-[0_1px_2px_rgba(16,24,40,0.08)] ${
                                 m.contentType === "image" && !m.deleted ? "p-1" : "px-3 py-1.5"
@@ -1517,7 +1592,7 @@ export default function CanaanChatPage() {
                               }`}
                             >
                               {showSender && (
-                                <p className="mb-0.5 text-[11px] font-semibold text-brand-navy">
+                                <p className={`mb-0.5 text-[11px] font-semibold ${senderColor(m.senderId).text}`}>
                                   {m.senderName ?? "Unknown"}
                                 </p>
                               )}
@@ -1726,7 +1801,44 @@ export default function CanaanChatPage() {
               <div className="flex-1 overflow-y-auto">
                 {/* Identity */}
                 <div className="flex flex-col items-center gap-2 border-b border-gray-100 px-5 py-6 text-center">
-                  <Avatar name={groupDetail.title ?? "Group"} photoUrl={null} size={88} group />
+                  <div className="relative">
+                    <Avatar
+                      name={groupDetail.title ?? "Group"}
+                      photoUrl={groupDetail.hasPhoto ? chatApi.groupPhotoUrl(groupDetail.id) : null}
+                      size={88}
+                      group
+                    />
+                    {groupDetail.myRole === "admin" && (
+                      <>
+                        <input
+                          ref={groupPhotoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleUploadGroupPhoto}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          title="Change group photo"
+                          onClick={() => groupPhotoInputRef.current?.click()}
+                          disabled={savingPhoto}
+                          className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-navy text-white shadow-sm transition-colors hover:bg-brand-navy/90 disabled:opacity-60"
+                        >
+                          {savingPhoto ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {groupDetail.myRole === "admin" && groupDetail.hasPhoto && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveGroupPhoto}
+                      disabled={savingPhoto}
+                      className="text-[11px] font-medium text-red-500 transition-colors hover:text-red-600 disabled:opacity-60"
+                    >
+                      Remove photo
+                    </button>
+                  )}
 
                   {editingTitle ? (
                     <div className="mt-2 flex w-full items-center gap-1.5">

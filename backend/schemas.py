@@ -1082,6 +1082,11 @@ class FuelStats(OrmBase):
     total_distance: Decimal
     total_fuel: Decimal
     average_mileage: Decimal
+    last_mileage: Decimal
+    best_mileage: Decimal
+    worst_mileage: Decimal
+    trend_percentage: Decimal
+    cost_per_km: Decimal
 
 
 # ---------------------------------------------------------------------------
@@ -1907,6 +1912,7 @@ class ChatConversationOut(OrmBase):
     kind: ChatConversationKind
     title: Optional[str] = None                  # group name, or the peer's name for a direct thread
     peer: Optional[ChatMemberOut] = None         # direct threads only
+    has_photo: bool = False                       # groups only — whether a group icon has been set
     member_count: int = 0
     unread_count: int = 0
     muted: bool = False

@@ -139,6 +139,15 @@ def list_maintenance_records(
     return q.all()
 
 
+@router.get("/maintenance/emi-records", response_model=list[schemas.EmiRecordOut], tags=["Maintenance"])
+def list_emi_records_readonly(db: Session = Depends(get_db)):
+    """Read-only EMI listing for roles that need to see loan/EMI data without the
+    full financial write access `routers/finance.py`'s /finance/emi requires
+    (that whole router is Accounts/Admin-only). Currently used by Auditor's
+    "Truck EMI Record" page — same query as finance.list_emi, no mutation here."""
+    return db.query(models.EmiRecord).order_by(models.EmiRecord.emi_name).all()
+
+
 @router.post("/maintenance/records", response_model=schemas.MaintenanceRecordOut, status_code=201, tags=["Maintenance"])
 def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     truck = db.get(models.Truck, payload.truck_id)

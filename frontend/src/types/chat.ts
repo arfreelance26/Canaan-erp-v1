@@ -44,6 +44,8 @@ export type ChatConversation = {
   /** Group name, or the peer's name for a direct thread. */
   title: string | null;
   peer: ChatMember | null;
+  /** Groups only — whether a group icon has been set (fetch via chatApi.groupPhotoUrl). */
+  hasPhoto: boolean;
   memberCount: number;
   unreadCount: number;
   muted: boolean;

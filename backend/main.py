@@ -485,6 +485,9 @@ def _run_chat_migrations():
             # NULL if that staff member is later hard-deleted from "Our Staff"; this
             # keeps "who created it" readable regardless.
             "ALTER TABLE chat_conversations ADD COLUMN created_by_name VARCHAR(100) NULL",
+            # Group icon — groups only, added once photo upload shipped.
+            "ALTER TABLE chat_conversations ADD COLUMN photo_url VARCHAR(255) NULL",
+            "ALTER TABLE chat_conversations ADD COLUMN photo_blob LONGBLOB NULL",
             "ALTER TABLE chat_participants ADD COLUMN role ENUM('member','admin') NOT NULL DEFAULT 'member'",
             "ALTER TABLE chat_participants ADD COLUMN last_read_message_id INT NOT NULL DEFAULT 0",
             "ALTER TABLE chat_participants ADD COLUMN muted BOOLEAN NOT NULL DEFAULT FALSE",
@@ -991,6 +994,7 @@ app.include_router(tyre_layout_type_config.router, dependencies=AUTH)
 app.include_router(deletion_approvals.router, dependencies=AUTH)
 app.include_router(payment_requests.router, dependencies=FINANCE)
 app.include_router(chat.router, dependencies=AUTH)
+app.include_router(chat.photo_router)                         # GET group photo: public route, auth done inside (img tags)
 
 
 @app.exception_handler(IntegrityError)

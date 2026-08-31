@@ -93,13 +93,45 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/insights/fleet-summary",
     "/trips/pnl-mileage",
     "/maintenance/truck-records",
+    "/maintenance/truck-fuel-record",
+    "/finance/truck-emi-record",
+    "/maintenance/truck-compliance-record",
     "/trips/history",
   ],
 };
 
+// These live under Insights in nav-config.ts (that's where Auditor sees them,
+// alongside the rest of their read-only analytics pages) but Admin gets them
+// regrouped into their own "Auditor Pages" section, right after Insights —
+// Admin has every other page too, so leaving them mixed into Insights would
+// bury them among a much longer, unrelated list.
+const AUDITOR_ONLY_HREFS = ["/maintenance/truck-records", "/maintenance/truck-fuel-record", "/finance/truck-emi-record", "/maintenance/truck-compliance-record"];
+
+function regroupAuditorPagesForAdmin(sections: NavSection[]): NavSection[] {
+  const extracted: NavSection["items"] = [];
+  const withoutAuditorPages = sections.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => {
+      if (!AUDITOR_ONLY_HREFS.includes(item.href)) return true;
+      extracted.push(item);
+      return false;
+    }),
+  }));
+  if (extracted.length === 0) return withoutAuditorPages;
+
+  const insightsIndex = withoutAuditorPages.findIndex((s) => s.title === "Insights");
+  const auditorSection: NavSection = { title: "Auditor Pages", items: extracted };
+  const insertAt = insightsIndex === -1 ? withoutAuditorPages.length : insightsIndex + 1;
+  return [
+    ...withoutAuditorPages.slice(0, insertAt),
+    auditorSection,
+    ...withoutAuditorPages.slice(insertAt),
+  ];
+}
+
 function getFilteredSections(role: string): NavSection[] {
   const allowed = ROLE_HREFS[role] ?? ["/"];
-  if (allowed === "all") return sidebarSections;
+  if (allowed === "all") return regroupAuditorPagesForAdmin(sidebarSections);
 
   return sidebarSections
     .map((section) => ({

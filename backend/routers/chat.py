@@ -33,8 +33,9 @@ O(participants x messages).
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
+from jose import JWTError
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -51,7 +52,7 @@ from chat_crypto import (
     safe_decrypt,
 )
 from database import get_db
-from security import TokenUser, get_current_user
+from security import TokenUser, decode_token, get_current_user
 from websocket_manager import emit_to_users
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -59,6 +60,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 MAX_PAGE_SIZE = 100
 DEFAULT_PAGE_SIZE = 50
 MAX_GROUP_MEMBERS = 256
+MAX_GROUP_PHOTO_BYTES = 5 * 1024 * 1024   # 5 MB — a group icon, not a document
 MAX_VOICE_SECONDS = 10 * 60   # generous ceiling; the UI itself won't run this long
 
 
@@ -386,6 +388,7 @@ def list_conversations(
                 kind=conv.kind,
                 title=title,
                 peer=peer,
+                has_photo=bool(conv.photo_url),
                 member_count=len(members),
                 unread_count=unread_by_conv.get(conv.id, 0),
                 muted=bool(part.muted),
@@ -513,6 +516,7 @@ def _conversation_detail(db: Session, conv: models.ChatConversation, me: int) ->
         kind=conv.kind,
         title=title,
         peer=peer,
+        has_photo=bool(conv.photo_url),
         member_count=len(members),
         unread_count=0,
         muted=bool(mine.muted) if mine else False,
@@ -1061,6 +1065,110 @@ def rename_group(
     emit_to_users(_participant_ids(db, conversation_id), "chat_conversation_updated",
                   {"conversation_id": conv.id, "title": conv.title})
     return _conversation_detail(db, conv, me)
+
+
+@router.post("/conversations/{conversation_id}/photo", response_model=schemas.ChatConversationDetail)
+async def upload_group_photo(
+    conversation_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    me = _me(current_user)
+    conv = _require_group_admin(db, conversation_id, me)
+    data = await file.read(MAX_GROUP_PHOTO_BYTES + 1)
+    if len(data) > MAX_GROUP_PHOTO_BYTES:
+        raise HTTPException(413, "Image too large. The maximum allowed size is 5 MB.")
+    if _sniff_image_mime(data) is None:
+        raise HTTPException(415, "Unsupported file type. Only JPG, PNG, WEBP or GIF images are allowed.")
+    conv.photo_blob = data
+    conv.photo_url = _sanitize_filename(file.filename)
+    db.commit()
+    db.refresh(conv)
+    emit_to_users(_participant_ids(db, conversation_id), "chat_conversation_updated",
+                  {"conversation_id": conv.id, "photo_changed": True})
+    return _conversation_detail(db, conv, me)
+
+
+@router.delete("/conversations/{conversation_id}/photo", response_model=schemas.ChatConversationDetail)
+def remove_group_photo(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    me = _me(current_user)
+    conv = _require_group_admin(db, conversation_id, me)
+    conv.photo_blob = None
+    conv.photo_url = None
+    db.commit()
+    db.refresh(conv)
+    emit_to_users(_participant_ids(db, conversation_id), "chat_conversation_updated",
+                  {"conversation_id": conv.id, "photo_changed": True})
+    return _conversation_detail(db, conv, me)
+
+
+# ---------------------------------------------------------------------------
+# Group photo download — a SEPARATE router, mounted in main.py WITHOUT the
+# app-level AUTH dependency (see main.py's `app.include_router(chat.router,
+# dependencies=AUTH)` vs. `app.include_router(chat.photo_router)`).
+#
+# Why: `chat.router` requires an Authorization header on every route via that
+# app-level dependency, which runs before any route body executes. A plain
+# `<img src>` cannot send custom headers, so — same as files.py's downloader —
+# this route must accept the token as a `?token=` query param instead, and
+# that fallback only works if it isn't gated behind a header-only dependency
+# first. Auth is therefore done by hand below, same participant-only check as
+# every other read in this file.
+# ---------------------------------------------------------------------------
+photo_router = APIRouter(prefix="/chat", tags=["Chat"])
+
+
+def _require_photo_token(request: Request) -> dict:
+    """Same header-or-query-param auth as files.py's downloader — a plain <img
+    src> can't send an Authorization header, so the token also travels as a
+    query param for this one read-only route."""
+    token = ""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth.removeprefix("Bearer ").strip()
+    if not token:
+        token = request.query_params.get("token", "").strip()
+    if not token:
+        raise HTTPException(401, "Authentication required to access this file.")
+    try:
+        return decode_token(token)
+    except JWTError:
+        raise HTTPException(401, "Session expired or invalid. Please log in again.")
+
+
+@photo_router.get("/conversations/{conversation_id}/photo")
+def get_group_photo(
+    conversation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # Group icons stay participant-only, same as every other conversation-scoped
+    # route in this file — an authenticated-but-unrelated staff member still
+    # cannot view them, unlike files.py's generic entity downloader.
+    payload = _require_photo_token(request)
+    staff_id = int(payload["sub"]) if str(payload.get("sub", "")).isdigit() else None
+    if staff_id is None:
+        raise HTTPException(401, "Session expired or invalid. Please log in again.")
+    _require_participant(db, conversation_id, staff_id)
+
+    conv = db.get(models.ChatConversation, conversation_id)
+    if not conv or not conv.photo_blob:
+        raise HTTPException(404, "No photo set for this group.")
+    mime = _sniff_image_mime(conv.photo_blob) or "application/octet-stream"
+    return Response(
+        content=conv.photo_blob,
+        media_type=mime,
+        headers={
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+    )
 
 
 @router.post("/conversations/{conversation_id}/members", response_model=schemas.ChatConversationDetail)
