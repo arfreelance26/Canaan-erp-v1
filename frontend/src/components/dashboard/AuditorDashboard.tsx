@@ -1,15 +1,27 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import {
+  Map,
+  BarChart2,
+  History,
+  Wrench,
+  Fuel,
+  Landmark,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
-/**
- * Placeholder landing dashboard for the Auditor role. Audit-specific pages will
- * be added one by one (see ROLE_HREFS in Sidebar.tsx) — this just gives the role
- * its own neutral, read-only-flavored view instead of falling through to the
- * full Admin dashboard, which would expose privileged widgets/actions Auditor
- * has no business seeing.
- */
+const QUICK_LINKS = [
+  { label: "Fleet Summary",            href: "/insights/fleet-summary",              icon: Map,         color: "bg-blue-50 text-blue-600 border-blue-200" },
+  { label: "Trip Summary",             href: "/trips/pnl-mileage",                   icon: BarChart2,   color: "bg-violet-50 text-violet-600 border-violet-200" },
+  { label: "Trip History",             href: "/trips/history",                       icon: History,     color: "bg-amber-50 text-amber-600 border-amber-200" },
+  { label: "Truck Maintenance Record", href: "/maintenance/truck-records",           icon: Wrench,      color: "bg-orange-50 text-orange-600 border-orange-200" },
+  { label: "Truck Fuel Record",        href: "/maintenance/truck-fuel-record",       icon: Fuel,        color: "bg-teal-50 text-teal-600 border-teal-200" },
+  { label: "Truck EMI Record",         href: "/finance/truck-emi-record",            icon: Landmark,    color: "bg-indigo-50 text-indigo-600 border-indigo-200" },
+  { label: "Truck Compliance Record",  href: "/maintenance/truck-compliance-record", icon: ShieldCheck, color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+];
+
 export function AuditorDashboard() {
   const { user } = useAuth();
 
@@ -20,15 +32,20 @@ export function AuditorDashboard() {
         <p className="mt-1 text-sm text-gray-500">Audit dashboard</p>
       </div>
 
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-gray-200 bg-white px-6 py-16 text-center dark:border-white/10 dark:bg-[#141929]">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950/30">
-          <ShieldCheck className="h-6 w-6 text-blue-600" />
-        </span>
-        <p className="text-sm font-semibold text-gray-700 dark:text-white">Audit pages coming soon</p>
-        <p className="max-w-sm text-xs text-gray-400">
-          This dashboard will fill in as audit-specific pages are added. For now, you can mark
-          your own attendance, apply for leave, and use Canaan Chat from the sidebar.
-        </p>
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-gray-600">Quick Access</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {QUICK_LINKS.map(({ label, href, icon: Icon, color }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center text-xs font-semibold transition-all hover:-translate-y-1 hover:shadow-md ${color}`}
+            >
+              <Icon className="h-6 w-6" />
+              {label}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

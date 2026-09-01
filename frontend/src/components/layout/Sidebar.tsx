@@ -69,6 +69,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/tyre-management",
     "/maintenance/tyre-inventory",
     "/maintenance/trucks",
+    "/maintenance/air-filter-rr",
     "/attendance/mark",
     "/attendance/leave-requests",
   ],

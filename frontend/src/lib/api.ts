@@ -18,7 +18,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark, StaffSelfSummary } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
-import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import type { MaintenanceRecord, AirFilterRecord } from "@/types/truck-maintenance";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
@@ -1017,12 +1017,29 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     id: String(b.id),
     truckId: String(b.truck_id),
     date: b.date ?? "",
+    maintenanceEndDate: b.maintenance_end_date ?? "",
     odometer: String(b.odometer ?? ""),
     maintenanceType: b.maintenance_type ?? "",
+    compliant: b.compliant ?? "",
+    maintenanceLocation: b.maintenance_location ?? "",
+    maintenanceBy: b.maintenance_by ?? "",
     description: b.description ?? "",
     cost: String(b.cost ?? ""),
     enteredByName: b.entered_by_name ?? null,
     source: b.source ?? null,
+    version: typeof b.version === "number" ? b.version : undefined,
+  };
+}
+
+function toAirFilterRecord(b: B): AirFilterRecord {
+  return {
+    id: String(b.id),
+    truckId: String(b.truck_id),
+    date: b.date ?? "",
+    odometerDuringChange: String(b.odometer_during_change ?? ""),
+    currentOdometer: String(b.current_odometer ?? ""),
+    remarks: b.remarks ?? "",
+    enteredByName: b.entered_by_name ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1754,14 +1771,31 @@ export const maintenanceApi = {
   // Read-only EMI listing — routers/finance.py's /finance/emi requires Accounts/Admin;
   // this is the same data via a login-only endpoint, for roles like Auditor.
   listEmiRecordsReadOnly: () => req<B[]>("/maintenance/emi-records").then((d) => d.map(toEmiRecord)),
+  listAirFilterRecords: (truckId?: string) =>
+    req<B[]>(`/maintenance/air-filter-records${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toAirFilterRecord)),
+  createAirFilterRecord: (record: { truckId: string; date: string; odometerDuringChange: string; currentOdometer: string; remarks: string }) =>
+    req<B>("/maintenance/air-filter-records", {
+      method: "POST",
+      body: JSON.stringify({
+        truck_id: parseInt(record.truckId),
+        date: record.date,
+        odometer_during_change: parseInt(record.odometerDuringChange),
+        current_odometer: parseInt(record.currentOdometer),
+        remarks: record.remarks.trim() || null,
+      }),
+    }).then(toAirFilterRecord),
   createRecord: (record: MaintenanceRecord, truckDbId: string) =>
     req<B>("/maintenance/records", {
       method: "POST",
       body: JSON.stringify({
         truck_id: parseInt(truckDbId),
         date: record.date,
+        maintenance_end_date: record.maintenanceEndDate || null,
         odometer: parseInt(record.odometer) || 0,
         maintenance_type: record.maintenanceType,
+        compliant: record.compliant || null,
+        maintenance_location: record.maintenanceLocation || null,
+        maintenance_by: record.maintenanceBy || null,
         description: record.description || null,
         cost: parseFloat(record.cost) || 0,
       }),
@@ -1771,8 +1805,12 @@ export const maintenanceApi = {
       method: "PUT",
       body: JSON.stringify({
         date: record.date,
+        maintenance_end_date: record.maintenanceEndDate || undefined,
         odometer: record.odometer ? parseInt(record.odometer) : undefined,
         maintenance_type: record.maintenanceType,
+        compliant: record.compliant || undefined,
+        maintenance_location: record.maintenanceLocation || undefined,
+        maintenance_by: record.maintenanceBy || undefined,
         description: record.description,
         cost: record.cost ? parseFloat(record.cost) : undefined,
         client_version: record.version,

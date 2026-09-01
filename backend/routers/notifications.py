@@ -120,7 +120,7 @@ def list_reminders(
                     reminders.append(r)
 
         # Driver license expiry
-        drivers = db.query(models.Driver).all()
+        drivers = db.query(models.Driver).filter(models.Driver.deleted_at.is_(None)).all()
         for d in drivers:
             r = _doc_reminder("license", "Driving License", d.name, d.license_expiry_date, "/resources/drivers")
             if r:

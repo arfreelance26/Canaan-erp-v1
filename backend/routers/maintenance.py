@@ -148,6 +148,28 @@ def list_emi_records_readonly(db: Session = Depends(get_db)):
     return db.query(models.EmiRecord).order_by(models.EmiRecord.emi_name).all()
 
 
+@router.get("/maintenance/air-filter-records", response_model=list[schemas.AirFilterRecordOut], tags=["Maintenance"])
+def list_air_filter_records(truck_id: int | None = None, db: Session = Depends(get_db)):
+    q = db.query(models.AirFilterRecord)
+    if truck_id:
+        q = q.filter(models.AirFilterRecord.truck_id == truck_id)
+    return q.order_by(models.AirFilterRecord.date.desc()).all()
+
+
+@router.post("/maintenance/air-filter-records", response_model=schemas.AirFilterRecordOut, status_code=201, tags=["Maintenance"])
+def create_air_filter_record(payload: schemas.AirFilterRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if not db.get(models.Truck, payload.truck_id):
+        raise HTTPException(404, "Truck not found")
+    if payload.current_odometer < payload.odometer_during_change:
+        raise HTTPException(400, "Current odometer cannot be less than the odometer reading during change.")
+    record = models.AirFilterRecord(**payload.model_dump(), entered_by=current_user.id, entered_by_name=current_user.name)
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    emit("air_filter_updated", {})
+    return record
+
+
 @router.post("/maintenance/records", response_model=schemas.MaintenanceRecordOut, status_code=201, tags=["Maintenance"])
 def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     truck = db.get(models.Truck, payload.truck_id)

@@ -22,7 +22,10 @@ type MaintenanceRecordHistoryDialogProps = {
   onDelete?: (recordId: string) => void;
 };
 
-const DATA_COLUMNS = ["Date", "Maintenance Type", "Description", "Odometer (km)", "User Modified", "Source", "Cost", ""];
+const DATA_COLUMNS = [
+  "Start Date", "End Date", "Maintenance Type", "Compliant", "Location", "Maintenance By",
+  "Remarks", "Odometer (km)", "User Modified", "Source", "Cost", "",
+];
 
 const DATE_FILTER_OPTIONS = [
   { id: "all",      label: "All Time" },
@@ -122,6 +125,7 @@ function DeletionReasonDialog({
             <span><span className="text-gray-400">Truck</span> {truckId}</span>
             <span><span className="text-gray-400">Date</span> {formatDate(record.date)}</span>
             <span><span className="text-gray-400">Type</span> {record.maintenanceType}</span>
+            {record.compliant && <span><span className="text-gray-400">Compliant</span> {record.compliant}</span>}
             <span><span className="text-gray-400">Odometer</span> {Number(record.odometer).toLocaleString()} km</span>
             <span><span className="text-gray-400">Cost</span> ₹{Number(record.cost).toLocaleString()}</span>
             {record.enteredByName && <span><span className="text-gray-400">Entered by</span> {record.enteredByName}</span>}
@@ -235,7 +239,11 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
       log_details: {
         truck_id: truck.truckId,
         date: record.date,
+        maintenance_end_date: record.maintenanceEndDate,
         maintenance_type: record.maintenanceType,
+        compliant: record.compliant,
+        maintenance_location: record.maintenanceLocation,
+        maintenance_by: record.maintenanceBy,
         description: record.description,
         odometer: record.odometer,
         cost: record.cost,
@@ -255,7 +263,11 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
     const rows = filteredRecords
       .map((r) => `<tr>
         <td>${formatDate(r.date)}</td>
+        <td>${r.maintenanceEndDate ? formatDate(r.maintenanceEndDate) : "—"}</td>
         <td>${r.maintenanceType}</td>
+        <td>${r.compliant || "—"}</td>
+        <td>${r.maintenanceLocation || "—"}</td>
+        <td>${r.maintenanceBy || "—"}</td>
         <td>${r.description || "—"}</td>
         <td>${Number(r.odometer).toLocaleString()} km</td>
         <td>${r.enteredByName || "—"}</td>
@@ -264,7 +276,10 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
       </tr>`)
       .join("");
 
-    const printCols = ["Date", "Maintenance Type", "Description", "Odometer (km)", "User Modified", "Source", "Cost"];
+    const printCols = [
+      "Start Date", "End Date", "Maintenance Type", "Compliant", "Location", "Maintenance By",
+      "Remarks", "Odometer (km)", "User Modified", "Source", "Cost",
+    ];
     printWindow.document.write(`
       <html>
         <head>
@@ -385,8 +400,20 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                     <td className="px-4 py-2.5 tabular-nums text-slate-600">
                       {formatDate(record.date)}
                     </td>
+                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
+                      {record.maintenanceEndDate ? formatDate(record.maintenanceEndDate) : <span className="italic text-slate-400">—</span>}
+                    </td>
                     <td className="px-4 py-2.5 font-medium text-slate-800">
                       {record.maintenanceType}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {record.compliant || <span className="italic text-slate-400">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {record.maintenanceLocation || <span className="italic text-slate-400">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {record.maintenanceBy || <span className="italic text-slate-400">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-slate-500">
                       {record.description || <span className="italic text-slate-400">—</span>}

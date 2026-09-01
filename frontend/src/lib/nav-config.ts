@@ -43,6 +43,7 @@ import {
   MessageSquare,
   IndianRupee,
   Trash2,
+  Filter,
   type LucideIcon,
 } from "lucide-react";
 
@@ -128,6 +129,12 @@ export const sidebarSections: NavSection[] = [
       { label: "Tyre Management", href: "/maintenance/tyre-management", icon: CircleDot },
       { label: "Tyre Inventory", href: "/maintenance/tyre-inventory", icon: Boxes },
       { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
+    ],
+  },
+  {
+    title: "Records",
+    items: [
+      { label: "Air Filter R&R", href: "/maintenance/air-filter-rr", icon: Filter },
     ],
   },
   {

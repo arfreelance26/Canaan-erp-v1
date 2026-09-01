@@ -9,7 +9,8 @@ type DriverTableProps = {
   drivers: Driver[];
   onView: (driver: Driver) => void;
   onEdit: (driver: Driver) => void;
-  onDelete: (id: string) => void;
+  /** Omit to hide the delete action — driver deletion is Admin-only. */
+  onDelete?: (id: string) => void;
 };
 
 const columns = [
@@ -102,14 +103,16 @@ export function DriverTable({ drivers, onView, onEdit, onDelete }: DriverTablePr
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(driver.id)}
-                    aria-label={`Delete ${driver.driverId}`}
-                    className="transition-all duration-300 group rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(driver.id)}
+                      aria-label={`Delete ${driver.driverId}`}
+                      className="transition-all duration-300 group rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>

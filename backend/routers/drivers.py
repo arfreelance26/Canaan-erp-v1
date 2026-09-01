@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
@@ -6,6 +7,7 @@ from passlib.context import CryptContext
 from database import get_db
 import models, schemas
 from duplicate_checks import check_driver_duplicates
+from security import require_roles, get_current_user, TokenUser
 from websocket_manager import emit
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
@@ -19,7 +21,7 @@ def list_drivers(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Driver).order_by(models.Driver.driver_id)
+    q = db.query(models.Driver).filter(models.Driver.deleted_at.is_(None)).order_by(models.Driver.driver_id)
     if search:
         s = f"%{search.strip()}%"
         q = q.filter(or_(
@@ -80,12 +82,33 @@ def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = D
     return driver
 
 
-@router.delete("/{driver_id}", status_code=204)
-def delete_driver(driver_id: int, db: Session = Depends(get_db)):
+@router.delete("/{driver_id}", status_code=204, dependencies=[Depends(require_roles())])
+def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Admin only: soft-delete a driver (hides them from "Our Drivers" and every
+    assignment picker, keeps their trip history, attendance, and compensation/batta
+    records intact and still resolvable by name). A self-approved
+    DeletionApprovalRequest row is logged for audit visibility, same pattern as
+    trips.py's delete_trip.
+    """
     driver = db.get(models.Driver, driver_id)
     if not driver:
         raise HTTPException(404, "Driver not found")
-    db.delete(driver)
+    if driver.deleted_at is not None:
+        raise HTTPException(409, "Driver is already deleted")
+    now = datetime.now(timezone.utc)
+    driver.deleted_at = now
+    if current_user.id is not None:
+        db.add(models.DeletionApprovalRequest(
+            resource_type="Driver",
+            resource_id=driver_id,
+            resource_name=f"{driver.driver_id} — {driver.name}",
+            requested_by_staff_id=current_user.id,
+            requested_by_name=current_user.name,
+            reason="Deleted directly by Admin — no approval required.",
+            status="Approved",
+            approved_by_name=current_user.name,
+            approved_at=now,
+        ))
     db.commit()
     emit("driver_updated", {})
 

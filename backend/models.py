@@ -127,15 +127,24 @@ class Driver(Base):
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
     version = Column(Integer, default=1, nullable=False)
+    # Soft delete — "Our Drivers" -> Delete sets this instead of removing the row,
+    # so trip history, attendance, and compensation/batta records (none of which
+    # carry their own name snapshot) keep resolving the driver's name via this
+    # row indefinitely. See routers/drivers.py delete_driver.
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     assignment = relationship("DriverAssignment", back_populates="driver", uselist=False, cascade="all, delete-orphan")
     attendance_records = relationship("DriverAttendance", back_populates="driver", cascade="all, delete-orphan")
+    # No delete-orphan here (unlike the two relationships above): a driver's
+    # Advance/Salary ("batta") history must never be destroyed even if some other
+    # code path ever hard-deletes a Driver row directly instead of going through
+    # the soft-delete endpoint.
     compensation_transactions = relationship(
         "CompensationTransaction",
         primaryjoin="and_(CompensationTransaction.person_type=='driver', foreign(CompensationTransaction.person_id)==Driver.id)",
-        cascade="all, delete-orphan",
+        viewonly=True,
     )
 
 
@@ -716,10 +725,14 @@ class MaintenanceRecord(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="SET NULL"), nullable=True)
-    date = Column(Date, nullable=False)
+    date = Column(Date, nullable=False)                      # Maintenance Start Date
+    maintenance_end_date = Column(Date, nullable=True)
     odometer = Column(Integer, nullable=False)
     maintenance_type = Column(String(200), nullable=False)
-    description = Column(Text)
+    compliant = Column(Text, nullable=True)
+    maintenance_location = Column(String(200), nullable=True)
+    maintenance_by = Column(String(200), nullable=True)
+    description = Column(Text)                               # Remarks
     cost = Column(Numeric(10, 2), default=0)
     entered_by_name = Column(String(100), nullable=True)
     source = Column(String(200), nullable=True)
@@ -728,6 +741,30 @@ class MaintenanceRecord(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     truck = relationship("Truck", back_populates="maintenance_records")
+
+
+class AirFilterRecord(Base):
+    """Air filter remove & replace history — one row per change. "Current odometer"
+    and "running odometer since change" are derived at read time from the
+    truck's live odometer, never stored, so they can't drift stale."""
+    __tablename__ = "air_filter_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(Date, nullable=False)
+    odometer_during_change = Column(Integer, nullable=False)
+    # Odometer reading noted at the time this log was entered — a snapshot, not
+    # a live read of trucks.odometer, since a log can be entered well after the
+    # fact. Running distance is computed from this minus odometer_during_change.
+    current_odometer = Column(Integer, nullable=False, server_default="0")
+    remarks = Column(String(255), nullable=True)
+    entered_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    entered_by_name = Column(String(100), nullable=True)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    truck = relationship("Truck")
 
 
 class FuelLog(Base):
@@ -1018,7 +1055,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request

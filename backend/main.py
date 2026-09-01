@@ -309,6 +309,24 @@ def _run_schema_migrations():
         "ALTER TABLE leave_requests MODIFY COLUMN category "
         "ENUM('Driver','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Trip Sheet Register','Yard Supervisor','Auditor') "
         "NOT NULL",
+        # Air Filter R&R — odometer reading snapshot at log-entry time (distinct
+        # from trucks.odometer, which a log may be entered well after the fact).
+        "ALTER TABLE air_filter_records ADD COLUMN current_odometer INT NOT NULL DEFAULT 0",
+        # Truck Maintenance — Update Record dialog: date -> start/end date pair,
+        # plus compliance/location/performed-by fields. `date` itself is kept as
+        # "Maintenance Start Date" (still the field every date-range query filters
+        # on — pl_summary, exports, alerts); `description` is kept as "Remarks".
+        "ALTER TABLE maintenance_records ADD COLUMN maintenance_end_date DATE NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN compliant ENUM('Yes','No') NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN maintenance_location VARCHAR(200) NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN maintenance_by VARCHAR(200) NULL",
+        # Compliant was briefly a Yes/No enum; widened to free text per follow-up request.
+        "ALTER TABLE maintenance_records MODIFY COLUMN compliant TEXT NULL",
+        # Driver soft-delete — "Our Drivers" -> Delete used to hard-delete the row,
+        # which cascade-destroyed attendance and (via an ORM-only delete-orphan
+        # cascade) compensation/batta history. Now it only sets this flag.
+        "ALTER TABLE drivers ADD COLUMN deleted_at DATETIME NULL",
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver') NOT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

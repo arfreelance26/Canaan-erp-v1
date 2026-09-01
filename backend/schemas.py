@@ -989,18 +989,26 @@ class LeaveRequestOut(OrmBase):
 
 class MaintenanceRecordCreate(OrmBase):
     truck_id: int
-    date: date
+    date: date                                    # Maintenance Start Date
+    maintenance_end_date: Optional[date] = None
     odometer: int
     maintenance_type: str
-    description: Optional[str] = None
+    compliant: Optional[str] = None               # "Yes" | "No"
+    maintenance_location: Optional[str] = None
+    maintenance_by: Optional[str] = None
+    description: Optional[str] = None             # Remarks
     cost: Optional[Decimal] = None
 
 
 class MaintenanceRecordUpdate(OrmBase):
     client_version: Optional[int] = None
     date: Optional[date] = None
+    maintenance_end_date: Optional[date] = None
     odometer: Optional[int] = None
     maintenance_type: Optional[str] = None
+    compliant: Optional[str] = None
+    maintenance_location: Optional[str] = None
+    maintenance_by: Optional[str] = None
     description: Optional[str] = None
     cost: Optional[Decimal] = None
 
@@ -1009,8 +1017,12 @@ class MaintenanceRecordOut(OrmBase):
     id: int
     truck_id: int
     date: date
+    maintenance_end_date: Optional[date] = None
     odometer: int
     maintenance_type: str
+    compliant: Optional[str] = None
+    maintenance_location: Optional[str] = None
+    maintenance_by: Optional[str] = None
     description: Optional[str] = None
     cost: Optional[Decimal] = None
     entered_by_name: Optional[str] = None
@@ -1018,6 +1030,26 @@ class MaintenanceRecordOut(OrmBase):
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+class AirFilterRecordCreate(OrmBase):
+    truck_id: int
+    date: date
+    odometer_during_change: int
+    current_odometer: int
+    remarks: Optional[str] = None
+
+
+class AirFilterRecordOut(OrmBase):
+    id: int
+    truck_id: int
+    date: date
+    odometer_during_change: int
+    current_odometer: int
+    remarks: Optional[str] = None
+    entered_by_name: Optional[str] = None
+    version: int = 1
+    created_at: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------------

@@ -466,7 +466,11 @@ def create_group(
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    """Create a group. The creator is its first admin."""
+    """Create a group. The creator is its first admin. Admin-only — see
+    frontend/src/app/connect/chat/page.tsx, which hides "New Group" for
+    everyone else."""
+    if current_user.role != "Admin":
+        raise HTTPException(403, "Only an Admin can create a group.")
     me = _me(current_user)
     member_ids = {int(m) for m in payload.member_ids if int(m) != me}
     if len(member_ids) > MAX_GROUP_MEMBERS:

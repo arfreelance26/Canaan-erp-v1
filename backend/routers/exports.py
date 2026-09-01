@@ -51,7 +51,7 @@ def export_sac_codes(db: Session = Depends(get_db)):
 
 @router.get("/drivers")
 def export_drivers(db: Session = Depends(get_db)):
-    rows = db.query(models.Driver).order_by(models.Driver.name).all()
+    rows = db.query(models.Driver).filter(models.Driver.deleted_at.is_(None)).order_by(models.Driver.name).all()
     headers = [
         "Driver ID", "Name", "Date of Birth", "Date of Joining",
         "Contact Number", "Email", "Address",

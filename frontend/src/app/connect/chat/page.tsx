@@ -504,6 +504,7 @@ function PaymentBubble({
 export default function CanaanChatPage() {
   const { user } = useAuth();
   const myId = user?.id ?? null;
+  const isAdmin = user?.softwareDesignation === "Admin";
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [contacts, setContacts] = useState<ChatMember[]>([]);
@@ -1310,7 +1311,7 @@ export default function CanaanChatPage() {
               <span className="text-base font-semibold text-white">Canaan Chat</span>
             </div>
             <div className="flex items-center gap-2">
-              {activeTab === "groups" && (
+              {activeTab === "groups" && isAdmin && (
                 <button
                   type="button"
                   onClick={() => setShowNewGroup(true)}
@@ -1378,16 +1379,20 @@ export default function CanaanChatPage() {
                   </div>
                   <p className="text-sm font-medium text-gray-700">No groups yet</p>
                   <p className="text-xs text-gray-500">
-                    Create a group to start chatting with your team together.
+                    {isAdmin
+                      ? "Create a group to start chatting with your team together."
+                      : "An Admin can create a group and add you to it."}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowNewGroup(true)}
-                    className="mt-1 flex items-center gap-1.5 rounded-full bg-brand-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-navy/90"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-brand-gold" />
-                    New Group
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowNewGroup(true)}
+                      className="mt-1 flex items-center gap-1.5 rounded-full bg-brand-navy px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-navy/90"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-brand-gold" />
+                      New Group
+                    </button>
+                  )}
                 </div>
               ) : (
                 <p className="p-4 text-center text-sm text-gray-400">No people found</p>

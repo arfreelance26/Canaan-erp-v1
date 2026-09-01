@@ -20,8 +20,12 @@ type MaintenanceRecordFormDialogProps = {
 
 const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   date: "",
+  maintenanceEndDate: "",
   odometer: "",
   maintenanceType: "",
+  compliant: "",
+  maintenanceLocation: "",
+  maintenanceBy: "",
   description: "",
   cost: "",
 };
@@ -43,7 +47,10 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
   }, [open, truck?.id]);
 
   const draftKey = `erp_maintenance_record_draft_${truck?.id ?? "none"}`;
-  useFormDraft(draftKey, open, form, setForm);
+  // Merge over emptyForm rather than replacing outright — an older draft saved
+  // before these fields existed would otherwise restore without them, flipping
+  // their inputs from controlled to uncontrolled (undefined value).
+  useFormDraft(draftKey, open, form, (draft) => setForm({ ...emptyForm, ...draft }));
 
   function update<K extends keyof Omit<MaintenanceRecord, "id" | "truckId">>(
     key: K,
@@ -82,11 +89,19 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Date" required>
+          <Field label="Maintenance Start Date" required>
             <DatePickerInput
               required
               value={form.date}
               onChange={(v) => update("date", v)}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Maintenance End Date">
+            <DatePickerInput
+              value={form.maintenanceEndDate}
+              onChange={(v) => update("maintenanceEndDate", v)}
               className={inputClass}
             />
           </Field>
@@ -131,9 +146,38 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
               placeholder="e.g. 5000"
             />
           </Field>
+
+          <Field label="Maintenance Location">
+            <input
+              type="text"
+              value={form.maintenanceLocation}
+              onChange={(e) => update("maintenanceLocation", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Canaan Yard, Chennai"
+            />
+          </Field>
+
+          <Field label="Maintenance By">
+            <input
+              type="text"
+              value={form.maintenanceBy}
+              onChange={(e) => update("maintenanceBy", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. workshop or mechanic name"
+            />
+          </Field>
         </div>
 
-        <Field label="Description" required>
+        <Field label="Compliant">
+          <textarea
+            value={form.compliant}
+            onChange={(e) => update("compliant", e.target.value)}
+            className={inputClass}
+            rows={3}
+          />
+        </Field>
+
+        <Field label="Remarks" required>
           <textarea
             required
             value={form.description}

@@ -562,7 +562,9 @@ def delete_holiday(holiday_id: int, db: Session = Depends(get_db), user: TokenUs
 def lookup_applicant(code: str, db: Session = Depends(get_db)):
     code_upper = code.strip().upper()
     # Check Driver
-    driver = db.query(models.Driver).filter(models.Driver.driver_id == code_upper).first()
+    driver = db.query(models.Driver).filter(
+        models.Driver.driver_id == code_upper, models.Driver.deleted_at.is_(None)
+    ).first()
     if driver:
         return schemas.ApplicantLookupOut(
             category="Driver",

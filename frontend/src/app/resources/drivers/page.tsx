@@ -6,7 +6,7 @@ import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { driversApi, uploadFile, fileUrl } from "@/lib/api";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, showSuccess, showError } from "@/lib/swal";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
@@ -14,8 +14,11 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DriversPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -49,7 +52,11 @@ export default function DriversPage() {
   }
 
   async function handleDelete(id: string) {
-    const result = await confirmDelete("driver");
+    const result = await confirmAction(
+      "Delete this driver?",
+      "They'll be removed from Our Drivers and assignment lists, but their trip history, attendance, and compensation records are kept intact and will keep showing their name.",
+      "Yes, delete"
+    );
     if (!result.isConfirmed) return;
     try {
       await driversApi.delete(id);
@@ -222,7 +229,7 @@ export default function DriversPage() {
       </div>
 
       <div>
-        <DriverTable drivers={filteredDrivers} onView={setViewingDriver} onEdit={handleEdit} onDelete={handleDelete} />
+        <DriverTable drivers={filteredDrivers} onView={setViewingDriver} onEdit={handleEdit} onDelete={isAdmin ? handleDelete : undefined} />
       </div>
 
       <DriverFormDialog
