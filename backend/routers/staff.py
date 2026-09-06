@@ -1,9 +1,10 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from database import get_db
-from security import require_roles, parse_devices, serialize_devices
+from security import require_roles, parse_devices, serialize_devices, get_current_user, TokenUser
 import models, schemas
 from duplicate_checks import check_staff_duplicates
 
@@ -19,7 +20,7 @@ pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.get("", response_model=list[schemas.StaffOut])
 def list_staff(db: Session = Depends(get_db)):
-    return db.query(models.Staff).order_by(models.Staff.staff_id).all()
+    return db.query(models.Staff).filter(models.Staff.deleted_at.is_(None)).order_by(models.Staff.staff_id).all()
 
 
 @router.post("", response_model=schemas.StaffOut, status_code=201, dependencies=[Depends(require_roles())])
@@ -34,6 +35,17 @@ def create_staff(payload: schemas.StaffCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(member)
     return member
+
+
+@router.get("/deleted-ids", dependencies=[Depends(require_roles())])
+def list_deleted_staff_ids(db: Session = Depends(get_db)):
+    """Admin only: ids of staff currently soft-deleted. Lets the "Archive" page
+    (which lists from the deletion_approval_requests audit trail) tell apart a
+    still-deleted staff member from one that was since restored, same pattern
+    as trips.py's list_deleted_trip_ids. Registered before GET /{staff_id} so
+    "deleted-ids" isn't swallowed as a staff_id path param."""
+    rows = db.query(models.Staff.id).filter(models.Staff.deleted_at.isnot(None)).all()
+    return [i for (i,) in rows]
 
 
 @router.get("/{staff_id}", response_model=schemas.StaffOut)
@@ -68,7 +80,52 @@ def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depe
 
 
 @router.delete("/{staff_id}", status_code=204, dependencies=[Depends(require_roles())])
-def delete_staff(staff_id: int, db: Session = Depends(get_db)):
+def delete_staff(staff_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Admin only: soft-delete a staff member (hides them from "Our Staff", keeps
+    their attendance, payment/compensation history, and chat intact and still
+    resolvable). A self-approved DeletionApprovalRequest row is logged for audit
+    visibility, same pattern as drivers.py's delete_driver."""
+    member = db.get(models.Staff, staff_id)
+    if not member:
+        raise HTTPException(404, "Staff member not found")
+    if member.deleted_at is not None:
+        raise HTTPException(409, "Staff member is already deleted")
+    now = datetime.now(timezone.utc)
+    member.deleted_at = now
+    if current_user.id is not None:
+        db.add(models.DeletionApprovalRequest(
+            resource_type="Staff",
+            resource_id=staff_id,
+            resource_name=f"{member.staff_id} — {member.name}",
+            requested_by_staff_id=current_user.id,
+            requested_by_name=current_user.name,
+            reason="Deleted directly by Admin — no approval required.",
+            status="Approved",
+            approved_by_name=current_user.name,
+            approved_at=now,
+        ))
+    db.commit()
+
+
+@router.post("/{staff_id}/restore", response_model=schemas.StaffOut, dependencies=[Depends(require_roles())])
+def restore_staff(staff_id: int, db: Session = Depends(get_db)):
+    """Admin only: undo a soft-delete — the staff member reappears in Our Staff
+    exactly as they were."""
+    member = db.get(models.Staff, staff_id)
+    if not member:
+        raise HTTPException(404, "Staff member not found")
+    if member.deleted_at is None:
+        raise HTTPException(409, "Staff member is not deleted")
+    member.deleted_at = None
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+@router.delete("/{staff_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
+def permanently_delete_staff(staff_id: int, db: Session = Depends(get_db)):
+    """Admin only: irreversibly delete an already soft-deleted staff member. Only
+    reachable from the "Archive" page."""
     member = db.get(models.Staff, staff_id)
     if not member:
         raise HTTPException(404, "Staff member not found")

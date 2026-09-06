@@ -189,6 +189,11 @@ class Staff(Base):
     device_hash = Column(String(1024), nullable=True, default=None)  # comma-separated SHA-256(s) of bound devices; NULL = unbound
     token_version = Column(Integer, default=0, nullable=False, server_default="0")  # bump to invalidate all of this user's JWTs (force logout)
     version = Column(Integer, default=1, nullable=False)
+    # Soft delete — "Our Staff" -> Delete sets this instead of removing the row, so
+    # attendance, payment/compensation history, chat messages, and anything else
+    # FK'd to staff.id keep resolving this person's name instead of being
+    # cascade-destroyed or orphaned to NULL. See routers/staff.py delete_staff.
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -254,6 +259,11 @@ class Customer(Base):
     is_gta = Column(Enum("Yes", "No"))
     applicable_for_e_invoice = Column(Enum("Yes", "No"))
     version = Column(Integer, default=1, nullable=False)
+    # Soft delete — "Our Customers" -> Delete sets this instead of removing the row,
+    # so origins/destinations/pricing/final-pricing (all FK'd to customers.id, with
+    # ON DELETE CASCADE) and every trip billed to this customer keep resolving it
+    # instead of being cascade-destroyed. See routers/customers.py delete_customer.
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -339,6 +349,10 @@ class Vendor(Base):
     address = Column(Text)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
     version = Column(Integer, default=1, nullable=False)
+    # Soft delete — "Our Vendors" -> Delete sets this instead of removing the row,
+    # so any historical reference to this vendor keeps resolving it. See
+    # routers/vendors.py delete_vendor.
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -1094,7 +1108,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request

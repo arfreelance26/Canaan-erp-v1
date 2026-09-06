@@ -380,6 +380,17 @@ def _run_schema_migrations():
         # compliance history, and branch history. Now it only sets this flag.
         "ALTER TABLE trucks ADD COLUMN deleted_at DATETIME NULL",
         "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck') NOT NULL",
+        # Staff soft-delete — "Our Staff" -> Delete used to hard-delete the row.
+        # Now it only sets this flag, so attendance, payment/compensation history,
+        # and chat all keep resolving the staff member instead of going orphaned.
+        "ALTER TABLE staff ADD COLUMN deleted_at DATETIME NULL",
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff') NOT NULL",
+        # Customer/Vendor soft-delete — "Our Customers"/"Our Vendors" -> Delete used
+        # to hard-delete the row (cascade-destroying a customer's origins,
+        # destinations, pricing, and final-pricing rows). Now it only sets this flag.
+        "ALTER TABLE customers ADD COLUMN deleted_at DATETIME NULL",
+        "ALTER TABLE vendors ADD COLUMN deleted_at DATETIME NULL",
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor') NOT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

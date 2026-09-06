@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from database import get_db
+from security import get_current_user, TokenUser, require_roles
 import models, schemas
 from duplicate_checks import check_customer_duplicates, check_customer_destination_duplicates
 from websocket_manager import emit
@@ -43,7 +45,7 @@ def list_customers(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Customer).order_by(models.Customer.name)
+    q = db.query(models.Customer).filter(models.Customer.deleted_at.is_(None)).order_by(models.Customer.name)
     if search:
         s = f"%{search.strip()}%"
         q = q.filter(or_(
@@ -66,6 +68,17 @@ def create_customer(payload: schemas.CustomerCreate, db: Session = Depends(get_d
     db.refresh(customer)
     emit("customer_updated", {})
     return customer
+
+
+@router.get("/deleted-ids", dependencies=[Depends(require_roles())])
+def list_deleted_customer_ids(db: Session = Depends(get_db)):
+    """Admin only: ids of customers currently soft-deleted. Lets the "Archive" page
+    (which lists from the deletion_approval_requests audit trail) tell apart a
+    still-deleted customer from one that was since restored, same pattern as
+    trips.py's list_deleted_trip_ids. Registered before GET /{customer_id} so
+    "deleted-ids" isn't swallowed as a customer_id path param."""
+    rows = db.query(models.Customer.id).filter(models.Customer.deleted_at.isnot(None)).all()
+    return [i for (i,) in rows]
 
 
 @router.get("/{customer_id}", response_model=schemas.CustomerOut)
@@ -97,8 +110,56 @@ def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Sessi
     return customer
 
 
-@router.delete("/{customer_id}", status_code=204)
-def delete_customer(customer_id: int, db: Session = Depends(get_db)):
+@router.delete("/{customer_id}", status_code=204, dependencies=[Depends(require_roles())])
+def delete_customer(customer_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Admin only: soft-delete a customer (hides them from "Our Customers", keeps
+    their origins/destinations/pricing/final-pricing and every billed trip intact
+    and still resolvable). A self-approved DeletionApprovalRequest row is logged
+    for audit visibility, same pattern as drivers.py's delete_driver."""
+    customer = db.get(models.Customer, customer_id)
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+    if customer.deleted_at is not None:
+        raise HTTPException(409, "Customer is already deleted")
+    now = datetime.now(timezone.utc)
+    customer.deleted_at = now
+    if current_user.id is not None:
+        db.add(models.DeletionApprovalRequest(
+            resource_type="Customer",
+            resource_id=customer_id,
+            resource_name=customer.name,
+            requested_by_staff_id=current_user.id,
+            requested_by_name=current_user.name,
+            reason="Deleted directly by Admin — no approval required.",
+            status="Approved",
+            approved_by_name=current_user.name,
+            approved_at=now,
+        ))
+    db.commit()
+    emit("customer_updated", {})
+
+
+@router.post("/{customer_id}/restore", response_model=schemas.CustomerOut, dependencies=[Depends(require_roles())])
+def restore_customer(customer_id: int, db: Session = Depends(get_db)):
+    """Admin only: undo a soft-delete — the customer reappears in Our Customers
+    exactly as they were."""
+    customer = db.get(models.Customer, customer_id)
+    if not customer:
+        raise HTTPException(404, "Customer not found")
+    if customer.deleted_at is None:
+        raise HTTPException(409, "Customer is not deleted")
+    customer.deleted_at = None
+    db.commit()
+    db.refresh(customer)
+    emit("customer_updated", {})
+    return customer
+
+
+@router.delete("/{customer_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
+def permanently_delete_customer(customer_id: int, db: Session = Depends(get_db)):
+    """Admin only: irreversibly delete an already soft-deleted customer (cascades
+    to origins/destinations/pricing/final-pricing). Only reachable from the
+    "Archive" page."""
     customer = db.get(models.Customer, customer_id)
     if not customer:
         raise HTTPException(404, "Customer not found")

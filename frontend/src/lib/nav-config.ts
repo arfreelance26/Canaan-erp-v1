@@ -45,6 +45,7 @@ import {
   IndianRupee,
   Trash2,
   Filter,
+  Archive,
   type LucideIcon,
 } from "lucide-react";
 
@@ -121,6 +122,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Our Fleet", href: "/resources/fleet", icon: Truck },
       { label: "Our Customers", href: "/resources/customers", icon: Building2 },
       { label: "Our Vendors", href: "/resources/vendors", icon: Handshake },
+      { label: "Archive", href: "/resources/archive", icon: Archive },
     ],
   },
   {

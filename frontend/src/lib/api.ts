@@ -1222,6 +1222,9 @@ export const trucksApi = {
       body: JSON.stringify({ ...fromTruck(truck), branch_change_note: branchChangeNote || undefined }),
     }).then(toTruck),
   delete: (dbId: string) => req<void>(`/trucks/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/trucks/${dbId}/restore`, { method: "POST" }).then(toTruck),
+  removePermanent: (dbId: string) => req<void>(`/trucks/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/trucks/deleted-ids"),
   getBranchHistory: (dbId: string) =>
     req<{ id: number; truck_id: number; from_branch: string | null; to_branch: string; note: string; changed_by_name: string; changed_at: string }[]>(
       `/trucks/${dbId}/branch-history`
@@ -1366,6 +1369,9 @@ export const driversApi = {
   update: (dbId: string, driver: Driver, password?: string) =>
     req<B>(`/drivers/${dbId}`, { method: "PUT", body: JSON.stringify(fromDriver(driver, password)) }).then(toDriver),
   delete: (dbId: string) => req<void>(`/drivers/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/drivers/${dbId}/restore`, { method: "POST" }).then(toDriver),
+  removePermanent: (dbId: string) => req<void>(`/drivers/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/drivers/deleted-ids"),
 };
 
 // ---------------------------------------------------------------------------
@@ -1396,6 +1402,9 @@ export const staffApi = {
   update: (dbId: string, member: Staff, password?: string) =>
     req<B>(`/staff/${dbId}`, { method: "PUT", body: JSON.stringify(fromStaff(member, password)) }).then(toStaff),
   delete: (dbId: string) => req<void>(`/staff/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/staff/${dbId}/restore`, { method: "POST" }).then(toStaff),
+  removePermanent: (dbId: string) => req<void>(`/staff/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/staff/deleted-ids"),
   // Reset device binding. Pass a device id to reset just that device; omit it to clear all.
   resetDevice: (dbId: string, device?: string) =>
     req<{ ok: boolean; devices: Array<{ id: string; kind: string; label: string; bound_at: string | null }> }>(
@@ -1417,6 +1426,9 @@ export const customersApi = {
   update: (dbId: string, customer: Customer) =>
     req<B>(`/customers/${dbId}`, { method: "PUT", body: JSON.stringify(fromCustomer(customer)) }).then(toCustomer),
   delete: (dbId: string) => req<void>(`/customers/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/customers/${dbId}/restore`, { method: "POST" }).then(toCustomer),
+  removePermanent: (dbId: string) => req<void>(`/customers/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/customers/deleted-ids"),
 
   listOrigins: (customerId: string) =>
     req<B[]>(`/customers/${customerId}/origins`).then((d) => d.map(toCustomerOrigin)),
@@ -1518,6 +1530,9 @@ export const vendorsApi = {
   update: (dbId: string, vendor: Vendor) =>
     req<B>(`/vendors/${dbId}`, { method: "PUT", body: JSON.stringify(fromVendor(vendor)) }).then(toVendor),
   delete: (dbId: string) => req<void>(`/vendors/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/vendors/${dbId}/restore`, { method: "POST" }).then(toVendor),
+  removePermanent: (dbId: string) => req<void>(`/vendors/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/vendors/deleted-ids"),
 };
 
 // ---------------------------------------------------------------------------

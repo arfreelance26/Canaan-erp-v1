@@ -50,6 +50,17 @@ def create_driver(payload: schemas.DriverCreate, db: Session = Depends(get_db)):
     return driver
 
 
+@router.get("/deleted-ids", dependencies=[Depends(require_roles())])
+def list_deleted_driver_ids(db: Session = Depends(get_db)):
+    """Admin only: ids of drivers currently soft-deleted. Lets the "Archive" page
+    (which lists from the deletion_approval_requests audit trail) tell apart a
+    still-deleted driver from one that was since restored, same pattern as
+    trips.py's list_deleted_trip_ids. Registered before GET /{driver_id} so
+    "deleted-ids" isn't swallowed as a driver_id path param."""
+    rows = db.query(models.Driver.id).filter(models.Driver.deleted_at.isnot(None)).all()
+    return [i for (i,) in rows]
+
+
 @router.get("/{driver_id}", response_model=schemas.DriverOut)
 def get_driver(driver_id: int, db: Session = Depends(get_db)):
     driver = db.get(models.Driver, driver_id)
@@ -109,6 +120,34 @@ def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: T
             approved_by_name=current_user.name,
             approved_at=now,
         ))
+    db.commit()
+    emit("driver_updated", {})
+
+
+@router.post("/{driver_id}/restore", response_model=schemas.DriverOut, dependencies=[Depends(require_roles())])
+def restore_driver(driver_id: int, db: Session = Depends(get_db)):
+    """Admin only: undo a soft-delete — the driver reappears in Our Drivers (and
+    every assignment picker) exactly as they were."""
+    driver = db.get(models.Driver, driver_id)
+    if not driver:
+        raise HTTPException(404, "Driver not found")
+    if driver.deleted_at is None:
+        raise HTTPException(409, "Driver is not deleted")
+    driver.deleted_at = None
+    db.commit()
+    db.refresh(driver)
+    emit("driver_updated", {})
+    return driver
+
+
+@router.delete("/{driver_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
+def permanently_delete_driver(driver_id: int, db: Session = Depends(get_db)):
+    """Admin only: irreversibly delete an already soft-deleted driver. Only
+    reachable from the "Archive" page."""
+    driver = db.get(models.Driver, driver_id)
+    if not driver:
+        raise HTTPException(404, "Driver not found")
+    db.delete(driver)
     db.commit()
     emit("driver_updated", {})
 

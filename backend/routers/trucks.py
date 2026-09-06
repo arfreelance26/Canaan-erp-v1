@@ -5,7 +5,7 @@ from database import get_db
 import models, schemas
 from duplicate_checks import check_truck_duplicates
 from websocket_manager import emit
-from security import get_current_user, TokenUser
+from security import get_current_user, TokenUser, require_roles
 
 # Compliance date fields → human-readable label
 _COMPLIANCE_FIELDS: dict[str, str] = {
@@ -186,6 +186,17 @@ def get_compliance_per_km_all(db: Session = Depends(get_db)):
         if per_km > 0:
             result[str(truck.id)] = per_km
     return result
+
+
+@router.get("/deleted-ids", dependencies=[Depends(require_roles())])
+def list_deleted_truck_ids(db: Session = Depends(get_db)):
+    """Admin only: ids of trucks currently soft-deleted. Lets the "Archive" page
+    (which lists from the deletion_approval_requests audit trail) tell apart a
+    still-deleted truck from one that was since restored, same pattern as
+    trips.py's list_deleted_trip_ids. Registered before GET /{truck_id} so
+    "deleted-ids" isn't swallowed as a truck_id path param."""
+    rows = db.query(models.Truck.id).filter(models.Truck.deleted_at.isnot(None)).all()
+    return [i for (i,) in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -380,5 +391,33 @@ def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: Tok
             approved_by_name=current_user.name,
             approved_at=now,
         ))
+    db.commit()
+    emit("truck_updated", {})
+
+
+@router.post("/{truck_id}/restore", response_model=schemas.TruckOut, dependencies=[Depends(require_roles())])
+def restore_truck(truck_id: int, db: Session = Depends(get_db)):
+    """Admin only: undo a soft-delete — the truck reappears in Our Fleet (and
+    every assignment picker) exactly as it was."""
+    truck = db.get(models.Truck, truck_id)
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    if truck.deleted_at is None:
+        raise HTTPException(409, "Truck is not deleted")
+    truck.deleted_at = None
+    db.commit()
+    db.refresh(truck)
+    emit("truck_updated", {})
+    return truck
+
+
+@router.delete("/{truck_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
+def permanently_delete_truck(truck_id: int, db: Session = Depends(get_db)):
+    """Admin only: irreversibly delete an already soft-deleted truck. Only
+    reachable from the "Archive" page."""
+    truck = db.get(models.Truck, truck_id)
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    db.delete(truck)
     db.commit()
     emit("truck_updated", {})
