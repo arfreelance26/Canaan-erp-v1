@@ -91,7 +91,7 @@ export default function EditApprovalsPage() {
       } else if (updated.action === "Edit" && updated.resourceType === "FuelLog") {
         showSuccess("Fuel log updated — changes applied immediately.");
       } else {
-        showSuccess("Edit access approved — Staff has 5 hours to make changes.");
+        showSuccess("Edit access approved — Staff has 8 hours to make changes.");
       }
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to approve request.");
@@ -155,7 +155,7 @@ export default function EditApprovalsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Edit Approvals</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Review and approve Staff requests to edit or delete customer and vendor records
+            Review and approve non-Admin requests to edit or delete customer, vendor, driver, and truck records
           </p>
         </div>
       </div>

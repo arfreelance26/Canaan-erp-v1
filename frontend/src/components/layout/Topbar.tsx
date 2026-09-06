@@ -367,7 +367,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
       }, ...prev]);
       if (status === "Approved") {
         showToast(
-          `You have 5 hours to edit "${resourceName}".`,
+          `You have 8 hours to edit "${resourceName}".`,
           "success",
           "Edit access approved",
         );
@@ -880,7 +880,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                                   "text-[11px] font-medium",
                                   approved ? "text-green-700" : "text-red-700"
                                 )}>
-                                  {approved ? "Please make your changes within 5 hours." : "Contact the Admin if you need access."}
+                                  {approved ? "Please make your changes within 8 hours." : "Contact the Admin if you need access."}
                                 </p>
                               </div>
                               <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.notifiedAt)}</span>

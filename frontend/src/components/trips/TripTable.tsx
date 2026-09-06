@@ -33,12 +33,16 @@ type TripTableProps = {
   onMarkCompleted?: (id: string) => void;
   onCancel?: (id: string) => void;
   onDelete?: (trip: Trip) => void;
+  // Non-admin path: sends a deletion request to the Admin instead of deleting
+  // directly. A page should pass at most one of onDelete / onDeleteRequest,
+  // based on the current user's role (mirrors Trip History's pattern).
+  onDeleteRequest?: (trip: Trip) => void;
   onCloseTrip?: (trip: Trip) => void;
   closedTripIds?: Set<string>;
   emptyStateMessage?: string;
 };
 
-export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkStarted, onMarkCompleted, onCancel, onDelete, onCloseTrip, closedTripIds, emptyStateMessage }: TripTableProps) {
+export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkStarted, onMarkCompleted, onCancel, onDelete, onDeleteRequest, onCloseTrip, closedTripIds, emptyStateMessage }: TripTableProps) {
   const [page, setPage] = useState(1);
 
   if (trips.length === 0) {
@@ -57,7 +61,7 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
   const safePage = Math.min(page, totalPages);
   const paginatedTrips = trips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const hasActions = !!(onEdit || onMarkStarted || onMarkCompleted || onCancel || onDelete || onCloseTrip);
+  const hasActions = !!(onEdit || onMarkStarted || onMarkCompleted || onCancel || onDelete || onDeleteRequest || onCloseTrip);
 
   return (
     <>
@@ -164,6 +168,17 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
                             aria-label={`Delete ${trip.tripId}`}
                             title="Delete trip"
                             className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                        {onDeleteRequest && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteRequest(trip)}
+                            aria-label={`Request delete ${trip.tripId}`}
+                            title="Request Admin to delete this trip"
+                            className="transition-all duration-300 rounded-md p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-600"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

@@ -29,11 +29,11 @@ export type ContainerSpecification =
 
 export type BillTo = "CUSTOMER" | "CONSIGNEE" | "SELF/CGI";
 
-export type PaymentType = "Credit" | "Cash" | "Fuel";
+export type PaymentType = "Credit" | "Cash" | "Fuel" | "To Be Paid";
 
 export type DriverAdvancePaymentMethod = "None" | "CASH" | "NEFT/IMPS/UPI" | "Both";
 
-export type DriverCompensationType = "Normal" | "FIXED";
+export type DriverCompensationType = "Normal" | "DEFAULT" | "CUSTOM";
 
 export type Trip = {
   id: string;
@@ -96,6 +96,7 @@ export type Trip = {
   ratePerTon?: string;
   transportHireAmount: string;
   transportCrossingAmount: string;
+  transportCommissionAmount?: string;
 
   // Commercial Manager inputs at assignment
   approxKm?: string;

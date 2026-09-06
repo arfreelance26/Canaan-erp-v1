@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
@@ -16,7 +16,7 @@ import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, FileBarChart2 } from "lucide-react";
+import { Search, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, FileBarChart2, Trash2 } from "lucide-react";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -80,6 +80,7 @@ export default function TripReconciliationPage() {
   const [myActiveApprovals, setMyActiveApprovals] = useState<EditApprovalRequest[]>([]);
   const [myRequests, setMyRequests] = useState<EditApprovalRequest[]>([]);
   const [resubmitting, setResubmitting] = useState<Set<string>>(new Set());
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   async function loadReconciliationData() {
     let t: Trip[], d: Driver[], tr: Truck[], c: Customer[];
@@ -250,6 +251,27 @@ export default function TripReconciliationPage() {
       showError(err instanceof Error ? err.message : "Failed to re-submit trip.");
     } finally {
       setResubmitting((prev) => { const s = new Set(prev); s.delete(trip.id); return s; });
+    }
+  }
+
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
+    try {
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete trip.");
     }
   }
 
@@ -665,7 +687,7 @@ export default function TripReconciliationPage() {
             <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-200 bg-gray-50">
                 {["Trip Sheet Status", "Actions", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref", "Customer",
-                  "Hire Amount", "Total Expense"].map((col) => (
+                  "Hire Amount", "Total Expense", "Delete"].map((col) => (
                   <th key={col} className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                     {col}
                   </th>
@@ -916,6 +938,29 @@ export default function TripReconciliationPage() {
                     <td className="px-4 py-2 font-medium text-emerald-700">
                       {sheet ? fmt(n(sheet.totalExpense)) : <span className="text-gray-400">—</span>}
                     </td>
+                    <td className="px-4 py-2">
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteRequestTrip(trip)}
+                          title="Delete this trip and all its data"
+                          className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteRequestTrip(trip)}
+                          title="Request Admin to delete this trip"
+                          className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Request Delete
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -1050,6 +1095,18 @@ export default function TripReconciliationPage() {
           onSubmit={handleEditRequestSubmit}
           onClose={() => { setEditRequestOpen(false); setPendingEditAction(null); }}
           rejectionContext={pendingEditAction.rejectionContext}
+        />
+      )}
+
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
         />
       )}
 

@@ -8,7 +8,6 @@ import { tripsApi } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { Truck } from "@/types/truck";
-import type { Branch } from "@/types/branch";
 import type { CompensationPerson } from "./CompensationTable";
 
 type Props = {
@@ -17,7 +16,6 @@ type Props = {
   driver: CompensationPerson | null;
   trips: Trip[];
   trucks: Truck[];
-  branches: Branch[];
   onRecordPayment: (total: number) => Promise<void>;
 };
 
@@ -61,7 +59,7 @@ type Row = {
   totalAdvance: number;
   outstandingAdvance: number;
   hireAmount: number;
-  compensationPct: number;
+  driverCompensationType: string;
   regularPay: number;
   netPayable: number;
   completedDate: string;
@@ -72,7 +70,7 @@ type Row = {
   excludedFromTotal: boolean;
 };
 
-export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branches, onRecordPayment }: Props) {
+export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRecordPayment }: Props) {
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -129,17 +127,13 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
         const totalAdvance = parseFloat(sheet?.driverAdvanceAmount ?? "0") || 0;
         const outstandingAdvance = totalAdvance - totalExpenses;
         const hireAmount = parseFloat(sheet?.hireAmount ?? t.transportHireAmount ?? "0") || 0;
-        // Compensation % comes from the branch the truck is registered to; fall back to 10%
-        const branch = branches.find(
-          (b) => b.name.trim().toLowerCase() === (truck?.branchRegisteredTo ?? "").trim().toLowerCase()
-        );
-        const compensationPct = branch ? (parseFloat(branch.driverHaltDayPercentage) || 10) : 10;
-        // SHIFTING trips pay a hardcoded driver batta (set per container type on the trip
-        // sheet, see BATTA_RULES in TripSheetDialog) instead of a % of the hire amount.
-        const isShifting = t.tripCategory === "SHIFTING";
-        const regularPay = isShifting
-          ? parseFloat(sheet?.driverPay ?? "0") || 0
-          : Math.round(hireAmount * compensationPct / 100);
+        // Regular Pay is pulled directly from the trip's own Driver Batta Amount
+        // (Trip Assignment form → Driver Compensation section), falling back to the
+        // trip sheet's driverPay only if that trip-level field is somehow blank.
+        // That field already applies whichever compensation type (Normal / Default /
+        // Custom) was used at assignment time, so it's more accurate than
+        // recomputing a branch % here — no need to re-derive it independently.
+        const regularPay = parseFloat(t.driverAdvanceAmount ?? sheet?.driverPay ?? "0") || 0;
         const netPayable = regularPay - outstandingAdvance;
         const excludedFromTotal = t.tripCategory === "RETURN TRIP" && !t.isBattaApplicable;
 
@@ -165,7 +159,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
           totalAdvance,
           outstandingAdvance,
           hireAmount,
-          compensationPct,
+          driverCompensationType: t.driverCompensationType || "—",
           regularPay,
           netPayable,
           completedDate: sheet?.tripCompletedDate ?? "",
@@ -579,33 +573,36 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                 <span className="text-xs font-semibold text-slate-700">Regular Pay</span>
                 <div className="flex flex-col gap-1.5">
                   <span className="inline-flex w-fit items-center rounded-md bg-blue-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-blue-700">
-                    Driver Compensation % × Hire Amount
+                    Driver Batta Amount (from the trip)
                   </span>
                   <p className="text-[11px] leading-relaxed text-slate-500">
-                    The compensation percentage is set per branch in <span className="font-semibold text-slate-700">Admin → Branch Management → Driver Compensation %</span>.
-                    The truck&apos;s registered branch determines which % is used.
+                    Pulled directly from the <span className="font-semibold text-slate-700">Driver Batta Amount</span> field set when the trip
+                    was assigned — not recalculated here. That field already applies whichever compensation type was chosen at assignment time:
                   </p>
                   <div className="flex flex-col gap-1">
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-blue-100 px-1.5 py-px text-[10px] font-bold text-blue-600">e.g.</span>
+                      <span className="mt-0.5 shrink-0 rounded bg-emerald-100 px-1.5 py-px text-[10px] font-bold text-emerald-700">Normal</span>
                       <p className="text-[11px] leading-relaxed text-slate-500">
-                        Truck branch = Tuticorin (12%) · Hire ₹10,000 → Regular Pay ₹1,200
+                        Truck&apos;s branch Driver Compensation % × Hire Amount, e.g. Tuticorin (12%) · Hire ₹10,000 → ₹1,200
                       </p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-gray-100 px-1.5 py-px text-[10px] font-bold text-gray-500">default</span>
+                      <span className="mt-0.5 shrink-0 rounded bg-blue-100 px-1.5 py-px text-[10px] font-bold text-blue-600">Default</span>
                       <p className="text-[11px] leading-relaxed text-slate-500">
-                        Falls back to 10% if the truck&apos;s branch has no compensation % configured
+                        Looked up from <span className="font-semibold text-slate-700">Admin → Default Batta Management</span> by the truck&apos;s
+                        branch, trip category, and container type.
                       </p>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">SHIFTING</span>
+                      <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">Custom</span>
                       <p className="text-[11px] leading-relaxed text-slate-500">
-                        Exception: for SHIFTING trips, Regular Pay is instead the fixed <span className="font-semibold text-slate-700">Driver Batta</span> amount
-                        set on the trip sheet for that container type — not a % of hire amount.
+                        A manually entered amount, typed in on the trip assignment form.
                       </p>
                     </div>
                   </div>
+                  <p className="text-[11px] leading-relaxed text-slate-500">
+                    Falls back to the amount on the trip&apos;s Trip Sheet only if the trip itself has no Driver Batta Amount recorded.
+                  </p>
                 </div>
               </div>
 
@@ -733,13 +730,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, branc
                     </td>
                     <td className="px-3 py-2.5 text-right text-blue-700 font-semibold">
                       {row.hasSheet ? (
-                        <span
-                          title={
-                            row.tripCategory === "SHIFTING"
-                              ? "Driver Batta (fixed amount from trip sheet)"
-                              : `${row.compensationPct}% of hire amount`
-                          }
-                        >
+                        <span title={`Driver Batta Amount from the trip (${row.driverCompensationType} compensation)`}>
                           {fmtCur(row.regularPay)}
                         </span>
                       ) : <span className="text-gray-400">—</span>}

@@ -36,7 +36,8 @@ type TabId = (typeof TABS)[number]["id"];
 
 export default function CustomersPage() {
   const { user } = useAuth();
-  const isStaff = user?.softwareDesignation === "Trip Sheet Register";
+  // Every role except Admin must file an edit request to change customer records.
+  const isGated = user?.softwareDesignation !== "Admin";
   const canSeeFinalPricing =
     user?.softwareDesignation === "Admin" || user?.softwareDesignation === "Accounts";
 
@@ -48,7 +49,7 @@ export default function CustomersPage() {
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
-  // Edit approval state (Staff only)
+  // Edit approval state (non-Admin roles)
   const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
   const [editRequestOpen, setEditRequestOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
@@ -80,9 +81,7 @@ export default function CustomersPage() {
     const c = customers.find(cust => cust.id === p.customerId);
     return (
       (c?.name.toLowerCase().includes(q)) ||
-      p.customerDestination?.toLowerCase().includes(q) ||
-      p.cargoClassification?.toLowerCase().includes(q) ||
-      p.containerType?.toLowerCase().includes(q)
+      p.customerDestination?.toLowerCase().includes(q)
     );
   });
 
@@ -93,7 +92,9 @@ export default function CustomersPage() {
     return (
       (c?.name.toLowerCase().includes(q)) ||
       d.destinationName?.toLowerCase().includes(q) ||
-      d.destinationState?.toLowerCase().includes(q)
+      d.destinationState?.toLowerCase().includes(q) ||
+      d.cargoClassification?.toLowerCase().includes(q) ||
+      d.containerType?.toLowerCase().includes(q)
     );
   });
 
@@ -106,13 +107,13 @@ export default function CustomersPage() {
 
   useWebSocketEvent("customer_updated", () => setRefreshKey(k => k + 1));
 
-  // Load and refresh active edit approvals for Staff
+  // Load and refresh active edit approvals for non-Admin roles
   useEffect(() => {
-    if (!isStaff) return;
+    if (!isGated) return;
     editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
-  }, [isStaff]);
+  }, [isGated]);
   useWebSocketEvent("edit_approval_updated", () => {
-    if (!isStaff) return;
+    if (!isGated) return;
     editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
   });
 
@@ -156,7 +157,7 @@ export default function CustomersPage() {
   }
 
   function handleEditCustomer(customer: Customer) {
-    if (isStaff && !hasActiveApproval(customer.id, "Edit")) {
+    if (isGated && !hasActiveApproval(customer.id, "Edit")) {
       setPendingAction({ type: "Edit", resourceId: customer.id, resourceName: customer.name });
       setEditRequestOpen(true);
       return;
@@ -167,7 +168,7 @@ export default function CustomersPage() {
 
   async function handleDeleteCustomer(id: string) {
     const customer = customers.find((c) => c.id === id);
-    if (isStaff && !hasActiveApproval(id, "Delete")) {
+    if (isGated && !hasActiveApproval(id, "Delete")) {
       setPendingAction({ type: "Delete", resourceId: id, resourceName: customer?.name ?? id });
       setEditRequestOpen(true);
       return;
@@ -501,6 +502,7 @@ export default function CustomersPage() {
             onSave={handleSaveDestination}
             initialData={editingDestination}
             customers={customers}
+            destinations={destinations}
           />
         </div>
       )}

@@ -30,10 +30,8 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
   const hasData = {
     customerName: pricing.some((p) => customers.find(c => c.id === p.customerId)?.name),
     customerDestination: pricing.some((p) => p.customerDestination),
-    cargoClassification: pricing.some((p) => p.cargoClassification),
-    containerType: pricing.some((p) => p.containerType),
-    weightInTons: pricing.some((p) => p.weightInTons),
     rate: pricing.some((p) => p.rate !== null && p.rate !== undefined),
+    commissionAmount: pricing.some((p) => p.commissionAmount),
     status: pricing.some((p) => p.status),
   };
 
@@ -44,10 +42,8 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
           <tr className="border-b border-gray-200 bg-gray-50">
             {hasData.customerName && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>}
             {hasData.customerDestination && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Destination</th>}
-            {hasData.cargoClassification && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Load Type</th>}
-            {hasData.containerType && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Container Type</th>}
-            {hasData.weightInTons && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Weight (In tons)</th>}
             {hasData.rate && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Rate</th>}
+            {hasData.commissionAmount && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Commission Amount</th>}
             {hasData.status && <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Status</th>}
             <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actions</th>
           </tr>
@@ -59,10 +55,8 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
               <tr key={entry.id} className="hover:bg-gray-50">
                 {hasData.customerName && <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>}
                 {hasData.customerDestination && <td className="px-4 py-3 text-gray-600">{entry.customerDestination}</td>}
-                {hasData.cargoClassification && <td className="px-4 py-3 text-gray-600">{entry.cargoClassification}</td>}
-                {hasData.containerType && <td className="px-4 py-3 text-gray-600">{entry.containerType}</td>}
-                {hasData.weightInTons && <td className="px-4 py-3 text-gray-600">{entry.weightInTons}</td>}
                 {hasData.rate && <td className="px-4 py-3 text-gray-600">{entry.rate}</td>}
+                {hasData.commissionAmount && <td className="px-4 py-3 text-gray-600">{entry.commissionAmount || "—"}</td>}
                 {hasData.status && (
                   <td className="px-4 py-3">
                     <span

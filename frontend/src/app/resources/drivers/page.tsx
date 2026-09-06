@@ -5,11 +5,13 @@ import { Download, Loader2, Plus, Search, X } from "lucide-react";
 import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { driversApi, uploadFile, fileUrl } from "@/lib/api";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { driversApi, uploadFile, fileUrl, editApprovalsApi } from "@/lib/api";
 import { confirmAction, showSuccess, showError } from "@/lib/swal";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
+import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -19,6 +21,9 @@ import { useAuth } from "@/context/AuthContext";
 export default function DriversPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
+  // Every role except Admin must file an edit request to change driver records.
+  // Deletion stays Admin-only (button hidden below) — no edit-request path for it.
+  const isGated = !isAdmin;
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -27,6 +32,11 @@ export default function DriversPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingDriver, setViewingDriver] = useState<Driver | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Edit approval state (non-Admin roles)
+  const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [editRequestOpen, setEditRequestOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
 
   const filteredDrivers = drivers.filter(d =>
     !searchQuery ||
@@ -41,14 +51,57 @@ export default function DriversPage() {
 
   useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
+  // Load and refresh active edit approvals for non-Admin roles
+  useEffect(() => {
+    if (!isGated) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  }, [isGated]);
+  useWebSocketEvent("edit_approval_updated", () => {
+    if (!isGated) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  });
+
+  function hasActiveApproval(resourceId: string, action: EditApprovalAction): boolean {
+    return activeApprovals.some((a) =>
+      a.resourceType === "Driver" &&
+      String(a.resourceId) === resourceId &&
+      a.action === action &&
+      a.expiresAt != null &&
+      new Date(a.expiresAt.endsWith("Z") ? a.expiresAt : a.expiresAt + "Z") > new Date()
+    );
+  }
+
   function handleAdd() {
     setEditingDriver(null);
     setDialogOpen(true);
   }
 
   function handleEdit(driver: Driver) {
+    if (isGated && !hasActiveApproval(driver.id, "Edit")) {
+      setPendingAction({ type: "Edit", resourceId: driver.id, resourceName: driver.name });
+      setEditRequestOpen(true);
+      return;
+    }
     setEditingDriver(driver);
     setDialogOpen(true);
+  }
+
+  async function handleEditRequestSubmit(reason: string) {
+    if (!pendingAction) return;
+    try {
+      await editApprovalsApi.create({
+        resourceType: "Driver",
+        resourceId: parseInt(pendingAction.resourceId),
+        resourceName: pendingAction.resourceName,
+        action: pendingAction.type,
+        reason,
+      });
+      showSuccess("Edit request has been sent.");
+      setEditRequestOpen(false);
+      setPendingAction(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to send edit request.");
+    }
   }
 
   async function handleDelete(id: string) {
@@ -194,7 +247,7 @@ export default function DriversPage() {
     }
   }
 
-  if (loading) return <PageSkeleton hasButton hasSearch columns={11} rows={8} />;
+  if (loading) return <PageSkeleton hasButton hasSearch cards cardCount={8} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -239,6 +292,18 @@ export default function DriversPage() {
         initialData={editingDriver}
         existingDrivers={drivers}
       />
+
+      {/* Edit approval request dialog — shown when a non-Admin clicks Edit without active approval */}
+      {pendingAction && (
+        <EditRequestDialog
+          open={editRequestOpen}
+          resourceType="Driver"
+          resourceName={pendingAction.resourceName}
+          action={pendingAction.type}
+          onSubmit={handleEditRequestSubmit}
+          onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
+        />
+      )}
 
       {viewingDriver && (() => {
         const d = viewingDriver;

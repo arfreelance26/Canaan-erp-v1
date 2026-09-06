@@ -18,7 +18,8 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function VendorsPage() {
   const { user } = useAuth();
-  const isStaff = user?.softwareDesignation === "Trip Sheet Register";
+  // Every role except Admin must file an edit request to change vendor records.
+  const isGated = user?.softwareDesignation !== "Admin";
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +28,7 @@ export default function VendorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Edit approval state (Staff only)
+  // Edit approval state (non-Admin roles)
   const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
   const [editRequestOpen, setEditRequestOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
@@ -46,13 +47,13 @@ export default function VendorsPage() {
 
   useWebSocketEvent("vendor_updated", () => setRefreshKey(k => k + 1));
 
-  // Load and refresh active edit approvals for Staff
+  // Load and refresh active edit approvals for non-Admin roles
   useEffect(() => {
-    if (!isStaff) return;
+    if (!isGated) return;
     editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
-  }, [isStaff]);
+  }, [isGated]);
   useWebSocketEvent("edit_approval_updated", () => {
-    if (!isStaff) return;
+    if (!isGated) return;
     editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
   });
 
@@ -72,7 +73,7 @@ export default function VendorsPage() {
   }
 
   function handleEdit(vendor: Vendor) {
-    if (isStaff && !hasActiveApproval(vendor.id, "Edit")) {
+    if (isGated && !hasActiveApproval(vendor.id, "Edit")) {
       setPendingAction({ type: "Edit", resourceId: vendor.id, resourceName: vendor.name });
       setEditRequestOpen(true);
       return;
@@ -83,7 +84,7 @@ export default function VendorsPage() {
 
   async function handleDelete(id: string) {
     const vendor = vendors.find((v) => v.id === id);
-    if (isStaff && !hasActiveApproval(id, "Delete")) {
+    if (isGated && !hasActiveApproval(id, "Delete")) {
       setPendingAction({ type: "Delete", resourceId: id, resourceName: vendor?.name ?? id });
       setEditRequestOpen(true);
       return;

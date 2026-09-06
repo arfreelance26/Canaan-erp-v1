@@ -53,6 +53,12 @@ const BADGE: Record<StageColor, string> = {
   teal:    "bg-teal-100    text-teal-700    dark:text-teal-900",
 };
 
+/** All stage colors in a fixed order, for cycling through a palette by index. */
+export const ALL_STAGE_COLORS: StageColor[] = [
+  "blue", "emerald", "purple", "orange", "rose", "teal",
+  "indigo", "amber", "red", "yellow", "gray",
+];
+
 /** Row `<tr>` className for a stage color (full tint + left bar). */
 export function stageRowClass(color: StageColor): string {
   return ROW[color];

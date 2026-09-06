@@ -27,6 +27,28 @@ def check_customer_destination_duplicates(db: Session, payload, customer_id: int
         if query.first():
             raise HTTPException(400, f"Destination '{payload.destination_name}' already exists for this customer.")
 
+    # A "route" is the combination of these 7 fields. Two destinations for the
+    # same customer with identical values on all 7 are the same route and are
+    # rejected; differing on even one field makes it a distinct route.
+    ROUTE_FIELDS = (
+        "origin_state", "origin_address", "destination_state", "destination_address",
+        "cargo_classification", "container_type", "weight_in_tons",
+    )
+
+    def normalize(v):
+        return (v or "").strip().casefold()
+
+    payload_route = {f: normalize(getattr(payload, f, None)) for f in ROUTE_FIELDS}
+
+    query = db.query(models.CustomerDestination).filter(
+        models.CustomerDestination.customer_id == customer_id
+    )
+    if exclude_id: query = query.filter(models.CustomerDestination.id != exclude_id)
+    for existing in query.all():
+        existing_route = {f: normalize(getattr(existing, f, None)) for f in ROUTE_FIELDS}
+        if existing_route == payload_route:
+            raise HTTPException(400, "This exact route (origin, destination, cargo, container & weight combination) already exists for this customer.")
+
 def check_vendor_duplicates(db: Session, payload, exclude_id=None):
     if getattr(payload, "name", None): check_duplicate(db, models.Vendor, "name", payload.name, exclude_id)
     if getattr(payload, "gstin", None): check_duplicate(db, models.Vendor, "gstin", payload.gstin, exclude_id)

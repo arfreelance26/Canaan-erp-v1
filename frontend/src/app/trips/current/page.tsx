@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
-import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -29,6 +30,7 @@ export default function CurrentTripsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
         Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
@@ -75,6 +77,27 @@ export default function CurrentTripsPage() {
     }
   }
 
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
+    try {
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setAllTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete trip.");
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
   return (
@@ -108,8 +131,22 @@ export default function CurrentTripsPage() {
         customers={customers}
         onMarkCompleted={handleMarkCompleted}
         onCancel={isAdmin ? handleCancel : undefined}
+        onDelete={isAdmin ? (trip) => setDeleteRequestTrip(trip) : undefined}
+        onDeleteRequest={!isAdmin ? (trip) => setDeleteRequestTrip(trip) : undefined}
         emptyStateMessage='No trips assigned yet. Go to Assign Trips to create one.'
       />
+
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
+        />
+      )}
     </div>
   );
 }

@@ -22,7 +22,7 @@ import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
 import type { InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { showSuccess, showError } from "@/lib/swal";
 
 type InvoicePreviewState = {
   trip: Trip;
@@ -59,6 +59,7 @@ export default function TripHistoryPage() {
   // them instead of "All" — a card-less filter state would be confusing.
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(isAuditor ? "Invoiced" : "All");
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [exportFrom, setExportFrom] = useState("");
@@ -132,40 +133,36 @@ export default function TripHistoryPage() {
     });
   }
 
-  async function handleDelete(trip: Trip) {
-    const hasSheet  = sheets.has(trip.id);
-    const hasClosure = closures.has(trip.id);
-    const isInvoiced = (trip as any).isInvoiced === true;
-    const parts = ["booking data"];
-    if (hasClosure) parts.push("booking sheet");
-    if (hasSheet)   parts.push("trip sheet");
-    if (isInvoiced) parts.push("invoice");
-    const res = await confirmDelete(
-      `Trip ${trip.tripId} and all its data (${parts.join(", ")}) will be permanently deleted. This cannot be undone.`
-    );
-    if (!res.isConfirmed) return;
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
     try {
-      await tripsApi.remove(trip.id);
-      setTrips((prev) => prev.filter((t) => t.id !== trip.id));
-      setSelected((prev) => { const next = new Set(prev); next.delete(trip.id); return next; });
-      showSuccess(`Trip ${trip.tripId} deleted.`);
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        setSelected((prev) => { const next = new Set(prev); next.delete(trip.id); return next; });
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete trip.");
     }
   }
 
-  async function handleBulkDelete() {
+  async function handleBulkDeleteSubmit(reason: string) {
     if (selected.size === 0 || deleting) return;
-    const res = await confirmDelete(
-      `${selected.size} trip${selected.size > 1 ? "s" : ""} and ALL their related data (booking sheets, trip sheets, invoices) will be permanently deleted. This cannot be undone.`
-    );
-    if (!res.isConfirmed) return;
     setDeleting(true);
     const ids = [...selected];
     const failed: string[] = [];
     await Promise.all(
       ids.map((id) =>
-        tripsApi.remove(id).catch(() => {
+        tripsApi.remove(id, reason).catch(() => {
           failed.push(trips.find((t) => t.id === id)?.tripId ?? id);
         })
       )
@@ -173,26 +170,12 @@ export default function TripHistoryPage() {
     setTrips((prev) => prev.filter((t) => !selected.has(t.id) || (failed.length > 0 && failed.includes(t.tripId))));
     setSelected(new Set());
     setDeleting(false);
+    setBulkDeleteOpen(false);
     if (failed.length === 0) {
       showSuccess(`${ids.length} trip${ids.length > 1 ? "s" : ""} deleted.`);
     } else {
       showError(`${ids.length - failed.length} deleted, ${failed.length} failed: ${failed.join(", ")}`);
       loadAll();
-    }
-  }
-
-  async function handleDeleteRequest(trip: Trip, reason: string) {
-    try {
-      await deletionApprovalsApi.create({
-        resourceType: "Trip",
-        resourceId: parseInt(trip.id),
-        resourceName: trip.bookingReferenceNo || trip.tripId,
-        reason,
-      });
-      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
-      setDeleteRequestTrip(null);
-    } catch (err) {
-      showError(err instanceof Error ? err.message : "Failed to send delete request.");
     }
   }
 
@@ -362,7 +345,7 @@ export default function TripHistoryPage() {
             <button
               type="button"
               disabled={deleting}
-              onClick={handleBulkDelete}
+              onClick={() => setBulkDeleteOpen(true)}
               className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
               {deleting ? "Deleting…" : `Delete ${selected.size} Trip${selected.size > 1 ? "s" : ""}`}
@@ -534,8 +517,11 @@ export default function TripHistoryPage() {
                             Invoiced
                           </span>
                         ) : isWaived ? (
-                          <span className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700">
-                            Waived
+                          <span
+                            className="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700"
+                            title={trip.paymentType === "To Be Paid" ? "Automatically waived — payment type is To Be Paid" : undefined}
+                          >
+                            {trip.paymentType === "To Be Paid" ? "To Be Paid" : "Waived"}
                           </span>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
@@ -548,9 +534,9 @@ export default function TripHistoryPage() {
                       {isAdmin && (
                         <button
                           type="button"
-                          onClick={() => handleDelete(trip)}
+                          onClick={() => setDeleteRequestTrip(trip)}
                           className="mb-1.5 flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
-                          title="Permanently delete this trip and all its data"
+                          title="Delete this trip and all its data"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete
@@ -694,15 +680,28 @@ export default function TripHistoryPage() {
         }}
       />
 
-      {/* Fleet Manager delete request dialog */}
+      {/* Delete request dialog — direct delete-with-reason for Admin, approval request for everyone else */}
       {deleteRequestTrip && (
         <EditRequestDialog
           open={deleteRequestTrip !== null}
           resourceType="Trip"
           resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
           action="Delete"
-          onSubmit={(reason) => handleDeleteRequest(deleteRequestTrip, reason)}
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
           onClose={() => setDeleteRequestTrip(null)}
+        />
+      )}
+
+      {bulkDeleteOpen && (
+        <EditRequestDialog
+          open={bulkDeleteOpen}
+          resourceType="Trip"
+          resourceName={`${selected.size} selected trip${selected.size > 1 ? "s" : ""}`}
+          action="Delete"
+          directAction
+          onSubmit={handleBulkDeleteSubmit}
+          onClose={() => setBulkDeleteOpen(false)}
         />
       )}
 

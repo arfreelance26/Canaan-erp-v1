@@ -83,6 +83,10 @@ class TruckUpdate(TruckBase):
     model_name: Optional[str] = None
     truck_type: Optional[TruckType] = None
     tyre_layout: Optional[str] = None
+    # Required note when branch_registered_to is actually changing — not an
+    # approval, just a record of why. Ignored when branch isn't part of the
+    # diff, enforced (400 if blank) when it is — see routers/trucks.py.
+    branch_change_note: Optional[str] = None
 
 
 class TruckOut(TruckBase):
@@ -90,6 +94,16 @@ class TruckOut(TruckBase):
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Present only while a "This Trip Only" branch change is in effect.
+    temp_branch_original: Optional[str] = None
+    temp_branch_trip_id: Optional[str] = None
+
+
+class TruckBranchChangeIn(OrmBase):
+    mode: Literal["trip_only", "permanent"]
+    branch_name: str
+    note: Optional[str] = None          # required when mode == "permanent"
+    trip_id: Optional[str] = None       # required when mode == "trip_only" (Trip.trip_id, e.g. "TRP-1050")
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +314,9 @@ class CustomerDestinationBase(OrmBase):
     origin_address: Optional[str] = None
     status: Optional[EntityStatus] = "ACTIVE"
     approx_distance_km: Optional[Decimal] = None
+    cargo_classification: Optional[str] = None
+    container_type: Optional[str] = None
+    weight_in_tons: Optional[str] = None
 
 
 class CustomerDestinationCreate(CustomerDestinationBase):
@@ -313,10 +330,8 @@ class CustomerDestinationOut(CustomerDestinationBase):
 
 class CustomerPricingBase(OrmBase):
     customer_destination: Optional[str] = None
-    cargo_classification: Optional[str] = None
-    container_type: Optional[str] = None
-    weight_in_tons: Optional[str] = None
     rate: Optional[Decimal] = None
+    commission_amount: Optional[Decimal] = None
     status: Optional[EntityStatus] = "ACTIVE"
 
 
@@ -405,9 +420,9 @@ MovementCategory = Literal["Own Fleet", "Third-Party Transporter"]
 CargoClassification = Literal["IMPORT", "EXPORT", "EMPTY", "CFS LADEN", "OPEN LOAD", "COASTAL", "RETURN TRIP"]
 ContainerSpecification = Literal["20 FT CONTAINER", "40 FT CONTAINER", "2 X 20 FEET CONTAINERS", "OPEN LOAD CARGO"]
 BillTo = Literal["CUSTOMER", "CONSIGNEE", "SELF/CGI"]
-PaymentType = Literal["Credit", "Cash", "Fuel"]
+PaymentType = Literal["Credit", "Cash", "Fuel", "To Be Paid"]
 DriverAdvancePaymentMethod = Literal["None", "CASH", "NEFT/IMPS/UPI", "Both"]
-DriverCompensationType = Literal["Normal", "FIXED"]
+DriverCompensationType = Literal["Normal", "DEFAULT", "CUSTOM"]
 VerificationStatus = Literal["pending", "verified", "flagged", "rejected"]
 
 
@@ -451,6 +466,7 @@ class TripBase(OrmBase):
     rate_per_ton: Optional[Decimal] = None
     transport_hire_amount: Optional[Decimal] = None
     transport_crossing_amount: Optional[Decimal] = None
+    transport_commission_amount: Optional[Decimal] = None
     approx_km: Optional[Decimal] = None
     approx_trip_distance: Optional[Decimal] = None
     lift_on_amount: Optional[Decimal] = None
@@ -500,6 +516,10 @@ class TripCreate(TripBase):
 
 class TripStatusUpdate(OrmBase):
     status: TripStatus
+
+
+class TripDeleteRequest(OrmBase):
+    reason: str
 
 
 class LRDataSave(OrmBase):
@@ -881,7 +901,7 @@ class HolidayOut(OrmBase):
 # ---------------------------------------------------------------------------
 
 EditApprovalAction = Literal["Edit", "Delete"]
-EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck"]
 EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
 
 
@@ -1347,6 +1367,23 @@ class ComplianceUpdateHistoryOut(BaseModel):
     document_type:    str
     updated_at:       datetime
     updated_by_name:  str
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Truck Branch History
+# ---------------------------------------------------------------------------
+
+class TruckBranchHistoryOut(BaseModel):
+    id:               int
+    truck_id:         int
+    from_branch:      Optional[str] = None
+    to_branch:        str
+    note:             str
+    changed_by_name:  str
+    changed_at:       datetime
 
     class Config:
         from_attributes = True
@@ -1999,3 +2036,19 @@ class ChatReadPayload(BaseModel):
 
 class ChatMutePayload(BaseModel):
     muted: bool
+
+
+# ---------------------------------------------------------------------------
+# Default Batta Management
+# ---------------------------------------------------------------------------
+
+class DefaultBattaRateUpsert(OrmBase):
+    branch_id: int
+    trip_type: str
+    cargo_type: str
+    amount: Optional[float] = None
+
+
+class DefaultBattaRateOut(DefaultBattaRateUpsert):
+    id: int
+    updated_at: Optional[datetime] = None

@@ -18,18 +18,6 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Trash2, PlusCircle } from "lucide-react";
 
-// Auto-fill rules: tripType → containerType → { type, amount }
-const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
-  "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
-                 "40 FT CONTAINER":         { type: "FIXED", amount: "1300" } },
-  "LOCAL CFS": { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
-                 "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "1300" },
-                 "40 FT CONTAINER":         { type: "FIXED", amount: "1000" } },
-  "SHIFTING":  { "20 FT CONTAINER":        { type: "FIXED", amount: "300" },
-                "40 FT CONTAINER":         { type: "FIXED", amount: "300" },
-                "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "600" } },
-};
-
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 const subsh = "text-xs font-medium text-gray-400 uppercase tracking-wider mt-3 mb-1";
 
@@ -55,7 +43,7 @@ function recalcDerived(s: TripSheetData, haltPay: number): TripSheetData {
 // NOTE: sheet-OWNED fields (start/end km, diesel, expenses, advances, remarks, computed
 // batta/driverPay) are intentionally NOT listed — those belong to the sheet and must be
 // preserved from the saved sheet, not overwritten by the trip.
-function tripMirroredFields(trip: Trip, battaCompType: string): Partial<TripSheetData> {
+function tripMirroredFields(trip: Trip): Partial<TripSheetData> {
   return {
     bookingReferenceNo:     trip.bookingReferenceNo ?? "",
     tripSheetNo:            (trip.bookingReferenceNo ?? "").replace(/^CGI/, "TS"),
@@ -78,7 +66,7 @@ function tripMirroredFields(trip: Trip, battaCompType: string): Partial<TripShee
     openLoadHireType:       trip.openLoadHireType ?? "",
     ratePerTon:             trip.ratePerTon ?? "",
     hireAmount:             trip.transportHireAmount ?? "",
-    driverCompensationType: trip.driverCompensationType || battaCompType,
+    driverCompensationType: trip.driverCompensationType ?? "",
   };
 }
 
@@ -225,15 +213,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     // Only company-caused halt days go into trip expenses
     const hp = totalHD > 0 ? (compHD / totalHD) * totalComp : 0;
 
-    const battaCompType =
-      BATTA_RULES[trip.tripCategory ?? ""]?.[trip.containerSpecification ?? ""]?.type ?? "";
-
     if (existingSheet) {
       setForm(recalcDerived({
         ...existingSheet,
         // Re-sync every trip-mirrored field from the live trip so a saved sheet can never
         // display a value that was changed on the booking afterwards (e.g. hire amount).
-        ...tripMirroredFields(trip, battaCompType),
+        ...tripMirroredFields(trip),
         dieselEntries: existingSheet.dieselEntries?.length
           ? existingSheet.dieselEntries
           : [emptyDieselEntry(existingSheet.tripSheetDate || todayIst())],
@@ -244,7 +229,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     } else {
       const sheet = emptySheet(trip.id);
       // Pull every trip-mirrored field from the live trip (same list used on re-open).
-      Object.assign(sheet, tripMirroredFields(trip, battaCompType));
+      Object.assign(sheet, tripMirroredFields(trip));
       sheet.cargoWeight             = trip.cargoWeight ?? "";  // seed once (new sheet only)
       sheet.driverPay               = trip.driverAdvanceAmount ?? "";
       // Store the individual advance breakdown so each field is independently editable.
@@ -444,15 +429,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       dieselEntries: prev.dieselEntries.filter((_, i) => i !== index),
     }));
   }
-
-  // Auto-fill driver batta based on BATTA_RULES (non-RETURN TRIP categories)
-  useEffect(() => {
-    if (form.tripType === "RETURN TRIP") return;
-    const rule = BATTA_RULES[form.tripType]?.[form.containerType];
-    if (rule) {
-      setForm((prev) => recalcDerived({ ...prev, driverPay: rule.amount }, haltPay));
-    }
-  }, [form.tripType, form.containerType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // RETURN TRIP batta: 10% of (Hire Amount − Weight Sheet Expense)
   useEffect(() => {
@@ -1076,9 +1052,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   </p>
                 );
               }
-              const rule = BATTA_RULES[form.tripType]?.[form.containerType];
-              if (rule) return <p className="mt-1 text-xs text-blue-500">Auto-set to ₹{Number(rule.amount).toLocaleString("en-IN")} — {form.tripType} with {form.containerType} ({rule.type} rate). Edit to override.</p>;
-              if (form.driverCompensationType === "FIXED") return <p className="mt-1 text-xs text-gray-400">Fixed batta amount based on compensation type.</p>;
+              if (form.driverCompensationType === "CUSTOM") return <p className="mt-1 text-xs text-gray-400">Custom batta amount based on compensation type.</p>;
               if (form.driverCompensationType === "PER KM" && n(form.totalKm) > 0) return <p className="mt-1 text-xs text-gray-400">Per-km rate × {n(form.totalKm).toLocaleString()} km. Edit to set amount.</p>;
               return <p className="mt-1 text-xs text-gray-400">Batta paid to driver for this trip.</p>;
             })()}

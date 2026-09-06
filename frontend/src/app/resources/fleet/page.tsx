@@ -5,19 +5,29 @@ import { Plus, Search, X, Download, Loader2 } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { trucksApi, uploadFile, fileUrl } from "@/lib/api";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
+import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
+import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { generateTruckId } from "@/lib/truck-data";
 import type { Truck } from "@/types/truck";
+import type { Branch } from "@/types/branch";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
+import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { useAuth } from "@/context/AuthContext";
 
 export default function FleetPage() {
+  const { user } = useAuth();
+  // Every role except Admin must file an edit request to change truck records.
+  const isGated = user?.softwareDesignation !== "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTruck, setEditingTruck] = useState<Truck | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +35,13 @@ export default function FleetPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingTruck, setViewingTruck] = useState<Truck | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Edit approval state (non-Admin roles)
+  const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [editRequestOpen, setEditRequestOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
+  const [branchChangeRequest, setBranchChangeRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
+  const [branchHistoryTruck, setBranchHistoryTruck] = useState<Truck | null>(null);
 
   const filteredTrucks = trucks.filter(t =>
     !searchQuery ||
@@ -38,8 +55,32 @@ export default function FleetPage() {
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
+  useEffect(() => {
+    branchesApi.list().then(setBranches).catch(() => {});
+  }, []);
+
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
   useComplianceAlerts(trucks);
+
+  // Load and refresh active edit approvals for non-Admin roles
+  useEffect(() => {
+    if (!isGated) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  }, [isGated]);
+  useWebSocketEvent("edit_approval_updated", () => {
+    if (!isGated) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+  });
+
+  function hasActiveApproval(resourceId: string, action: EditApprovalAction): boolean {
+    return activeApprovals.some((a) =>
+      a.resourceType === "Truck" &&
+      String(a.resourceId) === resourceId &&
+      a.action === action &&
+      a.expiresAt != null &&
+      new Date(a.expiresAt.endsWith("Z") ? a.expiresAt : a.expiresAt + "Z") > new Date()
+    );
+  }
 
   function handleAdd() {
     setEditingTruck(null);
@@ -47,11 +88,22 @@ export default function FleetPage() {
   }
 
   function handleEdit(truck: Truck) {
+    if (isGated && !hasActiveApproval(truck.id, "Edit")) {
+      setPendingAction({ type: "Edit", resourceId: truck.id, resourceName: truck.registrationNumber || truck.truckId });
+      setEditRequestOpen(true);
+      return;
+    }
     setEditingTruck(truck);
     setDialogOpen(true);
   }
 
   async function handleDelete(id: string) {
+    const truck = trucks.find((t) => t.id === id);
+    if (isGated && !hasActiveApproval(id, "Delete")) {
+      setPendingAction({ type: "Delete", resourceId: id, resourceName: truck?.registrationNumber || truck?.truckId || id });
+      setEditRequestOpen(true);
+      return;
+    }
     const result = await confirmDelete("truck");
     if (!result.isConfirmed) return;
     try {
@@ -60,6 +112,52 @@ export default function FleetPage() {
       showSuccess("Truck deleted successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete truck.");
+    }
+  }
+
+  async function handleEditRequestSubmit(reason: string) {
+    if (!pendingAction) return;
+    try {
+      await editApprovalsApi.create({
+        resourceType: "Truck",
+        resourceId: parseInt(pendingAction.resourceId),
+        resourceName: pendingAction.resourceName,
+        action: pendingAction.type,
+        reason,
+      });
+      showSuccess("Edit request has been sent.");
+      setEditRequestOpen(false);
+      setPendingAction(null);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to send edit request.");
+    }
+  }
+
+  function handleBranchHistory(truck: Truck) {
+    setBranchHistoryTruck(truck);
+  }
+
+  // Changing a truck's branch is never gated behind edit approval — every role,
+  // Admin included, can do it directly, but must leave a short note explaining
+  // why (see BranchChangeNoteDialog). It's a record, not a review workflow.
+  function handleChangeBranch(truck: Truck, branchName: string) {
+    if (truck.branchRegisteredTo === branchName) return;
+    setBranchChangeRequest({ truck, branchName });
+  }
+
+  async function submitBranchChange(note: string) {
+    if (!branchChangeRequest) return;
+    const { truck, branchName } = branchChangeRequest;
+    const previous = truck.branchRegisteredTo;
+    setTrucks((prev) => prev.map((t) => (t.id === truck.id ? { ...t, branchRegisteredTo: branchName } : t)));
+    try {
+      const saved = await trucksApi.update(truck.id, { ...truck, branchRegisteredTo: branchName }, note);
+      setTrucks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
+      showSuccess(`Branch updated to ${branchName}.`);
+      setBranchChangeRequest(null);
+    } catch (err: unknown) {
+      setTrucks((prev) => prev.map((t) => (t.id === truck.id ? { ...t, branchRegisteredTo: previous } : t)));
+      showError(err instanceof Error ? err.message : "Failed to update branch.");
     }
   }
 
@@ -196,7 +294,7 @@ export default function FleetPage() {
     }
   }
 
-  if (loading) return <PageSkeleton hasButton hasSearch columns={10} rows={8} />;
+  if (loading) return <PageSkeleton hasButton hasSearch cards cardCount={8} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -229,7 +327,15 @@ export default function FleetPage() {
       </div>
 
       <div>
-        <TruckTable trucks={filteredTrucks} onView={setViewingTruck} onEdit={handleEdit} onDelete={handleDelete} />
+        <TruckTable
+          trucks={filteredTrucks}
+          branches={branches}
+          onView={setViewingTruck}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onChangeBranch={handleChangeBranch}
+          onBranchHistory={handleBranchHistory}
+        />
       </div>
 
       <TruckFormDialog
@@ -238,6 +344,33 @@ export default function FleetPage() {
         onSave={handleSave}
         initialData={editingTruck}
         existingTrucks={trucks}
+      />
+
+      {/* Edit approval request dialog — shown when a non-Admin edits/deletes without active approval */}
+      {pendingAction && (
+        <EditRequestDialog
+          open={editRequestOpen}
+          resourceType="Truck"
+          resourceName={pendingAction.resourceName}
+          action={pendingAction.type}
+          onSubmit={handleEditRequestSubmit}
+          onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
+        />
+      )}
+
+      <BranchChangeNoteDialog
+        open={!!branchChangeRequest}
+        truckLabel={branchChangeRequest ? `${branchChangeRequest.truck.registrationNumber} (${branchChangeRequest.truck.truckId})` : ""}
+        fromBranch={branchChangeRequest?.truck.branchRegisteredTo || ""}
+        toBranch={branchChangeRequest?.branchName || ""}
+        onSubmit={submitBranchChange}
+        onClose={() => setBranchChangeRequest(null)}
+      />
+
+      <BranchHistoryDialog
+        open={!!branchHistoryTruck}
+        truck={branchHistoryTruck}
+        onClose={() => setBranchHistoryTruck(null)}
       />
 
       {viewingTruck && (() => {

@@ -10,10 +10,8 @@ export type CustomerPricing = {
   id: string;
   customerId: string;
   customerDestination: string;
-  cargoClassification: CargoClassification | "";
-  containerType: ContainerType | "";
-  weightInTons: WeightInTons | "";
   rate: string;
+  commissionAmount?: string;
   status: CustomerPricingStatus | "";
   validFrom?: string;
   validTo?: string;

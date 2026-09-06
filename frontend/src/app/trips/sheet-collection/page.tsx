@@ -1,20 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, FileBarChart2, X } from "lucide-react";
+import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, FileBarChart2, X, Trash2 } from "lucide-react";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { useAuth } from "@/context/AuthContext";
 
 function fmtIST(iso: string) {
   // MySQL returns datetime without timezone marker — append Z to force UTC parsing
@@ -32,6 +34,8 @@ function fmtIST(iso: string) {
 }
 
 export default function SheetCollectionPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -56,6 +60,7 @@ export default function SheetCollectionPage() {
   const [advanceOpen, setAdvanceOpen] = useState<string | null>(null); // trip.id
   const [advanceRemark, setAdvanceRemark] = useState("");
   const [advanceCorrected, setAdvanceCorrected] = useState("");
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   function loadData() {
     return Promise.all([
@@ -209,6 +214,27 @@ export default function SheetCollectionPage() {
         next.delete(trip.id);
         return next;
       });
+    }
+  }
+
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
+    try {
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete trip.");
     }
   }
 
@@ -560,7 +586,7 @@ export default function SheetCollectionPage() {
                       title="Select all pending"
                     />
                   </th>
-                  {["Action", "Vehicle", "Trip Date", "Advance Paid", "Driver", "Container No", "From → To", "Shipper / Consignee", "Status", "Trip ID", "Booking Ref", "Delivered On", "Sheet Status"].map(
+                  {["Action", "Vehicle", "Trip Date", "Advance Paid", "Driver", "Container No", "From → To", "Shipper / Consignee", "Status", "Trip ID", "Booking Ref", "Delivered On", "Sheet Status", "Delete"].map(
                     (col) => (
                       <th
                         key={col}
@@ -840,6 +866,31 @@ export default function SheetCollectionPage() {
                           </button>
                         )}
                       </td>
+
+                      {/* Delete — col 14 */}
+                      <td className="px-4 py-3">
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteRequestTrip(trip)}
+                            title="Delete this trip and all its data"
+                            className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteRequestTrip(trip)}
+                            title="Request Admin to delete this trip"
+                            className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Request Delete
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -899,6 +950,18 @@ export default function SheetCollectionPage() {
             </div>
           )}
         </>
+      )}
+
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
+        />
       )}
 
       {showReportModal && (() => {

@@ -86,7 +86,7 @@ export const CONTAINER_SPECIFICATION_OPTIONS: ContainerSpecification[] = [
 
 export const BILL_TO_OPTIONS = ["CUSTOMER", "SELF/CGI"];
 
-export const PAYMENT_TYPE_OPTIONS: PaymentType[] = ["Credit", "Cash", "Fuel"];
+export const PAYMENT_TYPE_OPTIONS: PaymentType[] = ["Credit", "Cash", "Fuel", "To Be Paid"];
 
 export const DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS: DriverAdvancePaymentMethod[] = [
   "None",
@@ -97,7 +97,8 @@ export const DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS: DriverAdvancePaymentMethod[]
 
 export const DRIVER_COMPENSATION_TYPE_OPTIONS: DriverCompensationType[] = [
   "Normal",
-  "FIXED",
+  "DEFAULT",
+  "CUSTOM",
 ];
 
 export const initialTrips: Trip[] = [
@@ -246,7 +247,7 @@ export const initialTrips: Trip[] = [
     customerFuelAdvanceLitres: "75",
     driverAdvanceAmount: "1800",
     driverAdvancePaymentMethod: "Both",
-    driverCompensationType: "FIXED",
+    driverCompensationType: "CUSTOM",
     isBattaApplicable: false,
     transportHireAmount: "35000",
     transportCrossingAmount: "0",

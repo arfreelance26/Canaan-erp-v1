@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Search, TrendingUp, TrendingDown, Route, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search, TrendingUp, TrendingDown, Route, ChevronLeft, ChevronRight,
+  Compass, Calculator, X, FileText, Wallet, MousePointerClick, CalendarDays, FileSpreadsheet,
+} from "lucide-react";
 import { tripsApi } from "@/lib/api";
 import { n } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
@@ -25,6 +28,144 @@ function fmt(v: number) {
   return `₹${Math.round(v).toLocaleString("en-IN")}`;
 }
 
+// ── Guide modal shell ────────────────────────────────────────────────────────────
+function ModalShell({ title, subtitle, icon, onClose, children }: {
+  title: string; subtitle?: string; icon: React.ReactNode; onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600 shrink-0">{icon}</div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+              {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
+          <button type="button" onClick={onClose}
+            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors shrink-0">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Formula({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg bg-slate-900 px-4 py-3 font-mono text-[11px] leading-relaxed text-slate-100 overflow-x-auto">
+      {children}
+    </div>
+  );
+}
+
+function GuideSection({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="mb-5 last:mb-0">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
+        {icon}{title}
+      </p>
+      <div className="space-y-2 text-sm text-gray-700 leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+// ── "How is it Calculated" modal ─────────────────────────────────────────────────
+function HowCalculatedModal({ onClose }: { onClose: () => void }) {
+  return (
+    <ModalShell
+      title="How is it Calculated"
+      subtitle="Formulas behind every figure on this page"
+      icon={<Calculator className="h-5 w-5" />}
+      onClose={onClose}
+    >
+      <GuideSection title="Data source" icon={<FileText className="h-3.5 w-3.5" />}>
+        <p>
+          This page lists every trip that has a saved <b>Trip Sheet</b>. Trips without one (nothing filled in on the
+          trip sheet yet) don&rsquo;t appear here, since there&rsquo;s no expense/KM data to show.
+        </p>
+      </GuideSection>
+
+      <GuideSection title="Hire Amount" icon={<Wallet className="h-3.5 w-3.5" />}>
+        <p>
+          Same figure as the <b>&ldquo;Hire Amount (excluding Commission Amount)&rdquo;</b> field on the trip
+          assignment form — the trip sheet&rsquo;s hire amount minus whatever commission was set on the route:
+        </p>
+        <Formula>Hire Amount&nbsp;&nbsp;=&nbsp;&nbsp;Trip Sheet Hire Amount − Transport Commission Amount</Formula>
+      </GuideSection>
+
+      <GuideSection title="Total Expense" icon={<FileSpreadsheet className="h-3.5 w-3.5" />}>
+        <p>Everything the company bears for the trip, taken straight from the trip sheet:</p>
+        <Formula>
+          Total Expense&nbsp;&nbsp;=&nbsp;&nbsp;Driver Batta + Port Pass + Weight Sheet + Mamol + Claimable Mamol
+          + Traffic/RTO + Lift On/Off + Crane Operator + Parking + Other Expenses + Toll Charges + Halt Pay
+        </Formula>
+      </GuideSection>
+
+      <GuideSection title="P&L" icon={<TrendingUp className="h-3.5 w-3.5" />}>
+        <Formula>P&amp;L&nbsp;&nbsp;=&nbsp;&nbsp;Hire Amount − Total Expense</Formula>
+        <p className="text-xs text-gray-500">Green with an up arrow means profit; red with a down arrow means loss.</p>
+      </GuideSection>
+
+      <GuideSection title="KM" icon={<Route className="h-3.5 w-3.5" />}>
+        <Formula>KM&nbsp;&nbsp;=&nbsp;&nbsp;Trip Sheet End KM − Start KM</Formula>
+      </GuideSection>
+
+      <GuideSection title="Filters &amp; sorting" icon={<CalendarDays className="h-3.5 w-3.5" />}>
+        <p>
+          From/To filters by the trip&rsquo;s <b>Scheduled Date</b>. Search matches Trip ID, vehicle, origin, or
+          destination. Rows are always sorted latest-scheduled first, then by highest P&amp;L. The totals row at the
+          bottom of the table sums every filtered trip, not just the current page.
+        </p>
+      </GuideSection>
+    </ModalShell>
+  );
+}
+
+// ── "Quick Start Guide" modal ─────────────────────────────────────────────────────
+function QuickStartModal({ onClose }: { onClose: () => void }) {
+  const steps = [
+    { n: 1, title: "Pick a date range", body: "Use From/To to narrow trips to a period, based on each trip's Scheduled Date. Leave both blank to see every trip with a saved trip sheet." },
+    { n: 2, title: "Search if needed", body: "Type a Trip ID, vehicle registration, or origin/destination to jump straight to a specific trip." },
+    { n: 3, title: "Read the summary cards", body: "Trips, Total Hire, and Net P&L for everything currently matching your filters — updates live as you filter." },
+    { n: 4, title: "Scan the table", body: "Each row shows Hire Amount, Total Expense, P&L and KM for one trip. Rows are sorted latest first." },
+    { n: 5, title: "Click a row for details", body: "Opens the full read-only Trip Sheet — every expense line item, driver batta, and KM reading behind the numbers." },
+    { n: 6, title: "Check \"How is it Calculated\"", body: "Click that button any time to see the exact formulas behind Hire Amount, Total Expense, P&L, and KM." },
+  ];
+  return (
+    <ModalShell
+      title="Quick Start Guide"
+      subtitle="Get comfortable with this page in under a minute"
+      icon={<Compass className="h-5 w-5" />}
+      onClose={onClose}
+    >
+      <div className="space-y-4">
+        {steps.map((s) => (
+          <div key={s.n} className="flex gap-3">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{s.n}</div>
+            <div>
+              <p className="text-sm font-semibold text-gray-800">{s.title}</p>
+              <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{s.body}</p>
+            </div>
+          </div>
+        ))}
+        <div className="flex gap-3">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+            <MousePointerClick className="h-3.5 w-3.5" />
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Tip: this page is read-only — to add or edit a trip sheet, go to the trip in <b>Trip Sheet Collection</b>.
+          </p>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 export default function PnlMileagePage() {
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
@@ -37,6 +178,8 @@ export default function PnlMileagePage() {
   const [page, setPage] = useState(1);
 
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [showHowCalculated, setShowHowCalculated] = useState(false);
+  const [showQuickStart, setShowQuickStart] = useState(false);
 
   useEffect(() => {
     tripsApi.list().then((trips) => {
@@ -78,7 +221,9 @@ export default function PnlMileagePage() {
       .filter((t) => sheets.has(t.id))
       .map((t) => {
         const s = sheets.get(t.id)!;
-        const hire = n(s.hireAmount);
+        // Hire Amount excluding Commission Amount — matches the "Hire Amount
+        // (excluding Commission Amount)" field on the trip assignment form.
+        const hire = n(s.hireAmount) - n(t.transportCommissionAmount ?? "");
         const expense = n(s.totalExpense);
         const pnl = hire - expense;
         const km = n(s.totalKm);
@@ -116,11 +261,29 @@ export default function PnlMileagePage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Page title */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Trip Summary</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Profit / Loss breakdown for all completed trip sheets
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Trip Summary</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Profit / Loss breakdown for all completed trip sheets
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button" onClick={() => setShowQuickStart(true)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+          >
+            <Compass className="h-4 w-4" />
+            Quick Start Guide
+          </button>
+          <button
+            type="button" onClick={() => setShowHowCalculated(true)}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+          >
+            <Calculator className="h-4 w-4" />
+            How is it Calculated
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -318,6 +481,9 @@ export default function PnlMileagePage() {
         onSubmit={() => {}}
         onClose={() => setSelectedTrip(null)}
       />
+
+      {showHowCalculated && <HowCalculatedModal onClose={() => setShowHowCalculated(false)} />}
+      {showQuickStart && <QuickStartModal onClose={() => setShowQuickStart(false)} />}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { Truck as TruckIcon, History, FileSearch, X, Loader2, ShieldCheck, Gauge, Wrench, Download, ChevronDown, ArrowRight } from "lucide-react";
 
 function Pill({ label, value, color }: { label: string; value: string; color: string }) {
@@ -172,17 +173,21 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
 
         {/* ── Toolbar ── */}
         <div className="shrink-0 flex items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-6 py-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+          <div className="flex items-end gap-2">
+            <div className="flex flex-col gap-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">From</span>
-              <input type="date" value={dateFrom} max={dateTo} onChange={(e) => setDateFrom(e.target.value)}
-                className="text-xs font-semibold text-gray-700 outline-none" />
+              <DatePickerInput
+                value={dateFrom}
+                onChange={(v) => setDateFrom(dateTo && v > dateTo ? dateTo : v)}
+              />
             </div>
-            <span className="text-gray-300">→</span>
-            <div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+            <span className="mb-2.5 text-gray-300">→</span>
+            <div className="flex flex-col gap-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">To</span>
-              <input type="date" value={dateTo} min={dateFrom} onChange={(e) => setDateTo(e.target.value)}
-                className="text-xs font-semibold text-gray-700 outline-none" />
+              <DatePickerInput
+                value={dateTo}
+                onChange={(v) => setDateTo(dateFrom && v < dateFrom ? dateFrom : v)}
+              />
             </div>
           </div>
           <div className="relative">

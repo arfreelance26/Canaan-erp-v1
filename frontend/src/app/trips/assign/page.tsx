@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { TripTable } from "@/components/trips/TripTable";
 import { TripFormDialog, clearTripDraft } from "@/components/trips/TripFormDialog";
-import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi } from "@/lib/api";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
@@ -32,6 +33,7 @@ export default function AssignTripsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
         Promise.all([
@@ -95,7 +97,7 @@ export default function AssignTripsPage() {
     setDialogOpen(true);
   }
 
-  async function handleSave(trip: Trip) {
+  async function handleSave(trip: Trip): Promise<boolean> {
     try {
       if (editingTrip) {
         const updated = await tripsApi.update(editingTrip.id, trip);
@@ -109,9 +111,11 @@ export default function AssignTripsPage() {
       }
       setDialogOpen(false);
       setEditingTrip(null);
+      return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to save trip. Please try again.";
       await showError(msg, "Cannot Assign Trip");
+      return false;
     }
   }
 
@@ -134,6 +138,27 @@ export default function AssignTripsPage() {
       showSuccess("Trip cancelled successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to cancel trip.");
+    }
+  }
+
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
+    try {
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete trip.");
     }
   }
 
@@ -184,7 +209,21 @@ export default function AssignTripsPage() {
         onEdit={handleEdit}
         onMarkStarted={handleMarkStarted}
         onCancel={isAdmin ? handleCancel : undefined}
+        onDelete={isAdmin ? (trip) => setDeleteRequestTrip(trip) : undefined}
+        onDeleteRequest={!isAdmin ? (trip) => setDeleteRequestTrip(trip) : undefined}
       />
+
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
+        />
+      )}
 
       <TripFormDialog
         open={dialogOpen}

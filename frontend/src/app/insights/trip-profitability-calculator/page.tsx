@@ -820,6 +820,11 @@ function TruckProfitCard({
                 {truck.tyreLayout}
               </span>
             )}
+            {truck.branchRegisteredTo && (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                {truck.branchRegisteredTo}
+              </span>
+            )}
           </div>
         </div>
       </div>

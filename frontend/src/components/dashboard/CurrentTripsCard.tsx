@@ -5,7 +5,65 @@ import { ArrowRight, Navigation, Search, Truck, X } from "lucide-react";
 import { notificationsApi, tripsApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
+
+const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+
+// Pipeline order, used both for the summary pills and to color each row's badge.
+const STAGE_ORDER = [
+  "Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded",
+  "Completed", "Pending Sheet Delivery", "Pending Sheet Entry", "Pending Verification", "Ready to Invoice",
+] as const;
+
+const STAGE_CLASSES: Record<string, string> = {
+  "Assigned":                "bg-sky-100 text-sky-700",
+  "Started":                 "bg-violet-100 text-violet-700",
+  "Loaded":                  "bg-violet-100 text-violet-700",
+  "On-Transit":              "bg-violet-100 text-violet-700",
+  "Reached":                 "bg-violet-100 text-violet-700",
+  "Unloaded":                "bg-violet-100 text-violet-700",
+  "Completed":               "bg-teal-100 text-teal-700",
+  "Pending Sheet Delivery":  "bg-amber-100 text-amber-700",
+  "Pending Sheet Entry":     "bg-orange-100 text-orange-700",
+  "Pending Verification":    "bg-fuchsia-100 text-fuchsia-700",
+  "Ready to Invoice":        "bg-emerald-100 text-emerald-700",
+};
+
+// Once a trip physically finishes ("Completed"), it still has a whole paper
+// trail to clear before it's actually done — booking sheet closed, trip sheet
+// delivered, received, entered, then verified — before it's invoiced or
+// waived. The card tracks it through every one of those stages and only
+// drops it once invoiced/waived.
+//
+// hasClosure is checked BEFORE hasSheet/tripSheetReceived: a trip with no
+// booking-sheet closure at all was previously falling straight into "Pending
+// Sheet Delivery" alongside trips that DO have a closure and are genuinely
+// just waiting on the trip sheet — inflating that bucket by exactly the
+// count of closure-less trips. Those two are different stages.
+//
+// hasSheet is then checked ahead of the collected/received checkboxes: a
+// trip sheet entered directly (e.g. by Admin/Accounts, bypassing the Yard
+// Supervisor "collected" -> Trip Sheet Register "received" workflow) can
+// have real sheet data with tripSheetReceived still false.
+function getStageLabel(trip: Trip): string {
+  if (trip.status === "Assigned") return "Assigned";
+  if (trip.status === "Completed") {
+    if (!trip.hasClosure) return "Completed"; // physically done, booking sheet not closed yet
+    if (trip.hasSheet) {
+      return trip.verificationStatus !== "verified" ? "Pending Verification" : "Ready to Invoice";
+    }
+    return trip.tripSheetReceived ? "Pending Sheet Entry" : "Pending Sheet Delivery";
+  }
+  // Started / Loaded / On-Transit / Reached / Unloaded — in-transit movement.
+  return trip.status ?? "—";
+}
+
+function fmtHire(v?: string | null): string {
+  const n = v ? Number(v) : 0;
+  if (!Number.isFinite(n) || n === 0) return "—";
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
 
 function fmtDate(d?: string | null): string {
   if (!d) return "—";
@@ -28,6 +86,11 @@ function fmtDate(d?: string | null): string {
 }
 
 export function CurrentTripsCard() {
+  const { user } = useAuth();
+  const canSeeHire = user?.softwareDesignation === "Admin" || user?.softwareDesignation === "Accounts";
+  const gridCols = canSeeHire
+    ? "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_100px_170px]"
+    : "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_170px]";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   // Track IDs of trips newly assigned so we can highlight them
@@ -36,11 +99,10 @@ export function CurrentTripsCard() {
 
   useEffect(() => {
     tripsApi.list()
-      .then((all) => setTrips(all.filter((t) =>
-        ["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded", "Completed"].includes(t.status ?? "")
-        && !t.hasSheet
-        && !t.isInvoiced
-      )))
+      .then((all) => setTrips(all.filter((t) => {
+        if (t.isInvoiced || t.invoiceWaived) return false; // done — drop off the card
+        return ACTIVE_STATUSES.has(t.status ?? "") || t.status === "Completed";
+      })))
       .catch(() => {});
   }, [refreshKey]);
 
@@ -90,18 +152,30 @@ export function CurrentTripsCard() {
   useEffect(() => () => { fadeTimers.current.forEach(clearTimeout); }, []);
 
   const [tripSearch, setTripSearch] = useState("");
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
+
+  const stageCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of trips) {
+      const label = getStageLabel(t);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return counts;
+  }, [trips]);
 
   const filteredTrips = useMemo(() => {
+    let list = trips;
+    if (stageFilter) list = list.filter((t) => getStageLabel(t) === stageFilter);
     const q = tripSearch.trim().toLowerCase();
-    if (!q) return trips;
-    return trips.filter((t) =>
+    if (!q) return list;
+    return list.filter((t) =>
       (t.tripId          ?? "").toLowerCase().includes(q) ||
       (t.truckRegistration ?? "").toLowerCase().includes(q) ||
       (t.driverName      ?? "").toLowerCase().includes(q) ||
       (t.origin          ?? "").toLowerCase().includes(q) ||
       (t.destination     ?? "").toLowerCase().includes(q)
     );
-  }, [trips, tripSearch]);
+  }, [trips, tripSearch, stageFilter]);
 
   const newCount = newTripIds.size;
 
@@ -149,14 +223,47 @@ export function CurrentTripsCard() {
         </div>
       </div>
 
+      {/* Stage summary pills — click to filter, click again to clear */}
+      {trips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-blue-100 bg-white px-5 py-2.5">
+          {STAGE_ORDER.filter((label) => (stageCounts.get(label) ?? 0) > 0).map((label) => {
+            const count = stageCounts.get(label) ?? 0;
+            const active = stageFilter === label;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setStageFilter((prev) => (prev === label ? null : label))}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-all ${STAGE_CLASSES[label] ?? "bg-gray-100 text-gray-600"} ${
+                  active ? "ring-2 ring-offset-1 ring-current" : "hover:opacity-80"
+                }`}
+              >
+                {label}
+                <span className="rounded-full bg-white/70 px-1.5 py-0 text-[10px] font-extrabold">{count}</span>
+              </button>
+            );
+          })}
+          {stageFilter && (
+            <button
+              type="button"
+              onClick={() => setStageFilter(null)}
+              className="ml-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-500 hover:bg-gray-50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Column headers */}
       {trips.length > 0 && (
-        <div className="grid grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_80px] gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+        <div className={`grid ${gridCols} gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400`}>
           <span>Trip ID</span>
           <span>From</span>
           <span>To</span>
           <span>Driver</span>
           <span>Truck</span>
+          {canSeeHire && <span className="text-right">Hire Amount</span>}
           <span className="text-right">Booked On</span>
           <span className="text-right">Status</span>
         </div>
@@ -166,19 +273,20 @@ export function CurrentTripsCard() {
       {filteredTrips.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-center">
           <Truck className="h-8 w-8 text-gray-200" />
-          <p className="text-sm text-gray-400">{tripSearch ? "No trips match your search." : "No current trips"}</p>
-          {!tripSearch && <p className="text-xs text-gray-300">All trip sheets have been submitted or trips are invoiced</p>}
+          <p className="text-sm text-gray-400">
+            {tripSearch ? "No trips match your search." : stageFilter ? `No trips in "${stageFilter}".` : "No current trips"}
+          </p>
+          {!tripSearch && !stageFilter && <p className="text-xs text-gray-300">Every trip is invoiced or waived</p>}
         </div>
       ) : (
         <div className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
           {filteredTrips.map((trip) => {
             const isNew = newTripIds.has(trip.tripId) || newTripIds.has(String(trip.id));
-            const isAssigned  = trip.status === "Assigned";
-            const isCompleted = trip.status === "Completed";
+            const stageLabel = getStageLabel(trip);
             return (
               <div
                 key={trip.id}
-                className={`grid grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_80px] items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
+                className={`grid ${gridCols} items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
                   isNew
                     ? "border-l-4 border-l-blue-500 bg-blue-50"
                     : "border-l-4 border-l-transparent hover:bg-gray-50"
@@ -211,6 +319,13 @@ export function CurrentTripsCard() {
                   {trip.truckRegistration ?? "—"}
                 </span>
 
+                {/* Hire amount — Admin/Accounts only */}
+                {canSeeHire && (
+                  <span className="shrink-0 text-right text-[11px] font-semibold text-blue-700">
+                    {fmtHire(trip.transportHireAmount)}
+                  </span>
+                )}
+
                 {/* Booking created date */}
                 <span className="shrink-0 text-right text-[11px] text-gray-400">
                   {fmtDate(trip.bookingCreatedDate || trip.assignedDate)}
@@ -218,12 +333,8 @@ export function CurrentTripsCard() {
 
                 {/* Status badge */}
                 <span className="flex justify-end">
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
-                    isAssigned  ? "bg-sky-100 text-sky-700"
-                    : isCompleted ? "bg-emerald-100 text-emerald-700"
-                    : "bg-violet-100 text-violet-700"
-                  }`}>
-                    {trip.status}
+                  <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${STAGE_CLASSES[stageLabel] ?? "bg-gray-100 text-gray-600"}`}>
+                    {stageLabel}
                   </span>
                 </span>
               </div>

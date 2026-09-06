@@ -35,6 +35,13 @@ class Truck(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     truck_id = Column(String(20), unique=True, nullable=False)          # CGI-T001
     branch_registered_to = Column(String(200))
+    # Set only while a "This Trip Only" branch change is in effect — the branch
+    # to snap back to, and which trip's completion (invoiced/waived) triggers
+    # that snap-back. Both NULL for a normal/permanent assignment. See
+    # routers/trucks.py branch-change endpoint and the revert hook in
+    # routers/trips.py (verify/waive-invoice/generate-invoice).
+    temp_branch_original = Column(String(200), nullable=True)
+    temp_branch_trip_id = Column(String(100), nullable=True)
     registration_number = Column(String(30), unique=True, nullable=False)
     manufacturer = Column(String(100), nullable=False)
     model_name = Column(String(100), nullable=False)
@@ -87,6 +94,11 @@ class Truck(Base):
     local_permit_proof_blob = Column(LargeBinary(length=26214400))
     pollution_certificate_blob = Column(LargeBinary(length=26214400))
     version = Column(Integer, default=1, nullable=False)
+    # Soft delete — "Our Fleet" -> Delete sets this instead of removing the row,
+    # so fuel/adblue/maintenance logs, tyre fitments, compliance history, and
+    # branch history (all FK'd to trucks.id) keep resolving the truck instead
+    # of being cascade-destroyed. See routers/trucks.py delete_truck.
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -275,6 +287,14 @@ class CustomerDestination(Base):
     origin_address = Column(String(500), nullable=True)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
     approx_distance_km = Column(Numeric(8, 2), nullable=True)
+    # Moved here from CustomerPricing — a destination is now 1:1 with a single
+    # cargo/container/weight combo (create a separate destination row per
+    # combo instead of multiple pricing rows per destination). This makes the
+    # destination <-> pricing match in routers/trips.py / TripFormDialog.tsx
+    # unambiguous instead of picking an arbitrary first match.
+    cargo_classification = Column(Enum("IMPORT", "EXPORT", "CFS LADEN", "EMPTY", "OPEN LOAD", "COASTAL"), nullable=True)
+    container_type = Column(Enum("20 FEET", "40 FEET", "2 X 20 FEET", "OPEN LOAD"), nullable=True)
+    weight_in_tons = Column(Enum("NORMAL", "Up to 20 Tons", "Between 20 - 25 Tons", "Between 25-28 Tons", "Between 28-30 Tons"), nullable=True)
 
     customer = relationship("Customer", back_populates="destinations")
 
@@ -285,10 +305,8 @@ class CustomerPricing(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
     customer_destination = Column(String(200))
-    cargo_classification = Column(Enum("IMPORT", "EXPORT", "CFS LADEN", "EMPTY", "OPEN LOAD", "COASTAL"))
-    container_type = Column(Enum("20 FEET", "40 FEET", "2 X 20 FEET", "OPEN LOAD"))
-    weight_in_tons = Column(Enum("NORMAL", "Up to 20 Tons", "Between 20 - 25 Tons", "Between 25-28 Tons", "Between 28-30 Tons"))
     rate = Column(Numeric(10, 2))
+    commission_amount = Column(Numeric(10, 2), nullable=True)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
 
     customer = relationship("Customer", back_populates="pricing")
@@ -382,7 +400,7 @@ class Trip(Base):
     vehicle_id = Column(String(20))                                     # ref trucks.truck_id
     # Payment & Advances
     bill_to = Column(Enum("CUSTOMER", "CONSIGNEE", "SELF/CGI"))
-    payment_type = Column(Enum("Credit", "Cash", "Fuel"))
+    payment_type = Column(Enum("Credit", "Cash", "Fuel", "To Be Paid"))
     customer_cash_advance = Column(Numeric(10, 2), default=0)
     customer_fuel_advance_amount = Column(Numeric(10, 2), default=0)
     customer_fuel_advance_litres = Column(Numeric(10, 2), default=0)
@@ -391,7 +409,7 @@ class Trip(Base):
     driver_advance_payment_method = Column(Enum("None", "CASH", "NEFT/IMPS/UPI", "Both"))
     driver_advance = Column(Numeric(10, 2), nullable=True)
     initial_disbursed_advance = Column(Numeric(10, 2), nullable=True)
-    driver_compensation_type = Column(Enum("Normal", "FIXED"))
+    driver_compensation_type = Column(Enum("Normal", "DEFAULT", "CUSTOM"))
     # RETURN TRIP only: a return trip's driver batta is normally paid beforehand
     # (rides along with the outbound trip), so it's excluded from Net Payable by
     # default. This flag lets the Commercial Manager mark it as still owed for a
@@ -402,6 +420,9 @@ class Trip(Base):
     rate_per_ton = Column(Numeric(10, 2), nullable=True)
     transport_hire_amount = Column(Numeric(10, 2), default=0)
     transport_crossing_amount = Column(Numeric(10, 2), default=0)
+    # Commission owed to whoever brokered this route, fetched from the matching
+    # CustomerPricing.commission_amount when a route card is selected in the trip form.
+    transport_commission_amount = Column(Numeric(10, 2), nullable=True)
     # Commercial Manager inputs at assignment
     approx_km = Column(Numeric(10, 2), nullable=True)
     approx_trip_distance = Column(Numeric(8, 2), nullable=True)
@@ -999,6 +1020,24 @@ class ComplianceUpdateHistory(Base):
     updated_by_name = Column(String(200), nullable=False, default="")
 
 
+class TruckBranchHistory(Base):
+    """One row per branch reassignment — a plain note, not an approval workflow."""
+    __tablename__ = "truck_branch_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    from_branch = Column(String(200), nullable=True)
+    to_branch = Column(String(200), nullable=False)
+    note = Column(Text, nullable=False)
+    changed_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    changed_by_name = Column(String(200), nullable=False, default="")
+    changed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_truck_branch_history_truck", "truck_id", "changed_at"),
+    )
+
+
 class ComplianceCostConfig(Base):
     __tablename__ = "compliance_cost_configs"
 
@@ -1055,7 +1094,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request
@@ -1076,7 +1115,7 @@ class EditApprovalRequest(Base):
     staff_db_id = Column(Integer, nullable=False)        # staff.id (numeric)
     staff_name = Column(String(100), nullable=False)
     staff_code = Column(String(20))                      # STF-1001
-    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog"), nullable=False)
+    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(200), nullable=False)
     action = Column(Enum("Edit", "Delete"), nullable=False)
@@ -1086,7 +1125,7 @@ class EditApprovalRequest(Base):
     admin_note = Column(Text, nullable=True)
     approved_by_name = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
-    expires_at = Column(DateTime, nullable=True)         # approved_at + 5 hours (Edit action only)
+    expires_at = Column(DateTime, nullable=True)         # approved_at + 8 hours (Edit action only)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -1355,4 +1394,35 @@ class ChatMessage(Base):
         # Covers both history paging (WHERE conversation_id = ? AND id < ? ORDER BY id DESC)
         # and the unread count (WHERE conversation_id = ? AND id > ?).
         Index("ix_chat_message_conv_id", "conversation_id", "id"),
+    )
+
+
+DEFAULT_BATTA_TRIP_TYPES = ("LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP")
+DEFAULT_BATTA_CARGO_TYPES = ("20FT CONTAINER", "40FT CONTAINER", "2X20 FEET CONTAINERS", "OPEN LOAD CARGO")
+
+
+class DefaultBattaRate(Base):
+    """Default batta (allowance) amount for one branch x trip type x cargo type cell.
+
+    One row per combination that has ever been set — missing combinations simply
+    have no row (the UI treats that as blank/unset), so a new branch or a trip
+    type nobody has priced yet costs nothing here rather than needing to be
+    pre-seeded across every branch.
+    """
+    __tablename__ = "default_batta_rates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False)
+    trip_type = Column(Enum(*DEFAULT_BATTA_TRIP_TYPES), nullable=False)
+    cargo_type = Column(Enum(*DEFAULT_BATTA_CARGO_TYPES), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    branch = relationship("Branch")
+
+    __table_args__ = (
+        # One cell per branch/trip type/cargo type — also the lookup path for
+        # both "load everything for this branch" and the per-cell upsert.
+        UniqueConstraint("branch_id", "trip_type", "cargo_type", name="uq_default_batta_cell"),
+        Index("ix_default_batta_branch", "branch_id"),
     )

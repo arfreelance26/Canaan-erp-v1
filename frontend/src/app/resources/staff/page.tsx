@@ -215,7 +215,7 @@ export default function StaffPage() {
     }
   }
 
-  if (loading) return <PageSkeleton hasButton hasSearch columns={5} />;
+  if (loading) return <PageSkeleton hasButton hasSearch cards cardCount={8} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
@@ -24,7 +24,7 @@ import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Clock, FileText, AlertTriangle, Download, FileBarChart2, X } from "lucide-react";
+import { Search, CheckCircle2, Clock, FileText, AlertTriangle, Download, FileBarChart2, X, Trash2 } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -98,10 +98,11 @@ export default function TripVerificationPage() {
 
   // Editing an already-Invoiced trip's invoice is Admin-only by default. Anyone else
   // (Accounts) must send an Edit Request to Admin first — approving it grants the same
-  // 5-hour window used everywhere else in the app (see routers/edit_approvals.py).
+  // 8-hour window used everywhere else in the app (see routers/edit_approvals.py).
   const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
   const [editRequestOpen, setEditRequestOpen] = useState(false);
   const [pendingEditInvoiceTrip, setPendingEditInvoiceTrip] = useState<Trip | null>(null);
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
@@ -217,15 +218,16 @@ export default function TripVerificationPage() {
       const updated = await tripsApi.verify(verifyTrip.id);
       setVerifiedIds((prev) => new Set([...prev, verifyTrip.id]));
       setRejectedIds((prev) => { const s = new Set(prev); s.delete(verifyTrip.id); return s; });
-      // SHIFTING trips are auto-waived by the backend on verify (never billed to a
-      // customer) — reflect that immediately instead of waiting for the next refresh.
+      // SHIFTING trips and "To Be Paid" trips are auto-waived by the backend on
+      // verify (neither is ever invoiced to a customer) — reflect that immediately
+      // instead of waiting for the next refresh.
       if (updated.invoiceWaived) {
         setWaivedIds((prev) => new Set([...prev, verifyTrip.id]));
       }
       setVerifyTrip(null);
       showSuccess(
         updated.invoiceWaived
-          ? "Trip verified — SHIFTING trips are not invoiced, so this one was automatically marked Waived Invoice."
+          ? "Trip verified — this trip isn't invoiced, so it was automatically marked Waived Invoice."
           : "Trip verified successfully."
       );
     } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to verify trip."); }
@@ -248,6 +250,27 @@ export default function TripVerificationPage() {
       setWaivedIds((prev) => new Set([...prev, trip.id]));
       showSuccess("Invoice waived. Trip marked as complete without invoicing.");
     } catch (err: unknown) { showError(err instanceof Error ? err.message : "Failed to waive invoice."); }
+  }
+
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
+    try {
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete trip.");
+    }
   }
 
   // ── Invoice handlers ───────────────────────────────────────────────────────
@@ -639,7 +662,7 @@ export default function TripVerificationPage() {
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {["Status", "Actions", "Date", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
-                    "Hire Amt", "Expense", "Invoice No"].map((col) => (
+                    "Hire Amt", "Expense", "Invoice No", "Delete"].map((col) => (
                     <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {col}
                     </th>
@@ -809,6 +832,29 @@ export default function TripVerificationPage() {
                           <span className="text-gray-400 text-xs">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3">
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteRequestTrip(trip)}
+                            title="Delete this trip and all its data"
+                            className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteRequestTrip(trip)}
+                            title="Request Admin to delete this trip"
+                            className="flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Request Delete
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -947,6 +993,18 @@ export default function TripVerificationPage() {
         onSubmit={handleEditInvoiceRequestSubmit}
         onClose={() => { setEditRequestOpen(false); setPendingEditInvoiceTrip(null); }}
       />
+
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
+        />
+      )}
 
       {showReportModal && (() => {
         const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");

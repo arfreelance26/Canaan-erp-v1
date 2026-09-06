@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Info, Sparkles, MapPin } from "lucide-react";
+import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -13,7 +13,6 @@ import {
   CARGO_CLASSIFICATION_OPTIONS,
   CONTAINER_SPECIFICATION_OPTIONS,
   DRIVER_ADVANCE_PAYMENT_METHOD_OPTIONS,
-  DRIVER_COMPENSATION_TYPE_OPTIONS,
   MOVEMENT_CATEGORY_OPTIONS,
   TRIP_CATEGORY_OPTIONS,
   CARGO_WEIGHT_OPTIONS,
@@ -25,16 +24,17 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
-import type { CustomerOrigin } from "@/types/customer-origin";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { Branch } from "@/types/branch";
-import { branchesApi, customersApi, tripsApi } from "@/lib/api";
-import { confirmAction, showError } from "@/lib/swal";
+import { branchesApi, customersApi, defaultBattaApi, tripsApi, trucksApi, type DefaultBattaRate } from "@/lib/api";
+import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
-import { saveToAutocompleteHistory, getAutocompleteHistory }from "@/components/ui/AutocompleteInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { cn } from "@/lib/utils";
+import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
+import { BranchChangeScopeDialog } from "@/components/trips/BranchChangeScopeDialog";
 
 export const TRIP_DRAFT_KEY = "erp_trip_form_draft";
 const TRIP_VEHICLE_DRAFT_KEY = "erp_trip_form_draft_vehicle";
@@ -44,16 +44,21 @@ export function clearTripDraft() {
   try { sessionStorage.removeItem(TRIP_VEHICLE_DRAFT_KEY); } catch {}
 }
 
-const BATTA_RULES: Record<string, Record<string, { type: string; amount: string }>> = {
-  "LOCAL":     { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
-                 "40 FT CONTAINER":         { type: "FIXED", amount: "1300" } },
-  "LOCAL CFS": { "20 FT CONTAINER":        { type: "FIXED", amount: "1000" },
-                 "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "1300" },
-                 "40 FT CONTAINER":         { type: "FIXED", amount: "1000" } },
-  "SHIFTING":  { "20 FT CONTAINER":        { type: "FIXED", amount: "300" },
-                "40 FT CONTAINER":         { type: "FIXED", amount: "300" },
-                "2 X 20 FEET CONTAINERS": { type: "FIXED", amount: "600" } },
-};
+// Driver Compensation Type "DEFAULT" reads from Default Batta Management,
+// which keys its cells as "20FT CONTAINER" / "2X20 FEET CONTAINERS" (no
+// spaces before FT/X) while the trip form's containerSpecification keeps the
+// spaced form — this maps one to the other.
+const COMPENSATION_TYPE_OPTIONS = ["Normal", "DEFAULT", "CUSTOM"] as const;
+
+function toDefaultBattaCargoType(containerSpecification: string): string {
+  const map: Record<string, string> = {
+    "20 FT CONTAINER": "20FT CONTAINER",
+    "40 FT CONTAINER": "40FT CONTAINER",
+    "2 X 20 FEET CONTAINERS": "2X20 FEET CONTAINERS",
+    "OPEN LOAD CARGO": "OPEN LOAD CARGO",
+  };
+  return map[containerSpecification] ?? containerSpecification;
+}
 
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
@@ -89,7 +94,9 @@ type AssignableDriver = {
 type TripFormDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (trip: Trip) => void;
+  // Resolves to whether the trip was actually persisted — TripFormDialog needs
+  // this to know it's safe to commit a pending branch change (see handleSubmit).
+  onSave: (trip: Trip) => Promise<boolean>;
   initialData?: Trip | null;
   existingTrips: Trip[];
   customers: Customer[];
@@ -132,6 +139,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   ratePerTon: "",
   transportHireAmount: "",
   transportCrossingAmount: "",
+  transportCommissionAmount: "",
   approxKm: "",
   approxTripDistance: "",
   liftOnAmount: "",
@@ -169,12 +177,32 @@ export function TripFormDialog({
   const [form, setForm] = useState(emptyForm);
   const [vehicleAssignmentId, setVehicleAssignmentId] = useState<string>("");
   const [branches, setBranches] = useState<Branch[]>([]);
+  // Optimistic branch reassignment from the quick-change pills below the
+  // Assigned Vehicle card — keyed by truck.id so it applies instantly without
+  // waiting on assignableDrivers (a prop owned by the parent list) to refetch.
+  const [branchOverrides, setBranchOverrides] = useState<Record<string, string>>({});
+  // A pill click applies instantly (branchOverrides above + a recalculated
+  // Driver Compensation) with no dialog — this is what "This Trip Only" vs
+  // "Permanently" needs to know about later. branchDraft.truck is always the
+  // ORIGINAL truck object, so truck.branchRegisteredTo stays the true "from"
+  // branch even after the override is applied.
+  const [branchDraft, setBranchDraft] = useState<{ truck: Truck; branchName: string } | null>(null);
+  // The scope choice ("This Trip Only" vs "Permanently") and, for Permanently,
+  // the note — both deferred to Assign/Save time (see handleSubmit) and shown
+  // only if branchDraft is set. pendingTripPayload holds the trip built by
+  // handleSubmit while these are being resolved; cancelling either dialog
+  // aborts the submit entirely (nothing is saved, nothing sent to the backend),
+  // so a cancelled trip never leaves an orphaned branch reassignment.
+  const [branchChangeRequest, setBranchChangeRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
+  const [branchChangeNoteRequest, setBranchChangeNoteRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
+  const [pendingTripPayload, setPendingTripPayload] = useState<Trip | null>(null);
+  // Default Batta Management rates for the assigned truck's current branch —
+  // refetched whenever the effective branch changes. Compensation Type
+  // "DEFAULT" looks amounts up from here by trip category + container type.
+  const [defaultBattaRates, setDefaultBattaRates] = useState<DefaultBattaRate[]>([]);
   const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
-  const [customerOrigins, setCustomerOrigins] = useState<CustomerOrigin[]>([]);
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
   const [finalCustomerPricing, setFinalCustomerPricing] = useState<FinalCustomerPricing | null>(null);
-  const [dbOrigins, setDbOrigins] = useState<string[]>([]);
-  const [dbDestinations, setDbDestinations] = useState<string[]>([]);
   const [shippingLines, setShippingLines] = useState<string[]>([]);
   const [cargoReferences, setCargoReferences] = useState<string[]>([]);
   const wasOpenRef = useRef(false);
@@ -182,7 +210,6 @@ export function TripFormDialog({
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
-    tripsApi.getAutocompleteValues().then((v) => { setDbOrigins(v.origins); setDbDestinations(v.destinations); }).catch(() => {});
     tripsApi.listShippingLines().then(setShippingLines).catch(() => {});
     tripsApi.listCargoReferences().then(setCargoReferences).catch(() => {});
   }, []);
@@ -191,6 +218,11 @@ export function TripFormDialog({
     const justOpened = open && !wasOpenRef.current;
     wasOpenRef.current = open;
     if (justOpened) {
+      setBranchOverrides({});
+      setBranchDraft(null);
+      setBranchChangeRequest(null);
+      setBranchChangeNoteRequest(null);
+      setPendingTripPayload(null);
       if (initialData) {
         const { id: _id, tripId: _tripId, status: _status, vehicleId: _vehicleId, ...rest } = initialData;
         setForm(rest);
@@ -199,7 +231,6 @@ export function TripFormDialog({
         if (initialData.customerId) {
           customersApi.listDestinations(initialData.customerId).then(setCustomerDestinations).catch(() => {});
           customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
-          customersApi.listOrigins(initialData.customerId).then(setCustomerOrigins).catch(() => {});
           customersApi.listFinalPricing(initialData.customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
         }
       } else {
@@ -216,7 +247,6 @@ export function TripFormDialog({
         setCustomerDestinations([]);
         setCustomerPricing([]);
         setFinalCustomerPricing(null);
-        setCustomerOrigins([]);
         setForm({
           ...emptyForm,
           bookingCreatedDate: yesterdayStr,
@@ -253,7 +283,6 @@ export function TripFormDialog({
     if (draft.customerId) {
       customersApi.listDestinations(draft.customerId).then(setCustomerDestinations).catch(() => {});
       customersApi.listPricing(draft.customerId).then(setCustomerPricing).catch(() => {});
-      customersApi.listOrigins(draft.customerId).then(setCustomerOrigins).catch(() => {});
       customersApi.listFinalPricing(draft.customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
     }
   });
@@ -290,18 +319,6 @@ export function TripFormDialog({
     } catch {}
   }, [draftActive, vehicleAssignmentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (form.tripCategory === "RETURN TRIP") return;
-    const rule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
-    if (rule) {
-      setForm((prev) => ({
-        ...prev,
-        driverCompensationType: rule.type as Trip["driverCompensationType"],
-        driverAdvanceAmount: rule.amount,
-      }));
-    }
-  }, [form.tripCategory, form.containerSpecification]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Auto-zero lift-on for Coastal trips
   useEffect(() => {
     if (form.cargoClassification === "COASTAL") {
@@ -309,11 +326,121 @@ export function TripFormDialog({
     }
   }, [form.cargoClassification]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const getTruckBranch = (truck: Truck): string => branchOverrides[truck.id] ?? truck.branchRegisteredTo;
+
+  function setBranchOverride(truckId: string, branchName: string | null) {
+    setBranchOverrides((prev) => {
+      const next = { ...prev };
+      if (branchName === null) delete next[truckId];
+      else next[truckId] = branchName;
+      return next;
+    });
+  }
+
+  // Recompute Normal-type Driver Compensation against a branch's percentage.
+  // Nothing else triggers this on a branch-pill click (the other recalcs only
+  // fire from vehicle/hire-amount/compensation-type changes), so without this
+  // the badge showing "% Comp." updates but the actual driverAdvanceAmount
+  // field silently stays stale.
+  function recalcCompensationForBranch(branchName: string) {
+    setForm((prev) => {
+      if (prev.tripCategory === "RETURN TRIP" || prev.driverCompensationType !== "Normal") return prev;
+      const branch = branches.find((b) => b.name === branchName);
+      const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+      const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
+      return { ...prev, driverAdvanceAmount: calcCompensation(battaBase, pct) };
+    });
+  }
+
+  // A pill click applies instantly — no dialog, no backend call. Picking the
+  // truck's own actual registered branch (undoing a pending change) clears the
+  // override; anything else records it as branchDraft so handleSubmit knows to
+  // ask "This Trip Only" vs "Permanently" once the user is ready to save.
+  function handleChangeVehicleBranch(truck: Truck, branchName: string) {
+    if (getTruckBranch(truck) === branchName) return;
+    const isRevert = branchName === truck.branchRegisteredTo;
+    setBranchOverride(truck.id, isRevert ? null : branchName);
+    setBranchDraft(isRevert ? null : { truck, branchName });
+    recalcCompensationForBranch(branchName);
+  }
+
+  // Called once the user resolves the scope dialog shown at Assign/Save time
+  // (see handleSubmit, which set branchChangeRequest + pendingTripPayload).
+  function handleBranchChangeScope(scope: "trip_only" | "permanent") {
+    if (!branchChangeRequest || !pendingTripPayload) return;
+    const { truck, branchName } = branchChangeRequest;
+    setBranchChangeRequest(null);
+
+    if (scope === "permanent") {
+      setBranchChangeNoteRequest({ truck, branchName });
+      return;
+    }
+
+    const payload = pendingTripPayload;
+    setPendingTripPayload(null);
+    finalizeSubmit(payload, { truck, branchName, mode: "trip_only" });
+  }
+
+  async function submitVehicleBranchChange(note: string) {
+    if (!branchChangeNoteRequest || !pendingTripPayload) return;
+    const { truck, branchName } = branchChangeNoteRequest;
+    setBranchChangeNoteRequest(null);
+    const payload = pendingTripPayload;
+    setPendingTripPayload(null);
+    await finalizeSubmit(payload, { truck, branchName, mode: "permanent", note });
+  }
+
+  // Cancelling either dialog aborts the submit — the trip is not saved and no
+  // branch-change call is made. The instant local branch pick made via the
+  // pills is left as-is; clicking Assign again re-opens the same choice.
+  function cancelBranchChangeRequest() {
+    setBranchChangeRequest(null);
+    setPendingTripPayload(null);
+  }
+
+  function cancelBranchChangeNoteRequest() {
+    setBranchChangeNoteRequest(null);
+    setPendingTripPayload(null);
+  }
+
+  // Persists the trip via the parent-owned onSave, then — only if that actually
+  // succeeded — commits the deferred branch change. A failed trip save leaves
+  // branchDraft/pendingTripPayload untouched by the caller so nothing here needs
+  // to retry; the user just resubmits the form.
+  async function finalizeSubmit(
+    tripPayload: Trip,
+    branchChange: { truck: Truck; branchName: string; mode: "trip_only" | "permanent"; note?: string } | null
+  ) {
+    const saved = await onSave(tripPayload);
+    if (saved && branchChange) {
+      try {
+        if (branchChange.mode === "trip_only") {
+          await trucksApi.changeBranchTripOnly(branchChange.truck.id, branchChange.branchName, tripPayload.tripId);
+          showSuccess(`Branch updated to ${branchChange.branchName} for this trip only.`);
+        } else {
+          await trucksApi.changeBranchPermanently(branchChange.truck.id, branchChange.branchName, branchChange.note || "");
+          showSuccess(`Branch updated to ${branchChange.branchName}.`);
+        }
+        setBranchDraft(null);
+      } catch (err: unknown) {
+        // The trip itself is already saved — this is a separate, non-blocking
+        // failure. Leave the local override in place (it still reflects what
+        // was used for this trip's compensation) but surface the problem.
+        showError(
+          err instanceof Error
+            ? `Trip saved, but the branch change failed: ${err.message}`
+            : "Trip saved, but the branch change failed."
+        );
+      }
+    }
+  }
+
   const selectedAssignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
-  const selectedTruckBranch = selectedAssignment?.truck.branchRegisteredTo ?? "";
+  const selectedTruckBranch = selectedAssignment ? getTruckBranch(selectedAssignment.truck) : "";
   const selectedBranch = branches.find((b) => b.name === selectedTruckBranch);
   const compensationPct = selectedBranch ? parseFloat(selectedBranch.driverHaltDayPercentage || "0") : null;
   const isNormalComp = form.driverCompensationType === "Normal";
+  const isDefaultComp = form.driverCompensationType === "DEFAULT";
   const isShifting = form.tripCategory === "SHIFTING";
   const isReturnTrip = form.tripCategory === "RETURN TRIP";
   const isExport = form.cargoClassification === "EXPORT";
@@ -321,7 +448,15 @@ export function TripFormDialog({
   const isCoastal = form.cargoClassification === "COASTAL";
   const isTonBased = isOpenLoad && (form.openLoadHireType === "Ton Based" || form.openLoadHireType === "");
   const isFixedHire = isOpenLoad && form.openLoadHireType === "Fixed";
-  const battaRule = BATTA_RULES[form.tripCategory]?.[form.containerSpecification];
+  // DEFAULT compensation: looked up from Default Batta Management by the
+  // assigned truck's branch (defaultBattaRates is already scoped to it — see
+  // the fetch effect above) + trip category + container type.
+  const defaultBattaAmount = ((): number | null => {
+    if (!form.tripCategory || !form.containerSpecification) return null;
+    const cargoType = toDefaultBattaCargoType(form.containerSpecification);
+    const row = defaultBattaRates.find((r) => r.tripType === form.tripCategory && r.cargoType === cargoType);
+    return row?.amount ?? null;
+  })();
   // "Self" customer: CGI is the shipper — billing, advances, and CHA are locked
   const isSelf = (() => {
     const c = customers.find((c) => c.id === form.customerId);
@@ -331,24 +466,35 @@ export function TripFormDialog({
   // Lift-on: manual entry for Shifting/Empty/Open, locked at 0 for Coastal, editable for others
   const isLiftOnLocked = isCoastal;
   const isLiftOnManual = isShifting || form.cargoClassification === "EMPTY" || isOpenLoad;
+  // Hire Amount (excluding Commission Amount) — purely derived, never persisted.
+  const hireExcludingCommission = (() => {
+    const hire = parseFloat(form.transportHireAmount || "");
+    const commission = parseFloat(form.transportCommissionAmount || "");
+    if (isNaN(hire) && isNaN(commission)) return "";
+    return String((isNaN(hire) ? 0 : hire) - (isNaN(commission) ? 0 : commission));
+  })();
 
-  const destinationOptions = customerDestinations
-    .map((d) => {
-      const label = d.destinationName ?? d.destinationAddress ?? "";
-      return { value: label, label };
-    })
-    .filter((o) => o.value !== "");
+  // Refetch Default Batta Management rates whenever the assigned truck's
+  // effective branch changes (branch pill click, vehicle switch, dialog open).
+  useEffect(() => {
+    if (!selectedBranch) {
+      setDefaultBattaRates([]);
+      return;
+    }
+    defaultBattaApi.list(String(selectedBranch.id)).then(setDefaultBattaRates).catch(() => setDefaultBattaRates([]));
+  }, [selectedBranch?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const customerOriginNames = customerOrigins.map((o) => o.originName).filter(Boolean);
-
-  // Origin states saved on the customer's destination records — shown first in the origin dropdown
-  const customerDestinationOriginStates = [
-    ...new Set(
-      customerDestinations
-        .map((d) => d.originState)
-        .filter((s): s is string => !!s && s.trim() !== "")
-    ),
-  ];
+  // Keep driverAdvanceAmount in sync while "DEFAULT" is selected — branch,
+  // trip category, or container type changing all flow through here since
+  // defaultBattaAmount is recomputed every render from those same inputs.
+  useEffect(() => {
+    if (!isDefaultComp || isReturnTrip) return;
+    setForm((prev) => {
+      if (prev.driverCompensationType !== "DEFAULT") return prev;
+      const next = defaultBattaAmount !== null ? String(defaultBattaAmount) : "";
+      return prev.driverAdvanceAmount === next ? prev : { ...prev, driverAdvanceAmount: next };
+    });
+  }, [isDefaultComp, isReturnTrip, defaultBattaAmount]);
 
   type RouteOption = {
     originState: string;
@@ -356,6 +502,7 @@ export function TripFormDialog({
     destinationState: string;
     destLabel: string;
     hireAmount: string;
+    commissionAmount: string;
     approxDistanceKm: string;
     cargoClassification: string;
     containerType: string;
@@ -363,7 +510,10 @@ export function TripFormDialog({
   };
 
   // Build one route entry per destination that has both originState and destinationState.
-  // All pricing fields come from the first matching pricing row for that destination.
+  // Cargo/container/weight now live on the destination itself; the rate still
+  // comes from the matching pricing row for that destination (customer_pricing
+  // is keyed 1:1 by destination label now that it no longer carries its own
+  // cargo/container/weight combo).
   const availableRoutes: RouteOption[] = customerDestinations
     .filter((d) => d.originState && d.destinationState)
     .map((d) => {
@@ -381,89 +531,13 @@ export function TripFormDialog({
         destinationState: d.destinationState,
         destLabel,
         hireAmount: matchedPricing?.rate ?? "",
+        commissionAmount: matchedPricing?.commissionAmount ?? "",
         approxDistanceKm: d.approxDistanceKm ?? "",
-        cargoClassification: matchedPricing?.cargoClassification ?? "",
-        containerType: matchedPricing?.containerType ?? "",
-        cargoWeight: matchedPricing?.weightInTons ?? "",
+        cargoClassification: d.cargoClassification ?? "",
+        containerType: d.containerType ?? "",
+        cargoWeight: d.weightInTons ?? "",
       };
     });
-
-  // Predefined standard port/logistics locations (always available in dropdowns)
-  const PREDEFINED_LOCATIONS = [
-    "Chennai Port",
-    "Chennai Port Trust",
-    "Kattupalli Port",
-    "Ennore Port",
-    "Kamarajar Port",
-    "Chennai CFS",
-    "CONCOR CFS Chennai",
-    "Gateway Distriparks Chennai",
-    "Customs Bonded Warehouse Chennai",
-    "Manali",
-    "Ambattur",
-    "Irungattukottai",
-    "Sriperumbudur",
-    "Oragadam",
-    "Mahindra World City",
-    "Ponneri",
-    "Thiruvallur",
-    "Gummidipoondi",
-    "Tada (AP)",
-    "Pondicherry",
-    "Bangalore",
-    "Krishnapatnam Port",
-    "Tuticorin Port",
-    "Coimbatore",
-    "Madurai",
-  ];
-
-  // Origin priority: destination origin states > customer origin names > history + predefined
-  const allOriginOptions = (() => {
-    // Destination origin states from the selected customer take priority
-    if (customerDestinationOriginStates.length > 0) {
-      const destStatesLower = customerDestinationOriginStates.map((s) => s.toLowerCase());
-      const extras = customerOriginNames
-        .filter((o) => !destStatesLower.includes(o.toLowerCase()))
-        .map((o) => ({ value: o, label: o }));
-      return [
-        ...customerDestinationOriginStates.map((s) => ({ value: s, label: s })),
-        ...extras,
-      ];
-    }
-    if (customerOriginNames.length > 0) {
-      return customerOriginNames.map((o) => ({ value: o, label: o }));
-    }
-    const historyPool = [
-      ...getAutocompleteHistory("erp_origin_history"),
-      ...dbOrigins,
-    ].filter((h, i, arr) => arr.indexOf(h) === i);
-    const historyLower = historyPool.map((h) => h.toLowerCase());
-    return [
-      ...historyPool.map((h) => ({ value: h, label: h })),
-      ...PREDEFINED_LOCATIONS
-        .filter((l) => !historyLower.includes(l.toLowerCase()))
-        .map((l) => ({ value: l, label: l })),
-    ];
-  })();
-
-  // When a customer is selected and has saved destinations, show ONLY those destinations.
-  // Otherwise fall back to typed history + predefined port locations.
-  const allDestinationOptions = (() => {
-    if (destinationOptions.length > 0) {
-      return destinationOptions;
-    }
-    const historyPool = [
-      ...getAutocompleteHistory("erp_destination_history"),
-      ...dbDestinations,
-    ].filter((h, i, arr) => arr.indexOf(h) === i);
-    const historyLower = historyPool.map((h) => h.toLowerCase());
-    return [
-      ...historyPool.map((h) => ({ value: h, label: h })),
-      ...PREDEFINED_LOCATIONS
-        .filter((l) => !historyLower.includes(l.toLowerCase()))
-        .map((l) => ({ value: l, label: l })),
-    ];
-  })();
 
   function containerTypeToSpec(ct: string): Trip["containerSpecification"] | "" {
     const map: Record<string, Trip["containerSpecification"]> = {
@@ -473,20 +547,6 @@ export function TripFormDialog({
       "OPEN LOAD": "OPEN LOAD CARGO",
     };
     return map[ct] ?? "";
-  }
-
-  function applyPricingFields(p: CustomerPricing): Partial<typeof emptyForm> {
-    const destinationString = typeof p.customerDestination === 'object' && p.customerDestination !== null
-      ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-      : String(p.customerDestination || "");
-
-    return {
-      destination: destinationString,
-      cargoClassification: (p.cargoClassification as Trip["cargoClassification"]) || "",
-      containerSpecification: (containerTypeToSpec(p.containerType) as Trip["containerSpecification"]) || "",
-      cargoWeight: p.weightInTons || "",
-      transportHireAmount: p.rate || "",
-    };
   }
 
   function calcCompensation(hireAmount: string, pct: number | null): string {
@@ -521,8 +581,6 @@ export function TripFormDialog({
 
   function handleCustomerChange(customerId: string) {
     const selectedCustomer = customers.find((c) => c.id === customerId);
-    const returnTrip = form.tripCategory === "RETURN TRIP";
-    const shiftingTrip = form.tripCategory === "SHIFTING";
     const name = (selectedCustomer?.name ?? "").trim().toLowerCase();
     const selfCustomer = name === "self" || name === "cgi";
     setForm((prev) => ({
@@ -547,37 +605,40 @@ export function TripFormDialog({
     setCustomerDestinations([]);
     setCustomerPricing([]);
     setFinalCustomerPricing(null);
-    setCustomerOrigins([]);
     if (customerId) {
       customersApi.listFinalPricing(customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
-      customersApi.listDestinations(customerId).then((dests) => {
-        setCustomerDestinations(dests);
-        if (dests.length > 0 && !returnTrip && !shiftingTrip) {
-          setForm((prev) => ({ ...prev, approxTripDistance: dests[0].approxDistanceKm ?? "", approxKm: dests[0].approxDistanceKm ?? prev.approxKm }));
-        }
-      }).catch(() => {});
+      customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
       customersApi.listPricing(customerId).then((pricing) => {
         setCustomerPricing(pricing);
         // Don't auto-apply pricing[0] — there may be multiple rows for the same customer
-        // with different container specs. Wait for user to pick destination + container spec.
-      }).catch(() => {});
-      customersApi.listOrigins(customerId).then((origins) => {
-        setCustomerOrigins(origins);
-        if (origins.length > 0 && !returnTrip && !shiftingTrip) {
-          setForm((prev) => ({ ...prev, origin: origins[0].originName }));
-        }
+        // with different container specs. Wait for user to pick a route below.
       }).catch(() => {});
     }
   }
 
-  function handleOriginChange(origin: string) {
-    setForm((prev) => ({ ...prev, origin }));
-  }
-
   function handleRouteSelect(route: RouteOption) {
     if (isShifting) return;
+    const routeOrigin = route.originAddress || route.originState;
+    const routeDestination = route.destLabel || route.destinationState;
+    const alreadySelected = form.origin === routeOrigin && form.destination === routeDestination;
+    if (alreadySelected) {
+      setForm((prev) => ({
+        ...prev,
+        origin: "",
+        destination: "",
+        transportHireAmount: "",
+        transportCommissionAmount: "",
+        cargoClassification: "",
+        containerSpecification: "",
+        cargoWeight: "",
+        approxTripDistance: "",
+        approxKm: "",
+        ...(prev.driverCompensationType === "Normal" ? { driverAdvanceAmount: "" } : {}),
+      }));
+      return;
+    }
     const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
-    const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+    const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
     const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
     const hireBase = finalCustomerPricing?.accountsHireAmount ?? route.hireAmount;
     // For EXPORT routes, origin must be TUTICORIN — the origin GlassSelect only
@@ -592,6 +653,7 @@ export function TripFormDialog({
       origin,
       destination,
       ...(route.hireAmount ? { transportHireAmount: route.hireAmount } : {}),
+      transportCommissionAmount: route.commissionAmount || "",
       ...(route.cargoClassification
         ? { cargoClassification: route.cargoClassification as Trip["cargoClassification"] }
         : {}),
@@ -607,46 +669,36 @@ export function TripFormDialog({
     }));
   }
 
-  function findPricingForDestAndSpec(
+  // Cargo classification / container type / weight now live on the customer
+  // destination itself (not on the pricing row — a destination is 1:1 with a
+  // single cargo/container/weight combo, and its rate is looked up separately
+  // via findRateForDestination).
+  function findDestinationForSpec(
     destination: string,
     containerSpec: string,
     cargoClassification?: string,
     weightInTons?: string,
-  ): CustomerPricing | undefined {
-    return customerPricing.find((p) => {
-      const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
-        ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-        : String(p.customerDestination || "");
+  ): CustomerDestination | undefined {
+    return customerDestinations.find((d) => {
+      const dest = d.destinationName ?? d.destinationAddress ?? "";
       if (dest !== destination) return false;
-      if (containerSpec && containerTypeToSpec(p.containerType) !== containerSpec) return false;
+      if (containerSpec && containerTypeToSpec(d.containerType ?? "") !== containerSpec) return false;
       // Match on cargo classification only when both sides are non-empty
-      if (cargoClassification && p.cargoClassification && p.cargoClassification !== cargoClassification) return false;
+      if (cargoClassification && d.cargoClassification && d.cargoClassification !== cargoClassification) return false;
       // Match on weight only when both sides are non-empty
-      if (weightInTons && p.weightInTons && p.weightInTons !== weightInTons) return false;
+      if (weightInTons && d.weightInTons && d.weightInTons !== weightInTons) return false;
       return true;
     });
   }
 
-  function handleDestinationChange(destination: string) {
-    if (form.tripCategory === "RETURN TRIP" || form.tripCategory === "SHIFTING") {
-      setForm((prev) => ({ ...prev, destination }));
-      return;
-    }
-    const matchingPricing = findPricingForDestAndSpec(destination, form.containerSpecification, form.cargoClassification, form.cargoWeight);
-    const matchingDest = customerDestinations.find((d) =>
-      (d.destinationName ?? d.destinationAddress ?? "") === destination
-    );
-    setForm((prev) => ({
-      ...prev,
-      destination,
-      // Only apply hire amount + cargo weight from matched pricing — don't override container spec
-      ...(matchingPricing ? {
-        transportHireAmount: matchingPricing.rate || "",
-        cargoWeight: matchingPricing.weightInTons || prev.cargoWeight,
-      } : {}),
-      approxTripDistance: matchingDest?.approxDistanceKm ?? "",
-      approxKm: matchingDest?.approxDistanceKm ?? prev.approxKm,
-    }));
+  function findRateForDestination(destination: string): string {
+    const p = customerPricing.find((p) => {
+      const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
+        ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+        : String(p.customerDestination || "");
+      return dest === destination;
+    });
+    return p?.rate ?? "";
   }
 
   async function handleVehicleChange(assignmentDriverId: string) {
@@ -667,10 +719,21 @@ export function TripFormDialog({
         if (!proceed) return;
       }
     }
+    // A pending branch change belongs to whichever truck was selected when it
+    // was made — switching to a different vehicle leaves that truck behind, so
+    // drop the pending change and its local override rather than carry it over.
+    setBranchDraft((prev) => {
+      if (prev && prev.truck.truckId !== assignment?.truck.truckId) {
+        setBranchOverride(prev.truck.id, null);
+        return null;
+      }
+      return prev;
+    });
+
     setVehicleAssignmentId(assignmentDriverId);
     setForm((prev) => {
       if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId: assignmentDriverId };
-      const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+      const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
       const driverAdvanceAmount =
@@ -685,7 +748,7 @@ export function TripFormDialog({
     setForm((prev) => {
       if (prev.tripCategory === "RETURN TRIP" || prev.tripCategory === "SHIFTING") return { ...prev, transportHireAmount: value };
       const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
-      const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
+      const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       // Batta percentage base: accounts hire amount if set, else fall back to the new hire amount
       const battaBase = finalCustomerPricing?.accountsHireAmount ?? value;
@@ -702,17 +765,19 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP") {
         return { ...prev, driverCompensationType: val as Trip["driverCompensationType"] };
       }
-      const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
-      const branch = branches.find((b) => b.name === (assignment?.truck.branchRegisteredTo ?? ""));
-      const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-      const rule = BATTA_RULES[prev.tripCategory]?.[prev.containerSpecification];
-      const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
       let driverAdvanceAmount: string;
       if (val === "Normal") {
+        const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
+        const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
+        const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+        const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
         driverAdvanceAmount = calcCompensation(battaBase, pct);
-      } else if (rule) {
-        driverAdvanceAmount = rule.amount;
+      } else if (val === "DEFAULT") {
+        const cargoType = toDefaultBattaCargoType(prev.containerSpecification);
+        const row = defaultBattaRates.find((r) => r.tripType === prev.tripCategory && r.cargoType === cargoType);
+        driverAdvanceAmount = row?.amount != null ? String(row.amount) : "";
       } else {
+        // CUSTOM — leave whatever is already there for manual editing
         driverAdvanceAmount = prev.driverAdvanceAmount;
       }
       return { ...prev, driverCompensationType: val as Trip["driverCompensationType"], driverAdvanceAmount };
@@ -835,28 +900,39 @@ export function TripFormDialog({
       if (!result.isConfirmed) return;
     }
 
-    saveToAutocompleteHistory("erp_origin_history", form.origin);
-    saveToAutocompleteHistory("erp_destination_history", form.destination);
-
-    if (initialData) {
-      onSave({
-        id: initialData.id,
-        tripId: initialData.tripId,
-        status: initialData.status,
-        assignedDate: initialData.assignedDate,
-        vehicleId: assigned.truck.truckId,
-        ...form,
-      });
-    } else {
-      onSave({
-        id: crypto.randomUUID(),
-        tripId: generateTripId(existingTrips),
-        status: "Assigned",
-        assignedDate: todayIst(),
-        vehicleId: assigned.truck.truckId,
-        ...form,
-      });
+    if (!isShifting && (!form.origin || !form.destination)) {
+      await showError("Please select a route from Available Routes.", "Route Required");
+      return;
     }
+
+    const tripPayload: Trip = initialData
+      ? {
+          id: initialData.id,
+          tripId: initialData.tripId,
+          status: initialData.status,
+          assignedDate: initialData.assignedDate,
+          vehicleId: assigned.truck.truckId,
+          ...form,
+        }
+      : {
+          id: crypto.randomUUID(),
+          tripId: generateTripId(existingTrips),
+          status: "Assigned",
+          assignedDate: todayIst(),
+          vehicleId: assigned.truck.truckId,
+          ...form,
+        };
+
+    // Only ask "This Trip Only" vs "Permanently" if the branch was actually
+    // changed via the pills. The trip itself isn't saved yet — finalizeSubmit
+    // (called either below or once the scope/note dialogs resolve) does that.
+    if (branchDraft) {
+      setPendingTripPayload(tripPayload);
+      setBranchChangeRequest({ truck: branchDraft.truck, branchName: branchDraft.branchName });
+      return;
+    }
+
+    await finalizeSubmit(tripPayload, null);
   }
 
   const selectedCustomer = customers.find((c) => c.id === form.customerId);
@@ -909,7 +985,7 @@ export function TripFormDialog({
                       ...prev,
                       tripCategory: val as Trip["tripCategory"],
                       driverAdvance: "",
-                      driverCompensationType: "FIXED",
+                      driverCompensationType: "CUSTOM",
                       isBattaApplicable: false,
                     }));
                   } else {
@@ -1114,25 +1190,16 @@ export function TripFormDialog({
                 onChange={(val) => {
                   const cls = val === "OPEN LOAD CARGO" ? "OPEN LOAD" : form.cargoClassification === "OPEN LOAD" ? "" : form.cargoClassification;
                   // Re-fetch hire amount for the new spec against the already-chosen destination
-                  const matchedPricing = form.destination
-                    ? customerPricing.find((p) => {
-                        const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
-                          ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-                          : String(p.customerDestination || "");
-                        if (dest !== form.destination) return false;
-                        if (containerTypeToSpec(p.containerType) !== val) return false;
-                        if (cls && p.cargoClassification && p.cargoClassification !== cls) return false;
-                        if (form.cargoWeight && p.weightInTons && p.weightInTons !== form.cargoWeight) return false;
-                        return true;
-                      })
+                  const matchedDest = form.destination
+                    ? findDestinationForSpec(form.destination, val, cls, form.cargoWeight)
                     : undefined;
                   setForm((prev) => ({
                     ...prev,
                     containerSpecification: val as Trip["containerSpecification"],
                     cargoClassification: cls as Trip["cargoClassification"],
-                    ...(matchedPricing ? {
-                      transportHireAmount: matchedPricing.rate || "",
-                      cargoWeight: matchedPricing.weightInTons || prev.cargoWeight,
+                    ...(matchedDest ? {
+                      transportHireAmount: findRateForDestination(form.destination) || "",
+                      cargoWeight: matchedDest.weightInTons || prev.cargoWeight,
                     } : {}),
                   }));
                 }}
@@ -1221,9 +1288,9 @@ export function TripFormDialog({
                       <div>
                         <p className="text-sm font-semibold text-gray-500">No Available Routes</p>
                         <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
-                          Add routes in the{" "}
+                          This customer has no routes configured yet. Add one in the{" "}
                           <span className="font-medium text-blue-500">&ldquo;Add Customers&rdquo;</span>{" "}
-                          page under Customer Destinations, or manually type the address in the fields below.
+                          page under Customer Destinations, then it will appear here to select.
                         </p>
                       </div>
                     </div>
@@ -1317,7 +1384,7 @@ export function TripFormDialog({
                 <>
                   <GlassSelect
                     value={form.origin}
-                    onChange={(val) => handleOriginChange(val)}
+                    onChange={(val) => update("origin", val)}
                     options={[
                       { value: "TUTICORIN", label: "TUTICORIN" },
                       { value: "CHENNAI", label: "CHENNAI" },
@@ -1327,23 +1394,14 @@ export function TripFormDialog({
                 </>
               ) : (
                 <>
-                  <GlassCombobox
-                    required
-                    value={form.origin}
-                    onChange={handleOriginChange}
-                    placeholder="Select or type origin"
-                    options={allOriginOptions}
-                  />
-                  {customerDestinationOriginStates.length > 0 && (
-                    <span className="mt-1 text-xs text-blue-600">
-                      Showing origin states from this customer&apos;s destinations
+                  <div className={`${inputClass} flex cursor-not-allowed items-center bg-gray-50 text-gray-700`}>
+                    <span className={form.origin ? "" : "text-gray-400"}>
+                      {form.origin || "Select a route below"}
                     </span>
-                  )}
-                  {customerDestinationOriginStates.length === 0 && customerOriginNames.length > 0 && (
-                    <span className="mt-1 text-xs text-blue-600">
-                      Showing saved origins for this customer
-                    </span>
-                  )}
+                  </div>
+                  <span className="mt-1 text-xs text-gray-400">
+                    Set automatically when you select a route from Available Routes above
+                  </span>
                 </>
               )}
             </Field>
@@ -1363,19 +1421,14 @@ export function TripFormDialog({
                 </>
               ) : (
                 <>
-                  <GlassCombobox
-                    required
-                    value={form.destination}
-                    onChange={handleDestinationChange}
-                    placeholder="Select or type destination"
-                    options={allDestinationOptions}
-                  />
-                  {form.destination && form.transportHireAmount && findPricingForDestAndSpec(form.destination, form.containerSpecification, form.cargoClassification, form.cargoWeight) && (
-                    <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
-                      <Sparkles className="h-3 w-3" />
-                      Hire amount auto-filled from customer pricing for this destination &amp; container spec
+                  <div className={`${inputClass} flex cursor-not-allowed items-center bg-gray-50 text-gray-700`}>
+                    <span className={form.destination ? "" : "text-gray-400"}>
+                      {form.destination || "Select a route below"}
                     </span>
-                  )}
+                  </div>
+                  <span className="mt-1 text-xs text-gray-400">
+                    Set automatically when you select a route from Available Routes above
+                  </span>
                 </>
               )}
             </Field>
@@ -1460,12 +1513,62 @@ export function TripFormDialog({
                 placeholder={assignableDrivers.length === 0 ? "No vehicles available" : "Select a vehicle"}
               />
               {selectedAssignment && (
-                <span className="text-xs text-gray-500">
-                  {selectedTruckBranch && <>Branch: <strong>{selectedTruckBranch}</strong></>}
-                  {compensationPct !== null && (
-                    <> · Compensation: <strong>{compensationPct}%</strong></>
+                <div className="mt-2 flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3.5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white shadow-sm">
+                      <TruckIcon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-gray-900">
+                        {selectedAssignment.truck.registrationNumber}
+                        <span className="ml-1.5 font-normal text-gray-400">({selectedAssignment.truck.truckId})</span>
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-500">
+                        <User className="h-3 w-3 shrink-0 text-gray-400" />
+                        {selectedAssignment.driver.name}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                      {selectedTruckBranch && (
+                        <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                          {selectedTruckBranch}
+                        </span>
+                      )}
+                      {compensationPct !== null && (
+                        <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          {compensationPct}% Comp.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick branch change — same pattern as Our Fleet's truck cards */}
+                  {branches.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-200 pt-3">
+                      <span className="mr-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        Branch
+                      </span>
+                      {branches.map((branch) => {
+                        const active = selectedTruckBranch === branch.name;
+                        return (
+                          <button
+                            key={branch.id}
+                            type="button"
+                            onClick={() => handleChangeVehicleBranch(selectedAssignment.truck, branch.name)}
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                              active
+                                ? "border-gray-900 bg-gray-900 text-white"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                            )}
+                          >
+                            {branch.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </span>
+                </div>
               )}
             </Field>
 
@@ -1613,7 +1716,7 @@ export function TripFormDialog({
                 disabled={isReturnTrip}
                 options={[
                   { value: "", label: "Select compensation type" },
-                  ...DRIVER_COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt })),
+                  ...COMPENSATION_TYPE_OPTIONS.map(opt => ({ value: opt, label: opt })),
                 ]}
               />
               {isReturnTrip && (
@@ -1683,16 +1786,10 @@ export function TripFormDialog({
                 value={form.driverAdvanceAmount}
                 onChange={(e) => update("driverAdvanceAmount", e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
-                readOnly={isNormalComp}
-                className={`${inputClass} ${isNormalComp ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
-                placeholder={isNormalComp ? "Auto-calculated" : "Enter fixed batta amount"}
+                readOnly={isNormalComp || isDefaultComp}
+                className={`${inputClass} ${(isNormalComp || isDefaultComp) ? "cursor-not-allowed bg-green-50 text-green-800" : ""}`}
+                placeholder={isNormalComp ? "Auto-calculated" : isDefaultComp ? "Fetched from Default Batta Management" : "Enter custom batta amount"}
               />
-              {!isReturnTrip && battaRule && !isNormalComp && (
-                <span className="mt-1 flex items-center gap-1 text-xs text-blue-500">
-                  <Sparkles className="h-3 w-3" />
-                  Auto-set to ₹{Number(battaRule.amount).toLocaleString("en-IN")} — {form.tripCategory} with {form.containerSpecification} ({battaRule.type} rate). Edit to override.
-                </span>
-              )}
               {!isReturnTrip && isNormalComp && form.driverAdvanceAmount && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
                   <Sparkles className="h-3 w-3" />
@@ -1710,6 +1807,22 @@ export function TripFormDialog({
                     : !selectedTruckBranch || compensationPct === null
                     ? `Branch "${selectedTruckBranch || "unknown"}" has no compensation % configured`
                     : "Enter hire amount below to auto-calculate"}
+                </span>
+              )}
+              {!isReturnTrip && isDefaultComp && defaultBattaAmount !== null && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-blue-600">
+                  <Sparkles className="h-3 w-3" />
+                  Default rate — {selectedTruckBranch || "unknown branch"} / {form.tripCategory} / {form.containerSpecification}: ₹{Number(defaultBattaAmount).toLocaleString("en-IN")}
+                </span>
+              )}
+              {!isReturnTrip && isDefaultComp && defaultBattaAmount === null && (
+                <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                  <Info className="h-3 w-3" />
+                  {!form.driverId
+                    ? "Select a vehicle first"
+                    : !form.tripCategory || !form.containerSpecification
+                    ? "Select a trip category and container type to look up the default rate"
+                    : `No default batta configured for ${selectedTruckBranch || "this branch"} / ${form.tripCategory} / ${form.containerSpecification} — set one in Default Batta Management, or switch to Custom.`}
                 </span>
               )}
             </Field>
@@ -1756,6 +1869,36 @@ export function TripFormDialog({
                 <span className="mt-1 text-xs text-gray-500">Fixed hire — enter the agreed amount directly</span>
               )}
             </Field>
+
+            <Field label="Commission Amount (₹)">
+              <DecimalInput type="number"
+                min="0"
+                value={form.transportCommissionAmount ?? ""}
+                onChange={(e) => update("transportCommissionAmount", e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={inputClass}
+                placeholder="Enter commission amount"
+              />
+              <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                <Info className="h-3 w-3" />
+                Fetched from customer pricing when a route is selected above. Edit to override.
+              </span>
+            </Field>
+
+            <Field label="Hire Amount (excluding Commission Amount) (₹)">
+              <input
+                type="text"
+                readOnly
+                disabled
+                value={hireExcludingCommission ? `₹${Number(hireExcludingCommission).toLocaleString("en-IN")}` : ""}
+                placeholder="Auto-calculated"
+                className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              />
+              <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                <Info className="h-3 w-3" />
+                Hire Amount − Commission Amount
+              </span>
+            </Field>
           </div>
         </section>
 
@@ -1800,6 +1943,24 @@ export function TripFormDialog({
           </button>
         </div>
       </form>
+
+      <BranchChangeScopeDialog
+        open={!!branchChangeRequest}
+        truckLabel={branchChangeRequest ? `${branchChangeRequest.truck.registrationNumber} (${branchChangeRequest.truck.truckId})` : ""}
+        fromBranch={branchChangeRequest ? branchChangeRequest.truck.branchRegisteredTo : ""}
+        toBranch={branchChangeRequest?.branchName || ""}
+        onChoose={handleBranchChangeScope}
+        onClose={cancelBranchChangeRequest}
+      />
+
+      <BranchChangeNoteDialog
+        open={!!branchChangeNoteRequest}
+        truckLabel={branchChangeNoteRequest ? `${branchChangeNoteRequest.truck.registrationNumber} (${branchChangeNoteRequest.truck.truckId})` : ""}
+        fromBranch={branchChangeNoteRequest ? branchChangeNoteRequest.truck.branchRegisteredTo : ""}
+        toBranch={branchChangeNoteRequest?.branchName || ""}
+        onSubmit={submitVehicleBranchChange}
+        onClose={cancelBranchChangeNoteRequest}
+      />
     </Dialog>
   );
 }

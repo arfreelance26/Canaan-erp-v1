@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { customersApi } from "@/lib/api";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
+import type { CustomerDestination } from "@/types/customer-destination";
 import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
+import { RouteDiagram } from "./RouteDiagram";
 
 type Props = {
   open: boolean;
@@ -17,11 +19,19 @@ type Props = {
   customers: Customer[];
 };
 
+type RouteOption = {
+  label: string;
+  rate: string;
+  destination?: CustomerDestination;
+};
+
 export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialData, customers }: Props) {
   const [customerId, setCustomerId] = useState("");
   const [actualHireAmount, setActualHireAmount] = useState("");
   const [accountsHireAmount, setAccountsHireAmount] = useState("");
+  const [selectedRoute, setSelectedRoute] = useState("");
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
+  const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -30,26 +40,41 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
       setCustomerId(initialData.customerId);
       setActualHireAmount(initialData.actualHireAmount ?? "");
       setAccountsHireAmount(initialData.accountsHireAmount ?? "");
-      customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
+      Promise.all([
+        customersApi.listPricing(initialData.customerId),
+        customersApi.listDestinations(initialData.customerId),
+      ]).then(([pricing, dests]) => {
+        setCustomerPricing(pricing);
+        setDestinations(dests);
+        // Best-effort: preselect whichever priced route matches the saved amount,
+        // since Final Customer Pricing itself only stores the resulting figure.
+        const match = pricing.find((p) => p.rate && p.rate === initialData.actualHireAmount);
+        setSelectedRoute(match?.customerDestination ?? "");
+      }).catch(() => {});
     } else {
       setCustomerId("");
       setActualHireAmount("");
       setAccountsHireAmount("");
+      setSelectedRoute("");
       setCustomerPricing([]);
+      setDestinations([]);
     }
   }, [open, initialData]);
 
   function handleCustomerChange(id: string) {
     setCustomerId(id);
     setActualHireAmount("");
+    setSelectedRoute("");
     setCustomerPricing([]);
+    setDestinations([]);
     if (!id) return;
-    customersApi.listPricing(id).then((pricing) => {
-      setCustomerPricing(pricing);
-      if (pricing.length > 0 && pricing[0].rate) {
-        setActualHireAmount(pricing[0].rate);
-      }
-    }).catch(() => {});
+    customersApi.listPricing(id).then(setCustomerPricing).catch(() => {});
+    customersApi.listDestinations(id).then(setDestinations).catch(() => {});
+  }
+
+  function selectRoute(opt: RouteOption) {
+    setSelectedRoute(opt.label);
+    setActualHireAmount(opt.rate);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -68,16 +93,25 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
 
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
 
-  // Show pricing details as a helper text below the field
-  const pricingHint = customerPricing.length > 0
-    ? customerPricing.map((p) =>
-        [p.customerDestination, p.cargoClassification, p.containerType, p.rate ? `₹${p.rate}` : ""]
-          .filter(Boolean).join(" / ")
-      ).join(" | ")
-    : null;
+  // Every route that has a Hire Amount configured via Customer Pricing —
+  // enriched with its destination record (when found) so the route diagram
+  // can render, matched by the same destination label the pricing row stores.
+  const routeOptions: RouteOption[] = useMemo(
+    () =>
+      customerPricing
+        .filter((p) => p.customerDestination && p.rate)
+        .map((p) => ({
+          label: p.customerDestination,
+          rate: p.rate,
+          destination: destinations.find(
+            (d) => (d.destinationName ?? d.destinationAddress ?? "") === p.customerDestination
+          ),
+        })),
+    [customerPricing, destinations]
+  );
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Final Pricing" : "Add Final Customer Pricing"}>
+    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Final Pricing" : "Add Final Customer Pricing"} className="max-w-2xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-1">
 
         <Field label="Customer Name" required>
@@ -90,6 +124,61 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
           />
         </Field>
 
+        <Field label="Available Routes" required>
+          <span className="mb-2 block text-xs text-gray-400">
+            Routes with a Hire Amount configured in Customer Pricing. Select one to auto-fill Actual Hire Amount below.
+          </span>
+          {!customerId ? (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              Select a customer first
+            </p>
+          ) : routeOptions.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              No priced routes for this customer yet — add one in Customer Pricing
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[24rem] overflow-y-auto p-1">
+              {routeOptions.map((opt) => {
+                const selected = selectedRoute === opt.label;
+                return (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => selectRoute(opt)}
+                    className={[
+                      "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                      selected
+                        ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
+                        : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                    ].join(" ")}
+                  >
+                    {opt.destination ? (
+                      <RouteDiagram
+                        compact
+                        originState={opt.destination.originState}
+                        originAddress={opt.destination.originAddress}
+                        destinationState={opt.destination.destinationState}
+                        destinationAddress={opt.destination.destinationAddress}
+                        approxDistanceKm={opt.destination.approxDistanceKm}
+                      />
+                    ) : (
+                      <span className="text-sm font-semibold text-gray-800">{opt.label}</span>
+                    )}
+                    <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                        ₹{Number(opt.rate).toLocaleString("en-IN")}
+                      </span>
+                      {selected && (
+                        <span className="text-[11px] font-semibold text-blue-600">Selected</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Field>
+
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-medium text-gray-700">Actual Hire Amount (₹)</span>
           <input
@@ -99,11 +188,8 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
             value={actualHireAmount}
             readOnly
             className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-600`}
-            placeholder="Auto-populated from Customer Pricing"
+            placeholder="Select a route above to auto-populate"
           />
-          {pricingHint && (
-            <p className="text-xs text-gray-400 normal-case">From Customer Pricing: {pricingHint}</p>
-          )}
         </div>
 
         <Field label="Hire Amount as per Accounts (₹)" required>

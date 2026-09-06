@@ -32,6 +32,43 @@ def _remember_customer_origin(db: Session, customer_id, origin: Optional[str]):
         db.add(models.CustomerOrigin(customer_id=customer_id, origin_name=origin))
         db.commit()
 
+def _revert_temp_branch_if_needed(db: Session, trip: "models.Trip"):
+    """Snap a truck back to its pre-trip branch once a trip's cycle completes.
+
+    Only fires for a truck currently in a "This Trip Only" arrangement tied to
+    *this* trip (temp_branch_trip_id == trip.trip_id) — a permanent reassignment
+    or a temp assignment for some other trip is left untouched. Caller commits;
+    this only adds to the session.
+    """
+    if not trip.vehicle_id:
+        return
+    truck = (
+        db.query(models.Truck)
+        .filter(
+            models.Truck.truck_id == trip.vehicle_id,
+            models.Truck.temp_branch_trip_id == trip.trip_id,
+        )
+        .with_for_update()
+        .first()
+    )
+    if not truck:
+        return
+    old_branch = truck.branch_registered_to
+    truck.branch_registered_to = truck.temp_branch_original
+    truck.temp_branch_original = None
+    truck.temp_branch_trip_id = None
+    db.add(models.TruckBranchHistory(
+        truck_id=truck.id,
+        from_branch=old_branch,
+        to_branch=truck.branch_registered_to,
+        note=f"Reassigned back after Trip {trip.trip_id} by system",
+        changed_by=None,
+        changed_by_name="System",
+        changed_at=datetime.now(timezone.utc),
+    ))
+    emit("truck_updated", {"id": truck.id})
+
+
 ACTIVE_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
 
 
@@ -135,7 +172,9 @@ def list_trips(
 def get_customer_profitability(db: Session = Depends(get_db)):
     """
     Per-customer profitability aggregated from completed trips that have a trip sheet.
-    Revenue = trip_sheet.hire_amount, Expense = trip_sheet.total_expense.
+    Revenue = trip_sheet.hire_amount − trip.transport_commission_amount (matches the
+    "Hire Amount (excluding Commission Amount)" field on the trip assignment form),
+    Expense = trip_sheet.total_expense.
     Returns customers ranked by total net profit, with route breakdown and last 20 trips each.
     """
     from collections import defaultdict
@@ -145,6 +184,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             models.Trip.customer_id,
             models.Customer.name.label("customer_name"),
             models.TripSheet.hire_amount,
+            models.Trip.transport_commission_amount,
             models.TripSheet.total_expense,
             models.TripSheet.total_km,
             models.TripSheet.from_location,
@@ -164,7 +204,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
 
     for row in rows:
         cid = str(row.customer_id)
-        hire = float(row.hire_amount or 0)
+        hire = float(row.hire_amount or 0) - float(row.transport_commission_amount or 0)
         expense = float(row.total_expense or 0)
         km = float(row.total_km or 0)
 
@@ -547,17 +587,25 @@ def update_trip_status(
 
 
 @router.delete("/{trip_id}", status_code=204, dependencies=[Depends(require_roles())])
-def delete_trip(trip_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+def delete_trip(
+    trip_id: int,
+    payload: schemas.TripDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin only: soft-delete a trip (hides it from every normal listing, keeps its
     closure/sheet/invoice intact). Recoverable from "Deleted Trips" via /restore;
     only /permanent there does an actual, unrecoverable DELETE.
 
-    No approval step needed here (Admin has full authority), but a self-approved
-    DeletionApprovalRequest row is still logged so this trip shows up on the
-    "Deleted Trips" audit page the same way an Accounts/Commercial-Manager-requested
-    deletion does — otherwise the most common deletion path (Admin deleting
-    directly) would be invisible in that audit trail.
+    No approval step needed here (Admin has full authority), but the Admin must
+    still type a reason — it's stored as-is on a self-approved
+    DeletionApprovalRequest row so this trip shows up on the "Deleted Trips"
+    audit page with a real description, the same way an Accounts/Commercial-
+    Manager-requested deletion does.
     """
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(400, "A reason for deletion is required.")
     trip = db.get(models.Trip, trip_id)
     if not trip:
         raise HTTPException(404, "Trip not found")
@@ -574,7 +622,7 @@ def delete_trip(trip_id: int, db: Session = Depends(get_db), current_user: Token
             resource_name=booking_ref or trip_id_str,
             requested_by_staff_id=current_user.id,
             requested_by_name=current_user.name,
-            reason="Deleted directly by Admin — no approval required.",
+            reason=reason,
             status="Approved",
             approved_by_name=current_user.name,
             approved_at=now,
@@ -917,11 +965,14 @@ def verify_trip(trip_id: int, db: Session = Depends(get_db)):
         trip.is_invoiced = True
     # SHIFTING trips are never billed to a customer (no bill_to/hire), so there is
     # nothing to invoice — verifying one goes straight to "Waived Invoice" instead
-    # of landing in Verified and waiting on a manual Waive Invoice click. This only
-    # fires on a genuine approval; a rejected SHIFTING trip sheet still goes back
-    # to Docs for correction like any other trip.
-    if trip.trip_category == "SHIFTING":
+    # of landing in Verified and waiting on a manual Waive Invoice click. Same for
+    # a "To Be Paid" payment type — the customer is deliberately not being invoiced
+    # for this trip. Both only fire on a genuine approval; a rejected trip sheet
+    # still goes back to Docs for correction like any other trip.
+    if trip.trip_category == "SHIFTING" or trip.payment_type == "To Be Paid":
         trip.invoice_waived = True
+    if trip.is_invoiced or trip.invoice_waived:
+        _revert_temp_branch_if_needed(db, trip)
     db.commit()
     db.refresh(trip)
     return _enrich(trip)
@@ -978,6 +1029,7 @@ def waive_invoice(trip_id: int, db: Session = Depends(get_db)):
     if trip.verification_status != "verified":
         raise HTTPException(400, "Only verified trips can have their invoice waived")
     trip.invoice_waived = True
+    _revert_temp_branch_if_needed(db, trip)
     db.commit()
     db.refresh(trip)
     return _enrich(trip)
@@ -1232,7 +1284,10 @@ def generate_invoice(trip_id: int, payload: schemas.TripInvoiceCreate, db: Sessi
         raise HTTPException(404, "Trip not found")
     if not trip.sheet:
         raise HTTPException(400, "Trip sheet must exist before generating an invoice")
+    was_invoiced = trip.is_invoiced
     trip.is_invoiced = True
+    if not was_invoiced:
+        _revert_temp_branch_if_needed(db, trip)
     existing = db.query(models.TripInvoice).filter(models.TripInvoice.trip_id == trip_id).first()
     data = payload.model_dump(exclude_unset=True)
     if existing:

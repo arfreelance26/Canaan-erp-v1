@@ -9,6 +9,18 @@ from database import get_db, engine
 import models
 
 
+def _net_hire(sheet, trip_meta) -> float:
+    """Revenue for one trip sheet, net of any commission owed on that trip's route.
+
+    Hire Amount (excluding Commission Amount) = TripSheet.hire_amount − the
+    originating Trip's transport_commission_amount. trip_meta may be None if
+    the sheet's trip couldn't be resolved (e.g. deleted trip) — treat as 0 commission.
+    """
+    hire = float(sheet.hire_amount or 0)
+    commission = float(trip_meta.transport_commission_amount or 0) if trip_meta else 0.0
+    return hire - commission
+
+
 def _ensure_emi_finance_columns() -> None:
     """Add monthly_finance_cost / daily_finance_cost to emi_records if absent.
 
@@ -107,7 +119,8 @@ def get_pl_summary(
 ):
     """Return per-truck P&L breakdown for the given date range.
 
-    Revenue  = sum of hire_amount from trip_sheets (trip_sheet_date in range)
+    Revenue  = sum of hire_amount from trip_sheets (trip_sheet_date in range),
+               net of each trip's transport_commission_amount (see _net_hire)
     Cost     = trip_expenses + maintenance + EMI share + document amortisation share
     Net P&L  = Revenue - Cost
 
@@ -232,7 +245,7 @@ def get_pl_summary(
         # Trip revenue and expenses
         truck_sheets = sheets_by_vehicle.get((truck.truck_id or "").strip(), [])
         truck_sheets_sorted = sorted(truck_sheets, key=lambda s: s.trip_sheet_date or date_type.min)
-        hire_total = round(sum(float(s.hire_amount or 0) for s in truck_sheets_sorted), 2)
+        hire_total = round(sum(_net_hire(s, trips_meta.get(s.trip_id) if s.trip_id else None) for s in truck_sheets_sorted), 2)
         trip_expense_total = round(sum(float(s.total_expense or 0) for s in truck_sheets_sorted), 2)
         total_km = round(sum(float(s.total_km or 0) for s in truck_sheets_sorted), 1)
 
@@ -266,7 +279,7 @@ def get_pl_summary(
                 "booking_reference_no":     s.booking_reference_no or "",
                 "from_location":            s.from_location or "",
                 "to_location":              s.to_location or "",
-                "hire_amount":              float(s.hire_amount or 0),
+                "hire_amount":              _net_hire(s, trip_meta),
                 "total_expense":            float(s.total_expense or 0),
                 "total_km":                 float(s.total_km or 0),
                 # Joined from trips + customers — used for client-side profitability filters

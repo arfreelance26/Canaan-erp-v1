@@ -148,7 +148,9 @@ export function VerifyTripDialog({
     );
   }
 
-  const isShifting = trip.tripCategory === "SHIFTING";
+  const isShifting  = trip.tripCategory === "SHIFTING";
+  const isToBePaid  = trip.paymentType === "To Be Paid";
+  const autoWaives  = isShifting || isToBePaid;
 
   const containerRef =
     trip.containerSpecification === "2 X 20 FEET CONTAINERS"
@@ -439,16 +441,19 @@ export function VerifyTripDialog({
           {!readOnly && <div className="border-t border-gray-100 pt-3">
             <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-white">Verification Decision</p>
 
-            {/* SHIFTING trips are never billed to a customer — verifying skips the
-                invoice step entirely and goes straight to Waived Invoice. Only relevant
-                when the trip could actually be approved right now, not while rejecting. */}
-            {isShifting && !directReject && autoDecision !== "reject" && (
+            {/* SHIFTING trips are never billed to a customer, and "To Be Paid" trips are
+                deliberately not being invoiced either — verifying either skips the invoice
+                step entirely and goes straight to Waived Invoice. Only relevant when the
+                trip could actually be approved right now, not while rejecting. */}
+            {autoWaives && !directReject && autoDecision !== "reject" && (
               <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2.5">
                 <svg className="h-4 w-4 shrink-0 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-xs font-medium text-purple-700 dark:text-white">
-                  This is a SHIFTING trip — it isn&apos;t billed to a customer, so confirming verification will
+                  {isShifting
+                    ? "This is a SHIFTING trip — it isn't billed to a customer, so confirming verification will"
+                    : "This trip's payment type is \"To Be Paid\" — so confirming verification will"}{" "}
                   automatically mark it <span className="font-bold">Waived Invoice</span> instead of Verified.
                 </p>
               </div>

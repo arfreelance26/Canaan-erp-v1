@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
 import { CloseTripDialog } from "@/components/trips/CloseTripDialog";
-import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -16,8 +17,11 @@ import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { useAuth } from "@/context/AuthContext";
 
 export default function CompletedTripsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -28,6 +32,7 @@ export default function CompletedTripsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
         Promise.all([
@@ -69,6 +74,27 @@ export default function CompletedTripsPage() {
     }
   }
 
+  async function handleDeleteSubmit(trip: Trip, reason: string) {
+    try {
+      if (isAdmin) {
+        await tripsApi.remove(trip.id, reason);
+        setTrips((prev) => prev.filter((t) => t.id !== trip.id));
+        showSuccess(`Trip ${trip.tripId} deleted.`);
+      } else {
+        await deletionApprovalsApi.create({
+          resourceType: "Trip",
+          resourceId: parseInt(trip.id),
+          resourceName: trip.bookingReferenceNo || trip.tripId,
+          reason,
+        });
+        showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      }
+      setDeleteRequestTrip(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete trip.");
+    }
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={6} />;
 
   const filteredTrips = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers));
@@ -104,8 +130,22 @@ export default function CompletedTripsPage() {
         customers={customers}
         onCloseTrip={(trip) => setSelectedTrip(trip)}
         closedTripIds={closedTripIds}
+        onDelete={isAdmin ? (trip) => setDeleteRequestTrip(trip) : undefined}
+        onDeleteRequest={!isAdmin ? (trip) => setDeleteRequestTrip(trip) : undefined}
         emptyStateMessage="No completed trips found."
       />
+
+      {deleteRequestTrip && (
+        <EditRequestDialog
+          open={deleteRequestTrip !== null}
+          resourceType="Trip"
+          resourceName={deleteRequestTrip.bookingReferenceNo || deleteRequestTrip.tripId}
+          action="Delete"
+          directAction={isAdmin}
+          onSubmit={(reason) => handleDeleteSubmit(deleteRequestTrip, reason)}
+          onClose={() => setDeleteRequestTrip(null)}
+        />
+      )}
 
       <CloseTripDialog
         open={selectedTrip !== null}

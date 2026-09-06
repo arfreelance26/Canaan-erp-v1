@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState, useRef, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
-import { CARGO_CLASSIFICATION_OPTIONS, CONTAINER_TYPE_OPTIONS, WEIGHT_IN_TONS_OPTIONS } from "@/lib/customer-pricing-data";
 import type { Customer } from "@/types/customer";
 import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { RouteDiagram } from "./RouteDiagram";
 
 export const DRAFT_KEY = "erp_customer_pricing_form_draft";
 
@@ -26,10 +25,8 @@ type CustomerPricingFormDialogProps = {
 const emptyForm: Omit<CustomerPricing, "id"> = {
   customerId: "",
   customerDestination: "",
-  cargoClassification: "",
-  containerType: "",
-  weightInTons: "",
   rate: "",
+  commissionAmount: "",
   status: "ACTIVE",
 };
 
@@ -87,15 +84,29 @@ export function CustomerPricingFormDialog({
     [customers, search],
   );
 
-  const customerDestinationOptions = useMemo(() => {
+  // Routes that already have a Hire Amount set for this customer (excluding
+  // the pricing entry currently being edited, so its own route stays selectable).
+  const pricedRouteValues = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of existingPricing) {
+      if (p.customerId !== form.customerId) continue;
+      if (initialData && p.id === initialData.id) continue;
+      if (!p.rate || String(p.rate).trim() === "") continue;
+      if (p.customerDestination) set.add(p.customerDestination.trim().toLowerCase());
+    }
+    return set;
+  }, [existingPricing, form.customerId, initialData]);
+
+  // Full destination records for this customer that don't have a Hire Amount
+  // set yet — rendered as selectable route cards below.
+  const availableRoutes = useMemo(() => {
     return destinations
       .filter((d) => d.customerId === form.customerId)
-      .map((d) => {
-        const label = d.destinationName ?? d.destinationAddress ?? "";
-        return { value: label, label };
-      })
-      .filter((o) => o.value !== "");
-  }, [destinations, form.customerId]);
+      .filter((d) => {
+        const value = d.destinationName ?? d.destinationAddress ?? "";
+        return value !== "" && !pricedRouteValues.has(value.trim().toLowerCase());
+      });
+  }, [destinations, form.customerId, pricedRouteValues]);
 
   function update<K extends keyof Omit<CustomerPricing, "id">>(key: K, value: Omit<CustomerPricing, "id">[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -176,51 +187,64 @@ export function CustomerPricingFormDialog({
           )}
         </Field>
 
+        <Field label="Available Routes" required>
+          <span className="mb-2 block text-xs text-gray-400">
+            Only routes without a Hire Amount set yet are shown. Select one card.
+          </span>
+          {!form.customerId ? (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              Select a customer first
+            </p>
+          ) : availableRoutes.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+              No unpriced routes for this customer
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[28rem] overflow-y-auto p-1">
+              {availableRoutes.map((d) => {
+                const value = d.destinationName ?? d.destinationAddress ?? "";
+                const selected = form.customerDestination === value;
+                const tags = [d.cargoClassification, d.containerType, d.weightInTons].filter(Boolean);
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => update("customerDestination", value)}
+                    className={[
+                      "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                      selected
+                        ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
+                        : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                    ].join(" ")}
+                  >
+                    <RouteDiagram
+                      compact
+                      originState={d.originState}
+                      originAddress={d.originAddress}
+                      destinationState={d.destinationState}
+                      destinationAddress={d.destinationAddress}
+                      approxDistanceKm={d.approxDistanceKm}
+                    />
+                    {tags.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                        {tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Field>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Customer Destination" required>
-            <GlassSelect
-              value={form.customerDestination}
-              onChange={(val) => update("customerDestination", val)}
-              options={[
-                { value: "", label: form.customerId ? "Select destination" : "Select a customer first" },
-                ...customerDestinationOptions,
-              ]}
-            />
-          </Field>
-
-          <Field label="Cargo Classification" required>
-            <GlassSelect
-              value={form.cargoClassification}
-              onChange={(val) => update("cargoClassification", val as CustomerPricing["cargoClassification"])}
-              options={[
-                { value: "", label: "Select cargo classification" },
-                ...CARGO_CLASSIFICATION_OPTIONS.map((o) => ({ value: o, label: o })),
-              ]}
-            />
-          </Field>
-
-          <Field label="Container Type" required>
-            <GlassSelect
-              value={form.containerType}
-              onChange={(val) => update("containerType", val as CustomerPricing["containerType"])}
-              options={[
-                { value: "", label: "Select container type" },
-                ...CONTAINER_TYPE_OPTIONS.map((o) => ({ value: o, label: o })),
-              ]}
-            />
-          </Field>
-
-          <Field label="Cargo Weight (tons)" required>
-            <GlassSelect
-              value={form.weightInTons}
-              onChange={(val) => update("weightInTons", val as CustomerPricing["weightInTons"])}
-              options={[
-                { value: "", label: "Select weight range" },
-                ...WEIGHT_IN_TONS_OPTIONS.map((o) => ({ value: o, label: o })),
-              ]}
-            />
-          </Field>
-
           <Field label="Hire Amount" required>
             <DecimalInput type="number"
               required
@@ -231,6 +255,18 @@ export function CustomerPricingFormDialog({
               onWheel={(e) => e.currentTarget.blur()}
               className={inputClass}
               placeholder="e.g. 25000"
+            />
+          </Field>
+
+          <Field label="Commission Amount">
+            <DecimalInput type="number"
+              min="0"
+              step="0.01"
+              value={form.commissionAmount ?? ""}
+              onChange={(e) => update("commissionAmount", e.target.value)}
+              onWheel={(e) => e.currentTarget.blur()}
+              className={inputClass}
+              placeholder="e.g. 500"
             />
           </Field>
         </div>

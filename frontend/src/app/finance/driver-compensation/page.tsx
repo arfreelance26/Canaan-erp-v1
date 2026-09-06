@@ -5,11 +5,10 @@ import { CompensationTable, type CompensationPerson } from "@/components/compens
 import { AdvanceRecordDialog } from "@/components/compensation/AdvanceRecordDialog";
 import { SalaryRecordDialog } from "@/components/compensation/SalaryRecordDialog";
 import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
-import { driversApi, tripsApi, financeApi, trucksApi, branchesApi } from "@/lib/api";
+import { driversApi, tripsApi, financeApi, trucksApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
-import type { Branch } from "@/types/branch";
 import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -21,7 +20,6 @@ export default function DriverCompensationPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [transactions, setTransactions] = useState<CompensationTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -32,12 +30,11 @@ export default function DriverCompensationPage() {
   const [search, setSearch] = useState("");
 
   function loadData() {
-    return Promise.all([driversApi.list(), tripsApi.list(), trucksApi.list(), financeApi.listDriverCompensation(), branchesApi.list()]).then(([d, t, tr, tx, br]) => {
+    return Promise.all([driversApi.list(), tripsApi.list(), trucksApi.list(), financeApi.listDriverCompensation()]).then(([d, t, tr, tx]) => {
       setDrivers(d);
       setTrips(t);
       setTrucks(tr);
       setTransactions(tx);
-      setBranches(br);
     });
   }
 
@@ -166,7 +163,6 @@ export default function DriverCompensationPage() {
         driver={salaryRecordTarget}
         trips={trips}
         trucks={trucks}
-        branches={branches}
         onRecordPayment={handleRecordSalaryPayment}
       />
 

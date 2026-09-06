@@ -23,7 +23,7 @@ router = APIRouter(prefix="/trucks", tags=["Trucks"])
 
 @router.get("", response_model=list[schemas.TruckOut])
 def list_trucks(db: Session = Depends(get_db)):
-    return db.query(models.Truck).order_by(models.Truck.truck_id).all()
+    return db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).order_by(models.Truck.truck_id).all()
 
 
 @router.post("", response_model=schemas.TruckOut, status_code=201)
@@ -210,6 +210,16 @@ def get_compliance_history(truck_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/{truck_id}/branch-history", response_model=list[schemas.TruckBranchHistoryOut])
+def get_branch_history(truck_id: int, db: Session = Depends(get_db)):
+    return (
+        db.query(models.TruckBranchHistory)
+        .filter(models.TruckBranchHistory.truck_id == truck_id)
+        .order_by(models.TruckBranchHistory.changed_at.desc())
+        .all()
+    )
+
+
 @router.put("/{truck_id}", response_model=schemas.TruckOut)
 def update_truck(
     truck_id: int,
@@ -228,13 +238,28 @@ def update_truck(
             "Please refresh the page to get the latest data and try again."
         )
 
-    # Snapshot compliance dates before applying changes
-    payload_dict = payload.model_dump(exclude_unset=True, exclude={"client_version"})
+    # Snapshot compliance dates + branch before applying changes
+    payload_dict = payload.model_dump(exclude_unset=True, exclude={"client_version", "branch_change_note"})
     old_dates = {f: str(getattr(truck, f) or "") for f in _COMPLIANCE_FIELDS}
+    old_branch = truck.branch_registered_to
+
+    branch_changed = False
+    if "branch_registered_to" in payload_dict:
+        new_branch = payload_dict["branch_registered_to"]
+        if new_branch and new_branch != old_branch:
+            if not (payload.branch_change_note or "").strip():
+                raise HTTPException(400, "Please add a note explaining this branch change.")
+            branch_changed = True
 
     for field, value in payload_dict.items():
         setattr(truck, field, value)
     truck.version = (truck.version or 1) + 1
+
+    if branch_changed:
+        # A manual/permanent edit here supersedes any "This Trip Only" arrangement
+        # in effect — the truck no longer has a branch to snap back to.
+        truck.temp_branch_original = None
+        truck.temp_branch_trip_id = None
 
     # Log each compliance date that actually changed
     now = datetime.now(timezone.utc)
@@ -249,6 +274,77 @@ def update_truck(
                     updated_by_name=current_user.name or "Unknown",
                 ))
 
+    if "branch_registered_to" in payload_dict and truck.branch_registered_to != old_branch:
+        db.add(models.TruckBranchHistory(
+            truck_id=truck.id,
+            from_branch=old_branch,
+            to_branch=truck.branch_registered_to,
+            note=(payload.branch_change_note or "").strip(),
+            changed_by=current_user.id,
+            changed_by_name=current_user.name or "Unknown",
+            changed_at=now,
+        ))
+
+    db.commit()
+    db.refresh(truck)
+    emit("truck_updated", {"id": truck.id})
+    return truck
+
+
+@router.post("/{truck_id}/branch-change", response_model=schemas.TruckOut)
+def change_truck_branch(
+    truck_id: int,
+    payload: schemas.TruckBranchChangeIn,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Reassign a truck's branch from the Assign Trip flow.
+
+    Two modes:
+      - "trip_only": the branch flips for the duration of one trip only. The
+        original branch is remembered on the truck (temp_branch_original) and
+        automatically restored — with its own system-logged history row — the
+        moment that trip's invoice is generated or waived (see routers/trips.py).
+      - "permanent": an ordinary reassignment, same as the PUT endpoint's
+        branch_change_note path, just reached from a different dialog.
+    """
+    truck = db.query(models.Truck).with_for_update().filter(models.Truck.id == truck_id).first()
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+
+    old_branch = truck.branch_registered_to
+    if payload.branch_name == old_branch:
+        return truck
+
+    now = datetime.now(timezone.utc)
+
+    if payload.mode == "permanent":
+        if not (payload.note or "").strip():
+            raise HTTPException(400, "Please add a note explaining this branch change.")
+        truck.branch_registered_to = payload.branch_name
+        truck.temp_branch_original = None
+        truck.temp_branch_trip_id = None
+        note = payload.note.strip()
+    else:
+        if not (payload.trip_id or "").strip():
+            raise HTTPException(400, "A trip is required for a trip-only branch change.")
+        # If a temp assignment is already active, preserve the branch it should
+        # ultimately revert to rather than overwriting it with the current
+        # (itself temporary) branch.
+        truck.temp_branch_original = truck.temp_branch_original or old_branch
+        truck.temp_branch_trip_id = payload.trip_id.strip()
+        truck.branch_registered_to = payload.branch_name
+        note = f"Temporarily assigned to Trip {payload.trip_id.strip()} by {current_user.name or 'Unknown'}"
+
+    db.add(models.TruckBranchHistory(
+        truck_id=truck.id,
+        from_branch=old_branch,
+        to_branch=truck.branch_registered_to,
+        note=note,
+        changed_by=current_user.id,
+        changed_by_name=current_user.name or "Unknown",
+        changed_at=now,
+    ))
     db.commit()
     db.refresh(truck)
     emit("truck_updated", {"id": truck.id})
@@ -256,10 +352,33 @@ def update_truck(
 
 
 @router.delete("/{truck_id}", status_code=204)
-def delete_truck(truck_id: int, db: Session = Depends(get_db)):
+def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Soft-delete a truck (hides it from "Our Fleet" and every assignment
+    picker, keeps its fuel/adblue/maintenance logs, tyre fitments, compliance
+    history, and branch history intact and still resolvable). A non-Admin
+    reaches this endpoint only after an Admin/Commercial Manager has already
+    approved their Edit-Approvals delete request; a self-approved
+    DeletionApprovalRequest row is logged here either way for audit
+    visibility, same pattern as drivers.py's delete_driver.
+    """
     truck = db.get(models.Truck, truck_id)
     if not truck:
         raise HTTPException(404, "Truck not found")
-    db.delete(truck)
+    if truck.deleted_at is not None:
+        raise HTTPException(409, "Truck is already deleted")
+    now = datetime.now(timezone.utc)
+    truck.deleted_at = now
+    if current_user.id is not None:
+        db.add(models.DeletionApprovalRequest(
+            resource_type="Truck",
+            resource_id=truck_id,
+            resource_name=f"{truck.truck_id} — {truck.registration_number}",
+            requested_by_staff_id=current_user.id,
+            requested_by_name=current_user.name,
+            reason="Deleted via Our Fleet (Admin action or pre-approved edit request).",
+            status="Approved",
+            approved_by_name=current_user.name,
+            approved_at=now,
+        ))
     db.commit()
     emit("truck_updated", {})

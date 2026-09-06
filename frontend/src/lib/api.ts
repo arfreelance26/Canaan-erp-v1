@@ -553,6 +553,9 @@ function toCustomerDestination(b: B): CustomerDestination {
     originAddress: b.origin_address ?? "",
     approxDistanceKm: b.approx_distance_km != null ? String(b.approx_distance_km) : "",
     status: b.status ?? undefined,
+    cargoClassification: b.cargo_classification ?? "",
+    containerType: b.container_type ?? "",
+    weightInTons: b.weight_in_tons ?? "",
   };
 }
 
@@ -561,10 +564,8 @@ function toCustomerPricing(b: B): CustomerPricing {
     id: String(b.id),
     customerId: String(b.customer_id),
     customerDestination: b.customer_destination ?? "",
-    cargoClassification: b.cargo_classification ?? "",
-    containerType: b.container_type ?? "",
-    weightInTons: b.weight_in_tons ?? "",
     rate: String(b.rate ?? ""),
+    commissionAmount: b.commission_amount !== null && b.commission_amount !== undefined ? String(b.commission_amount) : "",
     status: b.status ?? "",
   };
 }
@@ -654,6 +655,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     ratePerTon: String(b.rate_per_ton ?? ""),
     transportHireAmount: String(b.transport_hire_amount ?? ""),
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
+    transportCommissionAmount: b.transport_commission_amount != null ? String(b.transport_commission_amount) : undefined,
     approxKm: b.approx_km != null ? String(b.approx_km) : undefined,
     liftOnAmount: b.lift_on_amount != null ? String(b.lift_on_amount) : undefined,
     liftOnRemarks: b.lift_on_remarks ?? undefined,
@@ -737,6 +739,7 @@ function fromTrip(f: Trip) {
     rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
+    transport_commission_amount: f.transportCommissionAmount ? parseFloat(f.transportCommissionAmount) : null,
     approx_km: f.approxKm ? parseFloat(f.approxKm) : null,
     lift_on_amount: f.liftOnAmount ? parseFloat(f.liftOnAmount) : null,
     lift_on_remarks: f.liftOnRemarks || null,
@@ -1213,9 +1216,27 @@ export const trucksApi = {
   list: () => req<B[]>("/trucks").then((d) => d.map(toTruck)),
   create: (truck: Truck) =>
     req<B>("/trucks", { method: "POST", body: JSON.stringify(fromTruck(truck)) }).then(toTruck),
-  update: (dbId: string, truck: Truck) =>
-    req<B>(`/trucks/${dbId}`, { method: "PUT", body: JSON.stringify(fromTruck(truck)) }).then(toTruck),
+  update: (dbId: string, truck: Truck, branchChangeNote?: string) =>
+    req<B>(`/trucks/${dbId}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...fromTruck(truck), branch_change_note: branchChangeNote || undefined }),
+    }).then(toTruck),
   delete: (dbId: string) => req<void>(`/trucks/${dbId}`, { method: "DELETE" }),
+  getBranchHistory: (dbId: string) =>
+    req<{ id: number; truck_id: number; from_branch: string | null; to_branch: string; note: string; changed_by_name: string; changed_at: string }[]>(
+      `/trucks/${dbId}/branch-history`
+    ),
+  // "This Trip Only" / "Permanently" branch reassignment from the Assign Trip flow.
+  changeBranchTripOnly: (dbId: string, branchName: string, tripId: string) =>
+    req<B>(`/trucks/${dbId}/branch-change`, {
+      method: "POST",
+      body: JSON.stringify({ mode: "trip_only", branch_name: branchName, trip_id: tripId }),
+    }).then(toTruck),
+  changeBranchPermanently: (dbId: string, branchName: string, note: string) =>
+    req<B>(`/trucks/${dbId}/branch-change`, {
+      method: "POST",
+      body: JSON.stringify({ mode: "permanent", branch_name: branchName, note }),
+    }).then(toTruck),
   getRunConfig: () => req<{ tyre_layout: string; km_per_month: string | null; km_per_day: string | null }[]>("/trucks/run-config"),
   saveRunConfig: (configs: { tyre_layout: string; km_per_month: number | null; km_per_day: number | null }[]) =>
     req<B[]>("/trucks/run-config", { method: "PUT", body: JSON.stringify({ configs }) }),
@@ -1246,6 +1267,47 @@ export const tyreRangeConfigApi = {
     ),
   delete: (tyreType: string) =>
     req<void>(`/tyre-range-config/${encodeURIComponent(tyreType)}`, { method: "DELETE" }),
+};
+
+export type DefaultBattaRate = {
+  id: number;
+  branchId: number;
+  tripType: string;
+  cargoType: string;
+  amount: number | null;
+  updatedAt: string | null;
+};
+
+type DefaultBattaRateWire = {
+  id: number;
+  branch_id: number;
+  trip_type: string;
+  cargo_type: string;
+  amount: number | null;
+  updated_at: string | null;
+};
+
+function toDefaultBattaRate(r: DefaultBattaRateWire): DefaultBattaRate {
+  return {
+    id: r.id,
+    branchId: r.branch_id,
+    tripType: r.trip_type,
+    cargoType: r.cargo_type,
+    amount: r.amount,
+    updatedAt: r.updated_at,
+  };
+}
+
+export const defaultBattaApi = {
+  list: (branchId?: string) =>
+    req<DefaultBattaRateWire[]>(
+      branchId ? `/default-batta-rates?branch_id=${encodeURIComponent(branchId)}` : "/default-batta-rates"
+    ).then((rows) => rows.map(toDefaultBattaRate)),
+  upsert: (branchId: string, tripType: string, cargoType: string, amount: number | null) =>
+    req<DefaultBattaRateWire>("/default-batta-rates", {
+      method: "PUT",
+      body: JSON.stringify({ branch_id: Number(branchId), trip_type: tripType, cargo_type: cargoType, amount }),
+    }).then(toDefaultBattaRate),
 };
 
 export const tyreLayoutTypeConfigApi = {
@@ -1377,6 +1439,9 @@ export const customersApi = {
         origin_state: dest.originState || null,
         origin_address: dest.originAddress || null,
         approx_distance_km: dest.approxDistanceKm || null,
+        cargo_classification: dest.cargoClassification || null,
+        container_type: dest.containerType || null,
+        weight_in_tons: dest.weightInTons || null,
       }),
     }).then(toCustomerDestination),
   updateDestination: (customerId: string, destId: string, dest: CustomerDestination) =>
@@ -1388,6 +1453,9 @@ export const customersApi = {
         origin_state: dest.originState || null,
         origin_address: dest.originAddress || null,
         approx_distance_km: dest.approxDistanceKm || null,
+        cargo_classification: dest.cargoClassification || null,
+        container_type: dest.containerType || null,
+        weight_in_tons: dest.weightInTons || null,
       }),
     }).then(toCustomerDestination),
   deleteDestination: (customerId: string, destId: string) =>
@@ -1400,9 +1468,8 @@ export const customersApi = {
       method: "POST",
       body: JSON.stringify({
         customer_destination: pricing.customerDestination,
-        cargo_classification: pricing.cargoClassification, container_type: pricing.containerType,
-        weight_in_tons: pricing.weightInTons,
         rate: parseFloat(pricing.rate) || 0, status: pricing.status,
+        commission_amount: pricing.commissionAmount ? parseFloat(pricing.commissionAmount) : null,
       }),
     }).then(toCustomerPricing),
   updatePricing: (customerId: string, priceId: string, pricing: CustomerPricing) =>
@@ -1410,9 +1477,8 @@ export const customersApi = {
       method: "PUT",
       body: JSON.stringify({
         customer_destination: pricing.customerDestination,
-        cargo_classification: pricing.cargoClassification, container_type: pricing.containerType,
-        weight_in_tons: pricing.weightInTons,
         rate: parseFloat(pricing.rate) || 0, status: pricing.status,
+        commission_amount: pricing.commissionAmount ? parseFloat(pricing.commissionAmount) : null,
       }),
     }).then(toCustomerPricing),
   deletePricing: (customerId: string, priceId: string) =>
@@ -1505,7 +1571,8 @@ export const tripsApi = {
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
   listShippingLines: () => req<string[]>("/trips/shipping-lines"),
   listCargoReferences: () => req<string[]>("/trips/cargo-references"),
-  remove: (dbId: string) => req<void>(`/trips/${dbId}`, { method: "DELETE" }),
+  remove: (dbId: string, reason: string) =>
+    req<void>(`/trips/${dbId}`, { method: "DELETE", body: JSON.stringify({ reason }) }),
   restore: (dbId: string) => req<B>(`/trips/${dbId}/restore`, { method: "POST" }).then(toTrip),
   removePermanent: (dbId: string) => req<void>(`/trips/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/trips/deleted-ids"),

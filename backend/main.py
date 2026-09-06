@@ -56,7 +56,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, compliance_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, compliance_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta
 
 Base.metadata.create_all(bind=engine)
 
@@ -243,6 +243,9 @@ def _run_schema_migrations():
         "ALTER TABLE staff_attendance ADD COLUMN admin_override TINYINT(1) NOT NULL DEFAULT 0",
         # AdBlue consumption rate per truck (L/km, 5 d.p.), set manually by admin on the AdBlue Management page
         "ALTER TABLE trucks ADD COLUMN adblue_consumption DECIMAL(8,5) NULL",
+        # "This Trip Only" branch reassignment — see routers/trucks.py branch-change endpoint
+        "ALTER TABLE trucks ADD COLUMN temp_branch_original VARCHAR(200) NULL",
+        "ALTER TABLE trucks ADD COLUMN temp_branch_trip_id VARCHAR(100) NULL",
         # Widen precision in case column already existed as DECIMAL(6,2) from a previous migration run
         "ALTER TABLE trucks MODIFY COLUMN adblue_consumption DECIMAL(8,5) NULL",
         # NOTE: BLOB widening (MEDIUMBLOB → LONGBLOB for the 25 MB upload limit) is handled
@@ -327,6 +330,56 @@ def _run_schema_migrations():
         # cascade) compensation/batta history. Now it only sets this flag.
         "ALTER TABLE drivers ADD COLUMN deleted_at DATETIME NULL",
         "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver') NOT NULL",
+        # "To Be Paid" payment type — verifying a trip billed this way auto-waives
+        # its invoice, same as SHIFTING (see routers/trips.py verify_trip).
+        "ALTER TABLE trips MODIFY COLUMN payment_type ENUM('Credit','Cash','Fuel','To Be Paid')",
+        # Cargo Classification / Container Type / Cargo Weight moved from
+        # CustomerPricing to CustomerDestination — a destination is now 1:1
+        # with a single cargo/container/weight combo. The old columns stay on
+        # customer_pricing (see backfill below) until the data is copied
+        # forward, then get dropped.
+        "ALTER TABLE customer_destinations ADD COLUMN cargo_classification ENUM('IMPORT','EXPORT','CFS LADEN','EMPTY','OPEN LOAD','COASTAL') NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN container_type ENUM('20 FEET','40 FEET','2 X 20 FEET','OPEN LOAD') NULL",
+        "ALTER TABLE customer_destinations ADD COLUMN weight_in_tons ENUM('NORMAL','Up to 20 Tons','Between 20 - 25 Tons','Between 25-28 Tons','Between 28-30 Tons') NULL",
+        # Backfill: only where a (customer, destination label) pair had exactly
+        # ONE customer_pricing row — an unambiguous 1:1 copy. Where a destination
+        # had multiple pricing rows (different cargo/container/weight combos for
+        # the same place — the exact ambiguity this migration exists to remove
+        # going forward), this is intentionally left NULL rather than guessing
+        # which combo "wins": that data isn't lost, it's still readable on the
+        # old customer_pricing columns (kept, just no longer used by the app)
+        # until someone splits it into separate destination rows via the UI.
+        "UPDATE customer_destinations d "
+        "JOIN customer_pricing p ON p.customer_id = d.customer_id "
+        "  AND p.customer_destination = COALESCE(d.destination_name, d.destination_address) "
+        "JOIN (SELECT customer_id, customer_destination FROM customer_pricing "
+        "      GROUP BY customer_id, customer_destination HAVING COUNT(*) = 1) uniq "
+        "  ON uniq.customer_id = p.customer_id AND uniq.customer_destination = p.customer_destination "
+        "SET d.cargo_classification = p.cargo_classification, "
+        "    d.container_type = p.container_type, "
+        "    d.weight_in_tons = p.weight_in_tons "
+        "WHERE d.cargo_classification IS NULL",
+        "ALTER TABLE customer_pricing ADD COLUMN commission_amount DECIMAL(10,2) NULL",
+        "ALTER TABLE trips ADD COLUMN transport_commission_amount DECIMAL(10,2) NULL",
+        # Edit-approval workflow (previously Customer/Vendor only, gated to the
+        # "Trip Sheet Register" role) now also covers Driver and Truck edits,
+        # gated to every non-Admin role — see resources/drivers & resources/fleet pages.
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type "
+        "ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip','FuelLog','Driver','Truck') NOT NULL",
+        # Driver Compensation Type gains DEFAULT (fetched from Default Batta
+        # Management by branch/trip category/container type) and CUSTOM
+        # (freely editable) alongside Normal — FIXED is retired below.
+        "ALTER TABLE trips MODIFY COLUMN driver_compensation_type ENUM('Normal','FIXED','DEFAULT','CUSTOM')",
+        # FIXED retired entirely — it meant a freely-editable prefilled amount,
+        # which is exactly what CUSTOM now is. Backfill existing rows before
+        # narrowing the enum so no row is left holding a now-invalid value.
+        "UPDATE trips SET driver_compensation_type = 'CUSTOM' WHERE driver_compensation_type = 'FIXED'",
+        "ALTER TABLE trips MODIFY COLUMN driver_compensation_type ENUM('Normal','DEFAULT','CUSTOM')",
+        # Truck soft-delete — "Our Fleet" -> Delete used to hard-delete the row,
+        # which cascade-destroyed fuel/adblue/maintenance logs, tyre fitments,
+        # compliance history, and branch history. Now it only sets this flag.
+        "ALTER TABLE trucks ADD COLUMN deleted_at DATETIME NULL",
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck') NOT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -1013,6 +1066,7 @@ app.include_router(deletion_approvals.router, dependencies=AUTH)
 app.include_router(payment_requests.router, dependencies=FINANCE)
 app.include_router(chat.router, dependencies=AUTH)
 app.include_router(chat.photo_router)                         # GET group photo: public route, auth done inside (img tags)
+app.include_router(default_batta.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)
