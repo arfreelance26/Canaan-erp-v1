@@ -55,20 +55,20 @@ function DetailChip({ label, value, mono }: { label: string; value: string; mono
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
-      <span className={`truncate text-sm font-medium text-gray-800 ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
+      <span className={`truncate text-sm font-medium text-gray-800 dark:text-gray-950 ${mono ? "font-mono" : ""}`}>{value || "—"}</span>
     </div>
   );
 }
 
 function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon; label: string; value: string; accent: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/80 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-white/80 bg-white/60 px-4 py-3.5 shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/60">
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${accent}`}>
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-        <p className="truncate text-lg font-bold leading-tight text-gray-900">{value}</p>
+        <p className="truncate text-lg font-bold leading-tight text-gray-900 dark:text-gray-950">{value}</p>
       </div>
     </div>
   );
@@ -158,7 +158,7 @@ export default function TruckComplianceRecordPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/80 bg-white/40 px-4 py-3 shadow-sm backdrop-blur-sm">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/80 bg-white/40 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/40">
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -166,7 +166,7 @@ export default function TruckComplianceRecordPage() {
             placeholder="Search by truck, manufacturer, model…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-950 dark:placeholder-gray-500"
           />
         </div>
         <div className="ml-auto">
@@ -176,7 +176,7 @@ export default function TruckComplianceRecordPage() {
 
       {/* Truck cards */}
       {visibleTrucks.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/40">
           <ShieldCheck className="h-8 w-8 text-gray-200" />
           <p className="text-sm font-medium text-gray-500">
             {trucks.length === 0 ? "No trucks yet." : "No trucks match this search."}
@@ -198,14 +198,14 @@ export default function TruckComplianceRecordPage() {
             return (
               <div
                 key={truck.id}
-                className={`overflow-hidden rounded-xl border bg-white/60 shadow-sm backdrop-blur-sm transition-all ${
-                  isOpen ? "border-blue-200 ring-1 ring-blue-100" : "border-white/80 hover:border-blue-100"
+                className={`overflow-hidden rounded-xl border bg-white/60 shadow-sm backdrop-blur-sm transition-all dark:bg-gray-200/60 ${
+                  isOpen ? "border-blue-200 ring-1 ring-blue-100 dark:border-blue-400/40 dark:ring-blue-400/20" : "border-white/80 hover:border-blue-100 dark:border-gray-300/30 dark:hover:border-blue-400/30"
                 }`}
               >
                 <button
                   type="button"
                   onClick={() => toggle(truck.id)}
-                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70"
+                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70 dark:hover:bg-gray-300/20"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-600">
                     <TruckIcon className="h-5 w-5" />
@@ -235,10 +235,10 @@ export default function TruckComplianceRecordPage() {
                 </button>
 
                 {isOpen && (
-                  <div className="overflow-x-auto border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80 px-3 pb-3 pt-1">
+                  <div className="overflow-x-auto border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80 px-3 pb-3 pt-1 dark:border-gray-300/20 dark:from-gray-200/40 dark:to-gray-200/60">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead>
-                        <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                           <th className="px-3 py-2">Document</th>
                           <th className="px-3 py-2">Number</th>
                           <th className="px-3 py-2">Expiry Date</th>
@@ -253,15 +253,15 @@ export default function TruckComplianceRecordPage() {
                           return (
                             <tr
                               key={spec.key}
-                              className={`rounded-lg transition-colors hover:bg-blue-50/50 ${i % 2 === 1 ? "bg-white/70" : "bg-white/40"}`}
+                              className={`rounded-lg transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-100/10 ${i % 2 === 1 ? "bg-white/70 dark:bg-gray-300/20" : "bg-white/40 dark:bg-transparent"}`}
                             >
                               <td className="rounded-l-lg px-3 py-2.5 flex items-center gap-2">
                                 <FileCheck2 className="h-3.5 w-3.5 text-gray-400" />
-                                <span className="font-medium text-gray-900">{spec.label}</span>
+                                <span className="font-medium text-gray-900 dark:text-gray-950">{spec.label}</span>
                               </td>
-                              <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{spec.number ? spec.number(truck) || "—" : "—"}</td>
-                              <td className="px-3 py-2.5 text-gray-600">{date ? formatDate(date) : "—"}</td>
-                              <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{fmtCur(spec.cost(truck))}</td>
+                              <td className="px-3 py-2.5 font-mono text-xs text-gray-600 dark:text-gray-800">{spec.number ? spec.number(truck) || "—" : "—"}</td>
+                              <td className="px-3 py-2.5 text-gray-600 dark:text-gray-800">{date ? formatDate(date) : "—"}</td>
+                              <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-800">{fmtCur(spec.cost(truck))}</td>
                               <td className="rounded-r-lg px-3 py-2.5">
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[status]}`}>
                                   <StatusIcon className="h-3 w-3" />

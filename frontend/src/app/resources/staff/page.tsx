@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Loader2, Plus, Search, X, Smartphone, Laptop } from "lucide-react";
+import { Download, FileText, Loader2, Plus, Search, X, Smartphone, Laptop } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
@@ -307,6 +307,26 @@ export default function StaffPage() {
                     <Field label="Aadhaar Number" value={m.aadharNumber ?? ""} />
                   </div>
                 </div>
+
+                {(m.photoUrl || m.aadharFileName) && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
+                    <div className="flex flex-wrap gap-3">
+                      {m.photoUrl && (
+                        <a href={fileUrl("staff", m.id, "photo")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
+                        </a>
+                      )}
+                      {m.aadharFileName && (
+                        <a href={fileUrl("staff", m.id, "aadhar")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Aadhaar
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Registered Devices — device-lock bindings, with per-device reset */}
                 <div>

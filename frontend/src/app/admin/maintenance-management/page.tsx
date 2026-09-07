@@ -100,8 +100,8 @@ export default function MaintenanceManagementPage() {
             <Settings2 className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Maintenance Alert Management</h1>
-            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-900">Maintenance Alert Management</h1>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-600">
               Define maintenance types and their kilometer intervals. These appear as options when logging maintenance records for trucks.
             </p>
           </div>
@@ -115,7 +115,7 @@ export default function MaintenanceManagementPage() {
               placeholder="Search types..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-100 dark:focus:bg-gray-800"
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-900 dark:placeholder-gray-500 dark:focus:bg-gray-200"
             />
           </div>
           <DownloadExcelButton path="/exports/maintenance-types" filename="maintenance_types.xlsx" />
@@ -130,25 +130,25 @@ export default function MaintenanceManagementPage() {
         </div>
       </div>
 
-      <div className="overflow-auto rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="overflow-auto rounded-xl border border-gray-200 bg-white dark:border-gray-300/20 dark:bg-gray-100">
         <table className="w-full whitespace-nowrap text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+          <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-300/20 dark:bg-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500">
                 Maintenance Type
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500">
                 KM Interval
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-300/20">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500">
+                <td colSpan={3} className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-600">
                   {searchQuery
                     ? "No maintenance types match your search."
                     : "No maintenance types configured yet. Click \"Add Type\" to get started."}
@@ -156,9 +156,9 @@ export default function MaintenanceManagementPage() {
               </tr>
             )}
             {filtered.map((item) => (
-              <tr key={item.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-200">{item.name}</td>
-                <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-400">
+              <tr key={item.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-200/60">
+                <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-800">{item.name}</td>
+                <td className="px-4 py-3 text-right text-gray-600 dark:text-gray-700">
                   Every {item.intervalKm.toLocaleString("en-IN")} km
                 </td>
                 <td className="px-4 py-3">
@@ -166,14 +166,14 @@ export default function MaintenanceManagementPage() {
                     <button
                       type="button"
                       onClick={() => openEdit(item)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:text-blue-600 dark:border-gray-600 dark:hover:border-blue-500 dark:hover:text-blue-400"
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:text-blue-600 dark:border-gray-300/30 dark:text-gray-600 dark:hover:border-blue-400/40 dark:hover:text-blue-800"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(item)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-red-200 hover:text-red-500 dark:border-gray-600 dark:hover:border-red-500 dark:hover:text-red-400"
+                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-red-200 hover:text-red-500 dark:border-gray-300/30 dark:text-gray-600 dark:hover:border-red-300/50 dark:hover:text-red-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -217,11 +217,11 @@ export default function MaintenanceManagementPage() {
               How often this maintenance should be performed (in kilometers).
             </p>
           </Field>
-          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-700">
+          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-300/20">
             <button
               type="button"
               onClick={() => setDialogOpen(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800"
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-300/30 dark:text-gray-600 dark:hover:bg-gray-200/40"
             >
               Cancel
             </button>

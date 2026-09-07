@@ -27,10 +27,10 @@ const STATUS_PILL: Record<ComplianceStatus, string> = {
 function ExpiryPill({ label, date, field }: { label: string; date: string; field: ComplianceField }) {
   const status = getComplianceStatus(date, field);
   return (
-    <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-2.5 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</span>
+    <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-2.5 py-2 dark:bg-gray-300/30">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{label}</span>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-medium text-gray-700">{formatDate(date)}</span>
+        <span className="truncate text-xs font-medium text-gray-700 dark:text-gray-800">{formatDate(date)}</span>
         <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1", STATUS_PILL[status])}>
           {status}
         </span>
@@ -42,29 +42,29 @@ function ExpiryPill({ label, date, field }: { label: string; date: string; field
 export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChangeBranch, onBranchHistory }: TruckTableProps) {
   if (trucks.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+      <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500 dark:border-gray-300/20 dark:bg-gray-200/60 dark:text-gray-600">
         No trucks yet. Click &ldquo;Add Truck&rdquo; to create one.
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {trucks.map((truck) => (
         <div
           key={truck.truckId}
           onClick={() => onView(truck)}
-          className="group flex cursor-pointer flex-col gap-4 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-[0_12px_40px_rgba(0,0,0,0.1)]"
+          className="group flex cursor-pointer flex-col gap-4 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-100 hover:shadow-[0_12px_40px_rgba(0,0,0,0.1)] dark:border-gray-300/20 dark:bg-gray-200/70 dark:hover:border-blue-400/30"
         >
           {/* Header — icon badge, Truck ID / Registration, truck type */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white shadow-sm">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white shadow-sm dark:bg-blue-400/20 dark:text-blue-800">
                 <TruckIcon className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <p className="truncate font-bold text-gray-900">{truck.truckId}</p>
-                <p className="truncate text-xs text-gray-500">{truck.registrationNumber || "—"}</p>
+                <p className="truncate font-bold text-gray-900 dark:text-gray-950">{truck.truckId}</p>
+                <p className="truncate text-xs text-gray-500 dark:text-gray-600">{truck.registrationNumber || "—"}</p>
               </div>
             </div>
             {truck.truckType && (
@@ -75,24 +75,24 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
           </div>
 
           {/* Manufacturer / model */}
-          <p className="truncate text-sm text-gray-600">
+          <p className="truncate text-sm text-gray-600 dark:text-gray-700">
             {[truck.manufacturer, truck.modelName].filter(Boolean).join(" ") || "—"}
           </p>
 
           {/* Specs row */}
-          <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 text-xs">
+          <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 text-xs dark:border-gray-300/20">
             <div className="min-w-0">
-              <p className="font-semibold uppercase tracking-wide text-gray-400">Tyre Layout</p>
-              <p className="mt-0.5 truncate font-medium text-gray-700">
+              <p className="font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Tyre Layout</p>
+              <p className="mt-0.5 truncate font-medium text-gray-700 dark:text-gray-800">
                 {getTyreLayout(truck.tyreLayout)?.label ?? (truck.tyreLayout || "—")}
               </p>
             </div>
             <div className="min-w-0">
-              <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-gray-400">
+              <p className="flex items-center gap-1 font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 <Gauge className="h-3 w-3" />
                 Odometer
               </p>
-              <p className="mt-0.5 truncate font-medium tabular-nums text-gray-700">
+              <p className="mt-0.5 truncate font-medium tabular-nums text-gray-700 dark:text-gray-800">
                 {truck.odometer ? `${Number(truck.odometer).toLocaleString("en-IN")} km` : "—"}
               </p>
             </div>
@@ -107,10 +107,10 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
           {/* Branch Assigned To — click a branch to reassign this truck */}
           {branches.length > 0 && (
             <div
-              className="flex flex-col gap-1.5 border-t border-gray-100 pt-3"
+              className="flex flex-col gap-1.5 border-t border-gray-100 pt-3 dark:border-gray-300/20"
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                 Branch Assigned To
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -124,8 +124,8 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
                         active
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
+                          ? "border-gray-900 bg-gray-900 text-white dark:border-blue-400/40 dark:bg-blue-400/20 dark:text-blue-800"
+                          : "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-300/30 dark:bg-gray-300/20 dark:text-gray-700 dark:hover:bg-gray-300/30",
                       )}
                     >
                       {branch.name}
@@ -138,7 +138,7 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
 
           {/* Actions */}
           <div
-            className="flex items-center justify-between gap-1 border-t border-gray-100 pt-3"
+            className="flex items-center justify-between gap-1 border-t border-gray-100 pt-3 dark:border-gray-300/20"
             onClick={(e) => e.stopPropagation()}
           >
             <button

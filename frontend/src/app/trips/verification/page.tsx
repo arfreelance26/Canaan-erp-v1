@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
@@ -116,7 +117,15 @@ export default function TripVerificationPage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [modalStatusFilter, setModalStatusFilter] = useState<"All" | "Pending" | "Rejected" | "Verified" | "Invoiced" | "Waived Invoice">("All");
 
+  // Trip ids whose closure/sheet/invoice have already been fetched — so paging
+  // back doesn't refetch. Reset when the trip list reloads.
+  const fetchedDetailIds = useRef<Set<string>>(new Set());
+
   async function loadAll() {
+    // Only the trip list + reference data + status flags load here (a few
+    // requests). Closures, sheets and invoices are fetched lazily per visible
+    // page — see the effect below — so this page no longer fires a request per
+    // trip on load, which was exhausting the DB connection pool.
     const [allTrips, d, tr, c] = await Promise.all([
       tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list(),
     ]);
@@ -131,26 +140,7 @@ export default function TripVerificationPage() {
     const invoiced  = new Set<string>(allTrips.filter((t) => (t as any).isInvoiced === true).map((t) => t.id));
     const waived    = new Set<string>(allTrips.filter((t) => (t as any).invoiceWaived === true).map((t) => t.id));
     setVerifiedIds(verified); setRejectedIds(rejected); setInvoicedIds(invoiced); setWaivedIds(waived);
-
-    const invoicedTrips = allTrips.filter((t) => (t as any).isInvoiced === true);
-
-    const [closureResults, sheetResults, invoiceResults] = await Promise.all([
-      Promise.all(sheettedTrips.map((t) => tripsApi.getClosure(t.id).then((c) => ({ tripId: t.id, closure: c })).catch(() => null))),
-      Promise.all(sheettedTrips.map((t) => tripsApi.getSheet(t.id).then((s) => ({ tripId: t.id, sheet: s })).catch(() => null))),
-      Promise.all(invoicedTrips.map((t) => tripsApi.getInvoice(t.id).then((inv) => ({ tripId: t.id, inv })).catch(() => null))),
-    ]);
-
-    const closureMap = new Map<string, TripClosureData>();
-    for (const r of closureResults) if (r) closureMap.set(r.tripId, r.closure);
-    setClosures(closureMap);
-
-    const sheetMap = new Map<string, TripSheetData>();
-    for (const r of sheetResults) if (r && r.sheet) sheetMap.set(r.tripId, r.sheet);
-    setSheets(sheetMap);
-
-    const invMap = new Map<string, any>();
-    for (const r of invoiceResults) if (r) invMap.set(r.tripId, r.inv);
-    setInvoiceData(invMap);
+    fetchedDetailIds.current = new Set();
   }
 
   useEffect(() => { loadAll().catch(() => {}).finally(() => setLoading(false)); }, [refreshKey]);
@@ -515,18 +505,12 @@ export default function TripVerificationPage() {
   }
 
 
-  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
+  const allFiltered = useMemo(
+    () => trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers)),
+    [trips, searchQuery, trucks, drivers, customers],
+  );
 
-  const allFiltered = trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers));
-
-  // Counts for filter cards
-  const pendingCount       = allFiltered.filter((t) => !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id)).length;
-  const rejectedCount      = allFiltered.filter((t) => rejectedIds.has(t.id)).length;
-  const verifiedCount      = allFiltered.filter((t) => verifiedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id)).length;
-  const invoicedCount      = allFiltered.filter((t) => invoicedIds.has(t.id)).length;
-  const waivedInvoiceCount = allFiltered.filter((t) => waivedIds.has(t.id) && !invoicedIds.has(t.id)).length;
-
-  const filteredTrips = allFiltered
+  const filteredTrips = useMemo(() => allFiltered
     .filter((t) => {
       if (statusFilter === "Pending")        return !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id);
       if (statusFilter === "Rejected")       return rejectedIds.has(t.id);
@@ -545,11 +529,65 @@ export default function TripVerificationPage() {
     .sort((a, b) => {
       const order = (t: Trip) => invoicedIds.has(t.id) ? 4 : waivedIds.has(t.id) ? 3 : verifiedIds.has(t.id) ? 1 : rejectedIds.has(t.id) ? 2 : 0;
       return order(a) - order(b);
-    });
+    }), [allFiltered, statusFilter, invoiceTypeFilter, invoiceData, verifiedIds, rejectedIds, invoicedIds, waivedIds]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
-  const paginatedTrips = filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginatedTrips = useMemo(
+    () => filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredTrips, safePage],
+  );
+
+  // Lazy-load closure + sheet (+ invoice, if invoiced) for ONLY the current
+  // page's trips. Cached via fetchedDetailIds so paging back doesn't refetch.
+  useEffect(() => {
+    const toFetch = paginatedTrips.filter((t) => !fetchedDetailIds.current.has(t.id));
+    if (toFetch.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await mapLimit(toFetch, 8, async (t) => {
+        const [cl, sh, inv] = await Promise.all([
+          tripsApi.getClosure(t.id).catch(() => null),
+          tripsApi.getSheet(t.id).catch(() => null),
+          invoicedIds.has(t.id) ? tripsApi.getInvoice(t.id).catch(() => null) : Promise.resolve(null),
+        ]);
+        return { id: t.id, cl, sh, inv };
+      });
+      if (cancelled) return;
+      setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
+      setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
+      setInvoiceData((prev) => { const next = new Map(prev); for (const r of results) if (r.inv) next.set(r.id, r.inv); return next; });
+      for (const r of results) fetchedDetailIds.current.add(r.id);
+    })();
+    return () => { cancelled = true; };
+  }, [paginatedTrips, invoicedIds]);
+
+  // The report modal / PDF filters and displays invoice data across ALL invoiced
+  // trips (not just the visible page), so when it opens we batch-fetch any invoice
+  // data not already cached — concurrency-limited so it never bursts the pool.
+  useEffect(() => {
+    if (!showReportModal) return;
+    const missing = trips.filter((t) => invoicedIds.has(t.id) && !invoiceData.has(t.id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await mapLimit(missing, 8, (t) =>
+        tripsApi.getInvoice(t.id).then((inv) => ({ id: t.id, inv })).catch(() => null),
+      );
+      if (cancelled) return;
+      setInvoiceData((prev) => { const next = new Map(prev); for (const r of results) if (r?.inv) next.set(r.id, r.inv); return next; });
+    })();
+    return () => { cancelled = true; };
+  }, [showReportModal, trips, invoicedIds]);
+
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
+
+  // Counts for filter cards
+  const pendingCount       = allFiltered.filter((t) => !verifiedIds.has(t.id) && !rejectedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id)).length;
+  const rejectedCount      = allFiltered.filter((t) => rejectedIds.has(t.id)).length;
+  const verifiedCount      = allFiltered.filter((t) => verifiedIds.has(t.id) && !invoicedIds.has(t.id) && !waivedIds.has(t.id)).length;
+  const invoicedCount      = allFiltered.filter((t) => invoicedIds.has(t.id)).length;
+  const waivedInvoiceCount = allFiltered.filter((t) => waivedIds.has(t.id) && !invoicedIds.has(t.id)).length;
 
   const FILTER_CARDS: { key: StatusFilter; label: string; count: number; color: string }[] = [
     { key: "All",            label: "All Trips",      count: allFiltered.length,   color: "border-gray-200 bg-white text-gray-900" },

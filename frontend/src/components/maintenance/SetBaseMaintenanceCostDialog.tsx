@@ -58,11 +58,11 @@ export function SetBaseMaintenanceCostDialog({ open, onClose, onSaved }: Props) 
       className="max-w-sm"
     >
       {/* Header icon + description */}
-      <div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/30">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-200 dark:bg-blue-800/60">
-          <IndianRupee className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      <div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-400/20 dark:bg-blue-100/20">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-200 dark:bg-blue-400/20">
+          <IndianRupee className="h-4 w-4 text-blue-600 dark:text-blue-800" />
         </div>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-slate-600 dark:text-slate-700">
           Set the base maintenance cost per kilometre for the fleet. This rate is saved as a
           reference value for future use.
         </p>

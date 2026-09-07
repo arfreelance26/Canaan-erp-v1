@@ -12,6 +12,7 @@ import { FinalCustomerPricingFormDialog } from "@/components/customers/FinalCust
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { customersApi, editApprovalsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
@@ -131,21 +132,24 @@ export default function CustomersPage() {
   // Destinations are also loaded on the pricing tab because the pricing form
   // needs them to populate the destination dropdown.
   useEffect(() => {
+    // Each tab needs its data across all customers (the lists are aggregated), so
+    // mapLimit caps concurrency at 8 instead of firing one request per customer
+    // at once — keeps the DB pool safe when there are many customers.
     if (activeTab === "pricing" && customers.length > 0 && pricing.length === 0) {
       setLoadingPricing(true);
-      Promise.all(customers.map((c) => customersApi.listPricing(c.id)))
+      mapLimit(customers, 8, (c) => customersApi.listPricing(c.id))
         .then((results) => setPricing(results.flat()))
         .catch(() => {}).finally(() => setLoadingPricing(false));
     }
     if ((activeTab === "destinations" || activeTab === "pricing") && customers.length > 0 && destinations.length === 0) {
       setLoadingDestinations(true);
-      Promise.all(customers.map((c) => customersApi.listDestinations(c.id)))
+      mapLimit(customers, 8, (c) => customersApi.listDestinations(c.id))
         .then((results) => setDestinations(results.flat()))
         .catch(() => {}).finally(() => setLoadingDestinations(false));
     }
     if (activeTab === "finalPricing" && customers.length > 0 && finalPricing.length === 0) {
       setLoadingFinalPricing(true);
-      Promise.all(customers.map((c) => customersApi.listFinalPricing(c.id)))
+      mapLimit(customers, 8, (c) => customersApi.listFinalPricing(c.id))
         .then((results) => setFinalPricing(results.flat()))
         .catch(() => {}).finally(() => setLoadingFinalPricing(false));
     }

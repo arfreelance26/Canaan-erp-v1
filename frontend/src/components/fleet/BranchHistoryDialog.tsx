@@ -23,9 +23,19 @@ type Props = {
   truck: Truck | null;
 };
 
+const IST = "Asia/Kolkata";
+
 function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  return `${formatDate(iso)} · ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  let parsed = iso;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(iso)) parsed += "Z";
+  const d = new Date(parsed);
+  const time = d.toLocaleTimeString("en-IN", {
+    timeZone: IST,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).toUpperCase();
+  return `${formatDate(iso)} · ${time}`;
 }
 
 export function BranchHistoryDialog({ open, onClose, truck }: Props) {
@@ -60,7 +70,7 @@ export function BranchHistoryDialog({ open, onClose, truck }: Props) {
           No branch changes have been recorded for this truck yet.
         </p>
       ) : (
-        <div className="max-h-96 overflow-y-auto pr-1">
+        <div className="pr-1">
           <ol className="flex flex-col gap-3">
             {entries.map((entry) => (
               <li

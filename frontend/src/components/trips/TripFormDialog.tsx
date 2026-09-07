@@ -1513,9 +1513,9 @@ export function TripFormDialog({
                 placeholder={assignableDrivers.length === 0 ? "No vehicles available" : "Select a vehicle"}
               />
               {selectedAssignment && (
-                <div className="mt-2 flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3.5 shadow-sm">
+                <div className="mt-2 flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3.5 shadow-sm dark:border-gray-300/20 dark:bg-gray-200/60">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white shadow-sm">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-white shadow-sm dark:bg-blue-400/20 dark:text-blue-800">
                       <TruckIcon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1544,8 +1544,8 @@ export function TripFormDialog({
 
                   {/* Quick branch change — same pattern as Our Fleet's truck cards */}
                   {branches.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-200 pt-3">
-                      <span className="mr-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-200 pt-3 dark:border-gray-300/20">
+                      <span className="mr-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                         Branch
                       </span>
                       {branches.map((branch) => {
@@ -1558,8 +1558,8 @@ export function TripFormDialog({
                             className={cn(
                               "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
                               active
-                                ? "border-gray-900 bg-gray-900 text-white"
-                                : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                                ? "border-gray-900 bg-gray-900 text-white dark:border-blue-400/40 dark:bg-blue-400/20 dark:text-blue-800"
+                                : "border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-300/30 dark:bg-gray-300/20 dark:text-gray-700 dark:hover:bg-gray-300/30"
                             )}
                           >
                             {branch.name}

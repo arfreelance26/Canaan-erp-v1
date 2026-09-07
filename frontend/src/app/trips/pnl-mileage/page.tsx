@@ -6,6 +6,7 @@ import {
   Compass, Calculator, X, FileText, Wallet, MousePointerClick, CalendarDays, FileSpreadsheet,
 } from "lucide-react";
 import { tripsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import { n } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
@@ -182,27 +183,26 @@ export default function PnlMileagePage() {
   const [showQuickStart, setShowQuickStart] = useState(false);
 
   useEffect(() => {
+    // This is an analytics page — P&L/mileage totals aggregate across every trip
+    // in range, so all sheets/closures are genuinely needed (not just one page).
+    // mapLimit caps concurrency at 8 so the fetch never bursts the DB pool.
     tripsApi.list().then((trips) => {
       setAllTrips(trips);
       const withSheet = trips.filter((t) => t.hasSheet);
-      Promise.all(
-        withSheet.map((t) =>
-          tripsApi.getSheet(t.id)
-            .then((s) => s ? ({ id: t.id, sheet: s }) : null)
-            .catch(() => null)
-        )
+      mapLimit(withSheet, 8, (t) =>
+        tripsApi.getSheet(t.id)
+          .then((s) => s ? ({ id: t.id, sheet: s }) : null)
+          .catch(() => null)
       ).then((results) => {
         const m = new Map<string, TripSheetData>();
         for (const r of results) { if (r) m.set(r.id, r.sheet); }
         setSheets(m);
 
         const withClosure = trips.filter((t) => t.hasClosure);
-        return Promise.all(
-          withClosure.map((t) =>
-            tripsApi.getClosure(t.id)
-              .then((c) => ({ id: t.id, closure: c }))
-              .catch(() => null)
-          )
+        return mapLimit(withClosure, 8, (t) =>
+          tripsApi.getClosure(t.id)
+            .then((c) => ({ id: t.id, closure: c }))
+            .catch(() => null)
         );
       }).then((results) => {
         const m = new Map<string, TripClosureData>();

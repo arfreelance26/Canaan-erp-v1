@@ -21,7 +21,18 @@ if not DATABASE_URL:
     _encoded = urllib.parse.quote_plus(_DB_PASSWORD)
     DATABASE_URL = f"mysql+pymysql://{_DB_USER}:{_encoded}@{_DB_HOST}/{_DB_NAME}"
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=3600)
+# Pool sizing: base 20 persistent connections + up to 40 overflow = 60 max.
+# pool_pre_ping revives stale connections; pool_recycle avoids MySQL's 8h idle
+# cutoff; pool_timeout is how long a request waits for a free connection before
+# erroring. Keep the total (60) comfortably under MySQL's max_connections (151).
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    pool_size=20,
+    max_overflow=40,
+    pool_timeout=30,
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

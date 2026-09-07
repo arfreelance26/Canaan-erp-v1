@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, X, Download, Loader2 } from "lucide-react";
+import { Plus, Search, X, Download, FileText, Loader2 } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -311,7 +311,7 @@ export default function FleetPage() {
               placeholder="Search fleet..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200/60 dark:text-gray-950 dark:placeholder-gray-500 dark:focus:bg-gray-200"
             />
           </div>
           <DownloadExcelButton path="/exports/trucks" filename="fleet.xlsx" />
@@ -434,6 +434,63 @@ export default function FleetPage() {
                     <Field label="Road Tax Expiry" value={fmtDate(t.roadTaxDate)} expired={isExpired(t.roadTaxDate)} />
                   </div>
                 </div>
+
+                {/* Uploaded documents — only shown if the file was actually uploaded */}
+                {(t.truckPhotosFileName || t.rcDocumentUrl || t.fcDocumentFileName || t.roadTaxDocumentFileName || t.insuranceDocumentProofFileName || t.nationalPermitProofFileName || t.localPermitProofFileName || t.pollutionCertificateProofFileName) && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
+                    <div className="flex flex-wrap gap-3">
+                      {t.truckPhotosFileName && (
+                        <a href={fileUrl("trucks", t.id, "photo")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
+                        </a>
+                      )}
+                      {t.rcDocumentUrl && (
+                        <a href={fileUrl("trucks", t.id, "rc")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> RC
+                        </a>
+                      )}
+                      {t.fcDocumentFileName && (
+                        <a href={fileUrl("trucks", t.id, "fc")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> FC
+                        </a>
+                      )}
+                      {t.roadTaxDocumentFileName && (
+                        <a href={fileUrl("trucks", t.id, "road_tax")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Road Tax
+                        </a>
+                      )}
+                      {t.insuranceDocumentProofFileName && (
+                        <a href={fileUrl("trucks", t.id, "insurance")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Insurance
+                        </a>
+                      )}
+                      {t.nationalPermitProofFileName && (
+                        <a href={fileUrl("trucks", t.id, "national_permit")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> National Permit
+                        </a>
+                      )}
+                      {t.localPermitProofFileName && (
+                        <a href={fileUrl("trucks", t.id, "local_permit")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Local Permit
+                        </a>
+                      )}
+                      {t.pollutionCertificateProofFileName && (
+                        <a href={fileUrl("trucks", t.id, "pollution_cert")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> PUC Certificate
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}

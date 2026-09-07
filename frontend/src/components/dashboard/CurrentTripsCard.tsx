@@ -26,7 +26,7 @@ const STAGE_CLASSES: Record<string, string> = {
   "Completed":               "bg-teal-100 text-teal-700",
   "Pending Sheet Delivery":  "bg-amber-100 text-amber-700",
   "Pending Sheet Entry":     "bg-orange-100 text-orange-700",
-  "Pending Verification":    "bg-fuchsia-100 text-fuchsia-700",
+  "Pending Verification":    "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
   "Ready to Invoice":        "bg-emerald-100 text-emerald-700",
 };
 

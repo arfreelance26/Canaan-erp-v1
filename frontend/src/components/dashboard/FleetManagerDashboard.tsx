@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { dashboardApi, tripsApi, trucksApi, editApprovalsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -139,10 +140,11 @@ export function FleetManagerDashboard() {
           .then((r) => setPendingApprovals(r.length))
           .catch(() => setPendingApprovals(0));
         const completed = (trips as Trip[]).filter((t) => t.hasSheet);
-        Promise.all(
-          completed.map((t) =>
-            tripsApi.getSheet(t.id).then((s) => s ? ({ id: t.id, sheet: s }) : null).catch(() => null)
-          )
+        // Cap concurrency at 8 — this dashboard's P&L table needs every sheet and
+        // re-runs on a 15s timer, so an unbounded burst would repeatedly hammer
+        // the DB pool. mapLimit keeps at most 8 requests in flight.
+        mapLimit(completed, 8, (t) =>
+          tripsApi.getSheet(t.id).then((s) => s ? ({ id: t.id, sheet: s }) : null).catch(() => null)
         ).then((results) => {
           const m = new Map<string, TripSheetData>();
           for (const r of results) { if (r) m.set(r.id, r.sheet); }

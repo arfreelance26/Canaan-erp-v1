@@ -300,30 +300,20 @@ html.dark select:not([class*="bg-"]) {
   color: #0b1a3a;
 }
 
-/* Dark mode — the hero is already dark, so only the form side has to move */
+/* Dark mode for the login screen is intentionally DISABLED — the login always
+ * renders in its light theme (dark navy hero + light frosted form), regardless
+ * of the app-wide dark toggle. To re-enable a dark login, uncomment the block
+ * below. */
 /*
- * `background:` (shorthand) in the light rule above sets background-image to
- * that gradient — overriding only background-color here leaves the opaque
- * light gradient sitting on top of this color, so the shell stays looking
- * light. Shorthand here too, so background-image resets to none.
- */
 html.dark .login-shell {
-  /* Vignette on top of the diagonal tone: keeps the middle (where the card
-     sits) a touch lighter and lets the far corners fall off toward black,
-     which is what actually reads as depth rather than a flat dark fill. */
   background:
     radial-gradient(130% 110% at 48% 38%, transparent 45%, rgba(0, 0, 0, 0.4) 100%),
     linear-gradient(160deg, #101a30 0%, #0a0f1c 55%, #05070d 100%);
 }
-/* Blue-on-navy is low contrast at the old opacity — brighter and slightly
-   cooler so it actually separates from the base instead of just muddying it */
 html.dark .login-glass-blobs::before { background: rgba(96, 150, 255, 0.22); }
 html.dark .login-glass-blobs::after { background: rgba(224, 169, 43, 0.17); }
-/* multiply is a no-op on a near-black base — screen is what lightens it */
 html.dark .login-grain { mix-blend-mode: screen; opacity: 0.05; }
 html.dark .login-card {
-  /* Lighter than the shell behind it, and a brighter rim, so the panel reads
-     as raised glass instead of blending into the page. */
   background: linear-gradient(155deg, rgba(48, 58, 92, 0.68), rgba(24, 30, 50, 0.6));
   border: 1px solid rgba(120, 155, 235, 0.32);
   box-shadow:
@@ -336,9 +326,11 @@ html.dark .login-card::before {
   background: radial-gradient(120% 65% at 18% -12%, rgba(255, 255, 255, 0.12), transparent 62%);
 }
 html.dark .login-card h2 { color: #e8ecf6; }
+*/
 
 /* Logo plate — only needed where the mark can land on a dark surface */
 .login-logo-wrap { transition: background-color 0.2s; }
+/*
 html.dark .login-logo-wrap {
   background-color: rgba(255, 255, 255, 0.94);
   border-radius: 16px;
@@ -355,6 +347,7 @@ html.dark .login-field:focus-within {
 }
 html.dark .login-field input { color: #e8ecf6; }
 html.dark .login-field-icon { color: #e0a92b; }
+*/
 
 /* Page background — deep navy-black, not flat grey */
 html.dark body { background-color: #090c14; }
@@ -1038,6 +1031,24 @@ input[type="date"]:focus {
   outline: none;
   border-color: #c9a227;
   box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.2);
+}
+
+/* ── Canaan Chat — dark mode panel backgrounds ───────────────────────────── */
+.chat-msg-area {
+  background-color: #eef1f8;
+  background-image:
+    radial-gradient(rgba(27,43,94,0.05) 1px, transparent 1px),
+    radial-gradient(rgba(27,43,94,0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: 0 0, 14px 14px;
+}
+html.dark .chat-msg-area {
+  background-color: #0e111d;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: 0 0, 14px 14px;
 }
 
 /* ── Canaan Chat — day-separator entrance ─────────────────────────────────

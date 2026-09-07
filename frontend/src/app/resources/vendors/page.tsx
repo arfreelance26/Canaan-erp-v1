@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -25,6 +25,7 @@ export default function VendorsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -169,7 +170,7 @@ export default function VendorsPage() {
         </div>
       </div>
 
-      <VendorTable vendors={filteredVendors} onEdit={handleEdit} onDelete={handleDelete} />
+      <VendorTable vendors={filteredVendors} onView={setViewingVendor} onEdit={handleEdit} onDelete={handleDelete} />
 
       <VendorFormDialog
         open={dialogOpen}
@@ -177,6 +178,63 @@ export default function VendorsPage() {
         onSave={handleSave}
         initialData={editingVendor}
       />
+
+      {viewingVendor && (() => {
+        const v = viewingVendor;
+        const fmtDate = (d: string) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
+        const Field = ({ label, value }: { label: string; value: string }) => (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</span>
+            <span className="text-sm font-medium text-gray-800">{value || "—"}</span>
+          </div>
+        );
+        const statusColors: Record<string, string> = {
+          ACTIVE: "bg-emerald-50 text-emerald-700",
+          INACTIVE: "bg-gray-100 text-gray-600",
+          BLACKLISTED: "bg-red-50 text-red-700",
+        };
+        return (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingVendor(null); }}>
+            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
+                <div>
+                  <p className="font-semibold text-gray-900">{v.name}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    {v.category && <span className="text-xs text-gray-500">{v.category}</span>}
+                    {v.status && (
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColors[v.status] ?? "bg-gray-100 text-gray-600"}`}>
+                        {v.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setViewingVendor(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
+                <div>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-600">Contact Information</p>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <Field label="Contact Number" value={v.contactNumber} />
+                    <Field label="Email" value={v.email} />
+                    <Field label="Address" value={v.address} />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-blue-600">Tax & Compliance</p>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                    <Field label="GSTIN" value={v.gstin} />
+                    <Field label="PAN" value={v.pan} />
+                    <Field label="Created At" value={fmtDate(v.createdAt)} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Edit approval request dialog — shown when Staff clicks Edit/Delete without active approval */}
       {pendingAction && (

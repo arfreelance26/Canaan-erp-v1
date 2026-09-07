@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { trucksApi, tripsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
@@ -94,8 +95,10 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
       const truckTrips = all.filter((t) => t.vehicleId === truck.truckId);
       setAllTrips(truckTrips);
       const withSheet = truckTrips.filter((t) => t.hasSheet);
-      const results = await Promise.all(
-        withSheet.map((t) => tripsApi.getSheet(t.id).then((s) => ({ id: t.id, sheet: s })).catch(() => null))
+      // Cap concurrency at 8 so a truck with a long history doesn't fire dozens
+      // of simultaneous requests (each holds a DB connection). Order is preserved.
+      const results = await mapLimit(withSheet, 8, (t) =>
+        tripsApi.getSheet(t.id).then((s) => ({ id: t.id, sheet: s })).catch(() => null)
       );
       const map = new Map<string, TripSheetData>();
       for (const r of results) if (r && r.sheet) map.set(r.id, r.sheet);

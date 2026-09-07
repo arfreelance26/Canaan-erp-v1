@@ -30,6 +30,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [isIdle, user, logout]);
 
+  useEffect(() => {
+    if (pathname?.startsWith("/connect/chat")) {
+      setCollapsed(true);
+    }
+  }, [pathname]);
+
   // Catch NetworkError instances that escape page-level useEffect calls
   // (pages that call Promise.all without a .catch()). Prevents a crash and
   // shows a non-blocking toast instead.

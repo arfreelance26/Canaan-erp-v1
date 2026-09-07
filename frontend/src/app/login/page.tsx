@@ -51,6 +51,23 @@ export default function LoginPage() {
   const [loginState, setLoginState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  // The login screen always renders in its light theme, regardless of the
+  // app-wide dark-mode setting. Strip the `dark` class off <html> while this
+  // page is mounted, then restore the user's theme when they leave (e.g. after
+  // logging in). This neutralises all the global `html.dark` remaps too.
+  useEffect(() => {
+    const root = document.documentElement;
+    const wasDark = root.classList.contains("dark");
+    root.classList.remove("dark");
+    root.style.colorScheme = "light";
+    return () => {
+      if (wasDark) {
+        root.classList.add("dark");
+        root.style.colorScheme = "dark";
+      }
+    };
+  }, []);
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -121,11 +138,8 @@ export default function LoginPage() {
             style={{ animationDelay: "100ms" }}
           />
 
-          <div
-            className="animate-cinematic-enter max-w-[30ch]"
-            style={{ animationDelay: "300ms" }}
-          >
-            <h1 className="text-3xl font-bold leading-[1.25] tracking-tight text-white xl:text-4xl">
+          <div className="animate-cinematic-enter flex flex-col items-center" style={{ animationDelay: "200ms" }}>
+            <h1 className="text-4xl font-bold leading-[1.15] tracking-tight text-white xl:text-5xl text-center">
               Moving Together.
               <br />
               <span className="text-[#e0a92b]">Growing Together.</span>

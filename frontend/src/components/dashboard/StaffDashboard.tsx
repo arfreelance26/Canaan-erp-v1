@@ -207,15 +207,15 @@ export function StaffDashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4">
-        <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Pending Receive</p>
-          <p className="mt-1 text-4xl font-bold leading-none text-amber-700">{loading ? "—" : pendingReceive.length}</p>
-          <p className="mt-1 text-[11px] text-amber-500">Delivered by Yard, not yet received</p>
+        <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-amber-200 bg-amber-50 dark:border-amber-400 dark:bg-amber-100" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-600">Pending Receive</p>
+          <p className="mt-1 text-4xl font-bold leading-none text-amber-700 dark:text-amber-700">{loading ? "—" : pendingReceive.length}</p>
+          <p className="mt-1 text-[11px] text-amber-500 dark:text-amber-600">Delivered by Yard, not yet received</p>
         </div>
-        <div className={`rounded-xl border px-5 py-4 ${pendingEntry.length > 0 ? "border-blue-200 bg-blue-50 dark:bg-blue-950/30" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Pending Entry</p>
-          <p className="mt-1 text-4xl font-bold leading-none text-blue-700">{loading ? "—" : pendingEntry.length}</p>
-          <p className="mt-1 text-[11px] text-blue-500">Received, trip sheet not entered</p>
+        <div className={`rounded-xl border px-5 py-4 ${pendingEntry.length > 0 ? "border-blue-200 bg-blue-50 dark:border-blue-400 dark:bg-blue-50" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-800">Pending Entry</p>
+          <p className="mt-1 text-4xl font-bold leading-none text-blue-700 dark:text-blue-900">{loading ? "—" : pendingEntry.length}</p>
+          <p className="mt-1 text-[11px] text-blue-500 dark:text-blue-800">Received, trip sheet not entered</p>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { History, FileText, ClipboardList, Receipt, Search, Trash2 } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
@@ -31,6 +31,8 @@ type InvoicePreviewState = {
   customer?: Customer;
   invoiceType: InvoiceType;
 };
+
+const CURRENT_STATUSES = new Set(["Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
 
 export default function TripHistoryPage() {
   const { user } = useAuth();
@@ -65,7 +67,15 @@ export default function TripHistoryPage() {
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
 
+  // Trip ids whose closure/sheet have already been fetched — so paging back to a
+  // page we've seen doesn't refetch. Reset whenever the trip list reloads so the
+  // visible page picks up fresh closure/sheet data on the next tick.
+  const fetchedDetailIds = useRef<Set<string>>(new Set());
+
   async function loadAll() {
+    // Only the trip list + reference data is loaded here (one request each).
+    // Closures and trip sheets are fetched lazily, per visible page — see the
+    // effect below — so a 1000-trip history no longer fires 2000 requests at once.
     const [allTrips, d, tr, c] = await Promise.all([
       tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list(),
     ]);
@@ -78,27 +88,7 @@ export default function TripHistoryPage() {
       ? allTrips
       : allTrips.filter((t) => (t as any).hasClosure === true || t.status === "Cancelled");
     setTrips(closedTrips);
-
-    const [closureResults, sheetResults] = await Promise.all([
-      Promise.all(
-        closedTrips.map((t) =>
-          tripsApi.getClosure(t.id).then((cl) => ({ id: t.id, cl })).catch(() => null)
-        )
-      ),
-      Promise.all(
-        closedTrips.map((t) =>
-          tripsApi.getSheet(t.id).then((sh) => ({ id: t.id, sh })).catch(() => null)
-        )
-      ),
-    ]);
-
-    const closureMap = new Map<string, TripClosureData>();
-    for (const r of closureResults) if (r) closureMap.set(r.id, r.cl);
-    setClosures(closureMap);
-
-    const sheetMap = new Map<string, TripSheetData>();
-    for (const r of sheetResults) if (r?.sh) sheetMap.set(r.id, r.sh);
-    setSheets(sheetMap);
+    fetchedDetailIds.current = new Set();
   }
 
   useEffect(() => { loadAll().catch(() => {}).finally(() => setLoading(false)); }, [refreshKey]);
@@ -111,6 +101,65 @@ export default function TripHistoryPage() {
   const driverById   = useMemo(() => new Map(drivers.map((d) => [d.driverId, d])), [drivers]);
   const truckById    = useMemo(() => new Map(trucks.map((t) => [t.truckId, t])), [trucks]);
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
+
+  // Filtering + pagination are memoised so the current page's trip slice has a
+  // stable identity to drive the lazy closure/sheet fetch below.
+  const filteredTrips = useMemo(() => trips
+    .filter((t) => {
+      if (statusFilter === "Assigned")  return t.status === "Assigned";
+      if (statusFilter === "Current")   return CURRENT_STATUSES.has(t.status);
+      if (statusFilter === "Completed") return (t as any).hasClosure === true && t.status !== "Cancelled";
+      if (statusFilter === "Invoiced")  return (t as any).isInvoiced === true;
+      if (statusFilter === "Waived Invoice") return (t as any).invoiceWaived === true && (t as any).isInvoiced !== true;
+      if (statusFilter === "Cancelled") return t.status === "Cancelled";
+      return true;
+    })
+    .filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers))
+    .sort((a, b) => {
+      const aInv = (a as any).isInvoiced === true ? 1 : 0;
+      const bInv = (b as any).isInvoiced === true ? 1 : 0;
+      return aInv - bInv;
+    }), [trips, statusFilter, searchQuery, trucks, drivers]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedTrips = useMemo(
+    () => filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredTrips, safePage],
+  );
+
+  // Lazy-load closure + trip-sheet data for ONLY the trips on the current page.
+  // Cached via fetchedDetailIds so paging back doesn't refetch. This replaces the
+  // old "fetch every trip's closure+sheet upfront" burst that exhausted the DB pool.
+  useEffect(() => {
+    const toFetch = paginatedTrips.filter((t) => !fetchedDetailIds.current.has(t.id));
+    if (toFetch.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.all(
+        toFetch.map(async (t) => {
+          const [cl, sh] = await Promise.all([
+            tripsApi.getClosure(t.id).catch(() => null),
+            tripsApi.getSheet(t.id).catch(() => null),
+          ]);
+          return { id: t.id, cl, sh };
+        }),
+      );
+      if (cancelled) return;
+      setClosures((prev) => {
+        const next = new Map(prev);
+        for (const r of results) if (r.cl) next.set(r.id, r.cl);
+        return next;
+      });
+      setSheets((prev) => {
+        const next = new Map(prev);
+        for (const r of results) if (r.sh) next.set(r.id, r.sh);
+        return next;
+      });
+      for (const r of results) fetchedDetailIds.current.add(r.id);
+    })();
+    return () => { cancelled = true; };
+  }, [paginatedTrips]);
 
   async function handleViewInvoice(trip: Trip) {
     const closure = closures.get(trip.id);
@@ -187,8 +236,6 @@ export default function TripHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={12} />;
 
-  const CURRENT_STATUSES = new Set(["Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
-
   const counts = {
     All:       trips.length,
     Assigned:  trips.filter((t) => t.status === "Assigned").length,
@@ -198,27 +245,6 @@ export default function TripHistoryPage() {
     "Waived Invoice": trips.filter((t) => (t as any).invoiceWaived === true && (t as any).isInvoiced !== true).length,
     Cancelled: trips.filter((t) => t.status === "Cancelled").length,
   };
-
-  const filteredTrips = trips
-    .filter((t) => {
-      if (statusFilter === "Assigned")  return t.status === "Assigned";
-      if (statusFilter === "Current")   return CURRENT_STATUSES.has(t.status);
-      if (statusFilter === "Completed") return (t as any).hasClosure === true && t.status !== "Cancelled";
-      if (statusFilter === "Invoiced")  return (t as any).isInvoiced === true;
-      if (statusFilter === "Waived Invoice") return (t as any).invoiceWaived === true && (t as any).isInvoiced !== true;
-      if (statusFilter === "Cancelled") return t.status === "Cancelled";
-      return true;
-    })
-    .filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers))
-    .sort((a, b) => {
-      const aInv = (a as any).isInvoiced === true ? 1 : 0;
-      const bInv = (b as any).isInvoiced === true ? 1 : 0;
-      return aInv - bInv;
-    });
-
-  const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paginatedTrips = filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -272,7 +298,7 @@ export default function TripHistoryPage() {
       </div>
 
       {/* Summary count cards — Auditor only gets the three audit-relevant ones */}
-      <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${isAuditor ? "" : "md:grid-cols-6"}`}>
+      <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${isAuditor ? "" : "md:grid-cols-7"}`}>
         {(isAuditor
           ? (["Invoiced", "Waived Invoice", "Completed"] as const)
           : (["All", "Assigned", "Current", "Completed", "Invoiced", "Waived Invoice", "Cancelled"] as const)

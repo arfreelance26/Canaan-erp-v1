@@ -80,7 +80,7 @@ function formatTime(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 /** Day separator label — "Today" / "Yesterday" / a date, like WhatsApp. */
@@ -218,7 +218,7 @@ function VoiceBubble({ message }: { message: ChatMessage }) {
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
           <div className="h-full rounded-full bg-brand-navy transition-[width]" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-[10px] text-brand-navy">
+        <span className="text-[10px] text-brand-navy dark:text-gray-700">
           {formatDuration(playing || currentTime > 0 ? currentTime : duration)}
         </span>
       </div>
@@ -441,12 +441,12 @@ function PaymentBubble({
         </div>
         <div className="min-w-0">
           <p className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">Payment</p>
-          <p className="text-2xl font-bold leading-tight text-gray-900 tabular-nums">₹{formatRupees(amount)}</p>
+          <p className="text-2xl font-bold leading-tight text-gray-900 dark:text-gray-800 tabular-nums">₹{formatRupees(amount)}</p>
         </div>
       </div>
 
       {note && (
-        <p className="mt-2.5 truncate rounded-lg bg-white/70 px-2.5 py-1.5 text-xs text-gray-600 italic" title={note}>
+        <p className="mt-2.5 truncate rounded-lg bg-white/70 dark:bg-black/20 px-2.5 py-1.5 text-xs text-gray-600 dark:text-gray-700 italic" title={note}>
           &ldquo;{note}&rdquo;
         </p>
       )}
@@ -457,7 +457,7 @@ function PaymentBubble({
             type="button"
             onClick={() => decide("rejected")}
             disabled={deciding !== null}
-            className="flex-1 rounded-lg border border-gray-200 bg-white py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-60"
+            className="flex-1 rounded-lg border border-gray-200 dark:border-gray-400 bg-white dark:bg-gray-300 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-800 transition-colors hover:bg-gray-50 dark:hover:bg-gray-400 disabled:opacity-60"
           >
             {deciding === "rejected" ? "…" : "Reject"}
           </button>
@@ -549,6 +549,7 @@ export default function CanaanChatPage() {
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
   const [groupMembers, setGroupMembers] = useState<number[]>([]);
+  const [newGroupMemberSearch, setNewGroupMemberSearch] = useState("");
   const [creatingGroup, setCreatingGroup] = useState(false);
 
   // -- group info panel -------------------------------------------------
@@ -1301,7 +1302,7 @@ export default function CanaanChatPage() {
     <div className="animate-stagger flex h-[calc(100vh-6rem)] flex-col">
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
         {/* Left panel — tabs, search, people/groups */}
-        <div className="flex w-full max-w-[340px] shrink-0 flex-col bg-white">
+        <div className="flex w-full max-w-[340px] shrink-0 flex-col bg-white dark:bg-gray-100">
           {/* Navy header bar */}
           <div className="flex shrink-0 items-center justify-between bg-brand-navy px-4 py-3">
             <div className="flex items-center gap-2">
@@ -1326,7 +1327,7 @@ export default function CanaanChatPage() {
           </div>
 
           {/* Chats / Groups tabs */}
-          <div className="flex shrink-0 gap-2 bg-white px-3 pt-2.5">
+          <div className="flex shrink-0 gap-2 bg-white dark:bg-gray-100 px-3 pt-2.5">
             {(["chats", "groups"] as const).map((tab) => {
               const count =
                 tab === "chats"
@@ -1338,7 +1339,7 @@ export default function CanaanChatPage() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={`relative flex-1 pb-2.5 text-sm font-medium capitalize transition-colors ${
-                    activeTab === tab ? "text-brand-navy" : "text-gray-500 hover:text-gray-700"
+                    activeTab === tab ? "text-brand-navy dark:text-brand-gold" : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
                   {tab}
@@ -1357,7 +1358,7 @@ export default function CanaanChatPage() {
           <div className="h-px shrink-0 bg-gray-200" />
 
           {/* Search */}
-          <div className="shrink-0 bg-white px-3 py-2">
+          <div className="shrink-0 bg-white dark:bg-gray-100 px-3 py-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
@@ -1370,7 +1371,7 @@ export default function CanaanChatPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto bg-white">
+          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-100">
             {rows.length === 0 ? (
               activeTab === "groups" ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
@@ -1409,7 +1410,7 @@ export default function CanaanChatPage() {
                       else if (row.startWith) startDirect(row.startWith);
                     }}
                     className={`flex w-full items-center gap-3 border-b border-gray-100 px-3 py-3 text-left transition-colors ${
-                      isActive ? "bg-brand-navy/5" : "hover:bg-gray-50"
+                      isActive ? "bg-brand-navy/5 dark:bg-brand-gold/10" : "hover:bg-gray-50"
                     }`}
                   >
                     <Avatar
@@ -1424,7 +1425,7 @@ export default function CanaanChatPage() {
                         {row.time && (
                           <span
                             className={`shrink-0 text-[11px] ${
-                              row.unread > 0 ? "font-semibold text-brand-navy" : "text-gray-400"
+                              row.unread > 0 ? "font-semibold text-brand-navy dark:text-brand-gold" : "text-gray-400"
                             }`}
                           >
                             {row.time}
@@ -1457,7 +1458,7 @@ export default function CanaanChatPage() {
         <div className="flex min-w-0 flex-1 flex-col">
           {selected ? (
             <>
-              <div className="flex shrink-0 items-center justify-between gap-3 bg-gray-100 px-4 py-2.5">
+              <div className="flex shrink-0 items-center justify-between gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
                 <div
                   className={`flex min-w-0 items-center gap-3 ${
                     selected.kind === "group" ? "cursor-pointer" : ""
@@ -1472,7 +1473,7 @@ export default function CanaanChatPage() {
                     group={selected.kind === "group"}
                   />
                   <div className="min-w-0">
-                    <p className="truncate text-[15px] font-medium text-gray-900">
+                    <p className="truncate text-[15px] font-medium text-gray-900 dark:text-gray-950">
                       {selected.title ?? "Conversation"}
                     </p>
                     <p className="truncate text-xs text-gray-500">
@@ -1492,14 +1493,7 @@ export default function CanaanChatPage() {
 
               <div
                 ref={scrollRef}
-                className="relative flex-1 overflow-y-auto px-4 py-4 sm:px-10"
-                style={{
-                  backgroundColor: "#eef1f8",
-                  backgroundImage:
-                    "radial-gradient(rgba(27,43,94,0.05) 1px, transparent 1px), radial-gradient(rgba(27,43,94,0.05) 1px, transparent 1px)",
-                  backgroundSize: "28px 28px",
-                  backgroundPosition: "0 0, 14px 14px",
-                }}
+                className="chat-msg-area relative flex-1 overflow-y-auto px-4 py-4 sm:px-10"
               >
                 {loadingThread ? (
                   <div className="flex h-full items-center justify-center">
@@ -1525,7 +1519,7 @@ export default function CanaanChatPage() {
                           type="button"
                           onClick={loadOlder}
                           disabled={loadingOlder}
-                          className="rounded-full bg-white/80 px-4 py-1.5 text-xs font-medium text-brand-navy shadow-sm transition-colors hover:bg-white disabled:opacity-60"
+                          className="rounded-full bg-white/80 dark:bg-gray-300/80 px-4 py-1.5 text-xs font-medium text-brand-navy dark:text-gray-800 shadow-sm transition-colors hover:bg-white dark:hover:bg-gray-300 disabled:opacity-60"
                         >
                           {loadingOlder ? "Loading..." : "Load earlier messages"}
                         </button>
@@ -1559,7 +1553,7 @@ export default function CanaanChatPage() {
                         <div key={m.id} className={grouped ? "mt-0.5" : "mt-2.5"}>
                           {showDay && (
                             <div className="animate-chat-day mb-3 mt-1 flex justify-center">
-                              <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-gray-500 shadow-sm">
+                              <span className="rounded-full bg-white/90 dark:bg-gray-300/80 px-3 py-1 text-[11px] font-medium text-gray-500 dark:text-gray-700 shadow-sm">
                                 {dayLabel(m.createdAt)}
                               </span>
                             </div>
@@ -1569,7 +1563,7 @@ export default function CanaanChatPage() {
                             // Approved") — centered like the day pill, not a bubble from
                             // either side, since it isn't a reply from either participant.
                             <div className={`${entranceAnim} my-1 flex justify-center`}>
-                              <span className="rounded-full bg-white/90 px-3 py-1.5 text-center text-[11px] font-medium text-brand-navy shadow-sm">
+                              <span className="rounded-full bg-white/90 dark:bg-gray-300/90 px-3 py-1.5 text-center text-[11px] font-medium text-brand-navy dark:text-gray-800 shadow-sm">
                                 {m.text}
                               </span>
                             </div>
@@ -1592,8 +1586,8 @@ export default function CanaanChatPage() {
                                 m.contentType === "image" && !m.deleted ? "p-1" : "px-3 py-1.5"
                               } ${
                                 fromMe
-                                  ? `rounded-l-2xl rounded-br-md bg-amber-100 text-gray-800 ${grouped ? "rounded-tr-md" : "rounded-tr-2xl"}`
-                                  : `rounded-r-2xl rounded-bl-md bg-white text-gray-800 ${grouped ? "rounded-tl-md" : "rounded-tl-2xl"}`
+                                  ? `rounded-l-2xl rounded-br-md bg-amber-100 dark:bg-[#2a3a5e] text-gray-800 dark:text-gray-950 ${grouped ? "rounded-tr-md" : "rounded-tr-2xl"}`
+                                  : `rounded-r-2xl rounded-bl-md bg-white dark:bg-gray-300 text-gray-800 dark:text-gray-950 ${grouped ? "rounded-tl-md" : "rounded-tl-2xl"}`
                               }`}
                             >
                               {showSender && (
@@ -1613,7 +1607,7 @@ export default function CanaanChatPage() {
                                   <VoiceBubble message={m} />
                                   <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy" />}
+                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
                                   </span>
                                 </>
                               ) : m.contentType === "image" ? (
@@ -1632,7 +1626,7 @@ export default function CanaanChatPage() {
                                   <FileBubble message={m} />
                                   <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy" />}
+                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
                                   </span>
                                 </>
                               ) : payment ? (
@@ -1646,7 +1640,7 @@ export default function CanaanChatPage() {
                                   />
                                   <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-gray-400">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy" />}
+                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
                                   </span>
                                 </>
                               ) : (
@@ -1659,7 +1653,7 @@ export default function CanaanChatPage() {
                                   <span className="float-right ml-2 mt-1 flex translate-y-0.5 items-center gap-1 whitespace-nowrap text-[10px] text-gray-400">
                                     {m.editedAt && <span className="italic">edited</span>}
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy" />}
+                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
                                   </span>
                                 </p>
                               )}
@@ -1674,7 +1668,7 @@ export default function CanaanChatPage() {
               </div>
 
               {recording ? (
-                <div className="flex shrink-0 items-center gap-3 bg-gray-100 px-4 py-2.5">
+                <div className="flex shrink-0 items-center gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
                   <button
                     type="button"
                     onClick={cancelRecording}
@@ -1683,7 +1677,7 @@ export default function CanaanChatPage() {
                   >
                     <Trash2 className="h-[18px] w-[18px]" />
                   </button>
-                  <div className="flex flex-1 items-center gap-2 rounded-lg bg-white px-4 py-2.5">
+                  <div className="flex flex-1 items-center gap-2 rounded-lg bg-white dark:bg-gray-100 px-4 py-2.5">
                     <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-500" />
                     <span className="text-sm font-medium tabular-nums text-gray-700">
                       {formatDuration(recordingSeconds)}
@@ -1700,14 +1694,14 @@ export default function CanaanChatPage() {
                   </button>
                 </div>
               ) : (
-                <div className="relative flex shrink-0 items-center gap-3 bg-gray-100 px-4 py-2.5">
+                <div className="relative flex shrink-0 items-center gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
                   <button
                     type="button"
                     data-emoji-toggle
                     onClick={() => setShowEmojiPicker((v) => !v)}
                     title="Emoji"
                     className={`shrink-0 rounded-lg p-0.5 transition-colors ${
-                      showEmojiPicker ? "text-brand-navy" : "text-gray-500 hover:text-gray-700"
+                      showEmojiPicker ? "text-brand-navy dark:text-brand-gold" : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
                     <Smile className="h-6 w-6" />
@@ -1743,13 +1737,13 @@ export default function CanaanChatPage() {
                       if (e.key === "Enter") handleSend();
                     }}
                     placeholder="Type a message"
-                    className="input-no-transform flex-1 rounded-lg border-none bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:ring-2 focus:ring-brand-gold/30"
+                    className="input-no-transform flex-1 rounded-lg border-none bg-white dark:bg-gray-100 dark:text-gray-900 px-4 py-2.5 text-sm text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:ring-2 focus:ring-brand-gold/30"
                   />
                   <button
                     type="button"
                     onClick={openPaymentDialog}
                     title="Send a payment note"
-                    className="btn-interactive flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15 text-brand-navy transition-all duration-200 hover:bg-brand-gold/25 active:scale-90"
+                    className="btn-interactive flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15 dark:bg-brand-gold/30 text-brand-navy dark:text-brand-gold transition-all duration-200 hover:bg-brand-gold/25 dark:hover:bg-brand-gold/45 active:scale-90"
                   >
                     <IndianRupee className="h-4 w-4" />
                   </button>
@@ -1772,7 +1766,7 @@ export default function CanaanChatPage() {
               )}
             </>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-50 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-50 dark:bg-gray-50 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-navy/10">
                 <MessageSquare className="h-7 w-7 text-brand-navy" />
               </div>
@@ -1786,7 +1780,7 @@ export default function CanaanChatPage() {
 
         {/* Group info panel — rightmost column, WhatsApp-style */}
         {showGroupInfo && selected && selected.kind === "group" && (
-          <div className="flex w-full max-w-[320px] shrink-0 flex-col border-l border-gray-200 bg-white">
+          <div className="flex w-full max-w-[320px] shrink-0 flex-col border-l border-gray-200 dark:border-gray-300 bg-white dark:bg-gray-100">
             <div className="flex shrink-0 items-center gap-3 bg-brand-navy px-4 py-3">
               <button
                 type="button"
@@ -1805,7 +1799,7 @@ export default function CanaanChatPage() {
             ) : (
               <div className="flex-1 overflow-y-auto">
                 {/* Identity */}
-                <div className="flex flex-col items-center gap-2 border-b border-gray-100 px-5 py-6 text-center">
+                <div className="flex flex-col items-center gap-2 border-b border-gray-100 dark:border-gray-200 px-5 py-6 text-center">
                   <div className="relative">
                     <Avatar
                       name={groupDetail.title ?? "Group"}
@@ -1869,7 +1863,7 @@ export default function CanaanChatPage() {
                     </div>
                   ) : (
                     <div className="mt-2 flex items-center gap-1.5">
-                      <p className="text-lg font-semibold text-gray-900">{groupDetail.title}</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-gray-950">{groupDetail.title}</p>
                       {groupDetail.myRole === "admin" && (
                         <button
                           type="button"
@@ -1878,7 +1872,7 @@ export default function CanaanChatPage() {
                             setEditingTitle(true);
                           }}
                           title="Rename group"
-                          className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-brand-navy"
+                          className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-200 hover:text-brand-navy"
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -1891,15 +1885,15 @@ export default function CanaanChatPage() {
                 </div>
 
                 {/* Created date */}
-                <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-3.5">
-                  <Calendar className="h-4 w-4 shrink-0 text-brand-navy" />
-                  <p className="text-xs text-gray-600">
+                <div className="flex items-center gap-3 border-b border-gray-100 dark:border-gray-200 px-5 py-3.5">
+                  <Calendar className="h-4 w-4 shrink-0 text-brand-navy dark:text-blue-400" />
+                  <p className="text-xs text-gray-600 dark:text-gray-800">
                     {groupDetail.createdAt ? `Created on ${formatFullDate(groupDetail.createdAt)}` : "Creation date unavailable"}
                   </p>
                 </div>
 
                 {/* Media, links, docs — no attachment backend yet, so shown as empty */}
-                <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+                <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-200 border-b border-gray-100 dark:border-gray-200">
                   {[
                     { icon: ImageIcon, label: "Media" },
                     { icon: Link2, label: "Links" },
@@ -1923,7 +1917,7 @@ export default function CanaanChatPage() {
                       <button
                         type="button"
                         onClick={() => setShowAddMembers((v) => !v)}
-                        className="flex items-center gap-1 text-xs font-semibold text-brand-navy hover:underline"
+                        className="flex items-center gap-1 text-xs font-semibold text-brand-navy dark:text-blue-400 hover:underline"
                       >
                         <UserPlus className="h-3.5 w-3.5" />
                         Add
@@ -1932,7 +1926,7 @@ export default function CanaanChatPage() {
                   </div>
 
                   {showAddMembers && (
-                    <div className="mb-3 rounded-lg border border-gray-200">
+                    <div className="mb-3 rounded-lg border border-gray-200 dark:border-gray-300 dark:bg-gray-200">
                       <div className="max-h-40 overflow-y-auto">
                         {contacts.filter((c) => !groupDetail.members.some((m) => m.staffId === c.staffId))
                           .length === 0 ? (
@@ -1947,7 +1941,7 @@ export default function CanaanChatPage() {
                               return (
                                 <label
                                   key={c.staffId}
-                                  className="flex cursor-pointer items-center gap-2 border-b border-gray-100 px-2.5 py-1.5 last:border-b-0 hover:bg-gray-50"
+                                  className="flex cursor-pointer items-center gap-2 border-b border-gray-100 dark:border-gray-300 px-2.5 py-1.5 last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-300"
                                 >
                                   <input
                                     type="checkbox"
@@ -1989,22 +1983,22 @@ export default function CanaanChatPage() {
                       return (
                         <div
                           key={m.staffId}
-                          className="group flex items-center gap-3 rounded-lg px-1.5 py-2 hover:bg-gray-50"
+                          className="group flex items-center gap-3 rounded-lg px-1.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-200"
                         >
                           <Avatar name={m.name} photoUrl={m.photoUrl} size={36} />
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm text-gray-900">
+                            <p className="truncate text-sm text-gray-900 dark:text-gray-950">
                               {m.name}
-                              {isSelf && <span className="text-gray-400"> (You)</span>}
+                              {isSelf && <span className="text-gray-400 dark:text-gray-600"> (You)</span>}
                             </p>
-                            <p className="truncate text-[11px] text-gray-500">
+                            <p className="truncate text-[11px] text-gray-500 dark:text-gray-700">
                               {m.designation || m.department || m.softwareDesignation || ""}
                             </p>
                           </div>
                           {m.role === "admin" && (
                             <span
                               title="Group admin"
-                              className="flex shrink-0 items-center gap-1 rounded-full bg-brand-gold/15 px-2 py-0.5 text-[10px] font-semibold text-brand-navy"
+                              className="flex shrink-0 items-center gap-1 rounded-full bg-brand-gold/15 dark:bg-brand-gold/25 px-2 py-0.5 text-[10px] font-semibold text-brand-navy dark:text-brand-gold"
                             >
                               <Crown className="h-3 w-3" />
                               Admin
@@ -2032,12 +2026,12 @@ export default function CanaanChatPage() {
                 </div>
 
                 {/* Exit group */}
-                <div className="border-t border-gray-100 px-5 py-3.5">
+                <div className="border-t border-gray-100 dark:border-gray-200 px-5 py-3.5">
                   <button
                     type="button"
                     onClick={handleLeaveGroup}
                     disabled={leavingGroup}
-                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-red-600 dark:text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60"
                   >
                     <LogOut className="h-4 w-4" />
                     {leavingGroup ? "Leaving..." : "Exit Group"}
@@ -2166,7 +2160,7 @@ export default function CanaanChatPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowNewGroup(false)}
+                onClick={() => { setShowNewGroup(false); setNewGroupMemberSearch(""); }}
                 className="rounded-lg p-1.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <X className="h-4 w-4" />
@@ -2192,8 +2186,21 @@ export default function CanaanChatPage() {
                 <label className="mb-1.5 block text-xs font-semibold text-gray-700">
                   Members ({groupMembers.length} selected)
                 </label>
-                <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200">
-                  {contacts.map((m) => {
+                <div className="mb-2 relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search members..."
+                    value={newGroupMemberSearch}
+                    onChange={(e) => setNewGroupMemberSearch(e.target.value)}
+                    className="input-no-transform w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-8 pr-3 text-sm outline-none transition focus:border-brand-gold focus:bg-white focus:ring-2 focus:ring-brand-gold/20"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200">
+                  {contacts.filter((m) =>
+                    m.name.toLowerCase().includes(newGroupMemberSearch.toLowerCase()) ||
+                    (m.designation || m.department || m.softwareDesignation || "").toLowerCase().includes(newGroupMemberSearch.toLowerCase())
+                  ).map((m) => {
                     const checked = groupMembers.includes(Number(m.staffId));
                     return (
                       <label
@@ -2228,7 +2235,7 @@ export default function CanaanChatPage() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowNewGroup(false)}
+                  onClick={() => { setShowNewGroup(false); setNewGroupMemberSearch(""); }}
                   className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50"
                 >
                   Cancel

@@ -19,7 +19,7 @@ export default function HolidaysPage() {
 
   const [newDate, setNewDate] = useState("");
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"Government" | "Company">("Government");
+  const [newType, setNewType] = useState<"Government" | "Company">("Company");
 
   function load() {
     setLoading(true);

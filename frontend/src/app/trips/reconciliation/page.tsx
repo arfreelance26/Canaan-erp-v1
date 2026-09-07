@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
@@ -53,6 +54,8 @@ export default function TripReconciliationPage() {
   // Local cache: tripId -> closure data and sheet data
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
+  // Trip ids whose closure/sheet have been fetched — so paging back doesn't refetch.
+  const fetchedDetailIds = useRef<Set<string>>(new Set());
 
   // Trip Sheet dialog
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -101,31 +104,9 @@ export default function TripReconciliationPage() {
     // All delivered trips — closure is guaranteed by the sheet-collection step (hasClosure gate)
     const deliveredTrips = t.filter((trip) => trip.tripSheetCollected === true);
     setTrips(deliveredTrips);
-
-    const closureResults = await Promise.all(
-      deliveredTrips.map((trip) =>
-        tripsApi.getClosure(trip.id).then((closure) => ({ tripId: trip.id, closure })).catch(() => null)
-      )
-    );
-    const closureMap = new Map<string, TripClosureData>();
-    for (const result of closureResults) {
-      if (result) closureMap.set(result.tripId, result.closure);
-    }
-    setClosures(closureMap);
-
-    // Fetch sheets for all delivered trips, not just those with closures
-    const sheetResults = await Promise.all(
-      deliveredTrips.map((trip) =>
-        trip.hasSheet
-          ? tripsApi.getSheet(trip.id).then((sheet) => ({ tripId: trip.id, sheet })).catch(() => null)
-          : Promise.resolve(null)
-      )
-    );
-    const sheetMap = new Map<string, TripSheetData>();
-    for (const result of sheetResults) {
-      if (result && result.sheet) sheetMap.set(result.tripId, result.sheet);
-    }
-    setSheets(sheetMap);
+    // Closures/sheets are fetched lazily per visible page (see effect below) so
+    // a large reconciliation list no longer fires a request per trip on load.
+    fetchedDetailIds.current = new Set();
   }
 
   useEffect(() => {
@@ -492,41 +473,31 @@ export default function TripReconciliationPage() {
     }
   }
 
-  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
-
   // Edit-request filters. Admin sees every staff member's requests; Docs staff
   // see their own. `myRequests` already holds the correct role-scoped set.
   const TRIP_REQUEST_RESOURCES = ["TripSheet", "BookingSheet", "TripData"];
-  const tripRequests = myRequests.filter((r) => TRIP_REQUEST_RESOURCES.includes(r.resourceType));
-  const requestRaisedIds = new Set(
-    tripRequests.filter((r) => r.status === "Pending").map((r) => String(r.resourceId)),
+  const tripRequests = useMemo(
+    () => myRequests.filter((r) => TRIP_REQUEST_RESOURCES.includes(r.resourceType)),
+    [myRequests],
   );
-  const requestApprovedIds = new Set(
-    tripRequests.filter((r) => r.status === "Approved").map((r) => String(r.resourceId)),
+  const requestRaisedIds = useMemo(
+    () => new Set(tripRequests.filter((r) => r.status === "Pending").map((r) => String(r.resourceId))),
+    [tripRequests],
   );
-  // tripId -> latest edit request (list/mine come ordered newest-first) so each
-  // row can show who raised it and the reason they entered.
-  const latestRequestByTripId = new Map<string, EditApprovalRequest>();
-  for (const r of tripRequests) {
-    const key = String(r.resourceId);
-    if (!latestRequestByTripId.has(key)) latestRequestByTripId.set(key, r);
-  }
+  const requestApprovedIds = useMemo(
+    () => new Set(tripRequests.filter((r) => r.status === "Approved").map((r) => String(r.resourceId))),
+    [tripRequests],
+  );
 
-  const counts = {
-    All:                trips.length,
-    "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
-    "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !sheets.has(t.id)).length,
-    "Sheet Entered":    trips.filter((t) => sheets.has(t.id)).length,
-    "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
-    "Request Raised":   trips.filter((t) => requestRaisedIds.has(t.id)).length,
-    "Request Approved": trips.filter((t) => requestApprovedIds.has(t.id)).length,
-  };
-
-  const filteredTrips = trips
+  // Filtering + pagination are memoised so the current page's slice has a stable
+  // identity to drive the lazy closure/sheet fetch below. Status uses the trip's
+  // own `hasSheet` flag (from the list endpoint) rather than the lazily-fetched
+  // `sheets` map, so counts/filters stay correct without fetching every sheet.
+  const filteredTrips = useMemo(() => trips
     .filter((t) => {
       if (statusFilter === "Pending Receive" && t.tripSheetReceived) return false;
-      if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || sheets.has(t.id))) return false;
-      if (statusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
+      if (statusFilter === "Pending Sheet Entry" && (!t.tripSheetReceived || t.hasSheet)) return false;
+      if (statusFilter === "Sheet Entered" && !t.hasSheet) return false;
       if (statusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
       if (statusFilter === "Request Raised" && !requestRaisedIds.has(t.id)) return false;
       if (statusFilter === "Request Approved" && !requestApprovedIds.has(t.id)) return false;
@@ -548,16 +519,79 @@ export default function TripReconciliationPage() {
     })
     .sort((a, b) => {
       const priority = (t: typeof a) => {
-        if (!sheets.has(t.id)) return 0;
+        if (!t.hasSheet) return 0;
         if (!t.tripSheetReceived) return 1;
         return 2;
       };
       return priority(a) - priority(b);
-    });
+    }), [trips, statusFilter, searchQuery, requestRaisedIds, requestApprovedIds, customerById]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const paginatedTrips = filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginatedTrips = useMemo(
+    () => filteredTrips.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredTrips, safePage],
+  );
+
+  // Lazy-load closure + sheet for ONLY the current page's trips, cached so paging
+  // back doesn't refetch. Replaces the old "fetch every trip's closure+sheet on
+  // load" burst that exhausted the DB connection pool.
+  useEffect(() => {
+    const toFetch = paginatedTrips.filter((t) => !fetchedDetailIds.current.has(t.id));
+    if (toFetch.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await mapLimit(toFetch, 8, async (t) => {
+        const [cl, sh] = await Promise.all([
+          tripsApi.getClosure(t.id).catch(() => null),
+          t.hasSheet ? tripsApi.getSheet(t.id).catch(() => null) : Promise.resolve(null),
+        ]);
+        return { id: t.id, cl, sh };
+      });
+      if (cancelled) return;
+      setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
+      setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
+      for (const r of results) fetchedDetailIds.current.add(r.id);
+    })();
+    return () => { cancelled = true; };
+  }, [paginatedTrips]);
+
+  // The report modal shows sheet/closure data across ALL trips in range, so when
+  // it opens we batch-fetch any not already cached — concurrency-limited.
+  useEffect(() => {
+    if (!showReportModal) return;
+    const missing = trips.filter((t) => t.hasSheet && !sheets.has(t.id));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = await mapLimit(missing, 8, (t) =>
+        tripsApi.getSheet(t.id).then((sheet) => ({ id: t.id, sheet })).catch(() => null),
+      );
+      if (cancelled) return;
+      setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r?.sheet) next.set(r.id, r.sheet); return next; });
+    })();
+    return () => { cancelled = true; };
+  }, [showReportModal, trips]);
+
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={10} />;
+
+  // tripId -> latest edit request (list/mine come ordered newest-first) so each
+  // row can show who raised it and the reason they entered.
+  const latestRequestByTripId = new Map<string, EditApprovalRequest>();
+  for (const r of tripRequests) {
+    const key = String(r.resourceId);
+    if (!latestRequestByTripId.has(key)) latestRequestByTripId.set(key, r);
+  }
+
+  const counts = {
+    All:                trips.length,
+    "Pending Receive":  trips.filter((t) => !t.tripSheetReceived).length,
+    "Pending Sheet Entry": trips.filter((t) => t.tripSheetReceived && !t.hasSheet).length,
+    "Sheet Entered":    trips.filter((t) => t.hasSheet).length,
+    "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
+    "Request Raised":   trips.filter((t) => requestRaisedIds.has(t.id)).length,
+    "Request Approved": trips.filter((t) => requestApprovedIds.has(t.id)).length,
+  };
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -698,7 +732,7 @@ export default function TripReconciliationPage() {
               {paginatedTrips.map((trip) => {
                 const sheet = sheets.get(trip.id);
                 const customer = customerById.get(trip.customerId);
-                const stage = reconStage(trip, sheets.has(trip.id));
+                const stage = reconStage(trip, !!trip.hasSheet);
 
                 return (
                   <tr key={trip.id} className={stageRowClass(stage.color)}>
@@ -859,7 +893,7 @@ export default function TripReconciliationPage() {
                                   Request Edit Approval from Kumar
                                 </button>
                               )}
-                              {sheets.has(trip.id) && (
+                              {trip.hasSheet && (
                                 <button
                                   type="button"
                                   disabled={resubmitting.has(trip.id)}
@@ -1119,7 +1153,7 @@ export default function TripReconciliationPage() {
           //  - Sheet entered → filter by tripSheetDate (when the sheet was entered)
           //  - Pending Sheet Entry → filter by tripSheetReceivedAt (when the trip sheet register marked it received), since there is no sheet-entered date yet
           let ms: number | null = null;
-          if (sheets.has(t.id) && t.tripSheetDate) {
+          if (t.hasSheet && t.tripSheetDate) {
             ms = new Date(t.tripSheetDate).getTime();
           } else if (t.tripSheetReceivedAt) {
             const raw = t.tripSheetReceivedAt.endsWith("Z") || t.tripSheetReceivedAt.includes("+") ? t.tripSheetReceivedAt : t.tripSheetReceivedAt + "Z";
@@ -1131,8 +1165,8 @@ export default function TripReconciliationPage() {
           return true;
         });
         const pdfTrips = dateFilteredTrips.filter((t) => {
-          if (modalStatusFilter === "Sheet Entered" && !sheets.has(t.id)) return false;
-          if (modalStatusFilter === "Pending Sheet Entry" && sheets.has(t.id)) return false;
+          if (modalStatusFilter === "Sheet Entered" && !t.hasSheet) return false;
+          if (modalStatusFilter === "Pending Sheet Entry" && t.hasSheet) return false;
           if (modalStatusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
           return true;
         });

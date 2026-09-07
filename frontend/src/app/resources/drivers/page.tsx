@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Loader2, Plus, Search, X } from "lucide-react";
+import { Download, FileText, Loader2, Plus, Search, X } from "lucide-react";
 import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -364,6 +364,32 @@ export default function DriversPage() {
                     <Field label="IFSC Code" value={d.ifscCode} />
                   </div>
                 </div>
+
+                {(d.photoUrl || d.aadhaarFileName || d.licenseFileName) && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
+                    <div className="flex flex-wrap gap-3">
+                      {d.photoUrl && (
+                        <a href={fileUrl("drivers", d.id, "photo")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
+                        </a>
+                      )}
+                      {d.aadhaarFileName && (
+                        <a href={fileUrl("drivers", d.id, "aadhaar")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Aadhaar
+                        </a>
+                      )}
+                      {d.licenseFileName && (
+                        <a href={fileUrl("drivers", d.id, "license")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> License
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
