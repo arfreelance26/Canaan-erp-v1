@@ -404,13 +404,18 @@ export default function AttendanceReportPage() {
       const { utils, writeFile } = await import("xlsx");
       const who = isDriver ? "Driver" : "Staff";
       let data: Record<string, string | number>[];
+      // Explicit column order. Needed for the datewise register because its date
+      // columns are integer-like keys ("1".."31") and JS always orders those
+      // numerically *before* string keys like "Name" — so key insertion order
+      // alone can't put Name first; json_to_sheet must be told the header order.
+      let header: string[] | undefined;
 
       if (viewMode === "datewise") {
         // Register grid: one row per person, one column per date (abbreviation).
         data = filteredRows.map((r) => {
           const row: Record<string, string | number> = {
-            [isDriver ? "Driver ID" : "Staff ID"]: r.code,
             Name: r.name,
+            [isDriver ? "Driver ID" : "Staff ID"]: r.code,
           };
           dates.forEach((d) => {
             const recorded = statusMap[isDriver ? r.code : r.id]?.[d];
@@ -421,14 +426,16 @@ export default function AttendanceReportPage() {
           });
           return row;
         });
+        const dateKeys = [...new Set(dates.map((d) => String(Number(d.split("-")[2]))))];
+        header = ["Name", isDriver ? "Driver ID" : "Staff ID", ...dateKeys];
       } else if (isDriver) {
         data = filteredRows.map((r, idx) => {
           const active = r.onTrip + r.onHalt + r.onWorkshop;
           const pct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
           return {
+            Name: r.name,
             "#": idx + 1,
             "Driver ID": r.code,
-            Name: r.name,
             "On Trip": r.onTrip,
             "On Halt": r.onHalt,
             Leave: r.leave,
@@ -441,9 +448,9 @@ export default function AttendanceReportPage() {
         data = filteredRows.map((r, idx) => {
           const pct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
           return {
+            Name: r.name,
             "#": idx + 1,
             "Staff ID": r.code,
-            Name: r.name,
             Present: r.present,
             Absent: r.absent,
             "On Leave": r.onLeave,
@@ -453,7 +460,7 @@ export default function AttendanceReportPage() {
         });
       }
 
-      const ws = utils.json_to_sheet(data);
+      const ws = utils.json_to_sheet(data, header ? { header } : undefined);
       const wb = utils.book_new();
       const sheetName = viewMode === "datewise" ? "Register" : "Summary";
       utils.book_append_sheet(wb, ws, sheetName);

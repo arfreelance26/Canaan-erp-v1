@@ -53,7 +53,7 @@ from chat_crypto import (
 )
 from database import get_db
 from security import TokenUser, decode_token, get_current_user
-from websocket_manager import emit_to_users
+from websocket_manager import emit_to_users, manager
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -371,6 +371,25 @@ def list_conversations(
     for conv_id, _sid, staff in member_rows:
         members_by_conv.setdefault(conv_id, []).append(staff)
 
+    # --- how far the *other* side has read, per thread (one aggregate query) ---
+    # Used to paint blue read-ticks correctly on first load. Max across the other
+    # participants covers direct threads (a single peer) and is a sensible
+    # "someone has read up to here" signal for groups too.
+    peer_read_rows = (
+        db.query(
+            models.ChatParticipant.conversation_id,
+            func.max(models.ChatParticipant.last_read_message_id),
+        )
+        .filter(
+            models.ChatParticipant.conversation_id.in_(conv_ids),
+            models.ChatParticipant.staff_id != me,
+            models.ChatParticipant.left_at.is_(None),
+        )
+        .group_by(models.ChatParticipant.conversation_id)
+        .all()
+    )
+    peer_read_by_conv = {cid: (v or 0) for cid, v in peer_read_rows}
+
     out: list[schemas.ChatConversationOut] = []
     for conv, part in rows:
         members = members_by_conv.get(conv.id, [])
@@ -396,6 +415,7 @@ def list_conversations(
                 last_message=_message_out(last) if last else None,
                 last_message_at=conv.last_message_at,
                 created_at=conv.created_at,
+                peer_last_read_id=peer_read_by_conv.get(conv.id, 0),
             )
         )
     return out
@@ -1023,7 +1043,58 @@ def mark_read(
     if payload.message_id > (part.last_read_message_id or 0):
         part.last_read_message_id = payload.message_id
         db.commit()
+        # Tell the other participants their messages up to here are now read, so
+        # their sent-ticks can turn blue live without a refetch.
+        recipients = [p for p in _participant_ids(db, conversation_id) if p != me]
+        if recipients:
+            emit_to_users(
+                recipients,
+                "chat_read",
+                {
+                    "conversationId": conversation_id,
+                    "readerId": me,
+                    "lastReadMessageId": part.last_read_message_id,
+                },
+            )
     return {"ok": True, "last_read_message_id": part.last_read_message_id}
+
+
+@router.post("/conversations/{conversation_id}/typing")
+def typing(
+    conversation_id: int,
+    payload: schemas.ChatTypingPayload,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Relay a transient 'I'm typing' (or 'stopped') signal to the other
+    participants. Nothing is persisted — it's a live hint only."""
+    me = _me(current_user)
+    _require_participant(db, conversation_id, me)
+    recipients = [p for p in _participant_ids(db, conversation_id) if p != me]
+    if recipients:
+        staff = db.get(models.Staff, me)
+        emit_to_users(
+            recipients,
+            "chat_typing",
+            {
+                "conversationId": conversation_id,
+                "userId": me,
+                "userName": staff.name if staff else None,
+                "typing": bool(payload.typing),
+            },
+        )
+    return {"ok": True}
+
+
+@router.get("/presence")
+def presence(current_user: TokenUser = Depends(get_current_user)):
+    """Current online roster + last-seen times, for the initial paint. Live
+    changes after this arrive via the broadcast 'chat_presence' event."""
+    _me(current_user)
+    return {
+        "online": manager.online_user_ids(),
+        "lastSeen": {str(uid): ts for uid, ts in manager.last_seen.items()},
+    }
 
 
 @router.post("/conversations/{conversation_id}/mute")

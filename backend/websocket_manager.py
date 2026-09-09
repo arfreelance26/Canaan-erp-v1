@@ -16,6 +16,17 @@ class ConnectionManager:
         # Chat delivery is addressed through this map so a message is only ever
         # written to the sockets of its own participants.
         self._by_user: dict[int, set[WebSocket]] = {}
+        # user_id -> epoch seconds of their most recent disconnect. Powers the
+        # "last seen" label for people who are currently offline. In-memory only:
+        # a server restart forgets it (everyone simply shows no last-seen until
+        # they next connect), which is an acceptable trade for zero schema churn.
+        self.last_seen: dict[int, float] = {}
+
+    def online_user_ids(self) -> list[int]:
+        return list(self._by_user.keys())
+
+    def note_last_seen(self, user_id: int) -> None:
+        self.last_seen[int(user_id)] = time.time()
 
     async def connect(self, websocket: WebSocket, user_id: int | None = None) -> bool:
         if len(self.active_connections) >= MAX_CONNECTIONS:

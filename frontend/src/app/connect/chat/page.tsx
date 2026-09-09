@@ -120,6 +120,22 @@ function pickRecorderMimeType(): string | undefined {
   return VOICE_MIME_CANDIDATES.find((t) => MediaRecorder.isTypeSupported(t));
 }
 
+/** "online" is shown separately; this renders the offline "last seen ..." label
+ * from an epoch-seconds timestamp. Empty string when we have no record. */
+function formatLastSeen(epochSeconds?: number): string {
+  if (!epochSeconds) return "";
+  const d = new Date(epochSeconds * 1000);
+  if (Number.isNaN(d.getTime())) return "";
+  const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (diffMin < 1) return "last seen just now";
+  if (diffMin < 60) return `last seen ${diffMin}m ago`;
+  const label = dayLabel(d.toISOString());
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  if (label === "Today") return `last seen today at ${time}`;
+  if (label === "Yesterday") return `last seen yesterday at ${time}`;
+  return `last seen ${label} at ${time}`;
+}
+
 function Avatar({
   name,
   photoUrl,
@@ -522,6 +538,17 @@ export default function CanaanChatPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
 
+  // -- presence, read receipts, typing (all live over WebSocket) -----------
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+  const [lastSeen, setLastSeen] = useState<Record<number, number>>({});
+  // conversationId -> highest message id the other side has read (blue ticks).
+  const [peerReadByConv, setPeerReadByConv] = useState<Record<number, number>>({});
+  // conversationId -> who is currently typing there, with the time we last heard.
+  const [typingByConv, setTypingByConv] = useState<Record<number, { name: string; at: number }>>({});
+  // Throttle outgoing "typing" pings: one "start" per burst, one "stop" on idle.
+  const typingSentRef = useRef(false);
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // -- attachments (paperclip) --------------------------------------------
   const [sendingAttachment, setSendingAttachment] = useState(false);
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
@@ -601,6 +628,47 @@ export default function CanaanChatPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    // Presence snapshot — live changes then arrive via the chat_presence event.
+    chatApi
+      .getPresence()
+      .then((p) => {
+        setOnlineUsers(new Set(p.online));
+        setLastSeen(
+          Object.fromEntries(Object.entries(p.lastSeen).map(([k, v]) => [Number(k), Number(v)]))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  // Seed each thread's "peer read up to" from the conversation list so blue
+  // read-ticks are correct on first paint; later chat_read events refine it.
+  // Math.max guards against a refetch clobbering a fresher live value.
+  useEffect(() => {
+    setPeerReadByConv((prev) => {
+      const next = { ...prev };
+      for (const c of conversations) {
+        next[c.id] = Math.max(next[c.id] ?? 0, c.peerLastReadId ?? 0);
+      }
+      return next;
+    });
+  }, [conversations]);
+
+  // A dropped "stop typing" ping would otherwise leave the indicator stuck —
+  // expire any typing entry we haven't heard from in ~6s.
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTypingByConv((prev) => {
+        const now = Date.now();
+        let changed = false;
+        const next: Record<number, { name: string; at: number }> = {};
+        for (const [k, v] of Object.entries(prev)) {
+          if (now - v.at < 6000) next[Number(k)] = v;
+          else changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 3000);
+    return () => clearInterval(t);
   }, []);
 
   const refreshConversations = useCallback(() => {
@@ -720,6 +788,44 @@ export default function CanaanChatPage() {
   useWebSocketEvent("chat_conversation_created", () => refreshConversations());
   useWebSocketEvent("chat_conversation_updated", () => refreshConversations());
 
+  // Someone connected/disconnected — flip their online dot (and record last seen).
+  useWebSocketEvent("chat_presence", (payload) => {
+    const uid = Number((payload as { userId?: unknown }).userId);
+    if (!Number.isFinite(uid)) return;
+    const online = Boolean((payload as { online?: unknown }).online);
+    setOnlineUsers((prev) => {
+      const next = new Set(prev);
+      if (online) next.add(uid);
+      else next.delete(uid);
+      return next;
+    });
+    const ls = (payload as { lastSeen?: unknown }).lastSeen;
+    if (!online && ls != null) setLastSeen((prev) => ({ ...prev, [uid]: Number(ls) }));
+  });
+
+  // The other side advanced their read cursor — turn our sent ticks blue live.
+  useWebSocketEvent("chat_read", (payload) => {
+    const convId = Number((payload as { conversationId?: unknown }).conversationId);
+    const lastId = Number((payload as { lastReadMessageId?: unknown }).lastReadMessageId);
+    if (!Number.isFinite(convId) || !Number.isFinite(lastId)) return;
+    setPeerReadByConv((prev) => ({ ...prev, [convId]: Math.max(prev[convId] ?? 0, lastId) }));
+  });
+
+  // "X is typing…" — never for our own keystrokes (the backend excludes the sender).
+  useWebSocketEvent("chat_typing", (payload) => {
+    const convId = Number((payload as { conversationId?: unknown }).conversationId);
+    if (!Number.isFinite(convId)) return;
+    const typing = Boolean((payload as { typing?: unknown }).typing);
+    const name = ((payload as { userName?: unknown }).userName as string) ?? "Someone";
+    setTypingByConv((prev) => {
+      if (typing) return { ...prev, [convId]: { name, at: Date.now() } };
+      if (!(convId in prev)) return prev;
+      const next = { ...prev };
+      delete next[convId];
+      return next;
+    });
+  });
+
   const refreshContacts = useCallback(() => {
     chatApi.listContacts().then(setContacts).catch(() => {});
   }, []);
@@ -775,6 +881,7 @@ export default function CanaanChatPage() {
       time: formatTime(c.lastMessageAt),
       unread: c.unreadCount,
       startWith: undefined as string | undefined,
+      peerId: !isGroup && c.peer ? Number(c.peer.staffId) : null,
     };
   }, []);
 
@@ -790,6 +897,7 @@ export default function CanaanChatPage() {
       time: "",
       unread: 0,
       startWith: m.staffId,
+      peerId: Number(m.staffId),
     }),
     []
   );
@@ -803,12 +911,29 @@ export default function CanaanChatPage() {
    */
   const chatRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const conversingIds = new Set(
-      directConversations.map((c) => c.peer?.staffId).filter(Boolean) as string[]
+    // Only threads that actually have a message pin to the top (by recency).
+    // A freshly-opened but still-empty thread must NOT jump up — otherwise just
+    // clicking a contact would yank them above the rest of the directory. Those
+    // stay in their contact-directory position until a first message is sent.
+    const active = directConversations.filter((c) => c.lastMessage);
+    const activeStaffIds = new Set(
+      active.map((c) => c.peer?.staffId).filter(Boolean) as string[]
+    );
+    // staffId -> its empty thread, so a directory click reopens the same thread
+    // in place rather than rendering a plain (thread-less) contact row.
+    const emptyConvByStaff = new Map(
+      directConversations
+        .filter((c) => !c.lastMessage && c.peer)
+        .map((c) => [c.peer!.staffId, c])
     );
     const rows = [
-      ...directConversations.map(toRow),
-      ...contacts.filter((m) => !conversingIds.has(m.staffId)).map(toContactRow),
+      ...active.map(toRow),
+      ...contacts
+        .filter((m) => !activeStaffIds.has(m.staffId))
+        .map((m) => {
+          const empty = emptyConvByStaff.get(m.staffId);
+          return empty ? toRow(empty) : toContactRow(m);
+        }),
     ];
     if (!q) return rows;
     return rows.filter(
@@ -850,6 +975,12 @@ export default function CanaanChatPage() {
       recordingCancelledRef.current = true;
       mediaRecorderRef.current.stop();
     }
+    // Abandon any pending "typing" ping — it belonged to the thread we just left.
+    if (typingStopTimerRef.current) {
+      clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+    }
+    typingSentRef.current = false;
   }, [selectedId]);
 
   // Escape closes the lightbox, matching every other overlay in the app.
@@ -890,6 +1021,7 @@ export default function CanaanChatPage() {
     if (!text || !selectedId || sending) return;
     setSending(true);
     setDraft("");
+    stopTyping();
     try {
       const msg = await chatApi.sendMessage(selectedId, text);
       markMessageFresh(msg.id, "sent");
@@ -908,6 +1040,52 @@ export default function CanaanChatPage() {
       }
     } finally {
       setSending(false);
+    }
+  }
+
+  /** Stop broadcasting "typing" for the current thread, right now. */
+  function stopTyping() {
+    if (typingStopTimerRef.current) {
+      clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+    }
+    if (typingSentRef.current && selectedId) {
+      typingSentRef.current = false;
+      chatApi.sendTyping(selectedId, false).catch(() => {});
+    }
+    typingSentRef.current = false;
+  }
+
+  /** Called on every keystroke: send one "start" per burst, and schedule a
+   * "stop" 2.5s after the typing pauses. */
+  function notifyTyping() {
+    if (!selectedId) return;
+    if (!typingSentRef.current) {
+      typingSentRef.current = true;
+      chatApi.sendTyping(selectedId, true).catch(() => {});
+    }
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = setTimeout(() => {
+      typingSentRef.current = false;
+      if (selectedId) chatApi.sendTyping(selectedId, false).catch(() => {});
+    }, 2500);
+  }
+
+  async function handleDeleteMessage(message: ChatMessage) {
+    const result = await confirmAction(
+      "Delete this message?",
+      "It will be removed for everyone in this conversation.",
+      "Delete"
+    );
+    if (!result.isConfirmed) return;
+    try {
+      const updated = await chatApi.deleteMessage(message.id);
+      setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      setConversations((prev) =>
+        prev.map((c) => (c.lastMessage?.id === updated.id ? { ...c, lastMessage: updated } : c))
+      );
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Could not delete that message.");
     }
   }
 
@@ -1413,12 +1591,17 @@ export default function CanaanChatPage() {
                       isActive ? "bg-brand-navy/5 dark:bg-brand-gold/10" : "hover:bg-gray-50"
                     }`}
                   >
-                    <Avatar
-                      name={row.name}
-                      photoUrl={row.photoUrl}
-                      size={48}
-                      group={row.isGroup}
-                    />
+                    <div className="relative shrink-0">
+                      <Avatar
+                        name={row.name}
+                        photoUrl={row.photoUrl}
+                        size={48}
+                        group={row.isGroup}
+                      />
+                      {row.peerId != null && onlineUsers.has(row.peerId) && (
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-100 bg-emerald-500" />
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-[15px] font-medium text-gray-900">{row.name}</span>
@@ -1466,24 +1649,51 @@ export default function CanaanChatPage() {
                   onClick={selected.kind === "group" ? openGroupInfo : undefined}
                   title={selected.kind === "group" ? "View group info" : undefined}
                 >
-                  <Avatar
-                    name={selected.title ?? ""}
-                    photoUrl={selected.kind === "group" ? (selected.hasPhoto ? chatApi.groupPhotoUrl(selected.id) : null) : selected.peer?.photoUrl}
-                    size={40}
-                    group={selected.kind === "group"}
-                  />
+                  <div className="relative shrink-0">
+                    <Avatar
+                      name={selected.title ?? ""}
+                      photoUrl={selected.kind === "group" ? (selected.hasPhoto ? chatApi.groupPhotoUrl(selected.id) : null) : selected.peer?.photoUrl}
+                      size={40}
+                      group={selected.kind === "group"}
+                    />
+                    {selected.kind === "direct" &&
+                      selected.peer &&
+                      onlineUsers.has(Number(selected.peer.staffId)) && (
+                        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-gray-100 dark:border-gray-200 bg-emerald-500" />
+                      )}
+                  </div>
                   <div className="min-w-0">
                     <p className="truncate text-[15px] font-medium text-gray-900 dark:text-gray-950">
                       {selected.title ?? "Conversation"}
                     </p>
-                    <p className="truncate text-xs text-gray-500">
-                      {selected.kind === "group"
-                        ? `${selected.memberCount} member${selected.memberCount === 1 ? "" : "s"}`
-                        : selected.peer?.designation ||
-                          selected.peer?.department ||
-                          selected.peer?.softwareDesignation ||
-                          ""}
-                    </p>
+                    {(() => {
+                      const typing = typingByConv[selected.id];
+                      if (typing) {
+                        return (
+                          <p className="truncate text-xs font-medium text-emerald-600">
+                            {selected.kind === "group" ? `${typing.name.split(" ")[0]} is typing…` : "typing…"}
+                          </p>
+                        );
+                      }
+                      if (selected.kind === "group") {
+                        return (
+                          <p className="truncate text-xs text-gray-500">
+                            {`${selected.memberCount} member${selected.memberCount === 1 ? "" : "s"}`}
+                          </p>
+                        );
+                      }
+                      const pid = selected.peer ? Number(selected.peer.staffId) : null;
+                      if (pid != null && onlineUsers.has(pid)) {
+                        return <p className="truncate text-xs font-medium text-emerald-600">online</p>;
+                      }
+                      const status =
+                        (pid != null ? formatLastSeen(lastSeen[pid]) : "") ||
+                        selected.peer?.designation ||
+                        selected.peer?.department ||
+                        selected.peer?.softwareDesignation ||
+                        "";
+                      return <p className="truncate text-xs text-gray-500">{status}</p>;
+                    })()}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-4 text-gray-500">
@@ -1527,6 +1737,11 @@ export default function CanaanChatPage() {
                     )}
                     {messages.map((m, i) => {
                       const fromMe = myId != null && m.senderId === Number(myId);
+                      // Blue double-tick once the other side has read up to here.
+                      const tickClass =
+                        fromMe && m.id <= (peerReadByConv[selected.id] ?? 0)
+                          ? "text-sky-500"
+                          : "text-gray-400";
                       const prev = messages[i - 1];
                       const showDay =
                         !prev || dayLabel(prev.createdAt) !== dayLabel(m.createdAt);
@@ -1568,7 +1783,17 @@ export default function CanaanChatPage() {
                               </span>
                             </div>
                           ) : (
-                          <div className={`flex items-end gap-1.5 ${fromMe ? "justify-end" : "justify-start"}`}>
+                          <div className={`group flex items-end gap-1.5 ${fromMe ? "justify-end" : "justify-start"}`}>
+                            {fromMe && !m.deleted && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(m)}
+                                title="Delete message"
+                                className="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
                             {selected.kind === "group" && !fromMe && (
                               showSender ? (
                                 <div
@@ -1607,7 +1832,7 @@ export default function CanaanChatPage() {
                                   <VoiceBubble message={m} />
                                   <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
+                                    {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
                                 </>
                               ) : m.contentType === "image" ? (
@@ -1618,7 +1843,7 @@ export default function CanaanChatPage() {
                                   />
                                   <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] text-white">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3 w-3" />}
+                                    {fromMe && <CheckCheck className={`h-3 w-3 ${tickClass === "text-sky-500" ? "text-sky-300" : ""}`} />}
                                   </span>
                                 </div>
                               ) : m.contentType === "file" ? (
@@ -1626,7 +1851,7 @@ export default function CanaanChatPage() {
                                   <FileBubble message={m} />
                                   <span className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-gray-400">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
+                                    {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
                                 </>
                               ) : payment ? (
@@ -1640,7 +1865,7 @@ export default function CanaanChatPage() {
                                   />
                                   <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-gray-400">
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
+                                    {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
                                 </>
                               ) : (
@@ -1653,7 +1878,7 @@ export default function CanaanChatPage() {
                                   <span className="float-right ml-2 mt-1 flex translate-y-0.5 items-center gap-1 whitespace-nowrap text-[10px] text-gray-400">
                                     {m.editedAt && <span className="italic">edited</span>}
                                     {formatTime(m.createdAt)}
-                                    {fromMe && <CheckCheck className="h-3.5 w-3.5 text-brand-navy dark:text-brand-gold" />}
+                                    {fromMe && <CheckCheck className={`h-3.5 w-3.5 ${tickClass}`} />}
                                   </span>
                                 </p>
                               )}
@@ -1663,6 +1888,15 @@ export default function CanaanChatPage() {
                         </div>
                       );
                     })}
+                    {typingByConv[selected.id] && (
+                      <div className="mt-2 flex justify-start">
+                        <div className="flex items-center gap-1 rounded-r-2xl rounded-bl-md rounded-tl-2xl bg-white dark:bg-gray-300 px-3 py-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.08)]">
+                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
+                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
+                          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1732,7 +1966,10 @@ export default function CanaanChatPage() {
                     ref={draftInputRef}
                     type="text"
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      notifyTyping();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleSend();
                     }}

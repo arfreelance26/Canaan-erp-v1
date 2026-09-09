@@ -1157,8 +1157,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str = ""):
     _sub = payload.get("sub")
     ws_user_id = int(_sub) if _sub and _sub != "admin" else None
 
+    # Was this user already online (another tab/device) before this socket?
+    # Only the *first* socket flips them online and the *last* one flips them
+    # offline — so opening a second tab doesn't spam presence events.
+    was_online = ws_user_id is not None and ws_manager.is_online(ws_user_id)
     if not await ws_manager.connect(websocket, user_id=ws_user_id):
         return  # server at connection capacity
+    if ws_user_id is not None and not was_online:
+        await ws_manager.broadcast(
+            "chat_presence", {"userId": ws_user_id, "online": True, "lastSeen": None}
+        )
     try:
         while True:
             # Wake up at least every 60s to re-check token expiry even if idle
@@ -1175,3 +1183,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str = ""):
         pass
     finally:
         ws_manager.disconnect(websocket)
+        # If that was the user's last open socket, they've gone offline — stamp
+        # a last-seen time and tell everyone so their green dot turns grey.
+        if ws_user_id is not None and not ws_manager.is_online(ws_user_id):
+            ws_manager.note_last_seen(ws_user_id)
+            await ws_manager.broadcast(
+                "chat_presence",
+                {"userId": ws_user_id, "online": False, "lastSeen": time.time()},
+            )

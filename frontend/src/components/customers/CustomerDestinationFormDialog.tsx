@@ -174,7 +174,7 @@ export function CustomerDestinationFormDialog({
               ].join(" ")}
             />
             {dropdownOpen && (
-              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+              <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-white/10">
                 {filtered.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-gray-400">No customers found</div>
                 ) : (
@@ -187,7 +187,7 @@ export function CustomerDestinationFormDialog({
                       className={[
                         "w-full px-3 py-2 text-left text-sm transition-colors",
                         form.customerId === customer.id
-                          ? "bg-blue-50 font-semibold text-blue-700"
+                          ? "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
                           : "text-gray-700 hover:bg-gray-50",
                       ].join(" ")}
                     >
@@ -206,7 +206,7 @@ export function CustomerDestinationFormDialog({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Origin section */}
           <div className="sm:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg dark:text-blue-300 dark:bg-blue-500/10">
               Origin
             </p>
           </div>
@@ -235,7 +235,7 @@ export function CustomerDestinationFormDialog({
 
           {/* Destination section */}
           <div className="sm:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg dark:text-gray-300 dark:bg-white/5">
               Destination
             </p>
           </div>
@@ -279,7 +279,7 @@ export function CustomerDestinationFormDialog({
 
           {/* Cargo & container — determines which pricing/rate applies to this destination */}
           <div className="sm:col-span-2">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg dark:text-emerald-300 dark:bg-emerald-500/10">
               Cargo &amp; Container
             </p>
           </div>
@@ -320,7 +320,7 @@ export function CustomerDestinationFormDialog({
 
         {/* Route Preview — live diagram of origin -> destination, updates as the form is filled */}
         {(form.originAddress ?? "").trim() && (form.destinationAddress ?? "").trim() && (
-        <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-slate-50 to-blue-50/50 p-4">
+        <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-slate-50 to-blue-50/50 p-4 dark:border-white/10 dark:from-[#0f1424] dark:to-[#141b32]">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
             Route Preview
           </p>
@@ -335,7 +335,7 @@ export function CustomerDestinationFormDialog({
         )}
 
         {routeError && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
             This exact route (same Origin State, Origin Address, Destination State, Destination
             Address, Cargo Classification, Container Type &amp; Cargo Weight) already exists for
             this customer.

@@ -29,7 +29,7 @@ import type { RepairType } from "@/types/repair-type";
 import type { SacCode } from "@/types/sac-code";
 import type { MaintenanceTypeItem } from "@/types/maintenance-type";
 import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/maintenance-status";
-import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail } from "@/types/chat";
+import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail, ChatPresence } from "@/types/chat";
 import type { PaymentRequest } from "@/types/payment-request";
 
 import { cacheGet, cacheSet, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
@@ -2992,6 +2992,7 @@ function toChatConversation(b: B): ChatConversation {
     lastMessage: b.last_message ? toChatMessage(b.last_message as B) : null,
     lastMessageAt: b.last_message_at ?? null,
     createdAt: b.created_at ?? null,
+    peerLastReadId: Number(b.peer_last_read_id ?? 0),
   };
 }
 
@@ -3150,6 +3151,23 @@ export const chatApi = {
       method: "POST",
       body: JSON.stringify({ muted }),
     }),
+
+  /** Fire-and-forget "I'm typing" / "stopped" hint to the other participants. */
+  sendTyping: (id: number, typing: boolean): Promise<void> =>
+    chatReq<void>(`/chat/conversations/${id}/typing`, {
+      method: "POST",
+      body: JSON.stringify({ typing }),
+    }),
+
+  /** Current online roster + last-seen times, for the initial presence paint. */
+  getPresence: (): Promise<ChatPresence> =>
+    chatReq<B>("/chat/presence").then((d) => ({
+      online: Array.isArray(d.online) ? (d.online as number[]).map(Number) : [],
+      lastSeen:
+        d.lastSeen && typeof d.lastSeen === "object"
+          ? (d.lastSeen as Record<string, number>)
+          : {},
+    })),
 
   /**
    * Send a recorded voice note. Uses a raw multipart upload (like `uploadFile`)

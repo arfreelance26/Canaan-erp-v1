@@ -53,8 +53,16 @@ export type ChatConversation = {
   lastMessage: ChatMessage | null;
   lastMessageAt: string | null;
   createdAt: string | null;
+  /** Highest message id the other side has read — for blue read-ticks on load. */
+  peerLastReadId: number;
 };
 
 export type ChatConversationDetail = ChatConversation & {
   members: ChatMember[];
+};
+
+/** Live "who's online" snapshot: online user ids + last-seen epoch (seconds). */
+export type ChatPresence = {
+  online: number[];
+  lastSeen: Record<string, number>;
 };

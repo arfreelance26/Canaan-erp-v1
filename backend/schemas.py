@@ -1989,6 +1989,10 @@ class ChatConversationOut(OrmBase):
     last_message: Optional[ChatMessageOut] = None
     last_message_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    # Highest message id the *other* side has read (direct threads) — lets the
+    # sender render blue "read" ticks correctly on first load, before any live
+    # chat_read event arrives. 0 when nobody else has read anything yet.
+    peer_last_read_id: int = 0
 
 
 class ChatConversationDetail(ChatConversationOut):
@@ -2036,6 +2040,10 @@ class ChatReadPayload(BaseModel):
 
 class ChatMutePayload(BaseModel):
     muted: bool
+
+
+class ChatTypingPayload(BaseModel):
+    typing: bool
 
 
 # ---------------------------------------------------------------------------
