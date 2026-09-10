@@ -11,13 +11,18 @@ import { onRevalidated } from "@/lib/api-cache";
  * (WebSocketContext) — reuses the single connection already open, no second socket.
  *
  * Fallback: polling interval, activated only when no WS event has been
- * received for FALLBACK_MS (60s). If the socket drops, polling resumes at
- * the requested intervalMs so the app degrades gracefully.
+ * received for FALLBACK_MS. If the socket drops (e.g. the host can't do
+ * WebSockets), polling resumes automatically so the app degrades gracefully.
+ *
+ * FALLBACK_MS is intentionally short (~4s) so that when WS is unavailable the
+ * screens still refresh every 3–5s and feel near-realtime. When WS is healthy
+ * and delivering events, lastWsEvent keeps updating and this polling stays idle.
  *
  * @param callback  Function to execute on refresh
  * @param intervalMs  Polling interval used when WS is unavailable (default 5 s)
  */
-const FALLBACK_MS = 60_000; // how long without a WS event before polling kicks in
+const FALLBACK_MS = 3_500;  // WS silence before polling kicks in → ~4s poll cadence when WS is down
+const CHECK_MS    = 2_000;  // how often the fallback timer re-checks the silence window
 const DEBOUNCE_MS = 300;    // merge rapid bursts of events into one refresh
 
 export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) {
@@ -32,10 +37,19 @@ export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) 
   // Realtime — subscribe via the shared WebSocket; no extra connection
   useEffect(() => {
     let debounce: ReturnType<typeof setTimeout> | null = null;
+    const runWhenIdle = () => {
+      // Same rule as the polling path: if the user is mid-entry, wait and
+      // retry shortly rather than refetch and clobber their input.
+      if (isUserEditing()) {
+        debounce = setTimeout(runWhenIdle, DEBOUNCE_MS);
+        return;
+      }
+      savedCallback.current();
+    };
     const unsub = subscribe("data_changed", () => {
       lastWsEvent.current = Date.now();
       if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => savedCallback.current(), DEBOUNCE_MS);
+      debounce = setTimeout(runWhenIdle, DEBOUNCE_MS);
     });
     return () => {
       if (debounce) clearTimeout(debounce);
@@ -53,11 +67,42 @@ export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) 
   useEffect(() => {
     if (intervalMs <= 0) return;
     const id = setInterval(() => {
-      if (Date.now() - lastWsEvent.current >= FALLBACK_MS) {
-        lastWsEvent.current = Date.now(); // prevent burst firing
-        savedCallback.current();
-      }
-    }, Math.min(intervalMs, 5000));
+      if (Date.now() - lastWsEvent.current < FALLBACK_MS) return;
+      // Never refresh while the user is actively typing/editing a field — a
+      // background refetch here would re-render the open form and wipe what
+      // they're entering. Skip this cycle without advancing the timer, so the
+      // refresh fires on the very next tick after they click away / blur.
+      if (isUserEditing()) return;
+      lastWsEvent.current = Date.now(); // prevent burst firing
+      savedCallback.current();
+    }, Math.min(intervalMs, CHECK_MS));
     return () => clearInterval(id);
   }, [intervalMs]);
+}
+
+/**
+ * True when focus is in an editable field (text input, textarea, select, or any
+ * contenteditable/combobox), meaning the user is mid-entry and a background
+ * refresh must be deferred so their input isn't lost.
+ */
+function isUserEditing(): boolean {
+  if (typeof document === "undefined") return false;
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    // Ignore non-editable inputs (buttons, checkboxes) — they hold no typed text.
+    if (tag === "INPUT") {
+      const type = (el as HTMLInputElement).type;
+      if (type === "button" || type === "submit" || type === "reset" || type === "checkbox" || type === "radio") {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (el.isContentEditable) return true;
+  // Radix / shadcn selects and comboboxes render a focused role element while open.
+  const role = el.getAttribute("role");
+  if (role === "combobox" || role === "textbox" || role === "searchbox") return true;
+  return false;
 }

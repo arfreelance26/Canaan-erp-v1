@@ -23,7 +23,7 @@ import {
   DRIVER_COMPENSATION_TYPE_OPTIONS,
   BILL_TO_OPTIONS as TRIP_BILL_TO_OPTIONS,
 } from "@/lib/trip-data";
-import { branchesApi, tripsApi } from "@/lib/api";
+import { branchesApi, tripsApi, defaultBattaApi, type DefaultBattaRate } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { showError } from "@/lib/swal";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -33,6 +33,28 @@ const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER"];
 
 const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
+
+// Driver batta = hire amount × branch's halt-day percentage. Mirrors the same
+// calculation in TripFormDialog so editing a booking sheet stays consistent
+// with how the trip was originally assigned.
+function calcCompensation(hireAmount: string | null | undefined, pct: number | null): string {
+  if (pct === null || !hireAmount) return "";
+  const hire = parseFloat(hireAmount);
+  if (isNaN(hire) || hire <= 0) return "";
+  return String(Math.round(hire * (pct / 100)));
+}
+
+// Default Batta Management keys its cells as "20FT CONTAINER" (no space) while
+// the trip stores the spaced form — map one to the other. (Same map as TripFormDialog.)
+function toDefaultBattaCargoType(containerSpecification: string): string {
+  const map: Record<string, string> = {
+    "20 FT CONTAINER": "20FT CONTAINER",
+    "40 FT CONTAINER": "40FT CONTAINER",
+    "2 X 20 FEET CONTAINERS": "2X20 FEET CONTAINERS",
+    "OPEN LOAD CARGO": "OPEN LOAD CARGO",
+  };
+  return map[containerSpecification] ?? containerSpecification;
+}
 
 type Props = {
   open: boolean;
@@ -53,12 +75,21 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
   const [form, setForm] = useState<TripClosureData | null>(null);
   const [tripForm, setTripForm] = useState<Trip | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [defaultBattaRates, setDefaultBattaRates] = useState<DefaultBattaRate[]>([]);
   const [saving, setSaving] = useState(false);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
   }, []);
+
+  // Default Batta Management rates scoped to the assigned truck's branch, so the
+  // "DEFAULT" compensation type can look amounts up by trip category + container type.
+  useEffect(() => {
+    const tb = branches.find((b) => b.name === truck?.branchRegisteredTo);
+    if (!tb) { setDefaultBattaRates([]); return; }
+    defaultBattaApi.list(String(tb.id)).then(setDefaultBattaRates).catch(() => setDefaultBattaRates([]));
+  }, [branches, truck?.branchRegisteredTo]);
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current;
@@ -90,6 +121,30 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
 
   function updateTrip<K extends keyof Trip>(key: K, value: Trip[K]) {
     setTripForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  // Changing the compensation type must recompute the Driver Batta Amount, same
+  // as the trip assignment form — otherwise switching to "Normal"/"DEFAULT"
+  // leaves a stale batta (e.g. 0.00). RETURN TRIP has no batta calc, so only the
+  // type is set there. CUSTOM keeps whatever amount is already entered.
+  function handleCompensationTypeChange(val: string) {
+    setTripForm((prev) => {
+      if (!prev) return prev;
+      const type = val as Trip["driverCompensationType"];
+      if (prev.tripCategory === "RETURN TRIP") {
+        return { ...prev, driverCompensationType: type };
+      }
+      let driverAdvanceAmount = prev.driverAdvanceAmount;
+      if (val === "Normal") {
+        const pct = truckBranch ? parseFloat(truckBranch.driverHaltDayPercentage || "0") : null;
+        driverAdvanceAmount = calcCompensation(prev.transportHireAmount, pct);
+      } else if (val === "DEFAULT") {
+        const cargoType = toDefaultBattaCargoType(prev.containerSpecification ?? "");
+        const row = defaultBattaRates.find((r) => r.tripType === prev.tripCategory && r.cargoType === cargoType);
+        driverAdvanceAmount = row?.amount != null ? String(row.amount) : "";
+      }
+      return { ...prev, driverCompensationType: type, driverAdvanceAmount };
+    });
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -438,7 +493,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               ) : (
                 <GlassSelect
                   value={tf.driverCompensationType ?? ""}
-                  onChange={(val) => updateTrip("driverCompensationType", val as Trip["driverCompensationType"])}
+                  onChange={handleCompensationTypeChange}
                   options={[{ value: "", label: "Select compensation type" }, ...DRIVER_COMPENSATION_TYPE_OPTIONS.map((o) => ({ value: o, label: o }))]}
                 />
               )}

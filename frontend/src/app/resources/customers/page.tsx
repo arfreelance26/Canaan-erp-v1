@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
@@ -9,6 +9,7 @@ import { CustomerPricingFormDialog, DRAFT_KEY as PRICING_DRAFT_KEY } from "@/com
 import { CustomerDestinationTable } from "@/components/customers/CustomerDestinationTable";
 import { CustomerDestinationFormDialog, DRAFT_KEY as DESTINATION_DRAFT_KEY } from "@/components/customers/CustomerDestinationFormDialog";
 import { FinalCustomerPricingFormDialog } from "@/components/customers/FinalCustomerPricingFormDialog";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { customersApi, editApprovalsApi } from "@/lib/api";
@@ -35,6 +36,8 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+const PAGE_SIZE = 10;
+
 export default function CustomersPage() {
   const { user } = useAuth();
   // Every role except Admin must file an edit request to change customer records.
@@ -45,6 +48,10 @@ export default function CustomersPage() {
   const [activeTab, setActiveTab] = useState<TabId>("list");
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [listPage, setListPage] = useState(1);             // Customer List pagination
+  const [destinationsPage, setDestinationsPage] = useState(1);
+  const [pricingPage, setPricingPage] = useState(1);
+  const [finalPricingPage, setFinalPricingPage] = useState(1);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
@@ -76,6 +83,25 @@ export default function CustomersPage() {
     c.gstin?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Pagination for the Customer List tab — 10 per page, matching the trip
+  // reconciliation/verification screens. Client-side slice: the full list is
+  // already fetched, so this only limits how many rows render at once.
+  const listTotalPages = Math.max(1, Math.ceil(filteredCustomers.length / PAGE_SIZE));
+  const listSafePage = Math.min(listPage, listTotalPages);
+  const paginatedCustomers = useMemo(
+    () => filteredCustomers.slice((listSafePage - 1) * PAGE_SIZE, listSafePage * PAGE_SIZE),
+    [filteredCustomers, listSafePage],
+  );
+
+  // Jump every tab back to its first page whenever the search narrows a list,
+  // so the user isn't stranded on a now-empty page.
+  useEffect(() => {
+    setListPage(1);
+    setDestinationsPage(1);
+    setPricingPage(1);
+    setFinalPricingPage(1);
+  }, [searchQuery]);
+
   const filteredPricing = pricing.filter(p => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -98,6 +124,28 @@ export default function CustomersPage() {
       d.containerType?.toLowerCase().includes(q)
     );
   });
+
+  // Pagination slices for the remaining three tabs — same 10-per-page, client-side.
+  const destinationsTotalPages = Math.max(1, Math.ceil(filteredDestinations.length / PAGE_SIZE));
+  const destinationsSafePage = Math.min(destinationsPage, destinationsTotalPages);
+  const paginatedDestinations = useMemo(
+    () => filteredDestinations.slice((destinationsSafePage - 1) * PAGE_SIZE, destinationsSafePage * PAGE_SIZE),
+    [filteredDestinations, destinationsSafePage],
+  );
+
+  const pricingTotalPages = Math.max(1, Math.ceil(filteredPricing.length / PAGE_SIZE));
+  const pricingSafePage = Math.min(pricingPage, pricingTotalPages);
+  const paginatedPricing = useMemo(
+    () => filteredPricing.slice((pricingSafePage - 1) * PAGE_SIZE, pricingSafePage * PAGE_SIZE),
+    [filteredPricing, pricingSafePage],
+  );
+
+  const finalPricingTotalPages = Math.max(1, Math.ceil(finalPricing.length / PAGE_SIZE));
+  const finalPricingSafePage = Math.min(finalPricingPage, finalPricingTotalPages);
+  const paginatedFinalPricing = useMemo(
+    () => finalPricing.slice((finalPricingSafePage - 1) * PAGE_SIZE, finalPricingSafePage * PAGE_SIZE),
+    [finalPricing, finalPricingSafePage],
+  );
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -409,7 +457,16 @@ export default function CustomersPage() {
             </button>
           </div>
 
-          <CustomerTable customers={filteredCustomers} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />
+          <CustomerTable customers={paginatedCustomers} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />
+
+          <TablePagination
+            page={listSafePage}
+            totalPages={listTotalPages}
+            pageSize={PAGE_SIZE}
+            totalItems={filteredCustomers.length}
+            onPageChange={setListPage}
+            itemLabel="customers"
+          />
 
           <CustomerFormDialog
             open={customerDialogOpen}
@@ -448,10 +505,19 @@ export default function CustomersPage() {
           </div>
 
           <CustomerPricingTable
-            pricing={filteredPricing}
+            pricing={paginatedPricing}
             customers={customers}
             onEdit={handleEditPricing}
             onDelete={handleDeletePricing}
+          />
+
+          <TablePagination
+            page={pricingSafePage}
+            totalPages={pricingTotalPages}
+            pageSize={PAGE_SIZE}
+            totalItems={filteredPricing.length}
+            onPageChange={setPricingPage}
+            itemLabel="pricing rows"
           />
 
           <CustomerPricingFormDialog
@@ -494,10 +560,19 @@ export default function CustomersPage() {
           </div>
 
           <CustomerDestinationTable
-            destinations={filteredDestinations}
+            destinations={paginatedDestinations}
             customers={customers}
             onEdit={handleEditDestination}
             onDelete={handleDeleteDestination}
+          />
+
+          <TablePagination
+            page={destinationsSafePage}
+            totalPages={destinationsTotalPages}
+            pageSize={PAGE_SIZE}
+            totalItems={filteredDestinations.length}
+            onPageChange={setDestinationsPage}
+            itemLabel="destinations"
           />
 
           <CustomerDestinationFormDialog
@@ -547,7 +622,7 @@ export default function CustomersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {finalPricing.map((entry) => {
+                  {paginatedFinalPricing.map((entry) => {
                     const customer = customers.find((c) => c.id === entry.customerId);
                     return (
                       <tr key={entry.id} className="hover:bg-gray-50">
@@ -585,6 +660,15 @@ export default function CustomersPage() {
               </table>
             </div>
           )}
+
+          <TablePagination
+            page={finalPricingSafePage}
+            totalPages={finalPricingTotalPages}
+            pageSize={PAGE_SIZE}
+            totalItems={finalPricing.length}
+            onPageChange={setFinalPricingPage}
+            itemLabel="pricing rows"
+          />
 
           <FinalCustomerPricingFormDialog
             open={finalPricingDialogOpen}
