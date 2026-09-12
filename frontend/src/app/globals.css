@@ -1036,19 +1036,27 @@ input[type="date"]:focus {
 /* ── Canaan Chat — dark mode panel backgrounds ───────────────────────────── */
 .chat-msg-area {
   background-color: #eef1f8;
+  /* Matches Canaan_mobile: a 0x33FFFFFF (20% white) tint layered over the
+     wallpaper (chat_thread_screen.dart ColorFilter, BlendMode.srcOver). */
   background-image:
-    radial-gradient(rgba(27,43,94,0.05) 1px, transparent 1px),
-    radial-gradient(rgba(27,43,94,0.05) 1px, transparent 1px);
-  background-size: 28px 28px;
-  background-position: 0 0, 14px 14px;
+    linear-gradient(rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.2)),
+    url('/light%20chat.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* Wallpaper stays fixed to the panel while messages scroll over it. */
+  background-attachment: scroll;
 }
 html.dark .chat-msg-area {
   background-color: #0e111d;
+  /* Matches Canaan_mobile: a 0xCC0E111D (80% #0e111d) tint over the wallpaper. */
   background-image:
-    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 28px 28px;
-  background-position: 0 0, 14px 14px;
+    linear-gradient(rgba(14, 17, 29, 0.8), rgba(14, 17, 29, 0.8)),
+    url('/dark%20chat.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
 }
 
 /* ── Canaan Chat — day-separator entrance ─────────────────────────────────

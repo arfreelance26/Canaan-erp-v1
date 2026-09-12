@@ -302,6 +302,20 @@ export function TripFormDialog({
     if (vehicleRestoredRef.current || assignableDrivers.length === 0) return;
     vehicleRestoredRef.current = true;
     try {
+      // Only restore the truck if there's a genuine in-progress booking draft
+      // (a customer was chosen). Otherwise a lone truck selection — e.g. the user
+      // opened the dialog just to glance at a truck, then closed it via the X —
+      // would resurrect only the truck and auto-fetch its data on reopen, leaving
+      // an otherwise-blank form. Clear the stale key so it can't linger.
+      let draftHasBooking = false;
+      const rawForm = sessionStorage.getItem(TRIP_DRAFT_KEY);
+      if (rawForm) {
+        try { draftHasBooking = Boolean(JSON.parse(rawForm)?.customerId); } catch {}
+      }
+      if (!draftHasBooking) {
+        sessionStorage.removeItem(TRIP_VEHICLE_DRAFT_KEY);
+        return;
+      }
       const stored = sessionStorage.getItem(TRIP_VEHICLE_DRAFT_KEY);
       if (stored && assignableDrivers.some((a) => a.driver.driverId === stored)) {
         setVehicleAssignmentId(stored);
@@ -309,15 +323,19 @@ export function TripFormDialog({
     } catch {}
   }, [draftActive, assignableDrivers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save: only write non-empty values and only after restore has run.
+  // Save: persist the truck only alongside a real in-progress booking (a customer
+  // chosen) and only after restore has run. A lone truck selection is never stored,
+  // so it can't reappear by itself on the next open. Clearing the customer removes it.
   useEffect(() => {
     if (!draftActive || !vehicleRestoredRef.current) return;
     try {
-      if (vehicleAssignmentId) {
+      if (vehicleAssignmentId && form.customerId) {
         sessionStorage.setItem(TRIP_VEHICLE_DRAFT_KEY, vehicleAssignmentId);
+      } else {
+        sessionStorage.removeItem(TRIP_VEHICLE_DRAFT_KEY);
       }
     } catch {}
-  }, [draftActive, vehicleAssignmentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draftActive, vehicleAssignmentId, form.customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-zero lift-on for Coastal trips
   useEffect(() => {
