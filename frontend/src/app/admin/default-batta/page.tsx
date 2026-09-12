@@ -19,6 +19,11 @@ export default function DefaultBattaManagementPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
   const isAdmin = user?.softwareDesignation === "Admin";
+  // Admin and Commercial Manager may both view AND edit the rates. The backend
+  // enforces the same: PUT is allowed for Admin + Commercial Manager
+  // (routers/default_batta.py).
+  const canEdit = isAdmin || user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
+  const canView = canEdit;
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,11 +34,11 @@ export default function DefaultBattaManagementPage() {
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
-    if (ready && !isAdmin) router.replace("/");
-  }, [ready, isAdmin, router]);
+    if (ready && !canView) router.replace("/");
+  }, [ready, canView, router]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!canView) return;
     branchesApi
       .list()
       .then((list) => {
@@ -42,12 +47,12 @@ export default function DefaultBattaManagementPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isAdmin]);
+  }, [canView]);
 
   const cellKey = useCallback((branchId: string, tripType: string, cargoType: string) => `${branchId}::${tripType}::${cargoType}`, []);
 
   useEffect(() => {
-    if (!isAdmin || !selectedBranchId) return;
+    if (!canView || !selectedBranchId) return;
     defaultBattaApi
       .list(selectedBranchId)
       .then((rows) => {
@@ -60,10 +65,10 @@ export default function DefaultBattaManagementPage() {
         });
       })
       .catch(() => showError("Failed to load default batta rates."));
-  }, [isAdmin, selectedBranchId, cellKey]);
+  }, [canView, selectedBranchId, cellKey]);
 
   if (!ready || loading) return <PageSkeleton hasButton={false} columns={4} />;
-  if (!isAdmin) return null;
+  if (!canView) return null;
 
   const draftFor = (cargoType: CargoType): string => {
     if (!selectedBranchId) return "";
@@ -71,6 +76,7 @@ export default function DefaultBattaManagementPage() {
   };
 
   function updateValue(cargoType: CargoType, value: string) {
+    if (!canEdit) return;
     if (!selectedBranchId) return;
     const branchId = selectedBranchId;
     const tripType = selectedTripType;
@@ -196,7 +202,11 @@ export default function DefaultBattaManagementPage() {
                           value={draftFor(cargoType)}
                           onChange={(e) => updateValue(cargoType, e.target.value)}
                           placeholder="0.00"
-                          className="w-full rounded-lg border border-gray-200 bg-white/50 py-1.5 pl-7 pr-3 text-right text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+                          readOnly={!canEdit}
+                          disabled={!canEdit}
+                          className={`w-full rounded-lg border border-gray-200 py-1.5 pl-7 pr-3 text-right text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 ${
+                            canEdit ? "bg-white/50" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                          }`}
                         />
                       </div>
                     </td>

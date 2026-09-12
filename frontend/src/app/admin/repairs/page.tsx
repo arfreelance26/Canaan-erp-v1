@@ -25,7 +25,7 @@ export default function RepairsManagementPage() {
   const [form, setForm] = useState({ name: "", defaultCost: "" });
   const [searchQuery, setSearchQuery] = useState("");
 
-  const ALLOWED = ["Admin", "Commercial Manager", "Yard Supervisor"];
+  const ALLOWED = ["Admin", "Commercial Manager", "Assistant Commercial Manager", "Yard Supervisor"];
   useEffect(() => {
     if (ready && user && !ALLOWED.includes(user.softwareDesignation)) router.replace("/");
   }, [ready, user, router]);

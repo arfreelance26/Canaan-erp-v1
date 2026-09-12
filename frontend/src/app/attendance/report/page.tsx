@@ -121,7 +121,7 @@ export default function AttendanceReportPage() {
     attendanceApi.getLatestDate(category).then(setLatestDate).catch(() => {});
   }, [category]);
 
-  const isCommercialManager = user?.softwareDesignation === "Commercial Manager";
+  const isCommercialManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
 
   useEffect(() => {
     if (ready && user?.softwareDesignation !== "Admin" && !isCommercialManager) {

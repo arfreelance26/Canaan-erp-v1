@@ -50,7 +50,7 @@ def list_edit_approvals(
     status: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager", "Assistant Commercial Manager")),
 ):
     q = db.query(models.EditApprovalRequest)
     if status:
@@ -94,7 +94,7 @@ def approve_edit_request(
     request_id: int,
     payload: Optional[schemas.ApproveDeletePayload] = None,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager", "Assistant Commercial Manager")),
 ):
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:
@@ -186,7 +186,7 @@ def delete_edit_request(request_id: int, db: Session = Depends(get_db)):
 def reject_edit_request(
     request_id: int,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager", "Assistant Commercial Manager")),
 ):
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:

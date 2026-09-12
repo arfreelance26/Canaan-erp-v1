@@ -32,7 +32,9 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/edit-approvals",
     "/attendance/report",
     "/admin/repairs",
+    "/admin/default-batta",
   ],
+  // Assistant Commercial Manager has EQUAL access to Commercial Manager.
   "Assistant Commercial Manager": [
     "/",
     "/connect/chat",
@@ -48,6 +50,10 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/mark",
     "/attendance/drivers",
     "/attendance/leave-requests",
+    "/attendance/edit-approvals",
+    "/attendance/report",
+    "/admin/repairs",
+    "/admin/default-batta",
   ],
   Accounts: [
     "/",
@@ -164,7 +170,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   const { theme } = useTheme();
   const isAdmin = user?.softwareDesignation === "Admin";
   const isAccounts = user?.softwareDesignation === "Accounts";
-  const isCommercialManager = user?.softwareDesignation === "Commercial Manager";
+  const isCommercialManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
   const logoBg = theme === "dark"
     ? { backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }
     : {};

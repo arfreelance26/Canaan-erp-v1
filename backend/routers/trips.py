@@ -784,7 +784,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
             }),
             trip_id_str=trip.trip_id,
             booking_reference_no=trip.booking_reference_no,
-            target_roles="Admin,Commercial Manager",
+            target_roles="Admin,Commercial Manager,Assistant Commercial Manager",
             created_at=datetime.now(timezone.utc),
         )
         db.add(notif)

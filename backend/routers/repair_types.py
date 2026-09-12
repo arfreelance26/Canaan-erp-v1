@@ -6,7 +6,7 @@ from security import get_current_user, TokenUser
 
 router = APIRouter(prefix="/repair-types", tags=["Repair Types"])
 
-_REPAIRS_ROLES = {"Admin", "Commercial Manager", "Yard Supervisor"}
+_REPAIRS_ROLES = {"Admin", "Commercial Manager", "Assistant Commercial Manager", "Yard Supervisor"}
 
 
 @router.get("", response_model=list[schemas.RepairTypeOut])

@@ -26,8 +26,8 @@ def upsert_default_batta_rate(
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    if current_user.role != "Admin":
-        raise HTTPException(403, "Only Admins can modify Default Batta Management.")
+    if current_user.role not in ("Admin", "Commercial Manager", "Assistant Commercial Manager"):
+        raise HTTPException(403, "Only Admins or the Commercial Manager can modify Default Batta Management.")
     if payload.trip_type not in DEFAULT_BATTA_TRIP_TYPES:
         raise HTTPException(400, f"Invalid trip type: {payload.trip_type}")
     if payload.cargo_type not in DEFAULT_BATTA_CARGO_TYPES:
