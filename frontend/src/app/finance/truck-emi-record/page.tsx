@@ -232,7 +232,7 @@ export default function TruckEmiRecordPage() {
                 <button
                   type="button"
                   onClick={() => toggle(group.key)}
-                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70"
+                  className="flex w-full items-center gap-5 px-5 py-4 text-left transition-colors hover:bg-white/70 dark:hover:bg-gray-300/20"
                 >
                   <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${
                     isOther ? "from-gray-100 to-gray-50 text-gray-500" : "from-blue-50 to-indigo-50 text-blue-600"
@@ -278,7 +278,7 @@ export default function TruckEmiRecordPage() {
                 </button>
 
                 {isOpen && (
-                  <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80">
+                  <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50/60 to-white/80 dark:border-gray-300/20 dark:from-gray-200/40 dark:to-gray-200/60">
                     {groupRecords.length === 0 ? (
                       <p className="px-5 py-6 text-center text-sm text-gray-400">No EMI entries for this truck.</p>
                     ) : (
@@ -304,7 +304,7 @@ export default function TruckEmiRecordPage() {
                               return (
                                 <tr
                                   key={r.id}
-                                  className={`rounded-lg transition-colors hover:bg-blue-50/50 ${i % 2 === 1 ? "bg-white/70" : "bg-white/40"}`}
+                                  className={`rounded-lg transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-100/10 ${i % 2 === 1 ? "bg-white/70 dark:bg-gray-300/20" : "bg-white/40 dark:bg-transparent"}`}
                                 >
                                   <td className="rounded-l-lg px-3 py-2.5 font-medium text-gray-900">{r.emiName || "—"}</td>
                                   <td className="px-3 py-2.5 text-gray-600">{r.bankName || "—"}</td>

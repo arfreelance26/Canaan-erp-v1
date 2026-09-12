@@ -146,7 +146,7 @@ export default function DefaultBattaManagementPage() {
                 className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                   selectedBranchId === b.id
                     ? "bg-brand-navy text-white shadow-sm"
-                    : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-navy/40 hover:text-brand-navy"
+                    : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-navy/40 hover:text-brand-navy dark:hover:border-white/40 dark:hover:text-white"
                 }`}
               >
                 {b.name}
@@ -165,7 +165,7 @@ export default function DefaultBattaManagementPage() {
                 className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                   selectedTripType === t
                     ? "bg-brand-gold text-brand-navy shadow-sm"
-                    : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-gold/60 hover:text-brand-navy"
+                    : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-gold/60 hover:text-brand-navy dark:hover:border-brand-gold/60 dark:hover:text-white"
                 }`}
               >
                 {t}
