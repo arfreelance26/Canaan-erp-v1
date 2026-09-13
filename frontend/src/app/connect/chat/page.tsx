@@ -25,6 +25,7 @@ import {
   UserMinus,
   LogOut,
   Trash2,
+  Reply,
   Play,
   Pause,
   Download,
@@ -537,6 +538,12 @@ export default function CanaanChatPage() {
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const draftInputRef = useRef<HTMLInputElement>(null);
+  // Reply / edit composer state — mutually exclusive.
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  // Briefly highlights a message after jumping to it from a reply quote.
+  const [highlightedMsgId, setHighlightedMsgId] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // -- presence, read receipts, typing (all live over WebSocket) -----------
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
@@ -698,6 +705,9 @@ export default function CanaanChatPage() {
     setLoadingThread(true);
     setMessages([]);
     setFreshMessageOrigins({});
+    // Don't carry a half-finished reply/edit into a different thread.
+    setReplyingTo(null);
+    setEditingMessage(null);
     chatApi
       .listMessages(conversationId, { limit: PAGE_SIZE })
       .then((msgs) => {
@@ -837,6 +847,70 @@ export default function CanaanChatPage() {
   useWebSocketEvent("data_changed", (payload) => {
     if ((payload as { resource?: string }).resource === "staff") refreshContacts();
   });
+
+  // -- polling fallback ------------------------------------------------------
+  // Chat's live updates ride on WebSocket events, but this host (cPanel/
+  // Passenger) can't proxy WS upgrades, so without a fallback new messages
+  // never arrive until the page is reloaded. Poll every 4s — the same cadence
+  // as the rest of the app (useAutoRefresh) — reconciling by id so nothing
+  // flickers, the scroll position isn't yanked, and the message input (which
+  // holds its own state) is never touched. Idempotent, so it's harmless if
+  // WebSockets are ever restored.
+  useEffect(() => {
+    const POLL_MS = 2000;
+
+    const poll = () => {
+      if (typeof document !== "undefined" && document.hidden) return; // skip background tabs
+
+      // 1) Conversation list — new threads, unread counts, ordering.
+      chatApi
+        .listConversations()
+        .then((fresh) => {
+          setConversations((prev) =>
+            JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh
+          );
+        })
+        .catch(() => {});
+
+      // 2) Currently-open thread — merge the newest page into what's on screen.
+      const convId = selectedIdRef.current;
+      if (convId == null) return;
+      chatApi
+        .listMessages(convId, { limit: PAGE_SIZE })
+        .then((fresh) => {
+          let newestNewId = 0;
+          setMessages((prev) => {
+            const byId = new Map(prev.map((m) => [m.id, m]));
+            let changed = false;
+            for (const m of fresh) {
+              const existing = byId.get(m.id);
+              if (!existing) {
+                byId.set(m.id, m);
+                changed = true;
+                if (m.id > newestNewId) newestNewId = m.id;
+                markMessageFresh(m.id, "received");
+              } else if (JSON.stringify(existing) !== JSON.stringify(m)) {
+                byId.set(m.id, m); // edited / deleted / decision changed
+                changed = true;
+              }
+            }
+            if (!changed) return prev;
+            return Array.from(byId.values()).sort((a, b) => a.id - b.id);
+          });
+          // New messages landed in the open thread → acknowledge read + clear unread.
+          if (newestNewId > 0) {
+            chatApi.markRead(convId, newestNewId).catch(() => {});
+            setConversations((prev) =>
+              prev.map((c) => (c.id === convId ? { ...c, unreadCount: 0 } : c))
+            );
+          }
+        })
+        .catch(() => {});
+    };
+
+    const id = setInterval(poll, POLL_MS);
+    return () => clearInterval(id);
+  }, [markMessageFresh]);
 
   // -- derived --------------------------------------------------------------
   const directConversations = useMemo(
@@ -1019,11 +1093,37 @@ export default function CanaanChatPage() {
   async function handleSend() {
     const text = draft.trim();
     if (!text || !selectedId || sending) return;
+
+    // ── Editing an existing message ──────────────────────────────────────
+    if (editingMessage) {
+      const target = editingMessage;
+      if (text === (target.text ?? "").trim()) { setEditingMessage(null); setDraft(""); return; }
+      setSending(true);
+      try {
+        const updated = await chatApi.editMessage(target.id, text);
+        setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+        setConversations((prev) =>
+          prev.map((c) => (c.lastMessage?.id === updated.id ? { ...c, lastMessage: updated } : c))
+        );
+        setEditingMessage(null);
+        setDraft("");
+      } catch (err) {
+        showError(err instanceof Error ? err.message : "Message could not be edited.");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // ── Sending a new message (optionally a reply) ───────────────────────
+    const replyId = replyingTo?.id;
+    const prevReply = replyingTo;
     setSending(true);
     setDraft("");
+    setReplyingTo(null);
     stopTyping();
     try {
-      const msg = await chatApi.sendMessage(selectedId, text);
+      const msg = await chatApi.sendMessage(selectedId, text, replyId);
       markMessageFresh(msg.id, "sent");
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
       setConversations((prev) =>
@@ -1036,11 +1136,59 @@ export default function CanaanChatPage() {
         handleConversationGone(selectedId);
       } else {
         setDraft(text); // hand the text back so nothing is lost
+        setReplyingTo(prevReply); // and keep the reply context
         showError(err instanceof Error ? err.message : "Message could not be sent.");
       }
     } finally {
       setSending(false);
     }
+  }
+
+  /** Begin replying to a message (clears any in-progress edit). */
+  function startReply(message: ChatMessage) {
+    setEditingMessage(null);
+    setReplyingTo(message);
+    draftInputRef.current?.focus();
+  }
+
+  /** Begin editing one of your own text messages, prefilling the composer. */
+  function startEdit(message: ChatMessage) {
+    setReplyingTo(null);
+    setEditingMessage(message);
+    setDraft(message.text ?? "");
+    draftInputRef.current?.focus();
+  }
+
+  /** Cancel the reply/edit banner. Edits also clear the prefilled draft. */
+  function cancelComposerContext() {
+    setReplyingTo(null);
+    if (editingMessage) {
+      setEditingMessage(null);
+      setDraft("");
+    }
+  }
+
+  /** Short one-line preview of a message, for reply banners and quoted blocks. */
+  function messagePreview(m: ChatMessage): string {
+    if (m.deleted) return "Deleted message";
+    switch (m.contentType) {
+      case "image": return "📷 Photo";
+      case "voice": return "🎤 Voice message";
+      case "file": return "📎 File";
+      case "payment": return "💰 Payment request";
+      default: return m.text ?? "";
+    }
+  }
+
+  /** Jump to the original message a reply points at, and flash-highlight it. */
+  function scrollToMessage(id: number | null) {
+    if (id == null) return;
+    const el = document.getElementById(`chat-msg-${id}`);
+    if (!el) return; // parent isn't on the currently-loaded page
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedMsgId(id);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedMsgId(null), 1600);
   }
 
   /** Stop broadcasting "typing" for the current thread, right now. */
@@ -1764,8 +1912,18 @@ export default function CanaanChatPage() {
                             ? "animate-chat-bubble-received"
                             : "";
                       const payment = m.contentType === "payment" ? parsePayment(m.text) : null;
+                      // Only plain text messages can be edited; any live message can be replied to.
+                      const isTextMsg = !["voice", "image", "file", "payment", "system"].includes(m.contentType);
+                      // The message this one is a reply to (may be off the loaded page → null).
+                      const replyParent = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) ?? null : null;
                       return (
-                        <div key={m.id} className={grouped ? "mt-0.5" : "mt-2.5"}>
+                        <div
+                          key={m.id}
+                          id={`chat-msg-${m.id}`}
+                          className={`${grouped ? "mt-0.5" : "mt-2.5"} rounded-lg transition-colors duration-500 ${
+                            highlightedMsgId === m.id ? "bg-brand-gold/20" : ""
+                          }`}
+                        >
                           {showDay && (
                             <div className="animate-chat-day mb-3 mt-1 flex justify-center">
                               <span className="rounded-full bg-white/90 dark:bg-gray-300/80 px-3 py-1 text-[11px] font-medium text-gray-500 dark:text-gray-700 shadow-sm">
@@ -1785,14 +1943,34 @@ export default function CanaanChatPage() {
                           ) : (
                           <div className={`group flex items-end gap-1.5 ${fromMe ? "justify-end" : "justify-start"}`}>
                             {fromMe && !m.deleted && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteMessage(m)}
-                                title="Delete message"
-                                className="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <div className="mb-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                                <button
+                                  type="button"
+                                  onClick={() => startReply(m)}
+                                  title="Reply"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300"
+                                >
+                                  <Reply className="h-4 w-4" />
+                                </button>
+                                {isTextMsg && (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(m)}
+                                    title="Edit"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMessage(m)}
+                                  title="Delete message"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             )}
                             {selected.kind === "group" && !fromMe && (
                               showSender ? (
@@ -1819,6 +1997,24 @@ export default function CanaanChatPage() {
                                 <p className={`mb-0.5 text-[11px] font-semibold ${senderColor(m.senderId).text}`}>
                                   {m.senderName ?? "Unknown"}
                                 </p>
+                              )}
+                              {m.replyToId != null && !m.deleted && (
+                                <button
+                                  type="button"
+                                  onClick={() => scrollToMessage(m.replyToId)}
+                                  disabled={!replyParent}
+                                  title={replyParent ? "Go to message" : "Original message not loaded"}
+                                  className="mb-1 block w-full rounded-md border-l-2 border-brand-gold bg-black/5 px-2 py-1 text-left transition-colors hover:bg-black/10 disabled:cursor-default disabled:hover:bg-black/5 dark:bg-white/10 dark:hover:bg-white/20 dark:disabled:hover:bg-white/10"
+                                >
+                                  <p className="text-[10.5px] font-semibold opacity-80">
+                                    {replyParent
+                                      ? (myId != null && replyParent.senderId === Number(myId) ? "You" : (replyParent.senderName ?? "Unknown"))
+                                      : "Message"}
+                                  </p>
+                                  <p className="truncate text-[12px] opacity-70">
+                                    {replyParent ? messagePreview(replyParent) : "Original message"}
+                                  </p>
+                                </button>
                               )}
                               {m.deleted ? (
                                 <p className="flex items-center gap-2 py-0.5 italic text-gray-400">
@@ -1883,6 +2079,16 @@ export default function CanaanChatPage() {
                                 </p>
                               )}
                             </div>
+                            {!fromMe && !m.deleted && (
+                              <button
+                                type="button"
+                                onClick={() => startReply(m)}
+                                title="Reply"
+                                className="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-brand-navy group-hover:opacity-100 dark:hover:bg-gray-300"
+                              >
+                                <Reply className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
                           )}
                         </div>
@@ -1900,6 +2106,29 @@ export default function CanaanChatPage() {
                   </div>
                 )}
               </div>
+
+              {(replyingTo || editingMessage) && !recording && (
+                <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-gray-100 px-4 pt-2 dark:border-gray-300 dark:bg-gray-200">
+                  <div className={`flex-1 rounded-lg border-l-4 px-3 py-1.5 ${editingMessage ? "border-brand-gold bg-brand-gold/10" : "border-brand-navy bg-brand-navy/5 dark:bg-white/5"}`}>
+                    <p className="text-[11px] font-semibold text-brand-navy dark:text-brand-gold">
+                      {editingMessage
+                        ? "Editing message"
+                        : `Replying to ${replyingTo && myId != null && replyingTo.senderId === Number(myId) ? "yourself" : (replyingTo?.senderName ?? "message")}`}
+                    </p>
+                    <p className="truncate text-xs text-gray-500 dark:text-gray-700">
+                      {messagePreview(editingMessage ?? replyingTo!)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={cancelComposerContext}
+                    title="Cancel"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-300"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
 
               {recording ? (
                 <div className="flex shrink-0 items-center gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
@@ -1972,6 +2201,7 @@ export default function CanaanChatPage() {
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleSend();
+                      if (e.key === "Escape") cancelComposerContext();
                     }}
                     placeholder="Type a message"
                     className="input-no-transform flex-1 rounded-lg border-none bg-white dark:bg-gray-100 dark:text-gray-900 px-4 py-2.5 text-sm text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:ring-2 focus:ring-brand-gold/30"
