@@ -169,17 +169,24 @@ function Avatar({
 }
 
 /**
- * A WhatsApp-style voice note bubble: play/pause, a scrub bar, and the elapsed
- * / total time. Audio is fetched lazily — nothing downloads until Play is first
- * pressed — because it's an authenticated fetch (encrypted at rest server-side,
- * so a plain <audio src> can't be used), not a static URL.
+ * A WhatsApp-style inline audio player: play/pause, a scrub bar, and the
+ * elapsed/total time. Audio is fetched lazily — nothing downloads until Play
+ * is first pressed — because it's an authenticated fetch (encrypted at rest
+ * server-side, so a plain <audio src> can't be used), not a static URL.
+ * Shared by voice notes (VoiceBubble) and uploaded audio files (FileBubble).
  */
-function VoiceBubble({ message }: { message: ChatMessage }) {
+function InlineAudioPlayer({
+  fetchUrl,
+  durationHint = 0,
+}: {
+  fetchUrl: () => Promise<string>;
+  durationHint?: number;
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState((message.durationMs ?? 0) / 1000);
+  const [duration, setDuration] = useState(durationHint);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
 
@@ -197,13 +204,13 @@ function VoiceBubble({ message }: { message: ChatMessage }) {
     if (!url) {
       setLoadingUrl(true);
       try {
-        const blobUrl = await chatApi.getVoiceBlobUrl(message.id);
+        const blobUrl = await fetchUrl();
         urlRef.current = blobUrl;
         setUrl(blobUrl);
         // Play once the <audio> element has mounted with the new src.
         requestAnimationFrame(() => audioRef.current?.play().catch(() => {}));
       } catch (err) {
-        showError(err instanceof Error ? err.message : "Could not load this voice message.");
+        showError(err instanceof Error ? err.message : "Could not load this audio.");
       } finally {
         setLoadingUrl(false);
       }
@@ -260,6 +267,80 @@ function VoiceBubble({ message }: { message: ChatMessage }) {
         />
       )}
     </div>
+  );
+}
+
+function VoiceBubble({ message }: { message: ChatMessage }) {
+  return (
+    <InlineAudioPlayer
+      fetchUrl={() => chatApi.getVoiceBlobUrl(message.id)}
+      durationHint={(message.durationMs ?? 0) / 1000}
+    />
+  );
+}
+
+/**
+ * Lazy-loaded inline video preview for uploaded video files — a placeholder
+ * with a play button until tapped (videos can be large; unlike photos we
+ * don't want every video in the thread downloading just by scrolling past
+ * it), then swaps in a native <video> element with its own controls.
+ */
+function VideoPreview({ fetchUrl }: { fetchUrl: () => Promise<string> }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const urlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+  }, []);
+
+  async function handleLoad() {
+    if (url || loading) return;
+    setLoading(true);
+    try {
+      const blobUrl = await fetchUrl();
+      urlRef.current = blobUrl;
+      setUrl(blobUrl);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (url) {
+    return (
+      <video
+        src={url}
+        controls
+        preload="metadata"
+        autoPlay
+        className="max-h-72 w-full max-w-64 rounded-lg bg-black object-contain"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleLoad}
+      disabled={loading}
+      className="flex h-40 w-64 flex-col items-center justify-center gap-1.5 rounded-lg bg-gray-800 text-white transition-colors hover:bg-gray-700 disabled:opacity-70"
+    >
+      {loading ? (
+        <Loader2 className="h-7 w-7 animate-spin" />
+      ) : failed ? (
+        <span className="text-xs text-gray-300">Couldn&apos;t load video</span>
+      ) : (
+        <>
+          <Play className="h-8 w-8" />
+          <span className="text-xs text-gray-300">Tap to play video</span>
+        </>
+      )}
+    </button>
   );
 }
 
@@ -352,8 +433,67 @@ function ImageBubble({ message, onOpen }: { message: ChatMessage; onOpen: (url: 
 }
 
 /** A generic file/document attachment bubble — icon, name, size, download-on-click. */
+/**
+ * Uploaded-file bubble ("Attach Document"). Audio and video files get an
+ * inline preview (player) same as recorded voice notes and photos; anything
+ * else (PDF, Word, etc.) keeps the plain icon/name/size + download button —
+ * there's no in-browser renderer for those, so download is the preview.
+ */
 function FileBubble({ message }: { message: ChatMessage }) {
+  const mime = message.mediaMime ?? "";
+  if (mime.startsWith("audio/")) {
+    return (
+      <div className="w-56">
+        <p className="mb-1 truncate text-xs font-medium text-gray-600 dark:text-gray-500">
+          {message.mediaFilename ?? "Audio"}
+        </p>
+        <InlineAudioPlayer fetchUrl={() => chatApi.getAttachmentBlobUrl(message.id)} />
+      </div>
+    );
+  }
+  if (mime.startsWith("video/")) {
+    return <VideoPreview fetchUrl={() => chatApi.getAttachmentBlobUrl(message.id)} />;
+  }
+  return <DocumentBubble message={message} />;
+}
+
+/**
+ * Icon/name/size/download row for non-previewable file types — and, for PDFs,
+ * a WhatsApp-style card with an actual page-1 thumbnail on top (rendered
+ * client-side via pdf.js) plus a page-count/size footer underneath.
+ */
+function DocumentBubble({ message }: { message: ChatMessage }) {
   const [downloading, setDownloading] = useState(false);
+  const isPdf =
+    message.mediaMime === "application/pdf" ||
+    (message.mediaFilename?.toLowerCase().endsWith(".pdf") ?? false);
+
+  const [thumb, setThumb] = useState<string | null>(null);
+  const [pageCount, setPageCount] = useState<number | null>(null);
+  const [thumbFailed, setThumbFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isPdf) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const blobUrl = await chatApi.getAttachmentBlobUrl(message.id);
+        const bytes = await (await fetch(blobUrl)).arrayBuffer();
+        URL.revokeObjectURL(blobUrl);
+        const { renderPdfThumbnail } = await import("@/lib/pdf-thumbnail");
+        const { dataUrl, numPages } = await renderPdfThumbnail(bytes);
+        if (!cancelled) {
+          setThumb(dataUrl);
+          setPageCount(numPages);
+        }
+      } catch {
+        if (!cancelled) setThumbFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPdf, message.id]);
 
   async function handleDownload() {
     if (downloading) return;
@@ -368,6 +508,45 @@ function FileBubble({ message }: { message: ChatMessage }) {
     } finally {
       setDownloading(false);
     }
+  }
+
+  if (isPdf) {
+    return (
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={downloading}
+        className="flex w-64 flex-col overflow-hidden rounded-lg bg-white text-left shadow-sm ring-1 ring-black/5 transition-opacity hover:opacity-95 disabled:opacity-70"
+      >
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a decrypted blob, not an optimizable static asset
+          <img src={thumb} alt="" className="w-full border-b border-black/5 object-cover" />
+        ) : !thumbFailed ? (
+          <div className="flex h-40 w-full items-center justify-center border-b border-black/5 bg-gray-50">
+            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+          </div>
+        ) : null}
+        <div className="flex items-center gap-3 px-3 py-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-red-500">
+            <FileText className="h-5 w-5 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-gray-800">
+              {message.mediaFilename ?? "Document.pdf"}
+            </p>
+            <p className="text-xs text-gray-500">
+              {pageCount != null ? `${pageCount} page${pageCount === 1 ? "" : "s"} · ` : ""}
+              PDF{message.mediaSize ? ` · ${formatFileSize(message.mediaSize)}` : ""}
+            </p>
+          </div>
+          {downloading ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+          ) : (
+            <Download className="h-4 w-4 shrink-0 text-gray-400" />
+          )}
+        </div>
+      </button>
+    );
   }
 
   return (
