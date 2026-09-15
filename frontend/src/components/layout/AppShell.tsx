@@ -10,7 +10,7 @@ import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const IDLE_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

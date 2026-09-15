@@ -9,6 +9,7 @@ import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
 import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
 import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi } from "@/lib/api";
+import { cacheInvalidate } from "@/lib/api-cache";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { generateTruckId } from "@/lib/truck-data";
 import type { Truck } from "@/types/truck";
@@ -24,8 +25,10 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function FleetPage() {
   const { user } = useAuth();
-  // Every role except Admin must file an edit request to change truck records.
-  const isGated = user?.softwareDesignation !== "Admin";
+  // Every role except Admin (and Assistant Commercial Manager, who has free edit rights on the fleet) must file an edit request to change truck records.
+  const isGated =
+    user?.softwareDesignation !== "Admin" &&
+    user?.softwareDesignation !== "Assistant Commercial Manager";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -165,7 +168,21 @@ export default function FleetPage() {
     try {
       let saved: Truck;
       if (editingTruck) {
-        saved = await trucksApi.update(truck.id, truck);
+        // The dialog can stay open long enough that the truck's version stamp
+        // (loaded when it was opened) goes stale — e.g. a background refresh
+        // or a branch-change action bumps it in the meantime. Pull the latest
+        // version right before saving so the server's optimistic-lock check
+        // doesn't false-positive against the user's own session.
+        let truckToSave = truck;
+        try {
+          cacheInvalidate("/trucks");
+          const fresh = await trucksApi.list();
+          const latest = fresh.find((t) => t.id === truck.id);
+          if (latest?.version != null) {
+            truckToSave = { ...truck, version: latest.version };
+          }
+        } catch { /* fall back to the version already on the form */ }
+        saved = await trucksApi.update(truck.id, truckToSave);
         setTrucks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
       } else {
         const truckWithId = { ...truck, truckId: truck.truckId || generateTruckId(trucks) };

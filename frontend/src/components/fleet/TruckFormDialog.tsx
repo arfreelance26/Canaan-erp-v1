@@ -37,7 +37,7 @@ export type TruckFiles = {
 type TruckFormDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (truck: Truck, files: TruckFiles) => void;
+  onSave: (truck: Truck, files: TruckFiles) => void | Promise<void>;
   initialData: Truck | null;
   existingTrucks: Truck[];
 };
@@ -97,6 +97,7 @@ export function TruckFormDialog({
   const [files, setFiles] = useState<TruckFiles>({});
   const [branches, setBranches] = useState<Branch[]>([]);
   const [manufacturerOptions, setManufacturerOptions] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
@@ -114,6 +115,7 @@ export function TruckFormDialog({
       };
       setForm(rest);
       setFiles({});
+      setSubmitting(false);
     }
   }, [open, initialData]);
 
@@ -126,12 +128,18 @@ export function TruckFormDialog({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onSave(
-      { id: initialData?.id ?? crypto.randomUUID(), truckId: initialData?.truckId ?? generateTruckId(existingTrucks), ...form },
-      files,
-    );
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await onSave(
+        { id: initialData?.id ?? crypto.randomUUID(), truckId: initialData?.truckId ?? generateTruckId(existingTrucks), ...form },
+        files,
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const truckId = initialData?.truckId ?? generateTruckId(existingTrucks);
@@ -607,15 +615,17 @@ export function TruckFormDialog({
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            disabled={submitting}
+            className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             type="submit"
+            disabled={submitting}
             className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {initialData ? "Save Changes" : "Add Truck"}
+            {submitting ? "Saving..." : initialData ? "Save Changes" : "Add Truck"}
           </button>
         </div>
       </form>
