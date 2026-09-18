@@ -1,5 +1,10 @@
 from typing import Optional
 from datetime import date, datetime, timedelta, timezone
+# Pydantic v2 resolves annotations via get_type_hints(), folding the class's
+# own namespace into the lookup — a field literally named `date` annotated as
+# Optional[date] resolves the type reference to the field itself (None)
+# instead of datetime.date, silently corrupting it into an always-None field.
+from datetime import date as _DateType
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -160,8 +165,8 @@ def list_air_filter_records(truck_id: int | None = None, db: Session = Depends(g
 def create_air_filter_record(payload: schemas.AirFilterRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     if not db.get(models.Truck, payload.truck_id):
         raise HTTPException(404, "Truck not found")
-    if payload.current_odometer < payload.odometer_during_change:
-        raise HTTPException(400, "Current odometer cannot be less than the odometer reading during change.")
+    if payload.next_change_odometer <= payload.odometer_during_change:
+        raise HTTPException(400, "Odometer value for next change must be greater than the odometer reading during change.")
     record = models.AirFilterRecord(**payload.model_dump(), entered_by=current_user.id, entered_by_name=current_user.name)
     db.add(record)
     db.commit()
@@ -890,7 +895,7 @@ def list_fitments(truck_id: Optional[int] = Query(None), active_only: bool = Que
 
 
 @router.post("/tyre-fitment", response_model=schemas.TyreFitmentOut, status_code=201, tags=["Tyre"])
-def fit_tyre(payload: schemas.TyreFitmentCreate, db: Session = Depends(get_db)):
+def fit_tyre(payload: schemas.TyreFitmentCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     # Lock the tyre row to prevent concurrent fitting of the same tyre
     db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == payload.tyre_id).first()
     # Ensure tyre is not already fitted elsewhere
@@ -908,7 +913,7 @@ def fit_tyre(payload: schemas.TyreFitmentCreate, db: Session = Depends(get_db)):
     ).first()
     if pos_occupied:
         raise HTTPException(400, f"Position {payload.position} on this truck already has a tyre")
-    record = models.TyreFitmentRecord(**payload.model_dump())
+    record = models.TyreFitmentRecord(**payload.model_dump(), fitted_by_name=current_user.name)
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -917,7 +922,7 @@ def fit_tyre(payload: schemas.TyreFitmentCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/tyre-fitment/{fitment_id}/remove", response_model=schemas.TyreFitmentOut, tags=["Tyre"])
-def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session = Depends(get_db)):
+def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     record = db.get(models.TyreFitmentRecord, fitment_id)
     if not record:
         raise HTTPException(404, "Fitment record not found")
@@ -926,6 +931,7 @@ def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session
     record.removed_odometer = payload.removed_odometer
     record.removed_date = payload.removed_date
     record.removal_remark = payload.removal_remark
+    record.removed_by_name = current_user.name
     db.commit()
     db.refresh(record)
     emit("tyre_updated", {})
@@ -942,13 +948,14 @@ class _SwapBody(BaseModel):
     pairs: list[_SwapPair]
     odometer: int
     remark: str
+    date: Optional[_DateType] = None
 
 
 @router.post("/tyre-fitment/swap", response_model=list[schemas.TyreFitmentOut], tags=["Tyre"])
-def swap_tyre_positions(payload: _SwapBody, db: Session = Depends(get_db)):
+def swap_tyre_positions(payload: _SwapBody, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Close existing fitments and open new ones at swapped positions, preserving full tyre history."""
     from datetime import date as _date
-    today = _date.today()
+    today = payload.date or _date.today()
     all_affected: list[models.TyreFitmentRecord] = []
 
     for pair in payload.pairs:
@@ -988,11 +995,13 @@ def swap_tyre_positions(payload: _SwapBody, db: Session = Depends(get_db)):
             rec_a.removed_odometer = payload.odometer
             rec_a.removed_date = today
             rec_a.removal_remark = payload.remark
+            rec_a.removed_by_name = current_user.name
             all_affected.append(rec_a)
         if rec_b:
             rec_b.removed_odometer = payload.odometer
             rec_b.removed_date = today
             rec_b.removal_remark = payload.remark
+            rec_b.removed_by_name = current_user.name
             all_affected.append(rec_b)
 
         # Open new fitments at the swapped positions
@@ -1003,6 +1012,8 @@ def swap_tyre_positions(payload: _SwapBody, db: Session = Depends(get_db)):
                 position=pair.position_b,
                 fitted_odometer=payload.odometer,
                 fitted_date=today,
+                fitted_by_name=current_user.name,
+                fitted_remark=payload.remark,
             )
             db.add(new_rec)
             all_affected.append(new_rec)
@@ -1013,6 +1024,8 @@ def swap_tyre_positions(payload: _SwapBody, db: Session = Depends(get_db)):
                 position=pair.position_a,
                 fitted_odometer=payload.odometer,
                 fitted_date=today,
+                fitted_by_name=current_user.name,
+                fitted_remark=payload.remark,
             )
             db.add(new_rec)
             all_affected.append(new_rec)

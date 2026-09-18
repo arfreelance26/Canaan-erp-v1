@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ProfileModal } from "./ProfileModal";
 import { DisplaySettings } from "./DisplaySettings";
 import { NetworkStatus } from "./NetworkStatus";
+import { CalculatorButton } from "./CalculatorButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -443,6 +444,9 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
             Connected
           </span>
         )} */}
+
+        {/* Calculator */}
+        <CalculatorButton />
 
         {/* Network status indicator */}
         <NetworkStatus />

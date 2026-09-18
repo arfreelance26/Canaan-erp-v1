@@ -55,7 +55,7 @@ def mark_all_read(
 # Recomputed from live data on every call — always current, nothing to sync.
 # ---------------------------------------------------------------------------
 
-from datetime import date, timedelta
+from datetime import date
 
 DOC_WINDOW_DAYS = 30    # documents: alert 30 days before expiry
 PAY_WINDOW_DAYS = 7     # payments: alert 7 days before due
@@ -127,41 +127,9 @@ def list_reminders(
                 reminders.append(r)
 
     # -- Payments (Admin + Finance Manager) -------------------------------
+    # NOTE: EMI due/overdue reminders were removed along with emi_payment_date —
+    # the EMI alert system is being redesigned around auto_debit_date.
     if show_payments:
-        today = date.today()
-        for e in db.query(models.EmiRecord).all():
-            # skip loans already finished
-            if e.emi_end_date and e.emi_end_date < today:
-                continue
-            due = e.emi_payment_date
-            if due is None:
-                continue
-            # roll the stored payment day forward to this month's occurrence
-            try:
-                due_this = due.replace(year=today.year, month=today.month)
-            except ValueError:
-                due_this = due
-            if due_this < today - timedelta(days=PAY_WINDOW_DAYS):
-                # already passed well beyond window: next month
-                m = today.month % 12 + 1
-                y = today.year + (1 if m == 1 else 0)
-                try:
-                    due_this = due.replace(year=y, month=m)
-                except ValueError:
-                    pass
-            days = _days_left(due_this)
-            if days <= PAY_WINDOW_DAYS:
-                reminders.append({
-                    "kind": "emi",
-                    "severity": "overdue" if days < 0 else "due_soon",
-                    "title": f"EMI payment {'overdue' if days < 0 else 'due'}",
-                    "detail": f"{e.emi_name} ({e.bank_name or 'Bank'}) — ₹{e.emi_amount or 0} due {due_this.isoformat()}",
-                    "entity": e.emi_name,
-                    "due_date": due_this.isoformat(),
-                    "days_left": days,
-                    "href": "/finance/emi-tracking",
-                })
-
         for p in db.query(models.RecurringPayment).filter(
             models.RecurringPayment.status == "Active"
         ).all():

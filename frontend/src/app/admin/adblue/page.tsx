@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Droplets, Plus, Trash2, Check, Loader2, Truck as TruckIcon, Gauge, MapPin } from "lucide-react";
+import { Droplets, Plus, Pencil, Trash2, Check, Loader2, Truck as TruckIcon, Gauge, MapPin } from "lucide-react";
 import { adblueApi, trucksApi, type AdBlueManufacturer } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
@@ -15,6 +15,7 @@ export default function AdblueManagementPage() {
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -33,20 +34,32 @@ export default function AdblueManagementPage() {
   }, []);
 
   function openDialog() {
+    setEditingId(null);
     setName(""); setPrice(""); setDialogOpen(true);
   }
 
-  async function handleAdd() {
+  function openEditDialog(m: AdBlueManufacturer) {
+    setEditingId(m.id);
+    setName(m.name);
+    setPrice(parseFloat(m.defaultPricePerLitre) > 0 ? m.defaultPricePerLitre : "");
+    setDialogOpen(true);
+  }
+
+  async function handleSaveManufacturer() {
     if (!name.trim()) { showError("Manufacturer name is required."); return; }
     setSaving(true);
     try {
-      await adblueApi.createManufacturer(name.trim(), price);
+      if (editingId) {
+        await adblueApi.updateManufacturer(editingId, name.trim(), price);
+      } else {
+        await adblueApi.createManufacturer(name.trim(), price);
+      }
       const updated = await adblueApi.listManufacturers();
       setManufacturers(updated);
       setDialogOpen(false);
-      showSuccess("Manufacturer added.");
+      showSuccess(editingId ? "Manufacturer updated." : "Manufacturer added.");
     } catch (e: any) {
-      showError(e.message || "Failed to add manufacturer.");
+      showError(e.message || "Failed to save manufacturer.");
     } finally {
       setSaving(false);
     }
@@ -146,24 +159,25 @@ export default function AdblueManagementPage() {
 
         {/* RIGHT — Registered Manufacturers card */}
         <div className="w-full lg:w-[340px] shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-          {/* Card header */}
-          <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/60 px-5 py-3.5">
-            <h2 className="text-sm font-bold text-gray-800">Registered Manufacturers</h2>
-            <div className="flex items-center gap-2.5">
+          {/* Card header — title/badge and the Add button sit on their own rows
+              so they never crowd together at this panel's fixed narrow width. */}
+          <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-bold text-gray-800">Registered Manufacturers</h2>
               {!loading && (
-                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
+                <span className="shrink-0 rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
                   {manufacturers.length}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={openDialog}
-                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-blue-700"
-              >
-                <Plus className="h-3 w-3" />
-                Add Manufacturer
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={openDialog}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-blue-700"
+            >
+              <Plus className="h-3 w-3" />
+              Add Manufacturer
+            </button>
           </div>
 
           {/* Manufacturer list */}
@@ -188,16 +202,25 @@ export default function AdblueManagementPage() {
                         : "No default price set"}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(m.id)}
-                    disabled={deletingId === m.id}
-                    className="shrink-0 rounded-lg p-1.5 text-gray-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                  >
-                    {deletingId === m.id
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openEditDialog(m)}
+                      className="rounded-lg p-1.5 text-gray-300 transition hover:bg-blue-50 hover:text-blue-500"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(m.id)}
+                      disabled={deletingId === m.id}
+                      className="rounded-lg p-1.5 text-gray-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                    >
+                      {deletingId === m.id
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -205,11 +228,11 @@ export default function AdblueManagementPage() {
         </div>
       </div>
 
-      {/* Add Manufacturer dialog */}
+      {/* Add / Edit Manufacturer dialog */}
       <Dialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        title="Add Manufacturer"
+        title={editingId ? "Edit Manufacturer" : "Add Manufacturer"}
         className="max-w-sm"
       >
         <div className="flex flex-col gap-4">
@@ -255,12 +278,12 @@ export default function AdblueManagementPage() {
             </button>
             <button
               type="button"
-              onClick={handleAdd}
+              onClick={handleSaveManufacturer}
               disabled={saving || !name.trim()}
               className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {saving ? "Saving…" : "Save Manufacturer"}
+              {saving ? "Saving…" : editingId ? "Save Changes" : "Save Manufacturer"}
             </button>
           </div>
         </div>

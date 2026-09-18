@@ -6,7 +6,7 @@ import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
-import { driversApi, uploadFile, fileUrl, editApprovalsApi } from "@/lib/api";
+import { driversApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import { confirmAction, showSuccess, showError } from "@/lib/swal";
 import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
@@ -21,9 +21,17 @@ import { useAuth } from "@/context/AuthContext";
 export default function DriversPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
+  const isCommercialManager =
+    user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
   // Every role except Admin must file an edit request to change driver records.
-  // Deletion stays Admin-only (button hidden below) — no edit-request path for it.
   const isGated = !isAdmin;
+  // Admin deletes directly. Commercial Manager / Assistant Commercial Manager can
+  // see the delete button too, but it files a DeletionApprovalRequest instead —
+  // the driver is only soft-deleted once an Admin approves it on the "Deletion
+  // Approvals" page. Backend enforces the same split (drivers.py's delete_driver
+  // is Admin-only; deletion_approvals.py's approve_deletion does the actual
+  // soft-delete for everyone else).
+  const canDelete = isAdmin || isCommercialManager;
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
@@ -37,6 +45,8 @@ export default function DriversPage() {
   const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
   const [editRequestOpen, setEditRequestOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
+  // Deletion request state (Commercial Manager / Assistant Commercial Manager)
+  const [deleteRequestDriver, setDeleteRequestDriver] = useState<Driver | null>(null);
 
   const filteredDrivers = drivers.filter(d =>
     !searchQuery ||
@@ -105,6 +115,11 @@ export default function DriversPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!isAdmin) {
+      const driver = drivers.find((d) => d.id === id);
+      if (driver) setDeleteRequestDriver(driver);
+      return;
+    }
     const result = await confirmAction(
       "Delete this driver?",
       "They'll be removed from Our Drivers and assignment lists, but their trip history, attendance, and compensation records are kept intact and will keep showing their name.",
@@ -117,6 +132,22 @@ export default function DriversPage() {
       showSuccess("Driver deleted successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete driver.");
+    }
+  }
+
+  async function handleDeleteRequestSubmit(reason: string) {
+    if (!deleteRequestDriver) return;
+    try {
+      await deletionApprovalsApi.create({
+        resourceType: "Driver",
+        resourceId: parseInt(deleteRequestDriver.id),
+        resourceName: `${deleteRequestDriver.driverId} — ${deleteRequestDriver.name}`,
+        reason,
+      });
+      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      setDeleteRequestDriver(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to send delete request.");
     }
   }
 
@@ -282,7 +313,7 @@ export default function DriversPage() {
       </div>
 
       <div>
-        <DriverTable drivers={filteredDrivers} onView={setViewingDriver} onEdit={handleEdit} onDelete={isAdmin ? handleDelete : undefined} />
+        <DriverTable drivers={filteredDrivers} onView={setViewingDriver} onEdit={handleEdit} onDelete={canDelete ? handleDelete : undefined} />
       </div>
 
       <DriverFormDialog
@@ -302,6 +333,20 @@ export default function DriversPage() {
           action={pendingAction.type}
           onSubmit={handleEditRequestSubmit}
           onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
+        />
+      )}
+
+      {/* Delete request dialog — Commercial Manager / Assistant Commercial Manager
+          submit this with a reason instead of deleting directly; it lands on the
+          Admin's "Deletion Approvals" page for approval. */}
+      {deleteRequestDriver && (
+        <EditRequestDialog
+          open={deleteRequestDriver !== null}
+          resourceType="Driver"
+          resourceName={`${deleteRequestDriver.driverId} — ${deleteRequestDriver.name}`}
+          action="Delete"
+          onSubmit={handleDeleteRequestSubmit}
+          onClose={() => setDeleteRequestDriver(null)}
         />
       )}
 

@@ -324,9 +324,21 @@ class CustomerPricing(Base):
 
 class FinalCustomerPricing(Base):
     __tablename__ = "final_customer_pricing"
+    __table_args__ = (
+        # One final price per customer+route — this is what stops the same
+        # route from getting several conflicting final amounts. Nullable, so
+        # MySQL treats every legacy NULL-route row (from before this column
+        # existed) as distinct rather than colliding with each other.
+        UniqueConstraint("customer_id", "customer_destination", name="uq_final_pricing_customer_destination"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    # The route (customer_destination label) this final price applies to —
+    # matches CustomerPricing.customer_destination. Required for new rows;
+    # nullable only so pre-existing rows created before this column existed
+    # keep loading.
+    customer_destination = Column(String(200), nullable=True)
     actual_hire_amount = Column(Numeric(10, 2), nullable=True)
     accounts_hire_amount = Column(Numeric(10, 2), nullable=True)
     version = Column(Integer, default=1, nullable=False)
@@ -429,6 +441,12 @@ class Trip(Base):
     # default. This flag lets the Commercial Manager mark it as still owed for a
     # specific return trip, so it counts toward Net Payable after all.
     is_batta_applicable = Column(Boolean, nullable=False, default=False, server_default="0")
+    # SHIFTING only: shifting trips are internal relocations and aren't billed
+    # to a customer by default, so the Payment & Advances section stays locked.
+    # This flag lets it be marked billable for a specific shifting trip instead
+    # (e.g. a billed relocation), unlocking that section. Always true outside
+    # of SHIFTING, where billing is never blocked in the first place.
+    is_billing_applicable = Column(Boolean, nullable=False, default=True, server_default="1")
     # Transport Cost
     open_load_hire_type = Column(Enum("Ton Based", "Fixed"), nullable=True)
     rate_per_ton = Column(Numeric(10, 2), nullable=True)
@@ -779,19 +797,20 @@ class MaintenanceRecord(Base):
 
 
 class AirFilterRecord(Base):
-    """Air filter remove & replace history — one row per change. "Current odometer"
-    and "running odometer since change" are derived at read time from the
-    truck's live odometer, never stored, so they can't drift stale."""
+    """Air filter remove & replace history — one row per change. "Running
+    odometer since change" and "service due in" are derived at read time from
+    the truck's live odometer against next_change_odometer, never stored, so
+    they can't drift stale."""
     __tablename__ = "air_filter_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False, index=True)
     date = Column(Date, nullable=False)
     odometer_during_change = Column(Integer, nullable=False)
-    # Odometer reading noted at the time this log was entered — a snapshot, not
-    # a live read of trucks.odometer, since a log can be entered well after the
-    # fact. Running distance is computed from this minus odometer_during_change.
-    current_odometer = Column(Integer, nullable=False, server_default="0")
+    # Target odometer reading at which the next air filter change is due —
+    # user-entered (typically odometer_during_change + service interval), not
+    # a live truck read, so it stays fixed until the change actually happens.
+    next_change_odometer = Column(Integer, nullable=False, server_default="0")
     remarks = Column(String(255), nullable=True)
     entered_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
     entered_by_name = Column(String(100), nullable=True)
@@ -892,9 +911,12 @@ class TyreFitmentRecord(Base):
     position = Column(String(60), nullable=False)
     fitted_odometer = Column(Integer, nullable=False)
     fitted_date = Column(Date, nullable=False)
+    fitted_by_name = Column(String(100), nullable=True)
+    fitted_remark = Column(String(500), nullable=True)
     removed_odometer = Column(Integer)
     removed_date = Column(Date)
     removal_remark = Column(String(500), nullable=True)
+    removed_by_name = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     tyre = relationship("TyreInventory", back_populates="fitment_records")
@@ -996,6 +1018,7 @@ class EmiRecord(Base):
     emi_amount = Column(Numeric(10, 2), default=0)
     tenure_months = Column(Integer)
     emi_payment_date = Column(Date)
+    auto_debit_date = Column(Date)
     cost_per_month = Column(Numeric(10, 2), default=0)
     monthly_finance_cost = Column(Numeric(10, 2), default=0, server_default="0")
     daily_finance_cost = Column(Numeric(10, 4), default=0, server_default="0")
@@ -1050,21 +1073,6 @@ class TruckBranchHistory(Base):
     __table_args__ = (
         Index("ix_truck_branch_history_truck", "truck_id", "changed_at"),
     )
-
-
-class ComplianceCostConfig(Base):
-    __tablename__ = "compliance_cost_configs"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    tyre_layout = Column(String(100), nullable=False, unique=True)
-    rc_cost = Column(Numeric(12, 2), nullable=True)
-    fc_cost = Column(Numeric(12, 2), nullable=True)
-    road_tax_cost = Column(Numeric(12, 2), nullable=True)
-    national_permit_cost = Column(Numeric(12, 2), nullable=True)
-    local_permit_cost = Column(Numeric(12, 2), nullable=True)
-    pollution_cert_cost = Column(Numeric(12, 2), nullable=True)
-    insurance_cost = Column(Numeric(12, 2), nullable=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class TyreRangeConfig(Base):
@@ -1141,6 +1149,11 @@ class EditApprovalRequest(Base):
     approved_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=True)         # approved_at + 8 hours (Edit action only)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Set the moment the staff member actually saves an edit under this
+    # approval (see routers/trips.py's _mark_edit_approval_used). Distinguishes
+    # an approval that's been acted on from one that's just sitting approved
+    # but unused — powers the Trip Reconciliation "Completed"/"Pending" split.
+    used_at = Column(DateTime, nullable=True)
 
 
 class CompensationTransaction(Base):

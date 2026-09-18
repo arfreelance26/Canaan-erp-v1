@@ -16,6 +16,7 @@ import { useTyreInventory } from "@/context/TyreInventoryContext";
 import { tyreApi } from "@/lib/api";
 import { ArrowLeftRight, ArrowUpDown } from "lucide-react";
 import { formatDate, todayIst } from "@/lib/format-date";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 import { Search, Plus } from "lucide-react";
@@ -31,6 +32,13 @@ const REMOVAL_QUICK_REMARKS = [
   "Tyre Side Wall Crack",
   "Speedometer Issue",
   "Tyre Rotation",
+];
+
+const ATTACH_QUICK_REMARKS = [
+  "New Tyre Fitted",
+  "Retreaded Tyre Reused",
+  "Replacement",
+  "Spare Fitted",
 ];
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
@@ -97,6 +105,8 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   const [animatingPosition, setAnimatingPosition] = useState<string | null>(null);
   const [selectedTyreId, setSelectedTyreId] = useState("");
   const [odometerInput, setOdometerInput] = useState("");
+  const [actionDate, setActionDate] = useState(todayIst());
+  const [attachRemark, setAttachRemark] = useState("");
   const [removalRemark, setRemovalRemark] = useState("");
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,16 +116,24 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     | null;
   const [swapStep, setSwapStep] = useState<SwapStep>(null);
   const [swapOdometer, setSwapOdometer] = useState("");
+  const [swapDate, setSwapDate] = useState(todayIst());
   const [swapRemark, setSwapRemark] = useState("Tyre Rotation");
   const [swapping, setSwapping] = useState(false);
 
   useEffect(() => {
     setOdometerInput(truck ? truck.odometer : "");
+    setActionDate(todayIst());
+    setAttachRemark("");
     setRemovalRemark("");
     setError("");
   }, [selectedPosition, truck]);
 
   if (!truck) return null;
+
+  // Rotation (swap) and position-level attach/remove are mutually exclusive —
+  // doing both at once could leave the truck's fitment history in a
+  // confusing, hard-to-untangle state (e.g. a position removed mid-rotation).
+  const rotationActive = swapStep !== null;
 
   // ── Tyre type summary for this truck ──────────────────────────────────────
   const activeFitments = fitmentRecords.filter(
@@ -159,9 +177,13 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
       return;
     }
 
+    if (!actionDate) {
+      setError("Select a fitment date.");
+      return;
+    }
+
     try {
-      const fittedDate = todayIst();
-      const newFitment = await tyreApi.fitTyre(selectedTyreId, truck.id, selectedPosition, odometer, fittedDate);
+      const newFitment = await tyreApi.fitTyre(selectedTyreId, truck.id, selectedPosition, odometer, actionDate, attachRemark.trim());
       setFitmentRecords((prev) => [...prev, newFitment]);
 
       const posToAnimate = selectedPosition;
@@ -188,10 +210,13 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
       setError(`Enter an odometer reading of at least ${fitment.fittedOdometer.toLocaleString()} km.`);
       return;
     }
+    if (!actionDate) {
+      setError("Select a removal date.");
+      return;
+    }
 
     try {
-      const removedDate = todayIst();
-      const updatedFitment = await tyreApi.removeTyre(fitment.id, odometer, removedDate, removalRemark);
+      const updatedFitment = await tyreApi.removeTyre(fitment.id, odometer, actionDate, removalRemark);
         setFitmentRecords((prev) => (prev.map((f) => (f.id === updatedFitment.id ? updatedFitment : f))));
         setSelectedPosition(null);
         showSuccess("Tyre removed successfully.");
@@ -203,6 +228,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
   function openConfirm(pairs: [string, string][], description: string) {
     setSwapOdometer(truck?.odometer ?? "");
+    setSwapDate(todayIst());
     setSwapRemark("Tyre Rotation");
     setSwapStep({ step: "confirm", pairs, description });
   }
@@ -214,13 +240,17 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
       showError("Enter a valid odometer reading.");
       return;
     }
+    if (!swapDate) {
+      showError("Select a date for this rotation.");
+      return;
+    }
     if (!swapRemark.trim()) {
       showError("A remark is required.");
       return;
     }
     setSwapping(true);
     try {
-      const affected = await tyreApi.swapPositions(truck.id, swapStep.pairs, odometer, swapRemark.trim());
+      const affected = await tyreApi.swapPositions(truck.id, swapStep.pairs, odometer, swapRemark.trim(), swapDate);
       if (affected.length > 0) {
         setFitmentRecords((prev) => {
           const affectedMap = new Map(affected.map((f) => [f.id, f]));
@@ -265,13 +295,20 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     >
       <div className="flex flex-col gap-4">
         {layout ? (
-          <TyreLayoutDiagram
-            layout={layout}
-            filledPositions={filledPositions}
-            onPositionClick={setSelectedPosition}
-            selectedPosition={selectedPosition}
-            animatingPosition={animatingPosition}
-          />
+          <>
+            <TyreLayoutDiagram
+              layout={layout}
+              filledPositions={filledPositions}
+              onPositionClick={rotationActive ? undefined : setSelectedPosition}
+              selectedPosition={selectedPosition}
+              animatingPosition={animatingPosition}
+            />
+            {rotationActive && (
+              <p className="text-xs italic text-gray-400">
+                Finish or cancel the tyre rotation below before selecting a position.
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-sm text-gray-500">No tyre layout has been set for this truck.</p>
         )}
@@ -286,13 +323,18 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
           return (
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col gap-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Tyre Rotation</p>
+              {!!selectedPosition && !isConfirming && (
+                <p className="text-xs italic text-gray-400">
+                  Close the tyre position panel below before starting a rotation.
+                </p>
+              )}
 
               {/* Step 1 — main action buttons */}
               {!isConfirming && (
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={swapping}
+                    disabled={swapping || !!selectedPosition}
                     onClick={() => {
                       const allPairs = axleEntries.flatMap(getLRSwapPairs);
                       openConfirm(allPairs, "Swap Left ↔ Right across all axles");
@@ -304,7 +346,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                   <button
                     type="button"
-                    disabled={swapping}
+                    disabled={swapping || !!selectedPosition}
                     onClick={() => setSwapStep(
                       isSelectingAxle && swapStep.type === "lr" ? null : { step: "select-axle", type: "lr" }
                     )}
@@ -313,7 +355,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       isSelectingAxle && swapStep.type === "lr"
                         ? "border-blue-500 bg-blue-600 text-white"
                         : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100",
-                      swapping && "opacity-50"
+                      (swapping || !!selectedPosition) && "opacity-50"
                     )}
                   >
                     <ArrowLeftRight className="h-3.5 w-3.5" /> Swap Left ↔ Right (Selected Axle)
@@ -321,7 +363,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                   <button
                     type="button"
-                    disabled={swapping || dualAxles.length === 0}
+                    disabled={swapping || !!selectedPosition || dualAxles.length === 0}
                     onClick={() => setSwapStep(
                       isSelectingAxle && swapStep.type === "io" ? null : { step: "select-axle", type: "io" }
                     )}
@@ -330,7 +372,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       isSelectingAxle && swapStep.type === "io"
                         ? "border-purple-500 bg-purple-600 text-white"
                         : "border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100",
-                      (swapping || dualAxles.length === 0) && "opacity-50 cursor-not-allowed"
+                      (swapping || !!selectedPosition || dualAxles.length === 0) && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     <ArrowUpDown className="h-3.5 w-3.5" /> Swap Inner ↔ Outer Tyres
@@ -384,18 +426,29 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                     </span>
                   </div>
 
-                  {/* Odometer */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-gray-700">Odometer at Rotation (km) *</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={swapOdometer}
-                      onChange={(e) => setSwapOdometer(e.target.value)}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      placeholder="Current truck odometer reading"
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+                  {/* Odometer + Date */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-gray-700">Odometer at Rotation (km) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={swapOdometer}
+                        onChange={(e) => setSwapOdometer(e.target.value)}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        placeholder="Current truck odometer reading"
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-gray-700">Date of Rotation *</label>
+                      <DatePickerInput
+                        required
+                        value={swapDate}
+                        onChange={setSwapDate}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
                   </div>
 
                   {/* Remark quick chips */}
@@ -439,7 +492,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                     <button
                       type="button"
                       onClick={executeSwaps}
-                      disabled={swapping || !swapOdometer || !swapRemark.trim()}
+                      disabled={swapping || !swapOdometer || !swapDate || !swapRemark.trim()}
                       className="flex-[2] rounded-lg bg-blue-600 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                     >
                       {swapping ? "Swapping…" : "Confirm Swap & Update History"}
@@ -492,13 +545,21 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                     <div className="flex flex-col gap-3 rounded-lg border border-red-100 bg-red-50/30 p-3">
                       <h4 className="text-sm font-medium text-gray-900">Remove Tyre</h4>
-                      <DecimalInput type="number"
-                        min="0"
-                        value={odometerInput}
-                        onChange={(e) => setOdometerInput(e.target.value)}
-                        placeholder="Odometer reading at removal (km)"
-                        className={inputClass}
-                      />
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <DecimalInput type="number"
+                          min="0"
+                          value={odometerInput}
+                          onChange={(e) => setOdometerInput(e.target.value)}
+                          placeholder="Odometer reading at removal (km)"
+                          className={inputClass}
+                        />
+                        <DatePickerInput
+                          required
+                          value={actionDate}
+                          onChange={setActionDate}
+                          className={inputClass}
+                        />
+                      </div>
                       <div className="flex flex-wrap gap-1.5">
                         {REMOVAL_QUICK_REMARKS.map((remark) => (
                           <button
@@ -523,7 +584,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       <button
                         type="button"
                         onClick={confirmRemove}
-                        disabled={!removalRemark.trim()}
+                        disabled={!removalRemark.trim() || !actionDate}
                         className="mt-1 w-full rounded-lg bg-red-600 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Confirm Removal
@@ -586,21 +647,56 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-col gap-1 mt-1">
-                        <label className="text-xs font-medium text-gray-700">Odometer at Fitment (km)</label>
-                        <DecimalInput type="number"
-                          min="0"
-                          value={odometerInput}
-                          onChange={(e) => setOdometerInput(e.target.value)}
-                          placeholder="Current truck odometer"
-                          className={inputClass}
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 mt-1">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-700">Odometer at Fitment (km)</label>
+                          <DecimalInput type="number"
+                            min="0"
+                            value={odometerInput}
+                            onChange={(e) => setOdometerInput(e.target.value)}
+                            placeholder="Current truck odometer"
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-700">Date of Fitment</label>
+                          <DatePickerInput
+                            required
+                            value={actionDate}
+                            onChange={setActionDate}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-gray-700">Remarks (optional)</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ATTACH_QUICK_REMARKS.map((remark) => (
+                            <button
+                              key={remark}
+                              type="button"
+                              onClick={() => setAttachRemark(remark)}
+                              className="inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                            >
+                              <Plus className="h-3 w-3" />
+                              {remark}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={attachRemark}
+                          onChange={(e) => setAttachRemark(e.target.value)}
+                          placeholder="Remark for this fitment (optional) — e.g. New tyre fitted"
+                          rows={2}
+                          className={cn(inputClass, "resize-none")}
                         />
                       </div>
                       {error && <p className="text-xs text-red-600">{error}</p>}
                       <button
                         type="button"
                         onClick={confirmAttach}
-                        className="mt-2 w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                        disabled={!actionDate}
+                        className="mt-2 w-full rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Attach Tyre
                       </button>

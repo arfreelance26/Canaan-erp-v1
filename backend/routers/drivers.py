@@ -95,11 +95,14 @@ def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = D
 
 @router.delete("/{driver_id}", status_code=204, dependencies=[Depends(require_roles())])
 def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
-    """Admin only: soft-delete a driver (hides them from "Our Drivers" and every
-    assignment picker, keeps their trip history, attendance, and compensation/batta
-    records intact and still resolvable by name). A self-approved
-    DeletionApprovalRequest row is logged for audit visibility, same pattern as
-    trips.py's delete_trip.
+    """Admin only: soft-delete a driver directly (hides them from "Our Drivers" and
+    every assignment picker, keeps their trip history, attendance, and
+    compensation/batta records intact and still resolvable by name). Non-admin
+    roles (e.g. Commercial Manager) must instead file a DeletionApprovalRequest via
+    POST /deletion-approvals, reviewed on the "Deletion Approvals" page — see
+    deletion_approvals.py's approve_deletion, which performs the same soft-delete
+    once an Admin approves. A self-approved DeletionApprovalRequest row is logged
+    here for audit visibility, same pattern as trips.py's delete_trip.
     """
     driver = db.get(models.Driver, driver_id)
     if not driver:
@@ -115,7 +118,7 @@ def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: T
             resource_name=f"{driver.driver_id} — {driver.name}",
             requested_by_staff_id=current_user.id,
             requested_by_name=current_user.name,
-            reason="Deleted directly by Admin — no approval required.",
+            reason=f"Deleted directly by {current_user.role} — no approval required.",
             status="Approved",
             approved_by_name=current_user.name,
             approved_at=now,

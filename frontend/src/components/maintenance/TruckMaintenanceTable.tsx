@@ -80,7 +80,7 @@ export function TruckMaintenanceTable({
                   <StatusChip status={status} />
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="flex gap-2">
+                  <div className="flex gap-4">
                     <button
                       type="button"
                       onClick={() => onUpdateRecord(truck)}

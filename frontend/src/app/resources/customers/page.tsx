@@ -359,11 +359,13 @@ export default function CustomersPage() {
     }
   }
 
-  async function handleSaveFinalPricing(customerId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null }) {
+  async function handleSaveFinalPricing(customerId: string, data: { customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) {
     try {
       if (editingFinalPricing) {
+        // Route is locked once created — only the amounts can change on edit.
         const updated = await customersApi.updateFinalPricing(editingFinalPricing.customerId, editingFinalPricing.id, {
-          ...data,
+          actualHireAmount: data.actualHireAmount,
+          accountsHireAmount: data.accountsHireAmount,
           clientVersion: editingFinalPricing.version,
         });
         setFinalPricing((prev) => prev.map((fp) => (fp.id === editingFinalPricing.id ? updated : fp)));
@@ -612,10 +614,11 @@ export default function CustomersPage() {
             </div>
           ) : (
             <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl">
-              <table className="w-full min-w-[700px] text-left text-sm whitespace-nowrap">
+              <table className="w-full min-w-[820px] text-left text-sm whitespace-nowrap">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Customer Name</th>
+                    <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Route</th>
                     <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actual Hire Amount (₹)</th>
                     <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Hire Amount as per Accounts (₹)</th>
                     <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">Actions</th>
@@ -627,6 +630,7 @@ export default function CustomersPage() {
                     return (
                       <tr key={entry.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium text-gray-900">{customer?.name ?? "—"}</td>
+                        <td className="px-4 py-3 text-gray-600">{entry.customerDestination ?? "—"}</td>
                         <td className="px-4 py-3 text-gray-700">
                           {entry.actualHireAmount ? `₹${parseFloat(entry.actualHireAmount).toLocaleString("en-IN")}` : "—"}
                         </td>

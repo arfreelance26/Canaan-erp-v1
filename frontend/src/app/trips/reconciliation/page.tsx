@@ -67,6 +67,8 @@ export default function TripReconciliationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected" | "Request Raised" | "Request Approved">("All");
+  // Sub-filter shown only under the "Request Approved" card.
+  const [approvedSubFilter, setApprovedSubFilter] = useState<"All" | "Completed" | "Pending">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -488,6 +490,25 @@ export default function TripReconciliationPage() {
     () => new Set(tripRequests.filter((r) => r.status === "Approved").map((r) => String(r.resourceId))),
     [tripRequests],
   );
+  // "Completed" = at least one of this trip's approved requests has been acted
+  // on (the staff member actually saved an edit under it). "Pending" = it's
+  // approved but they haven't touched it yet. Sub-filter under "Request Approved".
+  const requestApprovedUsedIds = useMemo(
+    () => new Set(tripRequests.filter((r) => r.status === "Approved" && r.usedAt).map((r) => String(r.resourceId))),
+    [tripRequests],
+  );
+  // Latest createdAt among a trip's approved requests — drives the "Pending"
+  // sub-filter's Last Requested (most recently requested first) sort.
+  const lastRequestedAtByTripId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of tripRequests) {
+      if (r.status !== "Approved" || !r.createdAt) continue;
+      const key = String(r.resourceId);
+      const existing = m.get(key);
+      if (!existing || r.createdAt > existing) m.set(key, r.createdAt);
+    }
+    return m;
+  }, [tripRequests]);
 
   // Filtering + pagination are memoised so the current page's slice has a stable
   // identity to drive the lazy closure/sheet fetch below. Status uses the trip's
@@ -500,7 +521,11 @@ export default function TripReconciliationPage() {
       if (statusFilter === "Sheet Entered" && !t.hasSheet) return false;
       if (statusFilter === "Rejected" && t.verificationStatus !== "rejected") return false;
       if (statusFilter === "Request Raised" && !requestRaisedIds.has(t.id)) return false;
-      if (statusFilter === "Request Approved" && !requestApprovedIds.has(t.id)) return false;
+      if (statusFilter === "Request Approved") {
+        if (!requestApprovedIds.has(t.id)) return false;
+        if (approvedSubFilter === "Completed" && !requestApprovedUsedIds.has(t.id)) return false;
+        if (approvedSubFilter === "Pending" && requestApprovedUsedIds.has(t.id)) return false;
+      }
 
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -518,13 +543,19 @@ export default function TripReconciliationPage() {
       );
     })
     .sort((a, b) => {
+      // "Pending" sub-filter: Last Requested first (most recently requested trip on top).
+      if (statusFilter === "Request Approved" && approvedSubFilter === "Pending") {
+        const aAt = lastRequestedAtByTripId.get(a.id) ?? "";
+        const bAt = lastRequestedAtByTripId.get(b.id) ?? "";
+        return bAt.localeCompare(aAt);
+      }
       const priority = (t: typeof a) => {
         if (!t.hasSheet) return 0;
         if (!t.tripSheetReceived) return 1;
         return 2;
       };
       return priority(a) - priority(b);
-    }), [trips, statusFilter, searchQuery, requestRaisedIds, requestApprovedIds, customerById]);
+    }), [trips, statusFilter, approvedSubFilter, searchQuery, requestRaisedIds, requestApprovedIds, requestApprovedUsedIds, lastRequestedAtByTripId, customerById]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -591,6 +622,10 @@ export default function TripReconciliationPage() {
     "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
     "Request Raised":   trips.filter((t) => requestRaisedIds.has(t.id)).length,
     "Request Approved": trips.filter((t) => requestApprovedIds.has(t.id)).length,
+  };
+  const approvedSubCounts = {
+    Completed: trips.filter((t) => requestApprovedIds.has(t.id) && requestApprovedUsedIds.has(t.id)).length,
+    Pending:   trips.filter((t) => requestApprovedIds.has(t.id) && !requestApprovedUsedIds.has(t.id)).length,
   };
 
   return (
@@ -670,7 +705,7 @@ export default function TripReconciliationPage() {
             <button
               key={f}
               type="button"
-              onClick={() => { setStatusFilter(f); setPage(1); }}
+              onClick={() => { setStatusFilter(f); setApprovedSubFilter("All"); setPage(1); }}
               className={`flex flex-col items-center rounded-xl border px-3 py-3 transition-all ${colors[f]} ${statusFilter === f ? activeRing[f] : "hover:opacity-80"}`}
             >
               <span className="text-xl font-bold">{counts[f]}</span>
@@ -679,6 +714,35 @@ export default function TripReconciliationPage() {
           );
         })}
       </div>
+
+      {/* Completed / Pending sub-filter — only under "Request Approved" */}
+      {statusFilter === "Request Approved" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500">Refine:</span>
+          {(["All", "Completed", "Pending"] as const).map((sf) => {
+            const active = approvedSubFilter === sf;
+            const count = sf === "All" ? counts["Request Approved"] : approvedSubCounts[sf];
+            return (
+              <button
+                key={sf}
+                type="button"
+                onClick={() => { setApprovedSubFilter(sf); setPage(1); }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? sf === "Completed"
+                      ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+                      : sf === "Pending"
+                        ? "border-amber-300 bg-amber-100 text-amber-700"
+                        : "border-gray-400 bg-gray-900 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {sf} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Workflow legend */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs text-gray-500">
@@ -696,13 +760,18 @@ export default function TripReconciliationPage() {
           Showing <span className="font-semibold text-gray-800">{filteredTrips.length}</span> of{" "}
           <span className="font-semibold text-gray-800">{trips.length}</span> trips
           {statusFilter !== "All" && (
-            <> — filtered by <span className="font-semibold text-gray-800">{statusFilter}</span></>
+            <>
+              {" "}— filtered by <span className="font-semibold text-gray-800">{statusFilter}</span>
+              {statusFilter === "Request Approved" && approvedSubFilter !== "All" && (
+                <> / <span className="font-semibold text-gray-800">{approvedSubFilter}</span></>
+              )}
+            </>
           )}
         </span>
         {statusFilter !== "All" && (
           <button
             type="button"
-            onClick={() => { setStatusFilter("All"); setPage(1); }}
+            onClick={() => { setStatusFilter("All"); setApprovedSubFilter("All"); setPage(1); }}
             className="ml-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
           >
             Clear

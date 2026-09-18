@@ -8,12 +8,13 @@ type TyreManagementTableProps = {
   trucks: Truck[];
   onManageTyres: (truck: Truck) => void;
   onViewTyreData: (truck: Truck) => void;
+  onViewTruckHistory: (truck: Truck) => void;
 };
 
 const columns = ["Truck Photo", "Truck Registration", "Upcoming Maintenance"];
 
 
-export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData }: TyreManagementTableProps) {
+export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onViewTruckHistory }: TyreManagementTableProps) {
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -61,6 +62,13 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData }: T
                       className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
                     >
                       View Tyre Data
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onViewTruckHistory(truck)}
+                      className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                    >
+                      View Truck History
                     </button>
                   </div>
                 </td>

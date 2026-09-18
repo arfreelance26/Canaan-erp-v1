@@ -12,7 +12,15 @@ import { Dialog } from "@/components/ui/Dialog";
 import { showSuccess, showError, confirmDelete } from "@/lib/swal";
 import { Trash2 } from "lucide-react";
 
-type FilterValue = "Pending" | "Approved" | "Rejected";
+type FilterValue = "Pending" | "Approved" | "Completed" | "Rejected";
+
+// An Approved request whose 8-hour edit window has run out — the task is
+// done, so it moves out of "Approved" (still-active window) into "Completed".
+function isRequestExpired(req: EditApprovalRequest): boolean {
+  if (req.status !== "Approved" || !req.expiresAt) return false;
+  const s = req.expiresAt.endsWith("Z") || req.expiresAt.includes("+") ? req.expiresAt : req.expiresAt + "Z";
+  return new Date(s) < new Date();
+}
 
 function timeLeft(expiresAt: string | null): string {
   if (!expiresAt) return "";
@@ -66,14 +74,26 @@ export default function EditApprovalsPage() {
   useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));
 
   const summary = useMemo(() => {
-    return requests.reduce(
-      (acc, r) => { acc[r.status] += 1; return acc; },
-      { Pending: 0, Approved: 0, Rejected: 0 } as Record<string, number>
-    );
+    const acc = { Pending: 0, Approved: 0, Completed: 0, Rejected: 0 };
+    for (const r of requests) {
+      if (r.status === "Approved") {
+        if (isRequestExpired(r)) acc.Completed++;
+        else acc.Approved++;
+      } else if (r.status === "Pending") {
+        acc.Pending++;
+      } else if (r.status === "Rejected") {
+        acc.Rejected++;
+      }
+    }
+    return acc;
   }, [requests]);
 
   const filtered = useMemo(() => {
-    let result = requests.filter((r) => r.status === filter);
+    let result = requests.filter((r) =>
+      filter === "Completed" ? isRequestExpired(r)
+        : filter === "Approved" ? r.status === "Approved" && !isRequestExpired(r)
+        : r.status === filter
+    );
     const q = search.trim().toLowerCase();
     if (q) result = result.filter((r) =>
       r.staffName.toLowerCase().includes(q) ||
@@ -147,7 +167,7 @@ export default function EditApprovalsPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={5} />;
 
-  const FILTERS: FilterValue[] = ["Pending", "Approved", "Rejected"];
+  const FILTERS: FilterValue[] = ["Pending", "Approved", "Completed", "Rejected"];
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -161,7 +181,7 @@ export default function EditApprovalsPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 sm:max-w-md">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:max-w-2xl">
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Pending</p>
           <p className="mt-1 text-2xl font-bold text-yellow-600">{summary.Pending}</p>
@@ -169,6 +189,10 @@ export default function EditApprovalsPage() {
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Approved</p>
           <p className="mt-1 text-2xl font-bold text-green-600">{summary.Approved}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Completed</p>
+          <p className="mt-1 text-2xl font-bold text-gray-600">{summary.Completed}</p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Rejected</p>
@@ -280,9 +304,7 @@ export default function EditApprovalsPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((req) => {
-                  const isExpired = req.expiresAt
-                    ? new Date(req.expiresAt.endsWith("Z") ? req.expiresAt : req.expiresAt + "Z") < new Date()
-                    : false;
+                  const isExpired = isRequestExpired(req);
                   return (
                     <tr key={req.id} className={cn("transition-colors", selected.has(req.id) ? "bg-red-50/60" : "hover:bg-white/60")}>
                       <td className="px-4 py-3">

@@ -46,7 +46,6 @@ ALL_MODELS = [
     models.MaintenanceBaseConfig,
     models.TruckRunConfig,
     models.TyreLayoutCostConfig,
-    models.ComplianceCostConfig,
     models.ComplianceUpdateHistory,
     models.TyreRangeConfig,
     models.DriverAssignment,

@@ -7,6 +7,8 @@ import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { trucksApi, maintenanceApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
+import type { Truck } from "@/types/truck";
 
 type Props = {
   open: boolean;
@@ -15,6 +17,7 @@ type Props = {
   truckDbId?: string;
   records: MaintenanceRecord[];
   tyreLayout?: string;
+  truck?: Truck | null;
 };
 
 function StatusBadge({ status }: { status: "Overdue" | "Due Soon" | "OK" }) {
@@ -41,9 +44,15 @@ function fmt(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function TruckStatusDialog({ open, onClose, status, truckDbId, records, tyreLayout }: Props) {
+export function TruckStatusDialog({ open, onClose, status, truckDbId, records, tyreLayout, truck }: Props) {
   const [kmPerDay, setKmPerDay] = useState<number | null>(null);
   const [freshStatus, setFreshStatus] = useState<TruckMaintenanceStatus | null>(null);
+
+  // Real, trip-history-based Monthly Distance Average for this truck — same
+  // source and formula as the Truck Run Record page's "View Breakdown"
+  // dialog — used for Cost / Km (Advanced) below.
+  const { rows: truckRuns } = useTruckTripRuns(truck ?? null, open);
+  const runStats = useMemo(() => computeTruckRunStats(truckRuns), [truckRuns]);
 
   useEffect(() => {
     if (!open) { setFreshStatus(null); return; }
@@ -90,6 +99,10 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
 
   const costPerKm = avgDailyCost > 0 && kmPerDay !== null
     ? avgDailyCost / kmPerDay
+    : null;
+
+  const costPerKmAdvanced = costPerKm !== null && runStats.monthlyAvg > 0
+    ? costPerKm / runStats.monthlyAvg
     : null;
 
   const overdueItems = effectiveStatus.items.filter((i) => i.status === "Overdue");
@@ -203,19 +216,27 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
               </div>
             </div>
 
-            {/* Row 2: Avg/Day | Cost/Km */}
-            <div className="grid grid-cols-2 divide-x divide-blue-200 py-3">
+            {/* Row 2: Avg/Day | Cost/Km (Basic) | Cost/Km (Advanced) */}
+            <div className="grid grid-cols-3 divide-x divide-blue-200 py-3">
               <div className="pr-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Avg / Day</p>
                 <p className="mt-1 text-sm font-bold tabular-nums text-blue-700">
                   {yearTotal > 0 ? fmt(avgDailyCost) : <span className="text-slate-400">—</span>}
                 </p>
               </div>
-              <div className="pl-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Cost / Km</p>
+              <div className="px-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Cost / Km (Basic)</p>
                 <p className="mt-1 text-sm font-bold tabular-nums text-emerald-600">
                   {costPerKm !== null
                     ? `₹${costPerKm.toFixed(4)}`
+                    : <span className="text-slate-400">—</span>}
+                </p>
+              </div>
+              <div className="pl-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Cost / Km (Advanced)</p>
+                <p className="mt-1 text-sm font-bold tabular-nums text-indigo-600">
+                  {costPerKmAdvanced !== null
+                    ? `₹${costPerKmAdvanced.toFixed(6)}`
                     : <span className="text-slate-400">—</span>}
                 </p>
               </div>
@@ -235,12 +256,18 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
               <p className="text-[10px] text-blue-400">Avg/month = 12-month total ÷ 12</p>
               <p className="text-[10px] text-blue-400">Avg/day = Avg/month ÷ 26 working days</p>
               <p className="text-[10px] text-blue-400">
-                Cost/km = Avg/day ÷ km/day
+                Cost/km (Basic) = Avg/day ÷ km/day
                 {tyreLayout && kmPerDay !== null
                   ? ` (${tyreLayout} · ${kmPerDay} km/day)`
                   : tyreLayout
                   ? ` — km/day not configured for ${tyreLayout}`
                   : ""}
+              </p>
+              <p className="text-[10px] text-blue-400">
+                Cost/km (Advanced) = Cost/km (Basic) ÷ Monthly Distance Average
+                {runStats.monthlyAvg > 0
+                  ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
+                  : " — no trip run history for this truck yet"}
               </p>
             </div>
           </div>

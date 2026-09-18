@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from security import get_current_user, TokenUser
+from security import get_current_user, TokenUser, require_roles
 import models, schemas
 from websocket_manager import emit
 
@@ -49,7 +49,7 @@ def list_deletion_approvals(
     return q.all()
 
 
-@router.put("/{req_id}/approve", response_model=schemas.DeletionApprovalRequestOut)
+@router.put("/{req_id}/approve", response_model=schemas.DeletionApprovalRequestOut, dependencies=[Depends(require_roles())])
 def approve_deletion(
     req_id: int,
     payload: schemas.DeletionApprovalActionPayload,
@@ -81,6 +81,14 @@ def approve_deletion(
         if trip and trip.deleted_at is None:
             trip.deleted_at = datetime.now(timezone.utc)
             emit("trip_deleted", {"trip_id": req.resource_id, "trip_id_str": req.resource_name})
+    elif req.resource_type == "Driver":
+        # Soft delete — keeps the driver recoverable from the "Archive" page
+        # instead of destroying it outright, same pattern as drivers.py's
+        # delete_driver (which handles the Admin-direct-delete path).
+        driver = db.get(models.Driver, req.resource_id)
+        if driver and driver.deleted_at is None:
+            driver.deleted_at = datetime.now(timezone.utc)
+            emit("driver_updated", {})
 
     req.status = "Approved"
     req.approved_by_name = current_user.name
@@ -92,7 +100,7 @@ def approve_deletion(
     return req
 
 
-@router.put("/{req_id}/reject", response_model=schemas.DeletionApprovalRequestOut)
+@router.put("/{req_id}/reject", response_model=schemas.DeletionApprovalRequestOut, dependencies=[Depends(require_roles())])
 def reject_deletion(
     req_id: int,
     payload: schemas.DeletionApprovalActionPayload,

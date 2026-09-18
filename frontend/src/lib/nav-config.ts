@@ -46,6 +46,7 @@ import {
   Trash2,
   Filter,
   Archive,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -132,6 +133,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Tyre Management", href: "/maintenance/tyre-management", icon: CircleDot },
       { label: "Tyre Inventory", href: "/maintenance/tyre-inventory", icon: Boxes },
       { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
+      { label: "Truck Run Record", href: "/maintenance/truck-run-record", icon: Activity },
     ],
   },
   {
@@ -159,7 +161,6 @@ export const sidebarSections: NavSection[] = [
       { label: "Truck Run Configuration", href: "/admin/truck-run-config", icon: Gauge },
       { label: "Tyre Cost Configuration", href: "/admin/tyre-cost-config", icon: DollarSign },
       { label: "Tyre Range Configuration", href: "/admin/tyre-range-config", icon: CircleDot },
-      { label: "Compliance Cost Configuration", href: "/admin/compliance-cost-config", icon: FileCheck },
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
       { label: "AdBlue Management", href: "/admin/adblue", icon: Droplets },
       { label: "Default Batta Management", href: "/admin/default-batta", icon: Coins },

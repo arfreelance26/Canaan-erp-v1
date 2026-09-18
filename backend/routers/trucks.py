@@ -188,6 +188,109 @@ def get_compliance_per_km_all(db: Session = Depends(get_db)):
     return result
 
 
+# ---------------------------------------------------------------------------
+# Fleet Cost/Km ranking — "which truck would be most profitable" suggestion
+# ---------------------------------------------------------------------------
+
+@router.get("/cost-per-km-ranking", tags=["Trucks"])
+def get_cost_per_km_ranking(db: Session = Depends(get_db)):
+    """
+    Ranks trucks by "Cost/Km (Efficiency)" — fuel/mileage + AdBlue + tyre +
+    maintenance per km — cheapest first. Powers the "recommended truck"
+    suggestion in the Assign Trip dialog's customer insights panel.
+
+    Deliberately EXCLUDES EMI and compliance from the ranking metric: those
+    are financing/legal-admin costs tied to how the truck was bought and
+    registered, not to how efficiently it actually runs (fuel economy, tyre
+    wear, service frequency). Including them would rank a truck as "cheap"
+    or "expensive" for reasons that have nothing to do with its operating
+    efficiency. Both are still computed and returned in `breakdown` (and
+    folded into `total_cost_per_km`) for reference.
+
+    A truck is only included once fuel, maintenance AND tyre cost/km are all
+    available — those being absent means missing config, not a genuine zero,
+    and defaulting them to 0 would wrongly rank an under-configured truck as
+    "efficient". EMI, AdBlue and compliance legitimately can be zero (no
+    active loan / not an AdBlue truck / no compliance history yet), so those
+    default to 0 and never block inclusion.
+    """
+    from routers.maintenance import get_maintenance_cost_per_km_all, get_all_fuel_stats
+
+    trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
+    if not trucks:
+        return []
+
+    maintenance_map = get_maintenance_cost_per_km_all(db)
+    compliance_map = get_compliance_per_km_all(db)
+
+    fuel_cfg = db.query(models.FuelBaseConfig).first()
+    cost_per_litre = float(fuel_cfg.cost_per_litre) if fuel_cfg and fuel_cfg.cost_per_litre else 0.0
+    # Same "Lifetime Average" mileage (km/L) source used everywhere else in
+    # the app (Running Cost Calculator, TruckStatusDialog, etc.) — IQR-filtered.
+    mileage_map = get_all_fuel_stats(db)
+
+    tyre_layout_costs = {
+        c.tyre_layout: float(c.cost or 0)
+        for c in db.query(models.TyreLayoutCostConfig).all()
+        if c.cost and float(c.cost) > 0
+    }
+
+    manufacturer_price = {
+        m.name.strip().lower(): float(m.default_price_per_litre or 0)
+        for m in db.query(models.AdBlueManufacturer).all()
+    }
+
+    emi_totals: dict[str, float] = {}
+    for rec in db.query(models.EmiRecord).all():
+        if not rec.truck_registration:
+            continue
+        # Rough completed-loan exclusion: an EMI with an end date already
+        # passed no longer represents an ongoing per-km finance cost.
+        if rec.emi_end_date and rec.emi_end_date < datetime.now(timezone.utc).date():
+            continue
+        reg = rec.truck_registration.strip().upper()
+        emi_totals[reg] = emi_totals.get(reg, 0.0) + float(rec.emi_cost_per_km or 0)
+
+    results = []
+    for truck in trucks:
+        maint_per_km = maintenance_map.get(str(truck.id))
+        tyre_per_km = tyre_layout_costs.get(truck.tyre_layout or "")
+        mileage = mileage_map.get(str(truck.id))
+        # The three operating-efficiency components must be present — see docstring.
+        if not maint_per_km or not tyre_per_km or not mileage or cost_per_litre <= 0:
+            continue
+        fuel_per_km = cost_per_litre / mileage
+
+        adblue_l_per_km = float(truck.adblue_consumption) if truck.adblue_consumption else 0.0
+        price = manufacturer_price.get((truck.manufacturer or "").strip().lower(), 0.0)
+        adblue_per_km = adblue_l_per_km * price
+
+        compliance_km = compliance_map.get(str(truck.id), 0.0)
+        emi_per_km = emi_totals.get(truck.registration_number.strip().upper(), 0.0)
+
+        efficiency = fuel_per_km + adblue_per_km + tyre_per_km + maint_per_km
+        total = efficiency + compliance_km + emi_per_km
+        results.append({
+            "truck_db_id": str(truck.id),
+            "truck_id": truck.truck_id,
+            "registration_number": truck.registration_number,
+            "manufacturer": truck.manufacturer,
+            "efficiency_cost_per_km": round(efficiency, 4),
+            "total_cost_per_km": round(total, 4),
+            "breakdown": {
+                "fuel_per_km": round(fuel_per_km, 4),
+                "adblue_per_km": round(adblue_per_km, 4),
+                "tyre_per_km": round(tyre_per_km, 4),
+                "maintenance_per_km": round(maint_per_km, 4),
+                "compliance_per_km": round(compliance_km, 4),
+                "emi_per_km": round(emi_per_km, 4),
+            },
+        })
+
+    results.sort(key=lambda r: r["efficiency_cost_per_km"])
+    return results
+
+
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])
 def list_deleted_truck_ids(db: Session = Depends(get_db)):
     """Admin only: ids of trucks currently soft-deleted. Lets the "Archive" page
@@ -339,13 +442,18 @@ def change_truck_branch(
     else:
         if not (payload.trip_id or "").strip():
             raise HTTPException(400, "A trip is required for a trip-only branch change.")
+        if not (payload.note or "").strip():
+            raise HTTPException(400, "Please add a note explaining this branch change.")
         # If a temp assignment is already active, preserve the branch it should
         # ultimately revert to rather than overwriting it with the current
         # (itself temporary) branch.
         truck.temp_branch_original = truck.temp_branch_original or old_branch
         truck.temp_branch_trip_id = payload.trip_id.strip()
         truck.branch_registered_to = payload.branch_name
-        note = f"Temporarily assigned to Trip {payload.trip_id.strip()} by {current_user.name or 'Unknown'}"
+        note = (
+            f"Temporarily assigned to Trip {payload.trip_id.strip()} by {current_user.name or 'Unknown'}. "
+            f"Reason: {payload.note.strip()}"
+        )
 
     db.add(models.TruckBranchHistory(
         truck_id=truck.id,

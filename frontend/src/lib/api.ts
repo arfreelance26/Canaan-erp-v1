@@ -574,6 +574,7 @@ function toFinalCustomerPricing(b: B): FinalCustomerPricing {
   return {
     id: String(b.id),
     customerId: String(b.customer_id),
+    customerDestination: b.customer_destination ?? null,
     actualHireAmount: b.actual_hire_amount != null ? String(b.actual_hire_amount) : null,
     accountsHireAmount: b.accounts_hire_amount != null ? String(b.accounts_hire_amount) : null,
     version: b.version ?? 1,
@@ -651,6 +652,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     initialDisbursedAdvance: b.initial_disbursed_advance != null ? String(b.initial_disbursed_advance) : undefined,
     driverCompensationType: b.driver_compensation_type ?? "",
     isBattaApplicable: b.is_batta_applicable ?? false,
+    isBillingApplicable: b.is_billing_applicable ?? true,
     openLoadHireType: b.open_load_hire_type ?? "",
     ratePerTon: String(b.rate_per_ton ?? ""),
     transportHireAmount: String(b.transport_hire_amount ?? ""),
@@ -735,6 +737,7 @@ function fromTrip(f: Trip) {
     initial_disbursed_advance: f.initialDisbursedAdvance ? parseFloat(f.initialDisbursedAdvance) : null,
     driver_compensation_type: f.driverCompensationType || null,
     is_batta_applicable: f.tripCategory === "RETURN TRIP" ? !!f.isBattaApplicable : false,
+    is_billing_applicable: f.tripCategory === "SHIFTING" ? !!f.isBillingApplicable : true,
     open_load_hire_type: f.openLoadHireType || null,
     rate_per_ton: f.ratePerTon ? parseFloat(f.ratePerTon) : null,
     transport_hire_amount: f.transportHireAmount ? parseFloat(f.transportHireAmount) : null,
@@ -1040,7 +1043,7 @@ function toAirFilterRecord(b: B): AirFilterRecord {
     truckId: String(b.truck_id),
     date: b.date ?? "",
     odometerDuringChange: String(b.odometer_during_change ?? ""),
-    currentOdometer: String(b.current_odometer ?? ""),
+    nextChangeOdometer: String(b.next_change_odometer ?? ""),
     remarks: b.remarks ?? "",
     enteredByName: b.entered_by_name ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
@@ -1123,9 +1126,12 @@ function toTyreFitment(b: B): TyreFitmentRecord {
     position: b.position ?? "",
     fittedOdometer: b.fitted_odometer ?? 0,
     fittedDate: b.fitted_date ?? "",
+    fittedByName: b.fitted_by_name ?? null,
+    fittedRemark: b.fitted_remark ?? null,
     removedOdometer: b.removed_odometer ?? null,
     removedDate: b.removed_date ?? null,
     removalRemark: b.removal_remark ?? null,
+    removedByName: b.removed_by_name ?? null,
   };
 }
 
@@ -1141,11 +1147,12 @@ function toEmiRecord(b: B): EmiRecord {
     emiEndDate: b.emi_end_date ?? "",
     emiAmount: String(b.emi_amount ?? ""),
     tenureMonths: String(b.tenure_months ?? ""),
-    emiPaymentDate: b.emi_payment_date ?? "",
+    autoDebitDate: b.auto_debit_date ?? "",
     costPerMonth: String(b.cost_per_month ?? ""),
     monthlyFinanceCost: String(b.monthly_finance_cost ?? ""),
     dailyFinanceCost: String(b.daily_finance_cost ?? ""),
     emiCostPerKm: String(b.emi_cost_per_km ?? ""),
+    createdAt: b.created_at ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -1161,7 +1168,7 @@ function fromEmiRecord(f: EmiRecord) {
     emi_end_date: f.emiEndDate || null,
     emi_amount: parseFloat(f.emiAmount) || 0,
     tenure_months: parseInt(f.tenureMonths) || null,
-    emi_payment_date: f.emiPaymentDate || null,
+    auto_debit_date: f.autoDebitDate || null,
     cost_per_month: parseFloat(f.costPerMonth) || 0,
     monthly_finance_cost: parseFloat(f.monthlyFinanceCost) || 0,
     daily_finance_cost: parseFloat(f.dailyFinanceCost) || 0,
@@ -1229,11 +1236,12 @@ export const trucksApi = {
     req<{ id: number; truck_id: number; from_branch: string | null; to_branch: string; note: string; changed_by_name: string; changed_at: string }[]>(
       `/trucks/${dbId}/branch-history`
     ),
-  // "This Trip Only" / "Permanently" branch reassignment from the Assign Trip flow.
-  changeBranchTripOnly: (dbId: string, branchName: string, tripId: string) =>
+  // "This Trip Only" branch reassignment from the Assign Trip flow — note is
+  // the user's reason for the change, appended to the system-logged entry.
+  changeBranchTripOnly: (dbId: string, branchName: string, tripId: string, note: string) =>
     req<B>(`/trucks/${dbId}/branch-change`, {
       method: "POST",
-      body: JSON.stringify({ mode: "trip_only", branch_name: branchName, trip_id: tripId }),
+      body: JSON.stringify({ mode: "trip_only", branch_name: branchName, trip_id: tripId, note }),
     }).then(toTruck),
   changeBranchPermanently: (dbId: string, branchName: string, note: string) =>
     req<B>(`/trucks/${dbId}/branch-change`, {
@@ -1255,6 +1263,10 @@ export const trucksApi = {
       `/trucks/${truckId}/compliance-history`
     ),
   getCompliancePerKmAll: () => req<Record<string, number>>("/trucks/compliance-per-km/all"),
+  // Every truck's Basic-mode Total Cost/Km (fuel+adblue+tyre+maintenance+
+  // compliance+EMI), cheapest first — only includes trucks with complete
+  // config data. Powers the Assign Trip dialog's "recommended truck" list.
+  getCostPerKmRanking: () => req<TruckCostPerKmRanking[]>("/trucks/cost-per-km-ranking"),
 };
 
 // ---------------------------------------------------------------------------
@@ -1320,42 +1332,6 @@ export const tyreLayoutTypeConfigApi = {
       "/tyre-layout-type-config",
       { method: "PUT", body: JSON.stringify({ configs }) }
     ),
-};
-
-// ---------------------------------------------------------------------------
-// Compliance Cost Configuration API
-// ---------------------------------------------------------------------------
-
-export type ComplianceCostRow = {
-  id: number;
-  tyre_layout: string;
-  rc_cost: string;
-  fc_cost: string;
-  road_tax_cost: string;
-  national_permit_cost: string;
-  local_permit_cost: string;
-  pollution_cert_cost: string;
-  insurance_cost: string;
-};
-
-export type ComplianceCostItem = {
-  tyre_layout: string;
-  rc_cost: string;
-  fc_cost: string;
-  road_tax_cost: string;
-  national_permit_cost: string;
-  local_permit_cost: string;
-  pollution_cert_cost: string;
-  insurance_cost: string;
-};
-
-export const complianceCostApi = {
-  list: () => req<ComplianceCostRow[]>("/compliance-cost"),
-  save: (configs: ComplianceCostItem[]) =>
-    req<ComplianceCostRow[]>("/compliance-cost", {
-      method: "PUT",
-      body: JSON.stringify({ configs }),
-    }),
 };
 
 // ---------------------------------------------------------------------------
@@ -1498,10 +1474,11 @@ export const customersApi = {
 
   listFinalPricing: (customerId: string) =>
     req<B[]>(`/customers/${customerId}/final-pricing`).then((d) => d.map(toFinalCustomerPricing)),
-  createFinalPricing: (customerId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null }) =>
+  createFinalPricing: (customerId: string, data: { customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) =>
     req<B>(`/customers/${customerId}/final-pricing`, {
       method: "POST",
       body: JSON.stringify({
+        customer_destination: data.customerDestination,
         actual_hire_amount: data.actualHireAmount ? parseFloat(data.actualHireAmount) : null,
         accounts_hire_amount: data.accountsHireAmount ? parseFloat(data.accountsHireAmount) : null,
       }),
@@ -1610,6 +1587,14 @@ export const tripsApi = {
       body: JSON.stringify(data),
     }),
   getCustomerProfitability: () => req<CustomerProfitabilityData[]>("/trips/customer-profitability"),
+  // Most profitable completed trips for one customer (+ optional route), with
+  // the driver/truck that achieved each — powers the Assign Trip dialog's
+  // customer insights panel.
+  getCustomerTopProfitableTrips: (customerId: string, route?: string, limit = 500) => {
+    const params = new URLSearchParams({ customer_id: customerId, limit: String(limit) });
+    if (route) params.set("route", route);
+    return req<CustomerTopProfitableTrip[]>(`/trips/customer-profitability/top-trips?${params.toString()}`);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1855,14 +1840,14 @@ export const maintenanceApi = {
   listEmiRecordsReadOnly: () => req<B[]>("/maintenance/emi-records").then((d) => d.map(toEmiRecord)),
   listAirFilterRecords: (truckId?: string) =>
     req<B[]>(`/maintenance/air-filter-records${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toAirFilterRecord)),
-  createAirFilterRecord: (record: { truckId: string; date: string; odometerDuringChange: string; currentOdometer: string; remarks: string }) =>
+  createAirFilterRecord: (record: { truckId: string; date: string; odometerDuringChange: string; nextChangeOdometer: string; remarks: string }) =>
     req<B>("/maintenance/air-filter-records", {
       method: "POST",
       body: JSON.stringify({
         truck_id: parseInt(record.truckId),
         date: record.date,
         odometer_during_change: parseInt(record.odometerDuringChange),
-        current_odometer: parseInt(record.currentOdometer),
+        next_change_odometer: parseInt(record.nextChangeOdometer),
         remarks: record.remarks.trim() || null,
       }),
     }).then(toAirFilterRecord),
@@ -2083,6 +2068,42 @@ export type CustomerProfitabilityData = {
   }[];
 };
 
+export type CustomerTopProfitableTrip = {
+  trip_id: number;
+  trip_id_str: string;
+  date: string | null;
+  route: string;
+  driver_id: string | null;
+  driver_name: string;
+  vehicle_id: string | null;
+  truck_registration: string;
+  revenue: number;
+  expense: number;
+  profit: number;
+  margin_pct: number;
+  km: number;
+};
+
+export type TruckCostPerKmRanking = {
+  truck_db_id: string;
+  truck_id: string;
+  registration_number: string;
+  manufacturer: string;
+  // Fuel + AdBlue + tyre + maintenance per km — what the ranking is sorted
+  // by. Excludes EMI/compliance (financing/legal costs, not efficiency).
+  efficiency_cost_per_km: number;
+  // efficiency_cost_per_km + compliance + EMI — shown for reference only.
+  total_cost_per_km: number;
+  breakdown: {
+    fuel_per_km: number;
+    adblue_per_km: number;
+    tyre_per_km: number;
+    maintenance_per_km: number;
+    compliance_per_km: number;
+    emi_per_km: number;
+  };
+};
+
 export type AdBlueManufacturer = {
   id: string;
   name: string;
@@ -2138,17 +2159,21 @@ export const tyreApi = {
     if (activeOnly) params.set("active_only", "true");
     return req<B[]>(`/tyre-fitment?${params}`).then((d) => d.map(toTyreFitment));
   },
-  fitTyre: (tyreDbId: string, truckDbId: string, position: string, fittedOdometer: number, fittedDate: string) =>
+  fitTyre: (tyreDbId: string, truckDbId: string, position: string, fittedOdometer: number, fittedDate: string, fittedRemark?: string) =>
     req<B>("/tyre-fitment", {
       method: "POST",
-      body: JSON.stringify({ tyre_id: parseInt(tyreDbId), truck_id: parseInt(truckDbId), position, fitted_odometer: fittedOdometer, fitted_date: fittedDate }),
+      body: JSON.stringify({
+        tyre_id: parseInt(tyreDbId), truck_id: parseInt(truckDbId), position,
+        fitted_odometer: fittedOdometer, fitted_date: fittedDate,
+        fitted_remark: fittedRemark || null,
+      }),
     }).then(toTyreFitment),
   removeTyre: (fitmentId: string, removedOdometer: number, removedDate: string, removalRemark: string) =>
     req<B>(`/tyre-fitment/${fitmentId}/remove`, {
       method: "PATCH",
       body: JSON.stringify({ removed_odometer: removedOdometer, removed_date: removedDate, removal_remark: removalRemark }),
     }).then(toTyreFitment),
-  swapPositions: (truckDbId: string, pairs: [string, string][], odometer: number, remark: string) =>
+  swapPositions: (truckDbId: string, pairs: [string, string][], odometer: number, remark: string, date: string) =>
     req<B[]>("/tyre-fitment/swap", {
       method: "POST",
       body: JSON.stringify({
@@ -2156,6 +2181,7 @@ export const tyreApi = {
         pairs: pairs.map(([a, b]) => ({ position_a: a, position_b: b })),
         odometer,
         remark,
+        date,
       }),
     }).then((d) => d.map(toTyreFitment)),
 };
@@ -2619,6 +2645,7 @@ function toEditApproval(b: B): EditApprovalRequest {
     approvedAt: b.approved_at ?? null,
     expiresAt: b.expires_at ?? null,
     createdAt: b.created_at ?? null,
+    usedAt: b.used_at ?? null,
   };
 }
 

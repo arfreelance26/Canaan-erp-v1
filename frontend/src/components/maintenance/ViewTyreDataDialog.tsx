@@ -44,7 +44,7 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
 
   const total = installedTyres.reduce((sum, t) => sum + (getCostPerKm(t) ?? 0), 0);
 
-  const COLS = ["Brand", "Tyre Type", "Tyre Number", "Tyre Cost (₹)", "Expected Range", "Cost Per KM"];
+  const COLS = ["Brand", "Tyre Type", "Tyre Number", "Tyre Cost (₹)", "Expected Range", "Cost Per KM (Advanced)"];
 
   return (
     <Dialog open={open} onClose={onClose} title="Installed Tyre Data" className="max-w-4xl">
@@ -55,7 +55,7 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
       </div>
 
       <div className="mb-4 flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-5 py-3">
-        <span className="text-sm font-semibold text-blue-700">Total Tyre Cost Per KM</span>
+        <span className="text-sm font-semibold text-blue-700">Total Tyre Cost Per KM (Advanced)</span>
         <span className="text-lg font-bold tabular-nums text-blue-900">
           {total > 0 ? `₹${total.toFixed(4)}` : "—"}
         </span>

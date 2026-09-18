@@ -14,12 +14,14 @@ import {
   TrendingDown,
   Calendar,
   Gauge,
+  Filter,
 } from "lucide-react";
 import { tyreApi, trucksApi, maintenanceApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
+import { getAirFilterAlerts } from "@/lib/air-filter-alerts";
 import { formatDate } from "@/lib/format-date";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck as TruckType } from "@/types/truck";
-import type { MaintenanceRecord, MaintenanceStatusItem } from "@/types/truck-maintenance";
+import type { MaintenanceRecord, MaintenanceStatusItem, AirFilterRecord } from "@/types/truck-maintenance";
 
 
 const QUICK_LINKS = [
@@ -82,6 +84,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
   const [fitments, setFitments]     = useState<TyreFitmentRecord[]>([]);
   const [trucks, setTrucks]         = useState<TruckType[]>([]);
   const [records, setRecords]       = useState<MaintenanceRecord[]>([]);
+  const [airFilterRecords, setAirFilterRecords] = useState<AirFilterRecord[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -92,13 +95,15 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
       tyreApi.listFitments(undefined, true),
       trucksApi.list(),
       maintenanceApi.listRecords(),
+      maintenanceApi.listAirFilterRecords(),
     ])
-      .then(([inv, avail, fits, trks, recs]) => {
+      .then(([inv, avail, fits, trks, recs, afRecs]) => {
         setInventory(inv);
         setAvailable(avail);
         setFitments(fits);
         setTrucks(trks);
         setRecords(recs);
+        setAirFilterRecords(afRecs);
       })
       .finally(() => setLoading(false));
   }, [refreshKey]);
@@ -106,6 +111,7 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
   useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
+  useWebSocketEvent("air_filter_updated", () => setRefreshKey(k => k + 1));
 
   const truckByDbId  = useMemo(() => new Map(trucks.map((t) => [t.id, t])),  [trucks]);
   const tyreByDbId   = useMemo(() => new Map(inventory.map((t) => [t.id, t])), [inventory]);
@@ -119,6 +125,13 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
   const allAlerts = useMemo<MaintenanceStatusItem[]>(() => {
     return trucks.flatMap((t) => getMaintenanceStatus(t, records)).filter((s) => s.status === "attention");
   }, [trucks, records]);
+
+  // Air filter change alerts — latest log's next-change target vs. each
+  // truck's live Current Odometer (updated after every trip).
+  const airFilterAlerts = useMemo(
+    () => getAirFilterAlerts(trucks, airFilterRecords),
+    [trucks, airFilterRecords]
+  );
 
   const topBrands = useMemo(() => {
     const map = new Map<string, number>();
@@ -385,6 +398,45 @@ export function TyreManagerDashboard({ embedded = false }: { embedded?: boolean 
           </CardContent>
         </Card>
       </div>
+
+      {/* Air Filter Change Alerts */}
+      <Card className={airFilterAlerts.length > 0 ? "border-red-200" : "border-gray-200"}>
+        <CardContent className="p-5">
+        <SectionTitle icon={Filter} title="Air Filter Change Alerts" badge={airFilterAlerts.length} badgeVariant="critical" />
+        {loading ? (
+          <div className="space-y-3">{[1,2,3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
+        ) : airFilterAlerts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <ShieldCheck className="h-8 w-8 text-emerald-400" />
+            <p className="text-sm font-medium text-gray-600">All air filters up to date</p>
+            <p className="text-xs text-gray-400">No trucks due or overdue for a change</p>
+          </div>
+        ) : (
+          <ul className="max-h-64 divide-y divide-gray-50 overflow-y-auto custom-scrollbar pr-1">
+            {airFilterAlerts.map((a) => (
+              <li key={a.truck.id} className="flex items-start gap-3 py-2.5">
+                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                  a.status === "overdue" ? "bg-red-100" : "bg-amber-100"
+                }`}>
+                  <AlertTriangle className={`h-3 w-3 ${a.status === "overdue" ? "text-red-600" : "text-amber-600"}`} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-gray-900">{a.truck.truckId} · {a.truck.registrationNumber}</p>
+                  <p className="text-[11px] text-gray-500">
+                    Current: {a.currentOdometer.toLocaleString("en-IN")} km · Next change at {a.nextChangeOdometer.toLocaleString("en-IN")} km
+                  </p>
+                </div>
+                <Badge variant={a.status === "overdue" ? "critical" : "warning"}>
+                  {a.status === "overdue"
+                    ? `Overdue ${Math.abs(a.dueInKm).toLocaleString("en-IN")} km`
+                    : `Due in ${a.dueInKm.toLocaleString("en-IN")} km`}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+        </CardContent>
+      </Card>
 
     </div>
   );

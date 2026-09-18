@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TyreManagementTable } from "@/components/maintenance/TyreManagementTable";
 import { ManageTyresDialog } from "@/components/maintenance/ManageTyresDialog";
 import { ViewTyreDataDialog } from "@/components/maintenance/ViewTyreDataDialog";
+import { TruckHistoryDialog } from "@/components/maintenance/TruckHistoryDialog";
 import { trucksApi, tyreApi, tyreRangeConfigApi } from "@/lib/api";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 
@@ -21,6 +22,7 @@ export default function TyreManagementPage() {
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [viewTyreDataOpen, setViewTyreDataOpen] = useState(false);
+  const [viewTruckHistoryTruck, setViewTruckHistoryTruck] = useState<Truck | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -63,6 +65,10 @@ export default function TyreManagementPage() {
   function handleViewTyreData(truck: Truck) {
     setSelectedTruck(truck);
     setViewTyreDataOpen(true);
+  }
+
+  function handleViewTruckHistory(truck: Truck) {
+    setViewTruckHistoryTruck(truck);
   }
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
@@ -115,10 +121,16 @@ export default function TyreManagementPage() {
         </div>
       </div>
 
-      <TyreManagementTable trucks={filteredTrucks} onManageTyres={handleManageTyres} onViewTyreData={handleViewTyreData} />
+      <TyreManagementTable
+        trucks={filteredTrucks}
+        onManageTyres={handleManageTyres}
+        onViewTyreData={handleViewTyreData}
+        onViewTruckHistory={handleViewTruckHistory}
+      />
 
       <ManageTyresDialog open={manageDialogOpen} onClose={() => setManageDialogOpen(false)} truck={selectedTruck} />
       <ViewTyreDataDialog open={viewTyreDataOpen} onClose={() => { setViewTyreDataOpen(false); setSelectedTruck(null); }} truck={selectedTruck} rangeConfigMap={rangeConfigMap} />
+      <TruckHistoryDialog open={viewTruckHistoryTruck !== null} onClose={() => setViewTruckHistoryTruck(null)} truck={viewTruckHistoryTruck} />
     </div>
   );
 }

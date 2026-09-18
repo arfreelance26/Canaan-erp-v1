@@ -9,11 +9,12 @@ export type EmiRecord = {
   emiEndDate: string;
   emiAmount: string;
   tenureMonths: string;
-  emiPaymentDate: string;
+  autoDebitDate: string;
   costPerMonth: string;
   monthlyFinanceCost: string;
   dailyFinanceCost: string;
   emiCostPerKm: string;
+  createdAt?: string | null;
   version?: number;
 };
 

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
-import { useIdle } from "react-haiku";
+import { useIdleTimer } from "@/hooks/useIdleTimer";
 import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
@@ -18,9 +18,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // initialState:false — otherwise the hook reports "idle" on first render and
+  // initialIdle=false — otherwise the hook reports "idle" on first render and
   // the effect below would log the user out immediately on every refresh.
-  const isIdle = useIdle(IDLE_TIMEOUT_MS, { initialState: false });
+  const isIdle = useIdleTimer(IDLE_TIMEOUT_MS, false);
 
   useChatMessageToasts();
 

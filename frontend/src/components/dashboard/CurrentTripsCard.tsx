@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Navigation, Search, Truck, X } from "lucide-react";
-import { notificationsApi, tripsApi } from "@/lib/api";
+import { notificationsApi, tripsApi, customersApi } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
+import type { Customer } from "@/types/customer";
 
 const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
 
@@ -88,10 +89,25 @@ function fmtDate(d?: string | null): string {
 export function CurrentTripsCard() {
   const { user } = useAuth();
   const canSeeHire = user?.softwareDesignation === "Admin" || user?.softwareDesignation === "Accounts";
-  const gridCols = canSeeHire
-    ? "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_100px_170px]"
-    : "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_170px]";
+  // Customer Account column — Admin, Commercial Manager (+ Assistant, who
+  // has equal access throughout this app), and Accounts only.
+  const canSeeCustomer =
+    user?.softwareDesignation === "Admin" ||
+    user?.softwareDesignation === "Commercial Manager" ||
+    user?.softwareDesignation === "Assistant Commercial Manager" ||
+    user?.softwareDesignation === "Accounts";
+  // Tailwind's JIT scans source text for literal class strings, so each
+  // combination must appear verbatim here — a runtime-built arbitrary-value
+  // class (e.g. via array.join) would never get its CSS generated.
+  const gridCols = canSeeCustomer
+    ? (canSeeHire
+        ? "grid-cols-[1.2fr_1.3fr_1fr_1fr_1.5fr_1.2fr_100px_100px_170px]"
+        : "grid-cols-[1.2fr_1.3fr_1fr_1fr_1.5fr_1.2fr_100px_170px]")
+    : (canSeeHire
+        ? "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_100px_170px]"
+        : "grid-cols-[1.2fr_1fr_1fr_1.5fr_1.2fr_100px_170px]");
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   // Track IDs of trips newly assigned so we can highlight them
   const [newTripIds, setNewTripIds] = useState<Set<string>>(new Set());
@@ -105,6 +121,13 @@ export function CurrentTripsCard() {
       })))
       .catch(() => {});
   }, [refreshKey]);
+
+  useEffect(() => {
+    if (!canSeeCustomer) return;
+    customersApi.list().then(setCustomers).catch(() => {});
+  }, [canSeeCustomer]);
+
+  const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
 
   const markNew = useCallback((id: string) => {
     if (!id) return;
@@ -173,9 +196,10 @@ export function CurrentTripsCard() {
       (t.truckRegistration ?? "").toLowerCase().includes(q) ||
       (t.driverName      ?? "").toLowerCase().includes(q) ||
       (t.origin          ?? "").toLowerCase().includes(q) ||
-      (t.destination     ?? "").toLowerCase().includes(q)
+      (t.destination     ?? "").toLowerCase().includes(q) ||
+      (canSeeCustomer && (customerById.get(t.customerId)?.name ?? "").toLowerCase().includes(q))
     );
-  }, [trips, tripSearch, stageFilter]);
+  }, [trips, tripSearch, stageFilter, customerById, canSeeCustomer]);
 
   const newCount = newTripIds.size;
 
@@ -259,6 +283,7 @@ export function CurrentTripsCard() {
       {trips.length > 0 && (
         <div className={`grid ${gridCols} gap-x-3 border-b border-gray-100 bg-gray-50/70 px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400`}>
           <span>Trip ID</span>
+          {canSeeCustomer && <span>Customer Account</span>}
           <span>From</span>
           <span>To</span>
           <span>Driver</span>
@@ -301,6 +326,11 @@ export function CurrentTripsCard() {
                   )}
                   <span className="truncate">{trip.tripId || "—"}</span>
                 </span>
+
+                {/* Customer Account — Admin / Commercial Manager only */}
+                {canSeeCustomer && (
+                  <span className="truncate text-gray-700">{customerById.get(trip.customerId)?.name ?? "—"}</span>
+                )}
 
                 {/* Origin */}
                 <span className="truncate font-medium text-gray-800">{trip.origin || "—"}</span>

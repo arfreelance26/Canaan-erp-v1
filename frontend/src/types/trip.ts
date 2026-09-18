@@ -90,6 +90,10 @@ export type Trip = {
   // RETURN TRIP only: batta is normally paid beforehand and excluded from Net
   // Payable; set true to mark this return trip's batta as still owed.
   isBattaApplicable: boolean;
+  // SHIFTING only: shifting trips aren't billed to a customer by default, so
+  // Payment & Advances stays locked; set true to mark this shifting trip as
+  // billable instead, unlocking that section.
+  isBillingApplicable: boolean;
 
   // Transport Cost Details
   openLoadHireType?: "Ton Based" | "Fixed" | "";

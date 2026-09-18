@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -7,6 +8,54 @@ import models
 from excel_utils import build_excel_response
 
 router = APIRouter(prefix="/exports", tags=["Exports"])
+
+
+def _live_emi_figures(db: Session, records: list["models.EmiRecord"]):
+    """Recomputes Amount Paid / Remaining EMI Payable fresh, as of today —
+    mirroring EmiFormDialog's creation-anchored formula — instead of reading
+    values saved at record-creation time. They shrink/grow by one EMI Amount
+    on every elapsed Auto-Debit Date, so an export taken months after the
+    last edit still reflects that. Daily Finance Cost / EMI Cost per KM are
+    also included here (EMI Amount ÷ 26, and that ÷ the truck's km/day) so
+    the export doesn't need a second lookup pass for them.
+    Returns a dict keyed by record id -> (amount_paid, remaining, daily_finance_cost, emi_cost_per_km).
+    """
+    trucks_by_reg = {t.registration_number.strip().upper(): t for t in db.query(models.Truck).all()}
+    km_per_day_by_layout = {c.tyre_layout: float(c.km_per_day or 0) for c in db.query(models.TruckRunConfig).all()}
+
+    today = date.today()
+    out: dict[int, tuple[float, float, float, float]] = {}
+    for r in records:
+        emi_amount = float(r.emi_amount or 0)
+        tenure = r.tenure_months or 0
+        if emi_amount <= 0 or tenure <= 0:
+            out[r.id] = (0.0, 0.0, 0.0, 0.0)
+            continue
+
+        created = r.created_at.date() if r.created_at else r.emi_start_date
+        if created is None:
+            out[r.id] = (0.0, tenure * emi_amount, 0.0, 0.0)
+            continue
+
+        auto_debit_day = r.auto_debit_date.day if r.auto_debit_date else created.day
+        months_since_creation = (today.year - created.year) * 12 + (today.month - created.month)
+        if today.day < auto_debit_day:
+            months_since_creation -= 1
+        months_since_creation = max(0, months_since_creation)
+        paid_months = min(tenure, months_since_creation + 1)
+
+        amount_paid = paid_months * emi_amount
+        remaining = max(0.0, (tenure - paid_months) * emi_amount)
+        # Daily Finance Cost = EMI Amount ÷ 26 — EMI Amount is already the
+        # monthly installment, matching EmiFormDialog's formula.
+        daily_finance_cost = emi_amount / 26
+
+        truck = trucks_by_reg.get((r.truck_registration or "").strip().upper())
+        km_per_day = km_per_day_by_layout.get(truck.tyre_layout, 0) if truck else 0
+        emi_cost_per_km = (daily_finance_cost / km_per_day) if km_per_day > 0 else 0.0
+
+        out[r.id] = (round(amount_paid, 2), round(remaining, 2), round(daily_finance_cost, 2), round(emi_cost_per_km, 6))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -335,19 +384,22 @@ def export_leave_requests(
 @router.get("/emi")
 def export_emi(db: Session = Depends(get_db)):
     rows = db.query(models.EmiRecord).order_by(models.EmiRecord.emi_name).all()
+    live = _live_emi_figures(db, rows)
     headers = [
-        "EMI Name", "Truck Registration", "Loan Number", "Bank Name",
-        "Loan Amount", "EMI Amount", "Tenure (Months)", "Cost Per Month",
+        "EMI Name", "Truck Registration", "Bank Name",
+        "EMI Amount", "Amount Paid", "Remaining EMI Payable", "Tenure (Months)", "Cost Per Month",
         "Monthly Finance Cost", "Daily Finance Cost", "EMI Cost Per KM",
-        "EMI Start Date", "EMI End Date", "EMI Payment Date",
+        "EMI Start Date", "EMI End Date", "Auto-Debit Date",
     ]
-    data = [
-        [r.emi_name, r.truck_registration, r.loan_number, r.bank_name,
-         r.loan_amount, r.emi_amount, r.tenure_months, r.cost_per_month,
-         r.monthly_finance_cost, r.daily_finance_cost, r.emi_cost_per_km,
-         r.emi_start_date, r.emi_end_date, r.emi_payment_date]
-        for r in rows
-    ]
+    data = []
+    for r in rows:
+        amount_paid, remaining, daily_finance_cost, emi_cost_per_km = live[r.id]
+        data.append([
+            r.emi_name, r.truck_registration, r.bank_name,
+            r.emi_amount, amount_paid, remaining, r.tenure_months, r.cost_per_month,
+            r.monthly_finance_cost, daily_finance_cost, emi_cost_per_km,
+            r.emi_start_date, r.emi_end_date, r.auto_debit_date,
+        ])
     return build_excel_response([("EMI Records", headers, data)], "emi_records.xlsx")
 
 

@@ -14,7 +14,6 @@ import {
   TrendingUp,
   IndianRupee,
   FileWarning,
-  CalendarDays,
   CircleDot,
 } from "lucide-react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
@@ -122,17 +121,7 @@ export function FinanceManagerDashboard() {
 
   // EMI stats
   const activeEmis   = useMemo(() => emiRecords.filter((e) => e.emiEndDate >= todayStr), [emiRecords, todayStr]);
-  const overdueEmis  = useMemo(() => activeEmis.filter((e) => e.emiPaymentDate <= todayStr), [activeEmis, todayStr]);
   const monthlyEmiTotal = useMemo(() => activeEmis.reduce((s, e) => s + Number(e.emiAmount || 0), 0), [activeEmis]);
-
-  // Upcoming EMI payments (next 30 days, not overdue)
-  const upcomingEmis = useMemo(() =>
-    activeEmis
-      .filter((e) => e.emiPaymentDate > todayStr)
-      .sort((a, b) => a.emiPaymentDate.localeCompare(b.emiPaymentDate))
-      .slice(0, 6),
-    [activeEmis, todayStr]
-  );
 
   // Trips pending finalization: completed + has sheet but not invoiced
   const pendingFinalization = useMemo(() =>
@@ -169,14 +158,6 @@ export function FinanceManagerDashboard() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Accounts Dashboard</h1>
             <p className="mt-1 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {!loading && overdueEmis.length > 0 && (
-              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                <span className="text-xs font-semibold text-red-700">{overdueEmis.length} EMI payment{overdueEmis.length > 1 ? "s" : ""} overdue</span>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -236,9 +217,8 @@ export function FinanceManagerDashboard() {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatCard icon={Landmark}      label="Active EMIs"          value={loading ? "—" : activeEmis.length}          variant="blue"    caption={loading ? "" : `${fmt(monthlyEmiTotal)}/mo`} />
-        <StatCard icon={AlertTriangle} label="EMI Overdue"          value={loading ? "—" : overdueEmis.length}         variant={overdueEmis.length > 0 ? "red" : "default"} caption={overdueEmis.length > 0 ? "Needs immediate action" : "All paid"} />
         <StatCard icon={CalendarCheck} label="Pending Finalization" value={loading ? "—" : pendingFinalization.length} variant="purple"  caption="Trips awaiting invoice" />
         <StatCard icon={ShieldCheck}   label="Compliance Alerts"    value={loading ? "—" : complianceAlerts.length}    variant={complianceAlerts.some(a => a.status === "Expired") ? "red" : "amber"} caption={complianceAlerts.length > 0 ? `${complianceAlerts.filter(a => a.status === "Expired").length} expired` : "All valid"} />
       </div>
@@ -258,68 +238,8 @@ export function FinanceManagerDashboard() {
         </div>
       </div>
 
-      {/* EMI Schedule + Pending Finalization */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-        {/* EMI Payment Schedule */}
-        <Card className="border-blue-200">
-          <CardContent className="p-5">
-          <SectionTitle icon={CalendarDays} title="Upcoming EMI Payments" badge={upcomingEmis.length} badgeVariant="active" />
-          {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
-          ) : overdueEmis.length === 0 && upcomingEmis.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-gray-600">No EMI payments due</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {/* Overdue first */}
-              {overdueEmis.slice(0, 3).map((e) => {
-                const daysOv = -daysBetween(e.emiPaymentDate);
-                return (
-                  <li key={e.id} className="flex items-center gap-3 py-2.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100">
-                      <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">{e.emiName}</p>
-                      <p className="text-[11px] text-gray-500">{e.truckRegistration} · {e.bankName}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs font-bold text-red-600">{fmt(Number(e.emiAmount))}</p>
-                      <p className="text-[10px] text-red-500">{daysOv}d overdue</p>
-                    </div>
-                  </li>
-                );
-              })}
-              {/* Upcoming */}
-              {upcomingEmis.map((e) => {
-                const days = daysBetween(e.emiPaymentDate);
-                return (
-                  <li key={e.id} className="flex items-center gap-3 py-2.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-                      <Landmark className="h-3.5 w-3.5 text-blue-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">{e.emiName}</p>
-                      <p className="text-[11px] text-gray-500">{e.truckRegistration} · {e.bankName}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs font-bold text-gray-800">{fmt(Number(e.emiAmount))}</p>
-                      <p className={`text-[10px] ${days <= 3 ? "font-semibold text-amber-600" : "text-gray-400"}`}>
-                        {days === 0 ? "Due today" : `in ${days}d · ${fmtDate(e.emiPaymentDate)}`}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          </CardContent>
-        </Card>
-
-        {/* Pending Finalization */}
+      {/* Pending Finalization */}
+      <div className="grid grid-cols-1 gap-4">
         <Card className="border-purple-200">
           <CardContent className="p-5">
           <SectionTitle icon={FileWarning} title="Trips Pending Invoice" badge={pendingFinalization.length} badgeVariant="purple" />

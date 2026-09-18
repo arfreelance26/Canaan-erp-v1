@@ -10,6 +10,7 @@ import type { Truck } from "@/types/truck";
 import type { EmiRecord } from "@/types/finance";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { paidInstallments } from "@/lib/emi-schedule";
 
 export const DRAFT_KEY = "erp_emi_form_draft";
 
@@ -39,7 +40,7 @@ const emptyForm: Omit<EmiRecord, "id"> = {
   emiEndDate: "",
   emiAmount: "",
   tenureMonths: "",
-  emiPaymentDate: "",
+  autoDebitDate: "",
   costPerMonth: "",
   monthlyFinanceCost: "",
   dailyFinanceCost: "",
@@ -114,11 +115,26 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
   const loanAmt = Number(form.loanAmount) || 0;
   const emiAmt  = Number(form.emiAmount)  || 0;
 
+  // Number of monthly installments booked so far, capped to [0, tenure] —
+  // same creation-anchored logic shared with EmiTrackingTable and the
+  // "View EMI Record" flowchart (falls back to EMI Start Date for a
+  // not-yet-saved entry with no createdAt yet).
+  const paidMonths = paidInstallments(form, tenure);
+  const amountPaid       = paidMonths * emiAmt;
+  const remainingEmiAmount = (tenure - paidMonths) * emiAmt;
+  // Total payable over the loan's life — EMI Amount is already the monthly
+  // installment, so this is EMI Amount × Tenure, not divided by it. Matches
+  // the "Total EMI Payable" header stat on the View EMI Record dialog.
+  const totalEmiPayable = tenure > 0 ? tenure * emiAmt : 0;
+
   const costPerMonth        = tenure > 0 && loanAmt > 0 ? (loanAmt / tenure).toFixed(2)             : "";
-  // Monthly Finance Cost = EMI Amount ÷ Tenure
+  // Monthly Finance Cost = EMI Amount ÷ Tenure — kept only for other features
+  // (P&L Summary, Truck EMI Record) that already key off this value.
   const monthlyFinanceCost  = tenure > 0 && emiAmt  > 0 ? (emiAmt  / tenure).toFixed(2)             : "";
-  // Daily Finance Cost   = Monthly Finance Cost ÷ 26 working days
-  const dailyFinanceCost    = monthlyFinanceCost         ? (Number(monthlyFinanceCost) / 26).toFixed(2) : "";
+  // Daily Finance Cost = EMI Amount ÷ 26 working days — EMI Amount is already
+  // the monthly installment, so it (not the tenure-divided Monthly Finance
+  // Cost above) is the correct monthly figure to spread across the month.
+  const dailyFinanceCost    = emiAmt > 0                ? (emiAmt / 26).toFixed(2)                   : "";
 
   // EMI Cost per Km = Daily Finance Cost ÷ Km/Day for the selected truck's tyre layout
   const selectedTruck   = trucks.find((t) => t.registrationNumber === form.truckRegistration);
@@ -145,24 +161,24 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
     const submitLoanAmt   = Number(form.loanAmount)   || 0;
     const freshCostPerMonth       = submitTenure > 0 && submitLoanAmt > 0 ? (submitLoanAmt / submitTenure).toFixed(2) : "";
     const freshMonthlyFinanceCost = submitTenure > 0 && submitEmiAmt  > 0 ? (submitEmiAmt  / submitTenure).toFixed(2) : "";
-    const freshDailyFinanceCost   = freshMonthlyFinanceCost ? (Number(freshMonthlyFinanceCost) / 26).toFixed(2) : "";
+    const freshDailyFinanceCost   = submitEmiAmt > 0 ? (submitEmiAmt / 26).toFixed(2) : "";
     const freshEmiCostPerKm       = freshDailyFinanceCost && kmPerDay > 0
       ? (Number(freshDailyFinanceCost) / kmPerDay).toFixed(4)
       : "";
 
-    // Synthesize the payment date string from the day of the month
-    let finalPaymentDate = form.emiPaymentDate;
-    const paymentDay = Number(form.emiPaymentDate);
-    if (!isNaN(paymentDay) && paymentDay > 0 && paymentDay <= 31) {
+    // Synthesize the full auto-debit date from the day of the month entered
+    let finalAutoDebitDate = form.autoDebitDate;
+    const debitDay = Number(form.autoDebitDate);
+    if (!isNaN(debitDay) && debitDay > 0 && debitDay <= 31) {
       const today = new Date();
-      let nextPayment = new Date(today.getFullYear(), today.getMonth(), paymentDay);
-      if (nextPayment < today) {
-        nextPayment = new Date(today.getFullYear(), today.getMonth() + 1, paymentDay);
+      let nextDebit = new Date(today.getFullYear(), today.getMonth(), debitDay);
+      if (nextDebit < today) {
+        nextDebit = new Date(today.getFullYear(), today.getMonth() + 1, debitDay);
       }
-      const year  = nextPayment.getFullYear();
-      const month = String(nextPayment.getMonth() + 1).padStart(2, "0");
-      const day   = String(nextPayment.getDate()).padStart(2, "0");
-      finalPaymentDate = `${year}-${month}-${day}`;
+      const year  = nextDebit.getFullYear();
+      const month = String(nextDebit.getMonth() + 1).padStart(2, "0");
+      const day   = String(nextDebit.getDate()).padStart(2, "0");
+      finalAutoDebitDate = `${year}-${month}-${day}`;
     }
 
     onSave({
@@ -172,7 +188,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
       monthlyFinanceCost:  freshMonthlyFinanceCost,
       dailyFinanceCost:    freshDailyFinanceCost,
       emiCostPerKm:        freshEmiCostPerKm,
-      emiPaymentDate:      finalPaymentDate,
+      autoDebitDate:       finalAutoDebitDate,
     });
   }
 
@@ -202,17 +218,6 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
             />
           </Field>
 
-          <Field label="Loan Number" required>
-            <input
-              type="text"
-              required
-              value={form.loanNumber}
-              onChange={(e) => update("loanNumber", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. HDFC-LN-88231"
-            />
-          </Field>
-
           <Field label="Bank Name" required>
             <input
               type="text"
@@ -221,17 +226,6 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               onChange={(e) => update("bankName", e.target.value)}
               className={inputClass}
               placeholder="e.g. HDFC Bank"
-            />
-          </Field>
-
-          <Field label="Loan Amount" required>
-            <DecimalInput type="number"
-              required
-              min="0"
-              value={form.loanAmount}
-              onChange={(e) => update("loanAmount", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. 2400000"
             />
           </Field>
 
@@ -275,25 +269,36 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
             />
           </Field>
 
-          <Field label="Cost Per Month">
+          <Field label="Amount Paid">
             <input
               type="text"
               readOnly
               disabled
-              value={costPerMonth ? `₹ ${Number(costPerMonth).toLocaleString("en-IN")}` : ""}
+              value={tenure > 0 ? `₹ ${amountPaid.toLocaleString("en-IN")}` : ""}
               className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
-              placeholder="Auto-calculated"
+              placeholder="Auto-calculated from EMI Start Date"
             />
           </Field>
 
-          <Field label="Monthly Finance Cost">
+          <Field label="Remaining EMI Payable">
             <input
               type="text"
               readOnly
               disabled
-              value={monthlyFinanceCost ? `₹ ${Number(monthlyFinanceCost).toLocaleString("en-IN")}` : ""}
+              value={tenure > 0 ? `₹ ${remainingEmiAmount.toLocaleString("en-IN")}` : ""}
               className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
-              placeholder="EMI Amount ÷ Tenure"
+              placeholder="Auto-calculated from EMI Start Date"
+            />
+          </Field>
+
+          <Field label="Total EMI Payable">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value={totalEmiPayable > 0 ? `₹ ${totalEmiPayable.toLocaleString("en-IN")}` : ""}
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder="EMI Amount × Tenure"
             />
           </Field>
 
@@ -308,7 +313,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
             />
           </Field>
 
-          <Field label="EMI Cost per Km">
+          <Field label="EMI Cost per Km (Basic)">
             <input
               type="text"
               readOnly
@@ -325,13 +330,24 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
             />
           </Field>
 
-          <Field label="Date of EMI Payment (Day of Month)" required>
+          <Field label="EMI Cost Per KM (Advanced)">
+            <input
+              type="text"
+              readOnly
+              disabled
+              value=""
+              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              placeholder="Coming soon"
+            />
+          </Field>
+
+          <Field label="Auto-Debit Date (Day of Month)" required>
             <DecimalInput type="number"
               required
               min="1"
               max="31"
-              value={form.emiPaymentDate ? (form.emiPaymentDate.includes("-") ? new Date(form.emiPaymentDate).getDate() : form.emiPaymentDate) : ""}
-              onChange={(e) => update("emiPaymentDate", e.target.value)}
+              value={form.autoDebitDate ? (form.autoDebitDate.includes("-") ? new Date(form.autoDebitDate).getDate() : form.autoDebitDate) : ""}
+              onChange={(e) => update("autoDebitDate", e.target.value)}
               className={inputClass}
               placeholder="e.g. 5"
               title="Day of the month (1-31)"

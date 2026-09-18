@@ -12,9 +12,16 @@ type DialogProps = {
   children: React.ReactNode;
   className?: string;
   headerRight?: React.ReactNode;
+  /**
+   * Optional companion panel rendered as a sibling alongside the modal
+   * (desktop only — hidden below `lg` since there isn't room for both).
+   * The pair is centered together by the same flex row the modal already
+   * uses, so no extra positioning is needed here.
+   */
+  sidePanel?: React.ReactNode;
 };
 
-export function Dialog({ open, onClose, title, children, className, headerRight }: DialogProps) {
+export function Dialog({ open, onClose, title, children, className, headerRight, sidePanel }: DialogProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -41,7 +48,7 @@ export function Dialog({ open, onClose, title, children, className, headerRight 
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center gap-4 p-0 sm:p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 animate-backdrop-in" onClick={onClose} />
 
@@ -75,6 +82,13 @@ export function Dialog({ open, onClose, title, children, className, headerRight 
           {children}
         </div>
       </div>
+
+      {/* Companion side panel — desktop only */}
+      {sidePanel && (
+        <div className="relative hidden max-h-[92dvh] w-[340px] shrink-0 animate-dialog-enter lg:flex">
+          {sidePanel}
+        </div>
+      )}
     </div>,
     document.body
   );

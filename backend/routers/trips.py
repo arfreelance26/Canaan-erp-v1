@@ -19,6 +19,31 @@ router = APIRouter(prefix="/trips", tags=["Trips"])
 _ALL_ROLES = "Admin,Commercial Manager,Assistant Commercial Manager,Accounts,Trip Sheet Register,Yard Supervisor,Maintenance"
 
 
+def _mark_edit_approval_used(db: Session, resource_types: list[str], resource_id: int, staff_db_id: Optional[int]):
+    """Marks the calling staff member's active (Approved, unused) edit
+    approval for this resource as used the moment they actually save an
+    edit under it — powers the Trip Reconciliation Completed/Pending split.
+    A no-op for Admin/users without a staff_db_id (they edit freely, with no
+    covering approval to mark) or when no matching approval exists.
+    """
+    if staff_db_id is None:
+        return
+    approval = (
+        db.query(models.EditApprovalRequest)
+        .filter(
+            models.EditApprovalRequest.resource_type.in_(resource_types),
+            models.EditApprovalRequest.resource_id == resource_id,
+            models.EditApprovalRequest.staff_db_id == staff_db_id,
+            models.EditApprovalRequest.status == "Approved",
+            models.EditApprovalRequest.used_at.is_(None),
+        )
+        .order_by(models.EditApprovalRequest.approved_at.desc())
+        .first()
+    )
+    if approval:
+        approval.used_at = datetime.now(timezone.utc)
+
+
 def _remember_customer_origin(db: Session, customer_id, origin: Optional[str]):
     """Persist a customer's typed origin so it can be auto-fetched next time the same customer is selected."""
     if not customer_id or not origin or not origin.strip():
@@ -282,6 +307,64 @@ def get_customer_profitability(db: Session = Depends(get_db)):
 
     result.sort(key=lambda x: x["total_profit"], reverse=True)
     return result
+
+
+@router.get("/customer-profitability/top-trips", tags=["Trips"])
+def get_customer_top_profitable_trips(
+    customer_id: int = Query(...),
+    route: Optional[str] = Query(None, description="Trip.destination label — omit for this customer's trips across every route"),
+    limit: int = Query(10, le=500),
+    db: Session = Depends(get_db),
+):
+    """
+    This customer's completed trips ranked by profit (highest first), each
+    naming the driver and truck that achieved it — powers the "most
+    profitable trips" panel shown in the Assign Trip dialog once a customer
+    and route are picked. Same revenue/expense formula as
+    GET /customer-profitability, but scoped to one customer(+route) and
+    sorted by profit instead of date, with driver/truck attribution.
+    """
+    q = (
+        db.query(models.Trip)
+        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .filter(models.Trip.customer_id == customer_id, models.Trip.status == "Completed")
+    )
+    if route:
+        q = q.filter(models.Trip.destination == route)
+    trips = q.all()
+    if not trips:
+        return []
+
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
+    truck_regs = {t.truck_id: t.registration_number for t in db.query(models.Truck.truck_id, models.Truck.registration_number).all()}
+
+    results = []
+    for trip in trips:
+        sheet = trip.sheet
+        if not sheet:
+            continue
+        revenue = float(sheet.hire_amount or 0) - float(trip.transport_commission_amount or 0)
+        expense = float(sheet.total_expense or 0)
+        km = float(sheet.total_km or 0)
+        profit = revenue - expense
+        results.append({
+            "trip_id": trip.id,
+            "trip_id_str": trip.trip_id,
+            "date": sheet.trip_completed_date.isoformat() if sheet.trip_completed_date else None,
+            "route": trip.destination or "",
+            "driver_id": trip.driver_id,
+            "driver_name": driver_names.get(trip.driver_id, trip.driver_id or "—"),
+            "vehicle_id": trip.vehicle_id,
+            "truck_registration": truck_regs.get(trip.vehicle_id, trip.vehicle_id or "—"),
+            "revenue": round(revenue, 2),
+            "expense": round(expense, 2),
+            "profit": round(profit, 2),
+            "margin_pct": round((profit / revenue * 100) if revenue > 0 else 0.0, 2),
+            "km": round(km, 2),
+        })
+
+    results.sort(key=lambda t: t["profit"], reverse=True)
+    return results[:limit]
 
 
 @router.post("", response_model=schemas.TripOut, status_code=201)
@@ -692,6 +775,7 @@ def close_trip(
         for field, value in data.items():
             setattr(closure, field, value)
         closure.version = (closure.version or 1) + 1
+        _mark_edit_approval_used(db, ["BookingSheet"], trip_id, current_user.id)
         db.commit()
         db.refresh(closure)
         return closure
@@ -700,6 +784,7 @@ def close_trip(
     # (global IntegrityError handler converts duplicates to 409)
     closure = models.TripClosure(trip_id=trip_id, **data)
     db.add(closure)
+    _mark_edit_approval_used(db, ["BookingSheet"], trip_id, current_user.id)
     db.commit()
     db.refresh(closure)
     emit("trip_closed", {
@@ -766,6 +851,11 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
         # New sheet — UNIQUE constraint on trip_id is the final safety net
         sheet = models.TripSheet(trip_id=trip_id, **data)
         db.add(sheet)
+
+    # A save here is made under either a "TripSheet" approval (editing the
+    # sheet itself) or a "TripData" approval (editing the auto-fetched trip
+    # fields mirrored into this same form) — mark whichever is active as used.
+    _mark_edit_approval_used(db, ["TripSheet", "TripData"], trip_id, current_user.id)
 
     db.commit()
     db.refresh(sheet)

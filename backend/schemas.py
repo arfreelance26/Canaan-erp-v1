@@ -1,6 +1,13 @@
 from __future__ import annotations
 import re
 from datetime import date, datetime, timezone
+# Pydantic v2 resolves a model's annotations via get_type_hints(), which folds
+# the class's own namespace into the lookup — so a field literally named
+# `date` annotated as `Optional[date]` resolves the type reference to the
+# field itself (i.e. None) instead of datetime.date, silently corrupting the
+# field into an always-None, "must be null" one. Use this alias for any field
+# named `date` to sidestep the name collision.
+from datetime import date as _DateType
 from decimal import Decimal
 from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
@@ -102,7 +109,7 @@ class TruckOut(TruckBase):
 class TruckBranchChangeIn(OrmBase):
     mode: Literal["trip_only", "permanent"]
     branch_name: str
-    note: Optional[str] = None          # required when mode == "permanent"
+    note: Optional[str] = None          # required for both modes — user's reason for the change
     trip_id: Optional[str] = None       # required when mode == "trip_only" (Trip.trip_id, e.g. "TRP-1050")
 
 
@@ -345,12 +352,15 @@ class CustomerPricingOut(CustomerPricingBase):
 
 
 class FinalCustomerPricingBase(OrmBase):
+    customer_destination: Optional[str] = None
     actual_hire_amount: Optional[Decimal] = None
     accounts_hire_amount: Optional[Decimal] = None
 
 
 class FinalCustomerPricingCreate(FinalCustomerPricingBase):
-    pass
+    # Required on create — this is what lets a final price be matched back to
+    # its route instead of every one being an ambiguous customer-level value.
+    customer_destination: str
 
 
 class FinalCustomerPricingUpdate(FinalCustomerPricingBase):
@@ -462,6 +472,7 @@ class TripBase(OrmBase):
     initial_disbursed_advance: Optional[Decimal] = None
     driver_compensation_type: Optional[DriverCompensationType] = None
     is_batta_applicable: bool = False
+    is_billing_applicable: bool = True
     open_load_hire_type: Optional[Literal["Ton Based", "Fixed"]] = None
     rate_per_ton: Optional[Decimal] = None
     transport_hire_amount: Optional[Decimal] = None
@@ -485,7 +496,12 @@ class TripBase(OrmBase):
 
     @model_validator(mode="after")
     def _clear_billing_for_shifting(self) -> "TripBase":
-        if self.trip_category == "SHIFTING":
+        # "Is Billing Applicable" only means anything on a SHIFTING trip; force it
+        # back to true anywhere else so billing is never accidentally locked on a
+        # normal trip.
+        if self.trip_category != "SHIFTING":
+            self.is_billing_applicable = True
+        if self.trip_category == "SHIFTING" and not self.is_billing_applicable:
             self.bill_to = None
             self.payment_type = None
             self.customer_cash_advance = None
@@ -959,6 +975,7 @@ class EditApprovalRequestOut(OrmBase):
     approved_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    used_at: Optional[datetime] = None
 
 
 class ApproveDeletePayload(OrmBase):
@@ -1022,7 +1039,7 @@ class MaintenanceRecordCreate(OrmBase):
 
 class MaintenanceRecordUpdate(OrmBase):
     client_version: Optional[int] = None
-    date: Optional[date] = None
+    date: Optional[_DateType] = None
     maintenance_end_date: Optional[date] = None
     odometer: Optional[int] = None
     maintenance_type: Optional[str] = None
@@ -1056,7 +1073,7 @@ class AirFilterRecordCreate(OrmBase):
     truck_id: int
     date: date
     odometer_during_change: int
-    current_odometer: int
+    next_change_odometer: int
     remarks: Optional[str] = None
 
 
@@ -1065,7 +1082,7 @@ class AirFilterRecordOut(OrmBase):
     truck_id: int
     date: date
     odometer_during_change: int
-    current_odometer: int
+    next_change_odometer: int
     remarks: Optional[str] = None
     entered_by_name: Optional[str] = None
     version: int = 1
@@ -1091,7 +1108,7 @@ class FuelLogCreate(OrmBase):
 
 class FuelLogUpdate(OrmBase):
     client_version: Optional[int] = None
-    date: Optional[date] = None
+    date: Optional[_DateType] = None
     odometer: Optional[int] = None
     litres: Optional[Decimal] = None
     price_per_litre: Optional[Decimal] = None
@@ -1158,7 +1175,7 @@ class AdBlueLogCreate(OrmBase):
 
 class AdBlueLogUpdate(OrmBase):
     client_version: Optional[int] = None
-    date: Optional[date] = None
+    date: Optional[_DateType] = None
     odometer: Optional[int] = None
     litres: Optional[Decimal] = None
     price_per_litre: Optional[Decimal] = None
@@ -1253,6 +1270,7 @@ class TyreFitmentCreate(OrmBase):
     position: str
     fitted_odometer: int
     fitted_date: date
+    fitted_remark: Optional[str] = None
 
 
 class TyreFitmentRemove(OrmBase):
@@ -1268,9 +1286,12 @@ class TyreFitmentOut(OrmBase):
     position: str
     fitted_odometer: int
     fitted_date: date
+    fitted_by_name: Optional[str] = None
+    fitted_remark: Optional[str] = None
     removed_odometer: Optional[int] = None
     removed_date: Optional[date] = None
     removal_remark: Optional[str] = None
+    removed_by_name: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
@@ -1288,7 +1309,7 @@ class EmiRecordBase(OrmBase):
     emi_end_date: Optional[date] = None
     emi_amount: Optional[Decimal] = None
     tenure_months: Optional[int] = None
-    emi_payment_date: Optional[date] = None
+    auto_debit_date: Optional[date] = None
     cost_per_month: Optional[Decimal] = None
     monthly_finance_cost: Optional[Decimal] = None
     daily_finance_cost: Optional[Decimal] = None
@@ -1310,7 +1331,7 @@ class EmiRecordUpdate(OrmBase):
     emi_end_date: Optional[date] = None
     emi_amount: Optional[Decimal] = None
     tenure_months: Optional[int] = None
-    emi_payment_date: Optional[date] = None
+    auto_debit_date: Optional[date] = None
     cost_per_month: Optional[Decimal] = None
     monthly_finance_cost: Optional[Decimal] = None
     daily_finance_cost: Optional[Decimal] = None
@@ -1387,46 +1408,6 @@ class TruckBranchHistoryOut(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# ---------------------------------------------------------------------------
-# Compliance Cost Configuration
-# ---------------------------------------------------------------------------
-
-class ComplianceCostConfigItem(BaseModel):
-    tyre_layout: str
-    rc_cost: Optional[str] = ""
-    fc_cost: Optional[str] = ""
-    road_tax_cost: Optional[str] = ""
-    national_permit_cost: Optional[str] = ""
-    local_permit_cost: Optional[str] = ""
-    pollution_cert_cost: Optional[str] = ""
-    insurance_cost: Optional[str] = ""
-
-    @field_validator(
-        "rc_cost", "fc_cost", "road_tax_cost", "national_permit_cost",
-        "local_permit_cost", "pollution_cert_cost", "insurance_cost",
-        mode="before",
-    )
-    @classmethod
-    def coerce_decimal_to_str(cls, v: object) -> str:
-        if v is None:
-            return ""
-        s = str(v)
-        if "." in s:
-            s = s.rstrip("0").rstrip(".")
-        return s
-
-
-class ComplianceCostConfigOut(ComplianceCostConfigItem):
-    id: int
-
-    class Config:
-        from_attributes = True
-
-
-class ComplianceCostBulkSave(BaseModel):
-    configs: list[ComplianceCostConfigItem]
 
 
 # ---------------------------------------------------------------------------

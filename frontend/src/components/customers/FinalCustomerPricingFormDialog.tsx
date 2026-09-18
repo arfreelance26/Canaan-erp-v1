@@ -14,7 +14,7 @@ import { RouteDiagram } from "./RouteDiagram";
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSave: (customerId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null }) => Promise<void>;
+  onSave: (customerId: string, data: { customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) => Promise<void>;
   initialData?: FinalCustomerPricing | null;
   customers: Customer[];
 };
@@ -32,6 +32,10 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
   const [selectedRoute, setSelectedRoute] = useState("");
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
+  // Every route that already has a final price for this customer — used to
+  // block picking the same route twice (that's the bug this dialog exists to
+  // prevent). Excludes the entry being edited so its own route stays pickable.
+  const [existingFinalPricing, setExistingFinalPricing] = useState<FinalCustomerPricing[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -40,16 +44,15 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
       setCustomerId(initialData.customerId);
       setActualHireAmount(initialData.actualHireAmount ?? "");
       setAccountsHireAmount(initialData.accountsHireAmount ?? "");
+      setSelectedRoute(initialData.customerDestination ?? "");
       Promise.all([
         customersApi.listPricing(initialData.customerId),
         customersApi.listDestinations(initialData.customerId),
-      ]).then(([pricing, dests]) => {
+        customersApi.listFinalPricing(initialData.customerId),
+      ]).then(([pricing, dests, finalPricing]) => {
         setCustomerPricing(pricing);
         setDestinations(dests);
-        // Best-effort: preselect whichever priced route matches the saved amount,
-        // since Final Customer Pricing itself only stores the resulting figure.
-        const match = pricing.find((p) => p.rate && p.rate === initialData.actualHireAmount);
-        setSelectedRoute(match?.customerDestination ?? "");
+        setExistingFinalPricing(finalPricing.filter((fp) => fp.id !== initialData.id));
       }).catch(() => {});
     } else {
       setCustomerId("");
@@ -58,6 +61,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
       setSelectedRoute("");
       setCustomerPricing([]);
       setDestinations([]);
+      setExistingFinalPricing([]);
     }
   }, [open, initialData]);
 
@@ -67,22 +71,26 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
     setSelectedRoute("");
     setCustomerPricing([]);
     setDestinations([]);
+    setExistingFinalPricing([]);
     if (!id) return;
     customersApi.listPricing(id).then(setCustomerPricing).catch(() => {});
     customersApi.listDestinations(id).then(setDestinations).catch(() => {});
+    customersApi.listFinalPricing(id).then(setExistingFinalPricing).catch(() => {});
   }
 
-  function selectRoute(opt: RouteOption) {
+  function selectRoute(opt: RouteOption, alreadyPriced: boolean) {
+    if (alreadyPriced || !!initialData) return;
     setSelectedRoute(opt.label);
     setActualHireAmount(opt.rate);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!customerId) return;
+    if (!customerId || !selectedRoute) return;
     setSaving(true);
     try {
       await onSave(customerId, {
+        customerDestination: selectedRoute,
         actualHireAmount: actualHireAmount || null,
         accountsHireAmount: accountsHireAmount || null,
       });
@@ -92,6 +100,11 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
   }
 
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
+
+  const pricedRouteLabels = useMemo(
+    () => new Set(existingFinalPricing.map((fp) => fp.customerDestination).filter((d): d is string => !!d)),
+    [existingFinalPricing]
+  );
 
   // Every route that has a Hire Amount configured via Customer Pricing —
   // enriched with its destination record (when found) so the route diagram
@@ -126,7 +139,9 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
 
         <Field label="Available Routes" required>
           <span className="mb-2 block text-xs text-gray-400">
-            Routes with a Hire Amount configured in Customer Pricing. Select one to auto-fill Actual Hire Amount below.
+            {initialData
+              ? "The route is locked once a final price is created — delete and re-add to change it."
+              : "Routes with a Hire Amount configured in Customer Pricing. Select one to auto-fill Actual Hire Amount below. A route already carrying a final price can't be picked again."}
           </span>
           {!customerId ? (
             <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
@@ -140,16 +155,23 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[24rem] overflow-y-auto p-1">
               {routeOptions.map((opt) => {
                 const selected = selectedRoute === opt.label;
+                const alreadyPriced = !initialData && pricedRouteLabels.has(opt.label);
+                const locked = !!initialData && !selected;
+                const disabled = alreadyPriced || locked;
                 return (
                   <button
                     key={opt.label}
                     type="button"
-                    onClick={() => selectRoute(opt)}
+                    onClick={() => selectRoute(opt, alreadyPriced)}
+                    disabled={disabled}
                     className={[
                       "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                      disabled ? "cursor-not-allowed opacity-50" : "",
                       selected
                         ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
-                        : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                        : disabled
+                          ? "border-gray-200 bg-gray-50"
+                          : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
                     ].join(" ")}
                   >
                     {opt.destination ? (
@@ -170,6 +192,9 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
                       </span>
                       {selected && (
                         <span className="text-[11px] font-semibold text-blue-600">Selected</span>
+                      )}
+                      {alreadyPriced && (
+                        <span className="text-[11px] font-semibold text-gray-500">Already priced</span>
                       )}
                     </div>
                   </button>
@@ -215,7 +240,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
           </button>
           <button
             type="submit"
-            disabled={saving || !customerId || !accountsHireAmount}
+            disabled={saving || !customerId || !accountsHireAmount || !selectedRoute}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {saving ? "Saving…" : initialData ? "Save Changes" : "Add Final Pricing"}

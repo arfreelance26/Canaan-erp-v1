@@ -331,6 +331,12 @@ def list_final_pricing(customer_id: int, db: Session = Depends(get_db)):
 def create_final_pricing(customer_id: int, payload: schemas.FinalCustomerPricingCreate, db: Session = Depends(get_db)):
     if not db.get(models.Customer, customer_id):
         raise HTTPException(404, "Customer not found")
+    existing = db.query(models.FinalCustomerPricing).filter(
+        models.FinalCustomerPricing.customer_id == customer_id,
+        models.FinalCustomerPricing.customer_destination == payload.customer_destination,
+    ).first()
+    if existing:
+        raise HTTPException(400, f"A final price already exists for the route '{payload.customer_destination}'. Edit that entry instead of adding another.")
     record = models.FinalCustomerPricing(customer_id=customer_id, **payload.model_dump())
     db.add(record)
     db.commit()

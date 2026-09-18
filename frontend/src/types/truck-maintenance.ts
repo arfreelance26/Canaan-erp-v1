@@ -20,7 +20,7 @@ export type AirFilterRecord = {
   truckId: string;
   date: string;
   odometerDuringChange: string;
-  currentOdometer: string;
+  nextChangeOdometer: string;
   remarks: string;
   enteredByName?: string | null;
   version?: number;

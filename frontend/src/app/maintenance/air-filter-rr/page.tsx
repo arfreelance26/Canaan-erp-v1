@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, Truck as TruckIcon, ChevronDown, Plus, X } from "lucide-react";
+import { Search, Filter, Truck as TruckIcon, ChevronDown, Plus, X, AlertTriangle, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { trucksApi, maintenanceApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
@@ -13,6 +13,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
+import { getAirFilterAlerts } from "@/lib/air-filter-alerts";
 
 const ALLOWED_ROLES = ["Maintenance", "Admin"];
 const SERVICE_INTERVAL_KM = 100_000;
@@ -47,22 +48,22 @@ function AddLogDialog({
   const [truckId, setTruckId] = useState(sortedTrucks[0]?.id ?? "");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [odometerDuringChange, setOdometerDuringChange] = useState("");
-  const [currentOdometer, setCurrentOdometer] = useState("");
+  const [nextChangeOdometer, setNextChangeOdometer] = useState("");
   const [remarks, setRemarks] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const canSave = truckId && date && odometerDuringChange && currentOdometer && !saving;
+  const canSave = truckId && date && odometerDuringChange && nextChangeOdometer && !saving;
 
   async function handleSave() {
     if (!canSave) return;
-    if (Number(currentOdometer) < Number(odometerDuringChange)) {
-      showError("Current odometer cannot be less than the odometer reading during change.");
+    if (Number(nextChangeOdometer) <= Number(odometerDuringChange)) {
+      showError("Odometer value for next change must be greater than the odometer reading during change.");
       return;
     }
     setSaving(true);
     try {
       const record = await maintenanceApi.createAirFilterRecord({
-        truckId, date, odometerDuringChange, currentOdometer, remarks,
+        truckId, date, odometerDuringChange, nextChangeOdometer, remarks,
       });
       showSuccess("Air filter log added.");
       onSaved(record);
@@ -111,11 +112,27 @@ function AddLogDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-gray-600">Odometer During Change <span className="text-red-500">*</span></label>
-              <input type="number" min={0} value={odometerDuringChange} onChange={(e) => setOdometerDuringChange(e.target.value)} placeholder="km" className={inputCls} />
+              <input
+                type="number"
+                min={0}
+                value={odometerDuringChange}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setOdometerDuringChange(v);
+                  // Suggest the next-change target as +100,000 km — the user can
+                  // still edit it if this truck's interval differs.
+                  const num = Number(v);
+                  if (v && Number.isFinite(num)) {
+                    setNextChangeOdometer(String(num + SERVICE_INTERVAL_KM));
+                  }
+                }}
+                placeholder="km"
+                className={inputCls}
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold text-gray-600">Current Odometer <span className="text-red-500">*</span></label>
-              <input type="number" min={0} value={currentOdometer} onChange={(e) => setCurrentOdometer(e.target.value)} placeholder="km" className={inputCls} />
+              <label className="text-xs font-semibold text-gray-600">Odometer Value for Next Change <span className="text-red-500">*</span></label>
+              <input type="number" min={0} value={nextChangeOdometer} onChange={(e) => setNextChangeOdometer(e.target.value)} placeholder="km" className={inputCls} />
             </div>
           </div>
 
@@ -191,12 +208,24 @@ export default function AirFilterRRPage() {
     return map;
   }, [records]);
 
+  // Alert: latest log's Odometer Value for Next Change vs. this truck's live
+  // Current Odometer (updated after every trip) — overdue or due soon.
+  const airFilterAlerts = useMemo(() => getAirFilterAlerts(trucks, records), [trucks, records]);
+
   function toggle(truckId: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(truckId)) next.delete(truckId);
       else next.add(truckId);
       return next;
+    });
+  }
+
+  function jumpToTruck(truckId: string) {
+    setExpanded((prev) => new Set(prev).add(truckId));
+    setSearch("");
+    requestAnimationFrame(() => {
+      document.getElementById(`air-filter-truck-${truckId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
 
@@ -238,6 +267,51 @@ export default function AirFilterRRPage() {
         </button>
       </div>
 
+      {/* Air filter change alerts */}
+      <div className={`rounded-xl border p-4 ${
+        airFilterAlerts.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"
+      }`}>
+        <div className="flex items-center gap-2.5">
+          {airFilterAlerts.length === 0 ? (
+            <>
+              <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-500" />
+              <p className="text-sm font-semibold text-emerald-800">All air filters up to date</p>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-5 w-5 shrink-0 text-red-500" />
+              <p className="text-sm font-semibold text-red-800">
+                {airFilterAlerts.length} truck{airFilterAlerts.length !== 1 ? "s" : ""} need attention
+              </p>
+            </>
+          )}
+        </div>
+        {airFilterAlerts.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {airFilterAlerts.map((a) => (
+              <button
+                key={a.truck.id}
+                type="button"
+                onClick={() => jumpToTruck(a.truck.id)}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  a.status === "overdue"
+                    ? "border-red-300 bg-white text-red-700 hover:bg-red-100"
+                    : "border-amber-300 bg-white text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                <TruckIcon className="h-3.5 w-3.5" />
+                {a.truck.registrationNumber}
+                <span className="font-normal">
+                  {a.status === "overdue"
+                    ? `overdue by ${Math.abs(a.dueInKm).toLocaleString("en-IN")} km`
+                    : `due in ${a.dueInKm.toLocaleString("en-IN")} km`}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Search */}
       <div className="relative w-full sm:w-72">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -267,6 +341,7 @@ export default function AirFilterRRPage() {
             return (
               <div
                 key={truck.id}
+                id={`air-filter-truck-${truck.id}`}
                 className={`overflow-hidden rounded-xl border bg-white shadow-sm transition-all ${
                   isOpen ? "border-blue-200 ring-1 ring-blue-100" : "border-gray-200 hover:border-blue-200"
                 }`}
@@ -286,7 +361,7 @@ export default function AirFilterRRPage() {
                     <DetailChip label="Model" value={truck.modelName} />
                     <DetailChip label="Truck Type" value={truck.truckType} />
                     <DetailChip label="Branch" value={truck.branchRegisteredTo} />
-                    <DetailChip label="Odometer" value={truck.odometer ? `${truck.odometer} km` : ""} />
+                    <DetailChip label="Current Odometer" value={truck.odometer ? `${truck.odometer} km` : ""} />
                   </div>
 
                   <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -309,18 +384,20 @@ export default function AirFilterRRPage() {
                               <th className="px-3 py-2">S.No</th>
                               <th className="px-3 py-2">Date</th>
                               <th className="px-3 py-2 text-right">Odometer During Change</th>
-                              <th className="px-3 py-2 text-right">Current Odometer</th>
-                              <th className="px-3 py-2 text-right">Running Odometer</th>
-                              <th className="px-3 py-2 text-right">Service Due In (1 Lakh KM)</th>
+                              <th className="px-3 py-2 text-right">Odometer Value for Next Change</th>
+                              <th className="px-3 py-2 text-right">Service Due In</th>
                               <th className="px-3 py-2">Remarks</th>
                             </tr>
                           </thead>
                           <tbody>
                             {truckRecords.map((r, i) => {
                               const odometerDuringChange = n(r.odometerDuringChange);
-                              const currentOdometer = n(r.currentOdometer);
-                              const runningOdometer = Math.max(currentOdometer - odometerDuringChange, 0);
-                              const dueIn = SERVICE_INTERVAL_KM - runningOdometer;
+                              const nextChangeOdometer = n(r.nextChangeOdometer);
+                              // Due-in is computed live against the truck's current
+                              // odometer, not a stored snapshot — see AirFilterRecord's
+                              // model docstring.
+                              const liveOdometer = n(truck.odometer);
+                              const dueIn = nextChangeOdometer - liveOdometer;
                               const overdue = dueIn < 0;
                               return (
                                 <tr
@@ -330,8 +407,7 @@ export default function AirFilterRRPage() {
                                   <td className="rounded-l-lg px-3 py-2.5 text-gray-500">{i + 1}</td>
                                   <td className="px-3 py-2.5 text-gray-700">{r.date ? formatDate(r.date) : "—"}</td>
                                   <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{odometerDuringChange.toLocaleString("en-IN")} km</td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{currentOdometer.toLocaleString("en-IN")} km</td>
-                                  <td className="px-3 py-2.5 text-right tabular-nums font-medium text-gray-800">{runningOdometer.toLocaleString("en-IN")} km</td>
+                                  <td className="px-3 py-2.5 text-right tabular-nums text-gray-700">{nextChangeOdometer.toLocaleString("en-IN")} km</td>
                                   <td className={`px-3 py-2.5 text-right tabular-nums font-semibold ${overdue ? "text-red-600" : "text-emerald-600"}`}>
                                     {overdue ? `Overdue by ${Math.abs(dueIn).toLocaleString("en-IN")} km` : `${dueIn.toLocaleString("en-IN")} km`}
                                   </td>

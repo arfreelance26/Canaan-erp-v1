@@ -56,7 +56,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, compliance_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta
 
 Base.metadata.create_all(bind=engine)
 
@@ -391,6 +391,37 @@ def _run_schema_migrations():
         "ALTER TABLE customers ADD COLUMN deleted_at DATETIME NULL",
         "ALTER TABLE vendors ADD COLUMN deleted_at DATETIME NULL",
         "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor') NOT NULL",
+        # emi_records — Auto-Debit Date: the calendar date the bank actually debits
+        # the EMI, distinct from emi_payment_date (a day-of-month reminder).
+        "ALTER TABLE emi_records ADD COLUMN auto_debit_date DATE NULL",
+        # tyre_fitment_records — who performed each fit/removal, for the
+        # "View Truck History" log (Tyre Rotation / Removal / Attachment).
+        "ALTER TABLE tyre_fitment_records ADD COLUMN fitted_by_name VARCHAR(100) NULL",
+        "ALTER TABLE tyre_fitment_records ADD COLUMN removed_by_name VARCHAR(100) NULL",
+        # tyre_fitment_records — remark captured when a tyre is attached
+        # (mirrors removal_remark), so "View Truck History" has something
+        # real to show for Attachment rows too.
+        "ALTER TABLE tyre_fitment_records ADD COLUMN fitted_remark VARCHAR(500) NULL",
+        # trips — SHIFTING trips aren't billed to a customer by default, so
+        # Payment & Advances stays locked; this flag lets a specific shifting
+        # trip be marked billable instead, unlocking that section.
+        "ALTER TABLE trips ADD COLUMN is_billing_applicable TINYINT(1) NOT NULL DEFAULT 1",
+        # edit_approval_requests — set when the staff member actually saves an
+        # edit under this approval, distinguishing "approved but unused" from
+        # "approved and acted on" (Trip Reconciliation Completed/Pending split).
+        "ALTER TABLE edit_approval_requests ADD COLUMN used_at DATETIME NULL",
+        # air_filter_records — "Current Odometer" (a manually-entered snapshot
+        # that went stale) is replaced by "Odometer Value for Next Change" (the
+        # target reading at which the next air filter change is due). Running
+        # distance/due-in are now computed live against the truck's current
+        # odometer instead of a stored snapshot.
+        "ALTER TABLE air_filter_records ADD COLUMN next_change_odometer INT NOT NULL DEFAULT 0",
+        "ALTER TABLE air_filter_records DROP COLUMN current_odometer",
+        # final_customer_pricing — the route this final price applies to, so a
+        # customer can't end up with several conflicting final amounts for the
+        # same route (a unique index enforces one row per customer+route below).
+        "ALTER TABLE final_customer_pricing ADD COLUMN customer_destination VARCHAR(200) NULL",
+        "ALTER TABLE final_customer_pricing ADD UNIQUE INDEX uq_final_pricing_customer_destination (customer_id, customer_destination)",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -1070,7 +1101,6 @@ app.include_router(backup.router, dependencies=AUTH)
 app.include_router(settings.router, dependencies=AUTH)
 app.include_router(running_cost.router, dependencies=AUTH)
 app.include_router(maintenance_types.router, dependencies=AUTH)
-app.include_router(compliance_cost.router, dependencies=AUTH)
 app.include_router(tyre_range_config.router, dependencies=AUTH)
 app.include_router(tyre_layout_type_config.router, dependencies=AUTH)
 app.include_router(deletion_approvals.router, dependencies=AUTH)

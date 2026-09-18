@@ -1,8 +1,9 @@
 "use client";
 
-import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User } from "lucide-react";
+import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User, Check, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
+import { CustomerInsightsPanel } from "./CustomerInsightsPanel";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassSelect } from "@/components/ui/GlassSelect";
@@ -34,7 +35,6 @@ import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { cn } from "@/lib/utils";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
-import { BranchChangeScopeDialog } from "@/components/trips/BranchChangeScopeDialog";
 
 export const TRIP_DRAFT_KEY = "erp_trip_form_draft";
 const TRIP_VEHICLE_DRAFT_KEY = "erp_trip_form_draft_vehicle";
@@ -135,6 +135,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   driverAdvance: "",
   driverCompensationType: "",
   isBattaApplicable: false,
+  isBillingApplicable: true,
   openLoadHireType: "",
   ratePerTon: "",
   transportHireAmount: "",
@@ -187,13 +188,13 @@ export function TripFormDialog({
   // ORIGINAL truck object, so truck.branchRegisteredTo stays the true "from"
   // branch even after the override is applied.
   const [branchDraft, setBranchDraft] = useState<{ truck: Truck; branchName: string } | null>(null);
-  // The scope choice ("This Trip Only" vs "Permanently") and, for Permanently,
-  // the note — both deferred to Assign/Save time (see handleSubmit) and shown
-  // only if branchDraft is set. pendingTripPayload holds the trip built by
-  // handleSubmit while these are being resolved; cancelling either dialog
-  // aborts the submit entirely (nothing is saved, nothing sent to the backend),
-  // so a cancelled trip never leaves an orphaned branch reassignment.
-  const [branchChangeRequest, setBranchChangeRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
+  // Every branch change made from this dialog is "This Trip Only" — the note
+  // (the user's reason for the change) is deferred to Assign/Save time (see
+  // handleSubmit) and shown only if branchDraft is set. pendingTripPayload
+  // holds the trip built by handleSubmit while the note is being collected;
+  // cancelling the dialog aborts the submit entirely (nothing is saved,
+  // nothing sent to the backend), so a cancelled trip never leaves an
+  // orphaned branch reassignment.
   const [branchChangeNoteRequest, setBranchChangeNoteRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
   const [pendingTripPayload, setPendingTripPayload] = useState<Trip | null>(null);
   // Default Batta Management rates for the assigned truck's current branch —
@@ -202,9 +203,27 @@ export function TripFormDialog({
   const [defaultBattaRates, setDefaultBattaRates] = useState<DefaultBattaRate[]>([]);
   const [customerDestinations, setCustomerDestinations] = useState<CustomerDestination[]>([]);
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
-  const [finalCustomerPricing, setFinalCustomerPricing] = useState<FinalCustomerPricing | null>(null);
+  // Every Final Customer Pricing entry for the current customer, one per
+  // route — NOT a single value. Matched to the trip's selected route (below)
+  // rather than blindly using index 0, which used to apply whichever final
+  // price happened to be created first to every route on this customer.
+  const [finalCustomerPricingList, setFinalCustomerPricingList] = useState<FinalCustomerPricing[]>([]);
+  function getFinalPricingForRoute(destLabel: string | null | undefined): FinalCustomerPricing | null {
+    if (!destLabel) return null;
+    return finalCustomerPricingList.find((fp) => fp.customerDestination === destLabel) ?? null;
+  }
   const [shippingLines, setShippingLines] = useState<string[]>([]);
   const [cargoReferences, setCargoReferences] = useState<string[]>([]);
+  // Commission Amount confirmation — the value is usually auto-fetched from
+  // customer pricing, so the user must explicitly confirm it before the trip
+  // can be assigned. commissionConfirmedValue is a snapshot of the amount at
+  // the moment they clicked Correct/Wrong: if the field's value moves away
+  // from that snapshot afterwards (a re-fetch, or the user typing a new
+  // number), the confirmation is stale and must be redone — except clicking
+  // "Wrong" specifically asks for a *different* number, so once the value no
+  // longer matches the snapshot it's treated as corrected.
+  const [commissionConfirmed, setCommissionConfirmed] = useState<"correct" | "wrong" | null>(null);
+  const [commissionConfirmedValue, setCommissionConfirmedValue] = useState<string | null>(null);
   const wasOpenRef = useRef(false);
   const vehicleRestoredRef = useRef(false);
 
@@ -220,9 +239,10 @@ export function TripFormDialog({
     if (justOpened) {
       setBranchOverrides({});
       setBranchDraft(null);
-      setBranchChangeRequest(null);
       setBranchChangeNoteRequest(null);
       setPendingTripPayload(null);
+      setCommissionConfirmed(null);
+      setCommissionConfirmedValue(null);
       if (initialData) {
         const { id: _id, tripId: _tripId, status: _status, vehicleId: _vehicleId, ...rest } = initialData;
         setForm(rest);
@@ -231,7 +251,7 @@ export function TripFormDialog({
         if (initialData.customerId) {
           customersApi.listDestinations(initialData.customerId).then(setCustomerDestinations).catch(() => {});
           customersApi.listPricing(initialData.customerId).then(setCustomerPricing).catch(() => {});
-          customersApi.listFinalPricing(initialData.customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
+          customersApi.listFinalPricing(initialData.customerId).then(setFinalCustomerPricingList).catch(() => {});
         }
       } else {
         const todayStr = todayIst();
@@ -246,7 +266,7 @@ export function TripFormDialog({
         setVehicleAssignmentId("");
         setCustomerDestinations([]);
         setCustomerPricing([]);
-        setFinalCustomerPricing(null);
+        setFinalCustomerPricingList([]);
         setForm({
           ...emptyForm,
           bookingCreatedDate: yesterdayStr,
@@ -283,7 +303,7 @@ export function TripFormDialog({
     if (draft.customerId) {
       customersApi.listDestinations(draft.customerId).then(setCustomerDestinations).catch(() => {});
       customersApi.listPricing(draft.customerId).then(setCustomerPricing).catch(() => {});
-      customersApi.listFinalPricing(draft.customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
+      customersApi.listFinalPricing(draft.customerId).then(setFinalCustomerPricingList).catch(() => {});
     }
   });
 
@@ -365,7 +385,7 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP" || prev.driverCompensationType !== "Normal") return prev;
       const branch = branches.find((b) => b.name === branchName);
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-      const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
+      const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
       return { ...prev, driverAdvanceAmount: calcCompensation(battaBase, pct) };
     });
   }
@@ -373,7 +393,10 @@ export function TripFormDialog({
   // A pill click applies instantly — no dialog, no backend call. Picking the
   // truck's own actual registered branch (undoing a pending change) clears the
   // override; anything else records it as branchDraft so handleSubmit knows to
-  // ask "This Trip Only" vs "Permanently" once the user is ready to save.
+  // ask for a reason once the user is ready to save. Every change made here is
+  // scoped to this trip only — the truck reverts to its original branch
+  // automatically once the trip is invoiced or waived. A permanent branch
+  // change is made from the Fleet page instead.
   function handleChangeVehicleBranch(truck: Truck, branchName: string) {
     if (getTruckBranch(truck) === branchName) return;
     const isRevert = branchName === truck.branchRegisteredTo;
@@ -382,40 +405,20 @@ export function TripFormDialog({
     recalcCompensationForBranch(branchName);
   }
 
-  // Called once the user resolves the scope dialog shown at Assign/Save time
-  // (see handleSubmit, which set branchChangeRequest + pendingTripPayload).
-  function handleBranchChangeScope(scope: "trip_only" | "permanent") {
-    if (!branchChangeRequest || !pendingTripPayload) return;
-    const { truck, branchName } = branchChangeRequest;
-    setBranchChangeRequest(null);
-
-    if (scope === "permanent") {
-      setBranchChangeNoteRequest({ truck, branchName });
-      return;
-    }
-
-    const payload = pendingTripPayload;
-    setPendingTripPayload(null);
-    finalizeSubmit(payload, { truck, branchName, mode: "trip_only" });
-  }
-
+  // Called once the user submits the note dialog shown at Assign/Save time
+  // (see handleSubmit, which set branchChangeNoteRequest + pendingTripPayload).
   async function submitVehicleBranchChange(note: string) {
     if (!branchChangeNoteRequest || !pendingTripPayload) return;
     const { truck, branchName } = branchChangeNoteRequest;
     setBranchChangeNoteRequest(null);
     const payload = pendingTripPayload;
     setPendingTripPayload(null);
-    await finalizeSubmit(payload, { truck, branchName, mode: "permanent", note });
+    await finalizeSubmit(payload, { truck, branchName, note });
   }
 
-  // Cancelling either dialog aborts the submit — the trip is not saved and no
+  // Cancelling the dialog aborts the submit — the trip is not saved and no
   // branch-change call is made. The instant local branch pick made via the
-  // pills is left as-is; clicking Assign again re-opens the same choice.
-  function cancelBranchChangeRequest() {
-    setBranchChangeRequest(null);
-    setPendingTripPayload(null);
-  }
-
+  // pills is left as-is; clicking Assign again re-opens the same dialog.
   function cancelBranchChangeNoteRequest() {
     setBranchChangeNoteRequest(null);
     setPendingTripPayload(null);
@@ -427,18 +430,13 @@ export function TripFormDialog({
   // to retry; the user just resubmits the form.
   async function finalizeSubmit(
     tripPayload: Trip,
-    branchChange: { truck: Truck; branchName: string; mode: "trip_only" | "permanent"; note?: string } | null
+    branchChange: { truck: Truck; branchName: string; note: string } | null
   ) {
     const saved = await onSave(tripPayload);
     if (saved && branchChange) {
       try {
-        if (branchChange.mode === "trip_only") {
-          await trucksApi.changeBranchTripOnly(branchChange.truck.id, branchChange.branchName, tripPayload.tripId);
-          showSuccess(`Branch updated to ${branchChange.branchName} for this trip only.`);
-        } else {
-          await trucksApi.changeBranchPermanently(branchChange.truck.id, branchChange.branchName, branchChange.note || "");
-          showSuccess(`Branch updated to ${branchChange.branchName}.`);
-        }
+        await trucksApi.changeBranchTripOnly(branchChange.truck.id, branchChange.branchName, tripPayload.tripId, branchChange.note);
+        showSuccess(`Branch updated to ${branchChange.branchName} for this trip only.`);
         setBranchDraft(null);
       } catch (err: unknown) {
         // The trip itself is already saved — this is a separate, non-blocking
@@ -491,6 +489,12 @@ export function TripFormDialog({
     if (isNaN(hire) && isNaN(commission)) return "";
     return String((isNaN(hire) ? 0 : hire) - (isNaN(commission) ? 0 : commission));
   })();
+
+  // Commission Amount confirmation gate — see state declarations above.
+  const hasCommissionValue = form.transportCommissionAmount !== "" && form.transportCommissionAmount != null;
+  const commissionStillFlaggedWrong = commissionConfirmed === "wrong" && form.transportCommissionAmount === commissionConfirmedValue;
+  const commissionConfirmedAndCurrent = commissionConfirmed === "correct" && form.transportCommissionAmount === commissionConfirmedValue;
+  const commissionResolved = !hasCommissionValue || commissionConfirmedAndCurrent || (commissionConfirmed === "wrong" && !commissionStillFlaggedWrong);
 
   // Refetch Default Batta Management rates whenever the assigned truck's
   // effective branch changes (branch pill click, vehicle switch, dialog open).
@@ -622,9 +626,9 @@ export function TripFormDialog({
     }));
     setCustomerDestinations([]);
     setCustomerPricing([]);
-    setFinalCustomerPricing(null);
+    setFinalCustomerPricingList([]);
     if (customerId) {
-      customersApi.listFinalPricing(customerId).then((fps) => setFinalCustomerPricing(fps[0] ?? null)).catch(() => {});
+      customersApi.listFinalPricing(customerId).then(setFinalCustomerPricingList).catch(() => {});
       customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
       customersApi.listPricing(customerId).then((pricing) => {
         setCustomerPricing(pricing);
@@ -658,7 +662,7 @@ export function TripFormDialog({
     const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
     const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
     const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-    const hireBase = finalCustomerPricing?.accountsHireAmount ?? route.hireAmount;
+    const hireBase = getFinalPricingForRoute(routeDestination)?.accountsHireAmount ?? route.hireAmount;
     // For EXPORT routes, origin must be TUTICORIN — the origin GlassSelect only
     // accepts TUTICORIN/CHENNAI, so we can't set an arbitrary originState here.
     // For all other types, prefer the stored address then fall back to state name.
@@ -753,7 +757,7 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId: assignmentDriverId };
       const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-      const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
+      const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
           ? calcCompensation(battaBase, pct)
@@ -769,7 +773,7 @@ export function TripFormDialog({
       const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       // Batta percentage base: accounts hire amount if set, else fall back to the new hire amount
-      const battaBase = finalCustomerPricing?.accountsHireAmount ?? value;
+      const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? value;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
           ? calcCompensation(battaBase, pct)
@@ -788,7 +792,7 @@ export function TripFormDialog({
         const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
         const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
         const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-        const battaBase = finalCustomerPricing?.accountsHireAmount ?? prev.transportHireAmount;
+        const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
         driverAdvanceAmount = calcCompensation(battaBase, pct);
       } else if (val === "DEFAULT") {
         const cargoType = toDefaultBattaCargoType(prev.containerSpecification);
@@ -941,12 +945,12 @@ export function TripFormDialog({
           ...form,
         };
 
-    // Only ask "This Trip Only" vs "Permanently" if the branch was actually
-    // changed via the pills. The trip itself isn't saved yet — finalizeSubmit
-    // (called either below or once the scope/note dialogs resolve) does that.
+    // Only ask for a reason if the branch was actually changed via the pills.
+    // The trip itself isn't saved yet — finalizeSubmit (called either below or
+    // once the note dialog resolves) does that.
     if (branchDraft) {
       setPendingTripPayload(tripPayload);
-      setBranchChangeRequest({ truck: branchDraft.truck, branchName: branchDraft.branchName });
+      setBranchChangeNoteRequest({ truck: branchDraft.truck, branchName: branchDraft.branchName });
       return;
     }
 
@@ -956,7 +960,17 @@ export function TripFormDialog({
   const selectedCustomer = customers.find((c) => c.id === form.customerId);
 
   return (
-    <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "Assign Trip"} className="max-w-4xl">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={initialData ? "Edit Trip" : "Assign Trip"}
+      className="max-w-4xl"
+      sidePanel={
+        form.customerId && form.destination
+          ? <CustomerInsightsPanel customerId={form.customerId} route={form.destination} />
+          : undefined
+      }
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         {/* Booking Information */}
         <section className="flex flex-col gap-5">
@@ -997,6 +1011,7 @@ export function TripFormDialog({
                       destination: "",
                       transportHireAmount: "",
                       isBattaApplicable: false,
+                      isBillingApplicable: false,
                     }));
                   } else if (val === "RETURN TRIP") {
                     setForm((prev) => ({
@@ -1005,9 +1020,10 @@ export function TripFormDialog({
                       driverAdvance: "",
                       driverCompensationType: "CUSTOM",
                       isBattaApplicable: false,
+                      isBillingApplicable: true,
                     }));
                   } else {
-                    setForm((prev) => ({ ...prev, tripCategory: val as Trip["tripCategory"], isBattaApplicable: false }));
+                    setForm((prev) => ({ ...prev, tripCategory: val as Trip["tripCategory"], isBattaApplicable: false, isBillingApplicable: true }));
                   }
                 }}
                 options={[
@@ -1635,15 +1651,46 @@ export function TripFormDialog({
         <section className="flex flex-col gap-5">
           <p className={sectionHeadingClass}>Payment &amp; Advances</p>
           {isShifting && (
+            <Field label="Is Billing Applicable?">
+              <div className="relative flex w-fit rounded-full border border-gray-200 bg-gray-100 p-1">
+                <span
+                  className={`absolute top-1 bottom-1 left-1 w-20 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${
+                    form.isBillingApplicable ? "translate-x-20" : "translate-x-0"
+                  }`}
+                />
+                {(["No", "Yes"] as const).map((label) => {
+                  const value = label === "Yes";
+                  const active = form.isBillingApplicable === value;
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => update("isBillingApplicable", value)}
+                      className={`relative z-10 w-20 rounded-full py-1.5 text-sm font-semibold transition-colors focus:outline-none ${
+                        active ? "text-blue-700" : "text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="mt-1 text-xs text-gray-500">
+                Shifting trips are internal vehicle relocations and aren&rsquo;t billed to a customer or
+                consignee by default — set to &ldquo;Yes&rdquo; only if this specific shifting trip should be billed.
+              </span>
+            </Field>
+          )}
+          {isShifting && !form.isBillingApplicable && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
               <p className="text-sm text-amber-800">
-                <span className="font-semibold">Billing not applicable for Shifting trips</span> — shifting trips are internal vehicle relocations between company locations and are not billed to any customer or consignee. All billing fields are locked.
+                <span className="font-semibold">Billing not applicable for this Shifting trip</span> — all billing fields are locked. Set &ldquo;Is Billing Applicable?&rdquo; above to &ldquo;Yes&rdquo; to unlock them.
               </p>
             </div>
           )}
           {(() => {
-            const locked = isShifting || isSelf;
+            const locked = (isShifting && !form.isBillingApplicable) || isSelf;
             return (
               <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${locked ? "pointer-events-none opacity-50" : ""}`}>
                 <Field label="Bill To" required={!locked}>
@@ -1889,18 +1936,76 @@ export function TripFormDialog({
             </Field>
 
             <Field label="Commission Amount (₹)">
-              <DecimalInput type="number"
-                min="0"
-                value={form.transportCommissionAmount ?? ""}
-                onChange={(e) => update("transportCommissionAmount", e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
-                className={inputClass}
-                placeholder="Enter commission amount"
-              />
-              <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
-                <Info className="h-3 w-3" />
-                Fetched from customer pricing when a route is selected above. Edit to override.
-              </span>
+              <div className="flex items-center gap-2">
+                <DecimalInput type="number"
+                  min="0"
+                  value={form.transportCommissionAmount ?? ""}
+                  onChange={(e) => update("transportCommissionAmount", e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  className={inputClass}
+                  placeholder="Enter commission amount"
+                />
+                {hasCommissionValue && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      title="This amount is correct"
+                      onClick={() => {
+                        setCommissionConfirmed("correct");
+                        setCommissionConfirmedValue(form.transportCommissionAmount ?? "");
+                      }}
+                      className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                        commissionConfirmedAndCurrent
+                          ? "border-green-500 bg-green-500 text-white"
+                          : "border-gray-200 bg-white text-gray-400 hover:border-green-300 hover:text-green-600"
+                      }`}
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="This amount is wrong"
+                      onClick={() => {
+                        setCommissionConfirmed("wrong");
+                        setCommissionConfirmedValue(form.transportCommissionAmount ?? "");
+                      }}
+                      className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                        commissionStillFlaggedWrong
+                          ? "border-red-500 bg-red-500 text-white"
+                          : "border-gray-200 bg-white text-gray-400 hover:border-red-300 hover:text-red-600"
+                      }`}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {!hasCommissionValue ? (
+                <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                  <Info className="h-3 w-3" />
+                  Fetched from customer pricing when a route is selected above. Edit to override.
+                </span>
+              ) : commissionConfirmedAndCurrent ? (
+                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Confirmed correct.
+                </span>
+              ) : commissionStillFlaggedWrong ? (
+                <span className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                  <AlertTriangle className="h-3 w-3" />
+                  Marked wrong — enter the correct amount to continue. The trip can&rsquo;t be assigned until this is fixed.
+                </span>
+              ) : commissionConfirmed === "wrong" ? (
+                <span className="mt-1 flex items-center gap-1 text-xs text-green-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Updated — thanks for correcting it.
+                </span>
+              ) : (
+                <span className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                  <AlertTriangle className="h-3 w-3" />
+                  Please confirm this amount is correct (✓) or flag it as wrong (✗) before assigning the trip.
+                </span>
+              )}
             </Field>
 
             <Field label="Hire Amount (excluding Commission Amount) (₹)">
@@ -1954,22 +2059,13 @@ export function TripFormDialog({
           </button>
           <button
             type="submit"
-            disabled={assignableDrivers.length === 0 || !form.driverId}
+            disabled={assignableDrivers.length === 0 || !form.driverId || !commissionResolved}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             Assign Trip
           </button>
         </div>
       </form>
-
-      <BranchChangeScopeDialog
-        open={!!branchChangeRequest}
-        truckLabel={branchChangeRequest ? `${branchChangeRequest.truck.registrationNumber} (${branchChangeRequest.truck.truckId})` : ""}
-        fromBranch={branchChangeRequest ? branchChangeRequest.truck.branchRegisteredTo : ""}
-        toBranch={branchChangeRequest?.branchName || ""}
-        onChoose={handleBranchChangeScope}
-        onClose={cancelBranchChangeRequest}
-      />
 
       <BranchChangeNoteDialog
         open={!!branchChangeNoteRequest}

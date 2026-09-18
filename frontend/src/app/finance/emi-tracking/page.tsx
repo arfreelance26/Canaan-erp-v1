@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, CheckCircle2, Search } from "lucide-react";
+import { Plus, CheckCircle2, Search, AlertTriangle } from "lucide-react";
 import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog, DRAFT_KEY as EMI_DRAFT_KEY } from "@/components/finance/EmiFormDialog";
+import { ViewEmiRecordDialog } from "@/components/finance/ViewEmiRecordDialog";
+import { EmiInsightsDialog } from "@/components/finance/EmiInsightsDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { financeApi } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { isEmiCompleted, isEmiOverdue } from "@/lib/emi-schedule";
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -29,6 +31,9 @@ export default function EmiTrackingPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EmiRecord | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [viewingRecord, setViewingRecord] = useState<EmiRecord | null>(null);
+  const [viewingInsightsRecord, setViewingInsightsRecord] = useState<EmiRecord | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"Active" | "Completed" | "Overdue">("Active");
 
   useEffect(() => {
     financeApi.listEmi().then(setRecords).catch(() => {}).finally(() => setLoading(false));
@@ -37,8 +42,6 @@ export default function EmiTrackingPage() {
 
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 
-  const today = todayIst();
-
   const filteredBySearch = useMemo(() => {
     const query = searchQuery.toLowerCase();
     if (!query) return records;
@@ -46,38 +49,39 @@ export default function EmiTrackingPage() {
       (r) =>
         r.emiName?.toLowerCase().includes(query) ||
         r.truckRegistration?.toLowerCase().includes(query) ||
-        r.bankName?.toLowerCase().includes(query) ||
-        r.loanNumber?.toLowerCase().includes(query)
+        r.bankName?.toLowerCase().includes(query)
     );
   }, [records, searchQuery]);
 
+  // An EMI is "Completed" once Amount Paid has caught up to Total EMI
+  // Payable (EMI Amount × Tenure) — not based on the EMI End Date field.
   const activeRecords = useMemo(
-    () => filteredBySearch.filter((r) => r.emiEndDate >= today),
-    [filteredBySearch, today]
+    () => filteredBySearch.filter((r) => !isEmiCompleted(r)),
+    [filteredBySearch]
   );
 
   const completedRecords = useMemo(
-    () => filteredBySearch.filter((r) => r.emiEndDate < today),
-    [filteredBySearch, today]
+    () => filteredBySearch.filter((r) => isEmiCompleted(r)),
+    [filteredBySearch]
+  );
+
+  // Overdue is a flagged subset of Active — the loan's EMI End Date has
+  // already passed but our tracked installments haven't caught up to the
+  // tenure, meaning something about this record needs attention (see
+  // isEmiOverdue's doc comment). It is NOT "this month's due date has
+  // passed" — every active EMI would trip that every month.
+  const overdueRecords = useMemo(
+    () => filteredBySearch.filter((r) => isEmiOverdue(r)),
+    [filteredBySearch]
   );
 
   const summary = useMemo(() => {
-    let dueSoon = 0;
-    let overdue = 0;
-    let monthlyTotal = 0;
-    
-    const unfilteredActiveRecords = records.filter((r) => r.emiEndDate >= today);
-    
-    for (const record of unfilteredActiveRecords) {
-      monthlyTotal += Number(record.emiAmount) || 0;
-      if (record.emiPaymentDate <= today) {
-        overdue += 1;
-      } else {
-        dueSoon += 1;
-      }
-    }
-    return { active: unfilteredActiveRecords.length, dueSoon, overdue, monthlyTotal };
-  }, [records, today]);
+    const unfilteredActive = records.filter((r) => !isEmiCompleted(r));
+    const unfilteredCompleted = records.filter((r) => isEmiCompleted(r));
+    const unfilteredOverdue = records.filter((r) => isEmiOverdue(r));
+    const monthlyTotal = unfilteredActive.reduce((sum, r) => sum + (Number(r.emiAmount) || 0), 0);
+    return { active: unfilteredActive.length, completed: unfilteredCompleted.length, overdue: unfilteredOverdue.length, monthlyTotal };
+  }, [records]);
 
   function handleAdd() {
     setEditingRecord(null);
@@ -87,6 +91,14 @@ export default function EmiTrackingPage() {
   function handleEdit(record: EmiRecord) {
     setEditingRecord(record);
     setDialogOpen(true);
+  }
+
+  function handleView(record: EmiRecord) {
+    setViewingRecord(record);
+  }
+
+  function handleViewInsights(record: EmiRecord) {
+    setViewingInsightsRecord(record);
   }
 
   async function handleDelete(id: string) {
@@ -155,28 +167,62 @@ export default function EmiTrackingPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("Active")}
+          className={`rounded-xl border bg-white p-4 text-left transition-all ${
+            statusFilter === "Active" ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-200 hover:border-blue-200"
+          }`}
+        >
           <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Active EMIs</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{summary.active}</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Upcoming</p>
-          <p className="mt-1 text-2xl font-bold text-yellow-600">{summary.dueSoon}</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("Overdue")}
+          className={`rounded-xl border bg-white p-4 text-left transition-all ${
+            statusFilter === "Overdue" ? "border-red-500 ring-2 ring-red-100" : "border-gray-200 hover:border-red-200"
+          }`}
+        >
           <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Overdue</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{summary.overdue}</p>
-        </div>
+          <p className={`mt-1 text-2xl font-bold ${summary.overdue > 0 ? "text-red-600" : "text-gray-900"}`}>{summary.overdue}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter("Completed")}
+          className={`rounded-xl border bg-white p-4 text-left transition-all ${
+            statusFilter === "Completed" ? "border-emerald-500 ring-2 ring-emerald-100" : "border-gray-200 hover:border-emerald-200"
+          }`}
+        >
+          <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Completed EMI Records</p>
+          <p className="mt-1 text-2xl font-bold text-gray-900">{summary.completed}</p>
+        </button>
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-medium tracking-wider text-gray-500 uppercase">Total Monthly EMI</p>
           <p className="mt-1 text-2xl font-bold text-gray-900">{formatCurrency(summary.monthlyTotal)}</p>
         </div>
       </div>
 
-      <EmiTrackingTable records={activeRecords} onEdit={handleEdit} onDelete={handleDelete} />
-
-      {/* Completed EMI section */}
-      {completedRecords.length > 0 && (
+      {statusFilter === "Active" ? (
+        <EmiTrackingTable records={activeRecords} onView={handleView} onViewInsights={handleViewInsights} onEdit={handleEdit} onDelete={handleDelete} />
+      ) : statusFilter === "Overdue" ? (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Overdue EMI</h2>
+            <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+              {overdueRecords.length} record{overdueRecords.length !== 1 ? "s" : ""} past End Date, not yet Completed
+            </span>
+          </div>
+          {overdueRecords.length === 0 ? (
+            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+              No overdue EMI records.
+            </div>
+          ) : (
+            <EmiTrackingTable records={overdueRecords} onView={handleView} onViewInsights={handleViewInsights} onEdit={handleEdit} onDelete={handleDelete} />
+          )}
+        </div>
+      ) : (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -185,7 +231,7 @@ export default function EmiTrackingPage() {
               {completedRecords.length} loan{completedRecords.length !== 1 ? "s" : ""} repaid
             </span>
           </div>
-          <EmiTrackingTable records={completedRecords} readOnly />
+          <EmiTrackingTable records={completedRecords} onView={handleView} onViewInsights={handleViewInsights} readOnly />
         </div>
       )}
 
@@ -194,6 +240,18 @@ export default function EmiTrackingPage() {
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
         initialData={editingRecord}
+      />
+
+      <ViewEmiRecordDialog
+        open={viewingRecord !== null}
+        onClose={() => setViewingRecord(null)}
+        record={viewingRecord}
+      />
+
+      <EmiInsightsDialog
+        open={viewingInsightsRecord !== null}
+        onClose={() => setViewingInsightsRecord(null)}
+        record={viewingInsightsRecord}
       />
     </div>
   );
