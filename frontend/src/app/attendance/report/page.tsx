@@ -171,10 +171,8 @@ export default function AttendanceReportPage() {
       .finally(() => setLoading(false));
   }, [category, fromDate, toDate, viewMode]);
 
-  if (!ready || (user?.softwareDesignation !== "Admin" && !isCommercialManager)) return null;
-
-  const isDriver = category === "driver";
-
+  // Hooks must run unconditionally on every render — this early return sits
+  // AFTER every useMemo/useState/useEffect in the component, never before.
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
@@ -184,6 +182,10 @@ export default function AttendanceReportPage() {
   }, [rows, search]);
 
   const dates = useMemo(() => dateRange(fromDate, toDate), [fromDate, toDate]);
+
+  if (!ready || (user?.softwareDesignation !== "Admin" && !isCommercialManager)) return null;
+
+  const isDriver = category === "driver";
 
   const remarksByDriver = remarks.reduce<Record<string, DriverAttendanceRemark[]>>((acc, r) => {
     (acc[r.driverId] ??= []).push(r);
