@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { Calculator as CalculatorIcon, Delete } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,17 +22,116 @@ function apply(a: number, b: number, op: Operator): number {
   }
 }
 
+type CalcState = {
+  display: string;
+  accumulator: number | null;
+  operator: Operator | null;
+  overwrite: boolean;
+  expression: string;
+};
+
+const INITIAL_STATE: CalcState = {
+  display: "0",
+  accumulator: null,
+  operator: null,
+  overwrite: true,
+  expression: "",
+};
+
+type CalcAction =
+  | { type: "DIGIT"; digit: string }
+  | { type: "DECIMAL" }
+  | { type: "BACKSPACE" }
+  | { type: "TOGGLE_SIGN" }
+  | { type: "PERCENT" }
+  | { type: "OPERATOR"; op: Operator }
+  | { type: "EQUALS" }
+  | { type: "RESET" };
+
+// A single reducer keeps every transition atomic, so the keyboard listener
+// never needs to re-bind when state changes (see the effect below) — that
+// re-binding was the source of dropped/garbled keystrokes when typing fast,
+// since keydown events can fire faster than React re-runs the effect.
+function calcReducer(state: CalcState, action: CalcAction): CalcState {
+  switch (action.type) {
+    case "DIGIT": {
+      if (state.overwrite) {
+        return { ...state, display: action.digit, overwrite: false };
+      }
+      const { display } = state;
+      const next = display === "0" ? action.digit : display.length < 15 ? display + action.digit : display;
+      return { ...state, display: next };
+    }
+    case "DECIMAL": {
+      if (state.overwrite) return { ...state, display: "0.", overwrite: false };
+      if (state.display.includes(".")) return state;
+      return { ...state, display: state.display + "." };
+    }
+    case "BACKSPACE": {
+      if (state.overwrite) return state;
+      const next = state.display.length > 1 ? state.display.slice(0, -1) : "0";
+      return { ...state, display: next };
+    }
+    case "TOGGLE_SIGN": {
+      const { display } = state;
+      if (display === "0") return state;
+      return { ...state, display: display.startsWith("-") ? display.slice(1) : "-" + display };
+    }
+    case "PERCENT": {
+      const value = parseFloat(state.display);
+      if (!Number.isFinite(value)) return state;
+      return { ...state, display: formatResult(value / 100), overwrite: true };
+    }
+    case "OPERATOR": {
+      const { op } = action;
+      const current = parseFloat(state.display);
+      if (state.accumulator === null) {
+        return { ...state, accumulator: current, operator: op, overwrite: true, expression: `${state.display} ${op}` };
+      }
+      if (!state.overwrite) {
+        const result = apply(state.accumulator, current, state.operator as Operator);
+        return { ...state, accumulator: result, operator: op, overwrite: true, expression: `${formatResult(result)} ${op}` };
+      }
+      // Operator pressed again before entering a new number — just swap it.
+      return { ...state, operator: op, overwrite: true, expression: `${formatResult(state.accumulator)} ${op}` };
+    }
+    case "EQUALS": {
+      if (state.operator === null || state.accumulator === null) return state;
+      const current = parseFloat(state.display);
+      const result = apply(state.accumulator, current, state.operator);
+      return {
+        ...state,
+        expression: `${formatResult(state.accumulator)} ${state.operator} ${state.display} =`,
+        display: formatResult(result),
+        accumulator: null,
+        operator: null,
+        overwrite: true,
+      };
+    }
+    case "RESET":
+      return INITIAL_STATE;
+  }
+}
+
 const KEY_CLASS =
-  "flex h-12 items-center justify-center rounded-xl text-base font-semibold transition-colors active:scale-95";
+  "flex h-12 items-center justify-center rounded-xl text-base font-semibold transition-all duration-100 active:scale-95";
+
+// Maps a physical keydown to the on-screen button it corresponds to, so we
+// can flash that button for tactile feedback on keyboard input.
+const KEY_TO_BUTTON: Record<string, string> = {
+  "0": "0", "1": "1", "2": "2", "3": "3", "4": "4",
+  "5": "5", "6": "6", "7": "7", "8": "8", "9": "9",
+  ".": ".", "+": "+", "-": "-", "*": "×", x: "×", X: "×",
+  "/": "÷", "%": "%", Enter: "=", "=": "=",
+  Backspace: "back", Delete: "C", Escape: "C", c: "C", C: "C",
+};
 
 export function CalculatorButton() {
   const [open, setOpen] = useState(false);
-  const [display, setDisplay] = useState("0");
-  const [accumulator, setAccumulator] = useState<number | null>(null);
-  const [operator, setOperator] = useState<Operator | null>(null);
-  const [overwrite, setOverwrite] = useState(true);
-  const [expression, setExpression] = useState("");
+  const [state, dispatch] = useReducer(calcReducer, INITIAL_STATE);
+  const [flashKey, setFlashKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -44,134 +143,87 @@ export function CalculatorButton() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  function reset() {
-    setDisplay("0");
-    setAccumulator(null);
-    setOperator(null);
-    setOverwrite(true);
-    setExpression("");
+  function flash(buttonId: string) {
+    setFlashKey(buttonId);
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = setTimeout(() => setFlashKey(null), 120);
   }
 
-  function inputDigit(digit: string) {
-    if (overwrite) {
-      setDisplay(digit);
-      setOverwrite(false);
-    } else {
-      setDisplay((prev) => (prev === "0" ? digit : prev.length < 15 ? prev + digit : prev));
-    }
-  }
-
-  function inputDecimal() {
-    if (overwrite) {
-      setDisplay("0.");
-      setOverwrite(false);
-      return;
-    }
-    setDisplay((prev) => (prev.includes(".") ? prev : prev + "."));
-  }
-
-  function backspace() {
-    if (overwrite) return;
-    setDisplay((prev) => (prev.length > 1 ? prev.slice(0, -1) : "0"));
-  }
-
-  function toggleSign() {
-    setDisplay((prev) => (prev === "0" ? prev : prev.startsWith("-") ? prev.slice(1) : "-" + prev));
-  }
-
-  function percent() {
-    const value = parseFloat(display);
-    if (!Number.isFinite(value)) return;
-    setDisplay(formatResult(value / 100));
-    setOverwrite(true);
-  }
-
-  function chooseOperator(nextOp: Operator) {
-    const current = parseFloat(display);
-    if (accumulator === null) {
-      setAccumulator(current);
-      setExpression(`${display} ${nextOp}`);
-    } else if (!overwrite) {
-      const result = apply(accumulator, current, operator as Operator);
-      setAccumulator(result);
-      setExpression(`${formatResult(result)} ${nextOp}`);
-    } else {
-      // Operator pressed again before entering a new number — just swap it.
-      setExpression(`${formatResult(accumulator)} ${nextOp}`);
-    }
-    setOperator(nextOp);
-    setOverwrite(true);
-  }
-
-  function equals() {
-    if (operator === null || accumulator === null) return;
-    const current = parseFloat(display);
-    const result = apply(accumulator, current, operator);
-    setExpression(`${formatResult(accumulator)} ${operator} ${display} =`);
-    setDisplay(formatResult(result));
-    setAccumulator(null);
-    setOperator(null);
-    setOverwrite(true);
-  }
-
-  // Keyboard input — only while the popover is open, so typing elsewhere on
-  // the page is never hijacked.
+  // Bound once per popover open — dispatch is stable and the reducer keeps
+  // every transition atomic, so fast typing can never race a stale closure.
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key >= "0" && e.key <= "9") {
         e.preventDefault();
-        inputDigit(e.key);
+        dispatch({ type: "DIGIT", digit: e.key });
+        flash(e.key);
         return;
       }
+      const buttonId = KEY_TO_BUTTON[e.key];
       switch (e.key) {
         case ".":
           e.preventDefault();
-          inputDecimal();
+          dispatch({ type: "DECIMAL" });
           break;
         case "+":
           e.preventDefault();
-          chooseOperator("+");
+          dispatch({ type: "OPERATOR", op: "+" });
           break;
         case "-":
           e.preventDefault();
-          chooseOperator("-");
+          dispatch({ type: "OPERATOR", op: "-" });
           break;
         case "*":
         case "x":
         case "X":
           e.preventDefault();
-          chooseOperator("×");
+          dispatch({ type: "OPERATOR", op: "×" });
           break;
         case "/":
           e.preventDefault();
-          chooseOperator("÷");
+          dispatch({ type: "OPERATOR", op: "÷" });
           break;
         case "%":
           e.preventDefault();
-          percent();
+          dispatch({ type: "PERCENT" });
           break;
         case "Enter":
         case "=":
           e.preventDefault();
-          equals();
+          dispatch({ type: "EQUALS" });
           break;
         case "Backspace":
           e.preventDefault();
-          backspace();
+          dispatch({ type: "BACKSPACE" });
           break;
         case "Delete":
         case "Escape":
         case "c":
         case "C":
           e.preventDefault();
-          reset();
+          dispatch({ type: "RESET" });
           break;
+        default:
+          return;
       }
+      if (buttonId) flash(buttonId);
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, display, overwrite, accumulator, operator]);
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    };
+  }, []);
+
+  const { display, expression } = state;
+
+  function keyClass(buttonId: string, base: string) {
+    return cn(KEY_CLASS, base, flashKey === buttonId && "scale-95 ring-2 ring-blue-400 ring-offset-1");
+  }
 
   return (
     <div className="relative" ref={containerRef}>
@@ -195,43 +247,43 @@ export function CalculatorButton() {
         <div className="absolute right-0 z-[100] mt-3 w-[280px] origin-top-right rounded-2xl border border-white/60 bg-white/95 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
           {/* Display */}
           <div className="mb-3 rounded-xl bg-gray-900 px-4 py-3 text-right">
-            <p className="h-4 truncate text-[11px] font-medium text-gray-400">{expression || " "}</p>
+            <p className="h-4 truncate text-[11px] font-medium text-gray-400">{expression || " "}</p>
             <p className="mt-1 truncate text-2xl font-bold text-gray-50 tabular-nums">{display}</p>
           </div>
 
           {/* Keypad */}
           <div className="grid grid-cols-4 gap-2">
-            <button type="button" onClick={reset} className={cn(KEY_CLASS, "col-span-2 bg-red-50 text-red-600 hover:bg-red-100")}>
+            <button type="button" onClick={() => dispatch({ type: "RESET" })} className={keyClass("C", "col-span-2 bg-red-50 text-red-600 hover:bg-red-100")}>
               C
             </button>
-            <button type="button" onClick={backspace} className={cn(KEY_CLASS, "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+            <button type="button" onClick={() => dispatch({ type: "BACKSPACE" })} className={keyClass("back", "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
               <Delete className="h-4 w-4" />
             </button>
-            <button type="button" onClick={() => chooseOperator("÷")} className={cn(KEY_CLASS, "bg-blue-50 text-blue-600 hover:bg-blue-100")}>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "÷" })} className={keyClass("÷", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>
               ÷
             </button>
 
-            <button type="button" onClick={() => inputDigit("7")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>7</button>
-            <button type="button" onClick={() => inputDigit("8")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>8</button>
-            <button type="button" onClick={() => inputDigit("9")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>9</button>
-            <button type="button" onClick={() => chooseOperator("×")} className={cn(KEY_CLASS, "bg-blue-50 text-blue-600 hover:bg-blue-100")}>×</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "7" })} className={keyClass("7", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>7</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "8" })} className={keyClass("8", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>8</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "9" })} className={keyClass("9", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>9</button>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "×" })} className={keyClass("×", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>×</button>
 
-            <button type="button" onClick={() => inputDigit("4")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>4</button>
-            <button type="button" onClick={() => inputDigit("5")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>5</button>
-            <button type="button" onClick={() => inputDigit("6")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>6</button>
-            <button type="button" onClick={() => chooseOperator("-")} className={cn(KEY_CLASS, "bg-blue-50 text-blue-600 hover:bg-blue-100")}>−</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "4" })} className={keyClass("4", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>4</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "5" })} className={keyClass("5", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>5</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "6" })} className={keyClass("6", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>6</button>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "-" })} className={keyClass("-", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>−</button>
 
-            <button type="button" onClick={() => inputDigit("1")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>1</button>
-            <button type="button" onClick={() => inputDigit("2")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>2</button>
-            <button type="button" onClick={() => inputDigit("3")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>3</button>
-            <button type="button" onClick={() => chooseOperator("+")} className={cn(KEY_CLASS, "bg-blue-50 text-blue-600 hover:bg-blue-100")}>+</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "1" })} className={keyClass("1", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>1</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "2" })} className={keyClass("2", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>2</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "3" })} className={keyClass("3", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>3</button>
+            <button type="button" onClick={() => dispatch({ type: "OPERATOR", op: "+" })} className={keyClass("+", "bg-blue-50 text-blue-600 hover:bg-blue-100")}>+</button>
 
-            <button type="button" onClick={toggleSign} className={cn(KEY_CLASS, "bg-gray-100 text-gray-600 hover:bg-gray-200")}>±</button>
-            <button type="button" onClick={() => inputDigit("0")} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>0</button>
-            <button type="button" onClick={inputDecimal} className={cn(KEY_CLASS, "bg-gray-50 text-gray-800 hover:bg-gray-100")}>.</button>
-            <button type="button" onClick={equals} className={cn(KEY_CLASS, "bg-blue-600 text-white hover:bg-blue-700")}>=</button>
+            <button type="button" onClick={() => dispatch({ type: "TOGGLE_SIGN" })} className={cn(KEY_CLASS, "bg-gray-100 text-gray-600 hover:bg-gray-200")}>±</button>
+            <button type="button" onClick={() => dispatch({ type: "DIGIT", digit: "0" })} className={keyClass("0", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>0</button>
+            <button type="button" onClick={() => dispatch({ type: "DECIMAL" })} className={keyClass(".", "bg-gray-50 text-gray-800 hover:bg-gray-100")}>.</button>
+            <button type="button" onClick={() => dispatch({ type: "EQUALS" })} className={keyClass("=", "bg-blue-600 text-white hover:bg-blue-700")}>=</button>
 
-            <button type="button" onClick={percent} className={cn(KEY_CLASS, "col-span-4 bg-gray-100 text-gray-600 hover:bg-gray-200")}>%</button>
+            <button type="button" onClick={() => dispatch({ type: "PERCENT" })} className={keyClass("%", "col-span-4 bg-gray-100 text-gray-600 hover:bg-gray-200")}>%</button>
           </div>
         </div>
       )}

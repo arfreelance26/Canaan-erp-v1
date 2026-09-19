@@ -241,13 +241,9 @@ def _run_schema_migrations():
         # Staff attendance — close-shift time (IST, "HH:MM AM/PM")
         "ALTER TABLE staff_attendance ADD COLUMN check_out_time VARCHAR(20) NULL",
         "ALTER TABLE staff_attendance ADD COLUMN admin_override TINYINT(1) NOT NULL DEFAULT 0",
-        # AdBlue consumption rate per truck (L/km, 5 d.p.), set manually by admin on the AdBlue Management page
-        "ALTER TABLE trucks ADD COLUMN adblue_consumption DECIMAL(8,5) NULL",
         # "This Trip Only" branch reassignment — see routers/trucks.py branch-change endpoint
         "ALTER TABLE trucks ADD COLUMN temp_branch_original VARCHAR(200) NULL",
         "ALTER TABLE trucks ADD COLUMN temp_branch_trip_id VARCHAR(100) NULL",
-        # Widen precision in case column already existed as DECIMAL(6,2) from a previous migration run
-        "ALTER TABLE trucks MODIFY COLUMN adblue_consumption DECIMAL(8,5) NULL",
         # NOTE: BLOB widening (MEDIUMBLOB → LONGBLOB for the 25 MB upload limit) is handled
         # by the guarded _widen_blob_columns() step below, NOT here — a blob-type change forces
         # a full table copy, so it must run once (only when needed), never on every restart.
@@ -275,6 +271,10 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN invoice_waived TINYINT(1) NOT NULL DEFAULT 0",
         # tyre_inventory — repair_cost field removed from UI and schema
         "ALTER TABLE tyre_inventory DROP COLUMN repair_cost",
+        # trucks — adblue_consumption removed: AdBlue consumption is now derived
+        # live from Truck's Adblue History logs (see get_all_adblue_consumption)
+        # instead of this frozen, manually-entered snapshot.
+        "ALTER TABLE trucks DROP COLUMN adblue_consumption",
         # emi_records — cost per km derived from EMI amount and expected km
         "ALTER TABLE emi_records ADD COLUMN emi_cost_per_km DECIMAL(10,6) NOT NULL DEFAULT 0",
         # branches — cleaner batta daily fee

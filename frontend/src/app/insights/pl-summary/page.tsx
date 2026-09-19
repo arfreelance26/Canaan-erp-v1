@@ -279,7 +279,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
               <li>Maintenance cost/km — Truck Maintenance → Full Status</li>
               <li>Compliance cost/km — Compliance &amp; Renewals → View Cost Breakdown</li>
               <li>EMI — fetched directly, no manual override</li>
-              <li>AdBlue cost/km — AdBlue Management page</li>
+              <li>AdBlue cost/km — Truck&apos;s Adblue History page</li>
             </ul>
           </GuideSection>
           <GuideSection title="What that means here">

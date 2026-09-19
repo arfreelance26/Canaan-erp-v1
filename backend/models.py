@@ -54,7 +54,6 @@ class Truck(Base):
     year_of_manufacture = Column(String(4))
     tyre_layout = Column(String(20), nullable=False)                    # "6+1", "10+1", etc.
     fuel_capacity = Column(Numeric(10, 2), default=0)
-    adblue_consumption = Column(Numeric(8, 5), nullable=True)
     odometer_during_purchase = Column(Numeric(10, 2), default=0)
     odometer = Column(Numeric(10, 2), default=0)
     rc_date = Column(Date)

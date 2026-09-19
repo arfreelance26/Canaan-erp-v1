@@ -11,7 +11,6 @@ export type Truck = {
   yearOfManufacture: string;
   tyreLayout: string;
   fuelCapacity: string;
-  adblueConsumption: string;
   odometerDuringPurchase: string;
   odometer: string;
   rcValidityDate: string;

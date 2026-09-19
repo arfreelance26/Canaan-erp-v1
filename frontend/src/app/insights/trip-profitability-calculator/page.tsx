@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { IndianRupee, Truck as TruckIcon, Search, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2 } from "lucide-react";
-import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
+import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, adblueLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { Branch } from "@/types/branch";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
@@ -16,7 +16,6 @@ type Truck = {
   manufacturer: string;
   tyreLayout: string;
   branchRegisteredTo: string;
-  adblueConsumption: string;
 };
 
 
@@ -934,6 +933,8 @@ export default function TripProfitabilityCalculatorPage() {
   const [emiMap, setEmiMap] = useState<Record<string, { emiPerDay: string; emiPerKm: string }>>({});
   // truck_id → average mileage km/L
   const [mileageMap, setMileageMap] = useState<Record<string, number>>({});
+  // truck_id → lifetime average AdBlue consumption L/km, from Truck's Adblue History
+  const [adblueConsumptionMap, setAdblueConsumptionMap] = useState<Record<string, number>>({});
   // manufacturer name → defaultPricePerLitre (for AdBlue cost computation)
   const [adblueManufacturers, setAdblueManufacturers] = useState<AdBlueManufacturer[]>([]);
   // tyre data for per-truck cost computation
@@ -994,6 +995,7 @@ export default function TripProfitabilityCalculatorPage() {
     trucksApi.getRunConfig().then(setRunConfigs).catch(() => {});
 
     fuelLogsApi.getAllFuelStats().then(setMileageMap).catch(() => {});
+    adblueLogsApi.getAllConsumptionStats().then(setAdblueConsumptionMap).catch(() => {});
     fuelLogsApi.getBaseConfig().then((cfg) => {
       if (cfg.cost_per_litre != null) {
         setSystemFuelCostPerLitre(cfg.cost_per_litre);
@@ -1025,7 +1027,6 @@ export default function TripProfitabilityCalculatorPage() {
           manufacturer:       t.manufacturer ?? "",
           tyreLayout:         t.tyreLayout ?? "",
           branchRegisteredTo: t.branchRegisteredTo ?? "",
-          adblueConsumption:  String(t.adblueConsumption ?? ""),
         }));
         setTrucks(mapped);
       })
@@ -1217,9 +1218,9 @@ export default function TripProfitabilityCalculatorPage() {
                 systemFuelCostPerLitre={systemFuelCostPerLitre}
                 fuelCostPerLitre={fuelCostPerLitre}
                 adbluePerKm={(() => {
-                  const consumption = parseFloat(truck.adblueConsumption);
+                  const consumption = adblueConsumptionMap[truck.id] ?? 0;
                   const price = parseFloat(adblueManufacturerPriceMap[truck.manufacturer] ?? "");
-                  return !isNaN(consumption) && consumption > 0 && !isNaN(price) && price > 0
+                  return consumption > 0 && !isNaN(price) && price > 0
                     ? String(consumption * price)
                     : "0";
                 })()}

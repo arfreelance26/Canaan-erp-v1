@@ -2,7 +2,11 @@ import React, { forwardRef } from "react";
 
 export const DecimalInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   (props, ref) => {
-    const { onBlur, step = "0.01", ...rest } = props;
+    const { onBlur, step = "0.01", value, ...rest } = props;
+    // Coalesce a null/undefined controlled value to "" — never let this
+    // silently become an uncontrolled input (React would warn, and the field
+    // would stop reflecting further value prop updates).
+    const safeValue = value ?? (rest.onChange ? "" : undefined);
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       if (e.target.value) {
@@ -21,7 +25,7 @@ export const DecimalInput = forwardRef<HTMLInputElement, React.InputHTMLAttribut
       if (onBlur) onBlur(e);
     };
 
-    return <input ref={ref} type="number" step={step} onBlur={handleBlur} {...rest} />;
+    return <input ref={ref} type="number" step={step} value={safeValue} onBlur={handleBlur} {...rest} />;
   }
 );
 DecimalInput.displayName = "DecimalInput";

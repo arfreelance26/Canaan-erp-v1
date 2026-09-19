@@ -214,7 +214,7 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     active loan / not an AdBlue truck / no compliance history yet), so those
     default to 0 and never block inclusion.
     """
-    from routers.maintenance import get_maintenance_cost_per_km_all, get_all_fuel_stats
+    from routers.maintenance import get_maintenance_cost_per_km_all, get_all_fuel_stats, get_all_adblue_consumption
 
     trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
     if not trucks:
@@ -228,6 +228,9 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     # Same "Lifetime Average" mileage (km/L) source used everywhere else in
     # the app (Running Cost Calculator, TruckStatusDialog, etc.) — IQR-filtered.
     mileage_map = get_all_fuel_stats(db)
+    # Same "Lifetime Average" AdBlue consumption (L/km) source as Truck's
+    # Adblue History and the Running Cost Calculator — IQR-filtered.
+    adblue_consumption_map = get_all_adblue_consumption(db)
 
     tyre_layout_costs = {
         c.tyre_layout: float(c.cost or 0)
@@ -261,7 +264,7 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
             continue
         fuel_per_km = cost_per_litre / mileage
 
-        adblue_l_per_km = float(truck.adblue_consumption) if truck.adblue_consumption else 0.0
+        adblue_l_per_km = adblue_consumption_map.get(str(truck.id), 0.0)
         price = manufacturer_price.get((truck.manufacturer or "").strip().lower(), 0.0)
         adblue_per_km = adblue_l_per_km * price
 

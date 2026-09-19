@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/context/ThemeContext";
-import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
+import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, adblueLogsApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
 import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Search, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
 import type { Truck } from "@/types/truck";
@@ -92,7 +92,7 @@ type BasicEmi = {
 };
 
 type BasicAdblue = {
-  lPerKm: string;         // truck.adblueConsumption (L/km)
+  lPerKm: string;         // lifetime average from Truck's Adblue History logs (L/km)
   manufacturerId: string; // AdBlue manufacturer ID whose name matches truck.manufacturer
   costPerKm: string;      // lPerKm × manufacturer.defaultPricePerLitre
 };
@@ -270,7 +270,7 @@ function TruckCostCard({
   // Pure auto-calculation (L/km × manufacturer price) — Basic is strictly fetched, no fallback;
   // Manual falls back to a typed override.
   const adblueChargesCalc = (() => {
-    // Advanced: strictly use the pre-computed costPerKm from the AdBlue Management page — no fallback
+    // Advanced: strictly use the pre-computed costPerKm from the Truck's Adblue History page — no fallback
     if (isAdvancedMode) {
       const v = parseFloat(advancedAdblue?.costPerKm ?? "");
       return !isNaN(v) && v > 0 ? v : null;
@@ -885,16 +885,16 @@ const BASIC_GUIDE_STEPS: GuideStep[] = [
   {
     icon: Droplets,
     color: "cyan",
-    panel: "Admin → AdBlue",
-    title: "AdBlue auto-fetched by Truck Manufacturer",
-    description: "AdBlue consumption (L/km), the matched Manufacturer, and AdBlue Charges (Per/KM) are all fetched from Admin → AdBlue. Each truck's manufacturer name is matched against the AdBlue page to find the right consumption profile. The default price per litre from the manufacturer record is used for the charges calculation.",
+    panel: "Truck's Adblue History",
+    title: "AdBlue auto-fetched from Adblue History + Manufacturer",
+    description: "AdBlue consumption (L/km) is fetched as the Lifetime Average from this truck's full Adblue log history, the same figure shown on Truck's Adblue History. The Manufacturer is matched by truck manufacturer name, and its default price per litre (set in Admin → AdBlue) is used for the charges calculation.",
     fields: [
-      "AdBlue (L/km)  —  fetched from the truck's AdBlue profile in Admin → AdBlue",
+      "AdBlue (L/km)  —  fetched as Lifetime Average from this truck's Adblue log history",
       "AdBlue (L/1000 km)  —  auto: L/km × 1000",
       "AdBlue Manufacturer  —  matched by truck manufacturer name",
       "AdBlue Charges (Per/KM)  —  auto: L/km × manufacturer default price per litre",
     ],
-    tip: "The truck's manufacturer in Resources → Fleet must match the name in Admin → AdBlue exactly (case-insensitive). If they differ, no AdBlue data will appear.",
+    tip: "AdBlue accuracy improves with more logged entries — a truck with fewer than 3–4 logs may show an unrepresentative average. The truck's manufacturer in Resources → Fleet must also match the name in Admin → AdBlue (case-insensitive) for the price to be found.",
   },
   {
     icon: CheckCircle2,
@@ -971,16 +971,16 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
   {
     icon: Droplets,
     color: "cyan",
-    panel: "Admin → AdBlue",
-    title: "AdBlue — Fully Fetched by Manufacturer",
-    description: "AdBlue consumption (L/km), the matched manufacturer, and AdBlue Charges Per KM are all fetched from Admin → AdBlue. The truck's manufacturer name in Resources → Fleet is matched against the AdBlue profiles (case-insensitive). All fields are read-only in Advanced Mode.",
+    panel: "Truck's Adblue History",
+    title: "AdBlue — Fully Fetched from Adblue History + Manufacturer",
+    description: "AdBlue consumption (L/km) is fetched as the Lifetime Average from this truck's full Adblue log history. The matched manufacturer and AdBlue Charges Per KM are then derived from that rate and the manufacturer's default price (Admin → AdBlue). All fields are read-only in Advanced Mode.",
     fields: [
-      "AdBlue (L/km)  —  fetched from the truck's matched AdBlue profile",
+      "AdBlue (L/km)  —  fetched as Lifetime Average from this truck's Adblue log history",
       "AdBlue (L/1000 km)  —  auto: L/km × 1000",
       "AdBlue Manufacturer  —  matched by truck manufacturer name",
       "AdBlue Charges (Per/KM)  —  auto: L/km × manufacturer default price per litre",
     ],
-    tip: "The truck's manufacturer in Resources → Fleet must match the AdBlue profile name exactly (case-insensitive). If they differ, AdBlue fields will show NIL.",
+    tip: "AdBlue accuracy improves with more logged entries. The truck's manufacturer in Resources → Fleet must also match the Admin → AdBlue profile name exactly (case-insensitive) — otherwise the price, and so AdBlue Charges, will show NIL.",
   },
   {
     icon: CircleDot,
@@ -1412,10 +1412,10 @@ const BASIC_MODE_SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Admin → AdBlue  (per truck, matched by manufacturer)",
+    title: "Truck's Adblue History  (per truck, matched by manufacturer)",
     color: "cyan",
     fields: [
-      { label: "AdBlue (L / km)",         type: "fetched",     note: "Fetched from Admin → AdBlue for the truck's AdBlue profile. Matched by the truck's manufacturer name (case-insensitive). The manufacturer in Resources → Fleet must match the name in Admin → AdBlue." },
+      { label: "AdBlue (L / km)",         type: "fetched",     note: "Fetched as the Lifetime Average from this truck's complete Adblue log history: total litres used ÷ total km covered across all recorded logs — the same figure shown on Truck's Adblue History. Read-only in Basic Mode." },
       { label: "AdBlue (L / 1000 km)",    type: "calculated",  formula: "AdBlue (L/km) × 1000", note: "Auto-derived from L/km." },
       { label: "AdBlue Manufacturer",     type: "fetched",     note: "Auto-matched to the truck's manufacturer name from Admin → AdBlue. Read-only in Basic Mode." },
       { label: "AdBlue Charges (Per/KM)", type: "calculated",  formula: "AdBlue (L/km) × Manufacturer default price per litre", note: "Computed from the fetched consumption rate and the manufacturer's default price per litre set in Admin → AdBlue." },
@@ -1485,10 +1485,10 @@ const ADVANCED_MODE_SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Admin → AdBlue  (per truck — matched by manufacturer, fully fetched)",
+    title: "Truck's Adblue History  (per truck — matched by manufacturer, fully fetched)",
     color: "cyan",
     fields: [
-      { label: "AdBlue (L / km)",         type: "fetched",    note: "Fetched from Admin → AdBlue matched to this truck's manufacturer name (case-insensitive). Shows NIL if no matching AdBlue profile exists." },
+      { label: "AdBlue (L / km)",         type: "fetched",    note: "Fetched as the Lifetime Average from this truck's complete Adblue log history: total litres used ÷ total km covered across all recorded logs. Shows NIL if there are too few logs to compute an interval." },
       { label: "AdBlue (L / 1000 km)",    type: "calculated", formula: "AdBlue (L/km) × 1000", note: "Auto-derived. Displayed for readability alongside the L/km figure." },
       { label: "AdBlue Manufacturer",     type: "fetched",    note: "Auto-matched to the truck's manufacturer name from Admin → AdBlue. Read-only in Advanced Mode." },
       { label: "AdBlue Charges (Per/KM)", type: "calculated", formula: "AdBlue (L/km) × manufacturer default price per litre", note: "Computed from the fetched consumption rate and the manufacturer's default price set in Admin → AdBlue." },
@@ -1866,6 +1866,12 @@ export default function RunningCostCalculatorPage() {
   // Advanced mode: per-truck mileage (L/km) derived from Fuel History lifetime average (km/L → inverted).
   const [advancedMileageMap, setAdvancedMileageMap] = useState<Record<string, string>>({});
 
+  // Basic & Advanced mode: per-truck AdBlue consumption (L/km), the same
+  // outlier-filtered lifetime average shown on Truck's Adblue History — not
+  // the old manually-entered truck.adblueConsumption field (that entry point
+  // was removed; the field is a frozen snapshot from whenever it was last set).
+  const [adblueConsumptionMap, setAdblueConsumptionMap] = useState<Record<string, string>>({});
+
   // Advanced mode: per-truck total tyre cost per km from Tyre Management → View Tyre Data.
   // Sum of (tyre.cost / rangeConfig[tyreType]) for all currently installed tyres on the truck.
   const [advancedTyreCostMap, setAdvancedTyreCostMap] = useState<Record<string, string>>({});
@@ -1920,7 +1926,7 @@ export default function RunningCostCalculatorPage() {
     const localSaved = loadSaved();
 
     async function fetchAll() {
-      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult] = await Promise.allSettled([
+      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, allAdblueConsumptionResult] = await Promise.allSettled([
         tyreRangeConfigApi.list(),
         trucksApi.getRunConfig(),
         adblueApi.listManufacturers(),
@@ -1935,6 +1941,7 @@ export default function RunningCostCalculatorPage() {
         maintenanceApi.getMaintenanceCostPerKm(),
         trucksApi.getCompliancePerKmAll(),
         tyreLayoutTypeConfigApi.list(),
+        adblueLogsApi.getAllConsumptionStats(),
       ]);
 
       const backendData = backendResult.status === "fulfilled" ? backendResult.value : null;
@@ -2020,6 +2027,16 @@ export default function RunningCostCalculatorPage() {
           if (kmPerL > 0) mileageMap[tid] = kmPerL.toFixed(4);
         }
         setAdvancedMileageMap(mileageMap);
+      }
+
+      // Basic & Advanced AdBlue: backend returns L/km keyed by truck ID (string),
+      // computed from Truck's Adblue History logs (see get_all_adblue_consumption).
+      if (allAdblueConsumptionResult.status === "fulfilled") {
+        const consumptionMap: Record<string, string> = {};
+        for (const [tid, lPerKm] of Object.entries(allAdblueConsumptionResult.value)) {
+          if (lPerKm > 0) consumptionMap[tid] = lPerKm.toFixed(6);
+        }
+        setAdblueConsumptionMap(consumptionMap);
       }
 
       const manufacturers: AdBlueManufacturer[] = adblueResult.status === "fulfilled" ? adblueResult.value : [];
@@ -2181,14 +2198,17 @@ export default function RunningCostCalculatorPage() {
   }
 
   // Build per-truck AdBlue data for Basic and Advanced modes.
-  // Matches truck.manufacturer to the AdBlue manufacturer name to get ID and default price.
+  // Consumption (L/km) comes from the lifetime average computed from Truck's
+  // Adblue History logs (adblueConsumptionMap — see get_all_adblue_consumption),
+  // not the old manually-entered truck.adblueConsumption field.
+  // Manufacturer is still matched by truck.manufacturer name to get its default price.
   const adblueByTruck = new Map<string, BasicAdblue>();
   if (mode === "Basic" || mode === "Advanced") {
     for (const truck of trucks) {
       const mfr = adblueManufacturers.find(
         (m) => m.name.trim().toLowerCase() === (truck.manufacturer ?? "").trim().toLowerCase()
       );
-      const lPerKm = truck.adblueConsumption ?? "";
+      const lPerKm = adblueConsumptionMap[truck.id] ?? "";
       const manufacturerId = mfr ? String(mfr.id) : "";
       const lPerKmNum = parseFloat(lPerKm);
       const priceNum = mfr ? parseFloat(mfr.defaultPricePerLitre) : 0;

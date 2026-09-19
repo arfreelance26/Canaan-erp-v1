@@ -302,13 +302,21 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
     <aside
       className={cn(
-        // Shared
-        "flex flex-col border-r border-white/50 bg-white/60 backdrop-blur-xl shadow-sm overflow-hidden",
-        // Mobile: fixed overlay drawer, slides in/out
-        "fixed inset-y-0 left-0 z-50 w-[310px] transition-transform duration-300 ease-in-out",
-        mobileOpen ? "translate-x-0" : "-translate-x-full",
-        // Desktop (md+): in-layout, overrides fixed, collapsible
-        "md:static md:inset-auto md:z-auto md:h-screen md:shrink-0 md:translate-x-0 md:transition-[width]",
+        // Shared — solid bg, not translucent: the page behind is flat white/navy
+        // anyway, so backdrop-blur here bought nothing visually while forcing the
+        // browser to recompute a blur sample every frame this panel resizes.
+        "flex flex-col border-r border-gray-200/70 bg-white shadow-sm overflow-hidden",
+        // `position: fixed` at EVERY breakpoint, not just mobile — this is the
+        // whole fix. A fixed element is removed from document flow, so
+        // animating its `width` never forces AppShell's main-content column
+        // to reflow (that cross-sibling reflow, every frame, for the whole
+        // transition, was the real source of the jank — no amount of
+        // trimming the sidebar's own children could fix it, because the
+        // expensive reflow was happening on the OTHER side, in whatever page
+        // is currently mounted). AppShell reserves the equivalent horizontal
+        // space with a plain, non-animated spacer div instead.
+        "fixed inset-y-0 left-0 z-50 h-screen w-[310px] [contain:layout_style] [will-change:width,transform] transition-[width,transform] duration-200 ease-out",
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         collapsed ? "md:w-16" : "md:w-[310px]"
       )}
     >
@@ -348,34 +356,32 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         </div>
       </div>
 
-      {/* Expand chevron — only shown when collapsed */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label="Expand sidebar"
-        className={cn(
-          "mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-all duration-300",
-          collapsed ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none h-0 mt-0 overflow-hidden"
-        )}
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
+      {/* Expand chevron — only shown when collapsed. Conditionally rendered
+          instead of height-animated: an animated h-0 forces a layout pass on
+          this element every frame of the width transition for no visible gain. */}
+      {collapsed && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="Expand sidebar"
+          className="mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-4">
         {sections.map((section) => (
           <div key={section.title} className="mb-4">
-            {/* Section title — fades out when collapsed */}
-            <p className={cn(
-              "px-3 text-[11px] font-bold tracking-wider text-blue-600 uppercase overflow-hidden transition-all duration-300",
-              collapsed ? "max-h-0 opacity-0 pb-0" : "max-h-8 opacity-100 pb-2"
-            )}>
-              {section.title}
-            </p>
-            <div className={cn(
-              "mx-auto mb-2 h-px bg-gray-200 transition-all duration-300",
-              collapsed ? "w-8 opacity-100" : "w-0 opacity-0"
-            )} />
+            {/* Section title / divider — conditionally rendered rather than
+                max-height/width-animated, same reasoning as the chevron above. */}
+            {!collapsed && (
+              <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                {section.title}
+              </p>
+            )}
+            {collapsed && <div className="mx-auto mb-2 h-px w-8 bg-gray-200" />}
 
             <ul className="space-y-1">
               {section.items.map((item) => {
@@ -388,36 +394,33 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                       href={item.href}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "relative flex items-center rounded-lg transition-all duration-300 ease-out hover:-translate-y-0.5",
+                        // Only color/transform animate — padding is NOT transitioned:
+                        // it would force a layout reflow on every item, every frame,
+                        // for the whole 300ms the sidebar width is animating.
+                        "relative flex items-center rounded-lg transition-[color,background-color,border-color,transform] duration-200 ease-out hover:-translate-y-0.5",
                         collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2 text-[15px] font-medium",
                         isActive
-                          ? "border border-blue-200/60 bg-blue-50/60 backdrop-blur-md text-blue-700 shadow-[0_4px_20px_rgba(27,43,94,0.15)]"
+                          ? "border border-blue-200/60 bg-blue-50/60 text-blue-700 shadow-[0_4px_20px_rgba(27,43,94,0.15)]"
                           : "border border-transparent text-gray-600 hover:border-white/30 hover:bg-white/40 hover:text-gray-900"
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      {/* Label — always rendered, fades + collapses width */}
-                      <span className={cn(
-                        "flex-1 whitespace-nowrap overflow-hidden transition-all duration-300",
-                        collapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"
-                      )}>
-                        {item.label}
-                      </span>
+                      {/* Label — opacity-only fade; the real clip comes for free
+                          from the parent Link's own (already-animating) width. */}
+                      {!collapsed && (
+                        <span className="flex-1 truncate opacity-100 transition-opacity duration-200">
+                          {item.label}
+                        </span>
+                      )}
                       {/* Badge count pill */}
-                      {badge > 0 && (
-                        <span className={cn(
-                          "flex h-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white transition-all duration-300 overflow-hidden",
-                          collapsed ? "min-w-0 w-0 px-0 opacity-0" : "min-w-5 px-1.5 opacity-100"
-                        )}>
+                      {badge > 0 && !collapsed && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
                           {badge > 99 ? "99+" : badge}
                         </span>
                       )}
                       {/* Badge dot — only when collapsed */}
-                      {badge > 0 && (
-                        <span className={cn(
-                          "absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 transition-all duration-300",
-                          collapsed ? "opacity-100 scale-100" : "opacity-0 scale-0"
-                        )} />
+                      {badge > 0 && collapsed && (
+                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
                       )}
                     </Link>
                   </li>
@@ -430,34 +433,47 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       {/* User area */}
       <div className={cn(
-        "flex items-center border-t border-white/50 transition-all duration-300",
-        collapsed ? "justify-center px-0 py-3" : "gap-3 px-4 py-3"
+        "shrink-0 border-t border-white/50 transition-all duration-300",
+        collapsed ? "px-2 py-3" : "px-3 py-3"
       )}>
-        {user?.photoUrl ? (
-          <img src={user.photoUrl} alt={user.name} className="h-9 w-9 shrink-0 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-            {getInitials(user?.name ?? "U")}
-          </div>
-        )}
-        <div className={cn(
-          "flex min-w-0 flex-1 flex-col overflow-hidden transition-all duration-300",
-          collapsed ? "max-w-0 opacity-0" : "max-w-full opacity-100"
-        )}>
-          <span className="truncate text-sm font-semibold text-gray-900">{user?.name ?? "—"}</span>
-          <span className="truncate text-[11px] text-gray-500">{user?.softwareDesignation ?? ""}</span>
-        </div>
-        <button
-          type="button"
-          aria-label="Log out"
-          onClick={logout}
+        <div
           className={cn(
-            "shrink-0 text-gray-400 transition-all duration-300 hover:text-red-500",
-            collapsed ? "max-w-0 opacity-0 pointer-events-none overflow-hidden" : "max-w-full opacity-100"
+            "group flex items-center rounded-2xl border border-gray-200/70 bg-white shadow-[0_2px_10px_-4px_rgba(27,43,94,0.12)] transition-[border-color,box-shadow] duration-300 hover:border-blue-200/70 hover:shadow-[0_6px_20px_-4px_rgba(27,43,94,0.18)]",
+            collapsed ? "justify-center p-1.5" : "gap-2.5 py-2 pl-2 pr-1.5"
           )}
         >
-          <LogOut className="h-4 w-4" />
-        </button>
+          {user?.photoUrl ? (
+            <img
+              src={user.photoUrl}
+              alt={user.name}
+              className="h-9 w-9 shrink-0 rounded-full object-cover shadow-inner ring-2 ring-white"
+            />
+          ) : (
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-[#1B2B5E] text-sm font-semibold text-white shadow-sm ring-2 ring-white">
+              {getInitials(user?.name ?? "U")}
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white" />
+            </div>
+          )}
+          {!collapsed && (
+            <>
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <span className="truncate text-[13px] font-semibold leading-tight text-gray-900">{user?.name ?? "—"}</span>
+                <span className="mt-0.5 inline-flex w-fit items-center truncate rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-600">
+                  {user?.softwareDesignation ?? ""}
+                </span>
+              </div>
+              <button
+                type="button"
+                aria-label="Log out"
+                title="Log out"
+                onClick={logout}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </aside>
     </>

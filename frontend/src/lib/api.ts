@@ -24,6 +24,7 @@ import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
+import type { AdBlueLog } from "@/types/adblue-log";
 import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
 import type { SacCode } from "@/types/sac-code";
@@ -310,7 +311,6 @@ function toTruck(b: B): Truck {
     yearOfManufacture: b.year_of_manufacture ?? "",
     tyreLayout: b.tyre_layout ?? "",
     fuelCapacity: String(b.fuel_capacity ?? "0"),
-    adblueConsumption: b.adblue_consumption != null ? String(b.adblue_consumption) : "",
     odometerDuringPurchase: String(b.odometer_during_purchase ?? "0"),
     odometer: String(b.odometer ?? "0"),
     rcValidityDate: b.rc_validity_date ?? "",
@@ -355,7 +355,6 @@ function fromTruck(f: Truck) {
     year_of_manufacture: f.yearOfManufacture || null,
     tyre_layout: f.tyreLayout,
     fuel_capacity: f.fuelCapacity ? parseFloat(f.fuelCapacity) : 0,
-    adblue_consumption: f.adblueConsumption ? parseFloat(f.adblueConsumption) : null,
     odometer_during_purchase: f.odometerDuringPurchase ? parseFloat(f.odometerDuringPurchase) : 0,
     odometer: f.odometer ? parseFloat(f.odometer) : 0,
     rc_validity_date: f.rcValidityDate || null,
@@ -1080,6 +1079,23 @@ function toFuelStats(b: B): FuelStats {
     worstMileage: String(b.worst_mileage ?? ""),
     trendPercentage: String(b.trend_percentage ?? ""),
     costPerKm: String(b.cost_per_km ?? ""),
+  };
+}
+
+function toAdBlueLog(b: B): AdBlueLog {
+  return {
+    id: String(b.id),
+    truckId: String(b.truck_id),
+    date: b.date ?? "",
+    odometer: String(b.odometer ?? ""),
+    litres: String(b.litres ?? ""),
+    pricePerLitre: String(b.price_per_litre ?? ""),
+    totalCost: String(b.total_cost ?? ""),
+    fillingLocation: b.supplier ?? null,
+    remarks: b.remarks ?? null,
+    enteredByName: b.entered_by_name ?? null,
+    createdAt: b.created_at ?? null,
+    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -1955,6 +1971,42 @@ export const fuelLogsApi = {
       "/maintenance/fuel-base-config",
       { method: "PUT", body: JSON.stringify({ cost_per_litre: costPerLitre }) }
     ),
+};
+
+export const adblueLogsApi = {
+  listLogs: (truckId?: string) =>
+    req<B[]>(`/maintenance/adblue-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toAdBlueLog)),
+  getAllConsumptionStats: () =>
+    req<Record<string, number>>("/maintenance/adblue-consumption/all"),
+  createLog: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) =>
+    req<B>("/maintenance/adblue-logs", {
+      method: "POST",
+      body: JSON.stringify({
+        truck_id: parseInt(log.truckId),
+        date: log.date,
+        odometer: parseInt(log.odometer),
+        litres: parseFloat(log.litres),
+        price_per_litre: parseFloat(log.pricePerLitre),
+        total_cost: parseFloat(log.totalCost),
+        supplier: log.fillingLocation || null,
+        remarks: log.remarks || null,
+      }),
+    }).then(toAdBlueLog),
+  updateLog: (id: string, log: Partial<AdBlueLog>) =>
+    req<B>(`/maintenance/adblue-logs/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        date: log.date,
+        odometer: log.odometer ? parseInt(log.odometer) : undefined,
+        litres: log.litres ? parseFloat(log.litres) : undefined,
+        price_per_litre: log.pricePerLitre ? parseFloat(log.pricePerLitre) : undefined,
+        total_cost: log.totalCost ? parseFloat(log.totalCost) : undefined,
+        supplier: log.fillingLocation,
+        remarks: log.remarks,
+        client_version: log.version,
+      }),
+    }).then(toAdBlueLog),
+  deleteLog: (id: string) => req<void>(`/maintenance/adblue-logs/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

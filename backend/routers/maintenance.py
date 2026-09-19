@@ -705,6 +705,41 @@ def list_adblue_logs(
     return q.order_by(models.AdBlueLog.date.desc()).all()
 
 
+@router.get("/maintenance/adblue-consumption/all", tags=["AdBlue"])
+def get_all_adblue_consumption(db: Session = Depends(get_db)):
+    """Lifetime-average AdBlue consumption in L/km keyed by truck_id (as string),
+    for every truck with at least one usable odometer interval between logs.
+
+    Mirrors get_all_fuel_stats: intervals are built between consecutive logs
+    sorted by odometer, then outlier-filtered with the same MAD-based
+    _iqr_filter (it's purely statistical over a "mileage"-keyed rate — reused
+    here even though this rate is L/km rather than km/L).
+    """
+    logs = (
+        db.query(models.AdBlueLog)
+        .order_by(models.AdBlueLog.truck_id, models.AdBlueLog.odometer.asc())
+        .all()
+    )
+    raw: dict[int, list[dict]] = {}
+    prev: dict[int, models.AdBlueLog] = {}
+    for log in logs:
+        tid = log.truck_id
+        litres = float(log.litres or 0)
+        if tid in prev and litres > 0:
+            dist = max(float(log.odometer) - float(prev[tid].odometer), 0)
+            if dist > 0:
+                raw.setdefault(tid, []).append({"distance": dist, "litres": litres,
+                                                 "mileage": litres / dist})
+        prev[tid] = log
+    result = {}
+    for tid, intervals in raw.items():
+        filtered = _iqr_filter(intervals)
+        total_d = sum(r["distance"] for r in filtered)
+        total_l = sum(r["litres"]   for r in filtered)
+        result[str(tid)] = round(total_l / total_d, 6) if total_d > 0 else 0
+    return result
+
+
 @router.post("/maintenance/adblue-logs", response_model=schemas.AdBlueLogOut, status_code=201, tags=["AdBlue"])
 def create_adblue_log(
     payload: schemas.AdBlueLogCreate,

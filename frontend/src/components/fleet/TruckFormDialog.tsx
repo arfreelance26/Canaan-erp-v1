@@ -56,7 +56,6 @@ const emptyForm: Omit<Truck, "id" | "truckId"> = {
   yearOfManufacture: "",
   tyreLayout: "",
   fuelCapacity: "",
-  adblueConsumption: "",
   odometerDuringPurchase: "",
   odometer: "",
   rcValidityDate: "",

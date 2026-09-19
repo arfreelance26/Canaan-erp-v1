@@ -6,13 +6,20 @@ import { useEffect, useRef } from "react";
  * instead of starting from a blank form. Call `clearFormDraft(storageKey)` after a successful
  * submit so the next "Add" starts fresh.
  */
-export function useFormDraft<T>(
+export function useFormDraft<T extends object>(
   storageKey: string,
   active: boolean,
   form: T,
   restore: (draft: T) => void,
 ) {
   const restoredRef = useRef(false);
+  // Snapshot of `form` as of the most recent render, read (not depended on) by
+  // the mount effect below — see the comment there for why. Updated in its own
+  // effect (never during render — refs must not be written mid-render).
+  const formRef = useRef(form);
+  useEffect(() => {
+    formRef.current = form;
+  });
 
   useEffect(() => {
     if (!active) {
@@ -23,7 +30,12 @@ export function useFormDraft<T>(
     restoredRef.current = true;
     try {
       const raw = sessionStorage.getItem(storageKey);
-      if (raw) restore(JSON.parse(raw));
+      // Merge onto the current (freshly-initialized) form instead of replacing
+      // it outright — a draft saved under an older/different field shape (a
+      // field since added, renamed, or simply absent from a partial save)
+      // would otherwise restore with a missing key `undefined`, flipping that
+      // input from controlled to uncontrolled on the next render.
+      if (raw) restore({ ...formRef.current, ...JSON.parse(raw) });
     } catch {
       // ignore malformed drafts
     }

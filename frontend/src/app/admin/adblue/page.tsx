@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Droplets, Plus, Pencil, Trash2, Check, Loader2, Truck as TruckIcon, Gauge, MapPin } from "lucide-react";
-import { adblueApi, trucksApi, type AdBlueManufacturer } from "@/lib/api";
+import { Droplets, Plus, Pencil, Trash2, Check, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen } from "lucide-react";
+import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import { showError, showSuccess } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
+import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
+import { AdBlueHistoryViewDialog } from "@/components/fleet/AdBlueHistoryViewDialog";
+import type { AdBlueLog } from "@/types/adblue-log";
 
 export default function AdblueManagementPage() {
   const [manufacturers, setManufacturers] = useState<AdBlueManufacturer[]>([]);
@@ -22,6 +25,22 @@ export default function AdblueManagementPage() {
 
   // Delete
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Enter Log dialog
+  const [logTarget, setLogTarget] = useState<{ truck: Truck; pricePerLitre: string } | null>(null);
+
+  // View History dialog
+  const [historyTruck, setHistoryTruck] = useState<Truck | null>(null);
+
+  async function handleSaveAdBlueLog(log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) {
+    try {
+      await adblueLogsApi.createLog(log);
+      showSuccess("AdBlue log saved.");
+      setLogTarget(null);
+    } catch {
+      showError("Could not save the AdBlue log. Please try again.");
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -86,7 +105,7 @@ export default function AdblueManagementPage() {
           <Droplets className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">AdBlue Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Truck&apos;s Adblue History</h1>
           <p className="mt-0.5 text-sm text-gray-500">Track AdBlue usage and stock across the fleet</p>
         </div>
       </div>
@@ -141,12 +160,8 @@ export default function AdblueManagementPage() {
                         <TruckCard
                           key={truck.id}
                           truck={truck}
-                          manufacturerDefaultPrice={m.defaultPricePerLitre}
-                          onConsumptionSaved={(id, val) =>
-                            setTrucks((prev) =>
-                              prev.map((t) => t.id === id ? { ...t, adblueConsumption: val } : t)
-                            )
-                          }
+                          onViewHistory={() => setHistoryTruck(truck)}
+                          onEnterLog={() => setLogTarget({ truck, pricePerLitre: m.defaultPricePerLitre })}
                         />
                       ))}
                     </div>
@@ -288,6 +303,24 @@ export default function AdblueManagementPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Enter AdBlue Log dialog */}
+      {logTarget && (
+        <AdBlueLogFormDialog
+          open={!!logTarget}
+          onClose={() => setLogTarget(null)}
+          onSave={handleSaveAdBlueLog}
+          truck={logTarget.truck}
+          pricePerLitre={logTarget.pricePerLitre}
+        />
+      )}
+
+      {/* View AdBlue History dialog */}
+      <AdBlueHistoryViewDialog
+        open={!!historyTruck}
+        onClose={() => setHistoryTruck(null)}
+        truck={historyTruck}
+      />
     </div>
   );
 }
@@ -298,57 +331,15 @@ function totalTyresFromLayout(id: string): number {
 
 function TruckCard({
   truck,
-  manufacturerDefaultPrice,
-  onConsumptionSaved,
+  onViewHistory,
+  onEnterLog,
 }: {
   truck: Truck;
-  manufacturerDefaultPrice: string;
-  onConsumptionSaved: (id: string, val: string) => void;
+  onViewHistory: () => void;
+  onEnterLog: () => void;
 }) {
-  const savedLPerKm = truck.adblueConsumption ?? "";
-  const [lPerKm, setLPerKm] = useState(savedLPerKm);
-  const [lPer1000Km, setLPer1000Km] = useState(() => {
-    const n = parseFloat(savedLPerKm);
-    return isNaN(n) || savedLPerKm === "" ? "" : (n * 1000).toFixed(3);
-  });
-  const [saving, setSaving] = useState(false);
   const layout = truck.tyreLayout ? getTyreLayout(truck.tyreLayout) : null;
   const totalTyres = layout ? totalTyresFromLayout(layout.id) : null;
-
-  function handleLPerKmChange(val: string) {
-    setLPerKm(val);
-    const n = parseFloat(val);
-    setLPer1000Km(val === "" || isNaN(n) ? "" : (n * 1000).toFixed(3));
-  }
-
-  function handleLPer1000KmChange(val: string) {
-    setLPer1000Km(val);
-    const n = parseFloat(val);
-    setLPerKm(val === "" || isNaN(n) ? "" : (n / 1000).toFixed(5));
-  }
-
-  const isDirty = lPerKm !== savedLPerKm;
-
-  const lPerKmNum = parseFloat(lPerKm);
-  const defaultPriceNum = parseFloat(manufacturerDefaultPrice);
-  const costPerKm =
-    lPerKm !== "" && !isNaN(lPerKmNum) && !isNaN(defaultPriceNum) && defaultPriceNum > 0
-      ? lPerKmNum * defaultPriceNum
-      : null;
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const updated = await trucksApi.update(truck.id, { ...truck, adblueConsumption: lPerKm });
-      onConsumptionSaved(truck.id, updated.adblueConsumption ?? "");
-    } catch {
-      setLPerKm(savedLPerKm);
-      const n = parseFloat(savedLPerKm);
-      setLPer1000Km(savedLPerKm === "" || isNaN(n) ? "" : (n * 1000).toFixed(3));
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-blue-100 hover:shadow-md">
@@ -401,70 +392,24 @@ function TruckCard({
         </div>
       )}
 
-      {/* AdBlue Consumption */}
-      <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2.5">
-        <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-blue-400">
-          AdBlue Consumption
-        </p>
-        <div className="flex flex-col gap-1.5">
-          {/* L/km */}
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={lPerKm}
-              onChange={(e) => handleLPerKmChange(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="0.00000"
-              className="w-full rounded-md border border-blue-100 bg-white py-1.5 pl-2.5 pr-14 text-sm font-medium text-gray-800 placeholder-gray-300 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            />
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-medium text-gray-400">
-              L / km
-            </span>
-          </div>
-          {/* L/1000km */}
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={lPer1000Km}
-              onChange={(e) => handleLPer1000KmChange(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="0.000"
-              className="w-full rounded-md border border-blue-100 bg-white py-1.5 pl-2.5 pr-20 text-sm font-medium text-gray-800 placeholder-gray-300 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            />
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-medium text-gray-400">
-              L / 1000 km
-            </span>
-          </div>
-        </div>
+      {/* Actions */}
+      <div className="mt-1 flex gap-2 border-t border-gray-100 pt-3">
         <button
           type="button"
-          onClick={handleSave}
-          disabled={saving || !isDirty}
-          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-blue-600 py-1.5 text-[11px] font-bold text-white transition hover:bg-blue-700 disabled:opacity-40"
+          onClick={onViewHistory}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-1.5 text-[11px] font-bold text-gray-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
         >
-          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-          {saving ? "Saving…" : "Save"}
+          <History className="h-3.5 w-3.5" />
+          View History
         </button>
-
-        {costPerKm !== null && (
-          <div className="mt-2 rounded-md border border-green-100 bg-green-50/60 px-3 py-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-green-600">
-                AdBlue Cost Per KM
-              </p>
-              <p className="text-sm font-bold text-green-700">
-                ₹{costPerKm.toFixed(4)} / km
-              </p>
-            </div>
-            <p className="mt-1 text-[10px] leading-snug text-green-500/80">
-              = Consumption ({lPerKmNum.toFixed(5)} L/km) × Manufacturer price (₹{defaultPriceNum.toFixed(2)}/L)
-            </p>
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={onEnterLog}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-1.5 text-[11px] font-bold text-white transition hover:bg-blue-700"
+        >
+          <NotebookPen className="h-3.5 w-3.5" />
+          Enter Log
+        </button>
       </div>
     </div>
   );

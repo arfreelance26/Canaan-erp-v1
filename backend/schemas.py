@@ -48,7 +48,6 @@ class TruckBase(OrmBase):
     year_of_manufacture: Optional[str] = None
     tyre_layout: str
     fuel_capacity: Optional[Decimal] = None
-    adblue_consumption: Optional[Decimal] = None
     odometer_during_purchase: Optional[Decimal] = None
     odometer: Optional[Decimal] = None
     rc_validity_date: Optional[date] = None
