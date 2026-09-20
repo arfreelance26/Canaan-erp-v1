@@ -5,22 +5,18 @@ import { TruckMaintenanceTable } from "@/components/maintenance/TruckMaintenance
 import { MaintenanceRecordFormDialog } from "@/components/maintenance/MaintenanceRecordFormDialog";
 import { MaintenanceRecordHistoryDialog } from "@/components/maintenance/MaintenanceRecordHistoryDialog";
 import { TruckStatusDialog } from "@/components/maintenance/TruckStatusDialog";
-import { SetBaseMaintenanceCostDialog } from "@/components/maintenance/SetBaseMaintenanceCostDialog";
-import { trucksApi, maintenanceApi, maintenanceTypesApi } from "@/lib/api";
+import { trucksApi, maintenanceApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { useAuth } from "@/context/AuthContext";
-import { Search, IndianRupee } from "lucide-react";
+import { Search } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
 export default function TruckMaintenancePage() {
-  const { user } = useAuth();
-  const isAdmin = user?.softwareDesignation === "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [allStatus, setAllStatus] = useState<TruckMaintenanceStatus[]>([]);
@@ -30,8 +26,6 @@ export default function TruckMaintenancePage() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [baseCostDialogOpen, setBaseCostDialogOpen] = useState(false);
-  const [baseRate, setBaseRate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
@@ -46,12 +40,6 @@ export default function TruckMaintenancePage() {
       })
       .catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
-
-  useEffect(() => {
-    maintenanceTypesApi.getBaseConfig()
-      .then((cfg) => setBaseRate(cfg.cost_per_km != null ? parseFloat(cfg.cost_per_km).toFixed(2) : null))
-      .catch(() => {});
-  }, []);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
@@ -142,21 +130,6 @@ export default function TruckMaintenancePage() {
               ...(exportTo ? { to_date: exportTo } : {}),
             }}
           />
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setBaseCostDialogOpen(true)}
-              className="flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <IndianRupee className="h-4 w-4" />
-              Set Base Maintenance Cost
-              {baseRate !== null && (
-                <span className="rounded bg-white/25 px-1.5 py-0.5 text-[11px] font-bold tabular-nums">
-                  ₹{baseRate}/km
-                </span>
-              )}
-            </button>
-          )}
         </div>
       </div>
 
@@ -192,12 +165,6 @@ export default function TruckMaintenancePage() {
         records={selectedTruck ? records.filter((r) => r.truckId === selectedTruck.id) : []}
         tyreLayout={selectedTruck?.tyreLayout}
         truck={selectedTruck}
-      />
-
-      <SetBaseMaintenanceCostDialog
-        open={baseCostDialogOpen}
-        onClose={() => setBaseCostDialogOpen(false)}
-        onSaved={(rate) => setBaseRate(rate)}
       />
     </div>
   );

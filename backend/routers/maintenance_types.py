@@ -22,28 +22,6 @@ def create_maintenance_type(payload: schemas.MaintenanceTypeCreate, db: Session 
     return record
 
 
-# Static routes must come before /{type_id} to avoid "base-config" being parsed as an int
-@router.get("/base-config", response_model=schemas.MaintenanceBaseConfigOut)
-def get_base_config(db: Session = Depends(get_db)):
-    row = db.query(models.MaintenanceBaseConfig).first()
-    if not row:
-        return schemas.MaintenanceBaseConfigOut(cost_per_km=None, updated_at=None)
-    return row
-
-
-@router.put("/base-config", response_model=schemas.MaintenanceBaseConfigOut)
-def set_base_config(payload: schemas.MaintenanceBaseConfigSet, db: Session = Depends(get_db)):
-    row = db.query(models.MaintenanceBaseConfig).first()
-    if not row:
-        row = models.MaintenanceBaseConfig(cost_per_km=payload.cost_per_km)
-        db.add(row)
-    else:
-        row.cost_per_km = payload.cost_per_km
-    db.commit()
-    db.refresh(row)
-    return row
-
-
 @router.put("/{type_id}", response_model=schemas.MaintenanceTypeOut)
 def update_maintenance_type(type_id: int, payload: schemas.MaintenanceTypeUpdate, db: Session = Depends(get_db)):
     record = db.query(models.MaintenanceType).with_for_update().filter(models.MaintenanceType.id == type_id).first()

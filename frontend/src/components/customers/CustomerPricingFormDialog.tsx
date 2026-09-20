@@ -44,6 +44,7 @@ export function CustomerPricingFormDialog({
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [customerError, setCustomerError] = useState(false);
+  const [routeError, setRouteError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export function CustomerPricingFormDialog({
       setSearch(preselected?.name ?? "");
       setDropdownOpen(false);
       setCustomerError(false);
+      setRouteError(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialData]);
@@ -101,13 +103,54 @@ export function CustomerPricingFormDialog({
     return set;
   }, [existingPricing, form.customerId, initialData]);
 
+  // Legacy pricing rows for this customer that were never linked to a
+  // specific destination id — the pre-existing-route migration deliberately
+  // leaves a row unlinked rather than guess when its old text label matches
+  // more than one destination (e.g. two routes both named "Chennai to
+  // Hosur", different container types). These are invisible to the id-based
+  // exclusion above, so this customer's "Add Pricing" flow surfaces them as
+  // a warning instead of silently letting a duplicate get created.
+  const unlinkedLegacyPricing = useMemo(() => {
+    if (initialData) return []; // only relevant on create — edit handles its own row below
+    return existingPricing.filter((p) =>
+      p.customerId === form.customerId &&
+      !p.customerDestinationId &&
+      !!p.rate && String(p.rate).trim() !== ""
+    );
+  }, [existingPricing, form.customerId, initialData]);
+
+  // The route this pricing entry is linked to — the route itself is never
+  // editable here (only Hire Amount / Commission / Status are ever sent), so
+  // once a destination id is known it's shown locked, not as a picker.
+  const linkedDestination = useMemo(() => {
+    if (!initialData?.customerDestinationId) return null;
+    return destinations.find((d) => d.id === initialData.customerDestinationId) ?? null;
+  }, [destinations, initialData]);
+
+  // Editing a legacy row with no linked id yet: narrow the picker to routes
+  // whose label actually matches the old text (the real ambiguous set),
+  // never "every unpriced route" — resolves which specific route this old
+  // entry belongs to instead of pretending the route is freely reassignable.
+  const legacyCandidateRoutes = useMemo(() => {
+    if (!initialData || initialData.customerDestinationId) return [];
+    const label = (initialData.customerDestination ?? "").trim().toLowerCase();
+    if (!label) return [];
+    return destinations.filter((d) => {
+      if (d.customerId !== initialData.customerId) return false;
+      if (pricedRouteIds.has(d.id)) return false;
+      const dLabel = (d.destinationName ?? d.destinationAddress ?? "").trim().toLowerCase();
+      return dLabel === label;
+    });
+  }, [destinations, initialData, pricedRouteIds]);
+
   // Full destination records for this customer that don't have a Hire Amount
-  // set yet — rendered as selectable route cards below.
+  // set yet — rendered as selectable route cards below. Create mode only.
   const availableRoutes = useMemo(() => {
+    if (initialData) return [];
     return destinations
       .filter((d) => d.customerId === form.customerId)
       .filter((d) => !pricedRouteIds.has(d.id));
-  }, [destinations, form.customerId, pricedRouteIds]);
+  }, [destinations, form.customerId, pricedRouteIds, initialData]);
 
   function update<K extends keyof Omit<CustomerPricing, "id">>(key: K, value: Omit<CustomerPricing, "id">[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -136,6 +179,14 @@ export function CustomerPricingFormDialog({
       setCustomerError(true);
       return;
     }
+    // Route is only ever choosable on create, or while resolving a legacy
+    // unlinked row — an already-linked edit keeps whatever id it already has.
+    const routeSelectable = !initialData || !linkedDestination;
+    if (routeSelectable && !form.customerDestinationId) {
+      setRouteError(true);
+      return;
+    }
+    setRouteError(false);
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form });
   }
 
@@ -188,62 +239,159 @@ export function CustomerPricingFormDialog({
           )}
         </Field>
 
-        <Field label="Available Routes" required>
-          <span className="mb-2 block text-xs text-gray-400">
-            Only routes without a Hire Amount set yet are shown. Select one card.
-          </span>
-          {!form.customerId ? (
-            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
-              Select a customer first
-            </p>
-          ) : availableRoutes.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
-              No unpriced routes for this customer
-            </p>
+        {initialData ? (
+          linkedDestination ? (
+            // Route is locked once a price is created — only Hire Amount /
+            // Commission / Status are ever sent on save. Shown read-only so
+            // it's clear the route itself can't be changed from here.
+            <Field label="Route">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <RouteDiagram
+                  compact
+                  originState={linkedDestination.originState}
+                  originAddress={linkedDestination.originAddress}
+                  destinationState={linkedDestination.destinationState}
+                  destinationAddress={linkedDestination.destinationAddress}
+                  approxDistanceKm={linkedDestination.approxDistanceKm}
+                />
+                {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                    {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).map((tag) => (
+                      <span key={tag} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Field>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[28rem] overflow-y-auto p-1">
-              {availableRoutes.map((d) => {
-                const value = d.destinationName ?? d.destinationAddress ?? "";
-                const selected = form.customerDestinationId === d.id;
-                const tags = [d.cargoClassification, d.containerType, d.weightInTons].filter(Boolean);
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, customerDestinationId: d.id, customerDestination: value }))}
-                    className={[
-                      "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
-                      selected
-                        ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
-                        : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
-                    ].join(" ")}
-                  >
-                    <RouteDiagram
-                      compact
-                      originState={d.originState}
-                      originAddress={d.originAddress}
-                      destinationState={d.destinationState}
-                      destinationAddress={d.destinationAddress}
-                      approxDistanceKm={d.approxDistanceKm}
-                    />
-                    {tags.length > 0 && (
-                      <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
-                        {tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </Field>
+            // Legacy row created before pricing linked to a specific
+            // destination id — its old text label matched more than one
+            // route, so pick which one this entry actually belongs to.
+            <Field label="Confirm Route" required>
+              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                This pricing entry predates route linking and matches more than one destination
+                named &quot;{initialData.customerDestination}&quot;. Pick which route it&apos;s actually for.
+              </p>
+              {legacyCandidateRoutes.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+                  No matching destinations found — the original route may have been deleted.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[28rem] overflow-y-auto p-1">
+                  {legacyCandidateRoutes.map((d) => {
+                    const value = d.destinationName ?? d.destinationAddress ?? "";
+                    const selected = form.customerDestinationId === d.id;
+                    const tags = [d.cargoClassification, d.containerType, d.weightInTons].filter(Boolean);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => { setForm((prev) => ({ ...prev, customerDestinationId: d.id, customerDestination: value })); setRouteError(false); }}
+                        className={[
+                          "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                          selected
+                            ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
+                            : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                        ].join(" ")}
+                      >
+                        <RouteDiagram
+                          compact
+                          originState={d.originState}
+                          originAddress={d.originAddress}
+                          destinationState={d.destinationState}
+                          destinationAddress={d.destinationAddress}
+                          approxDistanceKm={d.approxDistanceKm}
+                        />
+                        {tags.length > 0 && (
+                          <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                            {tags.map((tag) => (
+                              <span key={tag} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {routeError && (
+                <p className="mt-2 text-xs text-red-500">Please select which route this entry is for.</p>
+              )}
+            </Field>
+          )
+        ) : (
+          <Field label="Available Routes" required>
+            <span className="mb-2 block text-xs text-gray-400">
+              Only routes without a Hire Amount set yet are shown. Select one card.
+            </span>
+            {unlinkedLegacyPricing.length > 0 && (
+              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                {unlinkedLegacyPricing.length} existing pricing {unlinkedLegacyPricing.length === 1 ? "entry" : "entries"} for
+                this customer ({unlinkedLegacyPricing.map((p) => `"${p.customerDestination}"`).join(", ")}) {unlinkedLegacyPricing.length === 1 ? "hasn't" : "haven't"} been
+                matched to a specific route yet. Edit {unlinkedLegacyPricing.length === 1 ? "it" : "them"} first to confirm
+                the route before adding a new price here, to avoid creating a duplicate.
+              </p>
+            )}
+            {!form.customerId ? (
+              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+                Select a customer first
+              </p>
+            ) : availableRoutes.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-400">
+                No unpriced routes for this customer
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[28rem] overflow-y-auto p-1">
+                {availableRoutes.map((d) => {
+                  const value = d.destinationName ?? d.destinationAddress ?? "";
+                  const selected = form.customerDestinationId === d.id;
+                  const tags = [d.cargoClassification, d.containerType, d.weightInTons].filter(Boolean);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => { setForm((prev) => ({ ...prev, customerDestinationId: d.id, customerDestination: value })); setRouteError(false); }}
+                      className={[
+                        "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
+                        selected
+                          ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-500/30 shadow-md"
+                          : "border-gray-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md",
+                      ].join(" ")}
+                    >
+                      <RouteDiagram
+                        compact
+                        originState={d.originState}
+                        originAddress={d.originAddress}
+                        destinationState={d.destinationState}
+                        destinationAddress={d.destinationAddress}
+                        approxDistanceKm={d.approxDistanceKm}
+                      />
+                      {tags.length > 0 && (
+                        <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
+                          {tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {routeError && (
+              <p className="mt-2 text-xs text-red-500">Please select a route.</p>
+            )}
+          </Field>
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Hire Amount" required>

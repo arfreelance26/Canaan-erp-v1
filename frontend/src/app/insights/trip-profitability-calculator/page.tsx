@@ -998,7 +998,7 @@ export default function TripProfitabilityCalculatorPage() {
     adblueLogsApi.getAllConsumptionStats().then(setAdblueConsumptionMap).catch(() => {});
     fuelLogsApi.getBaseConfig().then((cfg) => {
       if (cfg.cost_per_litre != null) {
-        setSystemFuelCostPerLitre(cfg.cost_per_litre);
+        setSystemFuelCostPerLitre(Number(cfg.cost_per_litre));
         // Only use API value as fallback; don't overwrite a saved user value
         setFuelCostPerLitre((prev: string) => prev !== "" ? prev : String(cfg.cost_per_litre));
       }

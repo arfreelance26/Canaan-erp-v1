@@ -250,7 +250,7 @@ function AdminDashboard() {
     setFuelRateSaving(true);
     try {
       const cfg = await fuelLogsApi.setBaseConfig(val);
-      setFuelRate({ costPerLitre: cfg.cost_per_litre, updatedAt: cfg.updated_at });
+      setFuelRate({ costPerLitre: cfg.cost_per_litre != null ? Number(cfg.cost_per_litre) : null, updatedAt: cfg.updated_at });
       setFuelRateInput("");
     } catch {
       alert("Failed to update fuel rate. Please try again.");
@@ -289,7 +289,7 @@ function AdminDashboard() {
 
   useEffect(() => {
     fuelLogsApi.getBaseConfig()
-      .then((cfg) => setFuelRate({ costPerLitre: cfg.cost_per_litre, updatedAt: cfg.updated_at }))
+      .then((cfg) => setFuelRate({ costPerLitre: cfg.cost_per_litre != null ? Number(cfg.cost_per_litre) : null, updatedAt: cfg.updated_at }))
       .catch(() => {});
   }, []);
 

@@ -341,7 +341,7 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
       .then(([logsData, statsData, baseConfig]) => {
         setLogs(logsData);
         setStats(statsData);
-        setBaseCostPerLitre(baseConfig.cost_per_litre ?? null);
+        setBaseCostPerLitre(baseConfig.cost_per_litre != null ? Number(baseConfig.cost_per_litre) : null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));

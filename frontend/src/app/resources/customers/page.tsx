@@ -362,11 +362,16 @@ export default function CustomersPage() {
   async function handleSaveFinalPricing(customerId: string, data: { customerDestinationId: string; customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) {
     try {
       if (editingFinalPricing) {
-        // Route is locked once created — only the amounts can change on edit.
+        // Route is locked once linked — only the amounts can change on a
+        // normal edit. customerDestinationId is still forwarded because a
+        // legacy unlinked row (see the dialog's "Confirm Route" flow) needs
+        // this same call to actually persist the route it was just resolved
+        // to; for an already-linked row it's just the same value again.
         const updated = await customersApi.updateFinalPricing(editingFinalPricing.customerId, editingFinalPricing.id, {
           actualHireAmount: data.actualHireAmount,
           accountsHireAmount: data.accountsHireAmount,
           clientVersion: editingFinalPricing.version,
+          customerDestinationId: data.customerDestinationId,
         });
         setFinalPricing((prev) => prev.map((fp) => (fp.id === editingFinalPricing.id ? updated : fp)));
         showSuccess("Final pricing updated successfully.");

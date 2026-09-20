@@ -1700,15 +1700,6 @@ class MaintenanceTypeOut(OrmBase):
     updated_at: Optional[datetime] = None
 
 
-class MaintenanceBaseConfigSet(OrmBase):
-    cost_per_km: Optional[Decimal] = None
-
-
-class MaintenanceBaseConfigOut(OrmBase):
-    cost_per_km: Optional[Decimal] = None
-    updated_at: Optional[datetime] = None
-
-
 # ---------------------------------------------------------------------------
 # SAC Codes
 # ---------------------------------------------------------------------------

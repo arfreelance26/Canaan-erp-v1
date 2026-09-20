@@ -1003,14 +1003,6 @@ class MaintenanceType(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
-class MaintenanceBaseConfig(Base):
-    __tablename__ = "maintenance_base_config"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    cost_per_km = Column(Numeric(10, 4), nullable=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-
 # ---------------------------------------------------------------------------
 # Finance Hub
 # ---------------------------------------------------------------------------

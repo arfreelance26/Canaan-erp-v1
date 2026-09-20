@@ -11,6 +11,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { formatDate } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Auditor", "Admin"];
@@ -182,34 +183,33 @@ export default function TruckMaintenanceRecordPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/80 bg-white/40 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/40">
-        <div className="relative w-full sm:w-72">
+      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3.5 shadow-sm dark:border-gray-300/20 dark:bg-gray-200/60 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search by truck, type, description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-950 dark:placeholder-gray-500"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-950 dark:placeholder-gray-500"
           />
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Export Range</span>
-          <input
-            type="date"
-            value={exportFrom}
-            onChange={(e) => setExportFrom(e.target.value)}
-            className="uppercase rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-950"
-            title="Report from date"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <input
-            type="date"
-            value={exportTo}
-            onChange={(e) => setExportTo(e.target.value)}
-            className="uppercase rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-950"
-            title="Report to date"
-          />
+
+        <div className="hidden h-9 w-px shrink-0 bg-gray-200 dark:bg-gray-300/30 sm:block" />
+
+        <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              Export
+            </span>
+            <div className="w-[128px]">
+              <DatePickerInput value={exportFrom} onChange={setExportFrom} />
+            </div>
+            <span className="text-xs text-gray-300">–</span>
+            <div className="w-[128px]">
+              <DatePickerInput value={exportTo} onChange={setExportTo} />
+            </div>
+          </div>
           <DownloadExcelButton
             path="/exports/maintenance-records"
             filename="maintenance_records.xlsx"

@@ -1502,13 +1502,17 @@ export const customersApi = {
         accounts_hire_amount: data.accountsHireAmount ? parseFloat(data.accountsHireAmount) : null,
       }),
     }).then(toFinalCustomerPricing),
-  updateFinalPricing: (customerId: string, pricingId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null; clientVersion?: number }) =>
+  updateFinalPricing: (customerId: string, pricingId: string, data: { actualHireAmount: string | null; accountsHireAmount: string | null; clientVersion?: number; customerDestinationId?: string }) =>
     req<B>(`/customers/${customerId}/final-pricing/${pricingId}`, {
       method: "PUT",
       body: JSON.stringify({
         actual_hire_amount: data.actualHireAmount ? parseFloat(data.actualHireAmount) : null,
         accounts_hire_amount: data.accountsHireAmount ? parseFloat(data.accountsHireAmount) : null,
         client_version: data.clientVersion,
+        // Only sent when resolving a legacy unlinked row (see
+        // FinalCustomerPricingFormDialog's "Confirm Route" flow) — omitted
+        // otherwise so a normal amount-only edit never touches the link.
+        ...(data.customerDestinationId ? { customer_destination_id: parseInt(data.customerDestinationId) } : {}),
       }),
     }).then(toFinalCustomerPricing),
   deleteFinalPricing: (customerId: string, pricingId: string) =>
@@ -1968,9 +1972,12 @@ export const fuelLogsApi = {
       method: "POST",
       body: JSON.stringify({ ...payload, resource_type: "FuelLog" }),
     }),
-  getBaseConfig: () => req<{ id: number; cost_per_litre: number | null; updated_at: string | null }>("/maintenance/fuel-base-config"),
+  // cost_per_litre comes back as a numeric string (the backend Decimal is
+  // JSON-serialized as a string, not a number) — every consumer must coerce
+  // with Number(...) before doing arithmetic on it.
+  getBaseConfig: () => req<{ id: number; cost_per_litre: string | null; updated_at: string | null }>("/maintenance/fuel-base-config"),
   setBaseConfig: (costPerLitre: number | null) =>
-    req<{ id: number; cost_per_litre: number | null; updated_at: string | null }>(
+    req<{ id: number; cost_per_litre: string | null; updated_at: string | null }>(
       "/maintenance/fuel-base-config",
       { method: "PUT", body: JSON.stringify({ cost_per_litre: costPerLitre }) }
     ),
@@ -2351,8 +2358,6 @@ export const repairTypesApi = {
 // ---------------------------------------------------------------------------
 
 type MTypeBackend = { id: number; name: string; interval_km: number; version?: number };
-type MaintBaseConfigBackend = { cost_per_km: string | null; updated_at: string | null };
-
 function toMaintenanceType(b: MTypeBackend): MaintenanceTypeItem {
   return { id: String(b.id), name: b.name, intervalKm: b.interval_km, version: b.version };
 }
@@ -2370,12 +2375,6 @@ export const maintenanceTypesApi = {
       body: JSON.stringify({ name, interval_km: intervalKm, client_version: version }),
     }).then(toMaintenanceType),
   delete: (id: string) => req<void>(`/maintenance-types/${id}`, { method: "DELETE" }),
-  getBaseConfig: () => req<MaintBaseConfigBackend>("/maintenance-types/base-config"),
-  setBaseConfig: (costPerKm: number) =>
-    req<MaintBaseConfigBackend>("/maintenance-types/base-config", {
-      method: "PUT",
-      body: JSON.stringify({ cost_per_km: costPerKm }),
-    }),
 };
 
 export const sacCodesApi = {

@@ -461,6 +461,13 @@ def _run_schema_migrations():
         "  ON d.customer_id = p.customer_id AND d.label = p.customer_destination AND d.n = 1 "
         "SET p.customer_destination_id = d.only_id "
         "WHERE p.customer_destination_id IS NULL",
+        # maintenance_base_config — removed entirely. Confirmed unused: nothing
+        # ever read this value except the "Set Base Maintenance Cost" button on
+        # Truck Maintenance echoing its own saved number back to the admin who
+        # set it. Every real maintenance Cost/Km figure in the app (Running
+        # Cost Calculator, Cost-Per-KM Ranking, P&L) comes from actual
+        # MaintenanceRecord history, not this.
+        "DROP TABLE IF EXISTS maintenance_base_config",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

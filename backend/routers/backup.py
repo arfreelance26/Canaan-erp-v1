@@ -43,7 +43,6 @@ ALL_MODELS = [
     models.TripExpenseRate,
     models.RepairType,
     models.MaintenanceType,
-    models.MaintenanceBaseConfig,
     models.TruckRunConfig,
     models.TyreLayoutCostConfig,
     models.ComplianceUpdateHistory,
