@@ -14,12 +14,13 @@ import { RouteDiagram } from "./RouteDiagram";
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSave: (customerId: string, data: { customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) => Promise<void>;
+  onSave: (customerId: string, data: { customerDestinationId: string; customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) => Promise<void>;
   initialData?: FinalCustomerPricing | null;
   customers: Customer[];
 };
 
 type RouteOption = {
+  destinationId: string;
   label: string;
   rate: string;
   destination?: CustomerDestination;
@@ -29,6 +30,12 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
   const [customerId, setCustomerId] = useState("");
   const [actualHireAmount, setActualHireAmount] = useState("");
   const [accountsHireAmount, setAccountsHireAmount] = useState("");
+  // The actual match key — a specific CustomerDestination id. selectedRoute
+  // stays as the display label (also what gets sent as customer_destination
+  // for the snapshot/legacy text), but selection and duplicate-blocking are
+  // both keyed by id so two routes sharing identical address text (different
+  // container type, say) are correctly treated as distinct.
+  const [selectedDestinationId, setSelectedDestinationId] = useState("");
   const [selectedRoute, setSelectedRoute] = useState("");
   const [customerPricing, setCustomerPricing] = useState<CustomerPricing[]>([]);
   const [destinations, setDestinations] = useState<CustomerDestination[]>([]);
@@ -45,6 +52,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
       setActualHireAmount(initialData.actualHireAmount ?? "");
       setAccountsHireAmount(initialData.accountsHireAmount ?? "");
       setSelectedRoute(initialData.customerDestination ?? "");
+      setSelectedDestinationId(initialData.customerDestinationId ?? "");
       Promise.all([
         customersApi.listPricing(initialData.customerId),
         customersApi.listDestinations(initialData.customerId),
@@ -59,6 +67,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
       setActualHireAmount("");
       setAccountsHireAmount("");
       setSelectedRoute("");
+      setSelectedDestinationId("");
       setCustomerPricing([]);
       setDestinations([]);
       setExistingFinalPricing([]);
@@ -69,6 +78,7 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
     setCustomerId(id);
     setActualHireAmount("");
     setSelectedRoute("");
+    setSelectedDestinationId("");
     setCustomerPricing([]);
     setDestinations([]);
     setExistingFinalPricing([]);
@@ -81,15 +91,17 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
   function selectRoute(opt: RouteOption, alreadyPriced: boolean) {
     if (alreadyPriced || !!initialData) return;
     setSelectedRoute(opt.label);
+    setSelectedDestinationId(opt.destinationId);
     setActualHireAmount(opt.rate);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!customerId || !selectedRoute) return;
+    if (!customerId || !selectedRoute || !selectedDestinationId) return;
     setSaving(true);
     try {
       await onSave(customerId, {
+        customerDestinationId: selectedDestinationId,
         customerDestination: selectedRoute,
         actualHireAmount: actualHireAmount || null,
         accountsHireAmount: accountsHireAmount || null,
@@ -101,24 +113,27 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
 
   const customerOptions = customers.map((c) => ({ value: c.id, label: c.name }));
 
-  const pricedRouteLabels = useMemo(
-    () => new Set(existingFinalPricing.map((fp) => fp.customerDestination).filter((d): d is string => !!d)),
+  // Destination ids that already have a final price for this customer — used
+  // to block picking the same route twice (that's the bug this dialog exists
+  // to prevent). Keyed by id, not label, so two routes sharing identical
+  // address text are correctly treated as distinct.
+  const pricedRouteDestinationIds = useMemo(
+    () => new Set(existingFinalPricing.map((fp) => fp.customerDestinationId).filter((d): d is string => !!d)),
     [existingFinalPricing]
   );
 
   // Every route that has a Hire Amount configured via Customer Pricing —
-  // enriched with its destination record (when found) so the route diagram
-  // can render, matched by the same destination label the pricing row stores.
+  // enriched with its destination record so the route diagram can render,
+  // matched by the pricing row's own destination id.
   const routeOptions: RouteOption[] = useMemo(
     () =>
       customerPricing
-        .filter((p) => p.customerDestination && p.rate)
+        .filter((p) => p.customerDestinationId && p.customerDestination && p.rate)
         .map((p) => ({
+          destinationId: p.customerDestinationId as string,
           label: p.customerDestination,
           rate: p.rate,
-          destination: destinations.find(
-            (d) => (d.destinationName ?? d.destinationAddress ?? "") === p.customerDestination
-          ),
+          destination: destinations.find((d) => d.id === p.customerDestinationId),
         })),
     [customerPricing, destinations]
   );
@@ -154,13 +169,13 @@ export function FinalCustomerPricingFormDialog({ open, onClose, onSave, initialD
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[24rem] overflow-y-auto p-1">
               {routeOptions.map((opt) => {
-                const selected = selectedRoute === opt.label;
-                const alreadyPriced = !initialData && pricedRouteLabels.has(opt.label);
+                const selected = selectedDestinationId === opt.destinationId;
+                const alreadyPriced = !initialData && pricedRouteDestinationIds.has(opt.destinationId);
                 const locked = !!initialData && !selected;
                 const disabled = alreadyPriced || locked;
                 return (
                   <button
-                    key={opt.label}
+                    key={opt.destinationId}
                     type="button"
                     onClick={() => selectRoute(opt, alreadyPriced)}
                     disabled={disabled}

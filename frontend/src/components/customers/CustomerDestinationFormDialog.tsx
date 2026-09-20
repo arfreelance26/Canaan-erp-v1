@@ -298,7 +298,19 @@ export function CustomerDestinationFormDialog({
           <Field label="Container Type">
             <GlassSelect
               value={form.containerType ?? ""}
-              onChange={(val) => update("containerType", val as CustomerDestination["containerType"])}
+              onChange={(val) => {
+                // Open Load's real cargo weight is a precise, freely-typed
+                // tonnage entered per trip (Assign Trip → Open Load Hire Type),
+                // never one of these fixed bands — so it can't apply here.
+                // Clear any previously-picked band rather than silently
+                // saving a value that no longer means anything.
+                setForm((prev) => ({
+                  ...prev,
+                  containerType: val as CustomerDestination["containerType"],
+                  weightInTons: val === "OPEN LOAD" ? "" : prev.weightInTons,
+                }));
+                setRouteError(false);
+              }}
               options={[
                 { value: "", label: "Select container type" },
                 ...CONTAINER_TYPE_OPTIONS.map((o) => ({ value: o, label: o })),
@@ -306,6 +318,7 @@ export function CustomerDestinationFormDialog({
             />
           </Field>
 
+          {form.containerType !== "OPEN LOAD" && (
           <Field label="Cargo Weight (tons)">
             <GlassSelect
               value={form.weightInTons ?? ""}
@@ -316,6 +329,7 @@ export function CustomerDestinationFormDialog({
               ]}
             />
           </Field>
+          )}
         </div>
 
         {/* Route Preview — live diagram of origin -> destination, updates as the form is filled */}

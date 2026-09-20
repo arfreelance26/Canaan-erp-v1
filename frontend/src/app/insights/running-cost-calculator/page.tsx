@@ -1910,14 +1910,23 @@ export default function RunningCostCalculatorPage() {
   const saveTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
 
-  // Persists computed cost-per-km per truck (keyed by fleet truckId) per mode for use in pl-summary
-  const costPerKmMapRef = useRef<Record<string, Record<string, number | null>>>({ Manual: {}, Basic: {}, Advanced: {} });
+  // Persists computed cost-per-km per truck (keyed by fleet truckId) to the
+  // backend, Manual mode only — Basic/Advanced are now computed live
+  // server-side (see get_cost_per_km / _compute_basic_advanced_cost_per_km
+  // in routers/running_cost.py), since every input they need already lives
+  // in the backend regardless of whether this calculator was ever opened.
+  // Manual mode is inherently user-typed, so it still has to be pushed from
+  // here — there's nothing to derive if it was never entered. P&L Summary's
+  // Truck Profitability tab ("Total Truck Expenses") reads this live.
+  const costPerKmMapRef = useRef<Record<string, number | null>>({});
+  const costPerKmSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleTruckCostChange(truckFleetId: string, truckMode: string, cost: number | null) {
-    costPerKmMapRef.current = {
-      ...costPerKmMapRef.current,
-      [truckMode]: { ...costPerKmMapRef.current[truckMode], [truckFleetId]: cost },
-    };
-    try { localStorage.setItem("canaan_rcc_cost_per_km", JSON.stringify(costPerKmMapRef.current)); } catch { /* ignore */ }
+    if (truckMode !== "Manual") return;
+    costPerKmMapRef.current = { ...costPerKmMapRef.current, [truckFleetId]: cost };
+    if (costPerKmSaveTimerRef.current) clearTimeout(costPerKmSaveTimerRef.current);
+    costPerKmSaveTimerRef.current = setTimeout(() => {
+      runningCostApi.saveCostPerKm("Manual", costPerKmMapRef.current).catch(() => {});
+    }, 800);
   }
 
   useEffect(() => {

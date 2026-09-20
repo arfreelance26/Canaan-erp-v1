@@ -24,6 +24,7 @@ type CustomerPricingFormDialogProps = {
 
 const emptyForm: Omit<CustomerPricing, "id"> = {
   customerId: "",
+  customerDestinationId: null,
   customerDestination: "",
   rate: "",
   commissionAmount: "",
@@ -84,15 +85,18 @@ export function CustomerPricingFormDialog({
     [customers, search],
   );
 
-  // Routes that already have a Hire Amount set for this customer (excluding
-  // the pricing entry currently being edited, so its own route stays selectable).
-  const pricedRouteValues = useMemo(() => {
+  // Destination IDs that already have a Hire Amount set for this customer
+  // (excluding the pricing entry currently being edited, so its own route
+  // stays selectable). Keyed by the destination's actual id — NOT its label —
+  // so two routes sharing identical address text (different container type,
+  // say) are correctly treated as distinct and can each get their own price.
+  const pricedRouteIds = useMemo(() => {
     const set = new Set<string>();
     for (const p of existingPricing) {
       if (p.customerId !== form.customerId) continue;
       if (initialData && p.id === initialData.id) continue;
       if (!p.rate || String(p.rate).trim() === "") continue;
-      if (p.customerDestination) set.add(p.customerDestination.trim().toLowerCase());
+      if (p.customerDestinationId) set.add(p.customerDestinationId);
     }
     return set;
   }, [existingPricing, form.customerId, initialData]);
@@ -102,18 +106,15 @@ export function CustomerPricingFormDialog({
   const availableRoutes = useMemo(() => {
     return destinations
       .filter((d) => d.customerId === form.customerId)
-      .filter((d) => {
-        const value = d.destinationName ?? d.destinationAddress ?? "";
-        return value !== "" && !pricedRouteValues.has(value.trim().toLowerCase());
-      });
-  }, [destinations, form.customerId, pricedRouteValues]);
+      .filter((d) => !pricedRouteIds.has(d.id));
+  }, [destinations, form.customerId, pricedRouteIds]);
 
   function update<K extends keyof Omit<CustomerPricing, "id">>(key: K, value: Omit<CustomerPricing, "id">[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleCustomerChange(customerId: string) {
-    setForm((prev) => ({ ...prev, customerId, customerDestination: "" }));
+    setForm((prev) => ({ ...prev, customerId, customerDestinationId: null, customerDestination: "" }));
   }
 
   function selectCustomer(customer: Customer) {
@@ -203,13 +204,13 @@ export function CustomerPricingFormDialog({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-h-[28rem] overflow-y-auto p-1">
               {availableRoutes.map((d) => {
                 const value = d.destinationName ?? d.destinationAddress ?? "";
-                const selected = form.customerDestination === value;
+                const selected = form.customerDestinationId === d.id;
                 const tags = [d.cargoClassification, d.containerType, d.weightInTons].filter(Boolean);
                 return (
                   <button
                     key={d.id}
                     type="button"
-                    onClick={() => update("customerDestination", value)}
+                    onClick={() => setForm((prev) => ({ ...prev, customerDestinationId: d.id, customerDestination: value }))}
                     className={[
                       "flex flex-col rounded-2xl border p-4 text-left shadow-sm transition-all duration-200",
                       selected

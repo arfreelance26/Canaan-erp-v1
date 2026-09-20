@@ -268,6 +268,24 @@ def delete_destination(customer_id: int, dest_id: int, db: Session = Depends(get
 # Customer Pricing
 # ---------------------------------------------------------------------------
 
+def _resolve_destination_label(db: Session, customer_id: int, destination_id: int | None) -> str | None:
+    """Looks up the destination's display label (name, falling back to
+    address) so customer_destination stays a synced snapshot of whichever
+    CustomerDestination row customer_destination_id actually points at —
+    the FK is the real match key, this text is only for display/legacy
+    matching (see the big comment on CustomerPricing.customer_destination_id).
+    """
+    if destination_id is None:
+        return None
+    dest = db.query(models.CustomerDestination).filter(
+        models.CustomerDestination.id == destination_id,
+        models.CustomerDestination.customer_id == customer_id,
+    ).first()
+    if not dest:
+        raise HTTPException(404, "Destination not found for this customer")
+    return dest.destination_name or dest.destination_address
+
+
 @router.get("/{customer_id}/pricing", response_model=list[schemas.CustomerPricingOut])
 def list_pricing(customer_id: int, db: Session = Depends(get_db)):
     return db.query(models.CustomerPricing).filter(
@@ -279,7 +297,10 @@ def list_pricing(customer_id: int, db: Session = Depends(get_db)):
 def create_pricing(customer_id: int, payload: schemas.CustomerPricingCreate, db: Session = Depends(get_db)):
     if not db.get(models.Customer, customer_id):
         raise HTTPException(404, "Customer not found")
-    pricing = models.CustomerPricing(customer_id=customer_id, **payload.model_dump())
+    data = payload.model_dump()
+    if data.get("customer_destination_id") is not None:
+        data["customer_destination"] = _resolve_destination_label(db, customer_id, data["customer_destination_id"])
+    pricing = models.CustomerPricing(customer_id=customer_id, **data)
     db.add(pricing)
     db.commit()
     db.refresh(pricing)
@@ -295,7 +316,10 @@ def update_pricing(customer_id: int, price_id: int, payload: schemas.CustomerPri
     ).first()
     if not pricing:
         raise HTTPException(404, "Pricing not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "customer_destination_id" in data:
+        data["customer_destination"] = _resolve_destination_label(db, customer_id, data["customer_destination_id"])
+    for field, value in data.items():
         setattr(pricing, field, value)
     db.commit()
     db.refresh(pricing)
@@ -333,11 +357,13 @@ def create_final_pricing(customer_id: int, payload: schemas.FinalCustomerPricing
         raise HTTPException(404, "Customer not found")
     existing = db.query(models.FinalCustomerPricing).filter(
         models.FinalCustomerPricing.customer_id == customer_id,
-        models.FinalCustomerPricing.customer_destination == payload.customer_destination,
+        models.FinalCustomerPricing.customer_destination_id == payload.customer_destination_id,
     ).first()
     if existing:
         raise HTTPException(400, f"A final price already exists for the route '{payload.customer_destination}'. Edit that entry instead of adding another.")
-    record = models.FinalCustomerPricing(customer_id=customer_id, **payload.model_dump())
+    data = payload.model_dump()
+    data["customer_destination"] = _resolve_destination_label(db, customer_id, data["customer_destination_id"])
+    record = models.FinalCustomerPricing(customer_id=customer_id, **data)
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -354,7 +380,10 @@ def update_final_pricing(customer_id: int, pricing_id: int, payload: schemas.Fin
         raise HTTPException(404, "Final pricing not found")
     if payload.client_version is not None and record.version != payload.client_version:
         raise HTTPException(409, "Record was modified by someone else. Please refresh and try again.")
-    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
+    data = payload.model_dump(exclude_unset=True, exclude={"client_version"})
+    if "customer_destination_id" in data:
+        data["customer_destination"] = _resolve_destination_label(db, customer_id, data["customer_destination_id"])
+    for field, value in data.items():
         setattr(record, field, value)
     record.version = (record.version or 1) + 1
     db.commit()

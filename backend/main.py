@@ -422,6 +422,45 @@ def _run_schema_migrations():
         # same route (a unique index enforces one row per customer+route below).
         "ALTER TABLE final_customer_pricing ADD COLUMN customer_destination VARCHAR(200) NULL",
         "ALTER TABLE final_customer_pricing ADD UNIQUE INDEX uq_final_pricing_customer_destination (customer_id, customer_destination)",
+        # Completes the migration started above (see the big comment on
+        # customer_destinations.cargo_classification etc.): CustomerPricing and
+        # FinalCustomerPricing were still matching routes by a free-text label,
+        # so two destinations sharing the same address text but a different
+        # container type (e.g. two "CHENNAI TO HOSUR" rows, one 20FT one 40FT)
+        # could never both get a price — the second was invisibly treated as
+        # "already priced" the moment the first got a rate. Both now key off
+        # the actual CustomerDestination row via a real FK.
+        "ALTER TABLE customer_pricing ADD COLUMN customer_destination_id INT NULL",
+        "ALTER TABLE customer_pricing ADD CONSTRAINT fk_customer_pricing_destination "
+        "FOREIGN KEY (customer_destination_id) REFERENCES customer_destinations (id) ON DELETE SET NULL",
+        "ALTER TABLE final_customer_pricing ADD COLUMN customer_destination_id INT NULL",
+        "ALTER TABLE final_customer_pricing ADD CONSTRAINT fk_final_pricing_destination "
+        "FOREIGN KEY (customer_destination_id) REFERENCES customer_destinations (id) ON DELETE SET NULL",
+        # Swap the old text-based uniqueness for id-based — same reasoning as
+        # the FK above; drop only succeeds once (idempotent via the try/except
+        # around every statement in this list).
+        "ALTER TABLE final_customer_pricing DROP INDEX uq_final_pricing_customer_destination",
+        "ALTER TABLE final_customer_pricing ADD UNIQUE INDEX uq_final_pricing_customer_destination_id (customer_id, customer_destination_id)",
+        # Backfill: only where a (customer, destination label) pair matches
+        # exactly ONE customer_destinations row — an unambiguous link. Where
+        # the label matches several destinations (the exact ambiguity this
+        # migration removes going forward), this is intentionally left NULL
+        # rather than guessing which route the historical price was really
+        # for — editing that pricing row in the UI lets it be re-linked.
+        "UPDATE customer_pricing p "
+        "JOIN (SELECT customer_id, COALESCE(destination_name, destination_address) AS label, "
+        "             MIN(id) AS only_id, COUNT(*) AS n "
+        "      FROM customer_destinations GROUP BY customer_id, label) d "
+        "  ON d.customer_id = p.customer_id AND d.label = p.customer_destination AND d.n = 1 "
+        "SET p.customer_destination_id = d.only_id "
+        "WHERE p.customer_destination_id IS NULL",
+        "UPDATE final_customer_pricing p "
+        "JOIN (SELECT customer_id, COALESCE(destination_name, destination_address) AS label, "
+        "             MIN(id) AS only_id, COUNT(*) AS n "
+        "      FROM customer_destinations GROUP BY customer_id, label) d "
+        "  ON d.customer_id = p.customer_id AND d.label = p.customer_destination AND d.n = 1 "
+        "SET p.customer_destination_id = d.only_id "
+        "WHERE p.customer_destination_id IS NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

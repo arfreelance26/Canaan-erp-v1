@@ -359,7 +359,7 @@ export default function CustomersPage() {
     }
   }
 
-  async function handleSaveFinalPricing(customerId: string, data: { customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) {
+  async function handleSaveFinalPricing(customerId: string, data: { customerDestinationId: string; customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) {
     try {
       if (editingFinalPricing) {
         // Route is locked once created — only the amounts can change on edit.

@@ -42,6 +42,15 @@ export default function TripReconciliationPage() {
   const { user } = useAuth();
   const isStaff = user?.softwareDesignation === "Trip Sheet Register";
   const isAdmin = user?.softwareDesignation === "Admin";
+  // Commercial Manager / Assistant Commercial Manager can also approve/reject
+  // edit requests (see require_roles on /edit-approvals/{id}/approve|reject) —
+  // so they need the same "see everyone's requests" scope Admin gets below,
+  // otherwise a request they just rejected (raised by someone else) never
+  // shows up under Request Raised/Approved/Rejected from their own view.
+  const canSeeAllEditRequests =
+    isAdmin ||
+    user?.softwareDesignation === "Commercial Manager" ||
+    user?.softwareDesignation === "Assistant Commercial Manager";
   const { pushSheetAlert } = useNotifications();
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -66,7 +75,7 @@ export default function TripReconciliationPage() {
   const [bookingSheetReadOnly, setBookingSheetReadOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
-  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected" | "Request Raised" | "Request Approved">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending Receive" | "Pending Sheet Entry" | "Sheet Entered" | "Rejected" | "Request Raised" | "Request Approved" | "Request Rejected">("All");
   // Sub-filter shown only under the "Request Approved" card.
   const [approvedSubFilter, setApprovedSubFilter] = useState<"All" | "Completed" | "Pending">("All");
   const [toggling, setToggling] = useState<Set<string>>(new Set());
@@ -114,8 +123,9 @@ export default function TripReconciliationPage() {
   useEffect(() => {
     loadReconciliationData().catch(() => {}).finally(() => setLoading(false));
     editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
-    // Admin sees every staff member's edit requests; everyone else sees their own.
-    (isAdmin ? editApprovalsApi.list() : editApprovalsApi.getMine())
+    // Admin/Commercial Manager see every staff member's edit requests (they're
+    // the ones who approve/reject them); everyone else sees only their own.
+    (canSeeAllEditRequests ? editApprovalsApi.list() : editApprovalsApi.getMine())
       .then(setMyRequests).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -128,7 +138,7 @@ export default function TripReconciliationPage() {
   useWebSocketEvent("trip_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_updated", () => {
     editApprovalsApi.getMyActive().then(setMyActiveApprovals).catch(() => {});
-    (isAdmin ? editApprovalsApi.list() : editApprovalsApi.getMine())
+    (canSeeAllEditRequests ? editApprovalsApi.list() : editApprovalsApi.getMine())
       .then(setMyRequests).catch(() => {});
   });
 
@@ -477,7 +487,11 @@ export default function TripReconciliationPage() {
 
   // Edit-request filters. Admin sees every staff member's requests; Docs staff
   // see their own. `myRequests` already holds the correct role-scoped set.
-  const TRIP_REQUEST_RESOURCES = ["TripSheet", "BookingSheet", "TripData"];
+  // "Trip" is included because the Verification page's "Edit Invoice" request
+  // flow raises edit approvals with resourceType "Trip" (keyed by the same
+  // trip id) — without it, those requests silently never appeared under
+  // Request Raised/Approved/Rejected here.
+  const TRIP_REQUEST_RESOURCES = ["TripSheet", "BookingSheet", "TripData", "Trip"];
   const tripRequests = useMemo(
     () => myRequests.filter((r) => TRIP_REQUEST_RESOURCES.includes(r.resourceType)),
     [myRequests],
@@ -488,6 +502,10 @@ export default function TripReconciliationPage() {
   );
   const requestApprovedIds = useMemo(
     () => new Set(tripRequests.filter((r) => r.status === "Approved").map((r) => String(r.resourceId))),
+    [tripRequests],
+  );
+  const requestRejectedIds = useMemo(
+    () => new Set(tripRequests.filter((r) => r.status === "Rejected").map((r) => String(r.resourceId))),
     [tripRequests],
   );
   // "Completed" = at least one of this trip's approved requests has been acted
@@ -526,6 +544,7 @@ export default function TripReconciliationPage() {
         if (approvedSubFilter === "Completed" && !requestApprovedUsedIds.has(t.id)) return false;
         if (approvedSubFilter === "Pending" && requestApprovedUsedIds.has(t.id)) return false;
       }
+      if (statusFilter === "Request Rejected" && !requestRejectedIds.has(t.id)) return false;
 
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -555,7 +574,7 @@ export default function TripReconciliationPage() {
         return 2;
       };
       return priority(a) - priority(b);
-    }), [trips, statusFilter, approvedSubFilter, searchQuery, requestRaisedIds, requestApprovedIds, requestApprovedUsedIds, lastRequestedAtByTripId, customerById]);
+    }), [trips, statusFilter, approvedSubFilter, searchQuery, requestRaisedIds, requestApprovedIds, requestApprovedUsedIds, requestRejectedIds, lastRequestedAtByTripId, customerById]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTrips.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -622,6 +641,7 @@ export default function TripReconciliationPage() {
     "Rejected":         trips.filter((t) => t.verificationStatus === "rejected").length,
     "Request Raised":   trips.filter((t) => requestRaisedIds.has(t.id)).length,
     "Request Approved": trips.filter((t) => requestApprovedIds.has(t.id)).length,
+    "Request Rejected": trips.filter((t) => requestRejectedIds.has(t.id)).length,
   };
   const approvedSubCounts = {
     Completed: trips.filter((t) => requestApprovedIds.has(t.id) && requestApprovedUsedIds.has(t.id)).length,
@@ -681,8 +701,8 @@ export default function TripReconciliationPage() {
       </div>
 
       {/* Status filter count cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected", "Request Raised", "Request Approved"] as const).map((f) => {
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+        {(["All", "Pending Receive", "Pending Sheet Entry", "Sheet Entered", "Rejected", "Request Raised", "Request Approved", "Request Rejected"] as const).map((f) => {
           const colors: Record<string, string> = {
             "All":                  "border-gray-200 bg-white text-gray-700",
             "Pending Receive":      "border-amber-200 bg-amber-50 text-amber-700",
@@ -691,6 +711,7 @@ export default function TripReconciliationPage() {
             "Rejected":             "border-rose-200 bg-rose-50 text-rose-700",
             "Request Raised":       "border-purple-200 bg-purple-50 text-purple-700",
             "Request Approved":     "border-teal-200 bg-teal-50 text-teal-700",
+            "Request Rejected":    "border-orange-200 bg-orange-50 text-orange-700",
           };
           const activeRing: Record<string, string> = {
             "All":                  "ring-2 ring-gray-400",
@@ -700,6 +721,7 @@ export default function TripReconciliationPage() {
             "Rejected":             "ring-2 ring-rose-400",
             "Request Raised":       "ring-2 ring-purple-400",
             "Request Approved":     "ring-2 ring-teal-400",
+            "Request Rejected":    "ring-2 ring-orange-400",
           };
           return (
             <button
@@ -914,10 +936,16 @@ export default function TripReconciliationPage() {
                             const req = latestRequestByTripId.get(trip.id);
                             if (!req) return null;
                             const approved = req.status === "Approved";
+                            const rejected = req.status === "Rejected";
+                            const style = approved
+                              ? { border: "border-teal-200 bg-teal-50", text: "text-teal-700", label: "✓ Edit Request Approved" }
+                              : rejected
+                                ? { border: "border-orange-200 bg-orange-50", text: "text-orange-700", label: "✗ Edit Request Rejected" }
+                                : { border: "border-purple-200 bg-purple-50", text: "text-purple-700", label: "⏳ Edit Request Raised" };
                             return (
-                              <div className={`mb-1 rounded-lg border px-2.5 py-1.5 flex flex-col gap-0.5 max-w-[220px] ${approved ? "border-teal-200 bg-teal-50" : "border-purple-200 bg-purple-50"}`}>
-                                <p className={`text-[10px] font-bold ${approved ? "text-teal-700" : "text-purple-700"}`}>
-                                  {approved ? "✓ Edit Request Approved" : "⏳ Edit Request Raised"}
+                              <div className={`mb-1 rounded-lg border px-2.5 py-1.5 flex flex-col gap-0.5 max-w-[220px] ${style.border}`}>
+                                <p className={`text-[10px] font-bold ${style.text}`}>
+                                  {style.label}
                                 </p>
                                 {isAdmin && (
                                   <p className="text-[10px] text-gray-600">
@@ -930,6 +958,14 @@ export default function TripReconciliationPage() {
                                 </p>
                                 {approved && req.approvedByName && (
                                   <p className="text-[10px] text-emerald-600">Approved by: {req.approvedByName}</p>
+                                )}
+                                {rejected && req.approvedByName && (
+                                  <p className="text-[10px] text-orange-600">Rejected by: {req.approvedByName}</p>
+                                )}
+                                {rejected && req.adminNote && (
+                                  <p className="text-[10px] text-orange-600 whitespace-normal leading-snug">
+                                    Note: {req.adminNote}
+                                  </p>
                                 )}
                               </div>
                             );

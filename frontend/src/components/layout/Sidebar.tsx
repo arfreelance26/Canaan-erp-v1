@@ -150,6 +150,27 @@ function getFilteredSections(role: string): NavSection[] {
     .filter((section) => section.items.length > 0);
 }
 
+// Role → accent color for the profile card's role pill. A quick, genuinely
+// useful visual cue in an app used by many different roles side by side —
+// not decoration.
+const ROLE_ACCENT: Record<string, string> = {
+  Admin: "bg-slate-800/10 text-slate-700",
+  "Commercial Manager": "bg-blue-50 text-blue-600",
+  "Assistant Commercial Manager": "bg-blue-50 text-blue-600",
+  Accounts: "bg-emerald-50 text-emerald-600",
+  Maintenance: "bg-amber-50 text-amber-600",
+  "Yard Supervisor": "bg-violet-50 text-violet-600",
+  "Trip Sheet Register": "bg-teal-50 text-teal-600",
+  Auditor: "bg-rose-50 text-rose-600",
+};
+
+// Strips one trailing slash, but never reduces "/" itself to "" — used to
+// compare a route href against usePathname() under next.config.ts's
+// trailingSlash: true (see isActive below).
+function stripTrailingSlash(path: string): string {
+  return path.length > 1 ? path.replace(/\/$/, "") : path;
+}
+
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -321,7 +342,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
       )}
     >
       {/* Header — logo + toggle */}
-      <div className="relative flex h-[88px] shrink-0 items-center justify-center border-b border-white/50">
+      <div className="relative flex h-[88px] shrink-0 items-center justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-transparent">
         {/* Small icon — centered, in flow only when collapsed */}
         <button
           type="button"
@@ -375,21 +396,38 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         {sections.map((section) => (
           <div key={section.title} className="mb-4">
             {/* Section title / divider — conditionally rendered rather than
-                max-height/width-animated, same reasoning as the chevron above. */}
+                max-height/width-animated, same reasoning as the chevron above.
+                A small waypoint dot precedes the label — ties section headers
+                to the same "route" language as the nav rail below. */}
             {!collapsed && (
-              <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-blue-600">
+              <p className="flex items-center gap-1.5 px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-blue-600">
+                <span className="h-1 w-1 shrink-0 rounded-full bg-blue-300" />
                 {section.title}
               </p>
             )}
             {collapsed && <div className="mx-auto mb-2 h-px w-8 bg-gray-200" />}
 
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.href;
+                // next.config.ts sets trailingSlash: true, so the real
+                // pathname for every route except "/" itself carries a
+                // trailing slash (e.g. "/insights/pl-summary/") while every
+                // href here is written without one — a bare equality check
+                // only ever matched the root Dashboard link. Normalize both
+                // sides (strip a trailing slash, but never turn "/" into "").
+                const isActive = stripTrailingSlash(pathname) === stripTrailingSlash(item.href);
                 const Icon = item.icon;
                 const badge = badgeFor(item.href);
                 return (
-                  <li key={item.href}>
+                  <li key={item.href} className="relative">
+                    {/* Active-route rail — a short vertical bar at the row's
+                        left edge, evoking a highway lane marker rather than
+                        the generic "filled box" every dashboard sidebar uses.
+                        Absolute + fixed height, so it costs nothing during
+                        the width transition. */}
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-blue-600" />
+                    )}
                     <Link
                       href={item.href}
                       title={collapsed ? item.label : undefined}
@@ -397,14 +435,21 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
                         // Only color/transform animate — padding is NOT transitioned:
                         // it would force a layout reflow on every item, every frame,
                         // for the whole 300ms the sidebar width is animating.
-                        "relative flex items-center rounded-lg transition-[color,background-color,border-color,transform] duration-200 ease-out hover:-translate-y-0.5",
-                        collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2 text-[15px] font-medium",
+                        "relative flex items-center rounded-lg transition-[color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5",
+                        collapsed ? "justify-center px-0 py-2" : "gap-2.5 py-1.5 pl-4 pr-2.5 text-[14px] font-medium",
                         isActive
-                          ? "border border-blue-200/60 bg-blue-50/60 text-blue-700 shadow-[0_4px_20px_rgba(27,43,94,0.15)]"
-                          : "border border-transparent text-gray-600 hover:border-white/30 hover:bg-white/40 hover:text-gray-900"
+                          ? "text-gray-900 font-semibold"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       )}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
+                      {/* Icon chip — a small tinted waypoint that lights up
+                          solid blue on the active route, quiet everywhere else. */}
+                      <span className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
+                        isActive ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30" : "text-gray-400"
+                      )}>
+                        <Icon className="h-4 w-4" />
+                      </span>
                       {/* Label — opacity-only fade; the real clip comes for free
                           from the parent Link's own (already-animating) width. */}
                       {!collapsed && (
@@ -433,7 +478,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       {/* User area */}
       <div className={cn(
-        "shrink-0 border-t border-white/50 transition-all duration-300",
+        "shrink-0 border-t border-gray-100 transition-all duration-300",
         collapsed ? "px-2 py-3" : "px-3 py-3"
       )}>
         <div
@@ -458,7 +503,10 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
             <>
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <span className="truncate text-[13px] font-semibold leading-tight text-gray-900">{user?.name ?? "—"}</span>
-                <span className="mt-0.5 inline-flex w-fit items-center truncate rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-600">
+                <span className={cn(
+                  "mt-0.5 inline-flex w-fit items-center truncate rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                  ROLE_ACCENT[user?.softwareDesignation ?? ""] ?? "bg-blue-50 text-blue-600"
+                )}>
                   {user?.softwareDesignation ?? ""}
                 </span>
               </div>

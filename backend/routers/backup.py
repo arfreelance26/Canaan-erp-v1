@@ -76,6 +76,7 @@ ALL_MODELS = [
     models.RunningCostLayoutEntry,
     models.RunningCostAdblueEntry,
     models.RunningCostTruckMetrics,
+    models.RunningCostTruckCostPerKm,
 ]
 
 

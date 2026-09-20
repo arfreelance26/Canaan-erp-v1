@@ -562,6 +562,7 @@ function toCustomerPricing(b: B): CustomerPricing {
   return {
     id: String(b.id),
     customerId: String(b.customer_id),
+    customerDestinationId: b.customer_destination_id != null ? String(b.customer_destination_id) : null,
     customerDestination: b.customer_destination ?? "",
     rate: String(b.rate ?? ""),
     commissionAmount: b.commission_amount !== null && b.commission_amount !== undefined ? String(b.commission_amount) : "",
@@ -573,6 +574,7 @@ function toFinalCustomerPricing(b: B): FinalCustomerPricing {
   return {
     id: String(b.id),
     customerId: String(b.customer_id),
+    customerDestinationId: b.customer_destination_id != null ? String(b.customer_destination_id) : null,
     customerDestination: b.customer_destination ?? null,
     actualHireAmount: b.actual_hire_amount != null ? String(b.actual_hire_amount) : null,
     accountsHireAmount: b.accounts_hire_amount != null ? String(b.accounts_hire_amount) : null,
@@ -1471,7 +1473,7 @@ export const customersApi = {
     req<B>(`/customers/${customerId}/pricing`, {
       method: "POST",
       body: JSON.stringify({
-        customer_destination: pricing.customerDestination,
+        customer_destination_id: pricing.customerDestinationId ? parseInt(pricing.customerDestinationId) : null,
         rate: parseFloat(pricing.rate) || 0, status: pricing.status,
         commission_amount: pricing.commissionAmount ? parseFloat(pricing.commissionAmount) : null,
       }),
@@ -1480,7 +1482,7 @@ export const customersApi = {
     req<B>(`/customers/${customerId}/pricing/${priceId}`, {
       method: "PUT",
       body: JSON.stringify({
-        customer_destination: pricing.customerDestination,
+        customer_destination_id: pricing.customerDestinationId ? parseInt(pricing.customerDestinationId) : null,
         rate: parseFloat(pricing.rate) || 0, status: pricing.status,
         commission_amount: pricing.commissionAmount ? parseFloat(pricing.commissionAmount) : null,
       }),
@@ -1490,10 +1492,11 @@ export const customersApi = {
 
   listFinalPricing: (customerId: string) =>
     req<B[]>(`/customers/${customerId}/final-pricing`).then((d) => d.map(toFinalCustomerPricing)),
-  createFinalPricing: (customerId: string, data: { customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) =>
+  createFinalPricing: (customerId: string, data: { customerDestinationId: string; customerDestination: string; actualHireAmount: string | null; accountsHireAmount: string | null }) =>
     req<B>(`/customers/${customerId}/final-pricing`, {
       method: "POST",
       body: JSON.stringify({
+        customer_destination_id: parseInt(data.customerDestinationId),
         customer_destination: data.customerDestination,
         actual_hire_amount: data.actualHireAmount ? parseFloat(data.actualHireAmount) : null,
         accounts_hire_amount: data.accountsHireAmount ? parseFloat(data.accountsHireAmount) : null,
@@ -2998,6 +3001,18 @@ export const runningCostApi = {
         Basic:    _serializeModeData(state.Basic),
         Advanced: _serializeModeData(state.Advanced),
       }),
+    }),
+
+  // Server-persisted cache of each truck's final computed Cost/Km per mode —
+  // written live by this calculator, read by P&L Summary's Truck
+  // Profitability tab. Replaces the old localStorage hand-off between the
+  // two pages, which broke across browsers/devices and mismatched modes.
+  getCostPerKm: (): Promise<Record<string, Record<string, number | null>>> =>
+    req<Record<string, Record<string, number | null>>>("/running-cost/cost-per-km"),
+  saveCostPerKm: (mode: string, values: Record<string, number | null>): Promise<void> =>
+    req<void>("/running-cost/cost-per-km", {
+      method: "PUT",
+      body: JSON.stringify({ mode, values }),
     }),
 };
 

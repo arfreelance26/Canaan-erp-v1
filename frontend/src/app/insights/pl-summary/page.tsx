@@ -7,7 +7,7 @@ import {
   DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, FileDown, X, ShieldCheck, ChevronDown,
   Calculator, Compass, Route, FileText, Fuel, MousePointerClick, SlidersHorizontal,
 } from "lucide-react";
-import { plSummaryApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
+import { plSummaryApi, runningCostApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import logoSrc from "@/app/companylogo.png";
 
@@ -386,18 +386,19 @@ const LABEL_MAP: Record<string, string> = {
 function shortLabel(v: string) { return LABEL_MAP[v] ?? v; }
 
 // ── Trip Profitability tab ─────────────────────────────────────────────────────
-function TripProfitabilityTab({ trips, mode }: { trips: EnrichedTrip[]; mode: "Manual" | "Basic" | "Advanced" }) {
+function TripProfitabilityTab({
+  trips,
+  mode,
+  costPerKmMap,
+}: {
+  trips: EnrichedTrip[];
+  mode: "Manual" | "Basic" | "Advanced";
+  // Cost-per-km per truck (fleet ID) per mode — live from the Running Cost
+  // Calculator via the backend (fetched once by the parent page).
+  costPerKmMap: Record<string, Record<string, number | null>>;
+}) {
   const [sortKey, setSortKey] = useState<TripSortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  // Cost-per-km map written by Running Cost Calculator, keyed by truckId (fleet ID) per mode
-  const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("canaan_rcc_cost_per_km");
-      if (raw) setCostPerKmMap(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, [mode]);
 
   function toggleSort(col: TripSortKey) {
     if (sortKey === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -779,16 +780,18 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
 }
 
 // ── Truck Profitability tab ────────────────────────────────────────────────────
-function TruckProfitabilityTab({ data, mode }: { data: TruckPLEntry[]; mode: "Manual" | "Basic" | "Advanced" }) {
-  // Cost-per-km map written by Running Cost Calculator, keyed by truckId (fleet ID) per mode
-  const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
+function TruckProfitabilityTab({
+  data,
+  mode,
+  costPerKmMap,
+}: {
+  data: TruckPLEntry[];
+  mode: "Manual" | "Basic" | "Advanced";
+  // Cost-per-km per truck (fleet ID) per mode — live from the Running Cost
+  // Calculator via the backend (fetched once by the parent page).
+  costPerKmMap: Record<string, Record<string, number | null>>;
+}) {
   const [expandedTruck, setExpandedTruck] = useState<string | null>(null);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("canaan_rcc_cost_per_km");
-      if (raw) setCostPerKmMap(JSON.parse(raw));
-    } catch { /* ignore */ }
-  }, [mode]);
 
   const enriched = useMemo<EnrichedTruck[]>(() =>
     data.map((e) => ({
@@ -983,13 +986,18 @@ export default function PLSummaryPage() {
   const [showHowCalculated, setShowHowCalculated] = useState(false);
   const [showQuickStart, setShowQuickStart]  = useState(false);
 
+  // Cost-per-km per truck (fleet ID) per mode — live from the Running Cost
+  // Calculator via the backend, not the old per-browser localStorage hand-off.
+  const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
+  useEffect(() => {
+    runningCostApi.getCostPerKm().then(setCostPerKmMap).catch(() => {});
+  }, []);
+
   useEffect(() => { fetchData(); }, []); // auto-load current month on mount
 
   function openPreview() {
     if (!data) return;
-    let costMap: Record<string, Record<string, number | null>> = {};
-    try { const raw = localStorage.getItem("canaan_rcc_cost_per_km"); if (raw) costMap = JSON.parse(raw); } catch { /* ignore */ }
-    setPreviewCostMap(costMap);
+    setPreviewCostMap(costPerKmMap);
     setShowPreview(true);
   }
 
@@ -1275,8 +1283,8 @@ ${bodyHtml}
             </div>
           </div>
 
-          {tab === "trips"  && <TripProfitabilityTab trips={allTrips} mode={mode} />}
-          {tab === "trucks" && <TruckProfitabilityTab data={data} mode={mode} />}
+          {tab === "trips"  && <TripProfitabilityTab trips={allTrips} mode={mode} costPerKmMap={costPerKmMap} />}
+          {tab === "trucks" && <TruckProfitabilityTab data={data} mode={mode} costPerKmMap={costPerKmMap} />}
         </>
       )}
 

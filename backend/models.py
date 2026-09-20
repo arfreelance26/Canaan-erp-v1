@@ -313,26 +313,37 @@ class CustomerPricing(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    # The actual match key — a specific CustomerDestination row (which carries
+    # its own cargo/container/weight combo, so two routes with identical
+    # destination text but different container types are distinct here).
+    # Nullable only for legacy rows created before this column existed; those
+    # still fall back to matching by the customer_destination text below.
+    customer_destination_id = Column(Integer, ForeignKey("customer_destinations.id", ondelete="SET NULL"), nullable=True)
+    # Denormalized label snapshot for display/legacy matching — kept in sync
+    # with the linked destination's name/address whenever customer_destination_id
+    # is set (see routers/customers.py create_pricing/update_pricing).
     customer_destination = Column(String(200))
     rate = Column(Numeric(10, 2))
     commission_amount = Column(Numeric(10, 2), nullable=True)
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
 
     customer = relationship("Customer", back_populates="pricing")
+    destination = relationship("CustomerDestination")
 
 
 class FinalCustomerPricing(Base):
     __tablename__ = "final_customer_pricing"
     __table_args__ = (
-        # One final price per customer+route — this is what stops the same
-        # route from getting several conflicting final amounts. Nullable, so
-        # MySQL treats every legacy NULL-route row (from before this column
-        # existed) as distinct rather than colliding with each other.
-        UniqueConstraint("customer_id", "customer_destination", name="uq_final_pricing_customer_destination"),
+        # One final price per customer+route, keyed by the actual destination
+        # row (see CustomerPricing.customer_destination_id above — same reason).
+        # Nullable, so MySQL treats every legacy NULL-route row (from before
+        # this column existed) as distinct rather than colliding with each other.
+        UniqueConstraint("customer_id", "customer_destination_id", name="uq_final_pricing_customer_destination_id"),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    customer_destination_id = Column(Integer, ForeignKey("customer_destinations.id", ondelete="SET NULL"), nullable=True)
     # The route (customer_destination label) this final price applies to —
     # matches CustomerPricing.customer_destination. Required for new rows;
     # nullable only so pre-existing rows created before this column existed
@@ -345,6 +356,7 @@ class FinalCustomerPricing(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     customer = relationship("Customer", back_populates="final_pricing")
+    destination = relationship("CustomerDestination")
 
 
 class Vendor(Base):
@@ -1263,6 +1275,25 @@ class RunningCostAdblueEntry(Base):
     price_per_litre = Column(Numeric(10, 4), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     __table_args__ = (UniqueConstraint("mode", "manufacturer_id", name="uq_rcc_adblue_mode"),)
+
+
+class RunningCostTruckCostPerKm(Base):
+    """Server-persisted cache of each truck's final computed Cost/Km per
+    calculator mode — written live by the Running Cost Calculator whenever it
+    recomputes a truck's total, and read by P&L Summary's Truck Profitability
+    tab for "Total Truck Expenses". Keyed by the truck's business ID (not the
+    numeric FK) since that's the natural key both pages already share.
+    Replaces the old localStorage-based hand-off, which broke across
+    browsers/devices and whenever the two pages' selected modes didn't match.
+    """
+    __tablename__ = "running_cost_truck_cost_per_km"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False)
+    truck_business_id = Column(String(50), nullable=False)
+    cost_per_km = Column(Numeric(12, 6), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("mode", "truck_business_id", name="uq_rcc_costkm_mode_truck"),)
 
 
 class RunningCostTruckMetrics(Base):

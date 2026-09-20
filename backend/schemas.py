@@ -335,6 +335,10 @@ class CustomerDestinationOut(CustomerDestinationBase):
 
 
 class CustomerPricingBase(OrmBase):
+    # The actual match key. customer_destination (text) is still accepted/
+    # returned as a display label, kept in sync server-side from the linked
+    # destination — see create_pricing/update_pricing in routers/customers.py.
+    customer_destination_id: Optional[int] = None
     customer_destination: Optional[str] = None
     rate: Optional[Decimal] = None
     commission_amount: Optional[Decimal] = None
@@ -351,6 +355,7 @@ class CustomerPricingOut(CustomerPricingBase):
 
 
 class FinalCustomerPricingBase(OrmBase):
+    customer_destination_id: Optional[int] = None
     customer_destination: Optional[str] = None
     actual_hire_amount: Optional[Decimal] = None
     accounts_hire_amount: Optional[Decimal] = None
@@ -359,6 +364,7 @@ class FinalCustomerPricingBase(OrmBase):
 class FinalCustomerPricingCreate(FinalCustomerPricingBase):
     # Required on create — this is what lets a final price be matched back to
     # its route instead of every one being an ambiguous customer-level value.
+    customer_destination_id: int
     customer_destination: str
 
 
@@ -1480,6 +1486,13 @@ class RunningCostStateIn(BaseModel):
     Manual: RccModeDataIn = RccModeDataIn()
     Basic: RccModeDataIn = RccModeDataIn()
     Advanced: RccModeDataIn = RccModeDataIn()
+
+
+class RccCostPerKmBulkIn(BaseModel):
+    mode: str
+    # truck business ID (e.g. "CGI-T0001") -> final computed cost/km, or null
+    # if that truck currently has no computable value in this mode.
+    values: dict[str, Optional[float]] = {}
 
 
 # ---------------------------------------------------------------------------

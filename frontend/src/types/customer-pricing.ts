@@ -9,6 +9,11 @@ export type CustomerPricingStatus = "ACTIVE" | "INACTIVE" | "BLACKLISTED";
 export type CustomerPricing = {
   id: string;
   customerId: string;
+  // The real match key — a specific CustomerDestination row. Null only for
+  // legacy rows the backend couldn't unambiguously backfill (two destinations
+  // shared the same address text) — re-save via the edit form to relink.
+  customerDestinationId: string | null;
+  // Display label, kept in sync server-side with the linked destination.
   customerDestination: string;
   rate: string;
   commissionAmount?: string;
