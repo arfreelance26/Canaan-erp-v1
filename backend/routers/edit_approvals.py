@@ -1,5 +1,6 @@
+import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, get_args
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
@@ -8,6 +9,24 @@ import models, schemas
 from websocket_manager import emit
 
 router = APIRouter(prefix="/edit-approvals", tags=["Edit Approvals"])
+_log = logging.getLogger("canaan.app")
+
+# A handful of legacy rows predate resource_type validation and carry an
+# empty string. response_model=list[...] validates every row before sending
+# a response, so one bad row 500s the request for every caller — filter
+# those out here rather than letting stale data take down the whole list.
+_VALID_RESOURCE_TYPES = set(get_args(schemas.EditApprovalResourceType))
+
+
+def _drop_invalid_resource_type(rows: list["models.EditApprovalRequest"]) -> list["models.EditApprovalRequest"]:
+    valid = [r for r in rows if r.resource_type in _VALID_RESOURCE_TYPES]
+    if len(valid) != len(rows):
+        _log.warning(
+            "Dropped %d edit-approval row(s) with invalid resource_type: ids=%s",
+            len(rows) - len(valid),
+            [r.id for r in rows if r.resource_type not in _VALID_RESOURCE_TYPES],
+        )
+    return valid
 
 
 @router.post("", response_model=schemas.EditApprovalRequestOut, status_code=201)
@@ -57,7 +76,8 @@ def list_edit_approvals(
         q = q.filter(models.EditApprovalRequest.status == status)
     if resource_type:
         q = q.filter(models.EditApprovalRequest.resource_type == resource_type)
-    return q.order_by(models.EditApprovalRequest.created_at.desc()).all()
+    rows = q.order_by(models.EditApprovalRequest.created_at.desc()).all()
+    return _drop_invalid_resource_type(rows)
 
 
 @router.get("/my-active", response_model=list[schemas.EditApprovalRequestOut])
@@ -67,11 +87,12 @@ def get_my_active_approvals(
 ):
     """Returns Approved, non-expired edit requests for the calling user."""
     now = datetime.now(timezone.utc)
-    return db.query(models.EditApprovalRequest).filter(
+    rows = db.query(models.EditApprovalRequest).filter(
         models.EditApprovalRequest.staff_db_id == current_user.id,
         models.EditApprovalRequest.status == "Approved",
         models.EditApprovalRequest.expires_at > now,
     ).all()
+    return _drop_invalid_resource_type(rows)
 
 
 @router.get("/mine", response_model=list[schemas.EditApprovalRequestOut])
@@ -86,7 +107,8 @@ def get_my_requests(
     )
     if status:
         q = q.filter(models.EditApprovalRequest.status == status)
-    return q.order_by(models.EditApprovalRequest.created_at.desc()).all()
+    rows = q.order_by(models.EditApprovalRequest.created_at.desc()).all()
+    return _drop_invalid_resource_type(rows)
 
 
 @router.patch("/{request_id}/approve", response_model=schemas.EditApprovalRequestOut)
