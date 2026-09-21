@@ -1,6 +1,5 @@
 "use client";
 
-import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
@@ -12,6 +11,8 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
@@ -112,38 +113,11 @@ export default function LeaveApprovalsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={exportFrom}
-            onChange={(e) => setExportFrom(e.target.value)}
-            className="uppercase rounded-lg border-2 border-brand-gold bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:bg-white focus:ring-4 focus:ring-brand-gold/20"
-            title="Report from date"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <input
-            type="date"
-            value={exportTo}
-            onChange={(e) => setExportTo(e.target.value)}
-            className="uppercase rounded-lg border-2 border-brand-gold bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:bg-white focus:ring-4 focus:ring-brand-gold/20"
-            title="Report to date"
-          />
-          <DownloadExcelButton
-            path="/exports/leave-requests"
-            filename="leave_requests.xlsx"
-            params={{
-              ...(exportFrom ? { from_date: exportFrom } : {}),
-              ...(exportTo ? { to_date: exportTo } : {}),
-            }}
-          />
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
+        </p>
       </div>
 
       <div className="grid grid-cols-3 gap-4 sm:max-w-md">
@@ -215,15 +189,20 @@ export default function LeaveApprovalsPage() {
         ))}
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by applicant name"
-          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
-        />
+      {/* Toolbar: search on the left, export range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch value={search} onChange={setSearch} placeholder="Search by applicant name" />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/leave-requests"
+            filename="leave_requests.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
       </div>
 
       <LeaveApprovalTable requests={filteredRequests} onApprove={handleApprove} onReject={handleReject} />

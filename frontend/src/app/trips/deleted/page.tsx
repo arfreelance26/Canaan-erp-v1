@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Trash2, RotateCcw, User, ShieldCheck } from "lucide-react";
+import { Trash2, RotateCcw, User, ShieldCheck } from "lucide-react";
 import { deletionApprovalsApi, tripsApi, type DeletionApprovalRequest } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 
 const ALLOWED_ROLES = ["Admin"];
@@ -40,6 +43,8 @@ export default function DeletedTripsPage() {
   const [requests, setRequests] = useState<DeletionApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewing, setViewing] = useState<DeletionApprovalRequest | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
@@ -134,16 +139,22 @@ export default function DeletedTripsPage() {
         </p>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by trip, requester, or approver"
-          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
-        />
+      {/* Toolbar: search on the left, deletion-date range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch value={search} onChange={setSearch} placeholder="Search by trip, requester, or approver" />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div title="Deleted On — scopes the View report to trips deleted in this range">
+            <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          </div>
+          <DownloadExcelButton
+            path="/trips/deleted-export"
+            filename="deleted_trips.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">

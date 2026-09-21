@@ -1,10 +1,11 @@
 "use client";
 
+import { PillSearch } from "@/components/ui/PillSearch";
+import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
-import { useTheme } from "@/context/ThemeContext";
 import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, adblueLogsApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
-import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Search, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
+import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
@@ -370,6 +371,18 @@ function TruckCostCard({
   useEffect(() => {
     onCostChange?.(totalCostPerKm);
   }, [totalCostPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Same six components as the total, for the footer's share bar + legend.
+  // Values under ₹1/km are tiny (maintenance, compliance) — keep 4 decimals so they don't read as ₹0.00.
+  const fmtPart = (v: number) => (v >= 1 ? v.toFixed(2) : v.toFixed(4));
+  const costParts = [
+    { label: "EMI", value: emiPerKm, color: "#6366f1" },
+    { label: "Mileage", value: mileageCostPerKm, color: "#f59e0b" },
+    { label: "AdBlue", value: adblueChargesPerKm, color: "#06b6d4" },
+    { label: "Tyres", value: tyreChargesPerKm, color: "#3b82f6" },
+    { label: "Maintenance", value: maintenanceVal, color: "#10b981" },
+    { label: "Compliance", value: compliancePerKm, color: "#a855f7" },
+  ].filter((c): c is { label: string; value: number; color: string } => typeof c.value === "number" && c.value > 0);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -745,21 +758,60 @@ function TruckCostCard({
       </div>
 
       {/* Total Cost Per Km footer */}
-      <div className="flex items-center justify-between border-t border-gray-100 bg-white px-5 py-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Running Cost Per Km</p>
-          <p className="mt-0.5 text-[10px] text-gray-300">EMI + Mileage + AdBlue + Tyres + Maintenance + Compliance</p>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+        <div className="min-w-[260px] flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Total running cost per km</p>
+            <span className="text-[10px] tabular-nums text-gray-400">{costParts.length} of 6 components</span>
+          </div>
+
+          {/* How the total splits across the six components */}
+          <div
+            className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-200/70"
+            role="img"
+            aria-label={costParts.map((c) => `${c.label} ₹${fmtPart(c.value)}`).join(", ") || "No components filled in yet"}
+          >
+            {totalCostPerKm !== null && totalCostPerKm > 0 &&
+              costParts.map((c) => (
+                <div
+                  key={c.label}
+                  className="h-full transition-all duration-500"
+                  style={{ width: `${(c.value / totalCostPerKm) * 100}%`, backgroundColor: c.color }}
+                  title={`${c.label}: ₹ ${c.value.toFixed(4)}`}
+                />
+              ))}
+          </div>
+
+          {costParts.length > 0 ? (
+            <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
+              {costParts.map((c) => (
+                <span key={c.label} className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                  <i className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
+                  {c.label}
+                  <span className="font-semibold tabular-nums text-gray-800">₹ {fmtPart(c.value)}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2.5 text-[11px] text-gray-400">Fill in the values above to see the total.</p>
+          )}
         </div>
-        <div className={`flex items-center gap-1.5 rounded-xl px-4 py-2 ${
-          totalCostPerKm !== null ? "bg-blue-600" : "bg-gray-100"
-        }`}>
-          <span className={`text-sm font-extrabold tabular-nums ${
-            totalCostPerKm !== null ? "text-white" : "text-gray-400"
-          }`}>
-            {totalCostPerKm !== null ? `₹ ${totalCostPerKm.toFixed(4)}` : "—"}
-          </span>
-          {totalCostPerKm !== null && (
-            <span className="text-[10px] font-semibold text-blue-200">/ km</span>
+
+        {/* Total — plain figure, separated from the breakdown by a hairline */}
+        <div className="border-l border-gray-200 pl-6 text-right">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Total</p>
+          {totalCostPerKm !== null ? (
+            <>
+              <p className="mt-0.5 flex items-baseline justify-end gap-1 tabular-nums">
+                <span className="text-2xl font-bold text-gray-900">₹ {totalCostPerKm.toFixed(4)}</span>
+                <span className="text-xs font-medium text-gray-500">/ km</span>
+              </p>
+              <p className="mt-0.5 text-[11px] tabular-nums text-gray-500">
+                ₹ {(totalCostPerKm * 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })} per 100 km
+              </p>
+            </>
+          ) : (
+            <p className="mt-0.5 text-2xl font-bold text-gray-300">—</p>
           )}
         </div>
       </div>
@@ -1167,7 +1219,8 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1243,7 +1296,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
               type="button"
               onClick={goPrev}
               disabled={activeStep === 0}
-              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-600 shadow-sm transition hover:border-gray-300 hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-30"
+              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-xs font-semibold text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-30"
             >
               ← Previous
             </button>
@@ -1252,7 +1305,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
               <button
                 type="button"
                 onClick={onClose}
-                className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+                className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-600 px-5 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {isAdvanced ? "Close" : "Got it, let's go!"}
@@ -1261,7 +1314,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
               <button
                 type="button"
                 onClick={goNext}
-                className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-gray-700"
+                className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-blue-600 px-5 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
               >
                 Next Step
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -1731,27 +1784,18 @@ function CalcInfoModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
           </div>
 
           {/* Tab switcher */}
-          <div className="flex shrink-0 rounded-xl border border-gray-200 bg-gray-50 p-1">
-            {(["flow", "breakdown"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`rounded-lg px-4 py-1.5 text-xs font-semibold transition-all duration-200 ${
-                  tab === t
-                    ? "bg-white text-gray-800 shadow-sm"
-                    : "text-gray-400 hover:text-gray-600"
-                }`}
-              >
-                {t === "flow" ? "▶  Flow" : "≡  Details"}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            label="View"
+            value={tab}
+            onChange={setTab}
+            options={[{ value: "flow", label: "Flow" }, { value: "breakdown", label: "Details" }]}
+          />
 
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            aria-label="Close"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1767,7 +1811,7 @@ function CalcInfoModal({ mode, onClose }: { mode: Mode; onClose: () => void }) {
                 <button
                   type="button"
                   onClick={() => setReplayKey((k) => k + 1)}
-                  className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2 text-xs font-semibold text-gray-500 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+                  className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-xs font-semibold text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-30"
                 >
                   ↺ &nbsp;Replay animation
                 </button>
@@ -1824,9 +1868,6 @@ export default function RunningCostCalculatorPage() {
   });
   const [showCalcInfo, setShowCalcInfo] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
-  const activeIndex = MODES.indexOf(mode);
 
   // Tyre Details state
   const [tyreTypes, setTyreTypes] = useState<string[]>([]);
@@ -2258,96 +2299,45 @@ export default function RunningCostCalculatorPage() {
       {showGuide && <UsageGuideModal mode={mode} onClose={() => setShowGuide(false)} />}
 
       {/* ── Page header ── */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Running Cost Calculator</h1>
           <p className="mt-1 text-sm text-gray-500">
             Calculate and analyse the per-kilometre running cost for your fleet.
           </p>
         </div>
-
-        <div className="mt-1 flex shrink-0 items-center gap-2">
-          {/* Truck search */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search reg. no."
-              value={truckSearch}
-              onChange={(e) => setTruckSearch(e.target.value)}
-              className="w-40 rounded-xl border border-gray-200 bg-white py-1.5 pl-8 pr-7 text-xs text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-            />
-            {truckSearch && (
-              <button
-                type="button"
-                onClick={() => setTruckSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Mode segmented control */}
-          <div
-            className="relative flex rounded-xl border p-1"
-            style={{
-              backgroundColor: isDark ? "#141929" : "#f3f4f6",
-              borderColor:     isDark ? "#2d3660" : "#e5e7eb",
-            }}
-          >
-            <span
-              className="absolute top-1 bottom-1 rounded-lg transition-all duration-300 ease-in-out"
-              style={{
-                backgroundColor: isDark ? "#2d3660" : "#ffffff",
-                boxShadow: isDark ? "none" : "0 1px 3px rgba(0,0,0,0.1)",
-                width: `calc((100% - 8px) / 3)`,
-                left:  `calc(4px + ${activeIndex} * (100% - 8px) / 3)`,
-              }}
-            />
-            {MODES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className="relative z-10 w-24 rounded-lg py-1.5 text-xs font-semibold transition-colors duration-200"
-                style={{
-                  color: mode === m
-                    ? (isDark ? "#edf3fb" : "#111827")
-                    : (isDark ? "#7d92b0" : "#6b7280"),
-                }}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+            <BookOpen className="h-4 w-4" />
+            Quick Start Guide
+          </button>
+          <button type="button" onClick={() => setShowCalcInfo(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+            <Info className="h-4 w-4" />
+            How is this calculated?
+          </button>
         </div>
       </div>
 
-      {/* Mode banner + info button */}
-      <div className="flex items-center gap-3">
-        <div className={`flex flex-1 items-center gap-3 rounded-xl border px-5 py-3 transition-colors duration-300 ${MODE_STYLE[mode].banner}`}>
-          <span className={`h-2 w-2 rounded-full ${MODE_STYLE[mode].dot}`} />
-          <p className={`text-sm font-medium ${MODE_STYLE[mode].text}`}>
-            Currently in <span className="font-bold">{mode} Mode</span> for Calculation
-          </p>
+      {/* Toolbar: truck search on the left, calculation mode on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
+        <div className="ml-auto">
+          <Segmented
+            size="md"
+            label="Calculation mode"
+            value={mode}
+            onChange={setMode}
+            options={MODES.map((m) => ({ value: m, label: m }))}
+          />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowGuide(true)}
-          className="flex shrink-0 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100"
-        >
-          <BookOpen className="h-3.5 w-3.5" />
-          Quick Start Guide
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowCalcInfo(true)}
-          className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-xs font-semibold text-gray-600 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-        >
-          <Info className="h-3.5 w-3.5" />
-          How is this calculated?
-        </button>
+      </div>
+
+      {/* Mode banner */}
+      <div className={`flex items-center gap-3 rounded-xl border px-5 py-3 transition-colors duration-300 ${MODE_STYLE[mode].banner}`}>
+        <span className={`h-2 w-2 rounded-full ${MODE_STYLE[mode].dot}`} />
+        <p className={`text-sm font-medium ${MODE_STYLE[mode].text}`}>
+          Currently in <span className="font-bold">{mode} Mode</span> for Calculation
+        </p>
       </div>
 
       {/* ── Main layout — all three modes ── */}

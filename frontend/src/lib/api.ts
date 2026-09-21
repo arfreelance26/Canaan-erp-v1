@@ -205,8 +205,8 @@ export function fileUrl(entity: string, entityId: string, field: string): string
   }
 }
 
-// Requests a server-generated .xlsx export and triggers a browser download.
-export async function downloadExcel(path: string, fallbackFilename: string): Promise<void> {
+// Requests a server-generated .xlsx export and returns the file (not yet saved).
+export async function fetchExcel(path: string, fallbackFilename: string): Promise<{ blob: Blob; filename: string }> {
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
@@ -228,7 +228,11 @@ export async function downloadExcel(path: string, fallbackFilename: string): Pro
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = disposition.match(/filename="?([^"]+)"?/);
   const filename = match?.[1] ?? fallbackFilename;
-  const blob = await res.blob();
+  return { blob: await res.blob(), filename };
+}
+
+// Triggers a browser download of an in-memory file.
+export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -237,6 +241,12 @@ export async function downloadExcel(path: string, fallbackFilename: string): Pro
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// Requests a server-generated .xlsx export and triggers a browser download.
+export async function downloadExcel(path: string, fallbackFilename: string): Promise<void> {
+  const { blob, filename } = await fetchExcel(path, fallbackFilename);
+  saveBlob(blob, filename);
 }
 
 // Upload a file (photo or document) for an entity
@@ -1016,6 +1026,8 @@ function toLeaveRequest(b: B): LeaveRequest {
     reason: b.reason ?? "",
     status: b.status ?? "Pending",
     appliedAt: b.applied_at ?? "",
+    decidedAt: b.decided_at ?? null,
+    decidedByName: b.decided_by_name ?? null,
   };
 }
 
@@ -1787,8 +1799,15 @@ export const attendanceApi = {
   lookupApplicant: (code: string) =>
     req<B>(`/attendance/lookup-applicant?code=${encodeURIComponent(code)}`),
 
-  listLeaveRequests: (status?: string) =>
-    req<B[]>(`/attendance/leave-requests${status ? `?status=${status}` : ""}`).then((d) => d.map(toLeaveRequest)),
+  // scope "mine" = only requests the logged-in user filed (the Leave Requests page). Admin without a scope
+  // gets every request (Leave Approvals, dashboard, notifications); other roles always get their own.
+  listLeaveRequests: (status?: string, scope?: "mine" | "all") => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (scope) params.set("scope", scope);
+    const qs = params.toString();
+    return req<B[]>(`/attendance/leave-requests${qs ? `?${qs}` : ""}`).then((d) => d.map(toLeaveRequest));
+  },
   createLeaveRequest: (payload: Omit<LeaveRequest, "id" | "status" | "appliedAt">) =>
     req<B>("/attendance/leave-requests", {
       method: "POST",

@@ -9,8 +9,10 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { FuelLogFormDialog } from "@/components/fleet/FuelLogFormDialog";
 import { FuelHistoryViewDialog } from "@/components/fleet/FuelHistoryViewDialog";
-import { Search, Fuel } from "lucide-react";
+import { Fuel } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function FuelHistoryPage() {
@@ -89,33 +91,10 @@ export default function FuelHistoryPage() {
           </div>
         )}
       </div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search trucks..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-          <input
-            type="date"
-            value={exportFrom}
-            onChange={(e) => setExportFrom(e.target.value)}
-            className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            title="Report from date"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <input
-            type="date"
-            value={exportTo}
-            onChange={(e) => setExportTo(e.target.value)}
-            className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            title="Report to date"
-          />
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
           <DownloadExcelButton
             path="/exports/fuel-logs"
             filename="fuel_logs.xlsx"

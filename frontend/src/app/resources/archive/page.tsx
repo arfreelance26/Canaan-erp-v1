@@ -20,6 +20,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 
 const ALLOWED_ROLES = ["Admin"];
@@ -180,7 +182,8 @@ export default function ArchivePage() {
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search by name, requester, or approver" value={search} onChange={setSearch} />
         <div className="flex gap-1.5 rounded-lg border border-gray-200 bg-white/60 p-1">
           {(["All", ...ARCHIVED_KINDS] as const).map((t) => (
             <button
@@ -195,13 +198,13 @@ export default function ArchivePage() {
             </button>
           ))}
         </div>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, requester, or approver"
-          className="w-full max-w-sm rounded-lg border border-gray-200 py-2 px-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
-        />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DownloadExcelButton
+            path="/deletion-approvals/archive-export"
+            params={typeFilter === "All" ? undefined : { resource_type: typeFilter }}
+            filename={typeFilter === "All" ? "archive.xlsx" : `archive_${typeFilter.toLowerCase()}.xlsx`}
+          />
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-white/80 bg-white/40 shadow-sm backdrop-blur-sm">

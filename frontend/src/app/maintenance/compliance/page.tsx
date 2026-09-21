@@ -8,10 +8,11 @@ import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 export default function CompliancePage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,50 +54,34 @@ export default function CompliancePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
           <h1 className="text-2xl font-bold text-gray-900">Compliance &amp; Renewals</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track RC, FC, Road Tax, National Permit, Local Permit, Pollution Certificate, and Insurance validity across the fleet
           </p>
         </div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search trucks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={exportFrom}
-              onChange={(e) => setExportFrom(e.target.value)}
-              className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              title="Report from date"
-            />
-            <span className="text-xs text-gray-400">to</span>
-            <input
-              type="date"
-              value={exportTo}
-              onChange={(e) => setExportTo(e.target.value)}
-              className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              title="Report to date"
-            />
-            <DownloadExcelButton path="/exports/trucks" filename="fleet.xlsx" />
-          </div>
-          <button
-            type="button"
-            onClick={() => setUpdateOpen(true)}
-            className="btn-interactive shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95"
-          >
-            Update Document
-          </button>
+        <button
+          type="button"
+          onClick={() => setUpdateOpen(true)}
+          className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+        >
+          Update Document
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/trucks"
+            filename="fleet_compliance.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
         </div>
       </div>
 

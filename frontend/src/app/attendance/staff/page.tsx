@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, Download } from "lucide-react";
+import { Download, Eye, Loader2, X } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StaffAttendanceTable } from "@/components/attendance/StaffAttendanceTable";
 import { staffApi, attendanceApi } from "@/lib/api";
@@ -13,6 +14,7 @@ import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { PillSearch } from "@/components/ui/PillSearch";
 
 function getStaffAttendanceForDate(
   records: StaffAttendanceRecord[],
@@ -32,6 +34,9 @@ export default function StaffAttendancePage() {
   const [downloading, setDownloading] = useState(false);
   const [fromDate, setFromDate] = useState(todayIst());
   const [toDate, setToDate] = useState(todayIst());
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportRecords, setReportRecords] = useState<StaffAttendanceRecord[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     Promise.all([staffApi.list(), attendanceApi.listStaff()])
@@ -282,6 +287,18 @@ export default function StaffAttendancePage() {
     return counts;
   }, [staff, records, date]);
 
+  async function handleViewReport() {
+    setReportLoading(true);
+    setShowReportModal(true);
+    try {
+      setReportRecords(await attendanceApi.listStaff(undefined, undefined, fromDate, toDate));
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to load the report.");
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   const filteredStaff = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return staff;
@@ -299,51 +316,11 @@ export default function StaffAttendancePage() {
             Track and mark attendance for all staff members
           </p>
         </div>
-        <div className="flex items-center gap-2">
-            
-            <DatePickerInput
-              value={date}
-              onChange={(v) => setDate(v)}
-              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
+        {/* Day being marked */}
+        <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">
+          <div className="w-[128px]">
+            <DatePickerInput value={date} onChange={(v) => setDate(v)} />
           </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* View date picker */}
-          
-
-          <div className="h-6 w-px bg-gray-200" />
-
-          {/* Download date range pickers */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Download</span>
-            <label className="text-sm font-medium text-gray-600">From</label>
-            <DatePickerInput
-              value={fromDate}
-              onChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
-              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-            <label className="text-sm font-medium text-gray-600">To</label>
-            <DatePickerInput
-              value={toDate}
-              onChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
-              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-
-          <DownloadExcelButton
-            path="/exports/staff-attendance"
-            filename={`staff_attendance_${fromDate}_to_${toDate}.xlsx`}
-            params={{ from_date: fromDate, to_date: toDate }}
-          />
-          <button
-            type="button"
-            onClick={handleDownloadPDF}
-            disabled={downloading || staff.length === 0}
-            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            <Download className="h-4 w-4" />
-            {downloading ? "Generating..." : "Download PDF"}
-          </button>
         </div>
       </div>
 
@@ -366,15 +343,26 @@ export default function StaffAttendancePage() {
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by staff name"
-          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
-        />
+      {/* Toolbar: search on the left, report range + View on the right (same layout as the other pages) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch value={search} onChange={setSearch} placeholder="Search by staff name" />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill
+            from={fromDate}
+            to={toDate}
+            onFromChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
+            onToChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
+          />
+          <button
+            type="button"
+            onClick={handleViewReport}
+            disabled={reportLoading}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+            View
+          </button>
+        </div>
       </div>
 
       <StaffAttendanceTable
@@ -383,6 +371,113 @@ export default function StaffAttendancePage() {
         date={date}
         onMark={handleMark}
       />
+      {showReportModal && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowReportModal(false); }}
+        >
+          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
+              <div>
+                <p className="font-semibold text-gray-900">Staff Attendance Report</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {(() => {
+                    const f = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+                    return fromDate === toDate ? f(fromDate) : `${f(fromDate)} – ${f(toDate)}`;
+                  })()}
+                  {" · "}{staff.length} staff member{staff.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowReportModal(false)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Report table */}
+            <div className="flex-1 overflow-auto px-5 py-4">
+              {reportLoading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-gray-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Loading report…
+                </div>
+              ) : staff.length === 0 ? (
+                <p className="py-12 text-center text-sm text-gray-400">No attendance data for the selected range.</p>
+              ) : (
+                <table className="w-full text-left text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      {["#", "Staff ID", "Staff Name", "Designation", "Date", "Status"].map((col) => (
+                        <th key={col} className="whitespace-nowrap px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500">{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(() => {
+                      const dates: string[] = [];
+                      const [fy, fm, fd] = fromDate.split("-").map(Number);
+                      const [ty, tm, td] = toDate.split("-").map(Number);
+                      const cur = new Date(fy, fm - 1, fd);
+                      const end = new Date(ty, tm - 1, td);
+                      while (cur <= end) {
+                        dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
+                        cur.setDate(cur.getDate() + 1);
+                      }
+                      const statusColor: Record<string, string> = {
+                        "Present": "text-green-700 bg-green-50",
+                        "Absent": "text-red-700 bg-red-50",
+                        "On Leave": "text-yellow-700 bg-yellow-50",
+                        "Not Marked": "text-gray-500 bg-gray-50",
+                      };
+                      let rowIdx = 0;
+                      return dates.flatMap((d) =>
+                        staff.map((member) => {
+                          rowIdx++;
+                          const status = reportRecords.find((r) => r.staffId === member.id && r.date === d)?.status ?? "Not Marked";
+                          return (
+                            <tr key={`${d}-${member.id}`} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-xs text-gray-400">{rowIdx}</td>
+                              <td className="whitespace-nowrap px-3 py-2 font-medium text-gray-900">{member.staffId}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-700">{member.name}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-500">{member.designation || "—"}</td>
+                              <td className="whitespace-nowrap px-3 py-2 text-gray-500">
+                                {new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")}
+                              </td>
+                              <td className="px-3 py-2">
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor[status] ?? "text-gray-500 bg-gray-50"}`}>{status}</span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t px-5 py-3">
+              <DownloadExcelButton
+                path="/exports/staff-attendance"
+                filename={`staff_attendance_${fromDate}_to_${toDate}.xlsx`}
+                params={{ from_date: fromDate, to_date: toDate }}
+                direct
+                className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={async () => { await handleDownloadPDF(); setShowReportModal(false); }}
+                disabled={downloading || staff.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? "Generating..." : "Download PDF"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,12 +10,13 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, FileBarChart2, X, Trash2 } from "lucide-react";
+import { Eye, ChevronDown, CheckCircle2, Circle, Download, ThumbsUp, ThumbsDown, AlertTriangle, ArrowRightCircle, Inbox, ClipboardList, X, Trash2 } from "lucide-react";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 
 function fmtIST(iso: string) {
@@ -438,41 +439,31 @@ export default function SheetCollectionPage() {
           Mark trip sheets as delivered from drivers before reconciliation
         </p>
       </div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by truck no., driver, trip ID…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
+      {/* Toolbar: search + status on the left, delivered-on range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
+        <div className="relative shrink-0 transition-transform duration-300 hover:scale-105">
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
-            className="rounded-lg border border-gray-200 bg-white/50 py-2 pl-3 pr-8 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+            className="h-10 min-w-[9.5rem] cursor-pointer appearance-none rounded-full border border-gray-200 bg-white pl-4 pr-10 text-sm font-medium text-gray-700 shadow-sm outline-none transition-shadow duration-300 hover:shadow-md focus:border-blue-400"
           >
             <option value="All">All Sheets</option>
             <option value="Pending">Pending</option>
             <option value="Delivered">Delivered</option>
             <option value="Overdue">Entry Overdue</option>
           </select>
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Delivered On:</span>
-            <DatePickerInput
-              value={dateFrom}
-              onChange={(v) => { setDateFrom(v); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
-            />
-            <span className="text-xs text-gray-400">to</span>
-            <DatePickerInput
-              value={dateTo}
-              onChange={(v) => { setDateTo(v); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
+          <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {/* Scopes the View / PDF report to sheets delivered inside this range (it does not filter the table) */}
+          <div title="Delivered On — scopes the report to sheets delivered in this range">
+            <DateRangePill
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1); }}
+              onToChange={(v) => { setDateTo(v); setPage(1); }}
             />
           </div>
           <button
@@ -480,9 +471,9 @@ export default function SheetCollectionPage() {
             onClick={() => setShowReportModal(true)}
             disabled={collected.length === 0}
             title={collected.length === 0 ? "No delivered sheets to export" : "View and download delivered sheets"}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
           >
-            <FileBarChart2 className="h-4 w-4" />
+            <Eye className="h-4 w-4" />
             View
           </button>
         </div>

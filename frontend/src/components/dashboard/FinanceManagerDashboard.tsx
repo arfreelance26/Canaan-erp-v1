@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
+import { ComplianceAlertBanner } from "./ComplianceAlertBanner";
 import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getComplianceStatus } from "@/lib/compliance";
@@ -168,53 +169,12 @@ export function FinanceManagerDashboard() {
       <Separator />
 
       {/* Compliance Alert Banner */}
-      {(complianceExpired.length > 0 || complianceExpiringSoon.length > 0) && (
-        <div className={cn(
-          "rounded-2xl border px-5 py-4",
-          complianceExpired.length > 0 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"
-        )}>
-          <div className="flex items-start gap-3">
-            <AlertTriangle className={cn(
-              "mt-0.5 h-5 w-5 shrink-0",
-              complianceExpired.length > 0 ? "text-red-500" : "text-amber-500"
-            )} />
-            <div className="flex-1">
-              <p className={cn(
-                "text-sm font-bold",
-                complianceExpired.length > 0 ? "text-red-700" : "text-amber-700"
-              )}>
-                {complianceExpired.length > 0
-                  ? `${complianceExpired.length} expired document${complianceExpired.length === 1 ? "" : "s"} — immediate renewal required`
-                  : `${complianceExpiringSoon.length} document${complianceExpiringSoon.length === 1 ? "" : "s"} expiring soon`}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {complianceExpired.map((item, i) => (
-                  <Badge key={`exp-${i}`} variant="critical">
-                    {item.truckId} · {item.label}
-                  </Badge>
-                ))}
-                {complianceExpiringSoon.map((item, i) => (
-                  <Badge key={`soon-${i}`} variant="warning">
-                    {item.truckId} · {item.label}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push("/maintenance/compliance")}
-              className={cn(
-                "shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                complianceExpired.length > 0
-                  ? "bg-red-600 text-white hover:bg-red-700"
-                  : "bg-amber-600 text-white hover:bg-amber-700"
-              )}
-            >
-              View Compliance
-            </button>
-          </div>
-        </div>
-      )}
+      <ComplianceAlertBanner
+        expired={complianceExpired}
+        expiringSoon={complianceExpiringSoon}
+        href="/maintenance/compliance"
+        actionLabel="View Compliance"
+      />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -239,12 +199,25 @@ export function FinanceManagerDashboard() {
       </div>
 
       {/* Pending Finalization */}
-      <div className="grid grid-cols-1 gap-4">
-        <Card className="border-purple-200">
-          <CardContent className="p-5">
-          <SectionTitle icon={FileWarning} title="Trips Pending Invoice" badge={pendingFinalization.length} badgeVariant="purple" />
+      <Card>
+        <CardContent className="p-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-sm font-semibold text-gray-800">Trips Pending Invoice</h2>
+              {!loading && (
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-blue-700">
+                  {pendingFinalization.length}
+                </span>
+              )}
+            </div>
+            {pendingFinalization.length > 0 && (
+              <Link href="/trips/finalization" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+                View all →
+              </Link>
+            )}
+          </div>
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
+            <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
           ) : pendingFinalization.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
               <CheckCircle2 className="h-8 w-8 text-emerald-400" />
@@ -252,121 +225,126 @@ export function FinanceManagerDashboard() {
               <p className="text-xs text-gray-400">No pending finalization</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {pendingFinalization.slice(0, 6).map((trip) => (
-                <li key={trip.id} className="flex items-center gap-3 py-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50">
-                    <CalendarCheck className="h-3.5 w-3.5 text-violet-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-gray-900">{trip.tripId}</p>
-                    <p className="text-[11px] text-gray-500 truncate">{trip.origin} → {trip.destination}</p>
-                  </div>
-                  <Badge variant={
-                    trip.verificationStatus === "verified" ? "available"
-                    : trip.verificationStatus === "flagged" ? "critical"
-                    : "neutral"
-                  }>
-                    {trip.verificationStatus}
-                  </Badge>
-                </li>
-              ))}
-              {pendingFinalization.length > 6 && (
-                <li className="pt-2 text-center">
-                  <Link href="/trips/finalization" className="text-xs font-medium text-blue-600 hover:underline">
-                    View all {pendingFinalization.length} trips →
-                  </Link>
-                </li>
-              )}
+            <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+              {pendingFinalization.slice(0, 8).map((trip) => {
+                const st = trip.verificationStatus;
+                const tone =
+                  st === "verified" ? { text: "text-emerald-700", dot: "bg-emerald-500" }
+                  : st === "flagged" ? { text: "text-red-700", dot: "bg-red-500" }
+                  : { text: "text-gray-500", dot: "bg-gray-400" };
+                return (
+                  <li key={trip.id} className="flex items-center gap-4 py-2.5">
+                    <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
+                    <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
+                      {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+                    </p>
+                    <span className={`flex shrink-0 items-center gap-1.5 text-xs font-medium capitalize ${tone.text}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+                      {st}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
-          </CardContent>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Compliance Alerts + Recurring Due Soon */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Compliance */}
-        <Card className="border-amber-200">
+        <Card>
           <CardContent className="p-5">
-          <SectionTitle icon={ShieldCheck} title="Compliance Alerts" badge={complianceAlerts.length} badgeVariant="warning" />
-          {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
-          ) : complianceAlerts.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <ShieldCheck className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-gray-600">All documents valid</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {complianceAlerts.slice(0, 6).map((a, i) => {
-                const days = daysBetween(a.date);
-                const isExpired = a.status === "Expired";
-                return (
-                  <li key={i} className="flex items-center gap-3 py-2.5">
-                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isExpired ? "bg-red-100" : "bg-yellow-100"}`}>
-                      <CircleDot className={`h-3 w-3 ${isExpired ? "text-red-600" : "text-yellow-600"}`} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">{a.doc} — {a.truck.truckId}</p>
-                      <p className="text-[11px] text-gray-500">{a.truck.registrationNumber}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <Badge variant={isExpired ? "critical" : "warning"}>
-                        {isExpired ? `${Math.abs(days)}d ago` : `${days}d left`}
-                      </Badge>
-                    </div>
-                  </li>
-                );
-              })}
-              {complianceAlerts.length > 6 && (
-                <li className="pt-2 text-center">
-                  <Link href="/maintenance/compliance" className="text-xs font-medium text-blue-600 hover:underline">
-                    View all {complianceAlerts.length} alerts →
-                  </Link>
-                </li>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold text-gray-800">Compliance Alerts</h2>
+                {!loading && (
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+                    complianceAlerts.some((a) => a.status === "Expired") ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+                  }`}>
+                    {complianceAlerts.length}
+                  </span>
+                )}
+              </div>
+              {complianceAlerts.length > 0 && (
+                <Link href="/maintenance/compliance" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+                  View all →
+                </Link>
               )}
-            </ul>
-          )}
+            </div>
+            {loading ? (
+              <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+            ) : complianceAlerts.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <ShieldCheck className="h-8 w-8 text-emerald-400" />
+                <p className="text-sm font-medium text-gray-600">All documents valid</p>
+              </div>
+            ) : (
+              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+                {complianceAlerts.slice(0, 10).map((a, i) => {
+                  const days = daysBetween(a.date);
+                  const isExpired = a.status === "Expired";
+                  return (
+                    <li key={i} className="flex items-center gap-3 py-2.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${isExpired ? "bg-red-500" : "bg-amber-400"}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">
+                          {a.doc} <span className="font-normal text-gray-400">·</span> {a.truck.registrationNumber}
+                        </p>
+                        <p className="text-[11px] text-gray-500">{a.truck.truckId}</p>
+                      </div>
+                      <span className={`shrink-0 text-xs font-semibold tabular-nums ${isExpired ? "text-red-600" : "text-amber-600"}`}>
+                        {isExpired ? `${Math.abs(days).toLocaleString("en-IN")}d overdue` : `${days}d left`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
         {/* Recurring payments due soon */}
-        <Card className="border-teal-200">
+        <Card>
           <CardContent className="p-5">
-          <SectionTitle icon={Clock} title="Recurring Payments Due Soon" badge={dueSoonRecurring.length} badgeVariant="active" />
-          {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
-          ) : dueSoonRecurring.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-gray-600">No payments due in 7 days</p>
+            <div className="mb-3 flex items-center gap-2.5">
+              <h2 className="text-sm font-semibold text-gray-800">Recurring Payments Due Soon</h2>
+              {!loading && dueSoonRecurring.length > 0 && (
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-blue-700">
+                  {dueSoonRecurring.length}
+                </span>
+              )}
             </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {dueSoonRecurring.map((r) => {
-                const days = daysBetween(r.nextDueDate);
-                return (
-                  <li key={r.id} className="flex items-center gap-3 py-2.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-50">
-                      <TrendingUp className="h-3.5 w-3.5 text-teal-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">{r.title}</p>
-                      <p className="text-[11px] text-gray-500">{r.category} · {r.frequency}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-xs font-bold text-gray-800">{fmt(r.amount)}</p>
-                      <p className={`text-[10px] ${days === 0 ? "font-bold text-red-600" : days <= 3 ? "font-semibold text-amber-600" : "text-gray-400"}`}>
-                        {days === 0 ? "Due today" : `in ${days}d`}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+            {loading ? (
+              <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+            ) : dueSoonRecurring.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                <p className="text-sm font-medium text-gray-600">Nothing due in the next 7 days</p>
+                <p className="text-xs text-gray-400">Upcoming recurring payments will appear here</p>
+              </div>
+            ) : (
+              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+                {dueSoonRecurring.map((r) => {
+                  const days = daysBetween(r.nextDueDate);
+                  return (
+                    <li key={r.id} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">{r.title}</p>
+                        <p className="text-[11px] text-gray-500">{r.category} · {r.frequency}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold tabular-nums text-gray-900">{fmt(r.amount)}</p>
+                        <p className={`text-[11px] ${days === 0 ? "font-semibold text-red-600" : days <= 3 ? "font-medium text-amber-600" : "text-gray-400"}`}>
+                          {days === 0 ? "Due today" : `in ${days}d`}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

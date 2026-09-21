@@ -158,6 +158,10 @@ def _run_schema_migrations():
         "CREATE INDEX IF NOT EXISTS idx_customer_pricing_customer_id ON customer_pricing (customer_id)",
         "CREATE INDEX IF NOT EXISTS idx_customer_origins_customer_id ON customer_origins (customer_id)",
         "CREATE INDEX IF NOT EXISTS idx_customer_destinations_customer_id ON customer_destinations (customer_id)",
+        # Leave requests — who filed it (scopes the Leave Requests page to the user) and who decided it
+        "ALTER TABLE leave_requests ADD COLUMN submitted_by INT NULL",
+        "ALTER TABLE leave_requests ADD COLUMN decided_at DATETIME NULL",
+        "ALTER TABLE leave_requests ADD COLUMN decided_by_name VARCHAR(100) NULL",
         # Delete request workflow — add Trip to resource_type enum + admin_note column
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip') NOT NULL",
         "ALTER TABLE edit_approval_requests ADD COLUMN admin_note TEXT NULL",

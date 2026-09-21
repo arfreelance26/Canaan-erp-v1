@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, Check, LogOut, ShieldAlert } from "lucide-react";
+import {
+  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, ShieldAlert, Clock, CalendarCheck, Timer,
+} from "lucide-react";
 import { attendanceApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -31,30 +33,36 @@ function fmtTime(iso: string | null | undefined) {
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+/** "09:30 AM" / "18:05" → minutes since midnight (null when it can't be read). */
+function toMinutes(t: string | null): number | null {
+  if (!t) return null;
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = m[3]?.toUpperCase();
+  if (ap === "PM" && h < 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+function shiftLength(inTime: string | null, outTime: string | null): string | null {
+  const a = toMinutes(inTime);
+  const b = toMinutes(outTime);
+  if (a === null || b === null || b < a) return null;
+  const mins = b - a;
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+}
+
 type MarkableStatus = "Present" | "Absent" | "On Leave";
 
-const ACTIONS: { status: MarkableStatus; label: string; icon: React.ElementType; idle: string; active: string }[] = [
-  {
-    status: "Present",
-    label: "Present",
-    icon: CheckCircle2,
-    idle: "border-gray-200 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700",
-    active: "border-emerald-500 bg-emerald-500 text-white shadow-md shadow-emerald-200",
-  },
-  {
-    status: "Absent",
-    label: "Absent",
-    icon: XCircle,
-    idle: "border-gray-200 text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700",
-    active: "border-red-500 bg-red-500 text-white shadow-md shadow-red-200",
-  },
-  {
-    status: "On Leave",
-    label: "On Leave",
-    icon: CalendarOff,
-    idle: "border-gray-200 text-gray-700 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700",
-    active: "border-amber-500 bg-amber-500 text-white shadow-md shadow-amber-200",
-  },
+// Static class strings so Tailwind can see them.
+const ACTIONS: {
+  status: MarkableStatus; label: string; hint: string; icon: React.ElementType; chip: string; hover: string;
+}[] = [
+  { status: "Present", label: "Present", hint: "Start your shift", icon: CheckCircle2, chip: "bg-emerald-100 text-emerald-600", hover: "hover:border-emerald-300" },
+  { status: "Absent", label: "Absent", hint: "Not working today", icon: XCircle, chip: "bg-red-100 text-red-600", hover: "hover:border-red-300" },
+  { status: "On Leave", label: "On leave", hint: "Away on approved leave", icon: CalendarOff, chip: "bg-amber-100 text-amber-600", hover: "hover:border-amber-300" },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -65,11 +73,11 @@ const STATUS_DOT: Record<string, string> = {
   "Not Marked": "bg-gray-300",
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  Present: "bg-emerald-100 text-emerald-700",
-  Absent: "bg-red-100 text-red-700",
-  "On Leave": "bg-amber-100 text-amber-700",
-  Holiday: "bg-blue-100 text-blue-700",
+const STATUS_PILL: Record<string, string> = {
+  Present: "bg-emerald-50 text-emerald-700",
+  Absent: "bg-red-50 text-red-700",
+  "On Leave": "bg-amber-50 text-amber-700",
+  Holiday: "bg-blue-50 text-blue-700",
   "Not Marked": "bg-gray-100 text-gray-500",
 };
 
@@ -253,6 +261,7 @@ export default function MarkAttendancePage() {
   const checkOutTime = todayRecord?.checkOutTime ?? null;
   const shiftOpen = todayStatus === "Present" && !checkOutTime;
   const adminOverridden = todayRecord?.adminOverride === true;
+  const length = shiftLength(checkInTime, checkOutTime);
 
   const pct = Math.round(summary?.percentage ?? 0);
   const r = 44;
@@ -260,28 +269,26 @@ export default function MarkAttendancePage() {
   const dashOffset = circumference * (1 - pct / 100);
   const ringColor = pct >= 75 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
   const standingLabel = pct >= 75 ? "Good standing" : pct >= 50 ? "Needs improvement" : "Below threshold";
-  const standingColor = pct >= 75 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-red-600";
-  const standingBg = pct >= 75 ? "bg-emerald-50" : pct >= 50 ? "bg-amber-50" : "bg-red-50";
+  const standingDot = pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-500";
 
   if (!ready) return null;
 
   if (staffNumericId === null) {
     return (
-      <div className="mx-auto flex max-w-7xl flex-col gap-5">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Mark Attendance</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Mark Attendance</h1>
           <p className="mt-1 text-sm text-gray-500">{todayLabelFull}</p>
         </div>
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-8 py-16 text-center shadow-sm">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100">
-            <CalendarOff className="h-7 w-7 text-amber-500" />
-          </div>
+        <div className="dk-inset flex flex-col items-center gap-4 rounded-2xl border border-amber-200/80 bg-amber-50/60 px-8 py-16 text-center shadow-sm">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 ring-8 ring-amber-50">
+            <CalendarOff className="h-6 w-6" />
+          </span>
           <div>
-            <p className="text-base font-bold text-gray-800">Staff record not linked</p>
-            <p className="mt-1 text-sm text-gray-500">
-              No Staff record with <strong>Software Designation = Admin</strong> was found in the database.
-              <br />
-              Please ensure the admin staff profile is created under <strong>Our Staff</strong>, then log out and back in.
+            <p className="text-base font-medium text-gray-900">Staff record not linked</p>
+            <p className="mt-1 max-w-md text-sm leading-relaxed text-gray-500">
+              No Staff record with <span className="font-medium text-gray-700">Software Designation = Admin</span> was found in the database.
+              Please make sure the admin staff profile exists under <span className="font-medium text-gray-700">Our Staff</span>, then log out and back in.
             </p>
           </div>
         </div>
@@ -290,74 +297,84 @@ export default function MarkAttendancePage() {
   }
 
   return (
-    <div className="animate-stagger mx-auto flex max-w-7xl flex-col gap-5">
+    <div className="animate-stagger mx-auto flex max-w-7xl flex-col gap-6">
 
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Mark Attendance</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Mark Attendance</h1>
         <p className="mt-1 text-sm text-gray-500">{todayLabelFull}</p>
       </div>
 
-      {/* Main grid: left (stats + history) | right (mark card, sticky) */}
+      {/* Main grid: left (stats + history) | right (today card, sticky) */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_380px]">
 
         {/* ── LEFT COLUMN ── */}
         <div className="flex flex-col gap-4">
 
-          {/* Monthly Stats card */}
-          <div className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-opacity ${summaryLoading ? "opacity-50" : ""}`}>
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
-              <p className="text-sm font-bold text-gray-800">Monthly Attendance</p>
-              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${standingBg} ${standingColor}`}>{standingLabel}</span>
+          {/* Monthly attendance */}
+          <div className={`dk-inset overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-opacity ${summaryLoading ? "opacity-60" : ""}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-3.5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <CalendarCheck className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Monthly attendance</h2>
+                  <p className="text-xs text-gray-500">{monthLabel}</p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+                <i className={`h-1.5 w-1.5 rounded-full ${standingDot}`} />
+                {standingLabel}
+              </span>
             </div>
 
-            <div className="flex items-center gap-6 p-5">
+            <div className="flex flex-wrap items-center gap-6 p-5">
               {/* Ring */}
-              <div className="relative flex h-[100px] w-[100px] shrink-0 items-center justify-center">
+              <div className="relative flex h-[104px] w-[104px] shrink-0 items-center justify-center">
                 <svg className="h-full w-full -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r={r} fill="none" stroke="#f3f4f6" strokeWidth="10" />
+                  <circle cx="50" cy="50" r={r} fill="none" className="stroke-gray-200" strokeWidth="7" />
                   <circle
                     cx="50" cy="50" r={r} fill="none"
-                    stroke={ringColor} strokeWidth="10" strokeLinecap="round"
+                    stroke={ringColor} strokeWidth="7" strokeLinecap="round"
                     strokeDasharray={circumference}
                     strokeDashoffset={dashOffset}
                     className="transition-all duration-700"
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center">
-                  <span className="text-[22px] font-extrabold leading-none text-gray-800">{pct}%</span>
-                  <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-gray-400">attendance</span>
+                  <span className="text-2xl font-semibold leading-none tabular-nums text-gray-900">{pct}%</span>
+                  <span className="mt-1 text-[10px] text-gray-400">attendance</span>
                 </div>
               </div>
 
-              {/* Right side of stats */}
-              <div className="flex flex-1 flex-col gap-3">
-                <p className="text-xs text-gray-500">
-                  <span className="font-bold text-gray-700">{summary?.present ?? 0}</span> present out of{" "}
-                  <span className="font-bold text-gray-700">{summary?.workingDays ?? 26}</span> working days
+              <div className="flex min-w-[260px] flex-1 flex-col gap-3">
+                <p className="text-sm text-gray-500">
+                  <span className="font-medium tabular-nums text-gray-900">{summary?.present ?? 0}</span> present out of{" "}
+                  <span className="font-medium tabular-nums text-gray-900">{summary?.workingDays ?? 26}</span> working days
                 </p>
 
-                {/* Progress bar */}
-                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200/70">
                   <div
-                    className="h-2 rounded-full transition-all duration-700"
+                    className="h-full rounded-full transition-all duration-700"
                     style={{ width: `${pct}%`, backgroundColor: ringColor }}
                   />
                 </div>
 
-                {/* Five counts */}
-                <div className="grid grid-cols-5 gap-2 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-5">
                   {[
-                    { label: "Present",  count: summary?.present  ?? 0, dot: "bg-emerald-500", text: "text-emerald-600", bg: "bg-emerald-50" },
-                    { label: "Absent",   count: summary?.absent   ?? 0, dot: "bg-red-500",     text: "text-red-600",     bg: "bg-red-50" },
-                    { label: "On Leave", count: summary?.onLeave  ?? 0, dot: "bg-amber-400",   text: "text-amber-600",   bg: "bg-amber-50" },
-                    { label: "Holiday",  count: summary?.holidays ?? 0, dot: "bg-blue-500",    text: "text-blue-600",    bg: "bg-blue-50" },
-                    { label: "Unmarked", count: summary?.notMarked ?? 0, dot: "bg-gray-300",   text: "text-gray-400",    bg: "bg-gray-50" },
-                  ].map(({ label, count, dot, text, bg }) => (
-                    <div key={label} className={`flex flex-col items-center gap-1 rounded-xl py-2 ${bg}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-                      <p className={`text-lg font-bold leading-none ${text}`}>{count}</p>
-                      <p className="text-[9px] font-medium uppercase tracking-wider text-gray-400">{label}</p>
+                    { label: "Present", count: summary?.present ?? 0, dot: "bg-emerald-500" },
+                    { label: "Absent", count: summary?.absent ?? 0, dot: "bg-red-500" },
+                    { label: "On leave", count: summary?.onLeave ?? 0, dot: "bg-amber-400" },
+                    { label: "Holiday", count: summary?.holidays ?? 0, dot: "bg-blue-500" },
+                    { label: "Unmarked", count: summary?.notMarked ?? 0, dot: "bg-gray-300" },
+                  ].map(({ label, count, dot }) => (
+                    <div key={label} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                      <p className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                        <i className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+                        {label}
+                      </p>
+                      <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900">{count}</p>
                     </div>
                   ))}
                 </div>
@@ -365,24 +382,31 @@ export default function MarkAttendancePage() {
             </div>
           </div>
 
-          {/* Attendance History card */}
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3.5">
-              <p className="text-sm font-bold text-gray-800">Attendance History</p>
-              <div className="flex items-center gap-0.5">
+          {/* Attendance history */}
+          <div className="dk-inset overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-3.5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <Clock className="h-4 w-4" />
+                </span>
+                <h2 className="text-sm font-semibold text-gray-900">Attendance history</h2>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={prevMonth}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-brand-navy/5 hover:text-brand-navy"
+                  aria-label="Previous month"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-all duration-200 hover:scale-105 hover:border-blue-300 hover:text-blue-700"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
-                <span className="min-w-[120px] text-center text-xs font-semibold text-gray-600">{monthLabel}</span>
+                <span className="min-w-[128px] text-center text-xs font-medium text-gray-700">{monthLabel}</span>
                 <button
                   type="button"
                   onClick={nextMonth}
                   disabled={!canGoNext}
-                  className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-brand-navy/5 hover:text-brand-navy disabled:opacity-25"
+                  aria-label="Next month"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition-all duration-200 hover:scale-105 hover:border-blue-300 hover:text-blue-700 disabled:pointer-events-none disabled:opacity-30"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -390,11 +414,11 @@ export default function MarkAttendancePage() {
             </div>
 
             {historyLoading ? (
-              <div className="py-10 text-center text-sm text-gray-400">Loading…</div>
+              <div className="py-12 text-center text-sm text-gray-400">Loading…</div>
             ) : historyDates.length === 0 ? (
-              <div className="py-10 text-center text-sm text-gray-400">No records yet this month</div>
+              <div className="py-12 text-center text-sm text-gray-400">No records yet this month</div>
             ) : (
-              <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-50">
+              <div className="custom-scrollbar max-h-[380px] divide-y divide-gray-100 overflow-y-auto">
                 {historyDates.map((dateStr) => {
                   const rec = recordByDate.get(dateStr);
                   const isToday = dateStr === today;
@@ -409,39 +433,35 @@ export default function MarkAttendancePage() {
                   return (
                     <div
                       key={dateStr}
-                      className={`flex items-center gap-3 px-5 py-2.5 ${isToday ? "bg-brand-navy/5" : "hover:bg-gray-50/40"}`}
+                      className={`flex items-center gap-4 px-5 py-3 transition-colors ${isToday ? "bg-blue-50/60" : "hover:bg-gray-50/70"}`}
                     >
-                      {/* Date block — today gets the same navy+gold treatment as the app's active nav state */}
-                      <div className={`flex w-10 shrink-0 flex-col items-center rounded-lg border py-1 ${isToday ? "border-brand-gold/40 bg-brand-navy" : "border-transparent bg-gray-50"}`}>
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isToday ? "text-brand-gold/80" : "text-gray-400"}`}>{dayName}</span>
-                        <span className={`text-base font-extrabold leading-tight ${isToday ? "text-brand-gold" : "text-gray-700"}`}>{dayNum}</span>
-                        <span className={`text-[9px] font-medium ${isToday ? "text-brand-gold/80" : "text-gray-400"}`}>{monthShort}</span>
+                      <div className="w-14 shrink-0">
+                        <p className="text-sm font-medium tabular-nums text-gray-900">{dayNum} {monthShort}</p>
+                        <p className="text-[11px] text-gray-400">{dayName}</p>
                       </div>
 
-                      {/* Info */}
                       <div className="min-w-0 flex-1">
                         {isToday && (
-                          <span className="mb-0.5 inline-block text-[9px] font-bold uppercase tracking-wider text-brand-navy">Today</span>
+                          <span className="mb-1 inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">Today</span>
                         )}
                         {rec?.checkInTime ? (
-                          <p className="text-[11px] text-gray-500">
-                            <span className="font-semibold text-emerald-600">In</span> {rec.checkInTime}
+                          <p className="text-xs text-gray-500">
+                            <span className="text-gray-400">In</span> <span className="tabular-nums text-gray-700">{rec.checkInTime}</span>
                             {rec.checkOutTime && (
-                              <> &nbsp;<span className="font-semibold text-brand-navy">Out</span> {rec.checkOutTime}</>
+                              <> <span className="mx-1 text-gray-300">·</span> <span className="text-gray-400">Out</span> <span className="tabular-nums text-gray-700">{rec.checkOutTime}</span></>
                             )}
                           </p>
                         ) : time ? (
-                          <p className="text-[11px] text-gray-400">Marked at {time}</p>
+                          <p className="text-xs text-gray-400">Marked at {time}</p>
                         ) : holidayName && holidayName !== "Sunday" ? (
-                          <p className="text-[11px] font-medium text-blue-500">{holidayName}</p>
+                          <p className="text-xs text-blue-600/80">{holidayName}</p>
                         ) : (
-                          <p className="text-[11px] text-gray-300">—</p>
+                          <p className="text-xs text-gray-300">—</p>
                         )}
                       </div>
 
-                      {/* Status badge */}
-                      <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_BADGE[status]}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />
+                      <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_PILL[status]}`}>
+                        <i className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />
                         {status}
                       </span>
                     </div>
@@ -452,168 +472,181 @@ export default function MarkAttendancePage() {
           </div>
         </div>
 
-        {/* ── RIGHT COLUMN: Mark card (sticky) ── */}
-        <div className="sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        {/* ── RIGHT COLUMN: Today card (sticky) ── */}
+        <div className="dk-inset sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
 
-          {/* User profile */}
-          <div className="flex flex-col items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-navy/5 to-transparent px-6 py-8 text-center">
+          {/* Person */}
+          <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-4">
             {user?.photoUrl ? (
-              <img
-                src={user.photoUrl}
-                alt={user.name}
-                className="h-20 w-20 rounded-full border-4 border-white object-cover shadow-md"
-              />
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.photoUrl} alt={user.name} className="h-11 w-11 rounded-full object-cover ring-2 ring-white" />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-brand-navy text-2xl font-bold text-white shadow-md">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-sm font-medium text-blue-700 ring-2 ring-white">
                 {getInitials(user?.name ?? "U")}
               </div>
             )}
-            <div>
-              <p className="text-base font-bold text-gray-900">{user?.name ?? "—"}</p>
-              <p className="mt-0.5 text-xs text-gray-500">{user?.softwareDesignation ?? ""}</p>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-gray-900">{user?.name ?? "—"}</p>
+              <p className="truncate text-xs text-gray-500">{user?.softwareDesignation ?? ""}</p>
             </div>
           </div>
 
-          {/* Date + status */}
-          <div className="border-b border-gray-100 px-6 py-5 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Today</p>
-            <p className="mt-1 text-sm font-semibold text-gray-700">{todayLabelShort}</p>
-            <div className="mt-3">
+          {/* Today + status */}
+          <div className="px-5 pb-1 pt-5 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-gray-400">Today</p>
+            <p className="mt-1 text-lg font-medium text-gray-900">{todayLabelShort}</p>
+            <div className="mt-3 flex justify-center">
               {todayLoaded ? (
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold ${STATUS_BADGE[displayTodayStatus]}`}>
-                  <span className={`h-2 w-2 rounded-full ${STATUS_DOT[displayTodayStatus]}`} />
+                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${STATUS_PILL[displayTodayStatus]}`}>
+                  <i className={`h-2 w-2 rounded-full ${STATUS_DOT[displayTodayStatus]}`} />
                   {displayTodayStatus}
                 </span>
               ) : (
-                <span className="inline-block h-7 w-28 animate-pulse rounded-full bg-gray-100" />
+                <span className="inline-block h-8 w-28 animate-pulse rounded-full bg-gray-100" />
               )}
             </div>
-            {markedTime && (
-              <p className="mt-2 text-[11px] text-gray-400">Marked at {markedTime}</p>
-            )}
+            {markedTime && <p className="mt-2 text-xs text-gray-400">Marked at {markedTime}</p>}
           </div>
 
           {/* Action area */}
           <div className="flex flex-1 flex-col gap-2.5 p-5">
 
-            {/* Admin override banner */}
+            {/* Admin override */}
             {adminOverridden && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5">
+              <div className="flex items-start gap-3 rounded-xl border border-red-200/80 bg-red-50/70 px-4 py-3">
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-red-600">Admin override</p>
-                  <p className="mt-0.5 text-xs leading-snug text-red-500">
-                    Your attendance for today has been updated by Admin. Contact admin if you think this is incorrect.
+                  <p className="text-xs font-medium text-red-700">Updated by admin</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-red-600/80">
+                    Your attendance for today was changed by Admin. Contact admin if you think this is incorrect.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Holiday (Sunday or government/company holiday) — locked, no marking needed */}
+            {/* Holiday — nothing to mark */}
             {todayHoliday && todayStatus === "Not Marked" && (
-              <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-6 text-center">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100">
-                  <CalendarOff className="h-5 w-5 text-blue-500" />
-                </div>
-                <p className="text-sm font-bold text-blue-700">
-                  {todayHoliday === "Sunday" ? "Sunday Holiday" : "Holiday"}
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-200/80 bg-blue-50/70 px-4 py-6 text-center">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <CalendarOff className="h-5 w-5" />
+                </span>
+                <p className="text-sm font-medium text-gray-900">
+                  {todayHoliday === "Sunday" ? "Sunday holiday" : "Holiday"}
                 </p>
-                {todayHoliday !== "Sunday" && (
-                  <p className="text-xs font-medium text-blue-600">{todayHoliday}</p>
-                )}
-                <p className="text-[11px] text-blue-500/80">Enjoy your day off — no attendance required today.</p>
+                {todayHoliday !== "Sunday" && <p className="text-xs text-blue-700">{todayHoliday}</p>}
+                <p className="text-xs text-gray-500">Enjoy your day off — no attendance needed today.</p>
               </div>
             )}
 
-            {/* Not yet marked — show 3 action buttons (hidden on holidays / if admin overrode) */}
+            {/* Not marked yet → three choices */}
             {todayStatus === "Not Marked" && !adminOverridden && !todayHoliday && (
               <>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Mark attendance</p>
-                {ACTIONS.map(({ status, label, icon: Icon, idle, active }) => (
+                <p className="mb-0.5 text-[11px] uppercase tracking-wider text-gray-400">How is your day?</p>
+                {ACTIONS.map(({ status, label, hint, icon: Icon, chip, hover }) => (
                   <button
                     key={status}
                     type="button"
                     disabled={marking || !todayLoaded}
                     onClick={() => handleMark(status)}
-                    className={`flex w-full items-center gap-3 rounded-xl border-2 px-4 py-3.5 text-sm font-semibold transition-all duration-150 ${idle} disabled:cursor-not-allowed disabled:opacity-50`}
+                    className={`group flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${hover} disabled:pointer-events-none disabled:opacity-50`}
                   >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    <span className="flex-1 text-left">{label}</span>
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${chip}`}>
+                      <Icon className="h-[18px] w-[18px]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-gray-900">{label}</span>
+                      <span className="block text-xs text-gray-500">{hint}</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-gray-500" />
                   </button>
                 ))}
               </>
             )}
 
-            {/* Present — show shift times and Close Shift button */}
+            {/* Present → shift times + close shift */}
             {todayStatus === "Present" && (
-              <div className="flex flex-col gap-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  {checkOutTime ? "Shift complete" : adminOverridden ? "Marked by admin" : "Active shift"}
+              <div className="flex flex-col gap-2.5">
+                <p className="text-[11px] uppercase tracking-wider text-gray-400">
+                  {checkOutTime ? "Shift complete" : adminOverridden ? "Marked by admin" : "Shift in progress"}
                 </p>
 
-                {/* Check-in row */}
                 {checkInTime && (
-                  <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs font-semibold text-emerald-700">Check-in</span>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-700">{checkInTime}</span>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                    <span className="flex items-center gap-2 text-sm text-gray-600">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </span>
+                      Checked in
+                    </span>
+                    <span className="text-sm font-medium tabular-nums text-gray-900">{checkInTime}</span>
                   </div>
                 )}
 
-                {/* Check-out row or Close Shift button (only if not admin-overridden) */}
                 {checkOutTime ? (
-                  <div className="flex items-center justify-between rounded-xl bg-brand-navy/5 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <LogOut className="h-4 w-4 text-brand-navy" />
-                      <span className="text-xs font-semibold text-brand-navy">Close shift</span>
+                  <>
+                    <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                      <span className="flex items-center gap-2 text-sm text-gray-600">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                          <LogOut className="h-4 w-4" />
+                        </span>
+                        Checked out
+                      </span>
+                      <span className="text-sm font-medium tabular-nums text-gray-900">{checkOutTime}</span>
                     </div>
-                    <span className="text-xs font-bold text-brand-navy">{checkOutTime}</span>
-                  </div>
+                    {length && (
+                      <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                        <span className="flex items-center gap-2 text-sm text-gray-600">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                            <Timer className="h-4 w-4" />
+                          </span>
+                          Shift length
+                        </span>
+                        <span className="text-sm font-medium tabular-nums text-gray-900">{length}</span>
+                      </div>
+                    )}
+                  </>
                 ) : !adminOverridden ? (
                   <button
                     type="button"
                     disabled={closingShift}
                     onClick={handleCloseShift}
-                    className="flex w-full items-center gap-3 rounded-xl border-2 border-brand-navy/20 bg-brand-navy/5 px-4 py-3.5 text-sm font-semibold text-brand-navy transition-all duration-150 hover:border-brand-navy/40 hover:bg-brand-navy/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
                   >
-                    <LogOut className="h-5 w-5 shrink-0" />
-                    <span className="flex-1 text-left">{closingShift ? "Closing…" : "Close Shift"}</span>
+                    <LogOut className="h-4 w-4" />
+                    {closingShift ? "Closing…" : "Close shift"}
                   </button>
                 ) : null}
               </div>
             )}
 
-            {/* Absent / On Leave — locked, no actions */}
+            {/* Absent / On Leave → locked */}
             {(todayStatus === "Absent" || todayStatus === "On Leave") && (
-              <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Attendance marked</p>
-                <p className="text-xs text-gray-400">No further action required for today.</p>
+              <div className="flex flex-col items-center gap-1 rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-6 text-center">
+                <p className="text-sm font-medium text-gray-900">Attendance recorded</p>
+                <p className="text-xs text-gray-500">No further action is needed for today.</p>
               </div>
             )}
-
           </div>
 
-          {/* Footer */}
+          {/* Footer hint */}
           <div className="border-t border-gray-100 px-5 py-3 text-center">
-            <p className="text-[10px] text-gray-400">
+            <p className="text-xs text-gray-400">
               {todayHoliday && todayStatus === "Not Marked"
                 ? todayHoliday === "Sunday" ? "Sunday is a weekly holiday" : `Holiday: ${todayHoliday}`
                 : adminOverridden
-                ? "Attendance updated by admin — contact admin to dispute"
+                ? "Updated by admin — contact admin to dispute"
                 : !todayLoaded || todayStatus === "Not Marked"
-                ? "Attendance is locked to today's date"
+                ? "Attendance can only be marked for today"
                 : shiftOpen
-                ? "Close shift when you leave for the day"
-                : "Attendance locked for today"}
+                ? "Close your shift when you leave for the day"
+                : "Attendance is locked for today"}
             </p>
           </div>
         </div>
 
       </div>
 
-      {/* ── Appreciation Dialog ── */}
+      {/* ── Appreciation dialog ── */}
       {appreciationMsg && (
         <>
           <style>{`
@@ -633,22 +666,17 @@ export default function MarkAttendancePage() {
 
           {/* Overlay — click outside to close */}
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm px-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-6 backdrop-blur-sm"
             onClick={() => setAppreciationMsg(null)}
           >
-            {/* Card — stop click propagation so clicking inside doesn't close */}
             <div
               className="w-full max-w-md rounded-2xl bg-white shadow-2xl"
               style={{ animation: "dialogIn 0.3s ease forwards" }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Logo */}
-              <div className="flex justify-center border-b border-gray-100 bg-gradient-to-b from-brand-navy/5 to-transparent px-8 py-7">
-                <img
-                  src="/companylogo.png"
-                  alt="Canaan"
-                  className="h-14 w-auto object-contain"
-                />
+              <div className="flex justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50/60 to-transparent px-8 py-7">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/companylogo.png" alt="Canaan" className="h-14 w-auto object-contain" />
               </div>
 
               {/* Message — split at first ". " into two animated lines */}
@@ -660,7 +688,7 @@ export default function MarkAttendancePage() {
                   const line2Offset = line1.length * 36 + 300;
                   return (
                     <div className="flex flex-col gap-3">
-                      <p className="text-[17px] font-semibold leading-relaxed text-gray-800">
+                      <p className="text-[17px] font-medium leading-relaxed text-gray-800">
                         {line1.split("").map((char, i) => (
                           <span key={i} style={{ opacity: 0, animation: "fadeChar 0.22s ease forwards", animationDelay: `${i * 36}ms` }}>
                             {char}
@@ -668,7 +696,7 @@ export default function MarkAttendancePage() {
                         ))}
                       </p>
                       {line2 && (
-                        <p className="text-[15px] font-medium leading-relaxed text-gray-500">
+                        <p className="text-[15px] leading-relaxed text-gray-500">
                           {line2.split("").map((char, i) => (
                             <span key={i} style={{ opacity: 0, animation: "fadeChar 0.22s ease forwards", animationDelay: `${line2Offset + i * 36}ms` }}>
                               {char}
@@ -685,10 +713,7 @@ export default function MarkAttendancePage() {
               <div className="mx-8 mb-6 h-0.5 overflow-hidden rounded-full bg-gray-100">
                 <div
                   className="h-full rounded-full bg-brand-gold"
-                  style={{
-                    transformOrigin: "left",
-                    animation: "drainBar 6s linear forwards",
-                  }}
+                  style={{ transformOrigin: "left", animation: "drainBar 6s linear forwards" }}
                 />
               </div>
             </div>

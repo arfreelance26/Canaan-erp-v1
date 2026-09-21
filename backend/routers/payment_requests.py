@@ -30,9 +30,10 @@ extension of it:
   app (see main.py's FINANCE dependency group).
 """
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -40,6 +41,7 @@ import models
 import schemas
 from chat_crypto import MAX_ATTACHMENT_BYTES, ChatCryptoError, decrypt_bytes, encrypt_bytes, safe_decrypt
 from database import get_db
+from excel_utils import build_excel_response
 from routers.chat import _post_system_message, _sniff_image_mime
 from security import TokenUser, get_current_user
 
@@ -111,6 +113,89 @@ def list_payment_requests(
         .all()
     )
     return [_to_out(m) for m in msgs]
+
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _ist(dt: Optional[datetime]) -> Optional[datetime]:
+    """Stored timestamps are UTC (naive or aware); shown to users in IST."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_IST)
+
+
+def _fmt_ist(dt: Optional[datetime]) -> str:
+    local = _ist(dt)
+    return local.strftime("%d-%m-%Y %I:%M %p") if local else ""
+
+
+@router.get("/export")
+def export_payment_requests(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the requested date, IST)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the requested date, IST)"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Excel export of the same rows the Payment Requests page lists. Lives on
+    this router (not routers/exports.py) on purpose: it inherits this router's
+    Accounts/Admin-only gate, and it only ever emits the fields the page itself
+    shows — never the surrounding chat conversation or the proof image."""
+    msgs = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.content_type == "payment",
+            models.ChatMessage.payment_status.in_(["approved", "rejected"]),
+            models.ChatMessage.deleted_at.is_(None),
+        )
+        .order_by(models.ChatMessage.payment_decided_at.desc())
+        .all()
+    )
+
+    headers = [
+        "Description", "Amount", "Requested By", "Requested At",
+        "Peer Decision By", "Peer Decision At", "Status", "Rejected By",
+        "Accounts Decision By", "Accounts Decision At",
+        "Paid By", "Paid At", "Proof Attached",
+    ]
+    rows = []
+    for msg in msgs:
+        asked = _ist(msg.created_at)
+        if asked is not None:
+            day = asked.date().isoformat()
+            if from_date and day < from_date:
+                continue
+            if to_date and day > to_date:
+                continue
+        elif from_date or to_date:
+            continue
+
+        out = _to_out(msg)
+        if msg.payment_status == "rejected":
+            status, rejected_by = "Rejected", "Peer"
+        elif msg.finance_status == "rejected":
+            status, rejected_by = "Rejected", "Accounts"
+        elif msg.finance_status == "paid":
+            status, rejected_by = "Paid", ""
+        elif msg.finance_status == "approved":
+            status, rejected_by = "Unpaid", ""
+        else:
+            status, rejected_by = "Pending", ""
+        try:
+            amount: object = float(out.amount)
+        except (TypeError, ValueError):
+            amount = out.amount
+        rows.append([
+            out.description, amount, out.asked_by_name or "", _fmt_ist(out.asked_at),
+            out.approved_by_name or "", _fmt_ist(out.approved_at), status, rejected_by,
+            out.finance_decided_by_name or "", _fmt_ist(out.finance_decided_at),
+            out.paid_by_name or "", _fmt_ist(out.paid_at), "Yes" if out.has_proof else "No",
+        ])
+
+    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
+    return build_excel_response([("Payment Requests", headers, rows)], f"payment_requests{suffix}.xlsx")
 
 
 @router.post("/{message_id}/decision", response_model=schemas.PaymentRequestOut)

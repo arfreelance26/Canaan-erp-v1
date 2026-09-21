@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, CheckCircle2, Search, AlertTriangle } from "lucide-react";
+import { Plus, CheckCircle2, AlertTriangle } from "lucide-react";
 import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog, DRAFT_KEY as EMI_DRAFT_KEY } from "@/components/finance/EmiFormDialog";
 import { ViewEmiRecordDialog } from "@/components/finance/ViewEmiRecordDialog";
@@ -16,6 +16,8 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { isEmiCompleted, isEmiOverdue } from "@/lib/emi-schedule";
 
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -27,6 +29,8 @@ function formatCurrency(amount: number): string {
 export default function EmiTrackingPage() {
   const [records, setRecords] = useState<EmiRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EmiRecord | null>(null);
@@ -136,33 +140,35 @@ export default function EmiTrackingPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">EMI Tracking</h1>
           <p className="mt-1 text-sm text-gray-500">
             Track loan EMIs for trucks and other financed assets
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search EMIs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-64 rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <DownloadExcelButton path="/exports/emi" filename="emi_records.xlsx" />
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Add EMI Entry
-          </button>
+        <button
+          type="button"
+          onClick={handleAdd}
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+        >
+          <Plus className="h-4 w-4" />
+          Add EMI Entry
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search EMIs..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/emi"
+            filename="emi_records.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
         </div>
       </div>
 

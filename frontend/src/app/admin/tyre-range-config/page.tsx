@@ -56,7 +56,7 @@ function AddTyreTypeDialog({
             </div>
             <h2 className="text-sm font-bold text-gray-900">Add Tyre Type</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -93,10 +93,10 @@ function AddTyreTypeDialog({
           </div>
 
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            <button type="button" onClick={onClose} className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md">
               Cancel
             </button>
-            <button type="button" onClick={handleSubmit} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+            <button type="button" onClick={handleSubmit} className="flex h-10 items-center whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50">
               Add
             </button>
           </div>
@@ -220,7 +220,7 @@ export default function TyreRangeConfigPage() {
           <button
             type="button"
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+            className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Tyre Type
@@ -315,7 +315,7 @@ export default function TyreRangeConfigPage() {
                       type="button"
                       title="Confirm"
                       onClick={() => handleDelete(tyreType)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-600 transition-all duration-200 hover:scale-110 hover:bg-red-200"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
@@ -323,7 +323,7 @@ export default function TyreRangeConfigPage() {
                       type="button"
                       title="Cancel"
                       onClick={() => setConfirmDelete(null)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all duration-200 hover:scale-110 hover:bg-gray-200"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -333,7 +333,7 @@ export default function TyreRangeConfigPage() {
                     type="button"
                     title="Delete tyre type"
                     onClick={() => setConfirmDelete(tyreType)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-500 hover:bg-red-100 hover:border-red-300 transition-colors"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-500 transition-all duration-200 hover:scale-110 hover:border-red-300 hover:bg-red-100"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

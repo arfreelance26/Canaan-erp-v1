@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, GitBranch, Search } from "lucide-react";
+import { Plus, GitBranch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { BranchTable } from "@/components/branches/BranchTable";
@@ -13,6 +13,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 export default function BranchesPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
@@ -95,26 +96,21 @@ export default function BranchesPage() {
             Configure company branches and their driver halt day rates
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search branches..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <DownloadExcelButton path="/exports/branches" filename="branches.xlsx" />
           <button
             type="button"
             onClick={handleAdd}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Branch
           </button>
+      </div>
+
+      {/* Toolbar: search on the left, View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search branches..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto">
+          <DownloadExcelButton path="/exports/branches" filename="branches.xlsx" />
         </div>
       </div>
 

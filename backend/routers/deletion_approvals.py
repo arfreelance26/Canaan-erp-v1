@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
+from excel_utils import build_excel_response
 from security import get_current_user, TokenUser, require_roles
 import models, schemas
 from websocket_manager import emit
@@ -47,6 +49,99 @@ def list_deletion_approvals(
     if resource_type:
         q = q.filter(models.DeletionApprovalRequest.resource_type == resource_type)
     return q.all()
+
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _to_ist(dt: Optional[datetime]) -> Optional[datetime]:
+    """Stored timestamps are UTC (naive or aware); exports show IST."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_IST)
+
+
+def _fmt_ist(dt: Optional[datetime]) -> str:
+    local = _to_ist(dt)
+    return local.strftime("%d-%m-%Y %I:%M %p") if local else ""
+
+
+@router.get("/export")
+def export_deletion_approvals(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the requested date, IST)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the requested date, IST)"),
+    db: Session = Depends(get_db),
+):
+    """Excel export of the Deletion Approvals list (every status). Same audience
+    as the list endpoint above; the record snapshot (log_details) is left out."""
+    reqs = db.query(models.DeletionApprovalRequest).order_by(models.DeletionApprovalRequest.created_at.desc()).all()
+    headers = [
+        "Resource Type", "Resource", "Reason", "Requested By", "Requested At",
+        "Status", "Decided By", "Decided At", "Admin Note",
+    ]
+    rows = []
+    for r in reqs:
+        asked = _to_ist(r.created_at)
+        if asked is not None:
+            day = asked.date().isoformat()
+            if from_date and day < from_date:
+                continue
+            if to_date and day > to_date:
+                continue
+        elif from_date or to_date:
+            continue
+        rows.append([
+            r.resource_type, r.resource_name, r.reason, r.requested_by_name, _fmt_ist(r.created_at),
+            r.status, r.approved_by_name or "", _fmt_ist(r.approved_at), r.admin_note or "",
+        ])
+    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
+    return build_excel_response([("Deletion Approvals", headers, rows)], f"deletion_approvals{suffix}.xlsx")
+
+
+@router.get("/archive-export", dependencies=[Depends(require_roles())])
+def export_archive(
+    resource_type: Optional[str] = Query(None, description="Driver, Truck, Staff, Customer or Vendor; omit for all"),
+    db: Session = Depends(get_db),
+):
+    """Admin only: Excel export of the Archive page. Mirrors the page: the latest
+    Approved deletion request per resource that is still soft-deleted (restored
+    resources are excluded)."""
+    models_by_type = {
+        "Driver": models.Driver, "Truck": models.Truck, "Staff": models.Staff,
+        "Customer": models.Customer, "Vendor": models.Vendor,
+    }
+    if resource_type and resource_type not in models_by_type:
+        raise HTTPException(400, "Invalid resource_type.")
+    kinds = [resource_type] if resource_type else list(models_by_type)
+    latest = {}
+    for kind in kinds:
+        model = models_by_type[kind]
+        still_deleted = {i for (i,) in db.query(model.id).filter(model.deleted_at.isnot(None)).all()}
+        reqs = (
+            db.query(models.DeletionApprovalRequest)
+            .filter(
+                models.DeletionApprovalRequest.status == "Approved",
+                models.DeletionApprovalRequest.resource_type == kind,
+            )
+            .all()
+        )
+        for r in reqs:
+            if r.resource_id not in still_deleted:
+                continue
+            key = (kind, r.resource_id)
+            cur = latest.get(key)
+            if cur is None or (r.approved_at or datetime.min) > (cur.approved_at or datetime.min):
+                latest[key] = r
+    ordered = sorted(latest.items(), key=lambda kv: kv[1].approved_at or datetime.min, reverse=True)
+    headers = ["Type", "Name", "Deleted By", "Reason", "Approved By", "Deletion Date", "Admin Note"]
+    rows = [
+        [kind, r.resource_name, r.requested_by_name, r.reason, r.approved_by_name or "", _fmt_ist(r.approved_at), r.admin_note or ""]
+        for (kind, _), r in ordered
+    ]
+    suffix = f"_{resource_type.lower()}" if resource_type else ""
+    return build_excel_response([("Archive", headers, rows)], f"archive{suffix}.xlsx")
 
 
 @router.put("/{req_id}/approve", response_model=schemas.DeletionApprovalRequestOut, dependencies=[Depends(require_roles())])

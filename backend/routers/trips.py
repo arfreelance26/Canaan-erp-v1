@@ -1,7 +1,7 @@
 import re
 import json
 from decimal import Decimal
-from datetime import date as date_type, datetime, timezone
+from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from database import get_db
 from security import require_roles, get_current_user, TokenUser
 import models, schemas
 from duplicate_checks import check_trip_duplicates
+from excel_utils import build_excel_response
 from websocket_manager import emit
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
@@ -542,6 +543,59 @@ def list_deleted_trip_ids(db: Session = Depends(get_db)):
     """
     rows = db.query(models.Trip.id).filter(models.Trip.deleted_at.isnot(None)).all()
     return [i for (i,) in rows]
+
+
+@router.get("/deleted-export", dependencies=[Depends(require_roles())])
+def export_deleted_trips(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the deletion date, IST)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the deletion date, IST)"),
+    db: Session = Depends(get_db),
+):
+    """Admin only: Excel export of exactly what the "Deleted Trips" page lists —
+    the latest approved deletion request for each trip that is *still* deleted
+    (a trip that was since restored has no row here)."""
+    ist = timezone(timedelta(hours=5, minutes=30))
+
+    def to_ist(dt):
+        if dt is None:
+            return None
+        return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).astimezone(ist)
+
+    still_deleted = {i for (i,) in db.query(models.Trip.id).filter(models.Trip.deleted_at.isnot(None)).all()}
+    approved = (
+        db.query(models.DeletionApprovalRequest)
+        .filter(
+            models.DeletionApprovalRequest.resource_type == "Trip",
+            models.DeletionApprovalRequest.status == "Approved",
+        )
+        .all()
+    )
+    latest: dict = {}
+    for r in approved:
+        if r.resource_id not in still_deleted:
+            continue
+        prev = latest.get(r.resource_id)
+        if prev is None or (r.approved_at or datetime.min) > (prev.approved_at or datetime.min):
+            latest[r.resource_id] = r
+
+    headers = ["Trip", "Requested By", "Reason", "Approved By", "Deleted At", "Admin Note"]
+    rows = []
+    for r in sorted(latest.values(), key=lambda x: x.approved_at or datetime.min, reverse=True):
+        when = to_ist(r.approved_at)
+        if when is not None:
+            day = when.date().isoformat()
+            if from_date and day < from_date:
+                continue
+            if to_date and day > to_date:
+                continue
+        elif from_date or to_date:
+            continue
+        rows.append([
+            r.resource_name, r.requested_by_name, r.reason, r.approved_by_name or "",
+            when.strftime("%d-%m-%Y %I:%M %p") if when else "", r.admin_note or "",
+        ])
+    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
+    return build_excel_response([("Deleted Trips", headers, rows)], f"deleted_trips{suffix}.xlsx")
 
 
 @router.get("/{trip_id}", response_model=schemas.TripOut)

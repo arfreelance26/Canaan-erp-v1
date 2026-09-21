@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Inbox, ClipboardList, CheckCircle2, FileBarChart2, Download, Loader2, X } from "lucide-react";
+import { CheckCircle2, Eye, FileBarChart2, Download, Loader2, X } from "lucide-react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { showError } from "@/lib/swal";
 import type { Trip } from "@/types/trip";
 
@@ -38,16 +38,12 @@ function fmtDate(d?: string | null) {
 
 function TripRow({ trip }: { trip: Trip }) {
   return (
-    <li className="flex items-center gap-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold text-gray-900">{trip.tripId}</p>
-        <p className="truncate text-[11px] text-gray-500">
-          {trip.origin} → {trip.destination}
-        </p>
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="text-[11px] text-gray-400">{trip.bookingReferenceNo}</p>
-      </div>
+    <li className="flex items-center gap-4 py-2.5">
+      <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
+      <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
+        {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+      </p>
+      <p className="shrink-0 text-[11px] tabular-nums text-gray-400">{trip.bookingReferenceNo}</p>
     </li>
   );
 }
@@ -225,48 +221,43 @@ export function StaffDashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Pending Receive */}
-        <Card className="border-amber-200">
+        <Card>
           <CardContent className="p-5">
-            <div className="mb-4 flex items-center gap-1.5">
-              <div className="flex items-center gap-2 mr-auto shrink-0">
-                <Inbox className="h-4 w-4 text-amber-500" />
-                <h2 className="text-sm font-semibold text-gray-700">Pending Receive</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold text-gray-800">Pending Receive</h2>
                 {!loading && pendingReceive.length > 0 && (
-                  <Badge variant="warning">{pendingReceive.length}</Badge>
+                  <span className="rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[11px] font-bold tabular-nums">{pendingReceive.length}</span>
                 )}
               </div>
-              <div className="w-[120px] shrink-0">
-                <DatePickerInput value={receiveFrom} onChange={setReceiveFrom} />
+              <div className="flex items-center gap-2">
+                <DateRangePill from={receiveFrom} to={receiveTo} onFromChange={setReceiveFrom} onToChange={setReceiveTo} />
+                <button
+                  type="button"
+                  onClick={() => setViewModal("receive")}
+                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                >
+                  <Eye className="h-4 w-4" />
+                  View
+                </button>
               </div>
-              <span className="text-xs text-gray-400 shrink-0">to</span>
-              <div className="w-[120px] shrink-0">
-                <DatePickerInput value={receiveTo} onChange={setReceiveTo} />
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewModal("receive")}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100"
-              >
-                <FileBarChart2 className="h-3.5 w-3.5" />
-                View
-              </button>
             </div>
             {loading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
               </div>
             ) : pendingReceive.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
                 <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-emerald-700">All sheets received</p>
+                <p className="text-sm font-medium text-gray-600">All sheets received</p>
               </div>
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
+              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
                 {pendingReceive.map((trip) => <TripRow key={trip.id} trip={trip} />)}
               </ul>
             )}
-            <div className="mt-4 border-t border-gray-100 pt-3">
-              <Link href="/trips/reconciliation" className="text-xs font-medium text-amber-600 hover:underline">
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <Link href="/trips/reconciliation" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
                 Go to Reconciliation →
               </Link>
             </div>
@@ -274,48 +265,43 @@ export function StaffDashboard() {
         </Card>
 
         {/* Pending Entry */}
-        <Card className="border-blue-200">
+        <Card>
           <CardContent className="p-5">
-            <div className="mb-4 flex items-center gap-1.5">
-              <div className="flex items-center gap-2 mr-auto shrink-0">
-                <ClipboardList className="h-4 w-4 text-blue-500" />
-                <h2 className="text-sm font-semibold text-gray-700">Pending Entry</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold text-gray-800">Pending Entry</h2>
                 {!loading && pendingEntry.length > 0 && (
-                  <Badge variant="active">{pendingEntry.length}</Badge>
+                  <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5 text-[11px] font-bold tabular-nums">{pendingEntry.length}</span>
                 )}
               </div>
-              <div className="w-[120px] shrink-0">
-                <DatePickerInput value={entryFrom} onChange={setEntryFrom} />
+              <div className="flex items-center gap-2">
+                <DateRangePill from={entryFrom} to={entryTo} onFromChange={setEntryFrom} onToChange={setEntryTo} />
+                <button
+                  type="button"
+                  onClick={() => setViewModal("entry")}
+                  className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+                >
+                  <Eye className="h-4 w-4" />
+                  View
+                </button>
               </div>
-              <span className="text-xs text-gray-400 shrink-0">to</span>
-              <div className="w-[120px] shrink-0">
-                <DatePickerInput value={entryTo} onChange={setEntryTo} />
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewModal("entry")}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-              >
-                <FileBarChart2 className="h-3.5 w-3.5" />
-                View
-              </button>
             </div>
             {loading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
               </div>
             ) : pendingEntry.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
                 <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm font-medium text-emerald-700">All sheets entered</p>
+                <p className="text-sm font-medium text-gray-600">All sheets entered</p>
               </div>
             ) : (
-              <ul className="max-h-72 divide-y divide-gray-50 overflow-y-auto">
+              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
                 {pendingEntry.map((trip) => <TripRow key={trip.id} trip={trip} />)}
               </ul>
             )}
-            <div className="mt-4 border-t border-gray-100 pt-3">
-              <Link href="/trips/reconciliation" className="text-xs font-medium text-blue-600 hover:underline">
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <Link href="/trips/reconciliation" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
                 Go to Reconciliation →
               </Link>
             </div>

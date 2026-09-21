@@ -8,8 +8,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
 import type { Customer } from "@/types/customer";
-
-const ACTIVE_STATUSES = new Set(["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+import { ACTIVE_TRIP_STATUSES, getStageLabel } from "@/lib/trip-stage";
 
 // Pipeline order, used both for the summary pills and to color each row's badge.
 const STAGE_ORDER = [
@@ -31,34 +30,20 @@ const STAGE_CLASSES: Record<string, string> = {
   "Ready to Invoice":        "bg-emerald-100 text-emerald-700",
 };
 
-// Once a trip physically finishes ("Completed"), it still has a whole paper
-// trail to clear before it's actually done — booking sheet closed, trip sheet
-// delivered, received, entered, then verified — before it's invoiced or
-// waived. The card tracks it through every one of those stages and only
-// drops it once invoiced/waived.
-//
-// hasClosure is checked BEFORE hasSheet/tripSheetReceived: a trip with no
-// booking-sheet closure at all was previously falling straight into "Pending
-// Sheet Delivery" alongside trips that DO have a closure and are genuinely
-// just waiting on the trip sheet — inflating that bucket by exactly the
-// count of closure-less trips. Those two are different stages.
-//
-// hasSheet is then checked ahead of the collected/received checkboxes: a
-// trip sheet entered directly (e.g. by Admin/Accounts, bypassing the Yard
-// Supervisor "collected" -> Trip Sheet Register "received" workflow) can
-// have real sheet data with tripSheetReceived still false.
-function getStageLabel(trip: Trip): string {
-  if (trip.status === "Assigned") return "Assigned";
-  if (trip.status === "Completed") {
-    if (!trip.hasClosure) return "Completed"; // physically done, booking sheet not closed yet
-    if (trip.hasSheet) {
-      return trip.verificationStatus !== "verified" ? "Pending Verification" : "Ready to Invoice";
-    }
-    return trip.tripSheetReceived ? "Pending Sheet Entry" : "Pending Sheet Delivery";
-  }
-  // Started / Loaded / On-Transit / Reached / Unloaded — in-transit movement.
-  return trip.status ?? "—";
-}
+// Selected state: the soft tint above turns into a solid fill.
+const STAGE_ACTIVE_CLASSES: Record<string, string> = {
+  "Assigned":                "bg-sky-600 text-white",
+  "Started":                 "bg-violet-600 text-white",
+  "Loaded":                  "bg-violet-600 text-white",
+  "On-Transit":              "bg-violet-600 text-white",
+  "Reached":                 "bg-violet-600 text-white",
+  "Unloaded":                "bg-violet-600 text-white",
+  "Completed":               "bg-teal-600 text-white",
+  "Pending Sheet Delivery":  "bg-amber-500 text-white",
+  "Pending Sheet Entry":     "bg-orange-500 text-white",
+  "Pending Verification":    "bg-fuchsia-600 text-white",
+  "Ready to Invoice":        "bg-emerald-600 text-white",
+};
 
 function fmtHire(v?: string | null): string {
   const n = v ? Number(v) : 0;
@@ -117,7 +102,7 @@ export function CurrentTripsCard() {
     tripsApi.list()
       .then((all) => setTrips(all.filter((t) => {
         if (t.isInvoiced || t.invoiceWaived) return false; // done — drop off the card
-        return ACTIVE_STATUSES.has(t.status ?? "") || t.status === "Completed";
+        return ACTIVE_TRIP_STATUSES.has(t.status ?? "") || t.status === "Completed";
       })))
       .catch(() => {});
   }, [refreshKey]);
@@ -204,16 +189,18 @@ export function CurrentTripsCard() {
   const newCount = newTripIds.size;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-blue-200 bg-white shadow-sm">
+    <div className="dk-inset overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
       {/* Card header */}
-      <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50/60 px-5 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <Navigation className="h-4 w-4 text-blue-600" />
-          <h2 className="text-sm font-bold text-blue-900">Current Trips</h2>
+      <div className="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-blue-50/70 via-white to-white px-5 py-3.5">
+        <div className="flex items-center gap-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+            <Navigation className="h-3.5 w-3.5" />
+          </span>
+          <h2 className="text-sm font-bold text-gray-900">Current Trips</h2>
           {/* Live indicator */}
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -222,34 +209,40 @@ export function CurrentTripsCard() {
               {newCount} new
             </span>
           )}
-          <span className="rounded-full bg-blue-100 px-3 py-0.5 text-xs font-bold text-blue-700">
-            {trips.length} {trips.length === 1 ? "trip" : "trips"}
+          <span className="rounded-full bg-gray-100 px-3 py-0.5 text-xs font-semibold text-gray-600">
+            <span className="font-bold text-gray-900">{trips.length}</span> {trips.length === 1 ? "trip" : "trips"}
           </span>
-          {/* Trip ID search */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-blue-400" />
+          {/* Trip ID search — collapsed icon that expands on hover / focus */}
+          <label
+            className={`group flex h-7 cursor-text items-center overflow-hidden rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm transition-all duration-300 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 hover:border-gray-300 ${
+              tripSearch ? "w-56" : "w-7 hover:w-56 focus-within:w-56"
+            }`}
+          >
+            <Search className="ml-[7px] h-3.5 w-3.5 shrink-0" />
             <input
               type="text"
               value={tripSearch}
               onChange={(e) => setTripSearch(e.target.value)}
               placeholder="Trip ID, Truck, Driver, From/To…"
-              className="h-6 w-48 rounded-full border border-blue-200 bg-blue-50 pl-6 pr-5 text-[11px] text-blue-800 placeholder:text-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="ml-2 min-w-0 flex-1 bg-transparent pr-2 text-[11px] text-gray-700 outline-none placeholder:text-gray-400"
             />
             {tripSearch && (
               <button
-                onClick={() => setTripSearch("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-blue-400 hover:text-blue-600"
+                type="button"
+                onClick={(e) => { e.preventDefault(); setTripSearch(""); }}
+                className="mr-2 shrink-0 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
               >
                 <X className="h-3 w-3" />
               </button>
             )}
-          </div>
+          </label>
         </div>
       </div>
 
       {/* Stage summary pills — click to filter, click again to clear */}
       {trips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-blue-100 bg-white px-5 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-gray-100 bg-white px-5 py-2.5">
           {STAGE_ORDER.filter((label) => (stageCounts.get(label) ?? 0) > 0).map((label) => {
             const count = stageCounts.get(label) ?? 0;
             const active = stageFilter === label;
@@ -258,12 +251,21 @@ export function CurrentTripsCard() {
                 key={label}
                 type="button"
                 onClick={() => setStageFilter((prev) => (prev === label ? null : label))}
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide transition-all ${STAGE_CLASSES[label] ?? "bg-gray-100 text-gray-600"} ${
-                  active ? "ring-2 ring-offset-1 ring-current" : "hover:opacity-80"
+                aria-pressed={active}
+                className={`inline-flex items-center gap-1.5 rounded-full py-0.5 pl-2.5 pr-0.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-200 ${
+                  active
+                    ? `${STAGE_ACTIVE_CLASSES[label] ?? "bg-gray-700 text-white"} shadow-sm`
+                    : `${STAGE_CLASSES[label] ?? "bg-gray-100 text-gray-600"} hover:brightness-95`
                 }`}
               >
                 {label}
-                <span className="rounded-full bg-white/70 px-1.5 py-0 text-[10px] font-extrabold">{count}</span>
+                <span
+                  className={`min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-extrabold tabular-nums ${
+                    active ? "bg-white/25 text-white" : "bg-white/80"
+                  }`}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -271,8 +273,9 @@ export function CurrentTripsCard() {
             <button
               type="button"
               onClick={() => setStageFilter(null)}
-              className="ml-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-500 hover:bg-gray-50"
+              className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
+              <X className="h-3 w-3" />
               Clear
             </button>
           )}
@@ -312,58 +315,61 @@ export function CurrentTripsCard() {
               <div
                 key={trip.id}
                 className={`grid ${gridCols} items-center gap-x-3 px-5 py-2.5 text-xs transition-colors ${
-                  isNew
-                    ? "border-l-4 border-l-blue-500 bg-blue-50"
-                    : "border-l-4 border-l-transparent hover:bg-gray-50"
+                  isNew ? "bg-blue-50/70" : "hover:bg-gray-50/80"
                 }`}
               >
                 {/* Trip ID */}
-                <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] text-indigo-600">
+                <span className="flex min-w-0 items-center gap-1.5">
                   {isNew && (
                     <span className="shrink-0 rounded-full bg-blue-500 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
                       New
                     </span>
                   )}
-                  <span className="truncate">{trip.tripId || "—"}</span>
+                  <span className="truncate rounded-md bg-indigo-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-indigo-600">
+                    {trip.tripId || "—"}
+                  </span>
                 </span>
 
-                {/* Customer Account — Admin / Commercial Manager only */}
+                {/* Customer Account */}
                 {canSeeCustomer && (
-                  <span className="truncate text-gray-700">{customerById.get(trip.customerId)?.name ?? "—"}</span>
+                  <span className="truncate font-medium text-gray-800" title={customerById.get(trip.customerId)?.name ?? ""}>
+                    {customerById.get(trip.customerId)?.name ?? "—"}
+                  </span>
                 )}
 
                 {/* Origin */}
                 <span className="truncate font-medium text-gray-800">{trip.origin || "—"}</span>
 
                 {/* Destination */}
-                <div className="flex min-w-0 items-center gap-1">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <ArrowRight className="h-3 w-3 shrink-0 text-gray-300" />
                   <span className="truncate text-gray-600">{trip.destination || "—"}</span>
                 </div>
 
                 {/* Driver name */}
-                <span className="truncate text-sm font-medium text-gray-700">{trip.driverName ?? "—"}</span>
+                <span className="truncate font-medium text-gray-800" title={trip.driverName ?? ""}>{trip.driverName ?? "—"}</span>
 
                 {/* Truck registration */}
-                <span className="shrink-0 font-mono text-[11px] text-gray-600">
+                <span className="w-fit shrink-0 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-medium text-gray-600">
                   {trip.truckRegistration ?? "—"}
                 </span>
 
                 {/* Hire amount — Admin/Accounts only */}
                 {canSeeHire && (
-                  <span className="shrink-0 text-right text-[11px] font-semibold text-blue-700">
+                  <span className="shrink-0 text-right text-xs font-semibold tabular-nums text-gray-900">
                     {fmtHire(trip.transportHireAmount)}
                   </span>
                 )}
 
                 {/* Booking created date */}
-                <span className="shrink-0 text-right text-[11px] text-gray-400">
+                <span className="shrink-0 text-right text-[11px] tabular-nums text-gray-500">
                   {fmtDate(trip.bookingCreatedDate || trip.assignedDate)}
                 </span>
 
                 {/* Status badge */}
                 <span className="flex justify-end">
-                  <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${STAGE_CLASSES[stageLabel] ?? "bg-gray-100 text-gray-600"}`}>
+                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${STAGE_CLASSES[stageLabel] ?? "bg-gray-100 text-gray-600"}`}>
+                    <span className="h-1 w-1 rounded-full bg-current" />
                     {stageLabel}
                   </span>
                 </span>

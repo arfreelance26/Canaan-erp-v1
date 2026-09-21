@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from websocket_manager import emit
-from security import get_current_user, TokenUser
+from security import get_current_user, require_roles, TokenUser
 
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -583,20 +583,80 @@ def lookup_applicant(code: str, db: Session = Depends(get_db)):
         )
     raise HTTPException(404, "Applicant not found with the provided code")
 
+# Staff designations that map straight onto a leave category; anything else files as "Trip Sheet Register".
+_LEAVE_STAFF_CATEGORIES = {
+    "Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance",
+    "Trip Sheet Register", "Yard Supervisor", "Auditor",
+}
+
+
+def leave_mine_filter(query, user: TokenUser):
+    """Restrict a LeaveRequest query to the requests this user filed.
+
+    A request is "mine" when I submitted it. Rows created before `submitted_by`
+    existed have no submitter, so they count as mine when I'm the applicant —
+    but only for non-driver categories, because driver and staff ids share the
+    same number space and a driver with my id must not leak to me."""
+    from sqlalchemy import and_, false, or_
+
+    if user.id is None:  # built-in admin login has no staff record
+        return query.filter(false())
+    L = models.LeaveRequest
+    return query.filter(
+        or_(
+            L.submitted_by == user.id,
+            and_(L.submitted_by.is_(None), L.category != "Driver", L.applicant_id == user.id),
+        )
+    )
+
+
+def _leave_is_mine(request: models.LeaveRequest, user: TokenUser) -> bool:
+    if user.id is None:
+        return False
+    if request.submitted_by is not None:
+        return request.submitted_by == user.id
+    return request.category != "Driver" and request.applicant_id == user.id
+
+
 @router.get("/leave-requests", response_model=list[schemas.LeaveRequestOut])
 def list_leave_requests(
     status: Optional[str] = Query(None),
+    scope: Optional[str] = Query(None, pattern="^(mine|all)$", description="mine = only requests I filed. Non-admins always get 'mine'."),
     db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
 ):
+    """Admin sees every request (Leave Approvals, dashboard, notifications) unless
+    scope=mine; every other role only ever sees the requests they filed."""
     q = db.query(models.LeaveRequest)
+    if current_user.role != "Admin" or scope == "mine":
+        q = leave_mine_filter(q, current_user)
     if status:
         q = q.filter(models.LeaveRequest.status == status)
     return q.order_by(models.LeaveRequest.applied_at.desc()).all()
 
 
 @router.post("/leave-requests", response_model=schemas.LeaveRequestOut, status_code=201)
-def create_leave_request(payload: schemas.LeaveRequestCreate, db: Session = Depends(get_db)):
-    request = models.LeaveRequest(**payload.model_dump())
+def create_leave_request(
+    payload: schemas.LeaveRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    data = payload.model_dump()
+    if data["to_date"] < data["from_date"]:
+        raise HTTPException(400, "End date cannot be earlier than start date.")
+    if current_user.role != "Admin":
+        # Everyone else can only file leave for themselves — the applicant is taken
+        # from their own staff record, never from what the browser sent.
+        staff = db.get(models.Staff, current_user.id) if current_user.id is not None else None
+        if staff is None:
+            raise HTTPException(403, "Your login is not linked to a staff record, so you cannot file leave.")
+        data["applicant_id"] = staff.id
+        data["applicant_name"] = staff.name
+        data["applicant_code"] = staff.staff_id
+        data["category"] = (
+            staff.software_designation if staff.software_designation in _LEAVE_STAFF_CATEGORIES else "Trip Sheet Register"
+        )
+    request = models.LeaveRequest(**data, submitted_by=current_user.id)
     db.add(request)
     db.commit()
     db.refresh(request)
@@ -613,32 +673,44 @@ def create_leave_request(payload: schemas.LeaveRequestCreate, db: Session = Depe
 
 
 @router.get("/leave-requests/{request_id}", response_model=schemas.LeaveRequestOut)
-def get_leave_request(request_id: int, db: Session = Depends(get_db)):
+def get_leave_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    request = db.get(models.LeaveRequest, request_id)
+    # Someone else's request looks exactly like a missing one.
+    if not request or (current_user.role != "Admin" and not _leave_is_mine(request, current_user)):
+        raise HTTPException(404, "Leave request not found")
+    return request
+
+
+def _decide_leave(request_id: int, status: str, db: Session, user: TokenUser) -> models.LeaveRequest:
     request = db.get(models.LeaveRequest, request_id)
     if not request:
         raise HTTPException(404, "Leave request not found")
+    request.status = status
+    request.decided_at = datetime.now(timezone.utc)
+    request.decided_by_name = user.name
+    db.commit()
+    db.refresh(request)
+    emit("leave_request_updated", {"id": request.id, "status": status})
     return request
 
 
 @router.patch("/leave-requests/{request_id}/approve", response_model=schemas.LeaveRequestOut)
-def approve_leave(request_id: int, db: Session = Depends(get_db)):
-    request = db.get(models.LeaveRequest, request_id)
-    if not request:
-        raise HTTPException(404, "Leave request not found")
-    request.status = "Approved"
-    db.commit()
-    db.refresh(request)
-    emit("leave_request_updated", {"id": request.id, "status": "Approved"})
-    return request
+def approve_leave(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(require_roles()),  # Admin only
+):
+    return _decide_leave(request_id, "Approved", db, current_user)
 
 
 @router.patch("/leave-requests/{request_id}/reject", response_model=schemas.LeaveRequestOut)
-def reject_leave(request_id: int, db: Session = Depends(get_db)):
-    request = db.get(models.LeaveRequest, request_id)
-    if not request:
-        raise HTTPException(404, "Leave request not found")
-    request.status = "Rejected"
-    db.commit()
-    db.refresh(request)
-    emit("leave_request_updated", {"id": request.id, "status": "Rejected"})
-    return request
+def reject_leave(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(require_roles()),  # Admin only
+):
+    return _decide_leave(request_id, "Rejected", db, current_user)

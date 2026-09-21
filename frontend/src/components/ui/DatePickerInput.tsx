@@ -9,6 +9,10 @@ type Props = {
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Overrides the default "DD-MM-YYYY" placeholder. */
+  placeholder?: string;
+  /** date-fns display format; defaults to "dd-MM-yyyy". */
+  dateFormat?: string;
 };
 
 function toDate(iso: string): Date | null {
@@ -49,13 +53,13 @@ const TriggerInput = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTML
 );
 TriggerInput.displayName = "TriggerInput";
 
-export function DatePickerInput({ value, onChange, required, disabled }: Props) {
+export function DatePickerInput({ value, onChange, required, disabled, placeholder, dateFormat = "dd-MM-yyyy" }: Props) {
   return (
     <ReactDatePicker
       selected={toDate(value)}
       onChange={(date: Date | null) => onChange(date ? toISO(date) : "")}
-      dateFormat="dd-MM-yyyy"
-      placeholderText="DD-MM-YYYY"
+      dateFormat={dateFormat}
+      placeholderText={placeholder ?? "DD-MM-YYYY"}
       showMonthDropdown
       showYearDropdown
       dropdownMode="select"

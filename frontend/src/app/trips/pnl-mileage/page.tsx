@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  Search, TrendingUp, TrendingDown, Route, ChevronLeft, ChevronRight,
+  TrendingUp, TrendingDown, Route, ChevronLeft, ChevronRight,
   Compass, Calculator, X, FileText, Wallet, MousePointerClick, CalendarDays, FileSpreadsheet,
 } from "lucide-react";
 import { tripsApi } from "@/lib/api";
@@ -11,7 +11,8 @@ import { n } from "@/types/trip-sheet";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 
@@ -45,8 +46,8 @@ function ModalShell({ title, subtitle, icon, onClose, children }: {
               {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
             </div>
           </div>
-          <button type="button" onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors shrink-0">
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -268,17 +269,17 @@ export default function PnlMileagePage() {
             Profit / Loss breakdown for all completed trip sheets
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button" onClick={() => setShowQuickStart(true)}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
           >
             <Compass className="h-4 w-4" />
             Quick Start Guide
           </button>
           <button
             type="button" onClick={() => setShowHowCalculated(true)}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
           >
             <Calculator className="h-4 w-4" />
             How is it Calculated
@@ -286,69 +287,52 @@ export default function PnlMileagePage() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Trips</p>
-          <p className="text-2xl font-bold text-gray-900">{rows.length}</p>
-        </div>
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Total Hire</p>
-          <p className="text-xl font-bold text-blue-700">{fmt(totalHire)}</p>
-        </div>
-        <div className="flex flex-col gap-1 rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Net P&L</p>
-          <p className={`text-xl font-bold ${totalPnl >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-            {fmt(totalPnl)}
-          </p>
-        </div>
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[
+          { label: "Trips", value: String(rows.length), icon: Route, chip: "bg-blue-100 text-blue-600", text: "text-gray-900" },
+          { label: "Total Hire", value: fmt(totalHire), icon: Wallet, chip: "bg-sky-100 text-sky-600", text: "text-gray-900" },
+          { label: "Total Expense", value: fmt(totalExpense), icon: Calculator, chip: "bg-amber-100 text-amber-600", text: "text-gray-900" },
+          {
+            label: "Net P&L",
+            value: fmt(totalPnl),
+            icon: totalPnl >= 0 ? TrendingUp : TrendingDown,
+            chip: totalPnl >= 0 ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600",
+            text: totalPnl >= 0 ? "text-emerald-700" : "text-rose-700",
+          },
+        ].map(({ label, value, icon: Icon, chip, text }) => (
+          <div key={label} className="dk-inset flex items-center gap-3 rounded-2xl border border-gray-200/80 bg-white px-5 py-4 shadow-sm">
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${chip}`}>
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{label}</p>
+              <p className={`truncate text-xl font-bold tabular-nums ${text}`}>{value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* ── Sticky controls ── */}
-      <div className="sticky top-0 z-20 bg-white/95 px-6 py-3 shadow-sm backdrop-blur border-b rounded-xl border-gray-100">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by trip ID, vehicle, or route…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-          <div className="flex items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500">From</label>
-              <DatePickerInput
-                value={dateFrom}
-                onChange={setDateFrom}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500">To</label>
-              <DatePickerInput
-                value={dateTo}
-                onChange={setDateTo}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-gray-50"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+      {/* Toolbar: search on the left, date range on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trip ID, vehicle or route…" value={search} onChange={setSearch} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            >
+              <X className="h-4 w-4" />
+              Clear
+            </button>
+          )}
+          <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-auto max-h-[75vh] rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="dk-inset max-h-[75vh] overflow-auto rounded-2xl border border-gray-200/80 bg-white shadow-sm">
         {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-20 text-sm text-gray-400">
             <Route className="h-8 w-8 text-gray-300" />
@@ -391,7 +375,7 @@ export default function PnlMileagePage() {
                   <td className="whitespace-nowrap px-4 py-3 font-medium text-blue-700">{fmt(hire)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-gray-600">{fmt(expense)}</td>
                   <td className="whitespace-nowrap px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 font-bold ${pnl >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${pnl >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
                       {pnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                       {fmt(pnl)}
                     </span>
@@ -423,12 +407,13 @@ export default function PnlMileagePage() {
           <p className="text-sm text-gray-500">
             Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, rows.length)} of {rows.length} trips
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => p - 1)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous page"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-all duration-200 hover:scale-105 hover:border-blue-300 hover:text-blue-700 disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -447,10 +432,10 @@ export default function PnlMileagePage() {
                     key={p}
                     type="button"
                     onClick={() => setPage(p as number)}
-                    className={`inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 text-sm font-medium transition ${
+                    className={`inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-full border px-3 text-sm font-medium tabular-nums transition-all duration-200 ${
                       p === safePage
-                        ? "border-blue-600 bg-blue-600 text-white"
-                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                        ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-700"
                     }`}
                   >
                     {p}
@@ -461,7 +446,8 @@ export default function PnlMileagePage() {
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next page"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-all duration-200 hover:scale-105 hover:border-blue-300 hover:text-blue-700 disabled:pointer-events-none disabled:opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>

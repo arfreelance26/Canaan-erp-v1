@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, ShieldAlert, ShieldCheck, ShieldX, Clock, User } from "lucide-react";
+import { ShieldAlert, ShieldCheck, ShieldX, Clock, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { editApprovalsApi } from "@/lib/api";
 import type { EditApprovalRequest } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { showSuccess, showError, confirmDelete } from "@/lib/swal";
 import { Trash2 } from "lucide-react";
@@ -51,6 +54,8 @@ export default function EditApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterValue>("Pending");
   const [search, setSearch] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewing, setViewing] = useState<EditApprovalRequest | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -227,16 +232,20 @@ export default function EditApprovalsPage() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by staff name or resource"
-          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
-        />
+      {/* Toolbar: search on the left, export range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch value={search} onChange={setSearch} placeholder="Search by staff name or resource" />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/edit-approvals/export"
+            filename="edit_approvals.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
       </div>
 
       {/* Bulk delete bar */}

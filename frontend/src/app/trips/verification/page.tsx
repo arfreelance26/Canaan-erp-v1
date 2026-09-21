@@ -25,13 +25,14 @@ import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Clock, FileText, AlertTriangle, Download, FileBarChart2, X, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Download, Eye, X, Trash2 } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { todayIst } from "@/lib/format-date";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 type SheetDialogMode = "view" | "edit";
 
 type PreviewState = {
@@ -605,42 +606,24 @@ export default function TripVerificationPage() {
         <h1 className="text-2xl font-bold text-gray-900">Verification & Invoicing</h1>
         <p className="mt-1 text-sm text-gray-500">Verify trip data and generate invoices in one place</p>
       </div>
+      {/* Toolbar: search on the left, invoice-date range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by truck no., driver, trip ID…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-          />
+        <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div title="Invoice Date — scopes the View report to trips invoiced in this range">
+            <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowReportModal(true)}
+            title="View and download invoiced trips for selected date range"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Eye className="h-4 w-4" />
+            View
+          </button>
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Invoice Date:</span>
-          <DatePickerInput
-            value={dateFrom}
-            onChange={(v) => { setDateFrom(v); }}
-            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <DatePickerInput
-            value={dateTo}
-            onChange={(v) => { setDateTo(v); }}
-            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowReportModal(true)}
-          title="View and download invoiced trips for selected date range"
-          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
-        >
-          <FileBarChart2 className="h-4 w-4" />
-          View
-        </button>
       </div>
-
 
       {/* Filter cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
@@ -1157,7 +1140,13 @@ export default function TripVerificationPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-                <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
+                <DownloadExcelButton
+                  path="/exports/trips"
+                  filename="invoiced_trips.xlsx"
+                  direct
+                  params={{ is_invoiced: "true" }}
+                  className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                />
                 <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}

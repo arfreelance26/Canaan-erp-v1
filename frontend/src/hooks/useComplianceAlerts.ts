@@ -5,13 +5,13 @@ import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
 import type { Truck } from "@/types/truck";
 import { useNotifications } from "@/context/NotificationContext";
 
-type ComplianceCheck = {
+export type ComplianceCheck = {
   field: ComplianceField;
   label: string;
   dateKey: keyof Truck;
 };
 
-const CHECKS: ComplianceCheck[] = [
+export const COMPLIANCE_CHECKS: ComplianceCheck[] = [
   { field: "fc",            label: "Fitness Certificate (FC)",    dateKey: "fcExpiryDate" },
   { field: "nationalPermit", label: "National Permit",            dateKey: "nationalPermitDate" },
   { field: "localPermit",   label: "Local Permit",                dateKey: "localPermitDate" },
@@ -34,7 +34,7 @@ export function useComplianceAlerts(trucks: Truck[]) {
     const expiringSoon: ComplianceAlertItem[] = [];
 
     for (const truck of trucks) {
-      for (const { field, label, dateKey } of CHECKS) {
+      for (const { field, label, dateKey } of COMPLIANCE_CHECKS) {
         const date = truck[dateKey] as string | undefined;
         if (!date) continue;
         const status = getComplianceStatus(date, field);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
@@ -25,6 +25,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 
 const TABS = [
@@ -411,7 +412,6 @@ export default function CustomersPage() {
           <p className="mt-1 text-sm text-gray-500">Manage customer records, pricing, and destinations</p>
         </div>
         <div className="flex items-center gap-4">
-          <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" label="Download Excel (List, Destinations, Pricing)" />
           <div className="flex flex-col items-end rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
               {activeTab === "list" ? "Total Customers" : activeTab === "destinations" ? "Total Destinations" : activeTab === "pricing" ? "Total Pricing Rules" : "Final Pricing Entries"}
@@ -443,25 +443,20 @@ export default function CustomersPage() {
 
       {activeTab === "list" && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search customers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+          {/* Toolbar: search on the left, View + Add on the right */}
+          <div className="flex flex-wrap items-center gap-3">
+            <PillSearch placeholder="Search customers..." value={searchQuery} onChange={setSearchQuery} />
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+            <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
             <button
               type="button"
               onClick={handleAddCustomer}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Customer
             </button>
+          </div>
           </div>
 
           <CustomerTable customers={paginatedCustomers} onEdit={handleEditCustomer} onDelete={handleDeleteCustomer} />
@@ -490,25 +485,20 @@ export default function CustomersPage() {
 
       {activeTab === "pricing" && !loadingPricing && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search pricing..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+          {/* Toolbar: search on the left, View + Add on the right */}
+          <div className="flex flex-wrap items-center gap-3">
+            <PillSearch placeholder="Search pricing..." value={searchQuery} onChange={setSearchQuery} />
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+            <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
             <button
               type="button"
               onClick={handleAddPricing}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Pricing
             </button>
+          </div>
           </div>
 
           <CustomerPricingTable
@@ -545,25 +535,20 @@ export default function CustomersPage() {
 
       {activeTab === "destinations" && !loadingDestinations && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-between">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search destinations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              />
-            </div>
+          {/* Toolbar: search on the left, View + Add on the right */}
+          <div className="flex flex-wrap items-center gap-3">
+            <PillSearch placeholder="Search destinations..." value={searchQuery} onChange={setSearchQuery} />
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+            <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
             <button
               type="button"
               onClick={handleAddDestination}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               Add Destination
             </button>
+          </div>
           </div>
 
           <CustomerDestinationTable
@@ -599,18 +584,21 @@ export default function CustomersPage() {
 
       {activeTab === "finalPricing" && !loadingFinalPricing && (
         <div className="animate-stagger flex flex-col gap-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-3">
             <p className="text-sm text-gray-500">
               Accounts-adjusted hire amounts used for Driver Batta calculation.
             </p>
-            <button
-              type="button"
-              onClick={() => { setEditingFinalPricing(null); setFinalPricingDialogOpen(true); }}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              Add Final Pricing
-            </button>
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <DownloadExcelButton path="/exports/customers" filename="customers.xlsx" />
+              <button
+                type="button"
+                onClick={() => { setEditingFinalPricing(null); setFinalPricingDialogOpen(true); }}
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              >
+                <Plus className="h-4 w-4" />
+                Add Final Pricing
+              </button>
+            </div>
           </div>
 
           {finalPricing.length === 0 ? (

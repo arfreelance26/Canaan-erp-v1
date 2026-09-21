@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Wrench, Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Wrench, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { repairTypesApi } from "@/lib/api";
@@ -14,6 +14,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 export default function RepairsManagementPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function RepairsManagementPage() {
   const [form, setForm] = useState({ name: "", defaultCost: "" });
   const [searchQuery, setSearchQuery] = useState("");
 
-  const ALLOWED = ["Admin", "Commercial Manager", "Assistant Commercial Manager", "Yard Supervisor"];
+  const ALLOWED = ["Admin", "Commercial Manager", "Assistant Commercial Manager", "Yard Supervisor", "Trip Sheet Register"];
   useEffect(() => {
     if (ready && user && !ALLOWED.includes(user.softwareDesignation)) router.replace("/");
   }, [ready, user, router]);
@@ -96,26 +97,21 @@ export default function RepairsManagementPage() {
             Manage repair types — these appear as quick-select options when logging major repairs on a trip sheet.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search repairs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <DownloadExcelButton path="/exports/repair-types" filename="repair_types.xlsx" />
           <button
             type="button"
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
           >
             <Plus className="h-4 w-4" />
             Add Repair Type
           </button>
+      </div>
+
+      {/* Toolbar: search on the left, View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search repairs..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto">
+          <DownloadExcelButton path="/exports/repair-types" filename="repair_types.xlsx" />
         </div>
       </div>
 
@@ -149,14 +145,14 @@ export default function RepairsManagementPage() {
                     <button
                       type="button"
                       onClick={() => openEdit(rt)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:text-blue-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-blue-200 hover:text-blue-600"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(rt)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-red-200 hover:text-red-500"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-red-200 hover:text-red-500"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -202,13 +198,13 @@ export default function RepairsManagementPage() {
             <button
               type="button"
               onClick={() => setDialogOpen(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="flex h-10 items-center whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               {editing ? "Save Changes" : "Add Repair Type"}
             </button>

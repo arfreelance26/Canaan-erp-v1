@@ -1,7 +1,8 @@
 "use client";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 import { useEffect, useState } from "react";
-import { IndianRupee, Truck as TruckIcon, Search, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2 } from "lucide-react";
+import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2 } from "lucide-react";
 import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, adblueLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { Branch } from "@/types/branch";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
@@ -1098,7 +1099,7 @@ export default function TripProfitabilityCalculatorPage() {
       {showCalc  && <HowCalculatedModal  onClose={() => setShowCalc(false)}  />}
 
       {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Trip Profitability Calculator</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -1106,46 +1107,21 @@ export default function TripProfitabilityCalculatorPage() {
           </p>
         </div>
 
-        {/* Right controls — buttons + search */}
-        <div className="flex items-center gap-2 mt-1 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowGuide(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-          >
-            <BookOpen className="h-3 w-3" />
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+            <BookOpen className="h-4 w-4" />
             Quick Start Guide
           </button>
-          <button
-            type="button"
-            onClick={() => setShowCalc(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <HelpCircle className="h-3 w-3" />
+          <button type="button" onClick={() => setShowCalc(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
+            <HelpCircle className="h-4 w-4" />
             How is this Calculated?
           </button>
-
-        {/* Truck search */}
-        <div className="relative shrink-0">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search reg. no."
-            value={truckSearch}
-            onChange={(e) => setTruckSearch(e.target.value)}
-            className="w-40 rounded-xl border border-gray-200 bg-white py-1.5 pl-8 pr-7 text-xs text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition"
-          />
-          {truckSearch && (
-            <button
-              type="button"
-              onClick={() => setTruckSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
         </div>
-        </div>{/* end right controls */}
+      </div>
+
+      {/* Toolbar: truck search */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
       </div>
 
       {/* Main layout */}

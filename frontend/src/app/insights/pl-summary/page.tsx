@@ -8,11 +8,15 @@ import {
   Calculator, Compass, Route, FileText, Fuel, MousePointerClick, SlidersHorizontal,
 } from "lucide-react";
 import { plSummaryApi, runningCostApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { Segmented } from "@/components/ui/Segmented";
 import logoSrc from "@/app/companylogo.png";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
-function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+// Local calendar date — toISOString() is UTC and shifted IST midnights back a day.
+function toISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function thisMonth()    { const n = new Date(); return { start: toISO(new Date(n.getFullYear(), n.getMonth(), 1)), end: toISO(new Date(n.getFullYear(), n.getMonth() + 1, 0)) }; }
 function lastMonth()    { const n = new Date(); return { start: toISO(new Date(n.getFullYear(), n.getMonth() - 1, 1)), end: toISO(new Date(n.getFullYear(), n.getMonth(), 0)) }; }
 function lastNMonths(n: number) { const d = new Date(); return { start: toISO(new Date(d.getFullYear(), d.getMonth() - (n - 1), 1)), end: toISO(new Date(d.getFullYear(), d.getMonth() + 1, 0)) }; }
@@ -124,8 +128,8 @@ function ModalShell({ title, subtitle, icon, onClose, tabBar, children }: {
               {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
             </div>
           </div>
-          <button type="button" onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors shrink-0">
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -138,19 +142,12 @@ function ModalShell({ title, subtitle, icon, onClose, tabBar, children }: {
 
 function ModeTabBar({ active, onChange }: { active: GuideTab; onChange: (t: GuideTab) => void }) {
   return (
-    <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 w-fit">
-      {GUIDE_TABS.map((t) => (
-        <button
-          key={t} type="button" onClick={() => onChange(t)}
-          className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-            active === t ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${MODE_DOT[t]}`} />
-          {t}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      label="Guide section"
+      value={active}
+      onChange={onChange}
+      options={GUIDE_TABS.map((g) => ({ value: g, label: g, dot: MODE_DOT[g] }))}
+    />
   );
 }
 
@@ -1151,17 +1148,17 @@ ${bodyHtml}
             Trip-wise and truck-wise P&L for the selected period.
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             type="button" onClick={() => setShowQuickStart(true)}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
           >
             <Compass className="h-4 w-4" />
             Quick Start Guide
           </button>
           <button
             type="button" onClick={() => setShowHowCalculated(true)}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors shadow-sm"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
           >
             <Calculator className="h-4 w-4" />
             How is it Calculated
@@ -1169,7 +1166,7 @@ ${bodyHtml}
           {data && (
             <button
               type="button" onClick={openPreview}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               <FileDown className="h-4 w-4" />
               Generate Report
@@ -1178,43 +1175,31 @@ ${bodyHtml}
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="mb-4 flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.label} type="button" onClick={() => applyPreset(p)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                activePreset === p.label
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "border border-gray-200 bg-gray-50 text-gray-600 hover:border-blue-300 hover:text-blue-600"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">From</label>
-            <DatePickerInput
-              value={startDate}
-              onChange={(v) => { setStartDate(v); setActivePreset(""); if (v && endDate) fetchData(v, endDate); }}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">To</label>
-            <DatePickerInput
-              value={endDate}
-              onChange={(v) => { setEndDate(v); setActivePreset(""); if (startDate && v) fetchData(startDate, v); }}
-            />
-          </div>
+      {/* Toolbar: period presets on the left, date range on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented
+          size="md"
+          label="Period"
+          value={activePreset}
+          onChange={(label) => {
+            const preset = PRESETS.find((p) => p.label === label);
+            if (preset) applyPreset(preset);
+          }}
+          options={PRESETS.map((p) => ({ value: p.label, label: p.label }))}
+        />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 pb-2">
+            <span className="flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading…
-            </div>
+            </span>
           )}
+          <DateRangePill
+            from={startDate}
+            to={endDate}
+            onFromChange={(v) => { setStartDate(v); setActivePreset(""); if (v && endDate) fetchData(v, endDate); }}
+            onToChange={(v) => { setEndDate(v); setActivePreset(""); if (startDate && v) fetchData(startDate, v); }}
+          />
         </div>
       </div>
 
@@ -1249,38 +1234,25 @@ ${bodyHtml}
           {/* Tab bar + Mode selector row */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
             {/* Tab bar */}
-            <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1 w-fit">
-              {([
-                { key: "trips"  as Tab, label: "Trip Profitability",  count: allTrips.length },
-                { key: "trucks" as Tab, label: "Truck Profitability", count: data.length },
-              ]).map(({ key, label, count }) => (
-                <button
-                  key={key} type="button" onClick={() => setTab(key)}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                    tab === key ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {label}
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                    tab === key ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-500"
-                  }`}>{count}</span>
-                </button>
-              ))}
-            </div>
+            <Segmented
+              size="md"
+              label="Report view"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: "trips", label: "Trip Profitability", count: allTrips.length },
+                { value: "trucks", label: "Truck Profitability", count: data.length },
+              ]}
+            />
 
             {/* Mode selector */}
-            <div className="flex gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-              {(["Manual", "Basic", "Advanced"] as const).map((m) => (
-                <button
-                  key={m} type="button" onClick={() => setMode(m)}
-                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                    mode === m ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              size="md"
+              label="Cost mode"
+              value={mode}
+              onChange={setMode}
+              options={(["Manual", "Basic", "Advanced"] as const).map((m) => ({ value: m, label: m }))}
+            />
           </div>
 
           {tab === "trips"  && <TripProfitabilityTab trips={allTrips} mode={mode} costPerKmMap={costPerKmMap} />}
@@ -1316,8 +1288,8 @@ ${bodyHtml}
                   {tab === "trips" ? "Trip Profitability" : "Truck Profitability"} · {fmtDate(startDate)} to {fmtDate(endDate)} · Mode: {mode}
                 </p>
               </div>
-              <button type="button" onClick={() => setShowPreview(false)}
-                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+              <button type="button" onClick={() => setShowPreview(false)} aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1441,11 +1413,11 @@ ${bodyHtml}
             {/* Modal footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
               <button type="button" onClick={() => setShowPreview(false)}
-                className="rounded-lg border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
                 Cancel
               </button>
               <button type="button" onClick={printReport}
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm">
+                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md">
                 <FileDown className="h-4 w-4" />
                 Generate PDF
               </button>

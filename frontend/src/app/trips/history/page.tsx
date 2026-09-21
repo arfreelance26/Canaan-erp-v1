@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { History, FileText, ClipboardList, Receipt, Search, Trash2 } from "lucide-react";
+import { History, FileText, ClipboardList, Receipt, Trash2 } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
@@ -33,6 +35,23 @@ type InvoicePreviewState = {
 };
 
 const CURRENT_STATUSES = new Set(["Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
+
+const ALL_TRIP_STATUSES = ["Assigned", "Started", "Loaded", "On-Transit", "Reached", "Unloaded", "Completed", "Cancelled"];
+
+// The export filters that reproduce what each summary card shows on this page.
+// Every scope sets `status` so trips deleted from the app never leak into the file.
+function exportScope(filter: "All" | "Assigned" | "Current" | "Completed" | "Invoiced" | "Waived Invoice" | "Cancelled"): Record<string, string> {
+  const notCancelled = ALL_TRIP_STATUSES.filter((s) => s !== "Cancelled").join(",");
+  switch (filter) {
+    case "Assigned":       return { status: "Assigned" };
+    case "Current":        return { status: [...CURRENT_STATUSES].join(",") };
+    case "Completed":      return { status: notCancelled, has_closure: "true" };
+    case "Invoiced":       return { status: ALL_TRIP_STATUSES.join(","), is_invoiced: "true" };
+    case "Waived Invoice": return { status: ALL_TRIP_STATUSES.join(","), invoice_waived: "true", is_invoiced: "false" };
+    case "Cancelled":      return { status: "Cancelled" };
+    default:               return { status: ALL_TRIP_STATUSES.join(",") };
+  }
+}
 
 export default function TripHistoryPage() {
   const { user } = useAuth();
@@ -248,52 +267,35 @@ export default function TripHistoryPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <History className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Trip History</h1>
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            All trips — view booking sheet, trip sheet, and invoice.
-          </p>
+      <div>
+        <div className="flex items-center gap-2">
+          <History className="h-6 w-6 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Trip History</h1>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by truck no., driver, trip ID…"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={exportFrom}
-              onChange={(e) => setExportFrom(e.target.value)}
-              className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              title="Report from date"
-            />
-            <span className="text-xs text-gray-400">to</span>
-            <input
-              type="date"
-              value={exportTo}
-              onChange={(e) => setExportTo(e.target.value)}
-              className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              title="Report to date"
-            />
-            <DownloadExcelButton
-              path="/exports/trips"
-              filename="trips.xlsx"
-              params={{
-                ...(exportFrom ? { from_date: exportFrom } : {}),
-                ...(exportTo ? { to_date: exportTo } : {}),
-              }}
-            />
-          </div>
+        <p className="mt-1 text-sm text-gray-500">
+          All trips — view booking sheet, trip sheet, and invoice.
+        </p>
+      </div>
+
+      {/* Toolbar: search on the left, export range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch
+          placeholder="Search by truck no., driver, trip ID…"
+          value={searchQuery}
+          onChange={(v) => { setSearchQuery(v); setPage(1); }}
+        />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          {/* View follows the summary card currently selected (All / Assigned / Current / …) */}
+          <DownloadExcelButton
+            path="/exports/trips"
+            filename={`${statusFilter.toLowerCase().replace(/ /g, "_")}_trips.xlsx`}
+            params={{
+              ...exportScope(statusFilter),
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
         </div>
       </div>
 

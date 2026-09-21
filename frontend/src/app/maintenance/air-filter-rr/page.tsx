@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, Truck as TruckIcon, ChevronDown, Plus, X, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Filter, Truck as TruckIcon, ChevronDown, Plus, X, AlertTriangle, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { trucksApi, maintenanceApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
@@ -13,6 +13,9 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { getAirFilterAlerts } from "@/lib/air-filter-alerts";
 
 const ALLOWED_ROLES = ["Maintenance", "Admin"];
@@ -182,6 +185,8 @@ export default function AirFilterRRPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAddLog, setShowAddLog] = useState(false);
 
@@ -260,7 +265,7 @@ export default function AirFilterRRPage() {
         <button
           type="button"
           onClick={() => setShowAddLog(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
         >
           <Plus className="h-4 w-4" />
           Add Log
@@ -312,16 +317,20 @@ export default function AirFilterRRPage() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative w-full sm:w-72">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search trucks..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-        />
+      {/* Toolbar: search on the left, date range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trucks..." value={search} onChange={setSearch} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/air-filter-records"
+            filename="air_filter_records.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
       </div>
 
       {/* Truck cards */}

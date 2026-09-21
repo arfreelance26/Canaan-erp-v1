@@ -9,11 +9,12 @@ import type { Staff } from "@/types/staff";
 import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search } from "lucide-react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 export default function StaffCompensationPage() {
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [transactions, setTransactions] = useState<CompensationTransaction[]>([]);
@@ -21,6 +22,8 @@ export default function StaffCompensationPage() {
   const [paymentTarget, setPaymentTarget] = useState<CompensationPerson | null>(null);
   const [historyTarget, setHistoryTarget] = useState<CompensationPerson | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -75,23 +78,23 @@ export default function StaffCompensationPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Compensation</h1>
-          <p className="mt-1 text-sm text-gray-500">Pay salaries to staff members</p>
-        </div>
-        <div className="flex items-center gap-3">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search staff..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Staff Compensation</h1>
+        <p className="mt-1 text-sm text-gray-500">Pay salaries to staff members</p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search staff..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/staff-compensation"
+            filename="staff_compensation.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
           />
-        </div>
-        <DownloadExcelButton path="/exports/staff-compensation" filename="staff_compensation.xlsx" />
         </div>
       </div>
 

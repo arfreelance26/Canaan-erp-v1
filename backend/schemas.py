@@ -1023,6 +1023,8 @@ class LeaveRequestOut(OrmBase):
     status: LeaveStatus
     applied_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    decided_at: Optional[datetime] = None
+    decided_by_name: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

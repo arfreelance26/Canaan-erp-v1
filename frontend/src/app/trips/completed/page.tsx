@@ -13,12 +13,12 @@ import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { useAuth } from "@/context/AuthContext";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 export default function CompletedTripsPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
@@ -101,25 +101,23 @@ export default function CompletedTripsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Completed Trips</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            All trips that have been successfully completed
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search by truck no., driver, trip ID…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Completed Trips</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          All trips that have been successfully completed
+        </p>
+      </div>
+
+      {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {/* Only completed trips still waiting to be closed — the same ones the table below lists */}
+          <DownloadExcelButton
+            path="/exports/trips"
+            filename="completed_trips.xlsx"
+            params={{ status: "Completed", has_closure: "false" }}
+          />
         </div>
       </div>
 

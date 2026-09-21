@@ -8,7 +8,7 @@ import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Truck as TruckIcon, History, FileSearch, X, Loader2, ShieldCheck, Gauge, Wrench, Download, ChevronDown, ArrowRight } from "lucide-react";
 
 function Pill({ label, value, color }: { label: string; value: string; color: string }) {
@@ -66,7 +66,7 @@ async function downloadExcel(rows: ReturnType<typeof buildExcelRows>, filename: 
 const CAT_COLOR: Record<string, string> = {
   "LOCAL":       "bg-blue-100 text-blue-700",
   "LOCAL CFS":   "bg-cyan-100 text-cyan-700",
-  "OUTSTATION":  "bg-purple-100 text-purple-700",
+  "OUTSTATION":  "bg-slate-100 text-slate-700",
   "SHIFTING":    "bg-amber-100 text-amber-700",
   "RETURN TRIP": "bg-orange-100 text-orange-700",
 };
@@ -143,7 +143,7 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -176,26 +176,15 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
 
         {/* ── Toolbar ── */}
         <div className="shrink-0 flex items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-6 py-3 flex-wrap">
-          <div className="flex items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">From</span>
-              <DatePickerInput
-                value={dateFrom}
-                onChange={(v) => setDateFrom(dateTo && v > dateTo ? dateTo : v)}
-              />
-            </div>
-            <span className="mb-2.5 text-gray-300">→</span>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">To</span>
-              <DatePickerInput
-                value={dateTo}
-                onChange={(v) => setDateTo(dateFrom && v < dateFrom ? dateFrom : v)}
-              />
-            </div>
-          </div>
+          <DateRangePill
+            from={dateFrom}
+            to={dateTo}
+            onFromChange={(v) => setDateFrom(dateTo && v > dateTo ? dateTo : v)}
+            onToChange={(v) => setDateTo(dateFrom && v < dateFrom ? dateFrom : v)}
+          />
           <div className="relative">
             <button type="button" disabled={loading} onClick={() => setDlOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-gray-300 hover:shadow-md disabled:pointer-events-none disabled:opacity-40">
               <Download className="h-3.5 w-3.5 text-gray-500" />
               Download Excel
               <ChevronDown className="h-3 w-3 text-gray-400" />
@@ -372,7 +361,8 @@ function TruckDetailsDialog({ truck, onClose }: TruckDetailsDialogProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            aria-label="Close"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
           >
             <X className="h-4 w-4" />
           </button>
@@ -497,7 +487,7 @@ export default function FleetSummaryPage() {
 
             {/* Fields */}
             <div className="flex flex-1 flex-wrap items-center gap-2 px-5 py-4">
-              <Pill label="Manufacturer" value={truck.manufacturer}  color="bg-indigo-50 text-indigo-800" />
+              <Pill label="Manufacturer" value={truck.manufacturer}  color="bg-slate-100 text-slate-800" />
               <Pill label="Type"         value={truck.truckType}     color="bg-emerald-50 text-emerald-800" />
               <Pill label="Tyre Layout"  value={truck.tyreLayout}    color="bg-amber-50 text-amber-800" />
             </div>
@@ -507,7 +497,7 @@ export default function FleetSummaryPage() {
               <button
                 type="button"
                 onClick={() => setHistoryTruck(truck)}
-                className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-violet-200 transition-all hover:bg-violet-700 hover:shadow-md hover:shadow-violet-200 whitespace-nowrap"
+                className="flex h-9 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-gray-300 hover:shadow-md"
               >
                 <History className="h-3.5 w-3.5" />
                 Trip History
@@ -515,7 +505,7 @@ export default function FleetSummaryPage() {
               <button
                 type="button"
                 onClick={() => setDetailsTruck(truck)}
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-blue-200 transition-all hover:bg-blue-700 hover:shadow-md hover:shadow-blue-200 whitespace-nowrap"
+                className="flex h-9 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
               >
                 <FileSearch className="h-3.5 w-3.5" />
                 Truck Details

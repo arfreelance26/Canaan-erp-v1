@@ -10,11 +10,17 @@ import { Dialog } from "@/components/ui/Dialog";
 import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
 import { AdBlueHistoryViewDialog } from "@/components/fleet/AdBlueHistoryViewDialog";
 import type { AdBlueLog } from "@/types/adblue-log";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 export default function AdblueManagementPage() {
   const [manufacturers, setManufacturers] = useState<AdBlueManufacturer[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -110,6 +116,22 @@ export default function AdblueManagementPage() {
         </div>
       </div>
 
+      {/* Toolbar: search on the left, date range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/adblue-logs"
+            filename="adblue_logs.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
+      </div>
+
       {/* Two-column layout */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
 
@@ -127,9 +149,16 @@ export default function AdblueManagementPage() {
             </div>
           ) : (
             manufacturers.map((m) => {
+              const q = searchQuery.trim().toLowerCase();
               const mTrucks = trucks.filter(
-                (t) => t.manufacturer.trim().toLowerCase() === m.name.trim().toLowerCase()
+                (t) =>
+                  t.manufacturer.trim().toLowerCase() === m.name.trim().toLowerCase() &&
+                  (!q ||
+                    t.registrationNumber?.toLowerCase().includes(q) ||
+                    t.truckId?.toLowerCase().includes(q))
               );
+              // While searching, hide manufacturers that have no matching truck.
+              if (q && mTrucks.length === 0) return null;
               return (
                 <section key={m.id}>
                   {/* Section header */}

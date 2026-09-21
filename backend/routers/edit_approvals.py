@@ -4,6 +4,7 @@ from typing import Optional, get_args
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
+from excel_utils import build_excel_response
 from security import get_current_user, require_roles, TokenUser
 import models, schemas
 from websocket_manager import emit
@@ -78,6 +79,60 @@ def list_edit_approvals(
         q = q.filter(models.EditApprovalRequest.resource_type == resource_type)
     rows = q.order_by(models.EditApprovalRequest.created_at.desc()).all()
     return _drop_invalid_resource_type(rows)
+
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def _fmt_ist(dt: Optional[datetime]) -> str:
+    """Stored timestamps are UTC (naive or aware); exports show IST."""
+    if dt is None:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_IST).strftime("%d-%m-%Y %I:%M %p")
+
+
+@router.get("/export")
+def export_edit_approvals(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the requested date, IST)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the requested date, IST)"),
+    db: Session = Depends(get_db),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager")),
+):
+    """Excel export of the Edit Approvals list (every status), same roles as the page."""
+    reqs = db.query(models.EditApprovalRequest).order_by(models.EditApprovalRequest.created_at.desc()).all()
+    headers = [
+        "Requested By", "Staff Code", "Resource Type", "Resource", "Action", "Reason",
+        "Status", "Requested At", "Decided By", "Decided At", "Access Expires At", "Admin Note",
+    ]
+    rows = []
+    for r in reqs:
+        created = r.created_at
+        if created is not None:
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            day = created.astimezone(_IST).date().isoformat()
+            if from_date and day < from_date:
+                continue
+            if to_date and day > to_date:
+                continue
+        elif from_date or to_date:
+            continue
+        # Mirror the page's buckets: an Approved request whose 8-hour edit window
+        # has run out is shown as "Completed".
+        status = r.status
+        if status == "Approved" and r.expires_at is not None:
+            exp = r.expires_at if r.expires_at.tzinfo else r.expires_at.replace(tzinfo=timezone.utc)
+            if exp < datetime.now(timezone.utc):
+                status = "Completed"
+        rows.append([
+            r.staff_name, r.staff_code or "", r.resource_type, r.resource_name, r.action, r.reason,
+            status, _fmt_ist(r.created_at), r.approved_by_name or "", _fmt_ist(r.approved_at),
+            _fmt_ist(r.expires_at), r.admin_note or "",
+        ])
+    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
+    return build_excel_response([("Edit Approvals", headers, rows)], f"edit_approvals{suffix}.xlsx")
 
 
 @router.get("/my-active", response_model=list[schemas.EditApprovalRequestOut])

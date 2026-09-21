@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Tag, Plus, Pencil, Trash2, Search, Link2, Zap } from "lucide-react";
+import { Tag, Plus, Pencil, Trash2, Link2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { sacCodesApi } from "@/lib/api";
@@ -14,6 +14,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 const emptyForm = { description: "", code: "", gstRate: "" };
 
 const EXPENSE_HEADINGS = [
@@ -166,28 +167,23 @@ export default function SacCodeManagementPage() {
             Manage SAC (Services Accounting Codes) used for GST invoicing on transport services.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search codes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <DownloadExcelButton path="/exports/sac-codes" filename="sac_codes.xlsx" />
           {canEdit && (
             <button
               type="button"
               onClick={openAdd}
-              className="flex items-center whitespace-nowrap gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               <Plus className="h-4 w-4" />
               SAC Code
             </button>
           )}
+      </div>
+
+      {/* Toolbar: search on the left, View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search codes..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto">
+          <DownloadExcelButton path="/exports/sac-codes" filename="sac_codes.xlsx" />
         </div>
       </div>
 
@@ -230,7 +226,7 @@ export default function SacCodeManagementPage() {
                 </td>
                 <td className="px-4 py-3">
                   {sc.autoPopulateInvoiceType ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 border border-violet-100">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-100">
                       <Zap className="h-3 w-3 flex-shrink-0" />
                       {sc.autoPopulateInvoiceType}
                     </span>
@@ -245,7 +241,7 @@ export default function SacCodeManagementPage() {
                         type="button"
                         onClick={() => setAutoPopDialog({ open: true, sc })}
                         title="Auto Populate"
-                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:border-violet-200 hover:text-violet-600 hover:bg-violet-50"
+                        className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 px-3.5 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
                       >
                         <Zap className="h-3.5 w-3.5" />
                         Auto Populate
@@ -254,7 +250,7 @@ export default function SacCodeManagementPage() {
                         type="button"
                         onClick={() => setRetrieveDialog({ open: true, sc })}
                         title="Retrieve Values From"
-                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50"
+                        className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-200 px-3.5 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
                       >
                         <Link2 className="h-3.5 w-3.5" />
                         Retrieve Values From
@@ -262,14 +258,14 @@ export default function SacCodeManagementPage() {
                       <button
                         type="button"
                         onClick={() => openEdit(sc)}
-                        className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-blue-200 hover:text-blue-600"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-blue-200 hover:text-blue-600"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(sc)}
-                        className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:border-red-200 hover:text-red-500"
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-all duration-200 hover:scale-110 hover:border-red-200 hover:text-red-500"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -324,13 +320,13 @@ export default function SacCodeManagementPage() {
             <button
               type="button"
               onClick={() => setDialogOpen(false)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="flex h-10 items-center whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
             >
               {editing ? "Save Changes" : "Add SAC Code"}
             </button>
@@ -377,7 +373,7 @@ export default function SacCodeManagementPage() {
               type="button"
               disabled={linking}
               onClick={() => handleLinkExpense("")}
-              className="mt-1 flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
+              className="mt-1 flex h-9 items-center justify-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-5 text-xs font-semibold text-red-600 transition-all duration-300 hover:scale-105 hover:bg-red-100 disabled:pointer-events-none disabled:opacity-50"
             >
               Remove linked expense
             </button>
@@ -426,12 +422,12 @@ export default function SacCodeManagementPage() {
                     blockedByGst
                       ? "border-gray-100 bg-gray-50 text-gray-300"
                       : isActive
-                      ? "border-violet-300 bg-violet-50 text-violet-700"
-                      : "border-gray-200 text-gray-700 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+                      ? "border-blue-300 bg-blue-50 text-blue-700"
+                      : "border-gray-200 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                   }`}
                 >
                   <span>{type}</span>
-                  {isActive && !blockedByGst && <span className="text-xs text-violet-500 font-normal">Currently set</span>}
+                  {isActive && !blockedByGst && <span className="text-xs text-blue-500 font-normal">Currently set</span>}
                   {blockedByGst && <span className="text-xs text-red-400 font-normal">GST code — not allowed</span>}
                 </button>
               );

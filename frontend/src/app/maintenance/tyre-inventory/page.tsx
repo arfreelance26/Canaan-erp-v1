@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTable";
 import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -16,6 +16,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 
 export default function TyreInventoryPage() {
   const [tyres, setTyres] = useState<TyreInventoryItem[]>([]);
@@ -108,28 +110,25 @@ export default function TyreInventoryPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tyre Inventory</h1>
           <p className="mt-1 text-sm text-gray-500">Track all tyres purchased by the company</p>
         </div>
-        <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={exportFrom}
-            onChange={(e) => setExportFrom(e.target.value)}
-            className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            title="Report from date (purchase date)"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <input
-            type="date"
-            value={exportTo}
-            onChange={(e) => setExportTo(e.target.value)}
-            className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            title="Report to date (purchase date)"
-          />
+        <button
+          type="button"
+          onClick={handleAdd}
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+        >
+          <Plus className="h-4 w-4" />
+          Add Tyre
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search tyres..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
           <DownloadExcelButton
             path="/exports/tyre-inventory"
             filename="tyre_inventory.xlsx"
@@ -137,28 +136,6 @@ export default function TyreInventoryPage() {
               ...(exportFrom ? { from_date: exportFrom } : {}),
               ...(exportTo ? { to_date: exportTo } : {}),
             }}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
-        >
-          <Plus className="h-4 w-4" />
-          Add Tyre
-        </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search tyres..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-4 py-1.5 rounded-full border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full sm:w-64 transition-all bg-white/50 backdrop-blur-sm"
           />
         </div>
       </div>

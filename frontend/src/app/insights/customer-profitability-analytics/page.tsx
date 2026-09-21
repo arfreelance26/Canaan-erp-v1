@@ -1,9 +1,11 @@
 "use client";
 
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import React, { useEffect, useState } from "react";
 import {
   Users, TrendingUp, IndianRupee, Trophy,
-  ChevronDown, ChevronUp, Search, BarChart2,
+  ChevronDown, ChevronUp, BarChart2,
 } from "lucide-react";
 import { tripsApi, type CustomerProfitabilityData } from "@/lib/api";
 
@@ -128,7 +130,8 @@ function InfoModal({
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            aria-label="Close"
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
           >
             <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
           </button>
@@ -178,10 +181,10 @@ function ModeSlider({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   const idx = MODES.findIndex((m) => m.id === mode);
 
   return (
-    <div className="relative inline-flex rounded-xl bg-gray-100 p-1 shrink-0">
+    <div className="dk-seg relative inline-flex rounded-full p-1 shrink-0">
       {/* Sliding pill */}
       <div
-        className="pointer-events-none absolute top-1 bottom-1 rounded-lg bg-white"
+        className="dk-seg-active pointer-events-none absolute top-1 bottom-1 rounded-full"
         style={{
           width: `calc((100% - 8px) / 3)`,
           left: `calc(4px + ${idx} * (100% - 8px) / 3)`,
@@ -196,16 +199,16 @@ function ModeSlider({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             key={m.id}
             type="button"
             onClick={() => onChange(m.id)}
-            className="relative z-10 flex flex-col items-center px-6 py-2 rounded-lg"
+            className="relative z-10 flex flex-col items-center rounded-full px-6 py-1.5"
           >
             <span
-              className={`text-xs whitespace-nowrap transition-all ${active ? "font-semibold text-gray-900" : "font-normal text-gray-400"}`}
+              className={`text-xs whitespace-nowrap transition-all ${active ? "font-semibold text-gray-900" : "font-medium text-gray-500"}`}
               style={{ lineHeight: 1.4 }}
             >
               {m.label}
             </span>
             <span
-              className={`text-[9px] tracking-[0.04em] transition-colors ${active ? "text-gray-500" : "text-gray-300"}`}
+              className={`text-[9px] tracking-[0.04em] transition-colors ${active ? "text-gray-500" : "text-gray-400"}`}
             >
               {m.sub}
             </span>
@@ -228,9 +231,8 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-500">{rank}</span>;
 }
 
-function BasicView({ data }: { data: CustomerProfitabilityData[] }) {
+function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search: string }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [search, setSearch]     = useState("");
 
   const filtered = search.trim()
     ? data.filter((c) => c.customer_name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -273,17 +275,7 @@ function BasicView({ data }: { data: CustomerProfitabilityData[] }) {
         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-3">
           <Trophy className="h-4 w-4 text-amber-500 shrink-0" />
           <h2 className="text-sm font-bold text-gray-800 shrink-0">Customer Leaderboard</h2>
-          <div className="relative ml-auto w-56">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search customer…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-            />
-          </div>
-          <span className="shrink-0 text-xs text-gray-400">
+          <span className="ml-auto shrink-0 text-xs text-gray-400">
             {search.trim() ? `${filtered.length} of ${data.length}` : `${data.length} customers`}
           </span>
         </div>
@@ -392,9 +384,8 @@ function quadrant(c: CustomerProfitabilityData, medRev: number, medMgn: number):
 }
 
 
-function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
+function IntermediateView({ data, search }: { data: CustomerProfitabilityData[]; search: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [search, setSearch]         = useState("");
   const q = search.trim().toLowerCase();
 
   if (data.length === 0) return <p className="py-20 text-center text-sm text-gray-400">No data.</p>;
@@ -420,24 +411,11 @@ function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Search bar */}
-      <div className="flex items-center gap-3">
-        <div className="relative w-72">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search customer across quadrants…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-          />
-        </div>
-        {q && (
-          <span className="text-xs text-gray-400">
-            {BOARD_ORDER.reduce((n, qq) => n + groups[qq].filter((c) => c.customer_name.toLowerCase().includes(q)).length, 0)} match{" "}of {data.length}
-          </span>
-        )}
-      </div>
+      {q && (
+        <p className="text-xs text-gray-400">
+          {BOARD_ORDER.reduce((n, qq) => n + groups[qq].filter((c) => c.customer_name.toLowerCase().includes(q)).length, 0)} match{" "}of {data.length}
+        </p>
+      )}
 
       {/* 2×2 Matrix board */}
       <div className="grid grid-cols-2 gap-px rounded-2xl overflow-hidden border border-gray-200 bg-gray-200 shadow-sm">
@@ -549,8 +527,7 @@ function IntermediateView({ data }: { data: CustomerProfitabilityData[] }) {
 // Advanced View — Customer Scorecard
 // ---------------------------------------------------------------------------
 
-function AdvancedView({ data }: { data: CustomerProfitabilityData[] }) {
-  const [search, setSearch]       = useState("");
+function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; search: string }) {
   const [selectedId, setSelectedId] = useState(data[0]?.customer_id ?? "");
 
   const list     = data.filter(d => d.customer_name.toLowerCase().includes(search.toLowerCase()));
@@ -566,16 +543,6 @@ function AdvancedView({ data }: { data: CustomerProfitabilityData[] }) {
       <div className="grid grid-cols-4 gap-4 items-start">
       {/* Customer list sidebar */}
       <div className="col-span-1 flex flex-col gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search customer..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-xs text-gray-800 shadow-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
-          />
-        </div>
         <p className="px-1 text-[10px] font-medium text-gray-400">
           {search.trim() ? `${list.length} of ${data.length} customers` : `${data.length} customers`}
         </p>
@@ -737,6 +704,8 @@ export default function CustomerProfitabilityPage() {
   const [loading, setLoading]         = useState(true);
   const [activePanel, setActivePanel] = useState<"calc" | "guide" | null>(null);
 
+  const [search, setSearch] = useState("");
+
   function handleModeChange(m: Mode) {
     if (m === mode) return;
     setMode(m);
@@ -781,32 +750,38 @@ export default function CustomerProfitabilityPage() {
       )}
 
       <div className="flex flex-col gap-6">
-        {/* Page header + mode switcher */}
-        <div className="flex items-start justify-between gap-4">
+        {/* Page header */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Customer Profitability Analytics</h1>
             <p className="mt-1 text-sm text-gray-500">
               Revenue, expenses, and profit margins across your customer base — based on completed trips.
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActivePanel(p => p === "calc" ? null : "calc")}
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
+            >
+              How is this Calculated?
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePanel(p => p === "guide" ? null : "guide")}
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md"
+            >
+              Quick Start Guide
+            </button>
+          </div>
+        </div>
+
+        {/* Toolbar: search on the left, analysis mode + View on the right */}
+        <div className="flex flex-wrap items-center gap-3">
+          <PillSearch placeholder="Search customers…" value={search} onChange={setSearch} />
+          <div className="ml-auto flex flex-wrap items-center gap-3">
             <ModeSlider mode={mode} onChange={handleModeChange} />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActivePanel(p => p === "calc" ? null : "calc")}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-medium text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
-              >
-                How is this Calculated?
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivePanel(p => p === "guide" ? null : "guide")}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-medium text-gray-600 shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-colors"
-              >
-                Quick Start Guide
-              </button>
-            </div>
+            <DownloadExcelButton path="/exports/customer-profitability" filename="customer_profitability.xlsx" />
           </div>
         </div>
 
@@ -818,11 +793,11 @@ export default function CustomerProfitabilityPage() {
         ) : (
           <div key={transitionKey} className="mode-content-enter">
             {mode === "basic" ? (
-              <BasicView data={data} />
+              <BasicView data={data} search={search} />
             ) : mode === "intermediate" ? (
-              <IntermediateView data={data} />
+              <IntermediateView data={data} search={search} />
             ) : (
-              <AdvancedView data={data} />
+              <AdvancedView data={data} search={search} />
             )}
           </div>
         )}

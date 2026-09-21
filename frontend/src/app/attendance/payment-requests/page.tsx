@@ -9,6 +9,8 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import { formatDateTime } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useAuth } from "@/context/AuthContext";
 
 const ALLOWED_ROLES = ["Admin", "Accounts"];
@@ -87,6 +89,8 @@ function statusOf(r: PaymentRequest): FilterStatus {
 
 export default function PaymentRequestsPage() {
   const { user } = useAuth();
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const router = useRouter();
   const isAllowed = !user || ALLOWED_ROLES.includes(user.softwareDesignation);
 
@@ -248,6 +252,21 @@ export default function PaymentRequestsPage() {
             </button>
           );
         })}
+      </div>
+
+      {/* Toolbar: export range + View, right-aligned (same place as on the other pages) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/payment-requests/export"
+            filename="payment_requests.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
       </div>
 
       {filteredRequests.length === 0 ? (

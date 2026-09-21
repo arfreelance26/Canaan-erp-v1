@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -16,6 +16,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { useAuth } from "@/context/AuthContext";
 
+import { PillSearch } from "@/components/ui/PillSearch";
 export default function VendorsPage() {
   const { user } = useAuth();
   // Every role except Admin must file an edit request to change vendor records.
@@ -142,31 +143,26 @@ export default function VendorsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Our Vendors</h1>
           <p className="mt-1 text-sm text-gray-500">Manage vendor records and contacts</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search vendors..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
+        <button
+          type="button"
+          onClick={handleAdd}
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+        >
+          <Plus className="h-4 w-4" />
+          Add Vendor
+        </button>
+      </div>
+
+      {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search vendors..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
           <DownloadExcelButton path="/exports/vendors" filename="vendors.xlsx" />
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 whitespace-nowrap"
-          >
-            <Plus className="h-4 w-4" />
-            Add Vendor
-          </button>
         </div>
       </div>
 

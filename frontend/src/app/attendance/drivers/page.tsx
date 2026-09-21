@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, Lock, Download, Loader2, Info, FileBarChart2, X, ChevronRight } from "lucide-react";
+import { Lock, Download, Loader2, Info, X, Eye } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DriverAttendanceTable } from "@/components/attendance/DriverAttendanceTable";
 import { driversApi, attendanceApi } from "@/lib/api";
@@ -14,6 +15,7 @@ import { todayIst } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { PillSearch } from "@/components/ui/PillSearch";
 
 function getAttendanceForDate(
   records: DriverAttendanceRecord[],
@@ -407,39 +409,13 @@ export default function DriverAttendancePage() {
             Track and mark attendance for all drivers
           </p>
         </div>
-        <div className="flex items-center gap-2">
-            
-            <DatePickerInput
-              value={date}
-              onChange={(v) => setDate(v)}
-              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Day being marked */}
+          <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">
+            <div className="w-[128px]">
+              <DatePickerInput value={date} onChange={(v) => setDate(v)} />
+            </div>
           </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-600">From</label>
-            <DatePickerInput
-              value={fromDate}
-              onChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
-              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-            <label className="text-sm font-medium text-gray-600">To</label>
-            <DatePickerInput
-              value={toDate}
-              onChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
-              className="w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleViewReport}
-            disabled={reportLoading}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileBarChart2 className="h-4 w-4" />}
-            View
-            {!reportLoading && <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
         </div>
       </div>
 
@@ -506,15 +482,26 @@ export default function DriverAttendancePage() {
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by driver name"
-          className="w-full rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-blue-500 focus:outline-none"
-        />
+      {/* Toolbar — search on the left, report range + View on the right (same layout as the other pages) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch value={search} onChange={setSearch} placeholder="Search by driver name" />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill
+            from={fromDate}
+            to={toDate}
+            onFromChange={(v) => { setFromDate(v); if (v > toDate) setToDate(v); }}
+            onToChange={(v) => { setToDate(v); if (v < fromDate) setFromDate(v); }}
+          />
+          <button
+            type="button"
+            onClick={handleViewReport}
+            disabled={reportLoading}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {reportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+            View
+          </button>
+        </div>
       </div>
 
       <DriverAttendanceTable
@@ -631,6 +618,8 @@ export default function DriverAttendancePage() {
                 path="/exports/driver-attendance"
                 filename={`driver_attendance_${fromDate}_to_${toDate}.xlsx`}
                 params={{ from_date: fromDate, to_date: toDate }}
+                direct
+                className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
               />
               <button
                 type="button"

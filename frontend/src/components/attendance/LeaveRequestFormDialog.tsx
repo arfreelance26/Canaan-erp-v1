@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Save, Search, CheckCircle2 } from "lucide-react";
 import { attendanceApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { showError, showSuccess } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
@@ -30,7 +31,22 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
+const SELF_CATEGORIES = ["Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance", "Trip Sheet Register", "Yard Supervisor", "Auditor"];
+
 export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFormDialogProps) {
+  const { user } = useAuth();
+  // Only Admin can file for someone else (e.g. a driver). Everyone else files for themselves —
+  // the server takes the applicant from their own staff record regardless of what is sent.
+  const isAdmin = user?.softwareDesignation === "Admin";
+  const self =
+    !isAdmin && user?.id != null
+      ? {
+          id: user.id,
+          name: user.name,
+          category: (SELF_CATEGORIES.includes(user.softwareDesignation) ? user.softwareDesignation : "Trip Sheet Register") as LeaveRequest["category"],
+        }
+      : null;
+
   const [form, setForm] = useState({
     applicantCode: "",
     fromDate: todayIst(),
@@ -73,8 +89,9 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!verifiedApplicant) {
-      showError("Please verify the Applicant ID first.");
+    const applicant = isAdmin ? verifiedApplicant : self;
+    if (!applicant) {
+      showError(isAdmin ? "Please verify the Applicant ID first." : "Your login is not linked to a staff record, so leave cannot be filed.");
       return;
     }
     
@@ -86,10 +103,10 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
     setIsSaving(true);
     try {
       await onSave({
-        category: verifiedApplicant.category,
-        applicantId: String(verifiedApplicant.id),
-        applicantName: verifiedApplicant.name,
-        applicantCode: form.applicantCode.toUpperCase(),
+        category: applicant.category,
+        applicantId: String(applicant.id),
+        applicantName: applicant.name,
+        applicantCode: isAdmin ? form.applicantCode.toUpperCase() : (user?.staffId ?? ""),
         fromDate: form.fromDate,
         toDate: form.toDate,
         reason: form.reason || "",
@@ -119,37 +136,52 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
     <Dialog open={open} onClose={onClose} title="Submit Leave Request">
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Applicant ID (Driver/Staff) <span className="text-red-500">*</span></label>
-          <div className="mt-1 flex gap-2">
-            <input
-              type="text"
-              required
-              value={form.applicantCode}
-              onChange={(e) => {
-                update("applicantCode", e.target.value);
-                setVerifiedApplicant(null); // reset verification if they change the ID
-              }}
-              className={inputClass}
-              placeholder="e.g. CGI-D001 or STF-1001"
-            />
-            <button
-              type="button"
-              onClick={handleVerify}
-              disabled={isVerifying || !form.applicantCode}
-              className="flex items-center justify-center rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-50 transition-colors whitespace-nowrap"
-            >
-              {isVerifying ? "Verifying..." : <><Search className="w-4 h-4 mr-1.5" /> Verify</>}
-            </button>
+        {isAdmin ? (
+          <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Applicant ID (Driver/Staff) <span className="text-red-500">*</span></label>
+            <div className="mt-1 flex gap-2">
+              <input
+                type="text"
+                required
+                value={form.applicantCode}
+                onChange={(e) => {
+                  update("applicantCode", e.target.value);
+                  setVerifiedApplicant(null); // reset verification if they change the ID
+                }}
+                className={inputClass}
+                placeholder="e.g. CGI-D001 or STF-1001"
+              />
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={isVerifying || !form.applicantCode}
+                className="flex h-10 items-center justify-center whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-5 text-sm font-medium text-blue-700 transition-all duration-300 hover:scale-105 hover:bg-blue-100 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {isVerifying ? "Verifying..." : <><Search className="w-4 h-4 mr-1.5" /> Verify</>}
+              </button>
+            </div>
           </div>
-        </div>
 
-        {verifiedApplicant && (
-          <div className="flex items-center gap-3 bg-green-50 text-green-800 p-3 rounded-lg border border-green-200">
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
-            <div>
-              <p className="text-sm font-semibold">{verifiedApplicant.name}</p>
-              <p className="text-xs text-green-700 uppercase tracking-wider">{verifiedApplicant.category}</p>
+          {verifiedApplicant && (
+            <div className="flex items-center gap-3 bg-green-50 text-green-800 p-3 rounded-lg border border-green-200">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-sm font-semibold">{verifiedApplicant.name}</p>
+                <p className="text-xs text-green-700 uppercase tracking-wider">{verifiedApplicant.category}</p>
+              </div>
+            </div>
+          )}
+          </>
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-medium text-blue-700">
+              {(user?.name ?? "?").trim().charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500">Applying as</p>
+              <p className="truncate text-sm font-medium text-gray-900">{user?.name}</p>
+              <p className="truncate text-xs text-gray-500">{user?.softwareDesignation}{user?.staffId ? ` · ${user.staffId}` : ""}</p>
             </div>
           </div>
         )}
@@ -187,14 +219,14 @@ export function LeaveRequestFormDialog({ open, onClose, onSave }: LeaveRequestFo
           <button
             type="button"
             onClick={() => { clearFormDraft(DRAFT_KEY); onClose(); }}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="flex h-10 items-center whitespace-nowrap rounded-full border border-gray-200 bg-white px-6 text-sm font-medium text-gray-600 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={!verifiedApplicant || isSaving}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50"
+            disabled={(isAdmin ? !verifiedApplicant : !self) || isSaving}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-6 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             {isSaving ? "Saving..." : "Submit Request"}

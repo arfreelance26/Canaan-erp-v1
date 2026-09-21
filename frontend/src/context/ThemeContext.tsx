@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 export type Theme = "light" | "dark";
 
@@ -27,8 +27,22 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
-  root.classList.toggle("dark", theme === "dark");
-  root.style.colorScheme = theme;
+  const swap = () => {
+    root.classList.toggle("dark", theme === "dark");
+    root.style.colorScheme = theme;
+  };
+  // Cross-fade the whole page (see ::view-transition rules in globals.css) instead of
+  // snapping. Browsers without the API, or users who prefer reduced motion, swap instantly.
+  const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void>; ready: Promise<void> } }).startViewTransition;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!start || reduce || root.classList.contains("dark") === (theme === "dark")) {
+    swap();
+    return;
+  }
+  const vt = start.call(document, swap);
+  // A newer switch skips this one and rejects these promises with an AbortError; that's expected.
+  vt.ready.catch(() => {});
+  vt.finished.catch(() => {});
 }
 
 function applyFontScale(scale: FontScale) {
@@ -38,12 +52,13 @@ function applyFontScale(scale: FontScale) {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [fontScale, setFontScaleState] = useState<FontScale>(DEFAULT_SCALE);
+  const themeRef = useRef<Theme>(theme);
 
   // Rehydrate from localStorage on mount (the inline pre-hydration script in
   // layout.tsx has already applied these to <html> to avoid a flash).
   useEffect(() => {
     const savedTheme = localStorage.getItem(THEME_KEY);
-    if (savedTheme === "light" || savedTheme === "dark") setThemeState(savedTheme);
+    if (savedTheme === "light" || savedTheme === "dark") { themeRef.current = savedTheme; setThemeState(savedTheme); }
 
     const savedScale = Number(localStorage.getItem(FONT_KEY));
     if (FONT_SCALE_STEPS.includes(savedScale as FontScale)) {
@@ -52,19 +67,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setTheme = useCallback((t: Theme) => {
+    themeRef.current = t;
     setThemeState(t);
     localStorage.setItem(THEME_KEY, t);
     applyTheme(t);
   }, []);
 
+  // Side effects stay out of the state updater: React may run updaters twice (Strict Mode),
+  // which would start two view transitions back to back.
   const toggleTheme = useCallback(() => {
-    setThemeState((prev) => {
-      const next: Theme = prev === "dark" ? "light" : "dark";
-      localStorage.setItem(THEME_KEY, next);
-      applyTheme(next);
-      return next;
-    });
-  }, []);
+    setTheme(themeRef.current === "dark" ? "light" : "dark");
+  }, [setTheme]);
 
   const setFontScale = useCallback((s: FontScale) => {
     setFontScaleState(s);

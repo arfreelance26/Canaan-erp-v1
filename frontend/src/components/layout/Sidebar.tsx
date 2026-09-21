@@ -94,6 +94,8 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/fuel-history",
     "/attendance/mark",
     "/attendance/leave-requests",
+    "/admin/trip-expenses",
+    "/admin/repairs",
   ],
   // Audit-specific pages are being added one by one.
   Auditor: [
@@ -185,9 +187,11 @@ type SidebarProps = {
   onToggle: () => void;
   mobileOpen: boolean;
   onMobileClose: () => void;
+  /** Pointer entered/left the sidebar (AppShell uses it to pause the auto-collapse timer). */
+  onHoverChange?: (hovered: boolean) => void;
 };
 
-export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHoverChange }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { theme } = useTheme();
@@ -322,6 +326,8 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
       )}
 
     <aside
+      onMouseEnter={() => onHoverChange?.(true)}
+      onMouseLeave={() => onHoverChange?.(false)}
       className={cn(
         // Shared — solid bg, not translucent: the page behind is flat white/navy
         // anyway, so backdrop-blur here bought nothing visually while forcing the

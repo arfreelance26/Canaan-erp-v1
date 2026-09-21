@@ -157,74 +157,91 @@ export function TripSheetCoordinatorDashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Pending collection — oldest first (most urgent) */}
-        <Card className="border-amber-200">
+        <Card>
           <CardContent className="p-5">
-          <SectionTitle icon={Clock} title="Awaiting Collection" badge={pending.length} badgeVariant="warning" />
-          {loading ? (
-            <div className="space-y-3">{[1,2,3,4].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
-          ) : urgentPending.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-              <p className="text-sm font-medium text-gray-600">All sheets collected</p>
-              <p className="text-xs text-gray-400">No pending trips</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {urgentPending.map((trip) => (
-                <li key={trip.id} className="flex items-center gap-3 py-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50">
-                    <Navigation className="h-3.5 w-3.5 text-amber-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-gray-900">{trip.tripId}</p>
-                    <p className="truncate text-[11px] text-gray-500">{trip.origin} → {trip.destination}</p>
-                  </div>
-                  <span className="shrink-0 text-[10px] text-gray-400">
-                    {trip.scheduledDate ?? "—"}
-                  </span>
-                </li>
-              ))}
-              {pending.length > 6 && (
-                <li className="pt-2 text-center">
-                  <Link href="/trips/sheet-collection" className="text-xs font-medium text-blue-600 hover:underline">
-                    View all {pending.length} pending →
-                  </Link>
-                </li>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold text-gray-800">Awaiting Collection</h2>
+                {!loading && pending.length > 0 && (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-amber-700">{pending.length}</span>
+                )}
+              </div>
+              {pending.length > 0 && (
+                <Link href="/trips/sheet-collection" className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-800">
+                  View all →
+                </Link>
               )}
-            </ul>
-          )}
+            </div>
+            {loading ? (
+              <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+            ) : urgentPending.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+                <p className="text-sm font-medium text-gray-600">All sheets collected</p>
+                <p className="text-xs text-gray-400">No pending trips</p>
+              </div>
+            ) : (
+              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+                {urgentPending.map((trip) => {
+                  const waiting = trip.scheduledDate
+                    ? Math.max(0, Math.floor((Date.parse(todayIST) - Date.parse(trip.scheduledDate.slice(0, 10))) / 86400000))
+                    : null;
+                  return (
+                    <li key={trip.id} className="flex items-center gap-4 py-2.5">
+                      <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
+                      <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
+                        {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+                      </p>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-medium tabular-nums text-gray-700">{trip.scheduledDate ?? "—"}</p>
+                        {waiting !== null && (
+                          <p className={`text-[11px] ${waiting > 30 ? "font-medium text-red-600" : waiting > 7 ? "text-amber-600" : "text-gray-400"}`}>
+                            {waiting === 0 ? "today" : `${waiting}d waiting`}
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
         {/* Recently delivered */}
-        <Card className="border-emerald-200">
+        <Card>
           <CardContent className="p-5">
-          <SectionTitle icon={FileCheck} title="Recently Delivered" badge={deliveredToday.length > 0 ? `${deliveredToday.length} today` : undefined} badgeVariant="available" />
-          {loading ? (
-            <div className="space-y-3">{[1,2,3,4].map(i => <Skeleton key={i} className="h-5 w-full" />)}</div>
-          ) : recentDelivered.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <ClipboardList className="h-8 w-8 text-gray-300" />
-              <p className="text-sm text-gray-400">No sheets delivered yet</p>
+            <div className="mb-3 flex items-center gap-2.5">
+              <h2 className="text-sm font-semibold text-gray-800">Recently Delivered</h2>
+              {!loading && deliveredToday.length > 0 && (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold tabular-nums text-emerald-700">
+                  {deliveredToday.length} today
+                </span>
+              )}
             </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-              {recentDelivered.map((trip) => (
-                <li key={trip.id} className="flex items-center gap-3 py-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-gray-900">{trip.tripId}</p>
-                    <p className="truncate text-[11px] text-gray-500">{trip.origin} → {trip.destination}</p>
-                  </div>
-                  <span className="shrink-0 text-right text-[10px] text-gray-400">
-                    {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+            {loading ? (
+              <div className="space-y-3">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+            ) : recentDelivered.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <ClipboardList className="h-8 w-8 text-gray-300" />
+                <p className="text-sm text-gray-400">No sheets delivered yet</p>
+              </div>
+            ) : (
+              <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto pr-1">
+                {recentDelivered.map((trip) => (
+                  <li key={trip.id} className="flex items-center gap-4 py-2.5">
+                    <p className="w-24 shrink-0 text-sm font-semibold tabular-nums text-gray-900">{trip.tripId}</p>
+                    <p className="min-w-0 flex-1 truncate text-xs uppercase text-gray-500">
+                      {trip.origin} <span className="px-1 text-gray-300">→</span> {trip.destination}
+                    </p>
+                    <span className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums text-gray-500">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {trip.tripSheetCollectedAt ? fmtIST(trip.tripSheetCollectedAt) : "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

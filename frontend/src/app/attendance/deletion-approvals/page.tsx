@@ -6,6 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 
@@ -186,6 +188,8 @@ export default function DeletionApprovalsPage() {
   const [requests, setRequests] = useState<DeletionApprovalRequest[]>([]);
   const [filter, setFilter] = useState<Filter>("Pending");
   const [loading, setLoading] = useState(true);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
 
   function load() {
     setLoading(true);
@@ -254,6 +258,21 @@ export default function DeletionApprovalsPage() {
               {tabLabel[t]}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Toolbar: export range + View, right-aligned (same place as on the other pages) */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/deletion-approvals/export"
+            filename="deletion_approvals.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
         </div>
       </div>
 

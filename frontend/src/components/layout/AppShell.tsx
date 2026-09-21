@@ -12,12 +12,14 @@ import { cn } from "@/lib/utils";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
 const IDLE_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
+const SIDEBAR_AUTO_COLLAPSE_MS = 4000;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, ready, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
 
   // initialIdle=false — otherwise the hook reports "idle" on first render and
   // the effect below would log the user out immediately on every refresh.
@@ -30,6 +32,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       logout();
     }
   }, [isIdle, user, logout]);
+
+  // An expanded sidebar folds itself away after 4s. The clock only runs while the
+  // pointer is off it, so it never closes under someone who is still using it.
+  useEffect(() => {
+    if (collapsed || sidebarHovered) return;
+    const id = window.setTimeout(() => setCollapsed(true), SIDEBAR_AUTO_COLLAPSE_MS);
+    return () => window.clearTimeout(id);
+  }, [collapsed, sidebarHovered]);
 
   useEffect(() => {
     if (pathname?.startsWith("/connect/chat")) {
@@ -65,6 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onToggle={() => setCollapsed((v) => !v)}
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
+        onHoverChange={setSidebarHovered}
       />
       {/* Sidebar is `position: fixed` at every breakpoint (see Sidebar.tsx),
           so it no longer participates in this flex row — this spacer exists

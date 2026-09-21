@@ -1,7 +1,7 @@
 "use client";
 
-import { Plus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
 import { LeaveRequestFormDialog } from "@/components/attendance/LeaveRequestFormDialog";
 import { attendanceApi } from "@/lib/api";
@@ -11,6 +11,9 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
+import { PillSearch } from "@/components/ui/PillSearch";
+import { Segmented } from "@/components/ui/Segmented";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 export default function LeaveRequestsPage() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,10 +22,22 @@ export default function LeaveRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "Pending" | "Approved" | "Rejected">("all");
+  // Last seen status of each of my requests, so a decision made in Leave Approvals can announce itself.
+  const lastStatus = useRef<Map<string, string> | null>(null);
 
   async function loadRequests() {
     try {
-      const data = await attendanceApi.listLeaveRequests();
+      // Only the requests I filed — the server enforces this too.
+      const data = await attendanceApi.listLeaveRequests(undefined, "mine");
+      if (lastStatus.current) {
+        for (const r of data) {
+          const before = lastStatus.current.get(r.id);
+          if (before === "Pending" && r.status === "Approved") showSuccess("Your leave request was approved.");
+          if (before === "Pending" && r.status === "Rejected") showError("Your leave request was rejected.");
+        }
+      }
+      lastStatus.current = new Map(data.map((r) => [r.id, r.status]));
       setRequests(data);
     } catch {
       // silent — UI stays on previous data
@@ -74,62 +89,68 @@ export default function LeaveRequestsPage() {
     </div>
   );
 
-  const filteredRequests = requests.filter((r) => !searchQuery || r.applicantName?.toLowerCase().includes(searchQuery.toLowerCase()) || r.category?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const counts = {
+    all: requests.length,
+    Pending: requests.filter((r) => r.status === "Pending").length,
+    Approved: requests.filter((r) => r.status === "Approved").length,
+    Rejected: requests.filter((r) => r.status === "Rejected").length,
+  };
+  const filteredRequests = requests.filter(
+    (r) =>
+      (statusFilter === "all" || r.status === statusFilter) &&
+      (!searchQuery ||
+        r.reason?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.applicantName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.category?.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
           <h1 className="text-2xl font-bold text-gray-900">Leave Requests</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Submit and track leave requests for staff and drivers
+            Submit your leave requests and track whether they have been approved
           </p>
         </div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        
-        <div className="flex items-center gap-3">
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search requests..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={exportFrom}
-              onChange={(e) => setExportFrom(e.target.value)}
-              className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              title="Report from date"
-            />
-            <span className="text-xs text-gray-400">to</span>
-            <input
-              type="date"
-              value={exportTo}
-              onChange={(e) => setExportTo(e.target.value)}
-              className="uppercase rounded-lg border border-gray-200 bg-white/50 px-3 py-2 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-              title="Report to date"
-            />
-            <DownloadExcelButton
-              path="/exports/leave-requests"
-              filename="leave_requests.xlsx"
-              params={{
-                ...(exportFrom ? { from_date: exportFrom } : {}),
-                ...(exportTo ? { to_date: exportTo } : {}),
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsFormOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Submit Leave Request
-          </button>
+        <button
+          type="button"
+          onClick={() => setIsFormOpen(true)}
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+        >
+          <Plus className="h-4 w-4" />
+          Submit Leave Request
+        </button>
+      </div>
+
+      {/* Toolbar: search on the left, export range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search requests..." value={searchQuery} onChange={setSearchQuery} />
+        <Segmented
+          size="md"
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "all", label: "All", count: counts.all },
+            { value: "Pending", label: "Pending", count: counts.Pending },
+            { value: "Approved", label: "Approved", count: counts.Approved },
+            { value: "Rejected", label: "Rejected", count: counts.Rejected },
+          ]}
+        />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/leave-requests"
+            filename="leave_requests.xlsx"
+            params={{
+              scope: "mine",
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
         </div>
       </div>
 

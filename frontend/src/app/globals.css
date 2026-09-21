@@ -1144,3 +1144,137 @@ html.dark .chat-msg-area {
     animation: none;
   }
 }
+
+/* ── Dark-mode support for gradient / pill cards ─────────────────────────────
+ * `white` gradient stops (from-white / via-white / to-white) resolve to the
+ * literal #fff, not a remapped token, so they stay bright on the dark surface.
+ * Point them at the dark card colour instead. */
+html.dark .from-white { --tw-gradient-from: #141929; }
+html.dark .via-white  { --tw-gradient-via:  #141929; }
+html.dark .to-white   { --tw-gradient-to:   #141929; }
+
+/* Cards that nest small white pills / rows (.dk-inset): the global "elevated
+ * card" glow on every .bg-white is far too heavy on tiny chips, so flatten it. */
+html.dark .dk-inset .bg-white,
+html.dark .dk-inset .bg-white\/95,
+html.dark .dk-inset .bg-white\/90,
+html.dark .dk-inset .bg-white\/80,
+html.dark .dk-inset .bg-white\/70,
+html.dark .dk-inset .bg-white\/60,
+html.dark .dk-inset .bg-white\/50 {
+  box-shadow: none;
+}
+
+/* Segmented control: a track plus a raised "selected" segment that stays
+ * distinguishable in both themes. */
+.dk-seg        { background-color: rgba(243, 244, 246, 0.8); }
+.dk-seg-active { background-color: #ffffff; }
+html.dark .dk-seg        { background-color: #0b0e18; }
+html.dark .dk-seg-active { background-color: #26305a; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
+
+/* ── Lane Map + Money Flow dashboard cards ─────────────────────────────────── */
+.lane-map {
+  --lane: #3557d6;
+  --lane-glow: rgba(53, 87, 214, 0.45);
+  --map-land: #eef1f8;
+  --map-land-home: #e2e8fb;
+  --map-stroke: #cbd3ea;
+  --map-grid: rgba(120, 135, 180, 0.16);
+  --map-halo: #ffffff;
+  --map-label: #2a3350;
+}
+html.dark .lane-map {
+  --lane: #6aa0ff;
+  --lane-glow: rgba(106, 160, 255, 0.6);
+  --map-land: #10162a;
+  --map-land-home: #16244f;
+  --map-stroke: #2b3563;
+  --map-grid: rgba(120, 140, 200, 0.10);
+  --map-halo: #141929;
+  --map-label: #c4d4e8;
+}
+.lane-grid line { stroke: var(--map-grid); stroke-width: 0.6; }
+.lane-land { fill: var(--map-land); stroke: var(--map-stroke); stroke-width: 0.8; stroke-linejoin: round; }
+.lane-land-home { fill: var(--map-land-home); stroke-width: 1.1; }
+.lane-arc { stroke: var(--lane); stroke-linecap: round; transition: opacity 0.2s, stroke-width 0.2s; }
+.lane-glow { stroke: var(--lane-glow); stroke-linecap: round; transition: opacity 0.2s; }
+.lane-dot { fill: #ffffff; stroke: var(--lane); stroke-width: 1.2; }
+.lane-city { fill: var(--lane); stroke: var(--map-halo); stroke-width: 1.2; }
+.lane-city-off { fill: var(--lane); }
+.lane-hub { fill: var(--lane); stroke: var(--map-halo); stroke-width: 2; }
+.lane-pulse { fill: var(--lane); }
+.lane-label {
+  font-size: 13px; font-weight: 600; fill: var(--map-label);
+  paint-order: stroke; stroke: var(--map-halo); stroke-width: 4px; stroke-linejoin: round;
+}
+.lane-label-hub { font-size: 15px; font-weight: 700; }
+.lane-bar { background: linear-gradient(90deg, var(--lane), color-mix(in srgb, var(--lane) 55%, #38bdf8)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-ring { animation: none; opacity: 0.5; }
+  .lane-dot, .lane-pulse { display: none; }
+}
+
+/* Fleet Constellation: honeycomb of trucks */
+.fleet-const {
+  --fc-ok-fill: #e6ebfb;   --fc-ok-stroke: #b6c3ee;   --fc-ok-text: #3a4a88;
+  --fc-soon-fill: #fdebc0; --fc-soon-stroke: #f2b73a; --fc-soon-text: #8a5a00;
+  --fc-bad-fill: #fcd0d4;  --fc-bad-stroke: #ee5a6a;  --fc-bad-text: #9b1c2b;
+  --fc-road: #0ea5d8;
+  --fc-maint: #f59e0b;
+}
+html.dark .fleet-const {
+  --fc-ok-fill: #16204a;   --fc-ok-stroke: #2b3c80;   --fc-ok-text: #9db4ff;
+  --fc-soon-fill: #3a2907; --fc-soon-stroke: #b7791f; --fc-soon-text: #fbbf24;
+  --fc-bad-fill: #4a1219;  --fc-bad-stroke: #d13a4a;  --fc-bad-text: #ff8d98;
+  --fc-road: #38d0ff;
+  --fc-maint: #fbbf24;
+}
+.fc-hex { stroke-width: 1.6; stroke-linejoin: round; transition: transform 0.18s ease, filter 0.18s ease; transform-box: fill-box; transform-origin: center; }
+.fc-ok   { fill: var(--fc-ok-fill);   stroke: var(--fc-ok-stroke); }
+.fc-soon { fill: var(--fc-soon-fill); stroke: var(--fc-soon-stroke); }
+.fc-bad  { fill: var(--fc-bad-fill);  stroke: var(--fc-bad-stroke); }
+.fc-soon.fc-hex { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--fc-soon-stroke) 45%, transparent)); }
+.fc-bad.fc-hex  { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--fc-bad-stroke) 60%, transparent)); }
+.fc-node:hover .fc-hex, .fc-hex.fc-on { transform: scale(1.12); }
+.fc-text { font-size: 12.5px; font-weight: 700; pointer-events: none; letter-spacing: 0.02em; }
+.fc-ok-t   { fill: var(--fc-ok-text); }
+.fc-soon-t { fill: var(--fc-soon-text); }
+.fc-bad-t  { fill: var(--fc-bad-text); }
+.fc-ring {
+  fill: none; stroke: var(--fc-road); stroke-width: 2; pointer-events: none;
+  transform-box: fill-box; transform-origin: center; animation: fc-pulse 2.2s ease-out infinite;
+}
+@keyframes fc-pulse { 0% { transform: scale(1); opacity: 0.9; } 100% { transform: scale(1.45); opacity: 0; } }
+.fc-assigned { fill: none; stroke: var(--fc-road); stroke-width: 1.2; stroke-dasharray: 3 3; pointer-events: none; }
+.fc-road-dot { fill: var(--fc-road); }
+.fc-maint-dot { fill: var(--fc-maint); }
+.fc-key { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border-width: 1.5px; border-style: solid; }
+.fc-key.fc-ok   { background: var(--fc-ok-fill);   border-color: var(--fc-ok-stroke); }
+.fc-key.fc-soon { background: var(--fc-soon-fill); border-color: var(--fc-soon-stroke); }
+.fc-key.fc-bad  { background: var(--fc-bad-fill);  border-color: var(--fc-bad-stroke); }
+.fc-key-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; }
+i.fc-key-dot.fc-road-dot { background: var(--fc-road); }
+.fc-key-dash { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1.5px dashed var(--fc-road); }
+i.fc-key-dot.fc-maint-dot { background: var(--fc-maint); }
+
+/* ── Theme switch: smooth cross-fade between light and dark ───────────────
+   The old theme stays fully opaque underneath while the new one fades in on top.
+   (Fading both at once dips through the page background and reads as a flash.) */
+::view-transition-group(root) {
+  animation-duration: 0.7s;
+}
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  z-index: 1;
+}
+::view-transition-new(root) {
+  animation: theme-fade-in 0.7s cubic-bezier(0.33, 0, 0.2, 1) both;
+  mix-blend-mode: normal;
+  z-index: 2;
+}
+@keyframes theme-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

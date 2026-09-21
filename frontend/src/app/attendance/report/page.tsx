@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Search, Download, Eye, FileSpreadsheet, X } from "lucide-react";
+import { BarChart3, MessageSquare, ChevronDown, ChevronUp, Download, Eye, FileSpreadsheet, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { attendanceApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
 import type { AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/attendance";
 import { formatDate } from "@/lib/format-date";
@@ -499,7 +500,8 @@ export default function AttendanceReportPage() {
         )}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
+      {/* Toolbar: category / search / view mode on the left, range + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {(["driver", "staff"] as Category[])
             .filter((c) => !(isCommercialManager && c === "staff"))
@@ -509,65 +511,46 @@ export default function AttendanceReportPage() {
                 type="button"
                 onClick={() => { setCategory(c); setSearch(""); }}
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-medium transition-colors",
-                  category === c ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  "h-10 rounded-full px-4 text-sm font-medium transition-all duration-300 hover:scale-105",
+                  category === c ? "bg-blue-600 text-white shadow-sm" : "border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-50"
                 )}
               >
                 {c === "driver" ? "Drivers" : "Staff"}
               </button>
             ))}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={isDriver ? "Search by name or driver ID…" : "Search by name or staff ID…"}
-              className="h-9 w-64 rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-
-          {/* View toggle: aggregated Summary vs day-by-day Register */}
-          <div className="ml-1 inline-flex rounded-full border border-gray-200 bg-gray-100 p-0.5">
-            {([["summary", "Summary"], ["datewise", "Date-wise"]] as [ViewMode, string][]).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setViewMode(mode)}
-                className={cn(
-                  "rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors",
-                  viewMode === mode ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">From</label>
-            <DatePickerInput
-              value={fromDate}
-              onChange={setFromDate}
-              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">To</label>
-            <DatePickerInput
-              value={toDate}
-              onChange={setToDate}
-              className="w-full sm:w-[150px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
+        <PillSearch
+          value={search}
+          onChange={setSearch}
+          placeholder={isDriver ? "Search by name or driver ID…" : "Search by name or staff ID…"}
+        />
+
+        {/* View toggle: aggregated Summary vs day-by-day Register */}
+        <div className="inline-flex h-10 items-center rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+          {([["summary", "Summary"], ["datewise", "Date-wise"]] as [ViewMode, string][]).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                "h-8 rounded-full px-3.5 text-sm font-medium transition-colors",
+                viewMode === mode ? "bg-blue-600 text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={fromDate} to={toDate} onFromChange={setFromDate} onToChange={setToDate} />
           <button
             type="button"
             onClick={() => setShowReportModal(true)}
             disabled={filteredRows.length === 0}
             title={filteredRows.length === 0 ? "No data to view" : "View and download report"}
-            className="flex h-[38px] items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
           >
             <Eye className="h-4 w-4" />
             View

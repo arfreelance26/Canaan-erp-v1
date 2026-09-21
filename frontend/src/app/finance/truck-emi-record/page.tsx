@@ -11,6 +11,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, todayIst } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Auditor", "Admin"];
@@ -63,6 +64,8 @@ export default function TruckEmiRecordPage() {
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -188,19 +191,33 @@ export default function TruckEmiRecordPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/80 bg-white/40 px-4 py-3 shadow-sm backdrop-blur-sm">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      {/* Minimal pill controls — each one lifts/enlarges slightly on hover */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search: collapsed icon pill that expands on hover / focus / when it holds text */}
+        <label
+          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md ${
+            search ? "w-72" : "w-10 hover:w-72 focus-within:w-72"
+          }`}
+        >
+          <Search className="h-4 w-4 shrink-0 text-gray-500" />
           <input
             type="text"
             placeholder="Search by truck, EMI name, bank, loan no…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+            className="w-full min-w-0 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400"
           />
-        </div>
-        <div className="ml-auto">
-          <DownloadExcelButton path="/exports/emi" filename="emi_records.xlsx" />
+        </label>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/emi"
+            filename="emi_records.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
         </div>
       </div>
 

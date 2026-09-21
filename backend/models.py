@@ -765,6 +765,12 @@ class LeaveRequest(Base):
     status = Column(Enum("Pending", "Approved", "Rejected"), default="Pending")
     applied_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Who filed the request (staff.id). NULL on rows created before this column
+    # existed — those fall back to matching the applicant.
+    submitted_by = Column(Integer, nullable=True)
+    # Who decided it and when (set by Leave Approvals) — shown to the applicant as the status indicator.
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_name = Column(String(100), nullable=True)
 
 
 class Holiday(Base):

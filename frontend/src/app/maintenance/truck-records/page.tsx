@@ -11,7 +11,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Auditor", "Admin"];
@@ -183,33 +183,28 @@ export default function TruckMaintenanceRecordPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white px-4 py-3.5 shadow-sm dark:border-gray-300/20 dark:bg-gray-200/60 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      {/* Minimal pill controls — each one lifts/enlarges slightly on hover */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search: collapsed icon pill that expands on hover / focus / when it holds text */}
+        <label
+          className={`group flex h-10 cursor-text items-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md dark:border-gray-300/30 dark:bg-gray-200 ${
+            search ? "w-72" : "w-10 hover:w-72 focus-within:w-72"
+          }`}
+        >
+          <Search className="h-4 w-4 shrink-0 text-gray-500" />
           <input
             type="text"
             placeholder="Search by truck, type, description…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-gray-300/30 dark:bg-gray-200 dark:text-gray-950 dark:placeholder-gray-500"
+            className="w-full min-w-0 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-950"
           />
-        </div>
+        </label>
 
-        <div className="hidden h-9 w-px shrink-0 bg-gray-200 dark:bg-gray-300/30 sm:block" />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {/* Export date range — same pickers, restyled as one minimal pill */}
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
 
-        <div className="flex flex-1 flex-wrap items-center gap-3 sm:justify-end">
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              Export
-            </span>
-            <div className="w-[128px]">
-              <DatePickerInput value={exportFrom} onChange={setExportFrom} />
-            </div>
-            <span className="text-xs text-gray-300">–</span>
-            <div className="w-[128px]">
-              <DatePickerInput value={exportTo} onChange={setExportTo} />
-            </div>
-          </div>
           <DownloadExcelButton
             path="/exports/maintenance-records"
             filename="maintenance_records.xlsx"

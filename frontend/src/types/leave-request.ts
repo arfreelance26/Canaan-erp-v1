@@ -13,4 +13,7 @@ export type LeaveRequest = {
   reason: string;
   status: LeaveRequestStatus;
   appliedAt: string;
+  /** Set once an admin approves or rejects it (Leave Approvals). */
+  decidedAt?: string | null;
+  decidedByName?: string | null;
 };

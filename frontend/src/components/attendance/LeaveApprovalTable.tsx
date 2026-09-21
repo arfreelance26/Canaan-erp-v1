@@ -14,9 +14,14 @@ type LeaveApprovalTableProps = {
 const columns = ["Applicant", "Category", "From", "To", "Reason", "Applied On", "Status", "Actions"];
 
 const statusStyles: Record<string, string> = {
-  Pending: "bg-yellow-50 text-yellow-700",
-  Approved: "bg-green-50 text-green-700",
+  Pending: "bg-amber-50 text-amber-700",
+  Approved: "bg-emerald-50 text-emerald-700",
   Rejected: "bg-red-50 text-red-700",
+};
+const statusDots: Record<string, string> = {
+  Pending: "bg-amber-400",
+  Approved: "bg-emerald-500",
+  Rejected: "bg-red-500",
 };
 
 
@@ -59,12 +64,19 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
               <td className="px-4 py-3">
                 <span
                   className={cn(
-                    "rounded-full px-2.5 py-1 text-xs font-medium",
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
                     statusStyles[request.status] ?? "bg-gray-100 text-gray-600"
                   )}
                 >
+                  <i className={cn("h-1.5 w-1.5 rounded-full", statusDots[request.status] ?? "bg-gray-400")} />
                   {request.status}
                 </span>
+                {request.status !== "Pending" && request.decidedAt && (
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    {request.status === "Approved" ? "Approved" : "Rejected"}
+                    {request.decidedByName ? ` by ${request.decidedByName}` : ""} · {formatDate(request.decidedAt)}
+                  </p>
+                )}
               </td>
               {(onApprove && onReject) && (
                 <td className="px-4 py-3">

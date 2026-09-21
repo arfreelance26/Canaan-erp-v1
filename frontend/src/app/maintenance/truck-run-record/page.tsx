@@ -5,6 +5,9 @@ import { Truck as TruckIcon, FileText, BarChart3 } from "lucide-react";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { TruckRunRecordDialog } from "@/components/maintenance/TruckRunRecordDialog";
 import { TruckBreakdownDialog } from "@/components/maintenance/TruckBreakdownDialog";
 
@@ -20,6 +23,9 @@ function DetailChip({ label, value, mono }: { label: string; value: string; mono
 export default function TruckRunRecordPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
   const [viewingRecordTruck, setViewingRecordTruck] = useState<Truck | null>(null);
   const [viewingBreakdownTruck, setViewingBreakdownTruck] = useState<Truck | null>(null);
 
@@ -35,7 +41,12 @@ export default function TruckRunRecordPage() {
     setViewingBreakdownTruck(truck);
   }
 
-  if (loading) return <PageSkeleton hasButton={false} hasSearch={false} columns={1} />;
+  if (loading) return <PageSkeleton hasButton={false} hasSearch columns={1} />;
+
+  const q = searchQuery.trim().toLowerCase();
+  const filteredTrucks = trucks.filter(
+    (t) => !q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q)
+  );
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -46,14 +57,29 @@ export default function TruckRunRecordPage() {
         </p>
       </div>
 
-      {trucks.length === 0 ? (
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DownloadExcelButton
+            path="/exports/truck-run-records"
+            filename="truck_run_records.xlsx"
+            params={{
+              ...(exportFrom ? { from_date: exportFrom } : {}),
+              ...(exportTo ? { to_date: exportTo } : {}),
+            }}
+          />
+        </div>
+      </div>
+
+      {filteredTrucks.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm">
           <TruckIcon className="h-8 w-8 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">No trucks yet.</p>
+          <p className="text-sm font-medium text-gray-500">{trucks.length === 0 ? "No trucks yet." : "No trucks match this search."}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {trucks.map((truck) => (
+          {filteredTrucks.map((truck) => (
             <div
               key={truck.id}
               className="flex items-center gap-5 rounded-xl border border-white/80 bg-white/60 px-5 py-4 shadow-sm backdrop-blur-sm transition-all hover:border-blue-100"

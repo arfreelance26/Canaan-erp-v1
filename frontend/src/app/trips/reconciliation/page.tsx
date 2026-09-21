@@ -17,12 +17,13 @@ import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Search, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, FileBarChart2, Trash2 } from "lucide-react";
+import { Eye, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, Trash2 } from "lucide-react";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
@@ -656,48 +657,36 @@ export default function TripReconciliationPage() {
           View and manage booking sheets and trip sheets for closed trips
         </p>
       </div>
+      {/* Toolbar: search + current trips on the left, trip-date range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by truck no., driver, trip ID…"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            className="w-full rounded-lg border border-gray-200 bg-white/50 py-2 pl-9 pr-4 text-sm outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-medium text-gray-500 whitespace-nowrap">Trip Date:</span>
-          <DatePickerInput
-            value={dateFrom}
-            onChange={(v) => setDateFrom(v)}
-            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <DatePickerInput
-            value={dateTo}
-            onChange={(v) => setDateTo(v)}
-            className="rounded-lg border border-gray-200 bg-white/50 py-2 px-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 w-[130px]"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowReportModal(true)}
-          title="View and download trip sheets for selected date range"
-          className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
-        >
-          <FileBarChart2 className="h-4 w-4" />
-          View
-        </button>
+        <PillSearch
+          placeholder="Search by truck no., driver, trip ID…"
+          value={searchQuery}
+          onChange={(v) => { setSearchQuery(v); setPage(1); }}
+        />
         <button
           type="button"
           onClick={() => setShowCurrentTrips(true)}
-          className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors whitespace-nowrap"
+          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-blue-200 bg-white px-4 text-sm font-medium text-blue-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-50 hover:shadow-md"
         >
           <Navigation className="h-4 w-4" />
           View Current Trips
         </button>
+
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <div title="Trip Date — scopes the View report to trips in this range">
+            <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowReportModal(true)}
+            title="View and download trip sheets for selected date range"
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Eye className="h-4 w-4" />
+            View
+          </button>
+        </div>
       </div>
 
       {/* Status filter count cards */}
@@ -1352,7 +1341,19 @@ export default function TripReconciliationPage() {
                 )}
               </div>
               <div className="border-t px-5 py-3 flex items-center justify-end gap-2 shrink-0">
-                {isAdmin && <DownloadExcelButton path="/exports/trips" filename="trips.xlsx" />}
+                {isAdmin && (
+                  <DownloadExcelButton
+                    path="/exports/trips"
+                    filename="reconciliation_trips.xlsx"
+                    direct
+                    params={{
+                      has_closure: "true",
+                      ...(dateFrom ? { from_date: dateFrom } : {}),
+                      ...(dateTo ? { to_date: dateTo } : {}),
+                    }}
+                    className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                )}
                 <button type="button" onClick={async () => { await handleDownloadPDF(pdfTrips); setShowReportModal(false); }} disabled={downloading || pdfTrips.length === 0} className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed">
                   <Download className="h-4 w-4" />
                   {downloading ? "Generating..." : "Download PDF"}
