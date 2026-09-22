@@ -9,9 +9,9 @@ import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import { generateTruckId, TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
+import { TRUCK_TYPE_OPTIONS } from "@/lib/truck-data";
 import type { Branch } from "@/types/branch";
-import { branchesApi, adblueApi } from "@/lib/api";
+import { branchesApi, adblueApi, trucksApi } from "@/lib/api";
 import { getTyreLayout, TYRE_LAYOUT_OPTIONS } from "@/lib/tyre-layouts";
 import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import type { Truck } from "@/types/truck";
@@ -39,7 +39,6 @@ type TruckFormDialogProps = {
   onClose: () => void;
   onSave: (truck: Truck, files: TruckFiles) => void | Promise<void>;
   initialData: Truck | null;
-  existingTrucks: Truck[];
 };
 
 const fileInputClass =
@@ -90,13 +89,13 @@ export function TruckFormDialog({
   onClose,
   onSave,
   initialData,
-  existingTrucks,
 }: TruckFormDialogProps) {
   const [form, setForm] = useState<Omit<Truck, "id" | "truckId">>(emptyForm);
   const [files, setFiles] = useState<TruckFiles>({});
   const [branches, setBranches] = useState<Branch[]>([]);
   const [manufacturerOptions, setManufacturerOptions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [nextTruckId, setNextTruckId] = useState<string | null>(null);
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
@@ -118,6 +117,15 @@ export function TruckFormDialog({
     }
   }, [open, initialData]);
 
+  useEffect(() => {
+    if (!open || initialData) return;
+    setNextTruckId(null);
+    // Fetched from the backend (not computed from the currently-loaded truck list),
+    // since it must account for archived trucks' still-reserved IDs too — see
+    // trucks.py's get_next_truck_id.
+    trucksApi.getNextId().then(setNextTruckId).catch(() => setNextTruckId(null));
+  }, [open, initialData]);
+
   useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
 
   function update<K extends keyof Omit<Truck, "id" | "truckId">>(
@@ -130,10 +138,15 @@ export function TruckFormDialog({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+    const truckIdForSave = initialData?.truckId ?? nextTruckId;
+    if (!truckIdForSave) {
+      showError("Still fetching the next Truck ID — please wait a moment and try again.");
+      return;
+    }
     setSubmitting(true);
     try {
       await onSave(
-        { id: initialData?.id ?? crypto.randomUUID(), truckId: initialData?.truckId ?? generateTruckId(existingTrucks), ...form },
+        { id: initialData?.id ?? crypto.randomUUID(), truckId: truckIdForSave, ...form },
         files,
       );
     } finally {
@@ -141,7 +154,7 @@ export function TruckFormDialog({
     }
   }
 
-  const truckId = initialData?.truckId ?? generateTruckId(existingTrucks);
+  const truckId = initialData?.truckId ?? nextTruckId ?? "Loading…";
 
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Truck" : "Add Truck"}>

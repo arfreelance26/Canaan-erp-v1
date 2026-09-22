@@ -92,18 +92,19 @@ def delete_staff(staff_id: int, db: Session = Depends(get_db), current_user: Tok
         raise HTTPException(409, "Staff member is already deleted")
     now = datetime.now(timezone.utc)
     member.deleted_at = now
-    if current_user.id is not None:
-        db.add(models.DeletionApprovalRequest(
-            resource_type="Staff",
-            resource_id=staff_id,
-            resource_name=f"{member.staff_id} — {member.name}",
-            requested_by_staff_id=current_user.id,
-            requested_by_name=current_user.name,
-            reason="Deleted directly by Admin — no approval required.",
-            status="Approved",
-            approved_by_name=current_user.name,
-            approved_at=now,
-        ))
+    # Always log the audit row (even for the built-in "admin" login, whose
+    # current_user.id is None) — see drivers.py's delete_driver for rationale.
+    db.add(models.DeletionApprovalRequest(
+        resource_type="Staff",
+        resource_id=staff_id,
+        resource_name=f"{member.staff_id} — {member.name}",
+        requested_by_staff_id=current_user.id or 0,
+        requested_by_name=current_user.name,
+        reason="Deleted directly by Admin — no approval required.",
+        status="Approved",
+        approved_by_name=current_user.name,
+        approved_at=now,
+    ))
     db.commit()
 
 

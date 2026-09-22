@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -48,6 +49,23 @@ def create_driver(payload: schemas.DriverCreate, db: Session = Depends(get_db)):
     db.refresh(driver)
     emit("driver_updated", {"id": driver.id})
     return driver
+
+
+@router.get("/next-id")
+def get_next_driver_id(db: Session = Depends(get_db)):
+    """Suggests the next CGI-D### driver ID. Computed over ALL drivers, including
+    soft-deleted/archived ones — the same universe create_driver's uniqueness
+    check uses — so this never suggests an ID that's still reserved by an
+    archived-but-not-yet-resolved driver (would otherwise 400 on submit).
+    Registered before GET /{driver_id} so "next-id" isn't swallowed as a
+    driver_id path param."""
+    ids = db.query(models.Driver.driver_id).all()
+    max_number = 0
+    for (driver_id,) in ids:
+        match = re.search(r"(\d+)$", driver_id or "")
+        if match:
+            max_number = max(max_number, int(match.group(1)))
+    return {"driver_id": f"CGI-D{max_number + 1:03d}"}
 
 
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])
@@ -111,18 +129,22 @@ def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: T
         raise HTTPException(409, "Driver is already deleted")
     now = datetime.now(timezone.utc)
     driver.deleted_at = now
-    if current_user.id is not None:
-        db.add(models.DeletionApprovalRequest(
-            resource_type="Driver",
-            resource_id=driver_id,
-            resource_name=f"{driver.driver_id} — {driver.name}",
-            requested_by_staff_id=current_user.id,
-            requested_by_name=current_user.name,
-            reason=f"Deleted directly by {current_user.role} — no approval required.",
-            status="Approved",
-            approved_by_name=current_user.name,
-            approved_at=now,
-        ))
+    # Always log the audit row (even for the built-in "admin" login, whose
+    # current_user.id is None) so a soft-deleted driver is never hidden from
+    # /drivers/{id} yet unrecoverable via the Archive page for lack of an
+    # approval record. requested_by_staff_id is a plain Integer, not a FK, but
+    # is NOT NULL — 0 is the "system/unknown actor" sentinel for that case.
+    db.add(models.DeletionApprovalRequest(
+        resource_type="Driver",
+        resource_id=driver_id,
+        resource_name=f"{driver.driver_id} — {driver.name}",
+        requested_by_staff_id=current_user.id or 0,
+        requested_by_name=current_user.name,
+        reason=f"Deleted directly by {current_user.role} — no approval required.",
+        status="Approved",
+        approved_by_name=current_user.name,
+        approved_at=now,
+    ))
     db.commit()
     emit("driver_updated", {})
 

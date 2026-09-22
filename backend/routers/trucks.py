@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -60,7 +61,26 @@ def create_truck(
 
 
 # ---------------------------------------------------------------------------
-# Truck Run Configuration  (static routes MUST come before /{truck_id: int})
+# Static routes MUST come before /{truck_id: int}
+# ---------------------------------------------------------------------------
+
+@router.get("/next-id")
+def get_next_truck_id(db: Session = Depends(get_db)):
+    """Suggests the next CGI-T### truck ID. Computed over ALL trucks, including
+    soft-deleted/archived ones — the same universe create_truck's uniqueness
+    check uses — so this never suggests an ID that's still reserved by an
+    archived-but-not-yet-resolved truck (would otherwise 400 on submit)."""
+    ids = db.query(models.Truck.truck_id).all()
+    max_number = 0
+    for (truck_id,) in ids:
+        match = re.search(r"(\d+)$", truck_id or "")
+        if match:
+            max_number = max(max_number, int(match.group(1)))
+    return {"truck_id": f"CGI-T{max_number + 1:03d}"}
+
+
+# ---------------------------------------------------------------------------
+# Truck Run Configuration
 # ---------------------------------------------------------------------------
 
 @router.get("/run-config", response_model=list[schemas.TruckRunConfigOut])
@@ -490,18 +510,19 @@ def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: Tok
         raise HTTPException(409, "Truck is already deleted")
     now = datetime.now(timezone.utc)
     truck.deleted_at = now
-    if current_user.id is not None:
-        db.add(models.DeletionApprovalRequest(
-            resource_type="Truck",
-            resource_id=truck_id,
-            resource_name=f"{truck.truck_id} — {truck.registration_number}",
-            requested_by_staff_id=current_user.id,
-            requested_by_name=current_user.name,
-            reason="Deleted via Our Fleet (Admin action or pre-approved edit request).",
-            status="Approved",
-            approved_by_name=current_user.name,
-            approved_at=now,
-        ))
+    # Always log the audit row (even for the built-in "admin" login, whose
+    # current_user.id is None) — see drivers.py's delete_driver for rationale.
+    db.add(models.DeletionApprovalRequest(
+        resource_type="Truck",
+        resource_id=truck_id,
+        resource_name=f"{truck.truck_id} — {truck.registration_number}",
+        requested_by_staff_id=current_user.id or 0,
+        requested_by_name=current_user.name,
+        reason="Deleted via Our Fleet (Admin action or pre-approved edit request).",
+        status="Approved",
+        approved_by_name=current_user.name,
+        approved_at=now,
+    ))
     db.commit()
     emit("truck_updated", {})
 

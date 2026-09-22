@@ -1,17 +1,5 @@
 import type { Driver } from "@/types/driver";
 
-const DRIVER_ID_PREFIX = "CGI-D";
-
-export function generateDriverId(existing: Driver[]): string {
-  const maxNumber = existing.reduce((max, driver) => {
-    const match = driver.driverId.match(/(\d+)$/);
-    const value = match ? parseInt(match[1], 10) : 0;
-    return Math.max(max, value);
-  }, 0);
-
-  return `${DRIVER_ID_PREFIX}${String(maxNumber + 1).padStart(3, "0")}`;
-}
-
 export const initialDrivers: Driver[] = [
   {
     id: "1",

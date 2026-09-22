@@ -1,17 +1,5 @@
 import type { Truck } from "@/types/truck";
 
-const TRUCK_ID_PREFIX = "CGI-T";
-
-export function generateTruckId(existing: Truck[]): string {
-  const maxNumber = existing.reduce((max, truck) => {
-    const match = truck.truckId.match(/(\d+)$/);
-    const value = match ? parseInt(match[1], 10) : 0;
-    return Math.max(max, value);
-  }, 0);
-
-  return `${TRUCK_ID_PREFIX}${String(maxNumber + 1).padStart(3, "0")}`;
-}
-
 export const TRUCK_TYPE_OPTIONS = [
   "20 FT RIGID",
   "20 FT ARTICULATED",

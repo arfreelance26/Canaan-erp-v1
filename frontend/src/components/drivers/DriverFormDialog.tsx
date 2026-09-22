@@ -9,7 +9,7 @@ import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { Avatar } from "@/components/ui/Avatar";
 import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
-import { generateDriverId } from "@/lib/driver-data";
+import { driversApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
@@ -25,7 +25,6 @@ type DriverFormDialogProps = {
   onClose: () => void;
   onSave: (driver: Driver, files: DriverFiles) => void;
   initialData: Driver | null;
-  existingDrivers: Driver[];
 };
 
 const emptyForm: Omit<Driver, "id" | "driverId"> = {
@@ -58,13 +57,13 @@ export function DriverFormDialog({
   onClose,
   onSave,
   initialData,
-  existingDrivers,
 }: DriverFormDialogProps) {
   const [form, setForm] = useState<Omit<Driver, "id" | "driverId">>(emptyForm);
   const [files, setFiles] = useState<DriverFiles>({});
   const [showPassword, setShowPassword] = useState(false);
   const [changePassword, setChangePassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [nextDriverId, setNextDriverId] = useState<string | null>(null);
   const lastAutoUsername = useRef<string>("");
 
   useEffect(() => {
@@ -79,6 +78,15 @@ export function DriverFormDialog({
       setChangePassword(false);
       lastAutoUsername.current = rest.username;
     }
+  }, [open, initialData]);
+
+  useEffect(() => {
+    if (!open || initialData) return;
+    setNextDriverId(null);
+    // Fetched from the backend (not computed from the currently-loaded driver list),
+    // since it must account for archived drivers' still-reserved IDs too — see
+    // drivers.py's get_next_driver_id.
+    driversApi.getNextId().then(setNextDriverId).catch(() => setNextDriverId(null));
   }, [open, initialData]);
 
   useFormDraft(DRAFT_KEY, open && !initialData, form, setForm);
@@ -111,13 +119,18 @@ export function DriverFormDialog({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const driverIdForSave = initialData?.driverId ?? nextDriverId;
+    if (!driverIdForSave) {
+      showError("Still fetching the next Driver ID — please wait a moment and try again.");
+      return;
+    }
     onSave(
-      { id: initialData?.id ?? crypto.randomUUID(), driverId: initialData?.driverId ?? generateDriverId(existingDrivers), ...form },
+      { id: initialData?.id ?? crypto.randomUUID(), driverId: driverIdForSave, ...form },
       files,
     );
   }
 
-  const driverId = initialData?.driverId ?? generateDriverId(existingDrivers);
+  const driverId = initialData?.driverId ?? nextDriverId ?? "Loading…";
 
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Driver" : "Add Driver"}>

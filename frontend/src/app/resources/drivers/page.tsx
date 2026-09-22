@@ -8,7 +8,6 @@ import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { driversApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import { confirmAction, showSuccess, showError } from "@/lib/swal";
-import { generateDriverId } from "@/lib/driver-data";
 import type { Driver } from "@/types/driver";
 import type { DriverFiles } from "@/components/drivers/DriverFormDialog";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
@@ -159,8 +158,7 @@ export default function DriversPage() {
         saved = await driversApi.update(driver.id, driver, driver.password || undefined);
         setDrivers((prev) => prev.map((d) => (d.id === saved.id ? saved : d)));
       } else {
-        const driverWithId = { ...driver, driverId: driver.driverId || generateDriverId(drivers) };
-        saved = await driversApi.create(driverWithId, driver.password);
+        saved = await driversApi.create(driver, driver.password);
         setDrivers((prev) => [...prev, saved]);
         clearFormDraft(DRIVER_DRAFT_KEY);
       }
@@ -322,7 +320,6 @@ export default function DriversPage() {
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
         initialData={editingDriver}
-        existingDrivers={drivers}
       />
 
       {/* Edit approval request dialog — shown when a non-Admin clicks Edit without active approval */}

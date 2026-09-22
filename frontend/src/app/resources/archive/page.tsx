@@ -89,17 +89,32 @@ export default function ArchivePage() {
       // verified against each resource's own live deleted_at (via /{resource}/deleted-ids).
       // Keep only the most recent Approved row per resource id, in case it was archived,
       // restored, then archived again.
-      const results = await Promise.all(
+      //
+      // Each kind is fetched independently (allSettled, not Promise.all) so a transient
+      // failure on one resource type (e.g. Vendor) can't blank out the other four kinds'
+      // data — and a fully failed load keeps showing the last-known-good rows instead of
+      // silently rendering the "archive is empty" state.
+      const settled = await Promise.allSettled(
         ARCHIVED_KINDS.map((kind) =>
           Promise.all([deletionApprovalsApi.list("Approved", kind), KIND_CONFIG[kind].api.listDeletedIds()])
         )
       );
-      const byKind: [DeletionApprovalRequest[], Set<number>, ArchivedResource][] = ARCHIVED_KINDS.map(
-        (kind, i) => [results[i][0], new Set(results[i][1]), kind]
-      );
+
+      const failedKinds: ArchivedResource[] = [];
       const latest = new Map<string, ArchiveRow>();
-      for (const [reqs, stillDeleted, kind] of byKind) {
-        for (const r of reqs) {
+      settled.forEach((result, i) => {
+        const kind = ARCHIVED_KINDS[i];
+        if (result.status === "rejected") {
+          failedKinds.push(kind);
+          // Preserve whatever rows we already had for this kind rather than dropping them.
+          for (const row of rows) {
+            if (row.kind === kind) latest.set(`${kind}:${row.resourceId}`, row);
+          }
+          return;
+        }
+        const [reqs, deletedIds] = result.value;
+        const stillDeleted = new Set(deletedIds);
+        for (const r of reqs as DeletionApprovalRequest[]) {
           if (!stillDeleted.has(r.resourceId)) continue;
           const key = `${kind}:${r.resourceId}`;
           const existing = latest.get(key);
@@ -107,8 +122,12 @@ export default function ArchivePage() {
             latest.set(key, { ...r, kind });
           }
         }
-      }
+      });
+
       setRows([...latest.values()]);
+      if (failedKinds.length > 0) {
+        showError(`Couldn't refresh ${failedKinds.join(", ")} archive data — showing last known list.`);
+      }
     } finally {
       setLoading(false);
     }

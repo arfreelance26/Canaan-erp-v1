@@ -11,7 +11,6 @@ import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
 import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
-import { generateTruckId } from "@/lib/truck-data";
 import type { Truck } from "@/types/truck";
 import type { Branch } from "@/types/branch";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
@@ -186,8 +185,7 @@ export default function FleetPage() {
         saved = await trucksApi.update(truck.id, truckToSave);
         setTrucks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
       } else {
-        const truckWithId = { ...truck, truckId: truck.truckId || generateTruckId(trucks) };
-        saved = await trucksApi.create(truckWithId);
+        saved = await trucksApi.create(truck);
         setTrucks((prev) => [...prev, saved]);
         clearFormDraft(TRUCK_DRAFT_KEY);
       }
@@ -361,7 +359,6 @@ export default function FleetPage() {
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
         initialData={editingTruck}
-        existingTrucks={trucks}
       />
 
       {/* Edit approval request dialog — shown when a non-Admin edits/deletes without active approval */}

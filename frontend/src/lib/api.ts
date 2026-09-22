@@ -1262,6 +1262,7 @@ export const trucksApi = {
   restore: (dbId: string) => req<B>(`/trucks/${dbId}/restore`, { method: "POST" }).then(toTruck),
   removePermanent: (dbId: string) => req<void>(`/trucks/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/trucks/deleted-ids"),
+  getNextId: () => req<{ truck_id: string }>("/trucks/next-id").then((d) => d.truck_id),
   getBranchHistory: (dbId: string) =>
     req<{ id: number; truck_id: number; from_branch: string | null; to_branch: string; note: string; changed_by_name: string; changed_at: string }[]>(
       `/trucks/${dbId}/branch-history`
@@ -1378,6 +1379,7 @@ export const driversApi = {
   restore: (dbId: string) => req<B>(`/drivers/${dbId}/restore`, { method: "POST" }).then(toDriver),
   removePermanent: (dbId: string) => req<void>(`/drivers/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/drivers/deleted-ids"),
+  getNextId: () => req<{ driver_id: string }>("/drivers/next-id").then((d) => d.driver_id),
 };
 
 // ---------------------------------------------------------------------------
