@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+from security import require_roles
 
 router = APIRouter(prefix="/trip-expense-rates", tags=["Trip Expense Rates"])
 
@@ -22,11 +23,17 @@ def _get_or_create(db: Session) -> models.TripExpenseRate:
 
 @router.get("", response_model=schemas.TripExpenseRateOut)
 def get_config(db: Session = Depends(get_db)):
+    # Open to every authenticated role — TripSheetDialog reads this to compute
+    # expense estimates for whoever is filling out a trip sheet (including
+    # Trip Sheet Register), not just the "Trip Expenses" admin page.
     return _get_or_create(db)
 
 
-@router.put("", response_model=schemas.TripExpenseRateOut)
+@router.put("", response_model=schemas.TripExpenseRateOut, dependencies=[Depends(require_roles())])
 def save_config(payload: schemas.TripExpenseRateUpdate, db: Session = Depends(get_db)):
+    # Admin only: editing rates is restricted to the "Trip Expenses" admin
+    # page, which every other role (including Trip Sheet Register) is now
+    # blocked from even opening on the frontend.
     row = db.query(models.TripExpenseRate).with_for_update().filter(
         models.TripExpenseRate.name == _SINGLETON_NAME
     ).first()

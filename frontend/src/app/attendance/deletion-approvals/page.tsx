@@ -8,7 +8,7 @@ import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
@@ -65,14 +65,49 @@ function RequestCard({
   const isMaintenance = req.resourceType === "MaintenanceRecord";
   const isTrip = req.resourceType === "Trip";
   const isDriver = req.resourceType === "Driver";
+  const isTruck = req.resourceType === "Truck";
+  const isStaff = req.resourceType === "Staff";
+  const isCustomer = req.resourceType === "Customer";
+  const isVendor = req.resourceType === "Vendor";
+
+  const badgeClass = isTrip
+    ? "bg-purple-100 text-purple-600"
+    : isMaintenance
+    ? "bg-blue-100 text-blue-600"
+    : isDriver
+    ? "bg-indigo-100 text-indigo-600"
+    : isTruck
+    ? "bg-amber-100 text-amber-600"
+    : isStaff
+    ? "bg-emerald-100 text-emerald-600"
+    : isCustomer
+    ? "bg-sky-100 text-sky-600"
+    : isVendor
+    ? "bg-teal-100 text-teal-600"
+    : "bg-red-100 text-red-600";
+  const BadgeIcon = isTrip
+    ? Truck
+    : isMaintenance
+    ? Wrench
+    : isDriver
+    ? IdCard
+    : isTruck
+    ? Truck
+    : isStaff
+    ? Users
+    : isCustomer
+    ? Building2
+    : isVendor
+    ? Handshake
+    : Fuel;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       {/* Top bar */}
       <div className="flex items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isTrip ? "bg-purple-100 text-purple-600" : isMaintenance ? "bg-blue-100 text-blue-600" : isDriver ? "bg-indigo-100 text-indigo-600" : "bg-red-100 text-red-600"}`}>
-            {isTrip ? <Truck className="h-4 w-4" /> : isMaintenance ? <Wrench className="h-4 w-4" /> : isDriver ? <IdCard className="h-4 w-4" /> : <Fuel className="h-4 w-4" />}
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${badgeClass}`}>
+            <BadgeIcon className="h-4 w-4" />
           </div>
           <div>
             <p className="text-sm font-bold text-gray-900">{req.resourceName}</p>

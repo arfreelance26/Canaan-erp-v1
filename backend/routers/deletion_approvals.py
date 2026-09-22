@@ -184,6 +184,25 @@ def approve_deletion(
         if driver and driver.deleted_at is None:
             driver.deleted_at = datetime.now(timezone.utc)
             emit("driver_updated", {})
+    elif req.resource_type == "Truck":
+        truck = db.get(models.Truck, req.resource_id)
+        if truck and truck.deleted_at is None:
+            truck.deleted_at = datetime.now(timezone.utc)
+            emit("truck_updated", {})
+    elif req.resource_type == "Staff":
+        staff = db.get(models.Staff, req.resource_id)
+        if staff and staff.deleted_at is None:
+            staff.deleted_at = datetime.now(timezone.utc)
+    elif req.resource_type == "Customer":
+        customer = db.get(models.Customer, req.resource_id)
+        if customer and customer.deleted_at is None:
+            customer.deleted_at = datetime.now(timezone.utc)
+            emit("customer_updated", {})
+    elif req.resource_type == "Vendor":
+        vendor = db.get(models.Vendor, req.resource_id)
+        if vendor and vendor.deleted_at is None:
+            vendor.deleted_at = datetime.now(timezone.utc)
+            emit("vendor_updated", {})
 
     req.status = "Approved"
     req.approved_by_name = current_user.name

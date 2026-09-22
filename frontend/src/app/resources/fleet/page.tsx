@@ -8,7 +8,7 @@ import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
 import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
-import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi } from "@/lib/api";
+import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
@@ -45,6 +45,10 @@ export default function FleetPage() {
   const [pendingAction, setPendingAction] = useState<{ type: EditApprovalAction; resourceId: string; resourceName: string } | null>(null);
   const [branchChangeRequest, setBranchChangeRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
   const [branchHistoryTruck, setBranchHistoryTruck] = useState<Truck | null>(null);
+  // Deletion request state (non-Admin, non-Assistant Commercial Manager roles) — files a
+  // DeletionApprovalRequest instead of an EditApprovalRequest, so it lands on the Admin's
+  // "Deletion Approvals" page (and the Archive page's audit trail) instead of "Edit Approvals".
+  const [deleteRequestTruck, setDeleteRequestTruck] = useState<Truck | null>(null);
 
   const filteredTrucks = trucks.filter(t =>
     !searchQuery ||
@@ -101,10 +105,9 @@ export default function FleetPage() {
   }
 
   async function handleDelete(id: string) {
-    const truck = trucks.find((t) => t.id === id);
-    if (isGated && !hasActiveApproval(id, "Delete")) {
-      setPendingAction({ type: "Delete", resourceId: id, resourceName: truck?.registrationNumber || truck?.truckId || id });
-      setEditRequestOpen(true);
+    if (isGated) {
+      const truck = trucks.find((t) => t.id === id);
+      if (truck) setDeleteRequestTruck(truck);
       return;
     }
     const result = await confirmDelete("truck");
@@ -115,6 +118,22 @@ export default function FleetPage() {
       showSuccess("Truck deleted successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete truck.");
+    }
+  }
+
+  async function handleDeleteRequestSubmit(reason: string) {
+    if (!deleteRequestTruck) return;
+    try {
+      await deletionApprovalsApi.create({
+        resourceType: "Truck",
+        resourceId: parseInt(deleteRequestTruck.id),
+        resourceName: `${deleteRequestTruck.truckId} — ${deleteRequestTruck.registrationNumber}`,
+        reason,
+      });
+      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      setDeleteRequestTruck(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to send delete request.");
     }
   }
 
@@ -361,7 +380,7 @@ export default function FleetPage() {
         initialData={editingTruck}
       />
 
-      {/* Edit approval request dialog — shown when a non-Admin edits/deletes without active approval */}
+      {/* Edit approval request dialog — shown when a non-Admin edits without active approval */}
       {pendingAction && (
         <EditRequestDialog
           open={editRequestOpen}
@@ -370,6 +389,20 @@ export default function FleetPage() {
           action={pendingAction.type}
           onSubmit={handleEditRequestSubmit}
           onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
+        />
+      )}
+
+      {/* Delete request dialog — non-Admin, non-Assistant Commercial Manager roles submit
+          this with a reason instead of deleting directly; it lands on the Admin's
+          "Deletion Approvals" page for approval. */}
+      {deleteRequestTruck && (
+        <EditRequestDialog
+          open={deleteRequestTruck !== null}
+          resourceType="Truck"
+          resourceName={`${deleteRequestTruck.truckId} — ${deleteRequestTruck.registrationNumber}`}
+          action="Delete"
+          onSubmit={handleDeleteRequestSubmit}
+          onClose={() => setDeleteRequestTruck(null)}
         />
       )}
 

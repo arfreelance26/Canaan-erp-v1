@@ -203,7 +203,7 @@ export default function TripExpensesPage() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!["Admin", "Trip Sheet Register"].includes(user?.softwareDesignation ?? "")) { router.replace("/"); return; }
+    if (user?.softwareDesignation !== "Admin") { router.replace("/"); return; }
     tripExpenseRatesApi.getConfig()
       .then((r) => { setConfig(r); setForm(rateToForm(r)); })
       .catch(() => {})

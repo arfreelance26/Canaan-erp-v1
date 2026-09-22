@@ -94,7 +94,6 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/fuel-history",
     "/attendance/mark",
     "/attendance/leave-requests",
-    "/admin/trip-expenses",
     "/admin/repairs",
   ],
   // Audit-specific pages are being added one by one.

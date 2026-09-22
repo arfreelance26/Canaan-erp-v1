@@ -493,15 +493,17 @@ def change_truck_branch(
     return truck
 
 
-@router.delete("/{truck_id}", status_code=204)
+@router.delete("/{truck_id}", status_code=204, dependencies=[Depends(require_roles("Assistant Commercial Manager"))])
 def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
-    """Soft-delete a truck (hides it from "Our Fleet" and every assignment
-    picker, keeps its fuel/adblue/maintenance logs, tyre fitments, compliance
-    history, and branch history intact and still resolvable). A non-Admin
-    reaches this endpoint only after an Admin/Commercial Manager has already
-    approved their Edit-Approvals delete request; a self-approved
-    DeletionApprovalRequest row is logged here either way for audit
-    visibility, same pattern as drivers.py's delete_driver.
+    """Admin / Assistant Commercial Manager only: soft-delete a truck directly
+    (hides it from "Our Fleet" and every assignment picker, keeps its
+    fuel/adblue/maintenance logs, tyre fitments, compliance history, and
+    branch history intact and still resolvable). Every other role must file a
+    DeletionApprovalRequest via POST /deletion-approvals instead, reviewed on
+    the "Deletion Approvals" page — see deletion_approvals.py's
+    approve_deletion, which performs the same soft-delete once an Admin
+    approves. A self-approved DeletionApprovalRequest row is logged here for
+    audit visibility, same pattern as drivers.py's delete_driver.
     """
     truck = db.get(models.Truck, truck_id)
     if not truck:
