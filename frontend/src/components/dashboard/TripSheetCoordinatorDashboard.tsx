@@ -11,6 +11,7 @@ import {
   Layers,
   Navigation,
   CalendarDays,
+  PackageCheck,
 } from "lucide-react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
@@ -109,9 +110,14 @@ export function TripSheetCoordinatorDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Yard Supervisor</h1>
-          <p className="mt-1 text-sm text-gray-500">Sheet collection status across all closed trips</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+              <PackageCheck className="h-5 w-5" />
+            </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Yard Supervisor</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Sheet collection status across all closed trips</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {!loading && pending.length > 0 && (

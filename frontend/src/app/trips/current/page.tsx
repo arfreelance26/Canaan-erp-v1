@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
+import { Route } from "lucide-react";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -102,11 +103,16 @@ export default function CurrentTripsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Current Trips</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Active and upcoming trips being handled by drivers
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <Route className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Current Trips</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            Active and upcoming trips being handled by drivers
+          </p>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}

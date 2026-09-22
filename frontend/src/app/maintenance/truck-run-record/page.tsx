@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Truck as TruckIcon, FileText, BarChart3 } from "lucide-react";
+import { Truck as TruckIcon, FileText, BarChart3, Activity } from "lucide-react";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -50,11 +50,16 @@ export default function TruckRunRecordPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Truck Run Record</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Track actual truck run distance and history
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <Activity className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Run Record</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            Track actual truck run distance and history
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
 import { PaymentDialog } from "@/components/compensation/PaymentDialog";
 import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
+import { Banknote } from "lucide-react";
 import { staffApi, financeApi } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { CompensationTransaction } from "@/types/compensation";
@@ -78,9 +79,14 @@ export default function StaffCompensationPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Staff Compensation</h1>
-        <p className="mt-1 text-sm text-gray-500">Pay salaries to staff members</p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <Banknote className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Staff Compensation</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Pay salaries to staff members</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

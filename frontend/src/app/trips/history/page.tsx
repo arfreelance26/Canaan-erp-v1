@@ -267,14 +267,16 @@ export default function TripHistoryPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <div className="flex items-center gap-2">
-          <History className="h-6 w-6 text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Trip History</h1>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <History className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip History</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            All trips — view booking sheet, trip sheet, and invoice.
+          </p>
         </div>
-        <p className="mt-1 text-sm text-gray-500">
-          All trips — view booking sheet, trip sheet, and invoice.
-        </p>
       </div>
 
       {/* Toolbar: search on the left, export range + View on the right */}

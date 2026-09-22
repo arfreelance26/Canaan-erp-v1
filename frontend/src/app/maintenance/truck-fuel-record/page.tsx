@@ -147,12 +147,12 @@ export default function TruckFuelRecordPage() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
             <Fuel className="h-5 w-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Truck Fuel Record</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Fuel Record</h1>
             <p className="mt-0.5 text-sm text-gray-500">Read-only audit view of every fuel log across the fleet</p>
           </div>
         </div>

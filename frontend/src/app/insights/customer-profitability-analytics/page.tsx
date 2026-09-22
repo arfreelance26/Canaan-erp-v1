@@ -752,11 +752,16 @@ export default function CustomerProfitabilityPage() {
       <div className="flex flex-col gap-6">
         {/* Page header */}
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Customer Profitability Analytics</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Revenue, expenses, and profit margins across your customer base — based on completed trips.
-            </p>
+          <div className="flex items-center gap-3.5">
+            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+            <Users className="h-5 w-5" />
+          </span>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Customer Profitability Analytics</h1>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Revenue, expenses, and profit margins across your customer base — based on completed trips.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button

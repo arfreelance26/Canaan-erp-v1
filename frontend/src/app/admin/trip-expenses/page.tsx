@@ -256,12 +256,12 @@ export default function TripExpensesPage() {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100">
-          <Receipt className="h-5 w-5 text-blue-600" />
-        </div>
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <Receipt className="h-5 w-5" />
+        </span>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">Trip Expenses</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Expenses</h1>
             <SaveChip state={saveState} />
           </div>
           <p className="text-sm text-gray-500">

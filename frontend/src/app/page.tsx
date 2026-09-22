@@ -33,6 +33,7 @@ import {
   Loader2,
   Fuel,
   Pencil,
+  LayoutDashboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -457,10 +458,19 @@ function AdminDashboard() {
       {activeTab === "overview" && <>
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-6">
-        <div className="flex flex-col gap-2">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="mt-0.5 text-sm text-gray-400">Fleet command centre · {dayLabel}</p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3.5">
+            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+              <LayoutDashboard className="h-5 w-5" />
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-400">
+                Fleet command centre
+                <span className="text-gray-300">·</span>
+                <span className="font-medium text-gray-500">{dayLabel}</span>
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {(

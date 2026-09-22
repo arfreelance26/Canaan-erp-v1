@@ -83,11 +83,16 @@ export default function HolidaysPage() {
     <div className="animate-stagger flex w-full flex-col gap-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Holidays</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Government &amp; company holidays for staff attendance. Sundays are automatic weekly holidays.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+            <CalendarDays className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Staff Holidays</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Government &amp; company holidays for staff attendance. Sundays are automatic weekly holidays.
+            </p>
+          </div>
         </div>
         <div className="dk-inset flex h-10 items-center rounded-full border border-gray-200 bg-white px-1 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md">
           <button

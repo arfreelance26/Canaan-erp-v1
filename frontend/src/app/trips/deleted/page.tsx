@@ -132,11 +132,16 @@ export default function DeletedTripsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Deleted Trips</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Audit trail of trips permanently deleted — who requested it, why, and who approved it
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+          <Trash2 className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Deleted Trips</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            Audit trail of trips permanently deleted — who requested it, why, and who approved it
+          </p>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, deletion-date range + View on the right */}

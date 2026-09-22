@@ -105,14 +105,16 @@ export default function DefaultBattaManagementPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Coins className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Default Batta Management</h1>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+            <Coins className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Default Batta Management</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Configure default batta (allowance) rates used across trips and driver compensation.
+            </p>
           </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Configure default batta (allowance) rates used across trips and driver compensation.
-          </p>
         </div>
 
         <div className="h-6">

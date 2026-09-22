@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Send } from "lucide-react";
 import { TripTable } from "@/components/trips/TripTable";
 import { TripFormDialog, clearTripDraft } from "@/components/trips/TripFormDialog";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
@@ -173,11 +173,16 @@ export default function AssignTripsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Assign Trips</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Create and assign trips to drivers who have a vehicle assigned
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <Send className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Assign Trips</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Create and assign trips to drivers who have a vehicle assigned
+            </p>
+          </div>
         </div>
         <button
           type="button"

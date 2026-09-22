@@ -1,6 +1,6 @@
 "use client";
 
-import { Lock, Download, Loader2, Info, X, Eye } from "lucide-react";
+import { Lock, Download, Loader2, Info, X, Eye, IdCard } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -403,11 +403,16 @@ export default function DriverAttendancePage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Driver Attendance</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Track and mark attendance for all drivers
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+            <IdCard className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Driver Attendance</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Track and mark attendance for all drivers
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* Day being marked */}

@@ -433,11 +433,16 @@ export default function SheetCollectionPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Trip Sheet Collection</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Mark trip sheets as delivered from drivers before reconciliation
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <Inbox className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Sheet Collection</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            Mark trip sheets as delivered from drivers before reconciliation
+          </p>
+        </div>
       </div>
       {/* Toolbar: search + status on the left, delivered-on range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">

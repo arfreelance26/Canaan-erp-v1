@@ -197,11 +197,16 @@ export default function TyreRangeConfigPage() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tyre Range Configuration</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Set the expected kilometre range for each tyre type. Changes save automatically.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+            <CircleDot className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Tyre Range Configuration</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Set the expected kilometre range for each tyre type. Changes save automatically.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 mt-1">

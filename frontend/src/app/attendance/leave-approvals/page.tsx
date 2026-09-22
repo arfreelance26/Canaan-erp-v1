@@ -13,6 +13,7 @@ import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { CheckCircle2 } from "lucide-react";
 
 const categoryLabels: Record<LeaveApplicantCategory, string> = {
   Driver: "Drivers",
@@ -113,11 +114,16 @@ export default function LeaveApprovalsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+            <CheckCircle2 className="h-5 w-5" />
+          </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Leave Approvals</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            Review and respond to leave requests from drivers, commercial managers, accounts, maintenance, and staff
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 sm:max-w-md">

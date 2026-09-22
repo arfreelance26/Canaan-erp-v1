@@ -156,9 +156,14 @@ export function FinanceManagerDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Accounts Dashboard</h1>
-            <p className="mt-1 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
+          <div className="flex items-center gap-3.5">
+            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+              <Landmark className="h-5 w-5" />
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">Accounts Dashboard</h1>
+              <p className="mt-0.5 text-sm text-gray-500">EMI obligations, trip finalization pipeline, and compliance overview</p>
+            </div>
           </div>
         </div>
       </div>

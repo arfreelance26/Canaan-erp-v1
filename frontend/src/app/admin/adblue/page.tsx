@@ -106,12 +106,12 @@ export default function AdblueManagementPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Page header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 shadow-md">
-          <Droplets className="h-5 w-5 text-white" />
-        </div>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <Droplets className="h-5 w-5" />
+        </span>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Truck&apos;s Adblue History</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck&apos;s Adblue History</h1>
           <p className="mt-0.5 text-sm text-gray-500">Track AdBlue usage and stock across the fleet</p>
         </div>
       </div>

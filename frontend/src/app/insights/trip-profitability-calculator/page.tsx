@@ -2,7 +2,7 @@
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { useEffect, useState } from "react";
-import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2 } from "lucide-react";
+import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2, Calculator } from "lucide-react";
 import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, adblueLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { Branch } from "@/types/branch";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
@@ -1100,11 +1100,16 @@ export default function TripProfitabilityCalculatorPage() {
 
       {/* Page header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trip Profitability Calculator</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Estimate and analyse profit margins per trip across your fleet.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+            <Calculator className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Profitability Calculator</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Estimate and analyse profit margins per trip across your fleet.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

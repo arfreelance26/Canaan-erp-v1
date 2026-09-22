@@ -311,12 +311,12 @@ export default function SecurityLogPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-8 p-2">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/10">
-          <Lock className="h-5 w-5 text-red-600 dark:text-red-400" />
-        </div>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+          <Lock className="h-5 w-5" />
+        </span>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Security Log</h1>
+          <h1 className="text-xl font-bold tracking-tight text-gray-900">Security Log</h1>
           <p className="text-sm text-gray-500">
             Monitor logins, document access, and active lockouts — visible to Admin only
           </p>

@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, ShieldCheck, X } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
 import { Segmented } from "@/components/ui/Segmented";
+import { PillSearch } from "@/components/ui/PillSearch";
 
 type Status = "valid" | "soon" | "expired" | "none";
 type Filter = "all" | "expired" | "soon";
@@ -130,20 +131,7 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
             { value: "soon", label: "Expiring soon" },
           ]}
         />
-        <label className="flex h-8 w-56 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
-          <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search truck…"
-            className="min-w-0 flex-1 bg-transparent text-xs text-gray-700 outline-none placeholder:text-gray-400"
-          />
-          {query && (
-            <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="text-gray-400 hover:text-gray-600">
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </label>
+        <PillSearch size="sm" value={query} onChange={setQuery} placeholder="Search truck…" />
       </div>
 
       {/* Table */}

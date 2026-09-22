@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Plus, X, Smartphone, Laptop } from "lucide-react";
+import { Download, FileText, Loader2, Plus, X, Smartphone, Laptop, Users } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
@@ -221,11 +221,16 @@ export default function StaffPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Our Staff</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage staff records across all branches
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <Users className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Staff</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Manage staff records across all branches
+            </p>
+          </div>
         </div>
         <button
           type="button"

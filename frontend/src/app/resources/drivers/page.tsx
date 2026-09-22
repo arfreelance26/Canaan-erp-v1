@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Plus, X } from "lucide-react";
+import { Download, FileText, Loader2, Plus, X, IdCard } from "lucide-react";
 import { DriverTable } from "@/components/drivers/DriverTable";
 import { DriverFormDialog, DRAFT_KEY as DRIVER_DRAFT_KEY } from "@/components/drivers/DriverFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -284,11 +284,16 @@ export default function DriversPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Our Drivers</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage driver records across all branches
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+          <IdCard className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Drivers</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Manage driver records across all branches
+            </p>
+          </div>
         </div>
         <button
           type="button"

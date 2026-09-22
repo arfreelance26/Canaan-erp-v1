@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Eye, FileBarChart2, Download, Loader2, X } from "lucide-react";
+import { CheckCircle2, Eye, FileBarChart2, Download, Loader2, X, Inbox } from "lucide-react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -190,9 +190,14 @@ export function StaffDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trip Sheet Register</h1>
-          <p className="mt-1 text-sm text-gray-500">Sheets awaiting receipt and entry</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+              <Inbox className="h-5 w-5" />
+            </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Sheet Register</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Sheets awaiting receipt and entry</p>
+          </div>
         </div>
       </div>
 

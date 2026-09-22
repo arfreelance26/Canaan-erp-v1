@@ -602,9 +602,14 @@ export default function TripVerificationPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Verification & Invoicing</h1>
-        <p className="mt-1 text-sm text-gray-500">Verify trip data and generate invoices in one place</p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <FileText className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Verification & Invoicing</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Verify trip data and generate invoices in one place</p>
+        </div>
       </div>
       {/* Toolbar: search on the left, invoice-date range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">

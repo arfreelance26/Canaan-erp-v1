@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
@@ -407,9 +407,14 @@ export default function CustomersPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Our Customers</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage customer records, pricing, and destinations</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+          <Building2 className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Customers</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Manage customer records, pricing, and destinations</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">

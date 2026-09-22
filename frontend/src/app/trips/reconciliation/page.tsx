@@ -651,11 +651,16 @@ export default function TripReconciliationPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Trip Reconciliation</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          View and manage booking sheets and trip sheets for closed trips
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <ClipboardList className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Reconciliation</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            View and manage booking sheets and trip sheets for closed trips
+          </p>
+        </div>
       </div>
       {/* Toolbar: search + current trips on the left, trip-date range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">

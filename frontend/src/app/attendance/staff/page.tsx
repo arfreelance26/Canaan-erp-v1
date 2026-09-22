@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Loader2, X } from "lucide-react";
+import { Download, Eye, Loader2, X, Users } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -310,11 +310,16 @@ export default function StaffAttendancePage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Attendance</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Track and mark attendance for all staff members
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+            <Users className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Staff Attendance</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Track and mark attendance for all staff members
+            </p>
+          </div>
         </div>
         {/* Day being marked */}
         <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">

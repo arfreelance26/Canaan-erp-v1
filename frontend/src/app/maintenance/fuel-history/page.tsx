@@ -76,9 +76,14 @@ export default function FuelHistoryPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Truck&apos;s Fuel History</h1>
-          <p className="mt-1 text-sm text-gray-500">Track and manage fuel consumption for every truck in the fleet</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <Fuel className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck&apos;s Fuel History</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Track and manage fuel consumption for every truck in the fleet</p>
+          </div>
         </div>
         {/* Read-only — the base litre cost is only editable from the Dashboard. */}
         {baseCostPerLitre != null && (

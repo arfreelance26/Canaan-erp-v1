@@ -34,7 +34,7 @@ export function PillSearch({ value, onChange, placeholder = "Search…", size = 
   const z = SIZE[size];
   return (
     <label
-      className={`group flex ${z.box} shrink-0 cursor-text items-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md dark:border-gray-300/30 dark:bg-gray-200 ${
+      className={`group flex ${z.box} shrink-0 cursor-text items-center justify-center gap-2 overflow-hidden rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md focus-within:scale-105 focus-within:border-blue-400 focus-within:shadow-md dark:border-gray-300/30 dark:bg-gray-200 ${
         value ? z.open : z.closed
       }`}
     >

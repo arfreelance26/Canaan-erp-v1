@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Download, FileText, Loader2 } from "lucide-react";
+import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -317,9 +317,14 @@ export default function FleetPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Our Fleet</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage trucks across all branches</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <TruckLucideIcon className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Fleet</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Manage trucks across all branches</p>
+          </div>
         </div>
         <button
           type="button"

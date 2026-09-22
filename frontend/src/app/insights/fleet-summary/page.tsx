@@ -448,11 +448,16 @@ export default function FleetSummaryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Fleet Summary</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {trucks.length} truck{trucks.length !== 1 ? "s" : ""} in fleet
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+            <TruckIcon className="h-5 w-5" />
+          </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Fleet Summary</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            {trucks.length} truck{trucks.length !== 1 ? "s" : ""} in fleet
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3">

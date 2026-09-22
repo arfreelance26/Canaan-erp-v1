@@ -477,16 +477,18 @@ export default function AttendanceReportPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Attendance Report</h1>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+            <BarChart3 className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Attendance Report</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              {isDriver
+                ? "On Trip, On Halt, Leave, and On Workshop counts for drivers over any date range"
+                : "Present, Absent, and On Leave day counts for staff over any date range"}
+            </p>
           </div>
-          <p className="mt-1 text-sm text-gray-500">
-            {isDriver
-              ? "On Trip, On Halt, Leave, and On Workshop counts for drivers over any date range"
-              : "Present, Absent, and On Leave day counts for staff over any date range"}
-          </p>
         </div>
         {latestDate && (
           <div className="flex flex-col items-end sm:text-right">

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, CalendarClock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
 import { LeaveRequestFormDialog } from "@/components/attendance/LeaveRequestFormDialog";
@@ -109,11 +109,16 @@ export default function LeaveRequestsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave Requests</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Submit your leave requests and track whether they have been approved
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white text-sky-600 shadow-sm">
+            <CalendarClock className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Leave Requests</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Submit your leave requests and track whether they have been approved
+            </p>
+          </div>
         </div>
         <button
           type="button"

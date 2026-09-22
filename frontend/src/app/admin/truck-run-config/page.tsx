@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { trucksApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { Truck as TruckIcon, LayoutGrid, Settings2, X, Info } from "lucide-react";
+import { Truck as TruckIcon, LayoutGrid, Settings2, X, Info, Gauge } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 export const RUN_CONFIG_STORAGE_KEY = "erp_truck_run_config";
@@ -271,11 +271,16 @@ export default function TruckRunConfigPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Truck Run Configuration</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {trucks.length} truck{trucks.length !== 1 ? "s" : ""} across {groups.size} tyre layout{groups.size !== 1 ? "s" : ""}
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+            <Gauge className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Run Configuration</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              {trucks.length} truck{trucks.length !== 1 ? "s" : ""} across {groups.size} tyre layout{groups.size !== 1 ? "s" : ""}
+            </p>
+          </div>
         </div>
 
         <button

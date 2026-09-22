@@ -58,9 +58,14 @@ function useBackendStatus() {
 }
 
 function getPageLabel(pathname: string): string {
+  // next.config's trailingSlash:true means the live pathname always ends in
+  // "/" (e.g. "/insights/running-cost-calculator/"), but nav-config's hrefs
+  // don't — normalize both sides so the lookup actually matches.
+  const norm = (p: string) => (p.length > 1 ? p.replace(/\/+$/, "") : p);
+  const here = norm(pathname);
   for (const section of sidebarSections) {
     for (const item of section.items) {
-      if (item.href === pathname) return item.label;
+      if (norm(item.href) === here) return item.label;
     }
   }
   return "Dashboard";
@@ -408,21 +413,25 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <nav className="flex items-center gap-2 text-[15px] min-w-0 flex-1">
-        <Link href="/" className="text-gray-400 hover:text-gray-900 transition-all duration-300 hover:-translate-y-0.5 hover:scale-110">
-          <Home className="h-4 w-4" />
+      <nav className="dk-inset flex min-w-0 max-w-xs items-center gap-1 rounded-full border border-gray-200/70 bg-white/70 py-1 pl-1 pr-3 shadow-sm sm:max-w-sm">
+        <Link
+          href="/"
+          aria-label="Home"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
+        >
+          <Home className="h-3.5 w-3.5" />
         </Link>
-        {breadcrumbs.map((crumb, index) => {
-          const isLast = index === breadcrumbs.length - 1;
+        {breadcrumbs.slice(1).map((crumb, index, arr) => {
+          const isLast = index === arr.length - 1;
           return (
-            <span key={crumb.label} className={`flex items-center gap-2 min-w-0 ${isLast ? "hidden sm:flex" : ""}`}>
-              <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
+            <span key={crumb.label} className={`flex min-w-0 items-center gap-1 ${isLast ? "hidden sm:flex" : ""}`}>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-300" />
               {crumb.href && !isLast ? (
-                <Link href={crumb.href} className="truncate text-gray-500 hover:text-gray-900 transition-colors duration-300">
+                <Link href={crumb.href} className="truncate text-sm font-medium text-gray-500 transition-colors duration-300 hover:text-gray-900">
                   {crumb.label}
                 </Link>
               ) : (
-                <span className={`truncate ${isLast ? "font-semibold text-gray-900" : "text-gray-500"}`}>
+                <span className={`truncate text-sm ${isLast ? "font-semibold text-gray-900" : "font-medium text-gray-500"}`}>
                   {crumb.label}
                 </span>
               )}

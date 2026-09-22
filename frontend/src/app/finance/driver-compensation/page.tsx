@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
 import { AdvanceRecordDialog } from "@/components/compensation/AdvanceRecordDialog";
 import { SalaryRecordDialog } from "@/components/compensation/SalaryRecordDialog";
+import { Wallet } from "lucide-react";
 import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
 import { driversApi, tripsApi, financeApi, trucksApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
@@ -104,10 +105,15 @@ export default function DriverCompensationPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Driver Compensation</h1>
-        <p className="mt-1 text-sm text-gray-500">View advance and salary records for drivers</p>
-        <p className="mt-1 text-sm font-semibold text-indigo-600">Total Drivers: {people.length}{search.trim() && ` (showing ${filteredPeople.length})`}</p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <Wallet className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Driver Compensation</h1>
+          <p className="mt-0.5 text-sm text-gray-500">View advance and salary records for drivers</p>
+          <p className="mt-1 text-sm font-semibold text-indigo-600">Total Drivers: {people.length}{search.trim() && ` (showing ${filteredPeople.length})`}</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

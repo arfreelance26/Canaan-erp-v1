@@ -6,6 +6,7 @@ import { MaintenanceRecordFormDialog } from "@/components/maintenance/Maintenanc
 import { MaintenanceRecordHistoryDialog } from "@/components/maintenance/MaintenanceRecordHistoryDialog";
 import { TruckStatusDialog } from "@/components/maintenance/TruckStatusDialog";
 import { trucksApi, maintenanceApi } from "@/lib/api";
+import { Wrench } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
@@ -92,9 +93,14 @@ export default function TruckMaintenancePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Truck Maintenance</h1>
-        <p className="mt-1 text-sm text-gray-500">Track the reliability of every truck in the fleet</p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white text-orange-600 shadow-sm">
+          <Wrench className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck Maintenance</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Track the reliability of every truck in the fleet</p>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />

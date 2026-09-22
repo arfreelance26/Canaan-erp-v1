@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
 import { CloseTripDialog } from "@/components/trips/CloseTripDialog";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
+import { CheckCircle2 } from "lucide-react";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import type { Trip } from "@/types/trip";
@@ -101,11 +102,16 @@ export default function CompletedTripsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Completed Trips</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          All trips that have been successfully completed
-        </p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+          <CheckCircle2 className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Completed Trips</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            All trips that have been successfully completed
+          </p>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}

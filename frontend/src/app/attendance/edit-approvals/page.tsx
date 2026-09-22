@@ -177,11 +177,16 @@ export default function EditApprovalsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Edit Approvals</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Review and approve non-Admin requests to edit or delete customer, vendor, driver, and truck records
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Edit Approvals</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Review and approve non-Admin requests to edit or delete customer, vendor, driver, and truck records
+            </p>
+          </div>
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Handshake } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
@@ -144,9 +144,14 @@ export default function VendorsPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Our Vendors</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage vendor records and contacts</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+          <Handshake className="h-5 w-5" />
+        </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Our Vendors</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Manage vendor records and contacts</p>
+          </div>
         </div>
         <button
           type="button"

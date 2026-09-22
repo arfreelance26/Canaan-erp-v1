@@ -96,12 +96,12 @@ export default function MaintenanceManagementPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 shadow-sm">
-            <Settings2 className="h-5 w-5 text-white" />
-          </div>
+        <div className="flex items-start gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+            <Settings2 className="h-5 w-5" />
+          </span>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-900">Maintenance Alert Management</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-900">Maintenance Alert Management</h1>
             <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-600">
               Define maintenance types and their kilometer intervals. These appear as options when logging maintenance records for trucks.
             </p>

@@ -6,6 +6,7 @@ import { ManageTyresDialog } from "@/components/maintenance/ManageTyresDialog";
 import { ViewTyreDataDialog } from "@/components/maintenance/ViewTyreDataDialog";
 import { TruckHistoryDialog } from "@/components/maintenance/TruckHistoryDialog";
 import { trucksApi, tyreApi, tyreRangeConfigApi } from "@/lib/api";
+import { CircleDot } from "lucide-react";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 
 import type { Truck } from "@/types/truck";
@@ -78,9 +79,14 @@ export default function TyreManagementPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Tyre Management</h1>
-        <p className="mt-1 text-sm text-gray-500">Track layouts across the fleet</p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+          <CircleDot className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Tyre Management</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Track layouts across the fleet</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

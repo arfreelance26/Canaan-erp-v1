@@ -8,7 +8,7 @@ import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
@@ -235,11 +235,16 @@ export default function DeletionApprovalsPage() {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Deletion Approvals</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Review deletion requests submitted by staff for admin approval.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+            <Trash2 className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Deletion Approvals</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Review deletion requests submitted by staff for admin approval.
+            </p>
+          </div>
         </div>
 
         {/* Filter tabs */}

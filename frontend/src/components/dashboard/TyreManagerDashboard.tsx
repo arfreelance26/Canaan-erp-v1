@@ -226,9 +226,14 @@ export function TyreManagerDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Maintenance Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white text-orange-600 shadow-sm">
+              <Wrench className="h-5 w-5" />
+            </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Maintenance Dashboard</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Fleet tyre health, fitment status, and maintenance overview</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {!loading && criticalTyres > 0 && (

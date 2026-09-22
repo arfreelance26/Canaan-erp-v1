@@ -2300,11 +2300,16 @@ export default function RunningCostCalculatorPage() {
 
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Running Cost Calculator</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Calculate and analyse the per-kilometre running cost for your fleet.
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+            <Gauge className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Running Cost Calculator</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Calculate and analyse the per-kilometre running cost for your fleet.
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => setShowGuide(true)} className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">

@@ -263,11 +263,16 @@ export default function PnlMileagePage() {
     <div className="flex flex-col gap-6">
       {/* Page title */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trip Summary</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Profit / Loss breakdown for all completed trip sheets
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+            <FileText className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Trip Summary</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Profit / Loss breakdown for all completed trip sheets
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <button

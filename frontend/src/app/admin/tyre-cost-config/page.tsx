@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { trucksApi, tyreRangeConfigApi, tyreLayoutTypeConfigApi } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { LayoutGrid, Info, CircleDot, Loader2, Check } from "lucide-react";
+import { LayoutGrid, Info, CircleDot, Loader2, Check, DollarSign } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type TyreRangeRow = {
@@ -101,11 +101,16 @@ export default function TyreCostConfigPage() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tyre Cost Configuration</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Set tyre quantities per layout — Base Cost per KM is auto-calculated
-          </p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white text-teal-600 shadow-sm">
+            <DollarSign className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Tyre Cost Configuration</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Set tyre quantities per layout — Base Cost per KM is auto-calculated
+            </p>
+          </div>
         </div>
 
         {/* Auto-save status */}

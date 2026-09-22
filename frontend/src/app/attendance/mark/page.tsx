@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, ShieldAlert, Clock, CalendarCheck, Timer,
+  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, ShieldAlert, Clock, CalendarCheck, Timer, ClipboardCheck,
 } from "lucide-react";
 import { attendanceApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -276,9 +276,14 @@ export default function MarkAttendancePage() {
   if (staffNumericId === null) {
     return (
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Mark Attendance</h1>
-          <p className="mt-1 text-sm text-gray-500">{todayLabelFull}</p>
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+            <ClipboardCheck className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Mark Attendance</h1>
+            <p className="mt-0.5 text-sm text-gray-500">{todayLabelFull}</p>
+          </div>
         </div>
         <div className="dk-inset flex flex-col items-center gap-4 rounded-2xl border border-amber-200/80 bg-amber-50/60 px-8 py-16 text-center shadow-sm">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 ring-8 ring-amber-50">
@@ -300,9 +305,14 @@ export default function MarkAttendancePage() {
     <div className="animate-stagger mx-auto flex max-w-7xl flex-col gap-6">
 
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Mark Attendance</h1>
-        <p className="mt-1 text-sm text-gray-500">{todayLabelFull}</p>
+      <div className="flex items-center gap-3.5">
+        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white text-indigo-600 shadow-sm">
+            <ClipboardCheck className="h-5 w-5" />
+          </span>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Mark Attendance</h1>
+          <p className="mt-0.5 text-sm text-gray-500">{todayLabelFull}</p>
+        </div>
       </div>
 
       {/* Main grid: left (stats + history) | right (today card, sticky) */}
