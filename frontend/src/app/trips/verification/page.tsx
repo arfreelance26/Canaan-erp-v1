@@ -127,21 +127,36 @@ export default function TripVerificationPage() {
     // requests). Closures, sheets and invoices are fetched lazily per visible
     // page — see the effect below — so this page no longer fires a request per
     // trip on load, which was exhausting the DB connection pool.
-    const [allTrips, d, tr, c] = await Promise.all([
+    //
+    // allSettled, not all — a single failed source (e.g. right after relogin)
+    // must not blank the whole table; each keeps its last-known-good state
+    // and a toast names what didn't refresh.
+    const [allTrips, d, tr, c] = await Promise.allSettled([
       tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list(),
     ]);
-    setDrivers(d); setTrucks(tr); setCustomers(c);
+    const failed: string[] = [];
+    if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+    if (tr.status === "fulfilled") setTrucks(tr.value); else failed.push("Trucks");
+    if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
 
-    // All trips with a sheet — covers verification + finalization in one list
-    const sheettedTrips = allTrips.filter((t) => (t as any).hasSheet === true);
-    setTrips(sheettedTrips);
+    if (allTrips.status === "fulfilled") {
+      // All trips with a sheet — covers verification + finalization in one list
+      const sheettedTrips = allTrips.value.filter((t) => (t as any).hasSheet === true);
+      setTrips(sheettedTrips);
 
-    const verified  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "verified").map((t) => t.id));
-    const rejected  = new Set<string>(allTrips.filter((t) => (t as any).verificationStatus === "rejected").map((t) => t.id));
-    const invoiced  = new Set<string>(allTrips.filter((t) => (t as any).isInvoiced === true).map((t) => t.id));
-    const waived    = new Set<string>(allTrips.filter((t) => (t as any).invoiceWaived === true).map((t) => t.id));
-    setVerifiedIds(verified); setRejectedIds(rejected); setInvoicedIds(invoiced); setWaivedIds(waived);
-    fetchedDetailIds.current = new Set();
+      const verified  = new Set<string>(allTrips.value.filter((t) => (t as any).verificationStatus === "verified").map((t) => t.id));
+      const rejected  = new Set<string>(allTrips.value.filter((t) => (t as any).verificationStatus === "rejected").map((t) => t.id));
+      const invoiced  = new Set<string>(allTrips.value.filter((t) => (t as any).isInvoiced === true).map((t) => t.id));
+      const waived    = new Set<string>(allTrips.value.filter((t) => (t as any).invoiceWaived === true).map((t) => t.id));
+      setVerifiedIds(verified); setRejectedIds(rejected); setInvoicedIds(invoiced); setWaivedIds(waived);
+      fetchedDetailIds.current = new Set();
+    } else {
+      failed.push("Trips");
+    }
+
+    if (failed.length > 0) {
+      showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+    }
   }
 
   useEffect(() => { loadAll().catch(() => {}).finally(() => setLoading(false)); }, [refreshKey]);

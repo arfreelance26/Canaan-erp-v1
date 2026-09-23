@@ -14,6 +14,7 @@ import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { showError } from "@/lib/swal";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 const FILTERS: Array<Trip["status"] | "All"> = ["All", ...TRIP_PROGRESS_STATUSES];
@@ -28,26 +29,29 @@ export default function AvailableTripsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
 
+  // allSettled, not all — a single failed source (e.g. right after relogin, or on
+  // any 5s poll) must not blank the whole table; each keeps its last-known-good
+  // state and a toast names what didn't refresh.
+  function loadData() {
+    return Promise.allSettled([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
+      .then(([t, d, tr, c]) => {
+        const failed: string[] = [];
+        if (t.status === "fulfilled") setAllTrips(t.value); else failed.push("Trips");
+        if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+        if (tr.status === "fulfilled") setTrucks(tr.value); else failed.push("Trucks");
+        if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
+        if (failed.length > 0) {
+          showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+        }
+      });
+  }
+
   useEffect(() => {
-        Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
-          .then(([t, d, tr, c]) => {
-            setAllTrips(t);
-            setDrivers(d);
-            setTrucks(tr);
-            setCustomers(c);
-          })
-          .catch(() => {}).finally(() => setLoading(false));
-      }, []);
-      useAutoRefresh(() => {
-    Promise.all([tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list()])
-    .then(([t, d, tr, c]) => {
-    setAllTrips(t);
-    setDrivers(d);
-    setTrucks(tr);
-    setCustomers(c);
-    })
-    .catch(() => {}).finally(() => setLoading(false));
-      }, 5000);
+    loadData().finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useAutoRefresh(() => {
+    loadData().finally(() => setLoading(false));
+  }, 5000);
 
 
   const trips = allTrips.filter((trip) =>

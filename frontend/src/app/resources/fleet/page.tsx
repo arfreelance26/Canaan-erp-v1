@@ -25,8 +25,19 @@ import { useAuth } from "@/context/AuthContext";
 import { PillSearch } from "@/components/ui/PillSearch";
 export default function FleetPage() {
   const { user } = useAuth();
-  // Every role except Admin (and Assistant Commercial Manager, who has free edit rights on the fleet) must file an edit request to change truck records.
+  // Every role except Admin, Assistant Commercial Manager, and Commercial Manager
+  // (who all have free edit rights on the fleet) must file an edit request to
+  // change truck records.
   const isGated =
+    user?.softwareDesignation !== "Admin" &&
+    user?.softwareDesignation !== "Assistant Commercial Manager" &&
+    user?.softwareDesignation !== "Commercial Manager";
+  // Deletion has a narrower direct-access list than editing: Commercial Manager
+  // can edit trucks directly but must still file a DeletionApprovalRequest for
+  // deletes (reviewed on the "Deletion Approvals" page) — matches backend's
+  // DELETE /trucks/{id}, which only allows Admin / Assistant Commercial Manager
+  // through directly (trucks.py's delete_truck).
+  const isDeleteGated =
     user?.softwareDesignation !== "Admin" &&
     user?.softwareDesignation !== "Assistant Commercial Manager";
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -105,7 +116,7 @@ export default function FleetPage() {
   }
 
   async function handleDelete(id: string) {
-    if (isGated) {
+    if (isDeleteGated) {
       const truck = trucks.find((t) => t.id === id);
       if (truck) setDeleteRequestTruck(truck);
       return;

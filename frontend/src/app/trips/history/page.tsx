@@ -95,19 +95,32 @@ export default function TripHistoryPage() {
     // Only the trip list + reference data is loaded here (one request each).
     // Closures and trip sheets are fetched lazily, per visible page — see the
     // effect below — so a 1000-trip history no longer fires 2000 requests at once.
-    const [allTrips, d, tr, c] = await Promise.all([
+    //
+    // allSettled, not all — a single failed source (e.g. right after relogin)
+    // must not blank the whole table; each keeps its last-known-good state
+    // and a toast names what didn't refresh.
+    const [allTrips, d, tr, c] = await Promise.allSettled([
       tripsApi.list(), driversApi.list(), trucksApi.list(), customersApi.list(),
     ]);
-    setDrivers(d);
-    setTrucks(tr);
-    setCustomers(c);
+    const failed: string[] = [];
+    if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+    if (tr.status === "fulfilled") setTrucks(tr.value); else failed.push("Trucks");
+    if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
 
-    // Admin sees ALL trips so they can delete any; others see only closed/cancelled
-    const closedTrips = isAdmin
-      ? allTrips
-      : allTrips.filter((t) => (t as any).hasClosure === true || t.status === "Cancelled");
-    setTrips(closedTrips);
-    fetchedDetailIds.current = new Set();
+    if (allTrips.status === "fulfilled") {
+      // Admin sees ALL trips so they can delete any; others see only closed/cancelled
+      const closedTrips = isAdmin
+        ? allTrips.value
+        : allTrips.value.filter((t) => (t as any).hasClosure === true || t.status === "Cancelled");
+      setTrips(closedTrips);
+      fetchedDetailIds.current = new Set();
+    } else {
+      failed.push("Trips");
+    }
+
+    if (failed.length > 0) {
+      showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+    }
   }
 
   useEffect(() => { loadAll().catch(() => {}).finally(() => setLoading(false)); }, [refreshKey]);

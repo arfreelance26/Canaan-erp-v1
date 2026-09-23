@@ -64,24 +64,33 @@ export default function SheetCollectionPage() {
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   function loadData() {
-    return Promise.all([
+    // allSettled, not all — a single failed source (e.g. right after relogin)
+    // must not blank the whole table; each keeps its last-known-good state
+    // and a toast names what didn't refresh.
+    return Promise.allSettled([
       tripsApi.list("Completed"),
       driversApi.list(),
       trucksApi.list(),
       customersApi.list(),
     ]).then(([t, d, trks, c]) => {
-      const closed = t.filter((trip) => (trip as any).hasClosure === true);
-      setTrips(closed);
-      setDrivers(d);
-      setTrucks(trks);
-      setCustomers(c);
+      const failed: string[] = [];
+      if (t.status === "fulfilled") {
+        const closed = t.value.filter((trip) => (trip as any).hasClosure === true);
+        setTrips(closed);
+      } else failed.push("Trips");
+      if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+      if (trks.status === "fulfilled") setTrucks(trks.value); else failed.push("Trucks");
+      if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
       setSelected(new Set());
+      if (failed.length > 0) {
+        showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+      }
     });
   }
 
   useEffect(() => {
-    loadData().catch(() => {}).finally(() => setLoading(false));
-  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadData().finally(() => setLoading(false));
+  }, [refreshKey]);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);
 

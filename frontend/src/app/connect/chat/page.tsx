@@ -807,12 +807,18 @@ export default function CanaanChatPage() {
 
   // -- initial load ---------------------------------------------------------
   useEffect(() => {
-    Promise.all([chatApi.listConversations(), chatApi.listContacts()])
+    // allSettled, not all — a single failed source (e.g. right after relogin)
+    // must not blank both lists; each keeps its last-known-good state and a
+    // toast names what didn't refresh.
+    Promise.allSettled([chatApi.listConversations(), chatApi.listContacts()])
       .then(([convs, people]) => {
-        setConversations(convs);
-        setContacts(people);
+        const failed: string[] = [];
+        if (convs.status === "fulfilled") setConversations(convs.value); else failed.push("Conversations");
+        if (people.status === "fulfilled") setContacts(people.value); else failed.push("Contacts");
+        if (failed.length > 0) {
+          showError(`Couldn't refresh ${failed.join(", ")} — showing last known list.`);
+        }
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
     // Presence snapshot — live changes then arrive via the chat_presence event.
     chatApi

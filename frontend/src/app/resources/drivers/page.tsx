@@ -21,10 +21,14 @@ import { PillSearch } from "@/components/ui/PillSearch";
 export default function DriversPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
+  const isCommercialManagerRole = user?.softwareDesignation === "Commercial Manager";
   const isCommercialManager =
-    user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
-  // Every role except Admin must file an edit request to change driver records.
-  const isGated = !isAdmin;
+    isCommercialManagerRole || user?.softwareDesignation === "Assistant Commercial Manager";
+  // Every role except Admin and Commercial Manager must file an edit request to
+  // change driver records. Assistant Commercial Manager is intentionally still
+  // gated here (unlike on "Our Fleet") — only asked to change for Commercial
+  // Manager specifically.
+  const isGated = !isAdmin && !isCommercialManagerRole;
   // Admin deletes directly. Commercial Manager / Assistant Commercial Manager can
   // see the delete button too, but it files a DeletionApprovalRequest instead —
   // the driver is only soft-deleted once an Admin approves it on the "Deletion

@@ -21,6 +21,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { tyreApi, trucksApi, maintenanceApi } from "@/lib/api";
+import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { StatCard } from "./StatCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -118,7 +119,10 @@ export function TyreManagerDashboard() {
   const [tyreQuery, setTyreQuery] = useState("");
 
   useEffect(() => {
-    Promise.all([
+    // allSettled, not all — a failed call (e.g. right after relogin) must not
+    // blank the whole dashboard; each section keeps its last-known-good state
+    // and a toast names what didn't refresh.
+    Promise.allSettled([
       tyreApi.listInventory(),
       tyreApi.availableInventory(),
       tyreApi.listFitments(undefined, true),
@@ -127,12 +131,16 @@ export function TyreManagerDashboard() {
       maintenanceApi.listAirFilterRecords(),
     ])
       .then(([inv, avail, fits, trks, recs, afRecs]) => {
-        setInventory(inv);
-        setAvailable(avail);
-        setFitments(fits);
-        setTrucks(trks);
-        setRecords(recs);
-        setAirFilterRecords(afRecs);
+        const failed: string[] = [];
+        if (inv.status === "fulfilled") setInventory(inv.value); else failed.push("Tyre Inventory");
+        if (avail.status === "fulfilled") setAvailable(avail.value); else failed.push("Available Inventory");
+        if (fits.status === "fulfilled") setFitments(fits.value); else failed.push("Tyre Fitments");
+        if (trks.status === "fulfilled") setTrucks(trks.value); else failed.push("Trucks");
+        if (recs.status === "fulfilled") setRecords(recs.value); else failed.push("Maintenance Records");
+        if (afRecs.status === "fulfilled") setAirFilterRecords(afRecs.value); else failed.push("Air Filter Records");
+        if (failed.length > 0) {
+          showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+        }
       })
       .finally(() => setLoading(false));
   }, [refreshKey]);

@@ -13,6 +13,7 @@ import models, schemas
 from duplicate_checks import check_trip_duplicates
 from excel_utils import build_excel_response
 from websocket_manager import emit
+from routers.deletion_approvals import auto_reject_stale_requests
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
 
@@ -785,13 +786,14 @@ def restore_trip(trip_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{trip_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
-def permanently_delete_trip(trip_id: int, db: Session = Depends(get_db)):
+def permanently_delete_trip(trip_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: irreversibly delete an already soft-deleted trip (cascades to
     closure/sheet/invoice). Only reachable from the "Deleted Trips" page."""
     trip = db.get(models.Trip, trip_id)
     if not trip:
         raise HTTPException(404, "Trip not found")
     trip_id_str = trip.trip_id
+    auto_reject_stale_requests(db, "Trip", trip_id, current_user.name)
     db.delete(trip)
     db.commit()
     emit("trip_deleted", {"trip_db_id": trip_id, "trip_id_str": trip_id_str})

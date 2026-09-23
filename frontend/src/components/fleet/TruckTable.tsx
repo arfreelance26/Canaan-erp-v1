@@ -145,7 +145,7 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
               type="button"
               onClick={() => onBranchHistory(truck)}
               aria-label={`Branch history for ${truck.truckId}`}
-              className="flex items-center gap-1.5 rounded-full border border-red-200/60 bg-red-50/50 px-3 py-1.5 text-xs font-semibold text-red-600 shadow-[0_2px_10px_rgba(239,68,68,0.12)] backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-red-300/70 hover:bg-red-100/60 hover:text-red-700 hover:shadow-[0_4px_16px_rgba(239,68,68,0.2)]"
+              className="flex items-center gap-1.5 rounded-full border border-purple-200/60 bg-purple-50/50 px-3 py-1.5 text-xs font-semibold text-purple-600 shadow-[0_2px_10px_rgba(168,85,247,0.12)] backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-300/70 hover:bg-purple-100/60 hover:text-purple-700 hover:shadow-[0_4px_16px_rgba(168,85,247,0.2)]"
             >
               <History className="h-3.5 w-3.5" />
               Branch History

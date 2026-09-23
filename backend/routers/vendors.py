@@ -6,6 +6,7 @@ from security import get_current_user, TokenUser, require_roles
 import models, schemas
 from duplicate_checks import check_vendor_duplicates
 from websocket_manager import emit
+from routers.deletion_approvals import auto_reject_stale_requests
 
 router = APIRouter(prefix="/vendors", tags=["Vendors"])
 
@@ -113,12 +114,13 @@ def restore_vendor(vendor_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{vendor_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
-def permanently_delete_vendor(vendor_id: int, db: Session = Depends(get_db)):
+def permanently_delete_vendor(vendor_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: irreversibly delete an already soft-deleted vendor. Only
     reachable from the "Archive" page."""
     vendor = db.get(models.Vendor, vendor_id)
     if not vendor:
         raise HTTPException(404, "Vendor not found")
+    auto_reject_stale_requests(db, "Vendor", vendor_id, current_user.name)
     db.delete(vendor)
     db.commit()
     emit("vendor_updated", {})

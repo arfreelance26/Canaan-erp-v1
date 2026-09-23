@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { dashboardApi, tripsApi, trucksApi, editApprovalsApi } from "@/lib/api";
 import { mapLimit } from "@/lib/async-pool";
+import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { SheetTrackingCard } from "./SheetTrackingCard";
 import { StatCard } from "./StatCard";
@@ -123,29 +124,40 @@ export function FleetManagerDashboard() {
   const [sheetEnteredDate,     setSheetEnteredDate]     = useState("");
 
   useEffect(() => {
-    Promise.all([
+    // allSettled, not all — a failed call (e.g. right after relogin) must not
+    // blank the whole dashboard; each section keeps its last-known-good state
+    // and a toast names what didn't refresh.
+    Promise.allSettled([
       dashboardApi.overview(),
       tripsApi.list(),
       trucksApi.list(),
     ])
       .then(([ov, trips, trks]) => {
-        setOverview(ov as unknown as OverviewData);
-        setAllTrips(trips);
-        setTrucks(trks);
+        const failed: string[] = [];
+        if (ov.status === "fulfilled") setOverview(ov.value as unknown as OverviewData); else failed.push("Overview");
+        if (trips.status === "fulfilled") setAllTrips(trips.value); else failed.push("Trips");
+        if (trks.status === "fulfilled") setTrucks(trks.value); else failed.push("Trucks");
+        if (failed.length > 0) {
+          showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+        }
+
         editApprovalsApi.list("Pending")
           .then((r) => setPendingApprovals(r.length))
           .catch(() => setPendingApprovals(0));
-        const completed = (trips as Trip[]).filter((t) => t.hasSheet);
-        // Cap concurrency at 8 — this dashboard's P&L table needs every sheet and
-        // re-runs on a 15s timer, so an unbounded burst would repeatedly hammer
-        // the DB pool. mapLimit keeps at most 8 requests in flight.
-        mapLimit(completed, 8, (t) =>
-          tripsApi.getSheet(t.id).then((s) => s ? ({ id: t.id, sheet: s }) : null).catch(() => null)
-        ).then((results) => {
-          const m = new Map<string, TripSheetData>();
-          for (const r of results) { if (r) m.set(r.id, r.sheet); }
-          setSheets(m);
-        });
+
+        if (trips.status === "fulfilled") {
+          const completed = trips.value.filter((t) => t.hasSheet);
+          // Cap concurrency at 8 — this dashboard's P&L table needs every sheet and
+          // re-runs on a 15s timer, so an unbounded burst would repeatedly hammer
+          // the DB pool. mapLimit keeps at most 8 requests in flight.
+          mapLimit(completed, 8, (t) =>
+            tripsApi.getSheet(t.id).then((s) => s ? ({ id: t.id, sheet: s }) : null).catch(() => null)
+          ).then((results) => {
+            const m = new Map<string, TripSheetData>();
+            for (const r of results) { if (r) m.set(r.id, r.sheet); }
+            setSheets(m);
+          });
+        }
       })
       .finally(() => setLoading(false));
   }, [refreshKey]);

@@ -12,7 +12,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
-import { showSuccess, showError, confirmDelete } from "@/lib/swal";
+import { showSuccess, showError, confirmDelete, confirmAction } from "@/lib/swal";
 import { Trash2 } from "lucide-react";
 
 type FilterValue = "Pending" | "Approved" | "Completed" | "Rejected";
@@ -67,6 +67,10 @@ export default function EditApprovalsPage() {
     try {
       const data = await editApprovalsApi.list();
       setRequests(data);
+    } catch (err: unknown) {
+      // Keep showing the last-known-good list instead of silently blanking it —
+      // a transient failure (e.g. right after relogin) shouldn't look like "no requests".
+      showError(err instanceof Error ? err.message : "Couldn't refresh edit approvals — showing last known list.");
     } finally {
       setLoading(false);
     }
@@ -151,6 +155,22 @@ export default function EditApprovalsPage() {
 
   async function handleBulkDelete() {
     if (selected.size === 0 || deleting) return;
+
+    // Deleting a request row is permanent — there's no archive/audit trail for
+    // this table (unlike resource deletions, which go through Deletion Approvals
+    // and stay visible on Archive). A still-Pending request hasn't been reviewed
+    // yet, so wiping it also erases the fact that it was ever requested — extra
+    // friction here on top of the normal delete confirmation.
+    const pendingCount = [...selected].filter((id) => requests.find((r) => r.id === id)?.status === "Pending").length;
+    if (pendingCount > 0) {
+      const warn = await confirmAction(
+        `${pendingCount} of these ${pendingCount > 1 ? "are" : "is"} still Pending`,
+        `${pendingCount} selected request${pendingCount > 1 ? "s haven't" : " hasn't"} been reviewed yet. Deleting removes it permanently with no record — it won't show up anywhere else. Continue?`,
+        "Yes, I understand"
+      );
+      if (!warn.isConfirmed) return;
+    }
+
     const res = await confirmDelete(`${selected.size} edit request${selected.size > 1 ? "s" : ""}`);
     if (!res.isConfirmed) return;
     setDeleting(true);

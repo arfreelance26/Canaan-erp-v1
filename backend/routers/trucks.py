@@ -7,6 +7,7 @@ import models, schemas
 from duplicate_checks import check_truck_duplicates
 from websocket_manager import emit
 from security import get_current_user, TokenUser, require_roles
+from routers.deletion_approvals import auto_reject_stale_requests
 
 # Compliance date fields → human-readable label
 _COMPLIANCE_FIELDS: dict[str, str] = {
@@ -546,12 +547,13 @@ def restore_truck(truck_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{truck_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
-def permanently_delete_truck(truck_id: int, db: Session = Depends(get_db)):
+def permanently_delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: irreversibly delete an already soft-deleted truck. Only
     reachable from the "Archive" page."""
     truck = db.get(models.Truck, truck_id)
     if not truck:
         raise HTTPException(404, "Truck not found")
+    auto_reject_stale_requests(db, "Truck", truck_id, current_user.name)
     db.delete(truck)
     db.commit()
     emit("truck_updated", {})

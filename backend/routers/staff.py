@@ -7,6 +7,7 @@ from database import get_db
 from security import require_roles, parse_devices, serialize_devices, get_current_user, TokenUser
 import models, schemas
 from duplicate_checks import check_staff_duplicates
+from routers.deletion_approvals import auto_reject_stale_requests
 
 
 def _hash_password(raw: str) -> str:
@@ -124,12 +125,13 @@ def restore_staff(staff_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{staff_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
-def permanently_delete_staff(staff_id: int, db: Session = Depends(get_db)):
+def permanently_delete_staff(staff_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: irreversibly delete an already soft-deleted staff member. Only
     reachable from the "Archive" page."""
     member = db.get(models.Staff, staff_id)
     if not member:
         raise HTTPException(404, "Staff member not found")
+    auto_reject_stale_requests(db, "Staff", staff_id, current_user.name)
     db.delete(member)
     db.commit()
 

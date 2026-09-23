@@ -2078,6 +2078,20 @@ function toDeletionApproval(b: B): DeletionApprovalRequest {
   };
 }
 
+// Maps DeletionApprovalRequest.resourceType to the API path segment whose
+// cached GETs (list, deleted-ids) need invalidating after an approve — see
+// deletionApprovalsApi.approve below.
+const DELETION_RESOURCE_SEGMENT: Record<string, string> = {
+  Driver: "/drivers",
+  Truck: "/trucks",
+  Staff: "/staff",
+  Customer: "/customers",
+  Vendor: "/vendors",
+  Trip: "/trips",
+  FuelLog: "/maintenance",
+  MaintenanceRecord: "/maintenance",
+};
+
 export const deletionApprovalsApi = {
   create: (payload: {
     resourceType: string;
@@ -2109,7 +2123,16 @@ export const deletionApprovalsApi = {
     req<B>(`/deletion-approvals/${id}/approve`, {
       method: "PUT",
       body: JSON.stringify({ admin_note: adminNote ?? null }),
-    }).then(toDeletionApproval),
+    }).then(toDeletionApproval).then((r) => {
+      // req()'s auto-invalidation only drops the "/deletion-approvals" cache
+      // segment (the path actually hit), not the resource that was just
+      // soft-deleted — without this, a cached "/drivers/deleted-ids" (etc.)
+      // read can keep showing the resource as not-yet-deleted on Archive
+      // until the cache's own TTL/background revalidation catches up.
+      const segment = DELETION_RESOURCE_SEGMENT[r.resourceType];
+      if (segment) cacheInvalidate(segment);
+      return r;
+    }),
   reject: (id: number, adminNote?: string): Promise<DeletionApprovalRequest> =>
     req<B>(`/deletion-approvals/${id}/reject`, {
       method: "PUT",

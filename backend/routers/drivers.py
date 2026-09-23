@@ -10,6 +10,7 @@ import models, schemas
 from duplicate_checks import check_driver_duplicates
 from security import require_roles, get_current_user, TokenUser
 from websocket_manager import emit
+from routers.deletion_approvals import auto_reject_stale_requests
 
 router = APIRouter(prefix="/drivers", tags=["Drivers"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -166,12 +167,13 @@ def restore_driver(driver_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{driver_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
-def permanently_delete_driver(driver_id: int, db: Session = Depends(get_db)):
+def permanently_delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: irreversibly delete an already soft-deleted driver. Only
     reachable from the "Archive" page."""
     driver = db.get(models.Driver, driver_id)
     if not driver:
         raise HTTPException(404, "Driver not found")
+    auto_reject_stale_requests(db, "Driver", driver_id, current_user.name)
     db.delete(driver)
     db.commit()
     emit("driver_updated", {})

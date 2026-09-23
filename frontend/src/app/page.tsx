@@ -76,6 +76,7 @@ import { AttendanceTodayCard } from "@/components/dashboard/AttendanceTodayCard"
 import { PendingLeaveCard } from "@/components/dashboard/PendingLeaveCard";
 import { FleetConstellationCard } from "@/components/dashboard/FleetConstellationCard";
 import { TripTrendChart } from "@/components/dashboard/TripTrendChart";
+import { showError } from "@/lib/swal";
 
 function formatCurrency(value: number): string {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
@@ -229,7 +230,11 @@ function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
+    // allSettled, not all — a single failed source (e.g. a transient hiccup right
+    // after relogin) must not blank out every other section of the dashboard.
+    // Each source keeps its last-known-good state on failure; a toast names which
+    // sections didn't refresh instead of silently rendering stale/empty data.
+    Promise.allSettled([
       trucksApi.list(),
       driversApi.list(),
       staffApi.list(),
@@ -245,23 +250,28 @@ function AdminDashboard() {
       financeApi.listRecurring(),
       maintenanceApi.getStatus(),
     ])
-      .then(([t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, ms]) => {
-        setTrucks(t);
-        setDrivers(d);
-        setStaffList(s);
-        setCustomers(c);
-        setVendors(v);
-        setTrips(tr);
-        setDriverAttendance(da);
-        setStaffAttendance(sa);
-        setLeaveRequests(lr);
-        setMaintenanceRecords(mr);
-        setTyreInventory(ti);
-        setEmiRecords(emi);
-        setRecurringPayments(rp);
-        setMaintenanceStatus(ms);
+      .then((results) => {
+        const [t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, ms] = results;
+        const failed: string[] = [];
+        if (t.status === "fulfilled") setTrucks(t.value); else failed.push("Trucks");
+        if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+        if (s.status === "fulfilled") setStaffList(s.value); else failed.push("Staff");
+        if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
+        if (v.status === "fulfilled") setVendors(v.value); else failed.push("Vendors");
+        if (tr.status === "fulfilled") setTrips(tr.value); else failed.push("Trips");
+        if (da.status === "fulfilled") setDriverAttendance(da.value); else failed.push("Driver Attendance");
+        if (sa.status === "fulfilled") setStaffAttendance(sa.value); else failed.push("Staff Attendance");
+        if (lr.status === "fulfilled") setLeaveRequests(lr.value); else failed.push("Leave Requests");
+        if (mr.status === "fulfilled") setMaintenanceRecords(mr.value); else failed.push("Maintenance Records");
+        if (ti.status === "fulfilled") setTyreInventory(ti.value); else failed.push("Tyre Inventory");
+        if (emi.status === "fulfilled") setEmiRecords(emi.value); else failed.push("EMI Records");
+        if (rp.status === "fulfilled") setRecurringPayments(rp.value); else failed.push("Recurring Payments");
+        if (ms.status === "fulfilled") setMaintenanceStatus(ms.value); else failed.push("Maintenance Status");
+        if (failed.length > 0) {
+          showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+        }
       })
-      .catch(() => {}).finally(() => setLoading(false));
+      .finally(() => setLoading(false));
   }, [today, refreshKey]);
 
   // ── Compliance ────────────────────────────────────────────────────────────

@@ -11,6 +11,35 @@ from websocket_manager import emit
 router = APIRouter(prefix="/deletion-approvals", tags=["Deletion Approvals"])
 
 
+def auto_reject_stale_requests(db: Session, resource_type: str, resource_id: int, actor_name: str) -> None:
+    """Called wherever a resource is permanently (hard) deleted — any other still-
+    Pending DeletionApprovalRequest row for the same resource would otherwise sit
+    forever, or later get approved against a resource that no longer exists.
+    approve_deletion() now rejects that case loudly rather than silently marking
+    "Approved" with nothing actually deleted (the root cause of a driver vanishing
+    from the Archive page despite an approved deletion), but auto-resolving here
+    keeps the Deletion Approvals page from showing a stale Pending row at all.
+
+    Updates rows individually (not a bulk .update()) so each can attribute
+    approved_by_name to the admin who triggered the permanent delete — same
+    field every manual reject sets — and so each fires its own
+    deletion_approval_updated event, letting an open Deletion Approvals page
+    live-refresh instead of showing a stale "Pending" row until its next poll.
+    """
+    stale = db.query(models.DeletionApprovalRequest).filter(
+        models.DeletionApprovalRequest.resource_type == resource_type,
+        models.DeletionApprovalRequest.resource_id == resource_id,
+        models.DeletionApprovalRequest.status == "Pending",
+    ).all()
+    now = datetime.now(timezone.utc)
+    for req in stale:
+        req.status = "Rejected"
+        req.approved_by_name = actor_name
+        req.approved_at = now
+        req.admin_note = "Auto-rejected: this record was permanently deleted before the request could be reviewed."
+        emit("deletion_approval_updated", {"id": req.id, "status": "Rejected"})
+
+
 @router.post("", response_model=schemas.DeletionApprovalRequestOut, status_code=201)
 def create_deletion_approval(
     payload: schemas.DeletionApprovalRequestCreate,
@@ -19,6 +48,13 @@ def create_deletion_approval(
 ):
     if current_user.role == "Admin" or current_user.id is None:
         raise HTTPException(400, "Admin can delete directly without an approval request.")
+    existing = db.query(models.DeletionApprovalRequest).filter(
+        models.DeletionApprovalRequest.resource_type == payload.resource_type,
+        models.DeletionApprovalRequest.resource_id == payload.resource_id,
+        models.DeletionApprovalRequest.status == "Pending",
+    ).first()
+    if existing:
+        raise HTTPException(409, f"A deletion request for this {payload.resource_type.lower()} is already pending approval.")
     req = models.DeletionApprovalRequest(
         resource_type=payload.resource_type,
         resource_id=payload.resource_id,
@@ -158,22 +194,32 @@ def approve_deletion(
     if req.status != "Pending":
         raise HTTPException(409, f"Request is already {req.status}.")
 
-    # Execute the deletion
+    # Execute the deletion. A missing underlying row (hard-deleted since, or a
+    # stale duplicate request for the same resource) fails loudly instead of
+    # silently marking the request "Approved" with nothing actually deleted —
+    # that silent-success case is exactly how a driver could vanish from the
+    # Archive page forever despite showing as an approved deletion. An already
+    # soft-deleted row (a legitimate second approval of a genuine duplicate
+    # request) is not an error — the desired end state already holds.
     if req.resource_type == "FuelLog":
         record = db.get(models.FuelLog, req.resource_id)
-        if record:
-            db.delete(record)
-            emit("fuel_updated", {})
+        if not record:
+            raise HTTPException(409, "This fuel log no longer exists — the request may be a stale duplicate. Reject it instead.")
+        db.delete(record)
+        emit("fuel_updated", {})
     elif req.resource_type == "MaintenanceRecord":
         record = db.get(models.MaintenanceRecord, req.resource_id)
-        if record:
-            db.delete(record)
-            emit("maintenance_updated", {})
+        if not record:
+            raise HTTPException(409, "This maintenance record no longer exists — the request may be a stale duplicate. Reject it instead.")
+        db.delete(record)
+        emit("maintenance_updated", {})
     elif req.resource_type == "Trip":
         # Soft delete — keeps the trip (and its closure/sheet/invoice) recoverable
         # from the "Deleted Trips" page instead of destroying it outright.
         trip = db.get(models.Trip, req.resource_id)
-        if trip and trip.deleted_at is None:
+        if not trip:
+            raise HTTPException(409, "This trip no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if trip.deleted_at is None:
             trip.deleted_at = datetime.now(timezone.utc)
             emit("trip_deleted", {"trip_id": req.resource_id, "trip_id_str": req.resource_name})
     elif req.resource_type == "Driver":
@@ -181,26 +227,36 @@ def approve_deletion(
         # instead of destroying it outright, same pattern as drivers.py's
         # delete_driver (which handles the Admin-direct-delete path).
         driver = db.get(models.Driver, req.resource_id)
-        if driver and driver.deleted_at is None:
+        if not driver:
+            raise HTTPException(409, "This driver no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if driver.deleted_at is None:
             driver.deleted_at = datetime.now(timezone.utc)
             emit("driver_updated", {})
     elif req.resource_type == "Truck":
         truck = db.get(models.Truck, req.resource_id)
-        if truck and truck.deleted_at is None:
+        if not truck:
+            raise HTTPException(409, "This truck no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if truck.deleted_at is None:
             truck.deleted_at = datetime.now(timezone.utc)
             emit("truck_updated", {})
     elif req.resource_type == "Staff":
         staff = db.get(models.Staff, req.resource_id)
-        if staff and staff.deleted_at is None:
+        if not staff:
+            raise HTTPException(409, "This staff member no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if staff.deleted_at is None:
             staff.deleted_at = datetime.now(timezone.utc)
     elif req.resource_type == "Customer":
         customer = db.get(models.Customer, req.resource_id)
-        if customer and customer.deleted_at is None:
+        if not customer:
+            raise HTTPException(409, "This customer no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if customer.deleted_at is None:
             customer.deleted_at = datetime.now(timezone.utc)
             emit("customer_updated", {})
     elif req.resource_type == "Vendor":
         vendor = db.get(models.Vendor, req.resource_id)
-        if vendor and vendor.deleted_at is None:
+        if not vendor:
+            raise HTTPException(409, "This vendor no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if vendor.deleted_at is None:
             vendor.deleted_at = datetime.now(timezone.utc)
             emit("vendor_updated", {})
 

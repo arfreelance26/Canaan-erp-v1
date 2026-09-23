@@ -36,24 +36,33 @@ export default function CompletedTripsPage() {
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   useEffect(() => {
-        Promise.all([
+        // allSettled, not all — a single failed source (e.g. right after relogin)
+        // must not blank the whole table; each keeps its last-known-good state
+        // and a toast names what didn't refresh.
+        Promise.allSettled([
           tripsApi.list("Completed"),
           driversApi.list(),
           trucksApi.list(),
           customersApi.list(),
         ])
           .then(([t, d, tr, c]) => {
-            setTrips(t);
-            setDrivers(d);
-            setTrucks(tr);
-            setCustomers(c);
-            // Pre-populate closed IDs from trips that already have a closure
-            const closed = new Set<string>(
-              t.filter((trip) => (trip as any).hasClosure === true).map((trip) => trip.id)
-            );
-            setClosedTripIds(closed);
+            const failed: string[] = [];
+            if (t.status === "fulfilled") {
+              setTrips(t.value);
+              // Pre-populate closed IDs from trips that already have a closure
+              const closed = new Set<string>(
+                t.value.filter((trip) => (trip as any).hasClosure === true).map((trip) => trip.id)
+              );
+              setClosedTripIds(closed);
+            } else failed.push("Trips");
+            if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+            if (tr.status === "fulfilled") setTrucks(tr.value); else failed.push("Trucks");
+            if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
+            if (failed.length > 0) {
+              showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+            }
           })
-          .catch(() => {}).finally(() => setLoading(false));
+          .finally(() => setLoading(false));
       }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

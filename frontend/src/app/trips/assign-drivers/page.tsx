@@ -26,13 +26,20 @@ export default function AssignDriversPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-        Promise.all([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
+        // allSettled, not all — a single failed source (e.g. right after relogin)
+        // must not blank the whole table; each keeps its last-known-good state
+        // and a toast names what didn't refresh.
+        Promise.allSettled([driversApi.list(), trucksApi.list(), assignmentsApi.list()])
           .then(([d, t, a]) => {
-            setDrivers(d);
-            setTrucks(t);
-            setAssignments(a);
+            const failed: string[] = [];
+            if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+            if (t.status === "fulfilled") setTrucks(t.value); else failed.push("Trucks");
+            if (a.status === "fulfilled") setAssignments(a.value); else failed.push("Assignments");
+            if (failed.length > 0) {
+              showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+            }
           })
-          .catch(() => {}).finally(() => setLoading(false));
+          .finally(() => setLoading(false));
       }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 

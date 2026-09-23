@@ -17,6 +17,7 @@ import {
   CircleDot,
 } from "lucide-react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
+import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { ComplianceAlertBanner } from "./ComplianceAlertBanner";
 import { StatCard } from "./StatCard";
@@ -94,17 +95,24 @@ export function FinanceManagerDashboard() {
   const [refreshKey, setRefreshKey]     = useState(0);
 
   useEffect(() => {
-    Promise.all([
+    // allSettled, not all — a failed call (e.g. right after relogin) must not
+    // blank the whole dashboard; each section keeps its last-known-good state
+    // and a toast names what didn't refresh.
+    Promise.allSettled([
       financeApi.listEmi(),
       financeApi.listRecurring(),
       tripsApi.list(),
       trucksApi.list(),
     ])
       .then(([emi, rec, trps, trks]) => {
-        setEmiRecords(emi);
-        setRecurring(rec);
-        setTrips(trps);
-        setTrucks(trks);
+        const failed: string[] = [];
+        if (emi.status === "fulfilled") setEmiRecords(emi.value); else failed.push("EMI Records");
+        if (rec.status === "fulfilled") setRecurring(rec.value); else failed.push("Recurring Payments");
+        if (trps.status === "fulfilled") setTrips(trps.value); else failed.push("Trips");
+        if (trks.status === "fulfilled") setTrucks(trks.value); else failed.push("Trucks");
+        if (failed.length > 0) {
+          showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+        }
       })
       .finally(() => setLoading(false));
   }, [refreshKey]);

@@ -8,6 +8,7 @@ from security import get_current_user, TokenUser, require_roles
 import models, schemas
 from duplicate_checks import check_customer_duplicates, check_customer_destination_duplicates
 from websocket_manager import emit
+from routers.deletion_approvals import auto_reject_stale_requests
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -157,13 +158,14 @@ def restore_customer(customer_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{customer_id}/permanent", status_code=204, dependencies=[Depends(require_roles())])
-def permanently_delete_customer(customer_id: int, db: Session = Depends(get_db)):
+def permanently_delete_customer(customer_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: irreversibly delete an already soft-deleted customer (cascades
     to origins/destinations/pricing/final-pricing). Only reachable from the
     "Archive" page."""
     customer = db.get(models.Customer, customer_id)
     if not customer:
         raise HTTPException(404, "Customer not found")
+    auto_reject_stale_requests(db, "Customer", customer_id, current_user.name)
     db.delete(customer)
     db.commit()
     emit("customer_updated", {})

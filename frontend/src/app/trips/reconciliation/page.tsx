@@ -98,27 +98,34 @@ export default function TripReconciliationPage() {
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
   async function loadReconciliationData() {
-    let t: Trip[], d: Driver[], tr: Truck[], c: Customer[];
-    try {
-      [t, d, tr, c] = await Promise.all([
-        tripsApi.list("Completed"),
-        driversApi.list(),
-        trucksApi.list(),
-        customersApi.list(),
-      ]);
-    } catch {
-      return;
-    }
-    setDrivers(d);
-    setTrucks(tr);
-    setCustomers(c);
+    // allSettled, not all — a single failed source (e.g. right after relogin)
+    // must not leave every section silently stale; each keeps its last-known-good
+    // state (fulfilled sources still update) and a toast names what didn't refresh.
+    const [t, d, tr, c] = await Promise.allSettled([
+      tripsApi.list("Completed"),
+      driversApi.list(),
+      trucksApi.list(),
+      customersApi.list(),
+    ]);
+    const failed: string[] = [];
+    if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
+    if (tr.status === "fulfilled") setTrucks(tr.value); else failed.push("Trucks");
+    if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
 
-    // All delivered trips — closure is guaranteed by the sheet-collection step (hasClosure gate)
-    const deliveredTrips = t.filter((trip) => trip.tripSheetCollected === true);
-    setTrips(deliveredTrips);
-    // Closures/sheets are fetched lazily per visible page (see effect below) so
-    // a large reconciliation list no longer fires a request per trip on load.
-    fetchedDetailIds.current = new Set();
+    if (t.status === "fulfilled") {
+      // All delivered trips — closure is guaranteed by the sheet-collection step (hasClosure gate)
+      const deliveredTrips = t.value.filter((trip) => trip.tripSheetCollected === true);
+      setTrips(deliveredTrips);
+      // Closures/sheets are fetched lazily per visible page (see effect below) so
+      // a large reconciliation list no longer fires a request per trip on load.
+      fetchedDetailIds.current = new Set();
+    } else {
+      failed.push("Trips");
+    }
+
+    if (failed.length > 0) {
+      showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
+    }
   }
 
   useEffect(() => {
