@@ -221,7 +221,11 @@ def get_customer_profitability(db: Session = Depends(get_db)):
         )
         .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
         .join(models.Customer, models.Customer.id == models.Trip.customer_id)
-        .filter(models.Trip.status == "Completed")
+        .filter(
+            models.Trip.status == "Completed",
+            models.Trip.deleted_at.is_(None),
+            models.Customer.deleted_at.is_(None),
+        )
         .order_by(models.TripSheet.trip_completed_date.desc())
         .all()
     )
@@ -329,7 +333,11 @@ def get_customer_top_profitable_trips(
     q = (
         db.query(models.Trip)
         .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
-        .filter(models.Trip.customer_id == customer_id, models.Trip.status == "Completed")
+        .filter(
+            models.Trip.customer_id == customer_id,
+            models.Trip.status == "Completed",
+            models.Trip.deleted_at.is_(None),
+        )
     )
     if route:
         q = q.filter(models.Trip.destination == route)

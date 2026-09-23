@@ -9,7 +9,6 @@ import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info
 import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
-import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
 import { isEmiCompleted } from "@/lib/emi-schedule";
 
 const MODES = ["Manual", "Basic", "Advanced"] as const;
@@ -122,6 +121,7 @@ function TruckCostCard({
   advancedEmi,
   advancedMileage,
   basicMileage,
+  advMonthlyAvgKm,
   mode,
   onCostChange,
 }: {
@@ -148,6 +148,9 @@ function TruckCostCard({
   advancedEmi?: BasicEmi | null;
   advancedMileage?: string | null;
   basicMileage?: string | null;
+  // Truck's monthly average km (fetched once for the whole fleet by the parent
+  // page) — feeds every "(Advanced)" per-km field: EMI, Maintenance, Compliance.
+  advMonthlyAvgKm?: number;
   mode: string;
   onCostChange?: (cost: number | null) => void;
 }) {
@@ -168,13 +171,13 @@ function TruckCostCard({
     const v = parseFloat(advancedEmi?.emiPerDay ?? "");
     return !isNaN(v) && v > 0 ? v : null;
   })();
-  // Shared per-truck trip-run stats (Truck Run Record source) — feeds every
-  // "(Advanced)" per-km field below: EMI, Maintenance, Compliance.
-  const { rows: advTruckRuns } = useTruckTripRuns(isAdvancedMode ? truck : null, isAdvancedMode);
-  const advRunStats = computeTruckRunStats(advTruckRuns);
+  // Shared per-truck monthly average km (Truck Run Record source, fetched once
+  // for the whole fleet by the parent page via /running-cost/monthly-avg-km-all)
+  // — feeds every "(Advanced)" per-km field below: EMI, Maintenance, Compliance.
+  const advMonthlyAvg = advMonthlyAvgKm ?? 0;
   const advEmiPerKm: number | null = (() => {
-    if (advEmiPerDay !== null && advRunStats.monthlyAvg > 0) {
-      return advEmiPerDay / advRunStats.monthlyAvg;
+    if (advEmiPerDay !== null && advMonthlyAvg > 0) {
+      return advEmiPerDay / advMonthlyAvg;
     }
     return null;
   })();
@@ -309,8 +312,8 @@ function TruckCostCard({
       // Advanced: mirrors "Cost / Km (Advanced)" in Truck Maintenance → Full Status:
       // Cost/Km (Basic, fetched from backend) ÷ Monthly Distance Average — no fallback.
       const basic = parseFloat(advancedMaintenancePerKm ?? "");
-      if (isNaN(basic) || basic <= 0 || advRunStats.monthlyAvg <= 0) return null;
-      return basic / advRunStats.monthlyAvg;
+      if (isNaN(basic) || basic <= 0 || advMonthlyAvg <= 0) return null;
+      return basic / advMonthlyAvg;
     }
     if (isBasicMode) {
       // Basic: strictly fetched from Truck Maintenance → Full Status — no fallback.
@@ -341,8 +344,8 @@ function TruckCostCard({
       // Mirrors "Cost/km (Advanced)" in Compliance & Renewals → View Cost Breakdown:
       // Cost/km (Basic, fetched from backend) ÷ Monthly Distance Average — no fallback.
       const basic = parseFloat(advancedCompliancePerKm ?? "");
-      if (isNaN(basic) || basic <= 0 || advRunStats.monthlyAvg <= 0) return null;
-      return basic / advRunStats.monthlyAvg;
+      if (isNaN(basic) || basic <= 0 || advMonthlyAvg <= 0) return null;
+      return basic / advMonthlyAvg;
     }
     if (isBasicMode) {
       // Basic: strictly fetched pre-computed perKm — no fallback.
@@ -1926,6 +1929,11 @@ export default function RunningCostCalculatorPage() {
   const [advancedComplianceCostMap, setAdvancedComplianceCostMap] = useState<Record<string, string>>({});
   const [advancedCompliancePerKmMap, setAdvancedCompliancePerKmMap] = useState<Record<string, string>>({});
 
+  // Advanced mode: every truck's monthly average km (fleet ID keyed), fetched
+  // once via /running-cost/monthly-avg-km-all instead of each truck card
+  // independently calling useTruckTripRuns (see TruckCostCard's advMonthlyAvgKm prop).
+  const [monthlyAvgKmMap, setMonthlyAvgKmMap] = useState<Record<string, number>>({});
+
   // Per-mode isolated data — Manual / Basic / Advanced never share values
   const [allModeData, setAllModeData] = useState<Record<Mode, ModeData>>({
     Manual: emptyModeData(),
@@ -1976,7 +1984,7 @@ export default function RunningCostCalculatorPage() {
     const localSaved = loadSaved();
 
     async function fetchAll() {
-      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, allAdblueConsumptionResult] = await Promise.allSettled([
+      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, allAdblueConsumptionResult, monthlyAvgKmResult] = await Promise.allSettled([
         tyreRangeConfigApi.list(),
         trucksApi.getRunConfig(),
         adblueApi.listManufacturers(),
@@ -1992,6 +2000,7 @@ export default function RunningCostCalculatorPage() {
         trucksApi.getCompliancePerKmAll(),
         tyreLayoutTypeConfigApi.list(),
         adblueLogsApi.getAllConsumptionStats(),
+        runningCostApi.getMonthlyAvgKmAll(),
       ]);
 
       const backendData = backendResult.status === "fulfilled" ? backendResult.value : null;
@@ -2170,6 +2179,10 @@ export default function RunningCostCalculatorPage() {
         }
         setAdvancedCompliancePerKmMap(perKmMap);
       }
+
+      // Advanced mode: monthly average km per truck (fleet ID keyed) — feeds
+      // EMI/Maintenance/Compliance per-km via TruckCostCard's advMonthlyAvgKm prop.
+      if (monthlyAvgKmResult.status === "fulfilled") setMonthlyAvgKmMap(monthlyAvgKmResult.value);
 
       // Build isolated ModeData for a given saved slot
       function buildModeData(saved: Partial<ModeData>): ModeData {
@@ -2392,6 +2405,7 @@ export default function RunningCostCalculatorPage() {
                   advancedEmi={mode === "Advanced" ? (emiByTruck.get(truck.registrationNumber) ?? null) : undefined}
                   advancedMileage={mode === "Advanced" ? (advancedMileageMap[truck.id] ?? null) : undefined}
                   basicMileage={mode === "Basic" ? (advancedMileageMap[truck.id] ?? null) : undefined}
+                  advMonthlyAvgKm={mode === "Advanced" ? monthlyAvgKmMap[truck.truckId] : undefined}
                   basicAdblue={mode === "Basic" ? (adblueByTruck.get(truck.id) ?? null) : undefined}
                   advancedAdblue={mode === "Advanced" ? (adblueByTruck.get(truck.id) ?? null) : undefined}
                   basicTyrePerKm={mode === "Basic" ? (basicTyreCostMap[truck.tyreLayout] ?? "") : undefined}

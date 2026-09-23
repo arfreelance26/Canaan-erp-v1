@@ -166,7 +166,7 @@ def list_driver_attendance(
     return q.order_by(models.DriverAttendance.date.asc(), models.DriverAttendance.id.asc()).all()
 
 
-@router.post("/drivers", response_model=schemas.DriverAttendanceOut, status_code=201)
+@router.post("/drivers", response_model=schemas.DriverAttendanceOut, status_code=201, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     late_entry_exists = db.query(models.DriverAttendanceLateEntryLog).filter(
         models.DriverAttendanceLateEntryLog.date == payload.date
@@ -191,7 +191,7 @@ def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session 
     return record
 
 
-@router.put("/drivers/{record_id}", response_model=schemas.DriverAttendanceOut)
+@router.put("/drivers/{record_id}", response_model=schemas.DriverAttendanceOut, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUpdate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     record = db.get(models.DriverAttendance, record_id)
     if not record:
@@ -220,7 +220,7 @@ def list_driver_late_entry_logs(
     return q.order_by(models.DriverAttendanceLateEntryLog.date.desc()).all()
 
 
-@router.post("/drivers/late-entry-log", response_model=schemas.DriverLateEntryLogOut, status_code=201)
+@router.post("/drivers/late-entry-log", response_model=schemas.DriverLateEntryLogOut, status_code=201, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def create_driver_late_entry_log(payload: schemas.DriverLateEntryLogCreate, db: Session = Depends(get_db)):
     """Creates a date-level late-entry log record. This unlocks normal attendance marking
     for that date (bypasses the 2-day lock) and gives admin visibility into why it was late."""
@@ -260,7 +260,7 @@ def list_driver_remarks(
     return q.order_by(models.DriverAttendanceRemark.date.asc(), models.DriverAttendanceRemark.created_at.asc()).all()
 
 
-@router.post("/drivers/remarks", response_model=schemas.DriverAttendanceRemarkOut, status_code=201)
+@router.post("/drivers/remarks", response_model=schemas.DriverAttendanceRemarkOut, status_code=201, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     late_entry_exists = db.query(models.DriverAttendanceLateEntryLog).filter(
         models.DriverAttendanceLateEntryLog.date == payload.date
@@ -274,7 +274,7 @@ def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session
     return remark
 
 
-@router.put("/drivers/remarks/{remark_id}", response_model=schemas.DriverAttendanceRemarkOut)
+@router.put("/drivers/remarks/{remark_id}", response_model=schemas.DriverAttendanceRemarkOut, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemarkUpdate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     remark = db.get(models.DriverAttendanceRemark, remark_id)
     if not remark:
@@ -290,7 +290,7 @@ def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemark
     return remark
 
 
-@router.delete("/drivers/remarks/{remark_id}", status_code=204)
+@router.delete("/drivers/remarks/{remark_id}", status_code=204, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def delete_driver_remark(remark_id: int, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     remark = db.get(models.DriverAttendanceRemark, remark_id)
     if not remark:
@@ -309,13 +309,20 @@ def delete_driver_remark(remark_id: int, db: Session = Depends(get_db), user: To
 # ---------------------------------------------------------------------------
 
 @router.post("/staff/self-mark", response_model=schemas.StaffAttendanceOut, status_code=201)
-def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session = Depends(get_db)):
+def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """
     Self-service endpoint used by the Mark Attendance page.
     Always marks attendance for TODAY (IST) — the client cannot supply a date.
     Creates a new record; rejects if today's record already exists (one mark per day).
     Records check_in_time (IST HH:MM AM/PM) when status is Present.
     """
+    # Without this, any authenticated user could pass a different staff_id in the
+    # body and create a fabricated attendance record for someone else — the
+    # frontend always sends the caller's own id, but the API itself enforced
+    # nothing. Admin may still mark on behalf of anyone via the admin-override
+    # endpoints (POST/PUT /staff), which now require the Admin role instead.
+    if current_user.role != "Admin" and current_user.id != payload.staff_id:
+        raise HTTPException(403, "You can only mark your own attendance.")
     today = _today_ist()
     # Sundays and government/company holidays are non-working days — no marking needed.
     if today.weekday() == 6:
@@ -351,11 +358,13 @@ def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session
 
 
 @router.post("/staff/close-shift", response_model=schemas.StaffAttendanceOut)
-def close_shift(staff_id: int, db: Session = Depends(get_db)):
+def close_shift(staff_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """
     Records the shift end time for today's Present attendance record.
     Can only be called once per day (once check_out_time is set it is locked).
     """
+    if current_user.role != "Admin" and current_user.id != staff_id:
+        raise HTTPException(403, "You can only close your own shift.")
     today = _today_ist()
     record = db.query(models.StaffAttendance).filter(
         models.StaffAttendance.staff_id == staff_id,
@@ -383,12 +392,15 @@ def get_staff_self_summary(
     year: int = Query(..., ge=2020, le=2100),
     month: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
 ):
     """
     Returns the attendance summary for a single staff member for the given month.
     Used by the Mark Attendance page to render the circular percentage ring and
     summary counts without shipping every daily record to the client.
     """
+    if current_user.role != "Admin" and current_user.id != staff_id:
+        raise HTTPException(403, "You can only view your own attendance summary.")
     last_day = _calendar.monthrange(year, month)[1]
     start = date_type(year, month, 1)
     end = date_type(year, month, last_day)
@@ -461,7 +473,7 @@ def list_staff_attendance(
     return q.order_by(models.StaffAttendance.date.asc(), models.StaffAttendance.id.asc()).all()
 
 
-@router.post("/staff", response_model=schemas.StaffAttendanceOut, status_code=201)
+@router.post("/staff", response_model=schemas.StaffAttendanceOut, status_code=201, dependencies=[Depends(require_roles())])
 def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = Depends(get_db)):
     staff = db.get(models.Staff, payload.staff_id)
     if not staff:
@@ -488,7 +500,7 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
     return record
 
 
-@router.put("/staff/{record_id}", response_model=schemas.StaffAttendanceOut)
+@router.put("/staff/{record_id}", response_model=schemas.StaffAttendanceOut, dependencies=[Depends(require_roles())])
 def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpdate, db: Session = Depends(get_db)):
     record = db.get(models.StaffAttendance, record_id)
     if not record:

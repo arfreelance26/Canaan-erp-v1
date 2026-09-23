@@ -8,6 +8,8 @@ import {
   ChevronDown, ChevronUp, BarChart2,
 } from "lucide-react";
 import { tripsApi, type CustomerProfitabilityData } from "@/lib/api";
+import { showError } from "@/lib/swal";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -713,12 +715,20 @@ export default function CustomerProfitabilityPage() {
     setActivePanel(null);
   }
 
+  const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     tripsApi.getCustomerProfitability()
       .then(setData)
-      .catch(() => {})
+      .catch(() => {
+        showError("Couldn't load customer profitability data — showing last known results, not necessarily current.");
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [refreshKey]);
+  // Closing a trip, editing a trip sheet, or archiving a customer elsewhere
+  // previously left this leaderboard/matrix/scorecard stale until a manual reload.
+  useWebSocketEvent("trip_closed", () => setRefreshKey((k) => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey((k) => k + 1));
+  useWebSocketEvent("customer_updated", () => setRefreshKey((k) => k + 1));
 
   if (loading) {
     return (

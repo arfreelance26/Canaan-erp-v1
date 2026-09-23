@@ -71,7 +71,7 @@ def create_deletion_approval(
     return req
 
 
-@router.get("", response_model=list[schemas.DeletionApprovalRequestOut])
+@router.get("", response_model=list[schemas.DeletionApprovalRequestOut], dependencies=[Depends(require_roles())])
 def list_deletion_approvals(
     status: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
@@ -104,7 +104,7 @@ def _fmt_ist(dt: Optional[datetime]) -> str:
     return local.strftime("%d-%m-%Y %I:%M %p") if local else ""
 
 
-@router.get("/export")
+@router.get("/export", dependencies=[Depends(require_roles())])
 def export_deletion_approvals(
     from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the requested date, IST)"),
     to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the requested date, IST)"),

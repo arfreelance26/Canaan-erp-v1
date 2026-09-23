@@ -21,7 +21,7 @@ type DriverAttendanceTableProps = {
   date: string;
   readOnly?: boolean;
   onMark: (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => Promise<void>;
-  onAddRemark: (driverId: string, remark: string) => Promise<DriverAttendanceRemark>;
+  onAddRemark: (driverId: string, remark: string) => Promise<DriverAttendanceRemark | undefined>;
   onUpdateRemark: (id: string, remark: string) => Promise<void>;
   onDeleteRemark: (id: string) => Promise<void>;
 };
@@ -146,7 +146,7 @@ function ViewAllDialog({
 }: {
   driver: Driver; date: string; remarks: DriverAttendanceRemark[];
   onClose: () => void;
-  onAdd: (driverId: string, remark: string) => Promise<DriverAttendanceRemark>;
+  onAdd: (driverId: string, remark: string) => Promise<DriverAttendanceRemark | undefined>;
   onUpdate: (id: string, text: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   readOnly?: boolean;
@@ -210,7 +210,7 @@ function RemarksCell({
   driver, date, remarks, onAdd, onUpdate, onDelete, readOnly,
 }: {
   driver: Driver; date: string; remarks: DriverAttendanceRemark[];
-  onAdd: (driverId: string, remark: string) => Promise<DriverAttendanceRemark>;
+  onAdd: (driverId: string, remark: string) => Promise<DriverAttendanceRemark | undefined>;
   onUpdate: (id: string, text: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   readOnly?: boolean;

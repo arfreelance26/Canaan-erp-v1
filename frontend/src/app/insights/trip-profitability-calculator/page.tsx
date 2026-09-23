@@ -4,6 +4,8 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { useEffect, useState } from "react";
 import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2, Calculator } from "lucide-react";
 import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, adblueLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
+import { isEmiCompleted } from "@/lib/emi-schedule";
+import { showError } from "@/lib/swal";
 import type { Branch } from "@/types/branch";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
@@ -986,37 +988,58 @@ export default function TripProfitabilityCalculatorPage() {
   const layouts = [...new Set(trucks.map((t) => t.tyreLayout).filter(Boolean))].sort();
 
   useEffect(() => {
-    branchesApi.list().then(setBranches).catch(() => {});
-    adblueApi.listManufacturers().then(setAdblueManufacturers).catch(() => {});
-    tyreApi.listInventory().then(setTyreInventory).catch(() => {});
-    tyreApi.listFitments(undefined, true).then(setTyreFitments).catch(() => {});
-    tyreRangeConfigApi.list().then(setTyreRangeConfig).catch(() => {});
-    maintenanceApi.getMaintenanceCostPerDay().then(setMaintDailyMap).catch(() => {});
-    maintenanceApi.getMaintenanceCostPerKm().then(setMaintPerKmFetchedMap).catch(() => {});
-    trucksApi.getRunConfig().then(setRunConfigs).catch(() => {});
+    // Each fetch below is independent (a failure in one doesn't corrupt the
+    // others), but previously every failure was invisible — a truck card's
+    // fields would just show blank/NULL, indistinguishable from genuinely-no-
+    // data. Collect failures and show one consolidated toast instead.
+    const failedSources: string[] = [];
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    function reportFailure(label: string) {
+      failedSources.push(label);
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = setTimeout(() => {
+        showError(`Couldn't load ${failedSources.join(", ")} — some truck fields may be incomplete.`);
+      }, 300);
+    }
 
-    fuelLogsApi.getAllFuelStats().then(setMileageMap).catch(() => {});
-    adblueLogsApi.getAllConsumptionStats().then(setAdblueConsumptionMap).catch(() => {});
+    branchesApi.list().then(setBranches).catch(() => reportFailure("Branches"));
+    adblueApi.listManufacturers().then(setAdblueManufacturers).catch(() => reportFailure("AdBlue Manufacturers"));
+    tyreApi.listInventory().then(setTyreInventory).catch(() => reportFailure("Tyre Inventory"));
+    tyreApi.listFitments(undefined, true).then(setTyreFitments).catch(() => reportFailure("Tyre Fitments"));
+    tyreRangeConfigApi.list().then(setTyreRangeConfig).catch(() => reportFailure("Tyre Range Config"));
+    maintenanceApi.getMaintenanceCostPerDay().then(setMaintDailyMap).catch(() => reportFailure("Maintenance Cost/Day"));
+    maintenanceApi.getMaintenanceCostPerKm().then(setMaintPerKmFetchedMap).catch(() => reportFailure("Maintenance Cost/Km"));
+    trucksApi.getRunConfig().then(setRunConfigs).catch(() => reportFailure("Truck Run Config"));
+
+    fuelLogsApi.getAllFuelStats().then(setMileageMap).catch(() => reportFailure("Fuel Mileage Stats"));
+    adblueLogsApi.getAllConsumptionStats().then(setAdblueConsumptionMap).catch(() => reportFailure("AdBlue Consumption Stats"));
     fuelLogsApi.getBaseConfig().then((cfg) => {
       if (cfg.cost_per_litre != null) {
         setSystemFuelCostPerLitre(Number(cfg.cost_per_litre));
         // Only use API value as fallback; don't overwrite a saved user value
         setFuelCostPerLitre((prev: string) => prev !== "" ? prev : String(cfg.cost_per_litre));
       }
-    }).catch(() => {});
+    }).catch(() => reportFailure("Base Fuel Cost"));
 
     financeApi.listEmi().then((records) => {
+      // A truck can have multiple active loans (sum, don't overwrite — matches
+      // Running Cost Calculator's emiByTruck), and a completed loan (Amount
+      // Paid caught up to Total EMI Payable — same definition as EMI
+      // Tracking's Active/Completed tabs) no longer represents an ongoing
+      // per-km finance cost, so it's excluded rather than silently charged.
       const map: Record<string, { emiPerDay: string; emiPerKm: string }> = {};
       for (const r of records) {
-        if (r.truckRegistration) {
-          map[r.truckRegistration] = {
-            emiPerDay: r.dailyFinanceCost,
-            emiPerKm:  r.emiCostPerKm,
-          };
-        }
+        if (!r.truckRegistration || isEmiCompleted(r)) continue;
+        const prev = map[r.truckRegistration];
+        const perDay = (parseFloat(prev?.emiPerDay ?? "0") || 0) + (parseFloat(r.dailyFinanceCost) || 0);
+        const perKm  = (parseFloat(prev?.emiPerKm  ?? "0") || 0) + (parseFloat(r.emiCostPerKm)    || 0);
+        map[r.truckRegistration] = {
+          emiPerDay: String(perDay.toFixed(2)),
+          emiPerKm:  String(perKm.toFixed(4)),
+        };
       }
       setEmiMap(map);
-    }).catch(() => {});
+    }).catch(() => reportFailure("EMI Records"));
 
     trucksApi
       .list()
@@ -1031,7 +1054,7 @@ export default function TripProfitabilityCalculatorPage() {
         }));
         setTrucks(mapped);
       })
-      .catch(() => {})
+      .catch(() => reportFailure("Trucks"))
       .finally(() => setTrucksLoading(false));
   }, []);
 
@@ -1042,9 +1065,12 @@ export default function TripProfitabilityCalculatorPage() {
     } catch {}
   }, [tripDetails, tollPrices, fuelCostPerLitre]);
 
-  // manufacturer name → AdBlue defaultPricePerLitre
+  // manufacturer name → AdBlue defaultPricePerLitre. Normalized (trim + lowercase)
+  // to match Running Cost Calculator's equivalent lookup — an unnormalized key
+  // silently drops AdBlue cost for any truck whose manufacturer name differs
+  // from AdBlueManufacturer.name only by casing/whitespace.
   const adblueManufacturerPriceMap = Object.fromEntries(
-    adblueManufacturers.map((m) => [m.name, m.defaultPricePerLitre ?? ""])
+    adblueManufacturers.map((m) => [m.name.trim().toLowerCase(), m.defaultPricePerLitre ?? ""])
   );
 
   // truckId (string) → total tyre cost per km — mirrors ViewTyreDataDialog logic
@@ -1200,7 +1226,7 @@ export default function TripProfitabilityCalculatorPage() {
                 fuelCostPerLitre={fuelCostPerLitre}
                 adbluePerKm={(() => {
                   const consumption = adblueConsumptionMap[truck.id] ?? 0;
-                  const price = parseFloat(adblueManufacturerPriceMap[truck.manufacturer] ?? "");
+                  const price = parseFloat(adblueManufacturerPriceMap[(truck.manufacturer ?? "").trim().toLowerCase()] ?? "");
                   return consumption > 0 && !isNaN(price) && price > 0
                     ? String(consumption * price)
                     : "0";

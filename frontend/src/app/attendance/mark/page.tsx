@@ -116,7 +116,13 @@ export default function MarkAttendancePage() {
     attendanceApi
       .listStaff(today, staffNumericId)
       .then((recs) => setTodayRecord(recs[0] ?? null))
-      .catch(() => setTodayRecord(null));
+      .catch(() => {
+        // A fetch failure here previously rendered identically to a genuine
+        // "you haven't marked today" state, inviting a mark click while the
+        // real status was actually unknown.
+        showError("Couldn't check today's attendance status — please refresh before marking.");
+        setTodayRecord(null);
+      });
   }, [today, staffNumericId, ready]);
 
   // Month records for history
@@ -159,7 +165,10 @@ export default function MarkAttendancePage() {
       .finally(() => setSummaryLoading(false));
   }, [viewYear, viewMonth, staffNumericId, ready]);
 
-  // Re-fetch today's record when admin overrides it
+  // Re-fetch today's record when admin overrides it — and, since an admin
+  // override can just as easily target a *past* day, also refresh the month
+  // history/summary when the viewed month is open, instead of leaving it
+  // stale until a manual prev/next-month navigation.
   useWebSocketEvent("attendance_updated", (payload) => {
     if (!staffNumericId) return;
     const evtStaffId = (payload as { staff_id?: number }).staff_id;
@@ -168,6 +177,12 @@ export default function MarkAttendancePage() {
       .listStaff(today, staffNumericId)
       .then((recs) => setTodayRecord(recs[0] ?? null))
       .catch(() => {});
+
+    const from = `${viewYear}-${String(viewMonth).padStart(2, "0")}-01`;
+    const lastDay = new Date(viewYear, viewMonth, 0).getDate();
+    const to = `${viewYear}-${String(viewMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    attendanceApi.listStaff(undefined, staffNumericId, from, to).then(setMonthRecords).catch(() => {});
+    attendanceApi.getStaffSelfSummary(staffNumericId, viewYear, viewMonth).then(setSummary).catch(() => {});
   });
 
   const handleMark = useCallback(

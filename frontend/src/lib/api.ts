@@ -3052,6 +3052,11 @@ export const runningCostApi = {
   // two pages, which broke across browsers/devices and mismatched modes.
   getCostPerKm: (): Promise<Record<string, Record<string, number | null>>> =>
     req<Record<string, Record<string, number | null>>>("/running-cost/cost-per-km"),
+  // Every truck's monthly average km (from trip history), fetched once for the
+  // whole fleet — replaces each Advanced-mode truck card independently calling
+  // useTruckTripRuns (a full trips list + a per-trip sheet fetch, per card).
+  getMonthlyAvgKmAll: (): Promise<Record<string, number>> =>
+    req<Record<string, number>>("/running-cost/monthly-avg-km-all"),
   saveCostPerKm: (mode: string, values: Record<string, number | null>): Promise<void> =>
     req<void>("/running-cost/cost-per-km", {
       method: "PUT",

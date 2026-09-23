@@ -9,6 +9,9 @@ import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
+import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
+import { showError } from "@/lib/swal";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Truck as TruckIcon, History, FileSearch, X, Loader2, ShieldCheck, Gauge, Wrench, Download, ChevronDown, ArrowRight } from "lucide-react";
 
 function Pill({ label, value, color }: { label: string; value: string; color: string }) {
@@ -104,7 +107,9 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
       for (const r of results) if (r && r.sheet) map.set(r.id, r.sheet);
       setSheets(map);
     }
-    load().catch(() => {}).finally(() => setLoading(false));
+    load().catch(() => {
+      showError("Couldn't load trip history — showing an empty list, not necessarily an empty result.");
+    }).finally(() => setLoading(false));
   }, [truck.truckId]);
 
   // Filter then sort latest first
@@ -302,24 +307,20 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
   );
 }
 
-function fmtExpiry(d: string) {
-  if (!d) return "—";
-  const date = new Date(d);
-  const today = new Date();
-  const diffDays = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const label = date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-  if (diffDays < 0)  return { label, status: "expired" as const };
-  if (diffDays <= 30) return { label, status: "soon" as const };
-  return { label, status: "ok" as const };
-}
-
-function ExpiryBadge({ date }: { date: string }) {
-  if (!date) return <span className="text-sm text-gray-400">—</span>;
-  const { label, status } = fmtExpiry(date) as { label: string; status: "expired" | "soon" | "ok" };
+// Uses the app's shared getComplianceStatus (same function driving the
+// Dashboard's compliance alerts, ComplianceOverviewCard, and
+// useComplianceAlerts) instead of a locally re-implemented flat 30-day
+// threshold — otherwise the same truck/document could show "Valid" here
+// while the Dashboard flags it "Expiring Soon"/"Expired".
+function ExpiryBadge({ date, field }: { date: string; field: ComplianceField }) {
+  const label = date
+    ? new Date(date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "Not Set";
+  const status = getComplianceStatus(date, field);
   const cls =
-    status === "expired" ? "bg-red-50 text-red-700 border-red-200" :
-    status === "soon"    ? "bg-amber-50 text-amber-700 border-amber-200" :
-                           "bg-emerald-50 text-emerald-700 border-emerald-200";
+    status === "Expired"        ? "bg-red-50 text-red-700 border-red-200" :
+    status === "Expiring Soon"  ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                   "bg-emerald-50 text-emerald-700 border-emerald-200";
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
       {label}
@@ -398,17 +399,17 @@ function TruckDetailsDialog({ truck, onClose }: TruckDetailsDialogProps) {
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[
-                { label: "FC (Fitness Certificate)",       date: truck.fcExpiryDate },
-                { label: "Insurance",                      date: truck.insuranceExpiryDate },
-                { label: "National Permit",                date: truck.nationalPermitDate },
-                { label: "Local Permit",                   date: truck.localPermitDate },
-                { label: "Road Tax",                       date: truck.roadTaxDate },
-                { label: "Pollution Certificate (PUC)",    date: truck.pollutionCertificateDate },
-                { label: "RC Validity",                    date: truck.rcValidityDate },
-              ].map(({ label, date }) => (
+                { label: "FC (Fitness Certificate)",       date: truck.fcExpiryDate,            field: "fc" as ComplianceField },
+                { label: "Insurance",                      date: truck.insuranceExpiryDate,      field: "insurance" as ComplianceField },
+                { label: "National Permit",                date: truck.nationalPermitDate,       field: "nationalPermit" as ComplianceField },
+                { label: "Local Permit",                   date: truck.localPermitDate,          field: "localPermit" as ComplianceField },
+                { label: "Road Tax",                       date: truck.roadTaxDate,              field: "roadTax" as ComplianceField },
+                { label: "Pollution Certificate (PUC)",    date: truck.pollutionCertificateDate, field: "pollution" as ComplianceField },
+                { label: "RC Validity",                    date: truck.rcValidityDate,           field: "rc" as ComplianceField },
+              ].map(({ label, date, field }) => (
                 <div key={label} className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-4 py-2.5">
                   <span className="text-xs font-semibold text-gray-600">{label}</span>
-                  <ExpiryBadge date={date} />
+                  <ExpiryBadge date={date} field={field} />
                 </div>
               ))}
             </div>
@@ -439,10 +440,16 @@ export default function FleetSummaryPage() {
   const [loading, setLoading]         = useState(true);
   const [historyTruck, setHistoryTruck]   = useState<Truck | null>(null);
   const [detailsTruck, setDetailsTruck]   = useState<Truck | null>(null);
+  const [refreshKey, setRefreshKey]   = useState(0);
 
   useEffect(() => {
-    trucksApi.list().then(setTrucks).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    trucksApi.list().then(setTrucks).catch(() => {
+      showError("Couldn't load the fleet list — showing last known trucks, not necessarily all of them.");
+    }).finally(() => setLoading(false));
+  }, [refreshKey]);
+  // A truck added, edited, archived, or restored elsewhere previously left this
+  // list stale until a manual reload.
+  useWebSocketEvent("truck_updated", () => setRefreshKey((k) => k + 1));
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch={false} columns={1} />;
 

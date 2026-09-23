@@ -229,6 +229,38 @@ def _truck_run_monthly_avg(db: Session, truck_business_id: str) -> float:
     return total_distance / months if months > 0 else 0.0
 
 
+def _truck_run_monthly_avg_all(db: Session) -> dict[str, float]:
+    """Batched version of _truck_run_monthly_avg — one query for every truck's
+    trip+sheet rows instead of one query per truck. Used by both the fleet-wide
+    Advanced-mode cost-per-km computation and the /monthly-avg-km-all endpoint
+    (which replaced the Running Cost Calculator page's old per-truck-card
+    useTruckTripRuns fetch — that fired a full, unfiltered tripsApi.list() call
+    plus a getSheet() call per trip for every rendered truck card)."""
+    rows = (
+        db.query(models.Trip.vehicle_id, models.Trip.assigned_date, models.TripSheet.total_km)
+        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .all()
+    )
+    by_truck: dict[str, list] = {}
+    for vehicle_id, assigned_date, total_km in rows:
+        if not vehicle_id:
+            continue
+        by_truck.setdefault(vehicle_id, []).append((assigned_date, total_km))
+
+    today = _date.today()
+    result: dict[str, float] = {}
+    for vehicle_id, truck_rows in by_truck.items():
+        total_distance = sum(float(km) for _, km in truck_rows if km and float(km) > 0)
+        dates = [d for d, _ in truck_rows if d]
+        if dates:
+            earliest = min(dates)
+            months = max(1, (today.year - earliest.year) * 12 + (today.month - earliest.month) + 1)
+        else:
+            months = 1
+        result[vehicle_id] = total_distance / months if months > 0 else 0.0
+    return result
+
+
 def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, float | None]:
     from routers.maintenance import get_all_fuel_stats, get_all_adblue_consumption, get_maintenance_cost_per_km_all
     from routers.trucks import get_compliance_per_km_all
@@ -241,6 +273,7 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
     adblue_map        = get_all_adblue_consumption(db)
     maint_map          = get_maintenance_cost_per_km_all(db)
     compliance_map      = get_compliance_per_km_all(db)
+    monthly_avg_map     = _truck_run_monthly_avg_all(db) if mode == "Advanced" else {}
 
     manufacturer_price = {
         m.name.strip().lower(): float(m.default_price_per_litre or 0)
@@ -306,22 +339,31 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
 
         reg = (truck.registration_number or "").strip().upper()
         emi = emi_by_reg.get(reg)
-        emi_per_day = None
+        # Basic allows an amount÷26 fallback when daily_finance_cost isn't stored
+        # (matches this page's own Basic-mode UI text: "fetched (or auto: EMI
+        # Amount ÷ 26 if not stored)"). Advanced is strictly fetched — no
+        # fallback — matching its own UI promise ("no arithmetic substitution...
+        # shows NIL"). Sharing one emi_per_day between both modes previously
+        # made Advanced silently include a fabricated number here that the
+        # calculator's own Advanced tab correctly shows as NIL.
+        emi_per_day_basic = None
+        emi_per_day_advanced = None
         if emi:
-            emi_per_day = emi["per_day"] if emi["per_day"] > 0 else (emi["amount"] / 26 if emi["amount"] > 0 else None)
+            emi_per_day_advanced = emi["per_day"] if emi["per_day"] > 0 else None
+            emi_per_day_basic = emi["per_day"] if emi["per_day"] > 0 else (emi["amount"] / 26 if emi["amount"] > 0 else None)
 
         maint_basic = maint_map.get(tid)
         compliance_basic = compliance_map.get(tid)
 
         if mode == "Basic":
             km_per_day = run_config_by_layout.get(truck.tyre_layout or "")
-            emi_per_km = (emi_per_day / km_per_day) if emi_per_day and km_per_day and km_per_day > 0 else None
+            emi_per_km = (emi_per_day_basic / km_per_day) if emi_per_day_basic and km_per_day and km_per_day > 0 else None
             tyre_per_km = basic_tyre_by_layout.get(truck.tyre_layout or "")
             maintenance_per_km = maint_basic if maint_basic else None
             compliance_per_km = compliance_basic if compliance_basic else None
         else:  # Advanced
-            monthly_avg = _truck_run_monthly_avg(db, truck.truck_id)
-            emi_per_km = (emi_per_day / monthly_avg) if emi_per_day and monthly_avg > 0 else None
+            monthly_avg = monthly_avg_map.get(truck.truck_id, 0.0)
+            emi_per_km = (emi_per_day_advanced / monthly_avg) if emi_per_day_advanced and monthly_avg > 0 else None
             tyre_per_km = advanced_tyre_by_truck.get(truck.id)
             maintenance_per_km = (maint_basic / monthly_avg) if maint_basic and monthly_avg > 0 else None
             compliance_per_km = (compliance_basic / monthly_avg) if compliance_basic and monthly_avg > 0 else None
@@ -339,6 +381,16 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
 # Manual. Replaces the old localStorage hand-off between this calculator and
 # P&L Summary's Truck Profitability tab.
 # ---------------------------------------------------------------------------
+
+@router.get("/monthly-avg-km-all")
+def get_monthly_avg_km_all(db: Session = Depends(get_db)):
+    """Returns {truck_business_id: monthly_avg_km} for every truck with trip
+    history. Lets the Running Cost Calculator page fetch every truck's monthly
+    average distance in one request instead of each rendered Advanced-mode
+    truck card independently calling useTruckTripRuns — which fired a full,
+    unfiltered GET /trips plus a GET /trips/{id}/sheet per trip, per card."""
+    return _truck_run_monthly_avg_all(db)
+
 
 @router.get("/cost-per-km")
 def get_cost_per_km(db: Session = Depends(get_db)):

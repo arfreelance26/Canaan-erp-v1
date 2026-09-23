@@ -15,6 +15,8 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { showError } from "@/lib/swal";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 const PAGE_SIZE = 10;
 
@@ -183,6 +185,7 @@ export default function PnlMileagePage() {
   const [showHowCalculated, setShowHowCalculated] = useState(false);
   const [showQuickStart, setShowQuickStart] = useState(false);
 
+  const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     // This is an analytics page — P&L/mileage totals aggregate across every trip
     // in range, so all sheets/closures are genuinely needed (not just one page).
@@ -209,9 +212,21 @@ export default function PnlMileagePage() {
         const m = new Map<string, TripClosureData>();
         for (const r of results) { if (r) m.set(r.id, r.closure); }
         setClosures(m);
-      }).catch(() => {}).finally(() => setLoading(false));
-    }).catch(() => setLoading(false));
-  }, []);
+      }).catch(() => {
+        // A single failure here (e.g. the sheets fetch) previously left `sheets`
+        // empty, which silently renders as "No trips found matching your
+        // filters" — indistinguishable from a genuinely quiet period.
+        showError("Couldn't load trip sheet/closure data — the table below may be incomplete.");
+      }).finally(() => setLoading(false));
+    }).catch(() => {
+      showError("Couldn't load trips — showing last known data, not necessarily current.");
+      setLoading(false);
+    });
+  }, [refreshKey]);
+  // A trip sheet closed, edited, or a trip soft-deleted elsewhere previously
+  // left this page's totals/table stale until a manual reload.
+  useWebSocketEvent("trip_closed", () => setRefreshKey((k) => k + 1));
+  useWebSocketEvent("trip_updated", () => setRefreshKey((k) => k + 1));
 
   // Reset to page 1 whenever filters change
   useEffect(() => { setPage(1); }, [search, dateFrom, dateTo]);
@@ -240,8 +255,13 @@ export default function PnlMileagePage() {
         return true;
       })
       .sort((a, b) => {
-        if (b.trip.scheduledDate > a.trip.scheduledDate) return 1;
-        if (b.trip.scheduledDate < a.trip.scheduledDate) return -1;
+        // Explicit fallback for a missing scheduledDate — keeps it consistently
+        // at the bottom of this latest-first sort rather than relying on empty
+        // string ("") happening to compare smallest.
+        const aDate = a.trip.scheduledDate || "";
+        const bDate = b.trip.scheduledDate || "";
+        if (bDate > aDate) return 1;
+        if (bDate < aDate) return -1;
         return b.pnl - a.pnl;
       });
   }, [allTrips, sheets, search, dateFrom, dateTo]);

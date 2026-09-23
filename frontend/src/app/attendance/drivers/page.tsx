@@ -53,7 +53,9 @@ export default function DriverAttendancePage() {
         setRecords(r);
         setRemarks(rm);
       })
-      .catch(() => {}).finally(() => setLoading(false));
+      .catch(() => {
+        showError("Couldn't load the driver roster — showing last known data, not necessarily current.");
+      }).finally(() => setLoading(false));
   }, [refreshKey]);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
@@ -64,7 +66,10 @@ export default function DriverAttendancePage() {
       attendanceApi.listDrivers(date),
       attendanceApi.listDriverRemarks(undefined, date),
       attendanceApi.getLateEntryLog(date),
-    ]).then(([r, rm, log]) => { setRecords(r); setRemarks(rm); setLateEntryLog(log); setLateEntryRemark(""); });
+    ]).then(([r, rm, log]) => { setRecords(r); setRemarks(rm); setLateEntryLog(log); setLateEntryRemark(""); })
+      .catch(() => {
+        showError("Couldn't load attendance for this date — showing the previous date's data.");
+      });
   }, [date, refreshKey]);
 
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
@@ -107,21 +112,37 @@ export default function DriverAttendancePage() {
 
   const handleAddRemark = useCallback(
     async (driverId: string, remark: string) => {
-      const added = await attendanceApi.addDriverRemark(driverId, date, remark);
-      setRemarks((prev) => [...prev, added]);
-      return added;
+      try {
+        const added = await attendanceApi.addDriverRemark(driverId, date, remark);
+        setRemarks((prev) => [...prev, added]);
+        return added;
+      } catch (err: unknown) {
+        // The child table only wraps this call in try/finally (no catch), so
+        // without handling it here it surfaces as an unhandled promise
+        // rejection — a failed add silently does nothing visible otherwise.
+        showError(err instanceof Error ? err.message : "Failed to add remark.");
+        return undefined;
+      }
     },
     [date]
   );
 
   const handleUpdateRemark = useCallback(async (id: string, remark: string) => {
-    const updated = await attendanceApi.updateDriverRemark(id, remark);
-    setRemarks((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    try {
+      const updated = await attendanceApi.updateDriverRemark(id, remark);
+      setRemarks((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update remark.");
+    }
   }, []);
 
   const handleDeleteRemark = useCallback(async (id: string) => {
-    await attendanceApi.deleteDriverRemark(id);
-    setRemarks((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await attendanceApi.deleteDriverRemark(id);
+      setRemarks((prev) => prev.filter((r) => r.id !== id));
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to delete remark.");
+    }
   }, []);
 
   async function handleViewReport() {

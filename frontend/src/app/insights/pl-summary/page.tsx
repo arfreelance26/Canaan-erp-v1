@@ -10,6 +10,9 @@ import {
 import { plSummaryApi, runningCostApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Segmented } from "@/components/ui/Segmented";
+import { showError } from "@/lib/swal";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import logoSrc from "@/app/companylogo.png";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
@@ -799,33 +802,32 @@ function TruckProfitabilityTab({
     [data],
   );
 
-  const filtered = enriched;
 
   const totals = useMemo(() => ({
-    trips:   filtered.reduce((s, e) => s + e.tripCount, 0),
-    hire:    filtered.reduce((s, e) => s + e.totalHireAmount, 0),
-    tExp:    filtered.reduce((s, e) => s + e.tripExpenses, 0),
-    totalKm: filtered.reduce((s, e) => s + e.totalKm, 0),
-    tPl:     filtered.reduce((s, e) => s + e.tripPl, 0),
-    netPl:   filtered.reduce((s, e) => s + e.netTruckPl, 0),
-  }), [filtered]);
+    trips:   enriched.reduce((s, e) => s + e.tripCount, 0),
+    hire:    enriched.reduce((s, e) => s + e.totalHireAmount, 0),
+    tExp:    enriched.reduce((s, e) => s + e.tripExpenses, 0),
+    totalKm: enriched.reduce((s, e) => s + e.totalKm, 0),
+    tPl:     enriched.reduce((s, e) => s + e.tripPl, 0),
+    netPl:   enriched.reduce((s, e) => s + e.netTruckPl, 0),
+  }), [enriched]);
 
-  const { total: finalProfit, hasCpk: hasCpkTrucks } = filtered.reduce((acc, e) => {
+  const { total: finalProfit, hasCpk: hasCpkTrucks } = enriched.reduce((acc, e) => {
     const cpk = costPerKmMap[mode]?.[e.truckId];
     const truckExp = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
     if (truckExp != null) return { total: acc.total + (e.totalHireAmount - e.tripExpenses - truckExp), hasCpk: true };
     return acc;
   }, { total: 0, hasCpk: false });
-  const profitableTrucks = filtered.filter((e) => e.tripPl >= 0).length;
+  const profitableTrucks = enriched.filter((e) => e.tripPl >= 0).length;
 
   return (
     <div className="flex flex-col gap-5">
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <StatCard label="Total Trucks" value={String(filtered.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
-        <StatCard label="Profitable Trucks" value={`${profitableTrucks} / ${filtered.length}`}
-          sub={filtered.length ? `${((profitableTrucks / filtered.length) * 100).toFixed(0)}% success rate` : ""}
+        <StatCard label="Total Trucks" value={String(enriched.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
+        <StatCard label="Profitable Trucks" value={`${profitableTrucks} / ${enriched.length}`}
+          sub={enriched.length ? `${((profitableTrucks / enriched.length) * 100).toFixed(0)}% success rate` : ""}
           icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
         <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} sub={`Expenses: ${fmt(totals.tExp)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
@@ -840,7 +842,7 @@ function TruckProfitabilityTab({
 
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
-        {filtered.length === 0 ? (
+        {enriched.length === 0 ? (
           <div className="py-14 text-center">
             <p className="text-sm text-gray-400">No trucks found for this period.</p>
           </div>
@@ -855,7 +857,7 @@ function TruckProfitabilityTab({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry) => {
+                {enriched.map((entry) => {
                   const isOpen = expandedTruck === entry.truckId;
                   return (
                   <Fragment key={entry.truckId}>
@@ -931,7 +933,7 @@ function TruckProfitabilityTab({
                   <td className="px-4 py-3">
                     {(() => {
                       let hasCpk = false;
-                      const total = filtered.reduce((sum, e) => {
+                      const total = enriched.reduce((sum, e) => {
                         const cpk = costPerKmMap[mode]?.[e.truckId];
                         if (cpk != null && e.totalKm > 0) { hasCpk = true; return sum + e.totalKm * cpk; }
                         return sum;
@@ -942,7 +944,7 @@ function TruckProfitabilityTab({
                   <td className="px-4 py-3">
                     {(() => {
                       let hasCpk = false;
-                      const total = filtered.reduce((sum, e) => {
+                      const total = enriched.reduce((sum, e) => {
                         const cpk = costPerKmMap[mode]?.[e.truckId];
                         const truckExp = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
                         if (truckExp != null) { hasCpk = true; return sum + (e.totalHireAmount - e.tripExpenses - truckExp); }
@@ -987,10 +989,24 @@ export default function PLSummaryPage() {
   // Calculator via the backend, not the old per-browser localStorage hand-off.
   const [costPerKmMap, setCostPerKmMap] = useState<Record<string, Record<string, number | null>>>({});
   useEffect(() => {
-    runningCostApi.getCostPerKm().then(setCostPerKmMap).catch(() => {});
+    runningCostApi.getCostPerKm().then(setCostPerKmMap).catch(() => {
+      // Without this, every "Truck Expenses"/"Final Profit" column across both
+      // tabs silently shows "—", indistinguishable from genuinely-unconfigured
+      // cost/km — surface the failure instead.
+      showError("Couldn't load cost-per-km data — Truck Expenses and Final Profit columns may be incomplete.");
+    });
   }, []);
 
   useEffect(() => { fetchData(); }, []); // auto-load current month on mount
+  // Live refresh — closing a trip sheet, editing an EMI, or logging maintenance
+  // elsewhere previously left this page's numbers stale until a manual re-pick
+  // of the date range.
+  useWebSocketEvent("trip_closed", () => fetchData());
+  useWebSocketEvent("trip_updated", () => fetchData());
+  useWebSocketEvent("finance_updated", () => fetchData());
+  useWebSocketEvent("maintenance_updated", () => fetchData());
+  useWebSocketEvent("truck_updated", () => fetchData());
+  useAutoRefresh(() => fetchData(), 30000);
 
   function openPreview() {
     if (!data) return;

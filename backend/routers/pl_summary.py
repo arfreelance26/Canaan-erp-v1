@@ -128,7 +128,7 @@ def get_pl_summary(
     and container_specification (joined from trips and customers tables) to support
     client-side profitability filtering.
     """
-    trucks_q = db.query(models.Truck)
+    trucks_q = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None))
     if truck_id:
         trucks_q = trucks_q.filter(models.Truck.truck_id == truck_id)
     trucks = trucks_q.all()
@@ -146,7 +146,11 @@ def get_pl_summary(
         else:
             raise
     for e in emi_records:
-        reg = (e.truck_registration or "").strip()
+        # .upper() matches running_cost.py's EMI-matching normalization — without
+        # it, a registration typed with different casing between EmiRecord and
+        # Truck silently drops that EMI from this page's Net P&L (shows "No
+        # active loan") while the Running Cost Calculator still finds it.
+        reg = (e.truck_registration or "").strip().upper()
         emi_by_reg.setdefault(reg, []).append(e)
 
     maint_by_truck: dict = {}
@@ -218,7 +222,7 @@ def get_pl_summary(
         # EMI share for period
         emi_total = 0.0
         emi_details = []
-        for e in emi_by_reg.get((truck.registration_number or "").strip(), []):
+        for e in emi_by_reg.get((truck.registration_number or "").strip().upper(), []):
             share = _emi_share(e.emi_amount, e.emi_start_date, e.emi_end_date, start_date, end_date)
             if share > 0:
                 emi_total += share
