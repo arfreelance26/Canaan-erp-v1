@@ -472,6 +472,16 @@ def _run_schema_migrations():
         # Cost Calculator, Cost-Per-KM Ranking, P&L) comes from actual
         # MaintenanceRecord history, not this.
         "DROP TABLE IF EXISTS maintenance_base_config",
+        # Combined invoices: several trips billed under one shared invoice_no
+        # (see generate_combined_invoice). This flag — not invoice_no equality —
+        # is the source of truth for "is this trip part of a combined invoice",
+        # since some legacy trips happen to share an old-format invoice_no by
+        # accident and must never be mistaken for a real combined invoice.
+        "ALTER TABLE trip_invoices ADD COLUMN is_combined BOOLEAN NOT NULL DEFAULT FALSE",
+        # Dedicated passport-size identity photo for staff, distinct from the
+        # existing profile photo (photo_blob).
+        "ALTER TABLE staff ADD COLUMN identity_image_url TEXT",
+        "ALTER TABLE staff ADD COLUMN identity_image_blob LONGBLOB",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename

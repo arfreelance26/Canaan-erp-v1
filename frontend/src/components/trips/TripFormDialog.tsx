@@ -161,6 +161,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   isInvoiced: false,
   invoiceRequired: true,
   invoiceWaived: false,
+  isCombinedInvoice: false,
   driverName: null,
   truckRegistration: null,
 };

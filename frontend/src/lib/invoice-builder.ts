@@ -274,6 +274,136 @@ export function buildTransportMemo(
   };
 }
 
+// ── Combined invoice (multiple trips, one customer, one invoice number) ────
+
+export interface CombinedInvoiceTripSection {
+  tripId: string;
+  bookingNo: string;
+  tripSheetNo: string;
+  refNo: string;
+  modeOfShipment: string;
+  containerType: string;
+  cfs?: string;
+  lineForwarder?: string;
+  vesselName?: string;
+  from: string;
+  to: string;
+  containerNo: string;
+  consignee: string;
+  narration: string;
+  serviceItems: ServiceItem[];
+  tripSubtotal: string;
+}
+
+export interface CombinedInvoiceProps {
+  invoiceNo: string;
+  date: string;
+  billToName: string;
+  billToAddress?: string;
+  gstNumber: string;
+  isTransportMemo: boolean;
+  sections: CombinedInvoiceTripSection[];
+  grandTotal: string;
+  amountInWords: string;
+  hsnRows: Array<{ description: string; value: string }>;
+  hsnTotal: string;
+  bankName: string;
+  branchName: string;
+  accountNumber: string;
+  ifscCode: string;
+  contactPerson: string;
+  email: string;
+  contact: string;
+  gstApplicable?: "Yes" | "No";
+  igstApplicable?: "Yes" | "No";
+}
+
+// Each trip in a combined group is a full, independent TripInvoice row that
+// happens to share invoice_no with its siblings (see backend generate_combined_invoice) —
+// so per-trip fields (route, container, service lines) come straight from that
+// trip's own row, while document-level fields (bill to, GST, bank, contact) are
+// read once off the first trip's row, since the create flow wrote the same
+// values onto every row in the group.
+export function buildCombinedInvoice(
+  trips: Trip[],
+  closures: Map<string, TripClosureData>,
+  sheets: Map<string, TripSheetData>,
+  customer: Customer | undefined,
+  rawInvoices: Map<string, Record<string, any>>,
+): CombinedInvoiceProps {
+  const first = trips[0] ? rawInvoices.get(trips[0].id) : undefined;
+  const invoiceType = (first?.invoice_type ?? "Tax Invoice") as string;
+  const isTransportMemo = invoiceType === "Transport Memo";
+  const gstApplicable  = (first?.gst_applicable  ?? "No") as "Yes" | "No";
+  const igstApplicable = (first?.igst_applicable ?? "No") as "Yes" | "No";
+
+  let combinedSubtotal = 0;
+  let combinedGst = 0;
+
+  const sections: CombinedInvoiceTripSection[] = trips.map((trip) => {
+    const closure = closures.get(trip.id) ?? ({} as TripClosureData);
+    const sheet = sheets.get(trip.id);
+    const invoice = rawInvoices.get(trip.id);
+    const common = commonFields(trip, closure, sheet, customer, invoice);
+    const { subtotal, gstTotal } = invoice?.services?.length
+      ? computeServiceTotals(invoice.services)
+      : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
+    combinedSubtotal += subtotal;
+    combinedGst += gstTotal;
+    return {
+      tripId: trip.tripId,
+      bookingNo: common.bookingNo,
+      tripSheetNo: common.tripSheetNo,
+      refNo: common.refNo,
+      modeOfShipment: common.modeOfShipment,
+      containerType: common.containerType,
+      cfs: common.cfs,
+      lineForwarder: common.lineForwarder,
+      vesselName: common.vesselName,
+      from: common.from,
+      to: common.to,
+      containerNo: common.containerNo,
+      consignee: common.consignee,
+      narration: common.narration,
+      serviceItems: common.serviceItems,
+      tripSubtotal: fmt(subtotal + gstTotal),
+    };
+  });
+
+  const sgst = gstApplicable === "Yes" ? parseFloat((combinedGst / 2).toFixed(2)) : 0;
+  const cgst = gstApplicable === "Yes" ? parseFloat((combinedGst / 2).toFixed(2)) : 0;
+  const igst = igstApplicable === "Yes" ? combinedGst : 0;
+  const taxedTotal = combinedSubtotal + (gstApplicable === "Yes" ? sgst + cgst : igstApplicable === "Yes" ? igst : isTransportMemo ? 0 : combinedGst);
+  const grandRounded = roundGrandTotal(isTransportMemo ? combinedSubtotal : taxedTotal);
+
+  return {
+    invoiceNo: (first?.invoice_no as string) ?? "",
+    date: fmtDate((first?.invoice_date as string) || new Date().toISOString().slice(0, 10)),
+    billToName: (first?.bill_to as string) || customer?.name || "",
+    billToAddress: customer?.address,
+    gstNumber: (first?.gst_number as string) || customer?.gstin || "",
+    isTransportMemo,
+    sections,
+    grandTotal: fmtInt(grandRounded),
+    amountInWords: amountToWords(String(grandRounded)),
+    hsnRows: [
+      { description: "996791 — Goods Transport Services", value: fmt(combinedSubtotal) },
+      ...(sgst > 0 ? [{ description: "SGST @ 9%", value: fmt(sgst) }, { description: "CGST @ 9%", value: fmt(cgst) }] : []),
+      ...(igst > 0 ? [{ description: "IGST @ 18%", value: fmt(igst) }] : []),
+    ],
+    hsnTotal: fmt(taxedTotal),
+    bankName:      (first?.bank_name as string)      || "HDFC - 9181 - Shipping",
+    branchName:    (first?.branch_name as string)     || "TUTICORIN",
+    accountNumber: (first?.account_number as string)  || "50200037439181",
+    ifscCode:      (first?.ifsc_code as string)        || "HDFC0001104",
+    contactPerson: (first?.contact_person as string)   || "S SUNDER",
+    email:         (first?.email as string)             || "tutfin@canaanglobal.com",
+    contact:       (first?.contact as string)            || "9047015423",
+    gstApplicable,
+    igstApplicable,
+  };
+}
+
 export function buildTaxInvoice(
   trip: Trip,
   closure: TripClosureData,

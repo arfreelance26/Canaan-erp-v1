@@ -98,6 +98,7 @@ BLOB_FILENAME_COL: dict[str, str] = {
     "photo_blob":                        "photo_url",
     "aadhaar_blob":                      "aadhaar_file_name",
     "aadhar_document_blob":              "aadhar_file_name",
+    "identity_image_blob":               "identity_image_url",
     "license_blob":                      "license_file_name",
     "rc_document_blob":                  "rc_document_url",
     "fc_document_blob":                  "fc_document_file_name",

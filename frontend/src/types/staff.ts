@@ -9,6 +9,7 @@ export type StaffDevice = {
 export type Staff = {
   id: string;
   photoUrl: string | null;
+  identityImageUrl: string | null;
   name: string;
   staffId: string;
   department: string;

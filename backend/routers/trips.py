@@ -122,11 +122,22 @@ def _check_driver_truck_conflict(db: Session, driver_id, vehicle_id, exclude_tri
             )
 
 
-def _enrich(trip: models.Trip, driver_names: dict = {}, truck_regs: dict = {}) -> dict:
+def _combined_invoice_trip_ids(db: Session) -> set:
+    """Trip ids belonging to a real combined invoice (TripInvoice.is_combined),
+    computed once per list call rather than once per row. Deliberately NOT
+    inferred from shared invoice_no — some legacy trips happen to share an
+    old-format invoice_no by accident and must never read as "combined".
+    """
+    rows = db.query(models.TripInvoice.trip_id).filter(models.TripInvoice.is_combined == True).all()  # noqa: E712
+    return {tid for (tid,) in rows}
+
+
+def _enrich(trip: models.Trip, driver_names: dict = {}, truck_regs: dict = {}, combined_trip_ids: set = frozenset()) -> dict:
     """Return a dict matching TripOut, including computed has_closure / has_sheet."""
     data = {c.name: getattr(trip, c.name) for c in trip.__table__.columns}
     data["has_closure"] = trip.closure is not None
     data["has_sheet"] = trip.sheet is not None
+    data["is_combined_invoice"] = trip.id in combined_trip_ids
     data["trip_sheet_date"] = trip.sheet.trip_sheet_date if trip.sheet else None
     data["sheet_hire_amount"] = float(trip.sheet.hire_amount) if trip.sheet and trip.sheet.hire_amount is not None else None
 
@@ -191,8 +202,9 @@ def list_trips(
 
     driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
     truck_regs = {t.truck_id: t.registration_number for t in db.query(models.Truck.truck_id, models.Truck.registration_number).all()}
+    combined_trip_ids = _combined_invoice_trip_ids(db)
 
-    return [_enrich(t, driver_names, truck_regs) for t in trips]
+    return [_enrich(t, driver_names, truck_regs, combined_trip_ids) for t in trips]
 
 
 @router.get("/customer-profitability", response_model=list[schemas.CustomerProfitabilityOut], tags=["Trips"])
@@ -539,6 +551,83 @@ def get_next_invoice_seq(invoice_type: str, db: Session = Depends(get_db)):
     # Preview only — the authoritative number is assigned atomically at save time
     # (see generate_invoice), so this may differ if others save in between.
     return {"invoice_no": _next_invoice_no(db, invoice_type, _current_fy())}
+
+
+@router.get("/invoice-group")
+def get_invoice_group(invoice_no: str, db: Session = Depends(get_db)):
+    """Trip ids of a real combined invoice's sibling trips (2+ means combined).
+    Filters on is_combined, NOT just invoice_no equality — some legacy trips
+    share an old-format invoice_no by accident and must never read as
+    combined. Returns [] for a normal, non-combined invoice.
+    """
+    rows = db.query(models.TripInvoice.trip_id).filter(
+        models.TripInvoice.invoice_no == invoice_no,
+        models.TripInvoice.is_combined == True,  # noqa: E712
+    ).all()
+    return [i for (i,) in rows]
+
+
+@router.post("/invoice-combined", response_model=list[schemas.TripOut])
+def generate_combined_invoice(payload: schemas.CombinedInvoiceCreate, db: Session = Depends(get_db)):
+    """Generate ONE invoice number shared across several Verified, not-yet-invoiced
+    trips for the same customer. Each trip still gets its own TripInvoice row
+    (keeping every single-trip feature — Edit Invoice, Preview, LR/DAB/CAB — working
+    unmodified), but all rows share invoice_no, so grouping by invoice_no reads them
+    back as one combined document. See get_invoice_group().
+    """
+    if len(payload.trips) < 2:
+        raise HTTPException(400, "A combined invoice needs at least 2 trips")
+
+    trip_ids = [t.trip_id for t in payload.trips]
+    if len(set(trip_ids)) != len(trip_ids):
+        raise HTTPException(400, "Duplicate trip in combined invoice request")
+
+    # SELECT FOR UPDATE — serialises concurrent invoice generation on these trips
+    trips = (
+        db.query(models.Trip)
+        .with_for_update()
+        .options(joinedload(models.Trip.closure), joinedload(models.Trip.sheet))
+        .filter(models.Trip.id.in_(trip_ids))
+        .all()
+    )
+    trips_by_id = {t.id: t for t in trips}
+    missing = [tid for tid in trip_ids if tid not in trips_by_id]
+    if missing:
+        raise HTTPException(404, f"Trip(s) not found: {missing}")
+
+    customer_ids = {t.customer_id for t in trips}
+    if len(customer_ids) != 1:
+        raise HTTPException(400, "All trips in a combined invoice must belong to the same customer")
+
+    for t in trips:
+        if not t.sheet:
+            raise HTTPException(400, f"Trip {t.trip_id} has no trip sheet")
+        if t.verification_status != "verified":
+            raise HTTPException(400, f"Trip {t.trip_id} is not Verified")
+        if t.is_invoiced:
+            raise HTTPException(400, f"Trip {t.trip_id} is already invoiced")
+
+    shared = payload.model_dump(exclude={"trips"}, exclude_unset=True)
+    inv_type = shared.get("invoice_type") or "Tax Invoice"
+
+    got_lock = db.execute(text("SELECT GET_LOCK('cgi_invoice_no', 10)")).scalar()
+    try:
+        invoice_no = _next_invoice_no(db, inv_type, _current_fy())
+        for line in payload.trips:
+            trip = trips_by_id[line.trip_id]
+            trip.is_invoiced = True
+            _revert_temp_branch_if_needed(db, trip)
+            line_data = line.model_dump(exclude={"trip_id"}, exclude_unset=True)
+            row_data = {**shared, **line_data, "invoice_no": invoice_no, "is_combined": True}
+            db.add(models.TripInvoice(trip_id=trip.id, **row_data))
+        db.commit()
+    finally:
+        if got_lock:
+            db.execute(text("SELECT RELEASE_LOCK('cgi_invoice_no')"))
+
+    for t in trips:
+        db.refresh(t)
+    return [_enrich(t) for t in trips]
 
 
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])

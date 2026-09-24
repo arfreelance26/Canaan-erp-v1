@@ -22,6 +22,7 @@ export const initialStaff: Staff[] = [
   {
     id: "1",
     photoUrl: null,
+    identityImageUrl: null,
     name: "Anita Menon",
     staffId: "STF-1001",
     department: "Canaan Global Logistics",
@@ -41,6 +42,7 @@ export const initialStaff: Staff[] = [
   {
     id: "2",
     photoUrl: null,
+    identityImageUrl: null,
     name: "Rahul Verma",
     staffId: "STF-1002",
     department: "Canaan Global Shipping Services",
@@ -60,6 +62,7 @@ export const initialStaff: Staff[] = [
   {
     id: "3",
     photoUrl: null,
+    identityImageUrl: null,
     name: "Karthik Raja",
     staffId: "STF-1003",
     department: "Canaan Global Logistics",

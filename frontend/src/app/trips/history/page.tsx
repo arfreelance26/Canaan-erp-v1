@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { History, FileText, ClipboardList, Receipt, Trash2 } from "lucide-react";
+import { History, FileText, ClipboardList, Receipt, Trash2, Layers } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
+import { mapLimit } from "@/lib/async-pool";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
@@ -21,6 +22,7 @@ import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
+import { CombinedInvoicePreviewDialog } from "@/components/trips/CombinedInvoicePreviewDialog";
 import type { InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -71,6 +73,8 @@ export default function TripHistoryPage() {
   const [bookingTrip, setBookingTrip] = useState<Trip | null>(null);
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [invoicePreview, setInvoicePreview] = useState<InvoicePreviewState | null>(null);
+  const [combinePreview, setCombinePreview] = useState<{ trips: Trip[] } | null>(null);
+  const [combineRawInvoices, setCombineRawInvoices] = useState<Map<string, Record<string, unknown>>>(new Map());
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -204,6 +208,27 @@ export default function TripHistoryPage() {
       customer: customerById.get(trip.customerId),
       invoiceType: (raw?.invoice_type as InvoiceType) ?? "Bill of Supply",
     });
+  }
+
+  async function handleViewCombinedInvoice(trip: Trip) {
+    const raw = await tripsApi.getInvoice(trip.id).catch(() => null);
+    const invNo = raw ? String((raw as Record<string, unknown>).invoice_no ?? "") : "";
+    if (!invNo) return;
+    const groupIds = await tripsApi.getInvoiceGroup(invNo).catch(() => []);
+    if (groupIds.length < 2) return;
+    const idStrs = groupIds.map(String);
+    const results = await mapLimit(idStrs, 8, async (id) => {
+      const [cl, sh, inv] = await Promise.all([
+        closures.has(id) ? Promise.resolve(closures.get(id) ?? null) : tripsApi.getClosure(id).catch(() => null),
+        sheets.has(id) ? Promise.resolve(sheets.get(id) ?? null) : tripsApi.getSheet(id).catch(() => null),
+        id === trip.id ? Promise.resolve(raw) : tripsApi.getInvoice(id).catch(() => null),
+      ]);
+      return { id, cl, sh, inv };
+    });
+    setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
+    setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
+    setCombineRawInvoices(new Map(results.filter((r) => r.inv).map((r) => [r.id, r.inv as Record<string, unknown>])));
+    setCombinePreview({ trips: trips.filter((t) => idStrs.includes(t.id)) });
   }
 
   function toggleRow(id: string) {
@@ -636,6 +661,18 @@ export default function TripHistoryPage() {
                             View Invoice
                           </button>
                         )}
+
+                        {/* Combined Invoice — only when this trip's invoice was generated together with others */}
+                        {isInvoiced && !isFleetManager && trip.isCombinedInvoice && (
+                          <button
+                            type="button"
+                            onClick={() => handleViewCombinedInvoice(trip)}
+                            className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                          >
+                            <Layers className="h-3.5 w-3.5" />
+                            View Combined Invoice
+                          </button>
+                        )}
                       </div>
                       )}
                     </td>
@@ -757,6 +794,16 @@ export default function TripHistoryPage() {
         sheet={invoicePreview?.sheet}
         customer={invoicePreview?.customer}
         onClose={() => setInvoicePreview(null)}
+      />
+
+      <CombinedInvoicePreviewDialog
+        open={combinePreview !== null}
+        trips={combinePreview?.trips ?? []}
+        closures={closures}
+        sheets={sheets}
+        customer={combinePreview?.trips[0] ? customerById.get(combinePreview.trips[0].customerId) : undefined}
+        rawInvoices={combineRawInvoices}
+        onClose={() => setCombinePreview(null)}
       />
     </div>
   );

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { X, FileText, KeyRound, Eye, EyeOff } from "lucide-react";
-import { showError, validateFileSize } from "@/lib/swal";
+import { X, FileText, KeyRound, Eye, EyeOff, Trash2 } from "lucide-react";
+import { showError, showSuccess, confirmAction, validateFileSize } from "@/lib/swal";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass, inputClassLower } from "@/components/ui/Field";
@@ -13,7 +13,7 @@ import { FilePreviewBadge } from "@/components/ui/FilePreviewBadge";
 import { DEPARTMENT_OPTIONS, SOFTWARE_DESIGNATION_OPTIONS } from "@/lib/staff-data";
 import type { Staff } from "@/types/staff";
 import type { Branch } from "@/types/branch";
-import { branchesApi } from "@/lib/api";
+import { branchesApi, deleteFile } from "@/lib/api";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
 export const DRAFT_KEY = "erp_staff_form_draft";
@@ -21,7 +21,7 @@ export const DRAFT_KEY = "erp_staff_form_draft";
 const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
-export type StaffFiles = { photo?: File | null; aadhar?: File | null };
+export type StaffFiles = { photo?: File | null; aadhar?: File | null; identity?: File | null };
 
 type StaffFormDialogProps = {
   open: boolean;
@@ -32,6 +32,7 @@ type StaffFormDialogProps = {
 
 const emptyForm: Omit<Staff, "id"> = {
   photoUrl: null,
+  identityImageUrl: null,
   name: "",
   staffId: "",
   department: "",
@@ -88,6 +89,30 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form }, files);
   }
 
+  async function handleRemoveIdentityImage() {
+    // A freshly-picked, not-yet-saved image is only local state — no server call needed.
+    if (form.identityImageUrl?.startsWith("data:")) {
+      setForm((prev) => ({ ...prev, identityImageUrl: null }));
+      setFiles((prev) => ({ ...prev, identity: null }));
+      return;
+    }
+    if (!initialData) return;
+    const result = await confirmAction(
+      "Remove identity image?",
+      "This deletes the stored passport-size photo. You can upload a new one anytime.",
+      "Remove",
+    );
+    if (!result.isConfirmed) return;
+    try {
+      await deleteFile("staff", initialData.id, "identity");
+      setForm((prev) => ({ ...prev, identityImageUrl: null }));
+      setFiles((prev) => ({ ...prev, identity: null }));
+      showSuccess("Identity image removed.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to remove identity image.");
+    }
+  }
+
   return (
     <Dialog
       open={open}
@@ -112,6 +137,45 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               }}
               className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
             />
+          </div>
+        </Field>
+
+        <Field label="Identity Image (Passport Size Photo) (Max 25MB)">
+          <div className="flex items-center gap-4">
+            <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+              {form.identityImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={form.identityImageUrl} alt="Identity" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-[10px] font-medium uppercase tracking-wide text-gray-300">No photo</span>
+              )}
+            </div>
+            <div className="flex flex-col items-start gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (!validateFileSize(file)) { e.target.value = ""; return; }
+                  setFiles((prev) => ({ ...prev, identity: file }));
+                  const reader = new FileReader();
+                  reader.onload = () => setForm((prev) => ({ ...prev, identityImageUrl: reader.result as string }));
+                  reader.readAsDataURL(file);
+                }}
+                className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
+              />
+              {form.identityImageUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemoveIdentityImage}
+                  className="flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
         </Field>
 

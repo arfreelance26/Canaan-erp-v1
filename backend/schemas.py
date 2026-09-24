@@ -212,6 +212,7 @@ class StaffBase(OrmBase):
     aadhar_number: Optional[str] = None
     aadhar_file_name: Optional[str] = None
     photo_url: Optional[str] = None
+    identity_image_url: Optional[str] = None
     username: Optional[str] = None
 
 
@@ -564,6 +565,10 @@ class TripOut(TripBase):
     verification_rejection_reason: Optional[str] = None
     is_invoiced: bool = False
     invoice_waived: bool = False
+    # True when this trip's invoice shares its invoice_no with another trip's —
+    # i.e. it was generated (or is part of) a combined invoice. See
+    # routers/trips.py generate_combined_invoice / get_invoice_group.
+    is_combined_invoice: bool = False
     has_closure: bool = False
     has_sheet: bool = False
     trip_sheet_collected: bool = False
@@ -771,8 +776,44 @@ class TripInvoiceOut(TripInvoiceCreate):
     id: int
     trip_id: int
     version: int = 1
+    is_combined: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+# A combined invoice is stored as one TripInvoice row per trip, all sharing the
+# same invoice_no (invoice_no is intentionally NOT unique on trip_invoices) —
+# grouping by invoice_no is what makes several trips read back as "one invoice".
+class CombinedInvoiceTripLine(OrmBase):
+    trip_id: int
+    mode_of_shipment: Optional[str] = None
+    container_type: Optional[str] = None
+    cfs: Optional[str] = None
+    shipping_line: Optional[str] = None
+    vessel_name: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    container_no: Optional[str] = None
+    consignee: Optional[str] = None
+    services: Optional[list] = None
+    narration: Optional[str] = None
+
+
+class CombinedInvoiceCreate(OrmBase):
+    invoice_date: Optional[date] = None
+    invoice_type: Optional[str] = None
+    bill_to: Optional[str] = None
+    gst_number: Optional[str] = None
+    bank_name: Optional[str] = None
+    branch_name: Optional[str] = None
+    account_number: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[str] = None
+    contact: Optional[str] = None
+    gst_applicable: Optional[str] = "No"
+    igst_applicable: Optional[str] = "No"
+    trips: list[CombinedInvoiceTripLine]
 
 
 # ---------------------------------------------------------------------------

@@ -183,6 +183,10 @@ class Staff(Base):
     photo_url = Column(Text(length=16777215))
     photo_blob = Column(LargeBinary(length=26214400))
     aadhar_document_blob = Column(LargeBinary(length=26214400))
+    # Dedicated passport-size identity photo — distinct from photo_blob (the
+    # profile/avatar picture used everywhere else in the app).
+    identity_image_url = Column(Text(length=16777215))
+    identity_image_blob = Column(LargeBinary(length=26214400))
     username = Column(String(100), unique=True)
     password_hash = Column(String(255))
     device_hash = Column(String(1024), nullable=True, default=None)  # comma-separated SHA-256(s) of bound devices; NULL = unbound
@@ -683,6 +687,10 @@ class TripInvoice(Base):
     narration = Column(Text)
     gst_applicable = Column(Enum("Yes", "No"), default="No")
     igst_applicable = Column(Enum("Yes", "No"), default="No")
+    # True only for rows written by generate_combined_invoice — the source of
+    # truth for "is this a combined invoice", NOT invoice_no equality (some
+    # legacy rows share an old-format invoice_no by accident).
+    is_combined = Column(Boolean, default=False, nullable=False, server_default="0")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

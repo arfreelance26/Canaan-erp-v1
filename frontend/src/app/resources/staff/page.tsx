@@ -117,12 +117,17 @@ export default function StaffPage() {
         clearFormDraft(STAFF_DRAFT_KEY);
       }
       await Promise.all([
-        files.photo  && uploadFile("staff", saved.id, "photo",  files.photo),
-        files.aadhar && uploadFile("staff", saved.id, "aadhar", files.aadhar),
+        files.photo    && uploadFile("staff", saved.id, "photo",    files.photo),
+        files.aadhar   && uploadFile("staff", saved.id, "aadhar",   files.aadhar),
+        files.identity && uploadFile("staff", saved.id, "identity", files.identity),
       ].filter(Boolean));
-      if (files.photo) {
+      if (files.photo || files.identity) {
         setStaff((prev) => prev.map((s) =>
-          s.id === saved.id ? { ...s, photoUrl: fileUrl("staff", saved.id, "photo") } : s
+          s.id === saved.id ? {
+            ...s,
+            photoUrl: files.photo ? fileUrl("staff", saved.id, "photo") : s.photoUrl,
+            identityImageUrl: files.identity ? fileUrl("staff", saved.id, "identity") : s.identityImageUrl,
+          } : s
         ));
       }
       setDialogOpen(false);
@@ -309,7 +314,7 @@ export default function StaffPage() {
                   </div>
                 </div>
 
-                {(m.photoUrl || m.aadharFileName) && (
+                {(m.photoUrl || m.identityImageUrl || m.aadharFileName) && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
                     <div className="flex flex-wrap gap-3">
@@ -317,6 +322,12 @@ export default function StaffPage() {
                         <a href={fileUrl("staff", m.id, "photo")} target="_blank" rel="noopener noreferrer"
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
+                        </a>
+                      )}
+                      {m.identityImageUrl && (
+                        <a href={fileUrl("staff", m.id, "identity")} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                          <FileText className="h-3.5 w-3.5 shrink-0" /> Identity Image
                         </a>
                       )}
                       {m.aadharFileName && (

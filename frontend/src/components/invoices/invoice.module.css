@@ -162,6 +162,25 @@
   margin-top: 1px;
 }
 
+/* ── Combined invoice: per-trip section ── */
+.tripSectionHeader {
+  background: #eef2f7;
+  border: 1px solid #c8c8c8;
+  border-bottom: none;
+  padding: 5px 10px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #1e3a5f;
+  letter-spacing: 0.4px;
+  margin-top: 14px;
+}
+.tripSubtotalRow td {
+  border-top: 1.5px solid #1e3a5f;
+  font-weight: 700;
+  background: #f5f8fb;
+  font-size: 10px;
+}
+
 /* ── HSN / SAC table ── */
 .hsnTable {
   width: 100%;

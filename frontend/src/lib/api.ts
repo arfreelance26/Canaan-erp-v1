@@ -282,6 +282,31 @@ export async function uploadFile(
   }
 }
 
+// Clears a previously uploaded file (blob + filename) for an entity, without
+// requiring a replacement upload.
+export async function deleteFile(
+  entity: string,
+  entityId: string,
+  field: string,
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/files/${entity}/${entityId}/${field}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+  } catch {
+    throw new Error("Cannot reach the server. Make sure the backend is running.");
+  }
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error("Session expired. Please log in again.");
+  }
+  if (!res.ok) {
+    throw new Error(await extractDetail(res, `Failed to remove file: HTTP ${res.status}`));
+  }
+}
+
 // Parse a FastAPI error body ({"detail": "..."}) into a clean message, falling
 // back to raw text or a provided default so popups never show raw JSON.
 async function extractDetail(res: Response, fallback: string): Promise<string> {
@@ -461,6 +486,7 @@ function toStaff(b: B): Staff {
   return {
     id: String(b.id),
     photoUrl: b.photo_url ? fileUrl("staff", String(b.id), "photo") : null,
+    identityImageUrl: b.identity_image_url ? fileUrl("staff", String(b.id), "identity") : null,
     staffId: b.staff_id ?? "",
     name: b.name ?? "",
     department: b.department ?? "",
@@ -506,6 +532,7 @@ function fromStaff(f: Staff, password?: string) {
     aadhar_number: f.aadharNumber ?? null,
     aadhar_file_name: f.aadharFileName ?? null,
     photo_url: (f.photoUrl && f.photoUrl.startsWith("data:")) ? null : (f.photoUrl || null),
+    identity_image_url: (f.identityImageUrl && f.identityImageUrl.startsWith("data:")) ? null : (f.identityImageUrl || null),
     username: f.username || null,
     password: (password || f.password) || undefined,
     client_version: f.version,
@@ -693,6 +720,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,
     invoiceWaived: b.invoice_waived ?? false,
+    isCombinedInvoice: b.is_combined_invoice ?? false,
     driverName: b.driver_name ?? null,
     truckRegistration: b.truck_registration ?? null,
     lrConsignor: b.lr_consignor ?? undefined,
@@ -1597,6 +1625,17 @@ export const tripsApi = {
     }).then(toTrip),
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
   getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
+  // Combined invoicing — one invoice number spans several trips for the same customer.
+  invoiceCombined: (payload: Record<string, unknown>) =>
+    req<B[]>(`/trips/invoice-combined`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then((arr) => arr.map(toTrip)),
+  // Ids of every trip whose invoice shares this invoice_no — length > 1 means
+  // it's a combined invoice; length 1 (or the lookup trip itself) is a normal one.
+  getInvoiceGroup: (invoiceNo: string) =>
+    req<number[]>(`/trips/invoice-group?invoice_no=${encodeURIComponent(invoiceNo)}`),
   getAutocompleteValues: () => req<{ origins: string[]; destinations: string[] }>("/trips/autocomplete-values"),
   listShippingLines: () => req<string[]>("/trips/shipping-lines"),
   listCargoReferences: () => req<string[]>("/trips/cargo-references"),

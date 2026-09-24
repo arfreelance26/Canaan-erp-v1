@@ -75,8 +75,9 @@ FIELD_MAP: dict[str, dict[str, str]] = {
         "license": "license_blob",
     },
     "staff": {
-        "photo":   "photo_blob",
-        "aadhar":  "aadhar_document_blob",
+        "photo":    "photo_blob",
+        "aadhar":   "aadhar_document_blob",
+        "identity": "identity_image_blob",
     },
     "customers": {
         "photo": "photo_blob",
@@ -98,6 +99,7 @@ FILENAME_COL: dict[str, str] = {
     "photo_blob":                        "photo_url",
     "aadhaar_blob":                      "aadhaar_file_name",
     "aadhar_document_blob":              "aadhar_file_name",
+    "identity_image_blob":               "identity_image_url",
     "license_blob":                      "license_file_name",
     "rc_document_blob":                  "rc_document_url",
     "fc_document_blob":                  "fc_document_file_name",
@@ -175,6 +177,28 @@ async def upload_file(
         setattr(record, name_col, file.filename)
     db.commit()
     db.refresh(record)
+
+
+# ---------------------------------------------------------------------------
+# Delete
+# ---------------------------------------------------------------------------
+
+@router.delete("/{entity}/{entity_id}/{field}", status_code=204, dependencies=[Depends(get_current_user)])
+def delete_file(
+    entity: str,
+    entity_id: int,
+    field: str,
+    db: Session = Depends(get_db),
+):
+    """Clears a stored file (blob + its filename/url column) without touching
+    anything else on the record — the inverse of upload_file."""
+    record = _get_record(entity, entity_id, db)
+    col = _col_name(entity, field)
+    setattr(record, col, None)
+    name_col = FILENAME_COL.get(col)
+    if name_col and hasattr(record, name_col):
+        setattr(record, name_col, None)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------

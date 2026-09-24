@@ -12,6 +12,8 @@ import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { GenerateInvoiceDialog, type InvoiceType, type InvoiceFormData } from "@/components/trips/GenerateInvoiceDialog";
 import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
+import { GenerateCombinedInvoiceDialog } from "@/components/trips/GenerateCombinedInvoiceDialog";
+import { CombinedInvoicePreviewDialog } from "@/components/trips/CombinedInvoicePreviewDialog";
 import { LRConsignmentDialog } from "@/components/trips/LRConsignmentDialog";
 import { DABDialog } from "@/components/trips/DABDialog";
 import { CABDialog } from "@/components/trips/CABDialog";
@@ -25,7 +27,7 @@ import { n, calcTripExpenses } from "@/types/trip-sheet";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { CheckCircle2, Clock, FileText, AlertTriangle, Download, Eye, X, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, FileText, AlertTriangle, Download, Eye, X, Trash2, Layers } from "lucide-react";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -97,6 +99,12 @@ export default function TripVerificationPage() {
   const [lrDialogTrip, setLrDialogTrip]       = useState<Trip | null>(null);
   const [dabDialogTrip, setDabDialogTrip]     = useState<Trip | null>(null);
   const [cabDialogTrip, setCabDialogTrip]     = useState<Trip | null>(null);
+
+  // Combined invoicing — select several Verified, not-yet-invoiced trips for the
+  // same customer and raise one invoice covering all of them.
+  const [combineSelection, setCombineSelection] = useState<Set<string>>(new Set());
+  const [combineDialog, setCombineDialog] = useState<{ mode: "create" | "edit"; trips: Trip[] } | null>(null);
+  const [combinePreview, setCombinePreview] = useState<{ trips: Trip[]; autoDownload?: boolean } | null>(null);
 
   // Editing an already-Invoiced trip's invoice is Admin-only by default. Anyone else
   // (Accounts) must send an Edit Request to Admin first — approving it grants the same
@@ -334,6 +342,24 @@ export default function TripVerificationPage() {
     };
   }
 
+  // Fetches (and caches into closures/sheets/invoiceData) closure + sheet + latest
+  // invoice for a set of trip ids that may belong to a combined-invoice group —
+  // siblings can live on a different page than the one currently visible, so the
+  // normal per-page lazy loader (below) can't be relied on to have them yet.
+  async function fetchGroupDetails(ids: string[]) {
+    const results = await mapLimit(ids, 8, async (id) => {
+      const [cl, sh, inv] = await Promise.all([
+        closures.has(id) ? Promise.resolve(closures.get(id) ?? null) : tripsApi.getClosure(id).catch(() => null),
+        sheets.has(id) ? Promise.resolve(sheets.get(id) ?? null) : tripsApi.getSheet(id).catch(() => null),
+        tripsApi.getInvoice(id).catch(() => null),
+      ]);
+      return { id, cl, sh, inv };
+    });
+    setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
+    setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
+    setInvoiceData((prev) => { const next = new Map(prev); for (const r of results) if (r.inv) next.set(r.id, r.inv); return next; });
+  }
+
   async function handleEditInvoice(trip: Trip) {
     if (!isAdmin && !hasActiveEditInvoiceApproval(trip.id)) {
       setPendingEditInvoiceTrip(trip);
@@ -342,7 +368,72 @@ export default function TripVerificationPage() {
     }
     const raw = await tripsApi.getInvoice(trip.id).catch(() => null);
     if (!raw) return;
+    const invNo = String((raw as Record<string, unknown>).invoice_no ?? "");
+    const groupIds = invNo ? await tripsApi.getInvoiceGroup(invNo).catch(() => []) : [];
+    if (groupIds.length > 1) {
+      const idStrs = groupIds.map(String);
+      await fetchGroupDetails(idStrs);
+      setCombineDialog({ mode: "edit", trips: trips.filter((t) => idStrs.includes(t.id)) });
+      return;
+    }
     setInvoiceDialog({ trip, savedInvoice: rawToSavedInvoice(raw as Record<string, unknown>) });
+  }
+
+  async function handleCombinedInvoiceSubmit(payload: Record<string, unknown>) {
+    if (!combineDialog) return;
+    try {
+      if (combineDialog.mode === "create") {
+        const updatedTrips = await tripsApi.invoiceCombined(payload);
+        const ids = updatedTrips.map((t) => t.id);
+        setInvoicedIds((prev) => new Set([...prev, ...ids]));
+        setInvoiceTypes((prev) => { const next = new Map(prev); for (const id of ids) next.set(id, payload.invoice_type as InvoiceType); return next; });
+        setCombineSelection(new Set());
+        await fetchGroupDetails(ids);
+        setCombineDialog(null);
+        setCombinePreview({ trips: updatedTrips, autoDownload: false });
+        showSuccess(`Combined invoice generated for ${ids.length} trips.`);
+      } else {
+        const { trips: tripLines, ...shared } = payload as { trips: Record<string, unknown>[] } & Record<string, unknown>;
+        for (const line of tripLines) {
+          const { trip_id, ...lineFields } = line as { trip_id: number } & Record<string, unknown>;
+          await tripsApi.invoice(String(trip_id), { ...shared, ...lineFields });
+        }
+        const ids = combineDialog.trips.map((t) => t.id);
+        await fetchGroupDetails(ids);
+        setCombineDialog(null);
+        showSuccess("Combined invoice updated.");
+      }
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save combined invoice.");
+    }
+  }
+
+  // A trip can join the current combined-invoice selection only if it's Verified,
+  // not yet invoiced, and — once a selection exists — shares the first selected
+  // trip's customer and "billed to Self/CGI" state (mixing either would produce an
+  // invoice with an ambiguous bill-to / invoice-type).
+  function canJoinCombineSelection(trip: Trip): boolean {
+    if (!verifiedIds.has(trip.id) || invoicedIds.has(trip.id) || waivedIds.has(trip.id)) return false;
+    if (combineSelection.size === 0) return true;
+    const first = trips.find((t) => combineSelection.has(t.id));
+    if (!first) return true;
+    return trip.customerId === first.customerId && (trip.billTo === "SELF/CGI") === (first.billTo === "SELF/CGI");
+  }
+
+  function toggleCombineSelection(trip: Trip) {
+    setCombineSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(trip.id)) next.delete(trip.id);
+      else if (canJoinCombineSelection(trip)) next.add(trip.id);
+      return next;
+    });
+  }
+
+  async function openCombineGenerateDialog() {
+    const selected = trips.filter((t) => combineSelection.has(t.id));
+    if (selected.length < 2) return;
+    await fetchGroupDetails(selected.map((t) => t.id));
+    setCombineDialog({ mode: "create", trips: selected });
   }
 
   async function handleEditInvoiceRequestSubmit(reason: string) {
@@ -366,8 +457,16 @@ export default function TripVerificationPage() {
   async function openPreview(trip: Trip, autoDownload = false) {
     const closure = closures.get(trip.id);
     if (!closure) return;
-    let savedInvoice: Partial<InvoiceFormData> | undefined;
     const raw = await tripsApi.getInvoice(trip.id).catch(() => null);
+    const invNo = raw ? String((raw as Record<string, unknown>).invoice_no ?? "") : "";
+    const groupIds = invNo ? await tripsApi.getInvoiceGroup(invNo).catch(() => []) : [];
+    if (groupIds.length > 1) {
+      const idStrs = groupIds.map(String);
+      await fetchGroupDetails(idStrs);
+      setCombinePreview({ trips: trips.filter((t) => idStrs.includes(t.id)), autoDownload });
+      return;
+    }
+    let savedInvoice: Partial<InvoiceFormData> | undefined;
     if (raw) { savedInvoice = rawToSavedInvoice(raw as Record<string, unknown>); }
     setPreview({
       trip, closure, sheet: sheets.get(trip.id),
@@ -690,6 +789,56 @@ export default function TripVerificationPage() {
         </div>}
       </div>
 
+      {/* Combined-invoice selection bar */}
+      {combineSelection.size > 0 && (() => {
+        const selected = trips.filter((t) => combineSelection.has(t.id));
+        const selectedCustomer = selected[0] ? customerById.get(selected[0].customerId) : undefined;
+        const total = selected.reduce((sum, t) => sum + (sheets.get(t.id) ? n(sheets.get(t.id)!.hireAmount) : 0), 0);
+        const canGenerate = selected.length >= 2;
+        return (
+          <div className="dk-inset flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-indigo-50/40 to-white px-5 py-3.5 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-100 to-white text-indigo-600 shadow-sm">
+                <Layers className="h-5 w-5" />
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white shadow-sm">
+                  {selected.length}
+                </span>
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {selected.length} trip{selected.length !== 1 ? "s" : ""} selected
+                  <span className="mx-1.5 text-gray-300">·</span>
+                  <span className="text-indigo-700">{selectedCustomer?.name ?? "no customer"}</span>
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Approx total <span className="font-semibold text-gray-700">{fmt(total)}</span>
+                  {!canGenerate && <span className="ml-2 text-amber-600">· select at least 1 more trip to combine</span>}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCombineSelection(new Set())}
+                className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-600 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={openCombineGenerateDialog}
+                disabled={!canGenerate}
+                title={!canGenerate ? "Select at least 2 trips to combine" : undefined}
+                className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-sm"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Generate Combined Invoice
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {filteredTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           {allFiltered.length === 0
@@ -702,8 +851,11 @@ export default function TripVerificationPage() {
             <table className="w-full min-w-[1200px] text-left text-sm whitespace-nowrap">
               <thead className="sticky top-0 z-10">
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {["Status", "Actions", "Date", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
-                    "Hire Amt", "Expense", "Invoice No", "Delete"].map((col) => (
+                  {[
+                    ...(statusFilter === "Verified" ? ["Combine"] : []),
+                    "Status", "Actions", "Date", "Vehicle", "Driver", "Container No", "From → To", "Trip ID", "Booking Ref",
+                    "Hire Amt", "Expense", "Invoice No", "Delete",
+                  ].map((col) => (
                     <th key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       {col}
                     </th>
@@ -739,6 +891,22 @@ export default function TripVerificationPage() {
                       key={trip.id}
                       className={stageRowClass(stageColor)}
                     >
+                      {statusFilter === "Verified" && (
+                        <td className="px-4 py-3">
+                          {isVerified && !isInvoiced && !isWaived && (
+                            <input
+                              type="checkbox"
+                              checked={combineSelection.has(trip.id)}
+                              disabled={!combineSelection.has(trip.id) && !canJoinCombineSelection(trip)}
+                              onChange={() => toggleCombineSelection(trip)}
+                              title={!combineSelection.has(trip.id) && !canJoinCombineSelection(trip)
+                                ? "Combined invoices must share the same customer and bill-to"
+                                : "Select for combined invoice"}
+                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-30"
+                            />
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <StatusBadge status={tripStatus} />
                       </td>
@@ -998,6 +1166,30 @@ export default function TripVerificationPage() {
         savedInvoice={preview?.savedInvoice}
         autoDownload={preview?.autoDownload}
         onClose={() => setPreview(null)}
+      />
+
+      {combineDialog && (
+        <GenerateCombinedInvoiceDialog
+          open={combineDialog !== null}
+          trips={combineDialog.trips}
+          sheets={sheets}
+          customer={customerById.get(combineDialog.trips[0]?.customerId ?? "")}
+          mode={combineDialog.mode}
+          savedInvoices={combineDialog.mode === "edit" ? invoiceData : undefined}
+          onClose={() => setCombineDialog(null)}
+          onSubmit={handleCombinedInvoiceSubmit}
+        />
+      )}
+
+      <CombinedInvoicePreviewDialog
+        open={combinePreview !== null}
+        trips={combinePreview?.trips ?? []}
+        closures={closures}
+        sheets={sheets}
+        customer={combinePreview?.trips[0] ? customerById.get(combinePreview.trips[0].customerId) : undefined}
+        rawInvoices={invoiceData}
+        autoDownload={combinePreview?.autoDownload}
+        onClose={() => setCombinePreview(null)}
       />
 
       <LRConsignmentDialog
