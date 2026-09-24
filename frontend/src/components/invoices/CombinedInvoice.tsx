@@ -38,83 +38,85 @@ export function CombinedInvoice({
     <div className={s.page}>
       <div className={s.a4} id="invoice-a4-root">
 
-        {/* ── HEADER ── */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div className={s.hdrName}>CANAAN GLOBAL INTERNATIONAL</div>
-            <div className={s.hdrTagline}>COMMIT &nbsp;·&nbsp; ENDURE &nbsp;·&nbsp; ACHIEVE &nbsp;·&nbsp; SATISFY</div>
-            <div className={s.hdrAddress}>
-              3/802 - 124, Opposite Emmanuel Beliver Church, Zion Nagar, Theri Road, Puthukottai, Tuticorin - 628103.<br />
-              Tel: 0461 2900886 &nbsp;&nbsp; Email: canaanglobal@canaanglobal.com
+        {/* ── HEADER + TITLE BAR + DOCUMENT-LEVEL META — kept as one atomic block for
+              the PDF paginator (see CombinedInvoicePreviewDialog), so a page break can
+              never fall between the letterhead and the meta table. ── */}
+        <div data-pdf-block="true">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div className={s.hdrName}>CANAAN GLOBAL INTERNATIONAL</div>
+              <div className={s.hdrTagline}>COMMIT &nbsp;·&nbsp; ENDURE &nbsp;·&nbsp; ACHIEVE &nbsp;·&nbsp; SATISFY</div>
+              <div className={s.hdrAddress}>
+                3/802 - 124, Opposite Emmanuel Beliver Church, Zion Nagar, Theri Road, Puthukottai, Tuticorin - 628103.<br />
+                Tel: 0461 2900886 &nbsp;&nbsp; Email: canaanglobal@canaanglobal.com
+              </div>
+              <div className={s.hdrGstin}>GSTIN: 33AAJFC9781F1Z8 &nbsp;&nbsp;&nbsp; PAN No: AAJFC9781F</div>
             </div>
-            <div className={s.hdrGstin}>GSTIN: 33AAJFC9781F1Z8 &nbsp;&nbsp;&nbsp; PAN No: AAJFC9781F</div>
+            <div style={{ flexShrink: 0, marginLeft: "16px" }}>
+              <img
+                src="/companylogo.png"
+                alt="Canaan Global Logo"
+                style={{ height: "62px", width: "auto", objectFit: "contain" }}
+              />
+            </div>
           </div>
-          <div style={{ flexShrink: 0, marginLeft: "16px" }}>
-            <img
-              src="/companylogo.png"
-              alt="Canaan Global Logo"
-              style={{ height: "62px", width: "auto", objectFit: "contain" }}
-            />
+
+          <div className={s.titleBar}>
+            {isTransportMemo ? "TRANSPORT MEMO" : gstApplicable === "Yes" || igstApplicable === "Yes" ? "TAX INVOICE" : "BILL OF SUPPLY"}
+            {" — COMBINED "}({sections.length} TRIPS)
           </div>
-        </div>
 
-        {/* ── TITLE BAR ── */}
-        <div className={s.titleBar}>
-          {isTransportMemo ? "TRANSPORT MEMO" : gstApplicable === "Yes" || igstApplicable === "Yes" ? "TAX INVOICE" : "BILL OF SUPPLY"}
-          {" — COMBINED "}({sections.length} TRIPS)
-        </div>
-
-        {/* ── DOCUMENT-LEVEL META ── */}
-        <table className={s.metaTable}>
-          <tbody>
-            {isTransportMemo ? (
-              <tr>
-                <td colSpan={2}>
-                  <span className={s.lbl}>Date</span>
-                  <span className={s.val}>{date}</span>
-                </td>
-                <td colSpan={2}>
-                  <span className={s.lbl}>Trips Covered</span>
-                  <span className={s.val}>{sections.length}</span>
-                </td>
-              </tr>
-            ) : (
-              <>
+          <table className={s.metaTable}>
+            <tbody>
+              {isTransportMemo ? (
                 <tr>
-                  <td style={{ width: "22%" }}>
-                    <span className={s.lbl}>Invoice No.</span>
-                    <span className={s.val}>{invoiceNo}</span>
-                  </td>
-                  <td style={{ width: "18%" }}>
+                  <td colSpan={2}>
                     <span className={s.lbl}>Date</span>
                     <span className={s.val}>{date}</span>
                   </td>
                   <td colSpan={2}>
-                    <span className={s.lbl}>Bill To</span>
-                    <span className={s.val}>{billToName}</span>
-                    {billToAddress && (
-                      <span className={s.valLight} style={{ fontSize: "10px" }}>{billToAddress}</span>
-                    )}
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className={s.lbl}>GST Number</span>
-                    <span className={s.val}>{gstNumber || "—"}</span>
-                  </td>
-                  <td colSpan={3}>
                     <span className={s.lbl}>Trips Covered</span>
-                    <span className={s.val}>{sections.length} trips — {sections.map((sec) => sec.tripId).join(", ")}</span>
+                    <span className={s.val}>{sections.length}</span>
                   </td>
                 </tr>
-              </>
-            )}
-          </tbody>
-        </table>
+              ) : (
+                <>
+                  <tr>
+                    <td style={{ width: "22%" }}>
+                      <span className={s.lbl}>Invoice No.</span>
+                      <span className={s.val}>{invoiceNo}</span>
+                    </td>
+                    <td style={{ width: "18%" }}>
+                      <span className={s.lbl}>Date</span>
+                      <span className={s.val}>{date}</span>
+                    </td>
+                    <td colSpan={2}>
+                      <span className={s.lbl}>Bill To</span>
+                      <span className={s.val}>{billToName}</span>
+                      {billToAddress && (
+                        <span className={s.valLight} style={{ fontSize: "10px" }}>{billToAddress}</span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <span className={s.lbl}>GST Number</span>
+                      <span className={s.val}>{gstNumber || "—"}</span>
+                    </td>
+                    <td colSpan={3}>
+                      <span className={s.lbl}>Trips Covered</span>
+                      <span className={s.val}>{sections.length} trips — {sections.map((sec) => sec.tripId).join(", ")}</span>
+                    </td>
+                  </tr>
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* ── PER-TRIP SECTIONS ── */}
         {sections.map((sec, idx) => (
-          <div key={idx}>
+          <div key={idx} data-pdf-block="true">
             <div className={s.tripSectionHeader}>
               Trip {idx + 1} of {sections.length} &nbsp;·&nbsp; {sec.tripId}
               {sec.bookingNo && <>&nbsp;·&nbsp; Booking {sec.bookingNo}</>}
@@ -215,7 +217,7 @@ export function CombinedInvoice({
         ))}
 
         {/* ── AMOUNT IN WORDS + GRAND TOTAL ── */}
-        <div className={s.amountBar} style={{ marginTop: "10px" }}>
+        <div className={s.amountBar} style={{ marginTop: "10px" }} data-pdf-block="true">
           <div className={s.amountWords}>
             <span className={s.lbl}>Amount in Words:</span>
             <div className={s.val} style={{ marginTop: "2px" }}>{amountInWords}</div>
@@ -228,7 +230,7 @@ export function CombinedInvoice({
 
         {/* ── HSN / TAX TABLE (Bill of Supply / Tax Invoice only) ── */}
         {!isTransportMemo && (
-          <table className={s.hsnTable}>
+          <table className={s.hsnTable} data-pdf-block="true">
             <thead>
               <tr>
                 <th style={{ width: "70%" }}>Description</th>
@@ -251,73 +253,71 @@ export function CombinedInvoice({
         )}
 
         {!isTransportMemo && gstApplicable !== "Yes" && igstApplicable !== "Yes" && (
-          <p className={s.noteText}>
+          <p className={s.noteText} data-pdf-block="true">
             Note: Services by way of transport of goods by a Goods Transport Agency (GTA) to another GTA is exempt under GST vide Notification No. 12/2017–Central Tax (Rate) dated 28.06.2017.
           </p>
         )}
 
-        {/* ── BANK DETAILS + TERMS (not on Transport Memo) ── */}
+        {/* ── BANK DETAILS + TERMS + CONTACT/SIGNATORY + FOOTER (not on Transport Memo) —
+              kept as one atomic block so a page break can never land inside a row of
+              this footer cluster (e.g. splitting a label from its value). ── */}
         {!isTransportMemo && (
-          <div className={s.bankTerms}>
-            <div className={s.bankBox}>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>Bank Name:</span>
-                <span className={s.bankVal}>{bankName}</span>
+          <div data-pdf-block="true">
+            <div className={s.bankTerms}>
+              <div className={s.bankBox}>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>Bank Name:</span>
+                  <span className={s.bankVal}>{bankName}</span>
+                </div>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>Branch Name:</span>
+                  <span className={s.bankVal}>{branchName}</span>
+                </div>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>Account Number:</span>
+                  <span className={s.bankVal}>{accountNumber}</span>
+                </div>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>IFSC Code:</span>
+                  <span className={s.bankVal}>{ifscCode}</span>
+                </div>
               </div>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>Branch Name:</span>
-                <span className={s.bankVal}>{branchName}</span>
-              </div>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>Account Number:</span>
-                <span className={s.bankVal}>{accountNumber}</span>
-              </div>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>IFSC Code:</span>
-                <span className={s.bankVal}>{ifscCode}</span>
+              <div className={s.termsBox}>
+                {TERMS.map((term, i) => (
+                  <div key={i} className={s.tItem} data-n={String(i + 1)}>{term}</div>
+                ))}
               </div>
             </div>
-            <div className={s.termsBox}>
-              {TERMS.map((term, i) => (
-                <div key={i} className={s.tItem} data-n={String(i + 1)}>{term}</div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* ── CONTACT + SIGNATORY (not on Transport Memo) ── */}
-        {!isTransportMemo && (
-          <div className={s.contactSign} style={{ marginTop: "10px", borderTop: "1px solid #c8c8c8" }}>
-            <div className={s.contactBox}>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>Contact Person:</span>
-                <span className={s.bankVal}>{contactPerson}</span>
+            <div className={s.contactSign} style={{ marginTop: "10px", borderTop: "1px solid #c8c8c8" }}>
+              <div className={s.contactBox}>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>Contact Person:</span>
+                  <span className={s.bankVal}>{contactPerson}</span>
+                </div>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>Email:</span>
+                  <span className={s.bankVal}>{email}</span>
+                </div>
+                <div className={s.bankRow}>
+                  <span className={s.bankLbl}>Contact:</span>
+                  <span className={s.bankVal}>{contact}</span>
+                </div>
               </div>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>Email:</span>
-                <span className={s.bankVal}>{email}</span>
-              </div>
-              <div className={s.bankRow}>
-                <span className={s.bankLbl}>Contact:</span>
-                <span className={s.bankVal}>{contact}</span>
+              <div className={s.signBox}>
+                <div className={s.signFor}>for CANAAN GLOBAL INTERNATIONAL</div>
+                <div style={{ textAlign: "right" }}>
+                  <div className={s.signLine}></div>
+                  <div className={s.signCaption}>Authorised Signatory</div>
+                  <div className={s.signNote}>This is a system generated invoice and does not require a signature.</div>
+                </div>
               </div>
             </div>
-            <div className={s.signBox}>
-              <div className={s.signFor}>for CANAAN GLOBAL INTERNATIONAL</div>
-              <div style={{ textAlign: "right" }}>
-                <div className={s.signLine}></div>
-                <div className={s.signCaption}>Authorised Signatory</div>
-                <div className={s.signNote}>This is a system generated invoice and does not require a signature.</div>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* ── FOOTER (not on Transport Memo) ── */}
-        {!isTransportMemo && (
-          <p className={s.footerNote}>
-            Please be advised that our dues are to be cleared within 45 days from billing to avoid disallowance u/s 43B(h) of the Income Tax Act, 1961 without prejudice to other consequences attached as per the MSMED Act 2006, CGST Act, 2017 and other laws prevailing in India.
-          </p>
+            <p className={s.footerNote}>
+              Please be advised that our dues are to be cleared within 45 days from billing to avoid disallowance u/s 43B(h) of the Income Tax Act, 1961 without prejudice to other consequences attached as per the MSMED Act 2006, CGST Act, 2017 and other laws prevailing in India.
+            </p>
+          </div>
         )}
 
       </div>

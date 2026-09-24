@@ -96,6 +96,18 @@ export function CombinedInvoicePreviewDialog({
       targetEl.style.margin = "0";
       targetEl.style.boxShadow = "none";
 
+      // Measure each atomic section's top offset (in DOM px) BEFORE rasterizing,
+      // so page breaks can be chosen at safe boundaries between sections instead
+      // of an arbitrary pixel row — which previously could slice straight through
+      // a row (e.g. a label separated from its value) whenever that row happened
+      // to straddle a page's fixed-height cutoff.
+      const targetRect = targetEl.getBoundingClientRect();
+      const domWidth = targetRect.width;
+      const blockTops = Array.from(targetEl.querySelectorAll<HTMLElement>("[data-pdf-block]"))
+        .map((block) => block.getBoundingClientRect().top - targetRect.top)
+        .filter((top) => top > 0)
+        .sort((a, b) => a - b);
+
       const canvas = await html2canvas(targetEl, {
         scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff",
       });
@@ -103,18 +115,39 @@ export function CombinedInvoicePreviewDialog({
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
-      const imgH = (canvas.height * pageW) / canvas.width;
+
+      // Convert the DOM-px block boundaries into canvas-px (html2canvas's `scale`
+      // option, computed dynamically rather than assumed, in case it ever changes).
+      const canvasScale = canvas.width / domWidth;
+      const safeCutsPx = [...blockTops.map((top) => top * canvasScale), canvas.height];
+      const pageHeightPx = (pageH * canvas.width) / pageW;
 
       // A combined invoice is genuinely a multi-page document — unlike a single
-      // trip's invoice, it's never squeezed onto one page; it's sliced across
-      // as many A4 pages as the rendered content needs.
-      let renderedH = 0;
+      // trip's invoice, it's never squeezed onto one page; it's sliced across as
+      // many A4 pages as the rendered content needs. Each page gets its own
+      // cropped canvas slice, cut at the largest safe boundary that fits within
+      // one page's height — never inside an atomic section — even if that leaves
+      // some blank space at the bottom of a page.
+      const sliceCanvas = document.createElement("canvas");
+      const sliceCtx = sliceCanvas.getContext("2d")!;
+      let cursor = 0;
       let first = true;
-      while (renderedH < imgH) {
+      while (cursor < canvas.height - 1) {
+        const maxY = Math.min(cursor + pageHeightPx, canvas.height);
+        const candidates = safeCutsPx.filter((y) => y > cursor + 1 && y <= maxY);
+        const cut = candidates.length > 0 ? candidates[candidates.length - 1] : maxY;
+        const sliceHeightPx = Math.max(1, Math.round(cut - cursor));
+
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceHeightPx;
+        sliceCtx.drawImage(canvas, 0, cursor, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
         if (!first) pdf.addPage();
         first = false;
-        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, -renderedH, pageW, imgH);
-        renderedH += pageH;
+        const sliceHeightMm = (sliceHeightPx * pageW) / canvas.width;
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHeightMm);
+
+        cursor = cut;
       }
 
       pdf.save(filename);
