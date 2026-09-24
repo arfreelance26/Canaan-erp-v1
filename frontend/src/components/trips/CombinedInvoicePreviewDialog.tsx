@@ -128,6 +128,13 @@ export function CombinedInvoicePreviewDialog({
       // cropped canvas slice, cut at the largest safe boundary that fits within
       // one page's height — never inside an atomic section — even if that leaves
       // some blank space at the bottom of a page.
+      //
+      // The DOM measurement (blockTops) and the rasterized canvas can disagree by
+      // a stray sub-pixel or two, which is enough to shave off a thin 2px border
+      // line right at a page-break boundary. Starting each new page a few canvas
+      // px *before* the measured boundary (re-showing a sliver of already-drawn
+      // blank margin) guarantees that border is never clipped.
+      const PAGE_BREAK_OVERLAP_PX = 6;
       const sliceCanvas = document.createElement("canvas");
       const sliceCtx = sliceCanvas.getContext("2d")!;
       let cursor = 0;
@@ -135,8 +142,8 @@ export function CombinedInvoicePreviewDialog({
       while (cursor < canvas.height - 1) {
         const maxY = Math.min(cursor + pageHeightPx, canvas.height);
         const candidates = safeCutsPx.filter((y) => y > cursor + 1 && y <= maxY);
-        const cut = candidates.length > 0 ? candidates[candidates.length - 1] : maxY;
-        const sliceHeightPx = Math.max(1, Math.round(cut - cursor));
+        const boundary = candidates.length > 0 ? candidates[candidates.length - 1] : maxY;
+        const sliceHeightPx = Math.max(1, Math.round(boundary - cursor));
 
         sliceCanvas.width = canvas.width;
         sliceCanvas.height = sliceHeightPx;
@@ -147,7 +154,9 @@ export function CombinedInvoicePreviewDialog({
         const sliceHeightMm = (sliceHeightPx * pageW) / canvas.width;
         pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHeightMm);
 
-        cursor = cut;
+        cursor = boundary >= canvas.height
+          ? boundary
+          : Math.max(cursor + 1, boundary - PAGE_BREAK_OVERLAP_PX);
       }
 
       pdf.save(filename);
