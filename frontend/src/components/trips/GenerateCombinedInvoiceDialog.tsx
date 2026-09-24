@@ -18,6 +18,36 @@ const emptyService = (): ServiceLine => ({
   descriptionOfService: "", sacCode: "", sacId: "", gstRate: "", quantity: "", rate: "",
 });
 
+// A service line the user hasn't touched yet — used so a SAC-table pick fills
+// the empty default line (Service 1) instead of appending an empty Service 1.
+const isBlankService = (s: ServiceLine): boolean =>
+  !s.descriptionOfService.trim() && !s.sacCode.trim() &&
+  !s.gstRate.trim() && !s.quantity.trim() && !s.rate.trim();
+
+// Maps each admin-configured expense heading → the TripSheet field that holds its value
+// (mirrors GenerateInvoiceDialog's EXPENSE_TO_SHEET_FIELD, duplicated here since it isn't exported).
+const EXPENSE_TO_SHEET_FIELD: Partial<Record<string, keyof TripSheetData>> = {
+  "Hire Amount":                   "hireAmount",
+  "Lift On / Off":                 "liftOnOffExpense",
+  "Weight Sheet Expense":          "weightSheetExpense",
+  "Halt Pay":                      "haltPay",
+  "Port Pass Expense":             "portPassExpense",
+  "Mamol Expense":                 "mamolExpense",
+  "Claimable Mamol Expense":       "claimableMamolExpense",
+  "Crane Operator":                "craneOperatorExpense",
+  "Parking":                       "parkingExpense",
+  "Toll Charges":                  "tollCharges",
+  "Other Expenses (Additional)":   "otherExpenses",
+};
+
+function getLinkedExpenseValue(linkedExpense: string | undefined, sheet: TripSheetData | undefined): string {
+  if (!linkedExpense || !sheet) return "";
+  const field = EXPENSE_TO_SHEET_FIELD[linkedExpense];
+  if (!field) return "";
+  const val = sheet[field];
+  return typeof val === "string" ? val : "";
+}
+
 function shortContainerType(spec: string): string {
   if (spec === "20 FT CONTAINER") return "20 FT";
   if (spec === "40 FT CONTAINER") return "40 FT";
@@ -175,8 +205,26 @@ export function GenerateCombinedInvoiceDialog({
   );
   const [saving, setSaving] = useState(false);
   const [taxWarning, setTaxWarning] = useState(false);
+  const [showSacTableFor, setShowSacTableFor] = useState<number | null>(null);
 
   useEffect(() => { sacCodesApi.list().then(setSacCodes).catch(() => {}); }, []);
+
+  // Once SAC codes load, back-fill sacId for any service that only has sacCode
+  // stored (legacy-shaped saved data) — otherwise the combobox can't show the
+  // currently-selected code as selected. Mirrors GenerateInvoiceDialog.
+  useEffect(() => {
+    if (!sacCodes.length) return;
+    setLines((prev) => prev.map((l) => ({
+      ...l,
+      services: l.services.map((s) => {
+        if (s.sacId || !s.sacCode) return s;
+        const match =
+          sacCodes.find((sc) => sc.code === s.sacCode && sc.description === s.descriptionOfService) ??
+          sacCodes.find((sc) => sc.code === s.sacCode);
+        return match ? { ...s, sacId: String(match.id) } : s;
+      }),
+    })));
+  }, [sacCodes]);
 
   const [fetchedInvoiceNo, setFetchedInvoiceNo] = useState("");
   useEffect(() => {
@@ -279,6 +327,20 @@ export function GenerateCombinedInvoiceDialog({
     setLines((prev) => prev.map((l, i) => (i === lineIdx ? { ...l, services: [...l.services, emptyService()] } : l)));
   }
 
+  // Insert a service line picked from the SAC Code Table into a specific trip's
+  // services — fills an untouched blank line (e.g. the default Service 1) if one
+  // exists, otherwise appends.
+  function addOrFillService(lineIdx: number, line: ServiceLine) {
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== lineIdx) return l;
+      const idx = l.services.findIndex(isBlankService);
+      const services = idx >= 0
+        ? l.services.map((s, j) => (j === idx ? line : s))
+        : [...l.services, line];
+      return { ...l, services };
+    }));
+  }
+
   function removeService(lineIdx: number, svcIdx: number) {
     setLines((prev) => prev.map((l, i) => (i === lineIdx ? { ...l, services: l.services.filter((_, j) => j !== svcIdx) } : l)));
   }
@@ -346,6 +408,7 @@ export function GenerateCombinedInvoiceDialog({
   if (!open || trips.length === 0) return null;
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} title={`${mode === "edit" ? "Edit" : "Generate"} Combined Invoice — ${trips.length} Trips`} className="max-w-6xl">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
 
@@ -448,11 +511,23 @@ export function GenerateCombinedInvoiceDialog({
             <section key={line.tripDbId} className="flex flex-col gap-4 rounded-xl border-2 border-gray-200 bg-gray-50/60 p-4">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className={sh}>Trip {li + 1} of {lines.length} — {line.trip.tripId}</p>
-                {line.trip.transportHireAmount && Number(line.trip.transportHireAmount) > 0 && (
-                  <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    Trip Hire Amount &nbsp;·&nbsp; ₹{Number(line.trip.transportHireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {line.trip.transportHireAmount && Number(line.trip.transportHireAmount) > 0 && (
+                    <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                      Trip Hire Amount &nbsp;·&nbsp; ₹{Number(line.trip.transportHireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowSacTableFor(li)}
+                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    View SAC Code Table
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -607,5 +682,117 @@ export function GenerateCombinedInvoiceDialog({
         </div>
       </form>
     </Dialog>
+
+    {/* SAC Code Table Modal — scoped to whichever trip section opened it */}
+    <Dialog open={showSacTableFor !== null} onClose={() => setShowSacTableFor(null)} title="SAC Code Reference Table" className="max-w-3xl">
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-gray-500">
+          {sacCodes.length} codes available · Click <span className="font-semibold text-blue-600">+ Add</span> to insert a service line
+          {showSacTableFor !== null && lines[showSacTableFor] ? <> into <strong>{lines[showSacTableFor].trip.tripId}</strong></> : null} pre-filled with that code.
+        </p>
+        <div className="overflow-auto rounded-xl border border-gray-200 shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider">Description of Service</th>
+                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-28">SAC Code</th>
+                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20">GST (%)</th>
+                <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider w-48">Retrieves From</th>
+                <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider w-20"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {sacCodes.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Loading SAC codes…</td>
+                </tr>
+              ) : (
+                sacCodes.map((sc, i) => {
+                  const activeLine = showSacTableFor !== null ? lines[showSacTableFor] : undefined;
+                  const linkedVal = activeLine ? getLinkedExpenseValue(sc.linkedExpense, sheets.get(activeLine.trip.id)) : "";
+                  const hasValue = linkedVal && parseFloat(linkedVal) > 0;
+                  const scHasGst = parseFloat(sc.gstRate) > 0;
+                  const blockedForTm = shared.invoiceType === "Transport Memo" && scHasGst;
+                  return (
+                    <tr key={sc.id} className={`transition-colors ${blockedForTm ? "opacity-50" : i % 2 === 0 ? "bg-white hover:bg-blue-50/50" : "bg-gray-50/60 hover:bg-blue-50/50"}`}>
+                      <td className="px-4 py-2.5 text-gray-700 whitespace-normal break-words">{sc.description}</td>
+                      <td className="px-4 py-2.5 text-center font-mono text-xs font-semibold text-blue-700 tracking-wider">{sc.code}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {scHasGst ? (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs font-bold text-amber-700">
+                            {sc.gstRate}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {sc.linkedExpense ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium text-indigo-700 leading-tight">{sc.linkedExpense}</span>
+                            {hasValue ? (
+                              <span className="text-xs font-semibold text-emerald-700">
+                                ₹{parseFloat(linkedVal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">No data on sheet</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {blockedForTm ? (
+                          <span
+                            title="Transport Memo is strictly no-GST — this SAC code carries a GST rate"
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-400 cursor-not-allowed"
+                          >
+                            No GST
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (showSacTableFor === null) return;
+                              addOrFillService(showSacTableFor, {
+                                ...emptyService(),
+                                descriptionOfService: sc.description,
+                                sacCode: sc.code,
+                                sacId: String(sc.id),
+                                gstRate: parseFloat(sc.gstRate) > 0 ? sc.gstRate : "",
+                                quantity: "1",
+                                rate: hasValue ? linkedVal : "",
+                              });
+                              setShowSacTableFor(null);
+                            }}
+                            className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-150"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => setShowSacTableFor(null)}
+            className="rounded-lg border border-gray-200 bg-white px-5 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </Dialog>
+    </>
   );
 }
