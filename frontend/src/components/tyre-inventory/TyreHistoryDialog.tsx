@@ -54,6 +54,9 @@ export function TyreHistoryDialog({ open, onClose, tyre, records, trucks }: Tyre
                     <p className="mt-1 text-xs text-gray-600">
                       Removed at {record.removedOdometer.toLocaleString()} km on {formatDate(record.removedDate)}
                     </p>
+                    <p className="mt-1 text-xs font-medium text-gray-700">
+                      Total Distance Covered: {(record.removedOdometer - record.fittedOdometer).toLocaleString()} km
+                    </p>
                     {record.removalRemark && (
                       <p className="mt-1 text-xs text-gray-500 italic">Remark: {record.removalRemark}</p>
                     )}

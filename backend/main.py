@@ -56,7 +56,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta
+from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories
 
 Base.metadata.create_all(bind=engine)
 
@@ -482,6 +482,13 @@ def _run_schema_migrations():
         # existing profile photo (photo_blob).
         "ALTER TABLE staff ADD COLUMN identity_image_url TEXT",
         "ALTER TABLE staff ADD COLUMN identity_image_blob LONGBLOB",
+        # Soft delete for Tyre Inventory, recoverable via the new "Tyre Archive" page.
+        "ALTER TABLE tyre_inventory ADD COLUMN deleted_at DATETIME NULL",
+        "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type "
+        "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory') NOT NULL",
+        # "Repair Type" on a maintenance record — populated from the selected
+        # Maintenance Type category's repair types (see maintenance_categories.py).
+        "ALTER TABLE maintenance_records ADD COLUMN repair_type VARCHAR(200) NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -1168,6 +1175,7 @@ app.include_router(payment_requests.router, dependencies=FINANCE)
 app.include_router(chat.router, dependencies=AUTH)
 app.include_router(chat.photo_router)                         # GET group photo: public route, auth done inside (img tags)
 app.include_router(default_batta.router, dependencies=AUTH)
+app.include_router(maintenance_categories.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

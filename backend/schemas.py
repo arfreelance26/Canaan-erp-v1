@@ -1078,6 +1078,7 @@ class MaintenanceRecordCreate(OrmBase):
     maintenance_end_date: Optional[date] = None
     odometer: int
     maintenance_type: str
+    repair_type: Optional[str] = None
     compliant: Optional[str] = None               # "Yes" | "No"
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
@@ -1091,6 +1092,7 @@ class MaintenanceRecordUpdate(OrmBase):
     maintenance_end_date: Optional[date] = None
     odometer: Optional[int] = None
     maintenance_type: Optional[str] = None
+    repair_type: Optional[str] = None
     compliant: Optional[str] = None
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
@@ -1105,6 +1107,7 @@ class MaintenanceRecordOut(OrmBase):
     maintenance_end_date: Optional[date] = None
     odometer: int
     maintenance_type: str
+    repair_type: Optional[str] = None
     compliant: Optional[str] = None
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
@@ -1717,6 +1720,46 @@ class RepairTypeOut(OrmBase):
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Maintenance Categories (the "Maintenance Management" admin page)
+# ---------------------------------------------------------------------------
+
+class MaintenanceCategoryRepairCreate(OrmBase):
+    name: str
+
+
+class MaintenanceCategoryRepairUpdate(OrmBase):
+    client_version: Optional[int] = None
+    name: Optional[str] = None
+
+
+class MaintenanceCategoryRepairOut(OrmBase):
+    id: int
+    category_id: int
+    name: str
+    version: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class MaintenanceCategoryCreate(OrmBase):
+    name: str
+
+
+class MaintenanceCategoryUpdate(OrmBase):
+    client_version: Optional[int] = None
+    name: Optional[str] = None
+
+
+class MaintenanceCategoryOut(OrmBase):
+    id: int
+    name: str
+    version: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    repairs: list[MaintenanceCategoryRepairOut] = []
 
 
 # ---------------------------------------------------------------------------

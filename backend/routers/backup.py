@@ -42,6 +42,8 @@ ALL_MODELS = [
     models.SacCode,
     models.TripExpenseRate,
     models.RepairType,
+    models.MaintenanceCategory,
+    models.MaintenanceCategoryRepair,
     models.MaintenanceType,
     models.TruckRunConfig,
     models.TyreLayoutCostConfig,

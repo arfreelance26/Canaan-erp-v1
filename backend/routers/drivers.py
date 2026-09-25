@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from database import get_db
@@ -78,6 +78,35 @@ def list_deleted_driver_ids(db: Session = Depends(get_db)):
     "deleted-ids" isn't swallowed as a driver_id path param."""
     rows = db.query(models.Driver.id).filter(models.Driver.deleted_at.isnot(None)).all()
     return [i for (i,) in rows]
+
+
+@router.get("/salary-summary")
+def get_driver_salary_summary(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    """Total 'Salary' compensation per driver within [from_date, to_date] — an
+    aggregate total only, no individual transaction notes/details. Deliberately
+    kept in the AUTH-only drivers router (not the Accounts/Admin-only finance
+    router) so any authenticated role — e.g. the Auditor's read-only "Driver
+    Record" page — can see it without being granted the full Finance module.
+    Registered before GET /{driver_id} so "salary-summary" isn't swallowed as
+    a driver_id path param.
+    """
+    q = db.query(
+        models.CompensationTransaction.person_id,
+        func.sum(models.CompensationTransaction.amount),
+    ).filter(
+        models.CompensationTransaction.person_type == "driver",
+        models.CompensationTransaction.type == "Salary",
+    )
+    if from_date:
+        q = q.filter(models.CompensationTransaction.date >= from_date)
+    if to_date:
+        q = q.filter(models.CompensationTransaction.date <= to_date)
+    rows = q.group_by(models.CompensationTransaction.person_id).all()
+    return {str(person_id): float(total or 0) for person_id, total in rows}
 
 
 @router.get("/{driver_id}", response_model=schemas.DriverOut)

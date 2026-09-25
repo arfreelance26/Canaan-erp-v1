@@ -120,6 +120,7 @@ export const sidebarSections: NavSection[] = [
     items: [
       { label: "Our Staff", href: "/resources/staff", icon: Users },
       { label: "Our Drivers", href: "/resources/drivers", icon: IdCard },
+      { label: "Driver Record", href: "/resources/driver-record", icon: IdCard },
       { label: "Our Fleet", href: "/resources/fleet", icon: Truck },
       { label: "Our Customers", href: "/resources/customers", icon: Building2 },
       { label: "Our Vendors", href: "/resources/vendors", icon: Handshake },
@@ -135,6 +136,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
       { label: "Truck's Adblue History", href: "/admin/adblue", icon: Droplets },
       { label: "Truck Run Record", href: "/maintenance/truck-run-record", icon: Activity },
+      { label: "Tyre Archive", href: "/maintenance/tyre-archive", icon: Archive },
     ],
   },
   {
@@ -159,6 +161,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Expenses", href: "/admin/trip-expenses", icon: Receipt },
       { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
       { label: "Maintenance Alert Management", href: "/admin/maintenance-management", icon: Settings2 },
+      { label: "Maintenance Management", href: "/admin/maintenance", icon: Wrench },
       { label: "Truck Run Configuration", href: "/admin/truck-run-config", icon: Gauge },
       { label: "Tyre Cost Configuration", href: "/admin/tyre-cost-config", icon: DollarSign },
       { label: "Tyre Range Configuration", href: "/admin/tyre-range-config", icon: CircleDot },

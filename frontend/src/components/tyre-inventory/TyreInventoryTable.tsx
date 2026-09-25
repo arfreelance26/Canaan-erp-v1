@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck } from "@/types/truck";
-import { showInfo } from "@/lib/swal";
 import { formatDate } from "@/lib/format-date";
 
 type TyreInventoryTableProps = {
@@ -96,13 +95,6 @@ export function TyreInventoryTable({
                       className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       View Tyre History
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => showInfo(`Flagging tyre ${tyre.tyreNumber} for rethreading...`, "Flag Tyre")}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 transition-colors whitespace-nowrap"
-                    >
-                      Flag for Rethreading
                     </button>
                     <div className="flex items-center gap-1 ml-2 border-l pl-2">
                       <button

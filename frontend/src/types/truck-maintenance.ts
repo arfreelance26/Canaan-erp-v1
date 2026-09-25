@@ -5,6 +5,7 @@ export type MaintenanceRecord = {
   maintenanceEndDate: string;
   odometer: string;
   maintenanceType: string;
+  repairType: string;
   compliant: string;          // "Yes" | "No" | ""
   maintenanceLocation: string;
   maintenanceBy: string;

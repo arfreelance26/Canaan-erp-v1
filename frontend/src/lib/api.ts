@@ -29,6 +29,7 @@ import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
 import type { SacCode } from "@/types/sac-code";
 import type { MaintenanceTypeItem } from "@/types/maintenance-type";
+import type { MaintenanceCategory, MaintenanceCategoryRepair } from "@/types/maintenance-category";
 import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/maintenance-status";
 import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail, ChatPresence } from "@/types/chat";
 import type { PaymentRequest } from "@/types/payment-request";
@@ -1067,6 +1068,7 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     maintenanceEndDate: b.maintenance_end_date ?? "",
     odometer: String(b.odometer ?? ""),
     maintenanceType: b.maintenance_type ?? "",
+    repairType: b.repair_type ?? "",
     compliant: b.compliant ?? "",
     maintenanceLocation: b.maintenance_location ?? "",
     maintenanceBy: b.maintenance_by ?? "",
@@ -1408,6 +1410,15 @@ export const driversApi = {
   removePermanent: (dbId: string) => req<void>(`/drivers/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/drivers/deleted-ids"),
   getNextId: () => req<{ driver_id: string }>("/drivers/next-id").then((d) => d.driver_id),
+  // Aggregate salary totals only (no transaction detail) — open to any
+  // authenticated role, unlike the rest of the Finance module.
+  getSalarySummary: (fromDate?: string, toDate?: string) => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set("from_date", fromDate);
+    if (toDate) params.set("to_date", toDate);
+    const qs = params.toString();
+    return req<Record<string, number>>(`/drivers/salary-summary${qs ? `?${qs}` : ""}`);
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1943,6 +1954,7 @@ export const maintenanceApi = {
         maintenance_end_date: record.maintenanceEndDate || null,
         odometer: parseInt(record.odometer) || 0,
         maintenance_type: record.maintenanceType,
+        repair_type: record.repairType || null,
         compliant: record.compliant || null,
         maintenance_location: record.maintenanceLocation || null,
         maintenance_by: record.maintenanceBy || null,
@@ -1958,6 +1970,7 @@ export const maintenanceApi = {
         maintenance_end_date: record.maintenanceEndDate || undefined,
         odometer: record.odometer ? parseInt(record.odometer) : undefined,
         maintenance_type: record.maintenanceType,
+        repair_type: record.repairType || undefined,
         compliant: record.compliant || undefined,
         maintenance_location: record.maintenanceLocation || undefined,
         maintenance_by: record.maintenanceBy || undefined,
@@ -2129,6 +2142,7 @@ const DELETION_RESOURCE_SEGMENT: Record<string, string> = {
   Trip: "/trips",
   FuelLog: "/maintenance",
   MaintenanceRecord: "/maintenance",
+  TyreInventory: "/tyre-inventory",
 };
 
 export const deletionApprovalsApi = {
@@ -2296,6 +2310,9 @@ export const tyreApi = {
   updateTyre: (dbId: string, tyre: TyreInventoryItem) =>
     req<B>(`/tyre-inventory/${dbId}`, { method: "PUT", body: JSON.stringify(fromTyreInventory(tyre)) }).then(toTyreInventory),
   deleteTyre: (dbId: string) => req<void>(`/tyre-inventory/${dbId}`, { method: "DELETE" }),
+  restore: (dbId: string) => req<B>(`/tyre-inventory/${dbId}/restore`, { method: "POST" }).then(toTyreInventory),
+  removePermanent: (dbId: string) => req<void>(`/tyre-inventory/${dbId}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/tyre-inventory/deleted-ids"),
   getTyreHistory: (dbId: string) => req<B[]>(`/tyre-inventory/${dbId}/history`).then((d) => d.map(toTyreFitment)),
 
   listFitments: (truckId?: string, activeOnly?: boolean) => {
@@ -2434,6 +2451,54 @@ export const repairTypesApi = {
       body: JSON.stringify({ name: payload.name, default_cost: payload.defaultCost !== undefined ? parseFloat(payload.defaultCost) || 0 : undefined, client_version: payload.version }),
     }).then(toRepairType),
   delete: (id: string) => req<void>(`/repair-types/${id}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// Maintenance Categories API (the "Maintenance Management" admin page —
+// categories, each grouping several repair types underneath it)
+// ---------------------------------------------------------------------------
+
+function toMaintenanceCategoryRepair(b: B): MaintenanceCategoryRepair {
+  return {
+    id: String(b.id),
+    categoryId: String(b.category_id),
+    name: b.name ?? "",
+    version: typeof b.version === "number" ? b.version : undefined,
+  };
+}
+
+function toMaintenanceCategory(b: B): MaintenanceCategory {
+  return {
+    id: String(b.id),
+    name: b.name ?? "",
+    version: typeof b.version === "number" ? b.version : undefined,
+    repairs: Array.isArray(b.repairs) ? (b.repairs as B[]).map(toMaintenanceCategoryRepair) : [],
+  };
+}
+
+export const maintenanceCategoriesApi = {
+  list: () => req<B[]>("/maintenance-categories").then((d) => d.map(toMaintenanceCategory)),
+  create: (name: string) =>
+    req<B>("/maintenance-categories", { method: "POST", body: JSON.stringify({ name }) }).then(toMaintenanceCategory),
+  update: (id: string, name: string, clientVersion?: number) =>
+    req<B>(`/maintenance-categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, client_version: clientVersion }),
+    }).then(toMaintenanceCategory),
+  delete: (id: string) => req<void>(`/maintenance-categories/${id}`, { method: "DELETE" }),
+
+  createRepair: (categoryId: string, name: string) =>
+    req<B>(`/maintenance-categories/${categoryId}/repairs`, {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }).then(toMaintenanceCategoryRepair),
+  updateRepair: (categoryId: string, repairId: string, name: string, clientVersion?: number) =>
+    req<B>(`/maintenance-categories/${categoryId}/repairs/${repairId}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, client_version: clientVersion }),
+    }).then(toMaintenanceCategoryRepair),
+  deleteRepair: (categoryId: string, repairId: string) =>
+    req<void>(`/maintenance-categories/${categoryId}/repairs/${repairId}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

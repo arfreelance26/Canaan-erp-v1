@@ -608,7 +608,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Trip Distance & Cargo</p>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Start km *">
-            <DecimalInput type="number" min="0" className={fc} value={form.startKm} readOnly={ro} onChange={(e) => set("startKm", e.target.value)} placeholder="e.g. 84000" />
+            <DecimalInput type="number" min="0" className={fc} value={form.startKm} readOnly={ro} disabled={ro} onChange={(e) => set("startKm", e.target.value)} placeholder="e.g. 84000" />
             {startKmTooLow && (
               <p className="mt-1 text-xs text-red-500">
                 Below current odometer ({Number(currentTruck!.odometer).toLocaleString()} km). Please Check the Value.
@@ -616,7 +616,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             )}
           </Field>
           <Field label="End km *">
-            <DecimalInput type="number" min="0" className={fc} value={form.endKm} readOnly={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
+            <DecimalInput type="number" min="0" className={fc} value={form.endKm} readOnly={ro} disabled={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
             {n(form.endKm) > 0 && n(form.startKm) > 0 && n(form.endKm) <= n(form.startKm) && (
               <p className="mt-1 text-xs text-red-500">End Km must be greater than Start Km.</p>
             )}
@@ -732,7 +732,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     type="number" min="0"
                     className={fc}
                     value={entry.odometer}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => updateDieselEntry(idx, "odometer", e.target.value)}
                     placeholder="e.g. 102500"
                   />
@@ -742,7 +742,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     type="number" min="0" step="0.01"
                     className={fc}
                     value={entry.litres}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => updateDieselEntry(idx, "litres", e.target.value)}
                     placeholder="e.g. 80.00"
                   />
@@ -752,7 +752,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     type="number" min="0" step="0.01"
                     className={fc}
                     value={entry.costPerLitre}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => updateDieselEntry(idx, "costPerLitre", e.target.value)}
                     placeholder="e.g. 96.50"
                   />
@@ -822,36 +822,36 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={subsh}>Port & Operational Charges</p>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Port Pass Expense (பாஸ்) *">
-            <DecimalInput type="number" min="0" className={fc} value={form.portPassExpense} readOnly={ro} onChange={(e) => set("portPassExpense", e.target.value)} placeholder="e.g. 500" />
+            <DecimalInput type="number" min="0" className={fc} value={form.portPassExpense} readOnly={ro} disabled={ro} onChange={(e) => set("portPassExpense", e.target.value)} placeholder="e.g. 500" />
           </Field>
           <Field label="Weight Sheet Expense (எடை) *">
-            <DecimalInput type="number" min="0" className={fc} value={form.weightSheetExpense} readOnly={ro} onChange={(e) => set("weightSheetExpense", e.target.value)} placeholder="e.g. 200" />
+            <DecimalInput type="number" min="0" className={fc} value={form.weightSheetExpense} readOnly={ro} disabled={ro} onChange={(e) => set("weightSheetExpense", e.target.value)} placeholder="e.g. 200" />
           </Field>
           <Field label="Mamol Expense (இறக்கு / ஏற்று மாமூல்) *">
-            <DecimalInput type="number" min="0" className={fc} value={form.mamolExpense} readOnly={ro} onChange={(e) => set("mamolExpense", e.target.value)} placeholder="e.g. 300" />
+            <DecimalInput type="number" min="0" className={fc} value={form.mamolExpense} readOnly={ro} disabled={ro} onChange={(e) => set("mamolExpense", e.target.value)} placeholder="e.g. 300" />
           </Field>
           <Field label="Claimable Mamol Expense *">
-            <DecimalInput type="number" min="0" className={fc} value={form.claimableMamolExpense} readOnly={ro} onChange={(e) => set("claimableMamolExpense", e.target.value)} placeholder="e.g. 0" />
+            <DecimalInput type="number" min="0" className={fc} value={form.claimableMamolExpense} readOnly={ro} disabled={ro} onChange={(e) => set("claimableMamolExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
         </div>
 
         <p className={subsh}>Government & Compliance</p>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Traffic, RTO / Police Expense *">
-            <DecimalInput type="number" min="0" className={fc} value={form.trafficRtoExpense} readOnly={ro} onChange={(e) => set("trafficRtoExpense", e.target.value)} placeholder="e.g. 0" />
+            <DecimalInput type="number" min="0" className={fc} value={form.trafficRtoExpense} readOnly={ro} disabled={ro} onChange={(e) => set("trafficRtoExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
         </div>
 
         <p className={subsh}>Loading & Handling</p>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <Field label="Lift On / Off (லிப்டான்) *">
-            <DecimalInput type="number" min="0" className={fc} value={form.liftOnOffExpense} readOnly={ro} onChange={(e) => set("liftOnOffExpense", e.target.value)} placeholder="e.g. 0" />
+            <DecimalInput type="number" min="0" className={fc} value={form.liftOnOffExpense} readOnly={ro} disabled={ro} onChange={(e) => set("liftOnOffExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
           <Field label="Crane Operator Expense *">
-            <DecimalInput type="number" min="0" className={fc} value={form.craneOperatorExpense} readOnly={ro} onChange={(e) => set("craneOperatorExpense", e.target.value)} placeholder="e.g. 0" />
+            <DecimalInput type="number" min="0" className={fc} value={form.craneOperatorExpense} readOnly={ro} disabled={ro} onChange={(e) => set("craneOperatorExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
           <Field label="Parking Expenses *">
-            <DecimalInput type="number" min="0" className={fc} value={form.parkingExpense} readOnly={ro} onChange={(e) => set("parkingExpense", e.target.value)} placeholder="e.g. 0" />
+            <DecimalInput type="number" min="0" className={fc} value={form.parkingExpense} readOnly={ro} disabled={ro} onChange={(e) => set("parkingExpense", e.target.value)} placeholder="e.g. 0" />
           </Field>
         </div>
 
@@ -900,7 +900,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     type="text"
                     className={fc}
                     value={repair.name}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => upd({ name: e.target.value })}
                     placeholder="e.g. Engine overhaul"
                   />
@@ -910,7 +910,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     type="date"
                     className={fc}
                     value={repair.date}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => upd({ date: e.target.value })}
                   />
                 </Field>
@@ -920,7 +920,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     min="0"
                     className={fc}
                     value={repair.odometer}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => upd({ odometer: e.target.value })}
                     placeholder="e.g. 125000"
                   />
@@ -931,7 +931,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     min="0"
                     className={fc}
                     value={repair.cost}
-                    readOnly={ro}
+                    readOnly={ro} disabled={ro}
                     onChange={(e) => upd({ cost: e.target.value })}
                     placeholder="e.g. 0"
                   />
@@ -942,7 +942,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                   type="text"
                   className={fc}
                   value={repair.description}
-                  readOnly={ro}
+                  readOnly={ro} disabled={ro}
                   onChange={(e) => upd({ description: e.target.value })}
                   placeholder="Details about the repair"
                 />
@@ -982,7 +982,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={subsh}>Miscellaneous</p>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Other Expenses *">
-            <DecimalInput type="number" min="0" className={fc} value={form.otherExpenses} readOnly={ro} onChange={(e) => set("otherExpenses", e.target.value)} placeholder="e.g. 0" />
+            <DecimalInput type="number" min="0" className={fc} value={form.otherExpenses} readOnly={ro} disabled={ro} onChange={(e) => set("otherExpenses", e.target.value)} placeholder="e.g. 0" />
             <p className="mt-1 text-xs text-amber-600">Note: Please don&apos;t add maintenance charges here.</p>
           </Field>
         </div>
@@ -991,7 +991,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         <p className={sh}>Toll Details</p>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Toll Charges (டோல்) *">
-            <DecimalInput type="number" min="0" className={fc} value={form.tollCharges} readOnly={ro} onChange={(e) => set("tollCharges", e.target.value)} placeholder="e.g. 1200" />
+            <DecimalInput type="number" min="0" className={fc} value={form.tollCharges} readOnly={ro} disabled={ro} onChange={(e) => set("tollCharges", e.target.value)} placeholder="e.g. 1200" />
           </Field>
         </div>
 
@@ -1063,7 +1063,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               min="0"
               className={fc}
               value={form.driverAdvance}
-              readOnly={ro}
+              readOnly={ro} disabled={ro}
               onChange={(e) => updateAdvanceField("driver", e.target.value)}
               placeholder="e.g. 2000"
             />
@@ -1075,7 +1075,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               inputMode="decimal"
               className={fc}
               value={localInitialDisbursedAdvance}
-              readOnly={ro}
+              readOnly={ro} disabled={ro}
               onChange={(e) => handleInitialDisbursedChange(e.target.value)}
               onKeyDown={(e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); }}
               placeholder="e.g. 500"
@@ -1097,7 +1097,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               min="0"
               className={fc}
               value={form.additionalDriverAdvance}
-              readOnly={ro}
+              readOnly={ro} disabled={ro}
               onChange={(e) => updateAdvanceField("additional", e.target.value)}
               placeholder="e.g. 500"
             />
@@ -1216,7 +1216,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         {/* ── 11. Remarks ── */}
         <p className={sh}>Remarks</p>
         <Field label="Remarks *">
-          <textarea rows={3} className={fc} value={form.remarks} readOnly={ro}
+          <textarea rows={3} className={fc} value={form.remarks} readOnly={ro} disabled={ro}
             onChange={(e) => set("remarks", e.target.value)}
             placeholder="Any additional notes…" />
         </Field>

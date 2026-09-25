@@ -545,20 +545,40 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                     <div className="flex flex-col gap-3 rounded-lg border border-red-100 bg-red-50/30 p-3">
                       <h4 className="text-sm font-medium text-gray-900">Remove Tyre</h4>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <DecimalInput type="number"
-                          min="0"
-                          value={odometerInput}
-                          onChange={(e) => setOdometerInput(e.target.value)}
-                          placeholder="Odometer reading at removal (km)"
-                          className={inputClass}
-                        />
-                        <DatePickerInput
-                          required
-                          value={actionDate}
-                          onChange={setActionDate}
-                          className={inputClass}
-                        />
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-700">Removal Odometer</label>
+                          <DecimalInput type="number"
+                            min="0"
+                            value={odometerInput}
+                            onChange={(e) => setOdometerInput(e.target.value)}
+                            placeholder="Odometer reading at removal (km)"
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-700">Total Distance Covered</label>
+                          <input
+                            type="text"
+                            readOnly
+                            disabled
+                            value={
+                              odometerInput && !Number.isNaN(Number(odometerInput)) && Number(odometerInput) >= fitment.fittedOdometer
+                                ? `${(Number(odometerInput) - fitment.fittedOdometer).toLocaleString()} km`
+                                : "—"
+                            }
+                            className={cn(inputClass, "cursor-not-allowed bg-gray-50 text-gray-500")}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-medium text-gray-700">Date of Removal</label>
+                          <DatePickerInput
+                            required
+                            value={actionDate}
+                            onChange={setActionDate}
+                            className={inputClass}
+                          />
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {REMOVAL_QUICK_REMARKS.map((remark) => (

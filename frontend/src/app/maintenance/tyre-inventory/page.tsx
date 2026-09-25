@@ -6,8 +6,10 @@ import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTab
 import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
-import { tyreApi } from "@/lib/api";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { tyreApi, deletionApprovalsApi } from "@/lib/api";
+import { confirmAction, showSuccess, showError } from "@/lib/swal";
+import { useAuth } from "@/context/AuthContext";
+import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck } from "@/types/truck";
@@ -20,6 +22,8 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 
 export default function TyreInventoryPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [tyres, setTyres] = useState<TyreInventoryItem[]>([]);
   const [fitmentRecords, setFitmentRecords] = useState<TyreFitmentRecord[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -28,6 +32,7 @@ export default function TyreInventoryPage() {
   const [editingTyre, setEditingTyre] = useState<TyreInventoryItem | null>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyTyre, setHistoryTyre] = useState<TyreInventoryItem | null>(null);
+  const [deleteRequestTyre, setDeleteRequestTyre] = useState<TyreInventoryItem | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -56,7 +61,16 @@ export default function TyreInventoryPage() {
   }
 
   async function handleDelete(id: string) {
-    const result = await confirmDelete("tyre");
+    if (!isAdmin) {
+      const tyre = tyres.find((t) => t.id === id);
+      if (tyre) setDeleteRequestTyre(tyre);
+      return;
+    }
+    const result = await confirmAction(
+      "Delete this tyre?",
+      "It will be removed from Tyre Inventory, but can be restored from the Tyre Archive page.",
+      "Yes, delete"
+    );
     if (!result.isConfirmed) return;
     try {
       await tyreApi.deleteTyre(id);
@@ -64,6 +78,22 @@ export default function TyreInventoryPage() {
       showSuccess("Tyre deleted successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete tyre.");
+    }
+  }
+
+  async function handleDeleteRequestSubmit(reason: string) {
+    if (!deleteRequestTyre) return;
+    try {
+      await deletionApprovalsApi.create({
+        resourceType: "TyreInventory",
+        resourceId: parseInt(deleteRequestTyre.id, 10),
+        resourceName: `${deleteRequestTyre.tyreNumber} (${deleteRequestTyre.brand})`,
+        reason,
+      });
+      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+      setDeleteRequestTyre(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to send delete request.");
     }
   }
 
@@ -184,6 +214,17 @@ export default function TyreInventoryPage() {
         records={fitmentRecords}
         trucks={trucks}
       />
+
+      {deleteRequestTyre && (
+        <EditRequestDialog
+          open={deleteRequestTyre !== null}
+          resourceType="TyreInventory"
+          resourceName={`${deleteRequestTyre.tyreNumber} (${deleteRequestTyre.brand})`}
+          action="Delete"
+          onSubmit={handleDeleteRequestSubmit}
+          onClose={() => setDeleteRequestTyre(null)}
+        />
+      )}
 
     </div>
   );

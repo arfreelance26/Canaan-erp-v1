@@ -71,12 +71,20 @@ def create_deletion_approval(
     return req
 
 
-@router.get("", response_model=list[schemas.DeletionApprovalRequestOut], dependencies=[Depends(require_roles())])
+@router.get("", response_model=list[schemas.DeletionApprovalRequestOut])
 def list_deletion_approvals(
     status: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
 ):
+    # Admin reviews everything on the "Deletion Approvals" page. Maintenance has
+    # no access to that page, but the "Tyre Archive" page needs this same
+    # endpoint (filtered to Approved TyreInventory rows) — so Maintenance is let
+    # through ONLY for that exact narrow query, never the full review queue.
+    if current_user.role != "Admin" and not (current_user.role == "Maintenance" and resource_type == "TyreInventory"):
+        raise HTTPException(403, f"Your role ({current_user.role}) does not have permission for this action.")
+
     q = db.query(models.DeletionApprovalRequest).order_by(
         models.DeletionApprovalRequest.created_at.desc()
     )
@@ -259,6 +267,16 @@ def approve_deletion(
         if vendor.deleted_at is None:
             vendor.deleted_at = datetime.now(timezone.utc)
             emit("vendor_updated", {})
+    elif req.resource_type == "TyreInventory":
+        # Soft delete — keeps the tyre recoverable from the "Tyre Archive" page
+        # instead of destroying it outright, same pattern as maintenance.py's
+        # delete_tyre (which handles the Admin/Maintenance-direct-delete path).
+        tyre = db.get(models.TyreInventory, req.resource_id)
+        if not tyre:
+            raise HTTPException(409, "This tyre no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if tyre.deleted_at is None:
+            tyre.deleted_at = datetime.now(timezone.utc)
+            emit("tyre_updated", {})
 
     req.status = "Approved"
     req.approved_by_name = current_user.name

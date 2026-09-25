@@ -807,6 +807,7 @@ class MaintenanceRecord(Base):
     maintenance_end_date = Column(Date, nullable=True)
     odometer = Column(Integer, nullable=False)
     maintenance_type = Column(String(200), nullable=False)
+    repair_type = Column(String(200), nullable=True)
     compliant = Column(Text, nullable=True)
     maintenance_location = Column(String(200), nullable=True)
     maintenance_by = Column(String(200), nullable=True)
@@ -921,6 +922,10 @@ class TyreInventory(Base):
     retread_count = Column(Integer, default=0)
     condition = Column(String(50), nullable=True, default="New")
     version = Column(Integer, default=1, nullable=False)
+    # Soft delete — "Tyre Inventory" -> Delete sets this instead of removing the row,
+    # so it can be recovered from the "Tyre Archive" page. Same pattern as
+    # Driver/Truck/Staff/Customer/Vendor.deleted_at.
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -1004,6 +1009,40 @@ class RepairType(Base):
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class MaintenanceCategory(Base):
+    """Categories shown on the "Maintenance Management" admin page, each
+    grouping several repair types underneath it. Distinct from RepairType
+    (the flat list used by the "Repairs Management" page / Trip Sheet's
+    "Major Repairs" quick-pick) and from MaintenanceType (interval-km based
+    alert config) — this is its own, separate grouping feature.
+    """
+    __tablename__ = "maintenance_categories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    repairs = relationship("MaintenanceCategoryRepair", back_populates="category", cascade="all, delete-orphan", order_by="MaintenanceCategoryRepair.name")
+
+
+class MaintenanceCategoryRepair(Base):
+    """A single repair type nested under a MaintenanceCategory."""
+    __tablename__ = "maintenance_category_repairs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category_id = Column(Integer, ForeignKey("maintenance_categories.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(200), nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    category = relationship("MaintenanceCategory", back_populates="repairs")
+
+    __table_args__ = (UniqueConstraint("category_id", "name", name="uq_category_repair_name"),)
 
 
 class MaintenanceType(Base):
@@ -1133,7 +1172,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor", "TyreInventory"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request

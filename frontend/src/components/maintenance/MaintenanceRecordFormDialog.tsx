@@ -5,8 +5,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { maintenanceTypesApi } from "@/lib/api";
+import { maintenanceCategoriesApi } from "@/lib/api";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
+import type { MaintenanceCategory } from "@/types/maintenance-category";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -23,6 +24,7 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   maintenanceEndDate: "",
   odometer: "",
   maintenanceType: "",
+  repairType: "",
   compliant: "",
   maintenanceLocation: "",
   maintenanceBy: "",
@@ -32,12 +34,10 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
 
 export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: MaintenanceRecordFormDialogProps) {
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
-  const [typeOptions, setTypeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [categories, setCategories] = useState<MaintenanceCategory[]>([]);
 
   useEffect(() => {
-    maintenanceTypesApi.list()
-      .then((items) => setTypeOptions(items.map((t) => ({ value: t.name, label: t.name }))))
-      .catch(() => {});
+    maintenanceCategoriesApi.list().then(setCategories).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -45,6 +45,16 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
       setForm(emptyForm);
     }
   }, [open, truck?.id]);
+
+  const categoryOptions = categories.map((c) => ({ value: c.name, label: c.name }));
+  const selectedCategory = categories.find((c) => c.name === form.maintenanceType);
+  const repairOptions = (selectedCategory?.repairs ?? []).map((r) => ({ value: r.name, label: r.name }));
+
+  // Picking a different Maintenance Type invalidates whatever Repair Type was
+  // chosen for the previous category, so it's cleared rather than left stale.
+  function handleMaintenanceTypeChange(value: string) {
+    setForm((prev) => ({ ...prev, maintenanceType: value, repairType: "" }));
+  }
 
   const draftKey = `erp_maintenance_record_draft_${truck?.id ?? "none"}`;
   // Merge over emptyForm rather than replacing outright — an older draft saved
@@ -129,12 +139,26 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           <Field label="Maintenance Type" required>
             <GlassCombobox
               required
+              strictSelect
               value={form.maintenanceType}
-              onChange={(val) => update("maintenanceType", val)}
-              placeholder="Select or type a maintenance type"
-              options={typeOptions}
+              onChange={handleMaintenanceTypeChange}
+              placeholder="Select a maintenance type"
+              options={categoryOptions}
             />
           </Field>
+
+          {form.maintenanceType && (
+            <Field label="Repair Type" required>
+              <GlassCombobox
+                required
+                strictSelect
+                value={form.repairType}
+                onChange={(val) => update("repairType", val)}
+                placeholder="Select a repair type"
+                options={repairOptions}
+              />
+            </Field>
+          )}
 
           <Field label="Cost" required>
             <DecimalInput type="number"

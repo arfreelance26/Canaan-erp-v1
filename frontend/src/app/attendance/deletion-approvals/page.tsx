@@ -8,7 +8,7 @@ import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake, Boxes } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
@@ -69,6 +69,7 @@ function RequestCard({
   const isStaff = req.resourceType === "Staff";
   const isCustomer = req.resourceType === "Customer";
   const isVendor = req.resourceType === "Vendor";
+  const isTyre = req.resourceType === "TyreInventory";
 
   const badgeClass = isTrip
     ? "bg-purple-100 text-purple-600"
@@ -84,6 +85,8 @@ function RequestCard({
     ? "bg-sky-100 text-sky-600"
     : isVendor
     ? "bg-teal-100 text-teal-600"
+    : isTyre
+    ? "bg-orange-100 text-orange-600"
     : "bg-red-100 text-red-600";
   const BadgeIcon = isTrip
     ? Truck
@@ -99,6 +102,8 @@ function RequestCard({
     ? Building2
     : isVendor
     ? Handshake
+    : isTyre
+    ? Boxes
     : Fuel;
 
   return (

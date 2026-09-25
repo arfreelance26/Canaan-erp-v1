@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from websocket_manager import emit
-from security import get_current_user, TokenUser
+from routers.deletion_approvals import auto_reject_stale_requests
+from security import get_current_user, TokenUser, require_roles
 
 router = APIRouter(tags=["Maintenance"])
 
@@ -853,7 +854,7 @@ def delete_adblue_manufacturer(
 
 @router.get("/tyre-inventory", response_model=list[schemas.TyreInventoryOut], tags=["Tyre"])
 def list_tyre_inventory(db: Session = Depends(get_db)):
-    return db.query(models.TyreInventory).order_by(models.TyreInventory.brand).all()
+    return db.query(models.TyreInventory).filter(models.TyreInventory.deleted_at.is_(None)).order_by(models.TyreInventory.brand).all()
 
 
 @router.get("/tyre-inventory/available", response_model=list[schemas.TyreInventoryOut], tags=["Tyre"])
@@ -861,7 +862,22 @@ def available_tyres(db: Session = Depends(get_db)):
     fitted_ids = {
         r.tyre_id for r in db.query(models.TyreFitmentRecord).filter(models.TyreFitmentRecord.removed_odometer.is_(None)).all()
     }
-    return db.query(models.TyreInventory).filter(models.TyreInventory.id.notin_(fitted_ids)).all()
+    return db.query(models.TyreInventory).filter(
+        models.TyreInventory.id.notin_(fitted_ids),
+        models.TyreInventory.deleted_at.is_(None),
+    ).all()
+
+
+@router.get("/tyre-inventory/deleted-ids", dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
+def list_deleted_tyre_ids(db: Session = Depends(get_db)):
+    """Admin/Maintenance: ids of tyres currently soft-deleted. Lets the "Tyre
+    Archive" page (which lists from the deletion_approval_requests audit trail)
+    tell apart a still-deleted tyre from one that was since restored, same
+    pattern as drivers.py's list_deleted_driver_ids. Registered before any
+    dynamic /tyre-inventory/{tyre_id} route so "deleted-ids" isn't swallowed
+    as a tyre_id path param."""
+    rows = db.query(models.TyreInventory.id).filter(models.TyreInventory.deleted_at.isnot(None)).all()
+    return [i for (i,) in rows]
 
 
 @router.post("/tyre-inventory", response_model=schemas.TyreInventoryOut, status_code=201, tags=["Tyre"])
@@ -896,11 +912,62 @@ def update_tyre(tyre_id: int, payload: schemas.TyreInventoryUpdate, db: Session 
     return tyre
 
 
-@router.delete("/tyre-inventory/{tyre_id}", status_code=204, tags=["Tyre"])
-def delete_tyre(tyre_id: int, db: Session = Depends(get_db)):
+@router.delete("/tyre-inventory/{tyre_id}", status_code=204, dependencies=[Depends(require_roles())], tags=["Tyre"])
+def delete_tyre(tyre_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Admin only: soft-delete a tyre directly (hides it from Tyre Inventory,
+    recoverable from "Tyre Archive"). Non-admin roles (e.g. Maintenance) must
+    instead file a DeletionApprovalRequest via POST /deletion-approvals,
+    reviewed on the "Deletion Approvals" page — see deletion_approvals.py's
+    approve_deletion, which performs the same soft-delete once an Admin
+    approves. A self-approved DeletionApprovalRequest row is logged here for
+    audit visibility, same pattern as drivers.py's delete_driver.
+    """
     tyre = db.get(models.TyreInventory, tyre_id)
     if not tyre:
         raise HTTPException(404, "Tyre not found")
+    if tyre.deleted_at is not None:
+        raise HTTPException(409, "Tyre is already deleted")
+    now = datetime.now(timezone.utc)
+    tyre.deleted_at = now
+    db.add(models.DeletionApprovalRequest(
+        resource_type="TyreInventory",
+        resource_id=tyre_id,
+        resource_name=f"{tyre.tyre_number} ({tyre.brand})",
+        requested_by_staff_id=current_user.id or 0,
+        requested_by_name=current_user.name,
+        reason=f"Deleted directly by {current_user.role} — no approval required.",
+        status="Approved",
+        approved_by_name=current_user.name,
+        approved_at=now,
+    ))
+    db.commit()
+    emit("tyre_updated", {})
+
+
+@router.post("/tyre-inventory/{tyre_id}/restore", response_model=schemas.TyreInventoryOut, dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
+def restore_tyre(tyre_id: int, db: Session = Depends(get_db)):
+    """Admin/Maintenance: undo a soft-delete — the tyre reappears in Tyre
+    Inventory exactly as it was."""
+    tyre = db.get(models.TyreInventory, tyre_id)
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    if tyre.deleted_at is None:
+        raise HTTPException(409, "Tyre is not deleted")
+    tyre.deleted_at = None
+    db.commit()
+    db.refresh(tyre)
+    emit("tyre_updated", {})
+    return tyre
+
+
+@router.delete("/tyre-inventory/{tyre_id}/permanent", status_code=204, dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
+def permanently_delete_tyre(tyre_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Admin/Maintenance: irreversibly delete an already soft-deleted tyre. Only
+    reachable from the "Tyre Archive" page."""
+    tyre = db.get(models.TyreInventory, tyre_id)
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    auto_reject_stale_requests(db, "TyreInventory", tyre_id, current_user.name)
     db.delete(tyre)
     db.commit()
     emit("tyre_updated", {})
