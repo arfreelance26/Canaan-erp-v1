@@ -461,9 +461,19 @@ export default function DriverRecordPage() {
                               // decision buttons are blocked until someone corrects
                               // the data and clicks Return for Review on Flagged Trips.
                               const blocked = trip.flaggedForRecheck && !trip.recheckReturned;
+                              // Terminal "closed, verified" state — stays true (and the
+                              // row stays visibly marked) until the trip is flagged again.
+                              const closed = trip.auditVerified;
                               return (
                                 <tr key={trip.id}>
-                                  <td className="px-3 py-2 font-medium text-gray-800">{trip.tripId}</td>
+                                  <td className="px-3 py-2 font-medium text-gray-800">
+                                    {trip.tripId}
+                                    {closed && (
+                                      <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700">
+                                        <CheckCircle2 className="h-2.5 w-2.5" /> Verified
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="px-3 py-2 text-gray-600">{formatDate(trip.scheduledDate)}</td>
                                   <td className="px-3 py-2 text-gray-600">
                                     {trip.origin || "—"} <span className="text-gray-300">→</span> {trip.destination || "—"}
@@ -512,8 +522,8 @@ export default function DriverRecordPage() {
                                         <button
                                           type="button"
                                           onClick={() => { setFlagTrip(trip); setFlagReason(""); }}
-                                          disabled={blocked}
-                                          title={blocked ? "Under review — return for review before re-flagging" : undefined}
+                                          disabled={blocked || closed}
+                                          title={blocked ? "Under review — return for review before re-flagging" : closed ? "Already verified by Audit" : undefined}
                                           className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                           <Flag className="h-3.5 w-3.5" />
@@ -522,12 +532,12 @@ export default function DriverRecordPage() {
                                         <button
                                           type="button"
                                           onClick={() => handleVerify(trip)}
-                                          disabled={blocked || verifyingId === trip.id}
-                                          title={blocked ? "Under review — return for review before verifying" : undefined}
+                                          disabled={blocked || closed || verifyingId === trip.id}
+                                          title={blocked ? "Under review — return for review before verifying" : closed ? "Already verified by Audit" : undefined}
                                           className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                           <CheckCircle2 className="h-3.5 w-3.5" />
-                                          {verifyingId === trip.id ? "Verifying..." : "Mark as Verified"}
+                                          {closed ? "Verified" : verifyingId === trip.id ? "Verifying..." : "Mark as Verified"}
                                         </button>
                                       </div>
                                     </div>

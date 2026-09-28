@@ -111,10 +111,13 @@ export type Trip = {
 
   // Auditor recheck workflow: flaggedForRecheck && !recheckReturned = "Under
   // Review" (blocked); flaggedForRecheck && recheckReturned = "Returned for
-  // Review" (Auditor can Verify or re-Flag). Full history: GET .../recheck-history.
+  // Review" (Auditor can Verify or re-Flag). auditVerified = terminal
+  // "closed, verified" state — cleared the moment the trip is flagged again.
+  // Full history: GET .../recheck-history.
   flaggedForRecheck?: boolean;
   flaggedRemark?: string;
   recheckReturned?: boolean;
+  auditVerified?: boolean;
   // Yard Supervisor: advance paid to driver verification
   advanceVerified?: boolean | null;
   advanceVerificationRemark?: string;

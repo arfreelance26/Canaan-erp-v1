@@ -487,6 +487,12 @@ class Trip(Base):
     flagged_for_recheck = Column(Boolean, default=False, nullable=False)
     flagged_remark = Column(Text, nullable=True)
     recheck_returned = Column(Boolean, default=False, nullable=False)
+    # Set True by a Verify action (see verify_trip_recheck) — a closed,
+    # terminal state: the trip stays visibly "Verified" and both the Flag and
+    # Verify actions are disabled for it on Driver Record. Cleared back to
+    # False the moment the trip is flagged again (a new flag supersedes a
+    # past verification).
+    audit_verified = Column(Boolean, default=False, nullable=False)
     # Yard Supervisor: advance paid to driver verification
     advance_verified = Column(Boolean, nullable=True)
     advance_verification_remark = Column(Text, nullable=True)

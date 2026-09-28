@@ -492,6 +492,7 @@ class TripBase(OrmBase):
     flagged_for_recheck: bool = False
     flagged_remark: Optional[str] = None
     recheck_returned: bool = False
+    audit_verified: bool = False
     advance_verified: Optional[bool] = None
     advance_verification_remark: Optional[str] = None
     advance_corrected_amount: Optional[Decimal] = None
@@ -608,6 +609,24 @@ class TripRecheckEventOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TripRecheckEventListOut(BaseModel):
+    """One row in the page-wide "Recheck History" log on Audit Flagged Trips —
+    every Flag / Return for Review / Verify event ever logged, across every
+    trip, enriched with just enough trip context (id, driver, route) to be
+    searchable without opening each trip individually."""
+    id: int
+    trip_id: int
+    trip_id_str: str
+    driver_name: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    event: Literal["Flagged", "Returned for Review", "Verified"]
+    remark: Optional[str] = None
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
 
 
 class AuditVerifiedTripOut(BaseModel):

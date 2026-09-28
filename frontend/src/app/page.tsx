@@ -34,6 +34,7 @@ import {
   Fuel,
   Pencil,
   LayoutDashboard,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -51,6 +52,7 @@ import {
   editApprovalsApi,
   fuelLogsApi,
   downloadExcel,
+  type AuditVerifiedTrip,
 } from "@/lib/api";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { getComplianceStatus } from "@/lib/compliance";
@@ -153,6 +155,7 @@ function AdminDashboard() {
   const [tyreInventory, setTyreInventory] = useState<TyreInventoryItem[]>([]);
   const [emiRecords, setEmiRecords] = useState<EmiRecord[]>([]);
   const [recurringPayments, setRecurringPayments] = useState<RecurringPayment[]>([]);
+  const [auditVerifiedTrips, setAuditVerifiedTrips] = useState<AuditVerifiedTrip[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<"overview" | "commercial" | "accounts" | "yard" | "tripsheet" | "maintenance">("overview");
   const [sheetDeliveredFilter, setSheetDeliveredFilter] = useState<"All" | "Awaiting Receipt" | "Received">("All");
@@ -249,9 +252,10 @@ function AdminDashboard() {
       financeApi.listEmi(),
       financeApi.listRecurring(),
       maintenanceApi.getStatus(),
+      tripsApi.listAuditVerified(),
     ])
       .then((results) => {
-        const [t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, ms] = results;
+        const [t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, ms, av] = results;
         const failed: string[] = [];
         if (t.status === "fulfilled") setTrucks(t.value); else failed.push("Trucks");
         if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
@@ -267,6 +271,7 @@ function AdminDashboard() {
         if (emi.status === "fulfilled") setEmiRecords(emi.value); else failed.push("EMI Records");
         if (rp.status === "fulfilled") setRecurringPayments(rp.value); else failed.push("Recurring Payments");
         if (ms.status === "fulfilled") setMaintenanceStatus(ms.value); else failed.push("Maintenance Status");
+        if (av.status === "fulfilled") setAuditVerifiedTrips(av.value); else failed.push("Audit Verified Trips");
         if (failed.length > 0) {
           showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
         }
@@ -300,6 +305,20 @@ function AdminDashboard() {
     () => trips.filter(isActiveTrip).length,
     [trips]
   );
+
+  // Auditor recheck workflow — flagged split into "under review" (blocked,
+  // awaiting a fix) vs "returned" (fixed, awaiting the Auditor's decision),
+  // both counted together for the KPI; Verified is a live count from Audit
+  // Verified Trips, a positive "audit health" signal rather than a to-do.
+  const flaggedUnderReviewCount = useMemo(
+    () => trips.filter((t) => t.flaggedForRecheck && !t.recheckReturned).length,
+    [trips]
+  );
+  const flaggedReturnedCount = useMemo(
+    () => trips.filter((t) => t.flaggedForRecheck && t.recheckReturned).length,
+    [trips]
+  );
+  const flaggedTotalCount = flaggedUnderReviewCount + flaggedReturnedCount;
 
   const trucksOnTripIds = useMemo(
     () =>
@@ -713,6 +732,29 @@ function AdminDashboard() {
           icon={Wallet}
           variant="default"
         />
+      </div>
+
+      {/* ── Section 1b: Audit ────────────────────────────────────────────── */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Audit</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
+          <StatCard
+            label="Flagged Trips"
+            value={String(flaggedTotalCount)}
+            caption={`${flaggedUnderReviewCount} under review · ${flaggedReturnedCount} returned`}
+            icon={Flag}
+            variant={flaggedUnderReviewCount > 0 ? "red" : flaggedTotalCount > 0 ? "amber" : "emerald"}
+            onClick={() => router.push("/trips/flagged")}
+          />
+          <StatCard
+            label="Audit Verified"
+            value={String(auditVerifiedTrips.length)}
+            caption="Trips Audit has signed off on"
+            icon={CheckCircle2}
+            variant="emerald"
+            onClick={() => router.push("/trips/audit-verified")}
+          />
+        </div>
       </div>
 
       {/* ── Trip Sheet Tracking ─────────────────────────────────────────── */}

@@ -15,6 +15,7 @@ import {
   IndianRupee,
   FileWarning,
   CircleDot,
+  Flag,
 } from "lucide-react";
 import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
@@ -138,6 +139,14 @@ export function FinanceManagerDashboard() {
     [trips]
   );
 
+  // Trips an Auditor flagged and currently under review (not yet returned) —
+  // Accounts is one of the two roles expected to correct these and return
+  // them for review, so this is a to-do count, not just a stat.
+  const flaggedNeedingFix = useMemo(() =>
+    trips.filter((t) => t.flaggedForRecheck && !t.recheckReturned).length,
+    [trips]
+  );
+
   // Recurring payments due in 7 days
   const dueSoonRecurring = useMemo(() =>
     recurring.filter((r) => r.status === "Active" && daysBetween(r.nextDueDate) <= 7 && daysBetween(r.nextDueDate) >= 0),
@@ -190,10 +199,11 @@ export function FinanceManagerDashboard() {
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard icon={Landmark}      label="Active EMIs"          value={loading ? "—" : activeEmis.length}          variant="blue"    caption={loading ? "" : `${fmt(monthlyEmiTotal)}/mo`} />
         <StatCard icon={CalendarCheck} label="Pending Finalization" value={loading ? "—" : pendingFinalization.length} variant="purple"  caption="Trips awaiting invoice" />
         <StatCard icon={ShieldCheck}   label="Compliance Alerts"    value={loading ? "—" : complianceAlerts.length}    variant={complianceAlerts.some(a => a.status === "Expired") ? "red" : "amber"} caption={complianceAlerts.length > 0 ? `${complianceAlerts.filter(a => a.status === "Expired").length} expired` : "All valid"} />
+        <StatCard icon={Flag}          label="Flagged Trips"        value={loading ? "—" : flaggedNeedingFix}           variant={flaggedNeedingFix > 0 ? "red" : "emerald"} caption={flaggedNeedingFix > 0 ? "Need your fix" : "None needing a fix"} onClick={() => router.push("/trips/flagged")} />
       </div>
 
       {/* Quick Links */}

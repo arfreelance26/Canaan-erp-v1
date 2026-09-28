@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Flag, Undo2, FileText, ClipboardList, Pencil } from "lucide-react";
-import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
+import { Flag, Undo2, FileText, ClipboardList, Pencil, History as HistoryIcon, CheckCircle2 } from "lucide-react";
+import { tripsApi, driversApi, trucksApi, customersApi, type TripRecheckEventRow } from "@/lib/api";
 import { mapLimit } from "@/lib/async-pool";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -14,7 +14,9 @@ import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { formatDate } from "@/lib/format-date";
+import { Dialog } from "@/components/ui/Dialog";
+import { formatDate, formatDateTime } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -22,6 +24,18 @@ import { confirmAction, showSuccess, showError } from "@/lib/swal";
 
 type BookingDialogState = { trip: Trip; readOnly: boolean };
 type SheetDialogState = { trip: Trip; readOnly: boolean };
+
+const EVENT_ICON: Record<TripRecheckEventRow["event"], typeof Flag> = {
+  Flagged: Flag,
+  "Returned for Review": Undo2,
+  Verified: CheckCircle2,
+};
+
+const EVENT_COLOR: Record<TripRecheckEventRow["event"], string> = {
+  Flagged: "bg-red-100 text-red-700",
+  "Returned for Review": "bg-blue-100 text-blue-700",
+  Verified: "bg-emerald-100 text-emerald-700",
+};
 
 export default function FlaggedTripsPage() {
   const { user } = useAuth();
@@ -39,6 +53,10 @@ export default function FlaggedTripsPage() {
   const [returningId, setReturningId] = useState<string | null>(null);
   const [bookingDialog, setBookingDialog] = useState<BookingDialogState | null>(null);
   const [sheetDialog, setSheetDialog] = useState<SheetDialogState | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyEvents, setHistoryEvents] = useState<TripRecheckEventRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearch, setHistorySearch] = useState("");
 
   // allSettled — a source failing (e.g. Trucks/Customers, if ever role-gated
   // for a role this page gets opened up to) must not blank the whole page.
@@ -118,18 +136,40 @@ export default function FlaggedTripsPage() {
     }
   }
 
+  // One page-wide log instead of a per-trip button — refetched fresh every
+  // time it's opened, covering every trip ever flagged (not just the ones
+  // currently open on this page), searchable in one place.
+  function openHistory() {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    tripsApi.listRecheckEvents()
+      .then(setHistoryEvents)
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }
+
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
-          <Flag className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Audit Flagged Trips</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Trips flagged for review</p>
+      <div className="flex items-center justify-between gap-3.5">
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white text-red-600 shadow-sm">
+            <Flag className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Audit Flagged Trips</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Trips flagged for review</p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={openHistory}
+          className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+        >
+          <HistoryIcon className="h-4 w-4" />
+          History
+        </button>
       </div>
 
       <PillSearch placeholder="Search by trip ID, driver, or reason…" value={searchQuery} onChange={setSearchQuery} />
@@ -288,6 +328,74 @@ export default function FlaggedTripsPage() {
           }
         }}
       />
+
+      {/* History — every Flag / Return for Review / Verify event ever logged,
+          across every trip (not just the ones currently on this page), in
+          one searchable log instead of having to open each trip individually. */}
+      <Dialog
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title="Recheck History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by trip ID, driver, actor, or remark…" value={historySearch} onChange={setHistorySearch} />
+          {historyLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = historyEvents.filter((ev) =>
+              !historySearch ||
+              ev.tripIdStr.toLowerCase().includes(historySearch.toLowerCase()) ||
+              ev.driverName?.toLowerCase().includes(historySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(historySearch.toLowerCase()) ||
+              ev.remark?.toLowerCase().includes(historySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {historyEvents.length === 0 ? "No trips have ever been flagged." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Event</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Remark</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-gray-800">{ev.tripIdStr}</p>
+                            {ev.driverName && <p className="text-[11px] text-gray-400">{ev.driverName}</p>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 max-w-[220px] whitespace-normal text-gray-500">{ev.remark || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

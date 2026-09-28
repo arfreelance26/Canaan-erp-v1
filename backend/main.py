@@ -180,6 +180,8 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN flagged_remark TEXT NULL",
         # Auditor recheck workflow: corrected-and-returned sub-state (see TripRecheckEvent for history)
         "ALTER TABLE trips ADD COLUMN recheck_returned BOOLEAN NOT NULL DEFAULT FALSE",
+        # Terminal "closed, verified by Audit" state — see models.py for the full state machine
+        "ALTER TABLE trips ADD COLUMN audit_verified BOOLEAN NOT NULL DEFAULT FALSE",
         # Advance paid to driver verification by Yard Supervisor
         "ALTER TABLE trips ADD COLUMN advance_verified TINYINT(1) NULL",
         "ALTER TABLE trips ADD COLUMN advance_verification_remark TEXT NULL",

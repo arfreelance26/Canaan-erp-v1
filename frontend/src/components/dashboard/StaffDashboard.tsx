@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Eye, FileBarChart2, Download, Loader2, X, Inbox } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Eye, FileBarChart2, Download, Loader2, X, Inbox, Flag } from "lucide-react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -49,6 +50,7 @@ function TripRow({ trip }: { trip: Trip }) {
 }
 
 export function StaffDashboard() {
+  const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -84,6 +86,11 @@ export function StaffDashboard() {
   const pendingEntry = trips.filter(
     (t) => t.tripSheetReceived === true && !t.hasSheet
   );
+
+  // Trips an Auditor flagged and currently under review (not yet returned) —
+  // Trip Sheet Register is one of the two roles expected to correct these
+  // and return them for review, so this is a to-do count, not just a stat.
+  const flaggedNeedingFix = trips.filter((t) => t.flaggedForRecheck && !t.recheckReturned);
 
   // Date-filtered lists for the View modal: Pending Receive by delivered date,
   // Pending Entry by received date.
@@ -207,7 +214,7 @@ export function StaffDashboard() {
       <Separator />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className={`rounded-xl border px-5 py-4 ${pendingReceive.length > 0 ? "border-amber-200 bg-amber-50 dark:border-amber-400 dark:bg-amber-100" : "border-gray-200 bg-white dark:bg-[#141929]"}`}>
           <p className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-600">Pending Receive</p>
           <p className="mt-1 text-4xl font-bold leading-none text-amber-700 dark:text-amber-700">{loading ? "—" : pendingReceive.length}</p>
@@ -218,6 +225,18 @@ export function StaffDashboard() {
           <p className="mt-1 text-4xl font-bold leading-none text-blue-700 dark:text-blue-900">{loading ? "—" : pendingEntry.length}</p>
           <p className="mt-1 text-[11px] text-blue-500 dark:text-blue-800">Received, trip sheet not entered</p>
         </div>
+        <button
+          type="button"
+          onClick={() => router.push("/trips/flagged")}
+          className={`rounded-xl border px-5 py-4 text-left transition-shadow hover:shadow-md ${flaggedNeedingFix.length > 0 ? "border-red-200 bg-red-50 dark:border-red-400 dark:bg-red-50" : "border-gray-200 bg-white dark:bg-[#141929]"}`}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-800">Flagged Trips</p>
+            <Flag className="h-4 w-4 text-red-400" />
+          </div>
+          <p className="mt-1 text-4xl font-bold leading-none text-red-700 dark:text-red-900">{loading ? "—" : flaggedNeedingFix.length}</p>
+          <p className="mt-1 text-[11px] text-red-500 dark:text-red-800">{flaggedNeedingFix.length > 0 ? "Need your fix" : "None needing a fix"}</p>
+        </button>
       </div>
 
       <Separator />

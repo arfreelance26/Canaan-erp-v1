@@ -655,6 +655,43 @@ def generate_combined_invoice(payload: schemas.CombinedInvoiceCreate, db: Sessio
     return [_enrich(t) for t in trips]
 
 
+@router.get("/recheck-events", response_model=list[schemas.TripRecheckEventListOut])
+def list_all_recheck_events(db: Session = Depends(get_db)):
+    """Every Flag / Return for Review / Verify event ever logged, across every
+    trip — the page-wide "Recheck History" log on Audit Flagged Trips, so the
+    full audit trail is searchable in one place instead of opening each
+    trip's history individually. Most recent first. Registered before
+    GET /{trip_id} so "recheck-events" isn't swallowed as a trip_id path param.
+    """
+    events = (
+        db.query(models.TripRecheckEvent)
+        .order_by(models.TripRecheckEvent.created_at.desc(), models.TripRecheckEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    trip_ids = {e.trip_id for e in events}
+    trips_by_id = {t.id: t for t in db.query(models.Trip).filter(models.Trip.id.in_(trip_ids)).all()}
+
+    result = []
+    for e in events:
+        trip = trips_by_id.get(e.trip_id)
+        result.append({
+            "id": e.id,
+            "trip_id": e.trip_id,
+            "trip_id_str": trip.trip_id if trip else "—",
+            "driver_name": trip.driver_name if trip else None,
+            "origin": trip.origin if trip else None,
+            "destination": trip.destination if trip else None,
+            "event": e.event,
+            "remark": e.remark,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/audit-verified", response_model=list[schemas.AuditVerifiedTripOut])
 def list_audit_verified_trips(db: Session = Depends(get_db)):
     """The counterpart to Flagged Trips: every trip whose most recent Auditor
@@ -1408,6 +1445,9 @@ def flag_trip_for_recheck(
     trip.flagged_for_recheck = True
     trip.recheck_returned = False
     trip.flagged_remark = body.remark.strip()
+    # A new flag supersedes any past verification — the trip is no longer
+    # considered "closed, verified" once it's under review again.
+    trip.audit_verified = False
     _log_recheck_event(db, trip_id, "Flagged", body.remark.strip(), current_user)
     db.commit()
     db.refresh(trip)
@@ -1457,7 +1497,9 @@ def verify_trip_recheck(
     current_user: TokenUser = Depends(get_current_user),
 ):
     """Auditor: close the loop — clears any flag/return state entirely (the
-    trip drops off Flagged Trips). Callable on a trip that was never flagged
+    trip drops off Flagged Trips) and marks the trip as terminally verified:
+    it stays visibly "Verified" and both Flag and Verify are disabled for it
+    on Driver Record from now on. Callable on a trip that was never flagged
     too, as a proactive "reviewed, no issue" confirmation."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
@@ -1469,6 +1511,7 @@ def verify_trip_recheck(
     trip.flagged_for_recheck = False
     trip.recheck_returned = False
     trip.flagged_remark = None
+    trip.audit_verified = True
     _log_recheck_event(db, trip_id, "Verified", body.remark.strip(), current_user)
     db.commit()
     db.refresh(trip)

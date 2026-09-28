@@ -704,6 +704,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     flaggedForRecheck: b.flagged_for_recheck ?? undefined,
     flaggedRemark: b.flagged_remark ?? undefined,
     recheckReturned: b.recheck_returned ?? undefined,
+    auditVerified: b.audit_verified ?? undefined,
     advanceVerified: b.advance_verified ?? undefined,
     advanceVerificationRemark: b.advance_verification_remark ?? undefined,
     advanceCorrectedAmount: b.advance_corrected_amount != null ? String(b.advance_corrected_amount) : undefined,
@@ -1602,6 +1603,24 @@ export type TripRecheckEvent = {
   createdAt: string;
 };
 
+// One row in the page-wide "Recheck History" log on Audit Flagged Trips — see
+// TripRecheckEventListOut on the backend. Unlike TripRecheckEvent above (one
+// trip's own history), this is enriched with trip identity so it's
+// searchable across every trip that's ever been flagged.
+export type TripRecheckEventRow = {
+  id: number;
+  tripDbId: string;
+  tripIdStr: string;
+  driverName: string | null;
+  origin: string | null;
+  destination: string | null;
+  event: "Flagged" | "Returned for Review" | "Verified";
+  remark: string | null;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 // One row on the "Audit Verified Trips" page — see AuditVerifiedTripOut on the
 // backend. tripDbId is the internal numeric Trip.id (as a string, matching
 // this file's `_dbId`/dbId convention elsewhere), tripId is the human TRP-xxxx.
@@ -1702,6 +1721,24 @@ export const tripsApi = {
     req<B[]>(`/trips/${dbId}/recheck-history`).then((rows) =>
       rows.map((r) => ({
         id: Number(r.id),
+        event: String(r.event) as "Flagged" | "Returned for Review" | "Verified",
+        remark: (r.remark as string | null) ?? null,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
+  // Page-wide log for Audit Flagged Trips' "History" button — every recheck
+  // event across every trip, enriched with trip identity for search.
+  listRecheckEvents: (): Promise<TripRecheckEventRow[]> =>
+    req<B[]>(`/trips/recheck-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        tripDbId: String(r.trip_id ?? ""),
+        tripIdStr: String(r.trip_id_str ?? ""),
+        driverName: (r.driver_name as string | null) ?? null,
+        origin: (r.origin as string | null) ?? null,
+        destination: (r.destination as string | null) ?? null,
         event: String(r.event) as "Flagged" | "Returned for Review" | "Verified",
         remark: (r.remark as string | null) ?? null,
         actorName: String(r.actor_name ?? ""),
