@@ -178,6 +178,8 @@ def _run_schema_migrations():
         # Flagged for re-checking by Docs staff — trip stays pending until unflagged
         "ALTER TABLE trips ADD COLUMN flagged_for_recheck BOOLEAN NOT NULL DEFAULT FALSE",
         "ALTER TABLE trips ADD COLUMN flagged_remark TEXT NULL",
+        # Auditor recheck workflow: corrected-and-returned sub-state (see TripRecheckEvent for history)
+        "ALTER TABLE trips ADD COLUMN recheck_returned BOOLEAN NOT NULL DEFAULT FALSE",
         # Advance paid to driver verification by Yard Supervisor
         "ALTER TABLE trips ADD COLUMN advance_verified TINYINT(1) NULL",
         "ALTER TABLE trips ADD COLUMN advance_verification_remark TEXT NULL",

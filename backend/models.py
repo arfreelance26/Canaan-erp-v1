@@ -476,9 +476,17 @@ class Trip(Base):
     lift_on_amount = Column(Numeric(10, 2), nullable=True)
     lift_on_remarks = Column(Text, nullable=True)
     cha_name = Column(String(200), nullable=True)
-    # Docs staff flagging
+    # Auditor recheck workflow (see TripRecheckEvent for the full history):
+    # flagged_for_recheck=True + recheck_returned=False → "Under Review": the
+    # Auditor flagged this trip's Booking Sheet / Trip Sheet data as suspect;
+    # both the Flag and Verify actions are blocked for it on Driver Record
+    # until someone corrects the data (via Edit Approval) and returns it.
+    # flagged_for_recheck=True + recheck_returned=True → "Returned for
+    # Review": corrected, waiting on the Auditor's fresh Verify/Flag decision.
+    # Both False → normal, not under any review.
     flagged_for_recheck = Column(Boolean, default=False, nullable=False)
     flagged_remark = Column(Text, nullable=True)
+    recheck_returned = Column(Boolean, default=False, nullable=False)
     # Yard Supervisor: advance paid to driver verification
     advance_verified = Column(Boolean, nullable=True)
     advance_verification_remark = Column(Text, nullable=True)
@@ -1267,6 +1275,26 @@ class AuditLog(Base):
     ip_address = Column(String(64))
     user_agent = Column(String(300))
     detail = Column(Text)                                  # short human context (no secrets/PII values)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Auditor recheck history — one row per Flag / Return for Review / Verify
+# action on a trip. The trip's own flagged_for_recheck / recheck_returned
+# columns are the live state; this table is the durable trail behind it, so
+# re-flagging a trip doesn't erase the record of what was found and fixed
+# the first time around.
+# ---------------------------------------------------------------------------
+
+class TripRecheckEvent(Base):
+    __tablename__ = "trip_recheck_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Flagged", "Returned for Review", "Verified"), nullable=False)
+    remark = Column(Text, nullable=True)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 

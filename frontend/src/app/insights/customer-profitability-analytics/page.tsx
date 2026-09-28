@@ -5,11 +5,12 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import React, { useEffect, useState } from "react";
 import {
   Users, TrendingUp, IndianRupee, Trophy,
-  ChevronDown, ChevronUp, BarChart2,
+  ChevronDown, ChevronUp, BarChart2, AlertCircle,
 } from "lucide-react";
 import { tripsApi, type CustomerProfitabilityData } from "@/lib/api";
 import { showError } from "@/lib/swal";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -314,7 +315,17 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
                         <p className="text-sm font-bold text-gray-900">{c.customer_name}</p>
                         <p className="text-[10px] text-gray-400">{c.total_km.toFixed(0)} km · {c.routes.length} route{c.routes.length !== 1 ? "s" : ""}</p>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">{c.trip_count}</td>
+                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">
+                        {c.trip_count}
+                        {c.flagged_trip_count > 0 && (
+                          <span
+                            title={`${c.flagged_trip_count} trip(s) under review — excluded from this customer's totals`}
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700 align-middle"
+                          >
+                            <AlertCircle className="h-2.5 w-2.5" /> {c.flagged_trip_count}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">{fmtINR(c.total_revenue)}</td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">{fmtINR(c.total_expense)}</td>
                       <td className={`px-4 py-3 text-right text-sm font-semibold tabular-nums ${profitColor(c.total_profit)}`}>
@@ -669,24 +680,45 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {selected.recent_trips.map((t: RecentTrip) => (
-                    <tr key={t.trip_id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-2 text-xs font-mono font-semibold text-blue-600">{t.trip_id}</td>
+                    <tr key={t.trip_id} className={cn("hover:bg-gray-50 transition-colors", t.excluded_from_totals && "bg-amber-50/60 hover:bg-amber-50")}>
+                      <td className="px-4 py-2 text-xs font-mono font-semibold text-blue-600">
+                        {t.trip_id}
+                        {t.flagged_for_recheck && (
+                          <span
+                            title={t.flagged_remark ? `Flagged for recheck: ${t.flagged_remark}` : "Flagged for recheck"}
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                          >
+                            <AlertCircle className="h-2.5 w-2.5" /> Under Review
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-xs text-gray-500 tabular-nums">{t.date ?? "—"}</td>
                       <td className="px-4 py-2 text-xs text-gray-700 max-w-[180px] truncate">{t.route}</td>
-                      <td className="px-4 py-2 text-right text-xs font-semibold text-gray-700 tabular-nums">{fmtINR(t.revenue)}</td>
-                      <td className={`px-4 py-2 text-right text-xs font-semibold tabular-nums ${profitColor(t.profit)}`}>
-                        {t.profit >= 0 ? "+" : ""}{fmtINR(t.profit)}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums ${marginBg(t.margin_pct)}`}>
-                          {t.margin_pct.toFixed(1)}%
-                        </span>
-                      </td>
+                      <td className={cn("px-4 py-2 text-right text-xs font-semibold tabular-nums", t.excluded_from_totals ? "text-gray-400" : "text-gray-700")}>{fmtINR(t.revenue)}</td>
+                      {t.excluded_from_totals ? (
+                        <td className="px-4 py-2 text-right text-[11px] text-gray-400" colSpan={2}>Excluded *</td>
+                      ) : (
+                        <>
+                          <td className={`px-4 py-2 text-right text-xs font-semibold tabular-nums ${profitColor(t.profit)}`}>
+                            {t.profit >= 0 ? "+" : ""}{fmtINR(t.profit)}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums ${marginBg(t.margin_pct)}`}>
+                              {t.margin_pct.toFixed(1)}%
+                            </span>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {selected.flagged_trip_count > 0 && (
+              <p className="border-t border-gray-100 bg-amber-50/40 px-4 py-2 text-[11px] text-amber-700">
+                * {selected.flagged_trip_count} trip{selected.flagged_trip_count !== 1 ? "s" : ""} flagged for recheck by Audit — excluded from this customer&apos;s totals until resolved.
+              </p>
+            )}
           </div>
         )}
       </div>

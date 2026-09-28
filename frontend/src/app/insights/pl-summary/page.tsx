@@ -13,6 +13,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { showError } from "@/lib/swal";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { cn } from "@/lib/utils";
 import logoSrc from "@/app/companylogo.png";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
@@ -416,11 +417,16 @@ function TripProfitabilityTab({
   }), [trips, sortKey, sortDir]);
 
   // ── Summary stats ─────────────────────────────────────────────────────────
-  const profitable = trips.filter((t) => t.tripPl >= 0).length;
-  const totalHire  = trips.reduce((s, t) => s + t.hireAmount, 0);
-  const totalExp   = trips.reduce((s, t) => s + t.totalExpense, 0);
-  const netPl      = trips.reduce((s, t) => s + t.tripPl, 0);
-  const { total: finalProfit, hasCpk: hasCpkTrips } = trips.reduce((acc, t) => {
+  // A trip an Auditor has flagged for rechecking still appears in the table
+  // below (with an "Under Review" badge) but is left out of every total here
+  // — the same exclusion the backend already applies to the per-truck P&L.
+  const countedTrips = trips.filter((t) => !t.excludedFromTotals);
+  const flaggedCount = trips.length - countedTrips.length;
+  const profitable = countedTrips.filter((t) => t.tripPl >= 0).length;
+  const totalHire  = countedTrips.reduce((s, t) => s + t.hireAmount, 0);
+  const totalExp   = countedTrips.reduce((s, t) => s + t.totalExpense, 0);
+  const netPl      = countedTrips.reduce((s, t) => s + t.tripPl, 0);
+  const { total: finalProfit, hasCpk: hasCpkTrips } = countedTrips.reduce((acc, t) => {
     const cpk = costPerKmMap[mode]?.[t.truckId];
     const truckExp = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
     if (truckExp != null) return { total: acc.total + (t.hireAmount - t.totalExpense - truckExp), hasCpk: true };
@@ -432,8 +438,8 @@ function TripProfitabilityTab({
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <StatCard label="Total Trips"      value={String(trips.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
-        <StatCard label="Profitable Trips" value={`${profitable} / ${trips.length}`}
-          sub={trips.length ? `${((profitable / trips.length) * 100).toFixed(0)}% success rate` : ""}
+        <StatCard label="Profitable Trips" value={`${profitable} / ${countedTrips.length}`}
+          sub={countedTrips.length ? `${((profitable / countedTrips.length) * 100).toFixed(0)}% success rate` : ""}
           icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
         <StatCard label="Total Hire Revenue" value={fmt(totalHire)} sub={`Expenses: ${fmt(totalExp)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
@@ -474,10 +480,20 @@ function TripProfitabilityTab({
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {sorted.map((t, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                  <tr key={i} className={cn("hover:bg-gray-50 transition-colors", t.excludedFromTotals && "bg-amber-50/60 hover:bg-amber-50")}>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(t.tripSheetDate)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <p className="text-xs font-medium text-gray-800">{t.tripSheetNo || "—"}</p>
+                      <p className="text-xs font-medium text-gray-800">
+                        {t.tripSheetNo || "—"}
+                        {t.flaggedForRecheck && (
+                          <span
+                            title={t.flaggedRemark ? `Flagged for recheck: ${t.flaggedRemark}` : "Flagged for recheck"}
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                          >
+                            <AlertCircle className="h-2.5 w-2.5" /> Under Review
+                          </span>
+                        )}
+                      </p>
                       <p className="text-[11px] text-gray-400">{t.bookingReferenceNo || ""}</p>
                     </td>
                     <td className="px-4 py-3">
@@ -506,17 +522,19 @@ function TripProfitabilityTab({
                         <p className="text-[11px] text-gray-400">{t.totalKm.toLocaleString("en-IN")} km</p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-semibold text-blue-700">{fmt(t.hireAmount)}</td>
-                    <td className="px-4 py-3 text-right text-xs text-gray-600">{fmt(t.totalExpense)}</td>
-                    <td className="px-4 py-3 text-right"><PlBadge value={t.hireAmount - t.totalExpense} /></td>
+                    <td className={cn("px-4 py-3 text-right text-sm font-semibold", t.excludedFromTotals ? "text-gray-400" : "text-blue-700")}>{fmt(t.hireAmount)}</td>
+                    <td className={cn("px-4 py-3 text-right text-xs", t.excludedFromTotals ? "text-gray-400" : "text-gray-600")}>{fmt(t.totalExpense)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {t.excludedFromTotals ? <span className="text-[11px] text-gray-400">Excluded *</span> : <PlBadge value={t.hireAmount - t.totalExpense} />}
+                    </td>
                     <td className="px-4 py-3 text-right text-xs text-gray-600">
-                      {(() => {
+                      {t.excludedFromTotals ? <span className="text-gray-400">—</span> : (() => {
                         const cpk = costPerKmMap[mode]?.[t.truckId];
                         return (cpk != null && t.totalKm > 0) ? fmt(t.totalKm * cpk) : <span className="text-gray-400">—</span>;
                       })()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {(() => {
+                      {t.excludedFromTotals ? <span className="text-[11px] text-gray-400">Excluded *</span> : (() => {
                         const cpk = costPerKmMap[mode]?.[t.truckId];
                         const truckExp = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
                         const grossProfit = t.hireAmount - t.totalExpense;
@@ -531,14 +549,14 @@ function TripProfitabilityTab({
               <tfoot>
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
                   <td colSpan={5} className="px-4 py-3 text-xs font-semibold text-gray-600">
-                    Total ({trips.length} trips)
+                    Total ({countedTrips.length} of {trips.length} trips)
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">{fmt(totalHire)}</td>
                   <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">{fmt(totalExp)}</td>
                   <td className="px-4 py-3 text-right"><PlBadge value={totalHire - totalExp} /></td>
                   <td className="px-4 py-3 text-right text-xs font-semibold text-gray-700">
                     {(() => {
-                      const total = trips.reduce((sum, t) => {
+                      const total = countedTrips.reduce((sum, t) => {
                         const cpk = costPerKmMap[mode]?.[t.truckId];
                         return sum + (cpk != null && t.totalKm > 0 ? t.totalKm * cpk : 0);
                       }, 0);
@@ -548,7 +566,7 @@ function TripProfitabilityTab({
                   <td className="px-4 py-3 text-right">
                     {(() => {
                       let hasCpk = false;
-                      const total = trips.reduce((sum, t) => {
+                      const total = countedTrips.reduce((sum, t) => {
                         const cpk = costPerKmMap[mode]?.[t.truckId];
                         const truckExp = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
                         if (truckExp != null) { hasCpk = true; return sum + (t.hireAmount - t.totalExpense - truckExp); }
@@ -563,6 +581,11 @@ function TripProfitabilityTab({
           </div>
         )}
       </div>
+      {flaggedCount > 0 && (
+        <p className="text-[11px] text-amber-600">
+          * {flaggedCount} trip{flaggedCount !== 1 ? "s" : ""} flagged for recheck by Audit — excluded from the totals above until resolved.
+        </p>
+      )}
     </div>
   );
 }
@@ -715,9 +738,19 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
                 {tripRows.map((t, i) => {
                   const tPl = t.hireAmount - t.totalExpense;
                   return (
-                    <tr key={i} className="hover:bg-gray-50">
+                    <tr key={i} className={cn("hover:bg-gray-50", t.excludedFromTotals && "bg-amber-50/60 hover:bg-amber-50")}>
                       <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(t.tripSheetDate)}</td>
-                      <td className="px-3 py-2 font-medium text-gray-700">{t.tripSheetNo || "—"}</td>
+                      <td className="px-3 py-2 font-medium text-gray-700">
+                        {t.tripSheetNo || "—"}
+                        {t.flaggedForRecheck && (
+                          <span
+                            title={t.flaggedRemark ? `Flagged for recheck: ${t.flaggedRemark}` : "Flagged for recheck"}
+                            className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                          >
+                            <AlertCircle className="h-2.5 w-2.5" /> Under Review
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-gray-600">
                         {t.fromLocation && t.toLocation
                           ? `${t.fromLocation} → ${t.toLocation}`
@@ -726,9 +759,15 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
                           <span className="ml-1.5 text-gray-400">({t.totalKm.toLocaleString("en-IN")} km)</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-semibold text-blue-700">{fmt(t.hireAmount)}</td>
-                      <td className="px-3 py-2 text-gray-600">{fmt(t.totalExpense)}</td>
-                      <td className="px-3 py-2"><PlBadge value={tPl} /></td>
+                      <td className={cn("px-3 py-2 font-semibold", t.excludedFromTotals ? "text-gray-400" : "text-blue-700")}>{fmt(t.hireAmount)}</td>
+                      <td className={cn("px-3 py-2", t.excludedFromTotals ? "text-gray-400" : "text-gray-600")}>{fmt(t.totalExpense)}</td>
+                      <td className="px-3 py-2">
+                        {t.excludedFromTotals ? (
+                          <span className="text-[11px] text-gray-400">Excluded *</span>
+                        ) : (
+                          <PlBadge value={tPl} />
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -743,6 +782,11 @@ function TruckDetailPanel({ entry, netTruckPl }: { entry: TruckPLEntry; netTruck
               </tfoot>
             </table>
           </div>
+          {entry.flaggedTripCount > 0 && (
+            <p className="mt-1.5 text-[11px] text-amber-600">
+              * {entry.flaggedTripCount} trip{entry.flaggedTripCount !== 1 ? "s" : ""} flagged for recheck by Audit — excluded from the totals above until resolved.
+            </p>
+          )}
         </div>
       )}
 
@@ -876,6 +920,14 @@ function TruckProfitabilityTab({
                         <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
                           {entry.tripCount}
                         </span>
+                        {entry.flaggedTripCount > 0 && (
+                          <span
+                            title={`${entry.flaggedTripCount} trip(s) under review — excluded from this truck's totals`}
+                            className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700"
+                          >
+                            <AlertCircle className="h-2.5 w-2.5" /> {entry.flaggedTripCount}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-700 font-medium tabular-nums">
                         {entry.totalKm > 0 ? `${entry.totalKm.toLocaleString("en-IN")} km` : <span className="text-gray-400">—</span>}

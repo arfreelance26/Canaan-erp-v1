@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { IdCard, FileText, ClipboardList, Calculator, Route, Wallet, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { IdCard, FileText, ClipboardList, Calculator, Route, Wallet, ChevronDown, Flag, CheckCircle2 } from "lucide-react";
 import { driversApi, tripsApi, trucksApi, customersApi } from "@/lib/api";
 import { mapLimit } from "@/lib/async-pool";
 import type { Driver } from "@/types/driver";
@@ -17,20 +17,11 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
-import { formatDate, todayIst } from "@/lib/format-date";
+import { formatDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-
-// "YYYY-MM-DD" minus N calendar months, still as "YYYY-MM-DD" — used only for
-// the default range, so plain calendar-date arithmetic (no timezone handling)
-// is exactly right here.
-function monthsBefore(dateStr: string, months: number): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setMonth(dt.getMonth() - months);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-}
+import { showSuccess, showError, confirmAction } from "@/lib/swal";
 
 type SalaryBreakdown = {
   regularPay: number;
@@ -143,17 +134,68 @@ export default function DriverRecordPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
+  // Ids already requested (in-flight or resolved) — persists across renders so
+  // an unrelated re-render (e.g. auto-refresh replacing `trips` with a new
+  // array every 10s) can never re-fire a fetch that's already running or done.
+  // This is what actually fixes the bug below, not the effect's dependency list.
+  const requestedSheetIds = useRef<Set<string>>(new Set());
+  const requestedClosureIds = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  // Defaults to a rolling one-month window — e.g. today 25-09-2026 gives
-  // From 25-08-2026 / To 25-09-2026.
-  const [dateFrom, setDateFrom] = useState(() => monthsBefore(todayIst(), 1));
-  const [dateTo, setDateTo] = useState(() => todayIst());
+  // Defaults to no range at all — Total Trips/Salary show lifetime earnings
+  // until the user deliberately picks a range. tripsInRange's empty-string
+  // checks already treat "" as "no bound on this side", so no other change is
+  // needed to make an unset date act as lifetime.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [bookingTrip, setBookingTrip] = useState<Trip | null>(null);
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [breakdownTrip, setBreakdownTrip] = useState<Trip | null>(null);
+  const [flagTrip, setFlagTrip] = useState<Trip | null>(null);
+  const [flagReason, setFlagReason] = useState("");
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
+  async function submitFlag(e: React.FormEvent) {
+    e.preventDefault();
+    if (!flagTrip || !flagReason.trim()) return;
+    setFlagSubmitting(true);
+    try {
+      const updated = await tripsApi.flagForRecheck(flagTrip.id, flagReason.trim());
+      // Patch locally for instant feedback — the "trip_updated" WS event this
+      // page already listens to will also refetch, but that shouldn't be the
+      // only thing making the button reflect the new state.
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      showSuccess(`${flagTrip.tripId} moved to Audit Flagged Trips.`, "Flagged for rechecking");
+      setFlagTrip(null);
+      setFlagReason("");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to flag this trip.");
+    } finally {
+      setFlagSubmitting(false);
+    }
+  }
+
+  async function handleVerify(trip: Trip) {
+    const result = await confirmAction(
+      `Mark ${trip.tripId} as verified?`,
+      trip.flaggedForRecheck ? "This closes out its recheck — it will come off Audit Flagged Trips." : undefined,
+      "Yes, verify"
+    );
+    if (!result.isConfirmed) return;
+    setVerifyingId(trip.id);
+    try {
+      const updated = await tripsApi.verifyRecheck(trip.id);
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      showSuccess(`${trip.tripId} marked as verified.`);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to verify this trip.");
+    } finally {
+      setVerifyingId(null);
+    }
+  }
 
   function toggleExpanded(driverId: string) {
     setExpandedIds((prev) => {
@@ -208,38 +250,62 @@ export default function DriverRecordPage() {
   // Lazy-load trip sheets for ONLY the in-range trips that have one and aren't
   // already cached — a fresh date range only ever needs to fetch the newly
   // exposed trips, not refetch everything.
+  //
+  // Guarded by requestedSheetIds (a ref, not state) rather than by "cancel the
+  // previous run" — auto-refresh replaces `trips` (and so `tripsInRange`) with
+  // a new array every ~10s even when nothing changed, which used to re-fire
+  // this effect and cancel any in-flight batch before it could commit its
+  // results. On a driver with enough trips to take longer than one refresh
+  // cycle to fetch, that meant the fetch could restart forever and never
+  // finish. Marking ids as requested synchronously, before the async call
+  // starts, makes a re-run a no-op for anything already in flight or done —
+  // so a slow batch is left alone to complete instead of being thrown away.
   useEffect(() => {
-    const toFetch = tripsInRange.filter((t) => t.hasSheet && !sheets.has(t.id));
+    const toFetch = tripsInRange.filter(
+      (t) => t.hasSheet && !sheets.has(t.id) && !requestedSheetIds.current.has(t.id)
+    );
     if (toFetch.length === 0) return;
-    let cancelled = false;
-    mapLimit(toFetch, 8, (t) => tripsApi.getSheet(t.id).then((sh) => ({ id: t.id, sh })).catch(() => null))
-      .then((results) => {
-        if (cancelled) return;
-        setSheets((prev) => {
-          const next = new Map(prev);
-          for (const r of results) if (r?.sh) next.set(r.id, r.sh);
-          return next;
-        });
+    for (const t of toFetch) requestedSheetIds.current.add(t.id);
+    mapLimit(toFetch, 8, (t) =>
+      tripsApi.getSheet(t.id)
+        .then((sh) => ({ id: t.id, sh, failed: false }))
+        .catch(() => ({ id: t.id, sh: null as TripSheetData | null, failed: true }))
+    ).then((results) => {
+      setSheets((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const r of results) if (r.sh) { next.set(r.id, r.sh); changed = true; }
+        return changed ? next : prev;
       });
-    return () => { cancelled = true; };
+      // A genuine failure (network error, timeout) is allowed to retry on a
+      // later pass rather than being stuck for the rest of the session — a
+      // successful call that simply found no sheet is left marked done.
+      for (const r of results) if (r.failed) requestedSheetIds.current.delete(r.id);
+    });
   }, [tripsInRange, sheets]);
 
   // Lazy-load booking-sheet closures for the "View Booking Sheet" button — same
-  // pattern as the sheet fetch above, but keyed off closure existence instead.
+  // pattern (and same fix) as the sheet fetch above, keyed off closure
+  // existence instead.
   useEffect(() => {
-    const toFetch = tripsInRange.filter((t) => t.hasClosure && !closures.has(t.id));
+    const toFetch = tripsInRange.filter(
+      (t) => t.hasClosure && !closures.has(t.id) && !requestedClosureIds.current.has(t.id)
+    );
     if (toFetch.length === 0) return;
-    let cancelled = false;
-    mapLimit(toFetch, 8, (t) => tripsApi.getClosure(t.id).then((cl) => ({ id: t.id, cl })).catch(() => null))
-      .then((results) => {
-        if (cancelled) return;
-        setClosures((prev) => {
-          const next = new Map(prev);
-          for (const r of results) if (r?.cl) next.set(r.id, r.cl);
-          return next;
-        });
+    for (const t of toFetch) requestedClosureIds.current.add(t.id);
+    mapLimit(toFetch, 8, (t) =>
+      tripsApi.getClosure(t.id)
+        .then((cl) => ({ id: t.id, cl, failed: false }))
+        .catch(() => ({ id: t.id, cl: null as TripClosureData | null, failed: true }))
+    ).then((results) => {
+      setClosures((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const r of results) if (r.cl) { next.set(r.id, r.cl); changed = true; }
+        return changed ? next : prev;
       });
-    return () => { cancelled = true; };
+      for (const r of results) if (r.failed) requestedClosureIds.current.delete(r.id);
+    });
   }, [tripsInRange, closures]);
 
   const tripsByDriverId = useMemo(() => {
@@ -283,8 +349,15 @@ export default function DriverRecordPage() {
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by name or driver ID…" value={searchQuery} onChange={setSearchQuery} />
-        <div className="ml-auto" title="Scopes Total Trips and Salary to this date range">
-          <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        <div className="ml-auto flex items-center gap-2">
+          {!dateFrom && !dateTo && (
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-600">
+              Showing lifetime earnings
+            </span>
+          )}
+          <div title="Scopes Total Trips and Salary to this date range — leave blank for lifetime earnings">
+            <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          </div>
         </div>
       </div>
 
@@ -384,6 +457,10 @@ export default function DriverRecordPage() {
                             {driverTrips.map((trip) => {
                               const sheet = sheets.get(trip.id);
                               const hasSalary = trip.hasSheet && sheet;
+                              // "Under Review": flagged and not yet returned — both
+                              // decision buttons are blocked until someone corrects
+                              // the data and clicks Return for Review on Flagged Trips.
+                              const blocked = trip.flaggedForRecheck && !trip.recheckReturned;
                               return (
                                 <tr key={trip.id}>
                                   <td className="px-3 py-2 font-medium text-gray-800">{trip.tripId}</td>
@@ -397,35 +474,62 @@ export default function DriverRecordPage() {
                                       : <span className="text-gray-400">No sheet</span>}
                                   </td>
                                   <td className="px-3 py-2">
-                                    <div className="flex flex-wrap gap-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => setBookingTrip(trip)}
-                                        disabled={!trip.hasClosure}
-                                        className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                        title={trip.hasClosure ? undefined : "No booking sheet recorded for this trip"}
-                                      >
-                                        <FileText className="h-3.5 w-3.5" />
-                                        View Booking Sheet
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setSheetTrip(trip)}
-                                        className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
-                                      >
-                                        <ClipboardList className="h-3.5 w-3.5" />
-                                        View Trip Sheet
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setBreakdownTrip(trip)}
-                                        disabled={!hasSalary}
-                                        className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                        title={hasSalary ? undefined : "No trip sheet recorded for this trip"}
-                                      >
-                                        <Calculator className="h-3.5 w-3.5" />
-                                        Salary Breakdown
-                                      </button>
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      <div className="flex flex-wrap gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => setBookingTrip(trip)}
+                                          disabled={!trip.hasClosure}
+                                          className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                          title={trip.hasClosure ? undefined : "No booking sheet recorded for this trip"}
+                                        >
+                                          <FileText className="h-3.5 w-3.5" />
+                                          View Booking Sheet
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setSheetTrip(trip)}
+                                          className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                                        >
+                                          <ClipboardList className="h-3.5 w-3.5" />
+                                          View Trip Sheet
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setBreakdownTrip(trip)}
+                                          disabled={!hasSalary}
+                                          className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                          title={hasSalary ? undefined : "No trip sheet recorded for this trip"}
+                                        >
+                                          <Calculator className="h-3.5 w-3.5" />
+                                          Salary Breakdown
+                                        </button>
+                                      </div>
+                                      {/* Auditor decision buttons — visually separated from the
+                                          read-only document buttons on the left with a divider,
+                                          and pushed to the right edge via justify-between above. */}
+                                      <div className="flex flex-wrap items-center gap-1.5 border-l border-gray-200 pl-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => { setFlagTrip(trip); setFlagReason(""); }}
+                                          disabled={blocked}
+                                          title={blocked ? "Under review — return for review before re-flagging" : undefined}
+                                          className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                          <Flag className="h-3.5 w-3.5" />
+                                          {blocked ? "Flagged" : "Flag For Rechecking"}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleVerify(trip)}
+                                          disabled={blocked || verifyingId === trip.id}
+                                          title={blocked ? "Under review — return for review before verifying" : undefined}
+                                          className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                          <CheckCircle2 className="h-3.5 w-3.5" />
+                                          {verifyingId === trip.id ? "Verifying..." : "Mark as Verified"}
+                                        </button>
+                                      </div>
                                     </div>
                                   </td>
                                 </tr>
@@ -528,6 +632,52 @@ export default function DriverRecordPage() {
             </div>
           );
         })()}
+      </Dialog>
+
+      {/* Flag For Rechecking — reason is required; submitting moves the trip
+          onto the Flagged Trips page (filtered by flaggedForRecheck there). */}
+      <Dialog
+        open={flagTrip !== null}
+        onClose={() => { if (!flagSubmitting) { setFlagTrip(null); setFlagReason(""); } }}
+        title={flagTrip ? `Flag ${flagTrip.tripId} For Rechecking` : "Flag For Rechecking"}
+        className="sm:max-w-md"
+      >
+        <form onSubmit={submitFlag} className="flex flex-col gap-4">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            This trip will be moved to <span className="font-semibold">Audit Flagged Trips</span> for review.
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-gray-700">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={flagReason}
+              onChange={(e) => setFlagReason(e.target.value)}
+              placeholder="Describe what needs to be rechecked on this trip..."
+              rows={4}
+              required
+              autoFocus
+              className="w-full resize-none rounded-lg border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-red-400 focus:bg-white focus:ring-4 focus:ring-red-500/10"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => { setFlagTrip(null); setFlagReason(""); }}
+              disabled={flagSubmitting}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={flagSubmitting || !flagReason.trim()}
+              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {flagSubmitting ? "Flagging..." : "Flag Trip"}
+            </button>
+          </div>
+        </form>
       </Dialog>
     </div>
   );

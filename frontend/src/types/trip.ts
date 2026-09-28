@@ -109,9 +109,12 @@ export type Trip = {
   liftOnRemarks?: string;
   chaName?: string;
 
-  // Docs staff re-check flag
+  // Auditor recheck workflow: flaggedForRecheck && !recheckReturned = "Under
+  // Review" (blocked); flaggedForRecheck && recheckReturned = "Returned for
+  // Review" (Auditor can Verify or re-Flag). Full history: GET .../recheck-history.
   flaggedForRecheck?: boolean;
   flaggedRemark?: string;
+  recheckReturned?: boolean;
   // Yard Supervisor: advance paid to driver verification
   advanceVerified?: boolean | null;
   advanceVerificationRemark?: string;

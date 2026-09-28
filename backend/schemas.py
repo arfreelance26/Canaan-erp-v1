@@ -491,6 +491,7 @@ class TripBase(OrmBase):
     cha_name: Optional[str] = None
     flagged_for_recheck: bool = False
     flagged_remark: Optional[str] = None
+    recheck_returned: bool = False
     advance_verified: Optional[bool] = None
     advance_verification_remark: Optional[str] = None
     advance_corrected_amount: Optional[Decimal] = None
@@ -595,6 +596,39 @@ class TripOut(TripBase):
     lr_to_pay: bool = False
     lr_to_be_billed: bool = False
     lr_saved_at: Optional[datetime] = None
+
+
+class TripRecheckEventOut(BaseModel):
+    id: int
+    event: Literal["Flagged", "Returned for Review", "Verified"]
+    remark: Optional[str] = None
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AuditVerifiedTripOut(BaseModel):
+    """One row on the "Audit Verified Trips" page — a trip whose most recent
+    recheck event is Verified, whether it was disputed-then-fixed or verified
+    proactively clean. The full Flag/Return/Verify chain (if any) is fetched
+    separately via GET /trips/{id}/recheck-history for the expandable detail."""
+    trip_id: int
+    trip_id_str: str
+    driver_name: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    scheduled_date: Optional[date] = None
+    verified_by: str
+    verified_role: Optional[str] = None
+    verified_at: datetime
+    verified_remark: Optional[str] = None
+    # True if this trip was ever flagged before this verification (i.e. it
+    # closed out a dispute) vs. proactively verified without ever being
+    # flagged — lets the page distinguish the two at a glance.
+    was_disputed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -1844,6 +1878,11 @@ class CustomerProfitabilityTripOut(BaseModel):
     profit: float
     margin_pct: float
     km: float
+    # Under review by an Auditor — shown for context, but excluded from this
+    # customer's totals (see excluded_from_totals) until resolved.
+    flagged_for_recheck: bool = False
+    flagged_remark: Optional[str] = None
+    excluded_from_totals: bool = False
 
     class Config:
         from_attributes = True
@@ -1853,6 +1892,7 @@ class CustomerProfitabilityOut(BaseModel):
     customer_id: str
     customer_name: str
     trip_count: int
+    flagged_trip_count: int = 0
     total_revenue: float
     total_expense: float
     total_profit: float

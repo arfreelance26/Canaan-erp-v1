@@ -47,6 +47,8 @@ import {
   Filter,
   Archive,
   Activity,
+  Flag,
+  BadgeCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -112,6 +114,8 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Reconciliation", href: "/trips/reconciliation", icon: ClipboardList },
       { label: "Verification & Invoicing", href: "/trips/verification", icon: ClipboardCheck },
       { label: "Trip History", href: "/trips/history", icon: History },
+      { label: "Audit Flagged Trips", href: "/trips/flagged", icon: Flag },
+      { label: "Audit Verified Trips", href: "/trips/audit-verified", icon: BadgeCheck },
       { label: "Deleted Trips", href: "/trips/deleted", icon: Trash2 },
     ],
   },

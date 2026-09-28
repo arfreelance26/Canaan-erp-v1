@@ -60,6 +60,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/connect/chat",
     "/trips/verification",
     "/trips/history",
+    "/trips/flagged",
     "/resources/customers",
     "/finance/driver-compensation",
     "/finance/emi-tracking",
@@ -93,6 +94,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
   "Trip Sheet Register": [
     "/connect/chat",
     "/trips/reconciliation",
+    "/trips/flagged",
     "/maintenance/fuel-history",
     "/attendance/mark",
     "/attendance/leave-requests",

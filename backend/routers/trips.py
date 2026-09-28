@@ -230,6 +230,8 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             models.TripSheet.to_location,
             models.TripSheet.trip_completed_date,
             models.Trip.trip_id,
+            models.Trip.flagged_for_recheck,
+            models.Trip.flagged_remark,
         )
         .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
         .join(models.Customer, models.Customer.id == models.Trip.customer_id)
@@ -245,8 +247,15 @@ def get_customer_profitability(db: Session = Depends(get_db)):
     customer_map: dict = {}
     customer_trips: dict = defaultdict(list)
 
+    # A trip an Auditor has flagged for rechecking (Booking Sheet / Trip Sheet
+    # data suspected incorrect) is left out of every revenue/expense/km total
+    # below — same exclusion already applied on the Profitability page — but
+    # still appears in the customer's recent-trips list, marked, so nothing
+    # looks like it silently vanished. Nothing here is stored, so a resolved
+    # trip flows straight back into every total on the next fetch.
     for row in rows:
         cid = str(row.customer_id)
+        is_flagged = bool(row.flagged_for_recheck)
         hire = float(row.hire_amount or 0) - float(row.transport_commission_amount or 0)
         expense = float(row.total_expense or 0)
         km = float(row.total_km or 0)
@@ -256,24 +265,29 @@ def get_customer_profitability(db: Session = Depends(get_db)):
                 "customer_id": cid,
                 "customer_name": row.customer_name or "—",
                 "trip_count": 0,
+                "flagged_trip_count": 0,
                 "total_revenue": 0.0,
                 "total_expense": 0.0,
                 "total_km": 0.0,
-                "routes": defaultdict(lambda: {"trip_count": 0, "revenue": 0.0, "expense": 0.0, "km": 0.0}),
+                "routes": defaultdict(lambda: {"trip_count": 0, "counted_trip_count": 0, "revenue": 0.0, "expense": 0.0, "km": 0.0}),
             }
 
         d = customer_map[cid]
         d["trip_count"] += 1
-        d["total_revenue"] += hire
-        d["total_expense"] += expense
-        d["total_km"] += km
-
         route_key = f"{(row.from_location or '').strip() or '—'} → {(row.to_location or '').strip() or '—'}"
         r = d["routes"][route_key]
         r["trip_count"] += 1
-        r["revenue"] += hire
-        r["expense"] += expense
-        r["km"] += km
+
+        if is_flagged:
+            d["flagged_trip_count"] += 1
+        else:
+            r["counted_trip_count"] += 1
+            d["total_revenue"] += hire
+            d["total_expense"] += expense
+            d["total_km"] += km
+            r["revenue"] += hire
+            r["expense"] += expense
+            r["km"] += km
 
         if len(customer_trips[cid]) < 20:
             trip_profit = hire - expense
@@ -286,6 +300,9 @@ def get_customer_profitability(db: Session = Depends(get_db)):
                 "profit": round(trip_profit, 2),
                 "margin_pct": round((trip_profit / hire * 100) if hire > 0 else 0.0, 2),
                 "km": round(km, 2),
+                "flagged_for_recheck": is_flagged,
+                "flagged_remark": row.flagged_remark if is_flagged else None,
+                "excluded_from_totals": is_flagged,
             })
 
     result = []
@@ -306,7 +323,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
                 "expense": round(r["expense"], 2),
                 "profit": round(r_profit, 2),
                 "margin_pct": r_margin,
-                "avg_km": round(r["km"] / r["trip_count"] if r["trip_count"] > 0 else 0, 2),
+                "avg_km": round(r["km"] / r["counted_trip_count"] if r["counted_trip_count"] > 0 else 0, 2),
             })
         routes.sort(key=lambda x: x["profit"], reverse=True)
 
@@ -314,6 +331,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             "customer_id": cid,
             "customer_name": d["customer_name"],
             "trip_count": d["trip_count"],
+            "flagged_trip_count": d["flagged_trip_count"],
             "total_revenue": round(revenue, 2),
             "total_expense": round(expense, 2),
             "total_profit": round(profit, 2),
@@ -349,6 +367,13 @@ def get_customer_top_profitable_trips(
             models.Trip.customer_id == customer_id,
             models.Trip.status == "Completed",
             models.Trip.deleted_at.is_(None),
+            # A trip an Auditor has flagged for rechecking (Booking Sheet /
+            # Trip Sheet data suspected incorrect) is left out entirely here,
+            # not just marked — unlike the profitability reports, this feed
+            # exists purely to recommend a driver/truck combo, and a disputed
+            # profit figure has no business being recommended as a "top
+            # performer" while it's still under review.
+            models.Trip.flagged_for_recheck.is_(False),
         )
     )
     if route:
@@ -628,6 +653,63 @@ def generate_combined_invoice(payload: schemas.CombinedInvoiceCreate, db: Sessio
     for t in trips:
         db.refresh(t)
     return [_enrich(t) for t in trips]
+
+
+@router.get("/audit-verified", response_model=list[schemas.AuditVerifiedTripOut])
+def list_audit_verified_trips(db: Session = Depends(get_db)):
+    """The counterpart to Flagged Trips: every trip whose most recent Auditor
+    recheck event is "Verified" — closed-out review, whether the trip was
+    disputed-then-fixed or verified proactively clean. Most recently verified
+    first. Registered before GET /{trip_id} so "audit-verified" isn't
+    swallowed as a trip_id path param.
+    """
+    events = (
+        db.query(models.TripRecheckEvent)
+        # id (autoincrement) breaks ties deterministically for events created
+        # within the same second — created_at alone is only second-precision,
+        # so a rapid Flag → Return → Verify sequence can land on one MySQL
+        # DATETIME tick and sort arbitrarily without this tiebreaker.
+        .order_by(models.TripRecheckEvent.trip_id, models.TripRecheckEvent.created_at.desc(), models.TripRecheckEvent.id.desc())
+        .all()
+    )
+    # Ordered by (trip_id, created_at desc, id desc), so the first row seen for
+    # a given trip_id is that trip's latest event — a single pass is enough, no window
+    # function needed for a table this size.
+    latest_by_trip: dict[int, models.TripRecheckEvent] = {}
+    ever_flagged: dict[int, bool] = {}
+    for e in events:
+        if e.trip_id not in latest_by_trip:
+            latest_by_trip[e.trip_id] = e
+        if e.event == "Flagged":
+            ever_flagged[e.trip_id] = True
+
+    verified_ids = [tid for tid, e in latest_by_trip.items() if e.event == "Verified"]
+    if not verified_ids:
+        return []
+
+    trips_by_id = {t.id: t for t in db.query(models.Trip).filter(models.Trip.id.in_(verified_ids)).all()}
+
+    result = []
+    for tid in verified_ids:
+        trip = trips_by_id.get(tid)
+        if not trip:
+            continue
+        e = latest_by_trip[tid]
+        result.append({
+            "trip_id": trip.id,
+            "trip_id_str": trip.trip_id,
+            "driver_name": trip.driver_name,
+            "origin": trip.origin,
+            "destination": trip.destination,
+            "scheduled_date": trip.scheduled_date,
+            "verified_by": e.actor_name,
+            "verified_role": e.actor_role,
+            "verified_at": e.created_at,
+            "verified_remark": e.remark,
+            "was_disputed": ever_flagged.get(tid, False),
+        })
+    result.sort(key=lambda r: r["verified_at"], reverse=True)
+    return result
 
 
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])
@@ -1290,24 +1372,118 @@ def flag_trip(trip_id: int, db: Session = Depends(get_db)):
     db.refresh(trip)
     return _enrich(trip)
 
+def _log_recheck_event(db: Session, trip_id: int, event: str, remark: Optional[str], current_user: TokenUser) -> None:
+    db.add(models.TripRecheckEvent(
+        trip_id=trip_id,
+        event=event,
+        remark=remark or None,
+        actor_name=current_user.name,
+        actor_role=current_user.role,
+    ))
+
+
 class RecheckFlagBody(BaseModel):
-    flagged: bool
-    remark: str = ""
+    remark: str
 
 
 @router.post("/{trip_id}/recheck-flag", response_model=schemas.TripOut)
-def toggle_recheck_flag(trip_id: int, body: RecheckFlagBody, db: Session = Depends(get_db)):
-    """Docs staff toggle: flag a trip for re-checking before confirming sheet entry."""
+def flag_trip_for_recheck(
+    trip_id: int,
+    body: RecheckFlagBody,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Auditor: flag a trip's Booking Sheet / Trip Sheet data as suspect. Both
+    this action and Verify are blocked for the trip (on Driver Record) until
+    someone corrects the data and returns it via POST .../recheck-return."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
-    trip.flagged_for_recheck = body.flagged
-    trip.flagged_remark = body.remark if body.flagged else None
+    if trip.flagged_for_recheck and not trip.recheck_returned:
+        raise HTTPException(409, "This trip is already under review — it must be returned for review before it can be re-flagged.")
+    if not body.remark.strip():
+        raise HTTPException(400, "A reason is required to flag a trip for rechecking.")
+    trip.flagged_for_recheck = True
+    trip.recheck_returned = False
+    trip.flagged_remark = body.remark.strip()
+    _log_recheck_event(db, trip_id, "Flagged", body.remark.strip(), current_user)
     db.commit()
     db.refresh(trip)
     return _enrich(trip)
+
+
+class RecheckReturnBody(BaseModel):
+    remark: str = ""
+
+
+@router.post("/{trip_id}/recheck-return", response_model=schemas.TripOut)
+def return_trip_for_review(
+    trip_id: int,
+    body: RecheckReturnBody,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Whoever corrected the flagged trip's data (typically via Edit Approval)
+    sends it back to the Auditor for a fresh Verify/Flag decision — re-enables
+    both actions on Driver Record without clearing the flag itself, so the
+    trip stays visible on Flagged Trips until the Auditor actually closes it."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if not trip.flagged_for_recheck:
+        raise HTTPException(409, "This trip isn't currently flagged for rechecking.")
+    if trip.recheck_returned:
+        raise HTTPException(409, "This trip has already been returned for review.")
+    trip.recheck_returned = True
+    _log_recheck_event(db, trip_id, "Returned for Review", body.remark.strip(), current_user)
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+class RecheckVerifyBody(BaseModel):
+    remark: str = ""
+
+
+@router.post("/{trip_id}/recheck-verify", response_model=schemas.TripOut)
+def verify_trip_recheck(
+    trip_id: int,
+    body: RecheckVerifyBody,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Auditor: close the loop — clears any flag/return state entirely (the
+    trip drops off Flagged Trips). Callable on a trip that was never flagged
+    too, as a proactive "reviewed, no issue" confirmation."""
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if trip.flagged_for_recheck and not trip.recheck_returned:
+        raise HTTPException(409, "This trip is under review — it must be returned for review before it can be verified.")
+    trip.flagged_for_recheck = False
+    trip.recheck_returned = False
+    trip.flagged_remark = None
+    _log_recheck_event(db, trip_id, "Verified", body.remark.strip(), current_user)
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+@router.get("/{trip_id}/recheck-history", response_model=list[schemas.TripRecheckEventOut])
+def get_trip_recheck_history(trip_id: int, db: Session = Depends(get_db)):
+    """Full Flag / Return for Review / Verify history for one trip, oldest first."""
+    return (
+        db.query(models.TripRecheckEvent)
+        .filter(models.TripRecheckEvent.trip_id == trip_id)
+        .order_by(models.TripRecheckEvent.created_at.asc())
+        .all()
+    )
 
 
 class AdvanceVerifyBody(BaseModel):

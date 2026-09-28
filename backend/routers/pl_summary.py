@@ -246,12 +246,27 @@ def get_pl_summary(
             sum(float(m.cost or 0) for m in maint_by_truck.get(truck.id, [])), 2
         )
 
-        # Trip revenue and expenses
+        # Trip revenue and expenses — a trip an Auditor has flagged for
+        # rechecking (Booking Sheet / Trip Sheet data suspected incorrect) is
+        # excluded from every money/km total below, the same way a RETURN
+        # TRIP's batta is excluded from Net Payable elsewhere in the app: still
+        # shown in trip_rows (with flagged_for_recheck / excluded_from_totals
+        # set) so nothing looks like it silently vanished, just not trusted
+        # for a total until the recheck is resolved. Nothing here is stored —
+        # this is a live filter, so the trip flows straight back into every
+        # total the moment it's resolved, with no separate sync step.
         truck_sheets = sheets_by_vehicle.get((truck.truck_id or "").strip(), [])
         truck_sheets_sorted = sorted(truck_sheets, key=lambda s: s.trip_sheet_date or date_type.min)
-        hire_total = round(sum(_net_hire(s, trips_meta.get(s.trip_id) if s.trip_id else None) for s in truck_sheets_sorted), 2)
-        trip_expense_total = round(sum(float(s.total_expense or 0) for s in truck_sheets_sorted), 2)
-        total_km = round(sum(float(s.total_km or 0) for s in truck_sheets_sorted), 1)
+
+        def _is_flagged(s):
+            tm = trips_meta.get(s.trip_id) if s.trip_id else None
+            return bool(tm and tm.flagged_for_recheck)
+
+        counted_sheets = [s for s in truck_sheets_sorted if not _is_flagged(s)]
+        flagged_trip_count = len(truck_sheets_sorted) - len(counted_sheets)
+        hire_total = round(sum(_net_hire(s, trips_meta.get(s.trip_id) if s.trip_id else None) for s in counted_sheets), 2)
+        trip_expense_total = round(sum(float(s.total_expense or 0) for s in counted_sheets), 2)
+        total_km = round(sum(float(s.total_km or 0) for s in counted_sheets), 1)
 
         total_cost = round(trip_expense_total + maintenance_total + emi_total + total_doc_share, 2)
         net_pl = round(hire_total - total_cost, 2)
@@ -276,6 +291,7 @@ def get_pl_summary(
                 container_spec = str(s.container_type or "").strip()
 
             cargo_class = str(trip_meta.cargo_classification or "").strip() if trip_meta else ""
+            is_flagged = bool(trip_meta and trip_meta.flagged_for_recheck)
 
             trip_rows.append({
                 "trip_sheet_date":          s.trip_sheet_date.isoformat() if s.trip_sheet_date else None,
@@ -286,6 +302,13 @@ def get_pl_summary(
                 "hire_amount":              _net_hire(s, trip_meta),
                 "total_expense":            float(s.total_expense or 0),
                 "total_km":                 float(s.total_km or 0),
+                # Under review by an Auditor (Booking Sheet / Trip Sheet data
+                # suspected incorrect) — shown here for context, but its
+                # hire/expense/km figures above are NOT included in this
+                # truck's totals until the recheck is resolved.
+                "flagged_for_recheck":      is_flagged,
+                "flagged_remark":           trip_meta.flagged_remark if (trip_meta and is_flagged) else None,
+                "excluded_from_totals":     is_flagged,
                 # Joined from trips + customers — used for client-side profitability filters
                 "customer_name":            cust_name,
                 "trip_category":            trip_cat,
@@ -308,6 +331,7 @@ def get_pl_summary(
             "truck_id":            truck.truck_id,
             "registration_number": truck.registration_number,
             "trip_count":          len(truck_sheets_sorted),
+            "flagged_trip_count":  flagged_trip_count,
             "total_hire_amount":   hire_total,
             "trip_expenses":       trip_expense_total,
             "maintenance_expenses": maintenance_total,

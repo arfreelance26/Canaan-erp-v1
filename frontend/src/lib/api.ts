@@ -703,6 +703,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     chaName: b.cha_name ?? undefined,
     flaggedForRecheck: b.flagged_for_recheck ?? undefined,
     flaggedRemark: b.flagged_remark ?? undefined,
+    recheckReturned: b.recheck_returned ?? undefined,
     advanceVerified: b.advance_verified ?? undefined,
     advanceVerificationRemark: b.advance_verification_remark ?? undefined,
     advanceCorrectedAmount: b.advance_corrected_amount != null ? String(b.advance_corrected_amount) : undefined,
@@ -1592,6 +1593,32 @@ export const vendorsApi = {
 // Trips API
 // ---------------------------------------------------------------------------
 
+export type TripRecheckEvent = {
+  id: number;
+  event: "Flagged" | "Returned for Review" | "Verified";
+  remark: string | null;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+// One row on the "Audit Verified Trips" page — see AuditVerifiedTripOut on the
+// backend. tripDbId is the internal numeric Trip.id (as a string, matching
+// this file's `_dbId`/dbId convention elsewhere), tripId is the human TRP-xxxx.
+export type AuditVerifiedTrip = {
+  tripDbId: string;
+  tripId: string;
+  driverName: string | null;
+  origin: string | null;
+  destination: string | null;
+  scheduledDate: string | null;
+  verifiedBy: string;
+  verifiedRole: string | null;
+  verifiedAt: string;
+  verifiedRemark: string | null;
+  wasDisputed: boolean;
+};
+
 export const tripsApi = {
   list: (status?: string) =>
     req<B[]>(`/trips${status ? `?status=${status}` : ""}`).then((d) => d.map(toTrip)),
@@ -1663,8 +1690,43 @@ export const tripsApi = {
     req<B>(`/trips/${dbId}/unmark-sheet`, { method: "POST" }).then(toTrip),
   flagSheetMissing: (dbId: string) =>
     req<B>(`/trips/${dbId}/flag-sheet-missing`, { method: "POST" }).then(toTrip),
-  setRecheckFlag: (dbId: string, flagged: boolean, remark: string) =>
-    req<B>(`/trips/${dbId}/recheck-flag`, { method: "POST", body: JSON.stringify({ flagged, remark }) }).then(toTrip),
+  // Auditor recheck workflow — see recheckReturned on the Trip type for the
+  // state machine (Flag → blocked → Return for Review → unblocked → Verify).
+  flagForRecheck: (dbId: string, remark: string) =>
+    req<B>(`/trips/${dbId}/recheck-flag`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
+  returnForReview: (dbId: string, remark = "") =>
+    req<B>(`/trips/${dbId}/recheck-return`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
+  verifyRecheck: (dbId: string, remark = "") =>
+    req<B>(`/trips/${dbId}/recheck-verify`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
+  getRecheckHistory: (dbId: string): Promise<TripRecheckEvent[]> =>
+    req<B[]>(`/trips/${dbId}/recheck-history`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        event: String(r.event) as "Flagged" | "Returned for Review" | "Verified",
+        remark: (r.remark as string | null) ?? null,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
+  // Counterpart to Flagged Trips — trips whose most recent recheck event is
+  // "Verified". See types.ts-style AuditVerifiedTrip below.
+  listAuditVerified: (): Promise<AuditVerifiedTrip[]> =>
+    req<B[]>(`/trips/audit-verified`).then((rows) =>
+      rows.map((r) => ({
+        tripDbId: String(r.trip_id ?? ""),
+        tripId: String(r.trip_id_str ?? ""),
+        driverName: (r.driver_name as string | null) ?? null,
+        origin: (r.origin as string | null) ?? null,
+        destination: (r.destination as string | null) ?? null,
+        scheduledDate: (r.scheduled_date as string | null) ?? null,
+        verifiedBy: String(r.verified_by ?? ""),
+        verifiedRole: (r.verified_role as string | null) ?? null,
+        verifiedAt: String(r.verified_at ?? ""),
+        verifiedRemark: (r.verified_remark as string | null) ?? null,
+        wasDisputed: Boolean(r.was_disputed ?? false),
+      }))
+    ),
   verifyAdvance: (dbId: string, verified: boolean, remark: string, correctedAmount: number | null) =>
     req<B>(`/trips/${dbId}/verify-advance`, { method: "POST", body: JSON.stringify({ verified, remark, corrected_amount: correctedAmount }) }).then(toTrip),
   saveLR: (dbId: string, data: Record<string, unknown>) =>
@@ -2201,6 +2263,7 @@ export type CustomerProfitabilityData = {
   customer_id: string;
   customer_name: string;
   trip_count: number;
+  flagged_trip_count: number;
   total_revenue: number;
   total_expense: number;
   total_profit: number;
@@ -2224,6 +2287,11 @@ export type CustomerProfitabilityData = {
     profit: number;
     margin_pct: number;
     km: number;
+    // Under review by an Auditor — shown for context, but excluded from this
+    // customer's totals (see excluded_from_totals) until resolved.
+    flagged_for_recheck: boolean;
+    flagged_remark: string | null;
+    excluded_from_totals: boolean;
   }[];
 };
 
@@ -2718,6 +2786,11 @@ export type TruckPLTripRow = {
   tripCategory: string;
   cargoClassification: string;
   containerSpecification: string;
+  // Under review by an Auditor — shown for context, but excluded from this
+  // truck's totals until resolved (see excludedFromTotals on the entry above).
+  flaggedForRecheck: boolean;
+  flaggedRemark: string | null;
+  excludedFromTotals: boolean;
 };
 
 export type TruckPLMaintenanceRow = {
@@ -2731,6 +2804,7 @@ export type TruckPLEntry = {
   truckId: string;
   registrationNumber: string;
   tripCount: number;
+  flaggedTripCount: number;
   totalHireAmount: number;
   tripExpenses: number;
   maintenanceExpenses: number;
@@ -2772,6 +2846,7 @@ export const plSummaryApi = {
         truckId: String(b.truck_id ?? ""),
         registrationNumber: String(b.registration_number ?? ""),
         tripCount: Number(b.trip_count ?? 0),
+        flaggedTripCount: Number(b.flagged_trip_count ?? 0),
         totalHireAmount: Number(b.total_hire_amount ?? 0),
         tripExpenses: Number(b.trip_expenses ?? 0),
         maintenanceExpenses: Number(b.maintenance_expenses ?? 0),
@@ -2813,6 +2888,9 @@ export const plSummaryApi = {
           tripCategory:           String(t.trip_category ?? ""),
           cargoClassification:    String(t.cargo_classification ?? ""),
           containerSpecification: String(t.container_specification ?? ""),
+          flaggedForRecheck:      Boolean(t.flagged_for_recheck ?? false),
+          flaggedRemark:          (t.flagged_remark as string | null) ?? null,
+          excludedFromTotals:     Boolean(t.excluded_from_totals ?? false),
         })),
         maintenanceRows: ((b.maintenance_rows as B[]) ?? []).map((m) => ({
           date: String(m.date ?? ""),

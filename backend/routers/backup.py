@@ -72,6 +72,7 @@ ALL_MODELS = [
     models.CompensationTransaction,
     models.Notification,
     models.AuditLog,
+    models.TripRecheckEvent,
     models.RunningCostConfig,
     models.RunningCostTyreEntry,
     models.RunningCostLayoutEntry,
