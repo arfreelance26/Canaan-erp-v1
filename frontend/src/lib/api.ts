@@ -27,6 +27,7 @@ import type { FuelLog, FuelStats } from "@/types/fuel-log";
 import type { AdBlueLog } from "@/types/adblue-log";
 import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
+import type { VendorCategory } from "@/types/vendor-category";
 import type { SacCode } from "@/types/sac-code";
 import type { MaintenanceTypeItem } from "@/types/maintenance-type";
 import type { MaintenanceCategory, MaintenanceCategoryRepair } from "@/types/maintenance-category";
@@ -1588,6 +1589,21 @@ export const vendorsApi = {
   restore: (dbId: string) => req<B>(`/vendors/${dbId}/restore`, { method: "POST" }).then(toVendor),
   removePermanent: (dbId: string) => req<void>(`/vendors/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/vendors/deleted-ids"),
+};
+
+function toVendorCategory(b: B): VendorCategory {
+  return {
+    id: String(b.id ?? ""),
+    name: b.name ?? "",
+    version: typeof b.version === "number" ? b.version : undefined,
+  };
+}
+
+export const vendorCategoriesApi = {
+  list: () => req<B[]>("/vendor-categories").then((d) => d.map(toVendorCategory)),
+  create: (name: string) =>
+    req<B>("/vendor-categories", { method: "POST", body: JSON.stringify({ name }) }).then(toVendorCategory),
+  delete: (id: string) => req<void>(`/vendor-categories/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

@@ -1025,6 +1025,16 @@ class RepairType(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class VendorCategory(Base):
+    __tablename__ = "vendor_categories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False, unique=True)
+    version = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class MaintenanceCategory(Base):
     """Categories shown on the "Maintenance Management" admin page, each
     grouping several repair types underneath it. Distinct from RepairType

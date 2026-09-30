@@ -1775,6 +1775,18 @@ class RepairTypeOut(OrmBase):
     updated_at: Optional[datetime] = None
 
 
+class VendorCategoryCreate(OrmBase):
+    name: str
+
+
+class VendorCategoryOut(OrmBase):
+    id: int
+    name: str
+    version: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 # ---------------------------------------------------------------------------
 # Maintenance Categories (the "Maintenance Management" admin page)
 # ---------------------------------------------------------------------------

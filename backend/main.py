@@ -56,7 +56,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories
+from routers import trucks, drivers, staff, customers, vendors, vendor_categories, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories
 
 Base.metadata.create_all(bind=engine)
 
@@ -1058,6 +1058,113 @@ def _seed_repair_types():
 
 _seed_repair_types()
 
+_DEFAULT_VENDOR_CATEGORIES = [
+    "Tyre Seller", "Tyre Rethreader", "Tyre Worker", "Mechanic", "Tinker",
+    "Dealer", "Painter", "Spares", "Others",
+]
+
+def _seed_vendor_categories():
+    """One-time seed, run only while vendor_categories is empty. The category
+    field used to be a free-type combobox, so this also carries over any
+    category text already saved on existing vendors — otherwise those vendors'
+    categories would vanish from the now-restricted dropdown on first load."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        if db.query(models.VendorCategory).count() == 0:
+            existing = {
+                name for (name,) in db.query(models.Vendor.category)
+                .filter(models.Vendor.category.isnot(None), models.Vendor.category != "")
+                .distinct()
+            }
+            names = list(dict.fromkeys(_DEFAULT_VENDOR_CATEGORIES + sorted(existing)))
+            db.add_all([models.VendorCategory(name=name) for name in names])
+            db.commit()
+    finally:
+        db.close()
+
+_seed_vendor_categories()
+
+def _backfill_emi_finance_fields():
+    """One-time (idempotent — safe to run every startup) backfill for EMI
+    records whose Daily Finance Cost / Monthly Finance Cost / EMI Cost per Km
+    were never computed and saved. These three fields are 100% derived — the
+    EMI form (EmiFormDialog) computes and persists them fresh on every save —
+    but a record last saved before that computation existed (or never
+    re-saved since, e.g. because a later-added required field like
+    Auto-Debit Date was blank and silently blocked every save attempt) is
+    left with them stuck at their DB default of 0, even though EMI Amount
+    itself is correctly set. The Running Cost Calculator's Advanced mode
+    reads these stored columns directly with no live fallback (by design),
+    so a record stuck like this shows "NIL" there — even though other views
+    (e.g. EMI Insights) mask the gap by computing the same numbers live and
+    never actually reading the stored value, making it look like nothing is
+    wrong.
+
+    Mirrors EmiFormDialog's own formulas exactly:
+      monthly_finance_cost = emi_amount / tenure_months   (if tenure set)
+      daily_finance_cost   = emi_amount / 26               (26 working days)
+      emi_cost_per_km      = daily_finance_cost / km_per_day  (truck's tyre
+                              layout, from Admin -> Truck Run Config)
+
+    Only fills in a field that is currently 0/blank — never overwrites an
+    already-saved nonzero value, so this can never clobber a real figure.
+    """
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        trucks_by_reg = {
+            (t.registration_number or "").strip().upper(): t.tyre_layout
+            for t in db.query(models.Truck).all()
+            if t.registration_number
+        }
+        km_per_day_by_layout = {
+            rc.tyre_layout: float(rc.km_per_day or 0)
+            for rc in db.query(models.TruckRunConfig).all()
+        }
+
+        updated = 0
+        for rec in db.query(models.EmiRecord).all():
+            emi_amount = float(rec.emi_amount or 0)
+            if emi_amount <= 0:
+                continue
+
+            changed = False
+
+            if not float(rec.monthly_finance_cost or 0):
+                tenure = int(rec.tenure_months or 0)
+                if tenure > 0:
+                    rec.monthly_finance_cost = round(emi_amount / tenure, 2)
+                    changed = True
+
+            daily_finance_cost = float(rec.daily_finance_cost or 0)
+            if not daily_finance_cost:
+                daily_finance_cost = round(emi_amount / 26, 2)
+                rec.daily_finance_cost = daily_finance_cost
+                changed = True
+
+            if not float(rec.emi_cost_per_km or 0):
+                reg = (rec.truck_registration or "").strip().upper()
+                tyre_layout = trucks_by_reg.get(reg)
+                km_per_day = km_per_day_by_layout.get(tyre_layout, 0) if tyre_layout else 0
+                if km_per_day > 0 and daily_finance_cost > 0:
+                    rec.emi_cost_per_km = round(daily_finance_cost / km_per_day, 6)
+                    changed = True
+
+            if changed:
+                updated += 1
+
+        if updated:
+            db.commit()
+            print(f"[emi-backfill] Filled in missing finance-cost fields for {updated} EMI record(s).")
+    except Exception as e:
+        print(f"[emi-backfill] failed: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+_backfill_emi_finance_fields()
+
 # In production, hide the interactive API explorer and schema so the full endpoint
 # surface isn't published. These are only served in development.
 app = FastAPI(
@@ -1155,6 +1262,7 @@ app.include_router(drivers.router, dependencies=AUTH)
 app.include_router(staff.router, dependencies=AUTH)
 app.include_router(customers.router, dependencies=AUTH)
 app.include_router(vendors.router, dependencies=AUTH)
+app.include_router(vendor_categories.router, dependencies=AUTH)
 app.include_router(trips.router, dependencies=AUTH)
 app.include_router(attendance.router, dependencies=AUTH)
 app.include_router(maintenance.router, dependencies=AUTH)

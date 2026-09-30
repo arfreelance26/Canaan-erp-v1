@@ -1,5 +1,6 @@
 "use client";
 
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
@@ -1889,7 +1890,13 @@ export default function RunningCostCalculatorPage() {
   // Fleet trucks
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [trucksLoading, setTrucksLoading] = useState(true);
+  const [selectedTruckId, setSelectedTruckId] = useState("");
+  const [selectedTruckIdB, setSelectedTruckIdB] = useState("");
   const [truckSearch, setTruckSearch] = useState("");
+  // "single" = one vehicle picked from a dropdown (default); "compare" = two
+  // vehicles picked side-by-side; "list" = the original type-to-search layout
+  // with every matching truck's card stacked.
+  const [truckView, setTruckView] = useState<"single" | "compare" | "list">("single");
 
   // EMI records — used by Basic mode to populate EMI fields automatically
   const [emiRecords, setEmiRecords] = useState<EmiRecord[]>([]);
@@ -2336,9 +2343,51 @@ export default function RunningCostCalculatorPage() {
         </div>
       </div>
 
-      {/* Toolbar: truck search on the left, calculation mode on the right */}
+      {/* Toolbar: vehicle picker on the left, calculation mode on the right */}
       <div className="flex flex-wrap items-center gap-3">
-        <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
+        <Segmented
+          size="md"
+          label="Truck view"
+          value={truckView}
+          onChange={setTruckView}
+          options={[{ value: "single", label: "Single" }, { value: "compare", label: "Compare" }, { value: "list", label: "List" }]}
+        />
+        {truckView === "single" && (
+          <div className="w-full max-w-xs">
+            <GlassCombobox
+              value={selectedTruckId}
+              onChange={setSelectedTruckId}
+              placeholder="Select a vehicle…"
+              strictSelect
+              options={trucks.map((t) => ({ value: t.id, label: t.registrationNumber }))}
+            />
+          </div>
+        )}
+        {truckView === "compare" && (
+          <>
+            <div className="w-full max-w-xs">
+              <GlassCombobox
+                value={selectedTruckId}
+                onChange={setSelectedTruckId}
+                placeholder="Select vehicle A…"
+                strictSelect
+                options={trucks.filter((t) => t.id !== selectedTruckIdB).map((t) => ({ value: t.id, label: t.registrationNumber }))}
+              />
+            </div>
+            <div className="w-full max-w-xs">
+              <GlassCombobox
+                value={selectedTruckIdB}
+                onChange={setSelectedTruckIdB}
+                placeholder="Select vehicle B…"
+                strictSelect
+                options={trucks.filter((t) => t.id !== selectedTruckId).map((t) => ({ value: t.id, label: t.registrationNumber }))}
+              />
+            </div>
+          </>
+        )}
+        {truckView === "list" && (
+          <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
+        )}
         <div className="ml-auto">
           <Segmented
             size="md"
@@ -2363,15 +2412,14 @@ export default function RunningCostCalculatorPage() {
         <div className="grid grid-cols-4 gap-6 items-start">
 
           {/* Left — 75% (3 cols): per-truck cost cards */}
-          <div className="col-span-3 flex flex-col gap-4">
+          <div className={truckView === "compare" ? "col-span-3 grid grid-cols-2 gap-4 items-start" : "col-span-3 flex flex-col gap-4"}>
             {(() => {
-              const filtered = trucks.filter((t) =>
-                t.registrationNumber.toLowerCase().includes(truckSearch.toLowerCase())
-              );
               if (trucksLoading) {
-                return [1, 2, 3].map((i) => (
-                  <div key={i} className="h-28 animate-pulse rounded-2xl border border-gray-200 bg-gray-100" />
-                ));
+                return truckView === "list"
+                  ? [1, 2, 3].map((i) => (
+                      <div key={i} className="h-28 animate-pulse rounded-2xl border border-gray-200 bg-gray-100" />
+                    ))
+                  : <div className="h-28 animate-pulse rounded-2xl border border-gray-200 bg-gray-100" />;
               }
               if (trucks.length === 0) {
                 return (
@@ -2380,14 +2428,35 @@ export default function RunningCostCalculatorPage() {
                   </div>
                 );
               }
-              if (filtered.length === 0) {
+
+              const displayedTrucks = truckView === "list"
+                ? trucks.filter((t) => t.registrationNumber.toLowerCase().includes(truckSearch.toLowerCase()))
+                : truckView === "compare"
+                ? [trucks.find((t) => t.id === selectedTruckId), trucks.find((t) => t.id === selectedTruckIdB)].filter((t): t is Truck => !!t)
+                : (() => {
+                    const t = trucks.find((t) => t.id === selectedTruckId);
+                    return t ? [t] : [];
+                  })();
+
+              if (truckView === "compare" && displayedTrucks.length < 2) {
                 return (
-                  <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-10 text-sm text-gray-400">
-                    No trucks match &quot;{truckSearch}&quot;.
+                  <div className="col-span-2 flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
+                    Select both vehicles above to compare.
                   </div>
                 );
               }
-              return filtered.map((truck) => (
+
+              if (displayedTrucks.length === 0) {
+                return (
+                  <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
+                    {truckView === "list"
+                      ? `No trucks match "${truckSearch}".`
+                      : "Select a vehicle above to see its cost breakdown."}
+                  </div>
+                );
+              }
+
+              return displayedTrucks.map((truck) => (
                 <TruckCostCard
                   key={truck.id}
                   truck={truck}

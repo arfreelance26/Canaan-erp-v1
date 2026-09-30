@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, X, Handshake } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
+import { VendorCategoryDialog } from "@/components/vendors/VendorCategoryDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { vendorsApi, editApprovalsApi } from "@/lib/api";
@@ -25,6 +26,7 @@ export default function VendorsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -153,14 +155,24 @@ export default function VendorsPage() {
             <p className="mt-0.5 text-sm text-gray-500">Manage vendor records and contacts</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-        >
-          <Plus className="h-4 w-4" />
-          Add Vendor
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setCategoryDialogOpen(true)}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-300 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50 hover:shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+            Add Vendor Category
+          </button>
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+            Add Vendor
+          </button>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
@@ -178,6 +190,11 @@ export default function VendorsPage() {
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
         initialData={editingVendor}
+      />
+
+      <VendorCategoryDialog
+        open={categoryDialogOpen}
+        onClose={() => setCategoryDialogOpen(false)}
       />
 
       {viewingVendor && (() => {

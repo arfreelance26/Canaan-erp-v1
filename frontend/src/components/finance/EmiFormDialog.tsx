@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -11,6 +11,7 @@ import type { EmiRecord } from "@/types/finance";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { paidInstallments } from "@/lib/emi-schedule";
+import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
 
 export const DRAFT_KEY = "erp_emi_form_draft";
 
@@ -143,6 +144,15 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
     : 0;
   const emiCostPerKm    = dailyFinanceCost && kmPerDay > 0
     ? (Number(dailyFinanceCost) / kmPerDay).toFixed(4)
+    : "";
+
+  // EMI Cost per Km (Advanced) = Daily Finance Cost ÷ the truck's live
+  // monthly-average km/day (same computation EmiInsightsDialog already uses).
+  // Display-only — there is no backing DB column, so this is never persisted.
+  const { rows: truckRuns } = useTruckTripRuns(selectedTruck ?? null, open);
+  const runStats = useMemo(() => computeTruckRunStats(truckRuns), [truckRuns]);
+  const emiCostPerKmAdvanced = dailyFinanceCost && runStats.monthlyAvg > 0
+    ? (Number(dailyFinanceCost) / runStats.monthlyAvg).toFixed(4)
     : "";
 
   // Keep all computed values in form state so they are persisted to the API
@@ -335,9 +345,15 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
               type="text"
               readOnly
               disabled
-              value=""
+              value={emiCostPerKmAdvanced ? `₹ ${Number(emiCostPerKmAdvanced).toLocaleString("en-IN", { minimumFractionDigits: 4 })}` : ""}
               className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
-              placeholder="Coming soon"
+              placeholder={
+                !form.truckRegistration
+                  ? "Select a truck first"
+                  : runStats.monthlyAvg === 0
+                  ? "No trip history for this truck yet"
+                  : "Daily Finance Cost ÷ live monthly avg km"
+              }
             />
           </Field>
 

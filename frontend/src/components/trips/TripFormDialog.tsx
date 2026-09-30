@@ -50,6 +50,13 @@ export function clearTripDraft() {
 // spaced form — this maps one to the other.
 const COMPENSATION_TYPE_OPTIONS = ["Normal", "DEFAULT", "CUSTOM"] as const;
 
+// A plausibility guardrail, not a hard limit — Approximate KM is free-text
+// (auto-fetched from the destination, but editable), so nothing stops a
+// stray keystroke landing a hire-amount-sized number in a KM field. Longest
+// realistic single road trip within India is roughly this order of
+// magnitude, so anything past it is far more likely a typo than a real trip.
+const IMPLAUSIBLE_APPROX_KM = 4000;
+
 function toDefaultBattaCargoType(containerSpecification: string): string {
   const map: Record<string, string> = {
     "20 FT CONTAINER": "20FT CONTAINER",
@@ -532,22 +539,37 @@ export function TripFormDialog({
     cargoWeight: string;
   };
 
+  // Match a CustomerPricing row to a specific CustomerDestination by identity
+  // (customerDestinationId === d.id), NOT by the destination's display label —
+  // two destinations for the same customer can share an identical name/address
+  // while being genuinely different routes (e.g. "MK Printecs" 20 FEET vs
+  // "MK Printecs" 40 FEET), each with its own pricing. Matching by label alone
+  // collapses them onto whichever pricing row happens to match first, silently
+  // applying the wrong rate to every destination but one. Falls back to a
+  // label match only for legacy pricing rows the backend couldn't
+  // unambiguously backfill a customerDestinationId for (see CustomerPricing's
+  // own type comment) — those still need re-saving via the edit form to relink.
+  function findPricingForDestination(d: CustomerDestination): CustomerPricing | undefined {
+    const destLabel = d.destinationName ?? d.destinationAddress ?? "";
+    return customerPricing.find((p) => {
+      if (p.customerDestinationId) return p.customerDestinationId === d.id;
+      const pDest =
+        typeof p.customerDestination === "object" && p.customerDestination !== null
+          ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
+          : String(p.customerDestination || "");
+      return pDest === destLabel;
+    });
+  }
+
   // Build one route entry per destination that has both originState and destinationState.
   // Cargo/container/weight now live on the destination itself; the rate still
-  // comes from the matching pricing row for that destination (customer_pricing
-  // is keyed 1:1 by destination label now that it no longer carries its own
-  // cargo/container/weight combo).
+  // comes from the matching pricing row for that destination (see
+  // findPricingForDestination above for how that match is made).
   const availableRoutes: RouteOption[] = customerDestinations
     .filter((d) => d.originState && d.destinationState)
     .map((d) => {
       const destLabel = d.destinationName ?? d.destinationAddress ?? "";
-      const matchedPricing = customerPricing.find((p) => {
-        const pDest =
-          typeof p.customerDestination === "object" && p.customerDestination !== null
-            ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-            : String(p.customerDestination || "");
-        return pDest === destLabel;
-      });
+      const matchedPricing = findPricingForDestination(d);
       return {
         originState: d.originState!,
         originAddress: d.originAddress ?? "",
@@ -688,14 +710,20 @@ export function TripFormDialog({
         ? { driverAdvanceAmount: calcCompensation(hireBase, pct) }
         : {}),
       approxTripDistance: route.approxDistanceKm,
-      approxKm: route.approxDistanceKm || prev.approxKm,
+      // Always follow the newly-selected destination's own distance, even
+      // when it's blank — falling back to `prev.approxKm` here used to let a
+      // stray value entered before picking this destination (or leftover
+      // from a previous destination) silently survive onto a route that has
+      // no configured distance at all, with nothing to show it was stale.
+      approxKm: route.approxDistanceKm,
     }));
   }
 
   // Cargo classification / container type / weight now live on the customer
   // destination itself (not on the pricing row — a destination is 1:1 with a
   // single cargo/container/weight combo, and its rate is looked up separately
-  // via findRateForDestination).
+  // via findPricingForDestination, keyed off the resolved destination's own
+  // id — never re-derive the rate from the destination's label alone).
   function findDestinationForSpec(
     destination: string,
     containerSpec: string,
@@ -712,16 +740,6 @@ export function TripFormDialog({
       if (weightInTons && d.weightInTons && d.weightInTons !== weightInTons) return false;
       return true;
     });
-  }
-
-  function findRateForDestination(destination: string): string {
-    const p = customerPricing.find((p) => {
-      const dest = typeof p.customerDestination === "object" && p.customerDestination !== null
-        ? ((p.customerDestination as any).destinationName ?? (p.customerDestination as any).destinationAddress ?? "")
-        : String(p.customerDestination || "");
-      return dest === destination;
-    });
-    return p?.rate ?? "";
   }
 
   async function handleVehicleChange(assignmentDriverId: string) {
@@ -1233,7 +1251,7 @@ export function TripFormDialog({
                     containerSpecification: val as Trip["containerSpecification"],
                     cargoClassification: cls as Trip["cargoClassification"],
                     ...(matchedDest ? {
-                      transportHireAmount: findRateForDestination(form.destination) || "",
+                      transportHireAmount: findPricingForDestination(matchedDest)?.rate ?? "",
                       cargoWeight: matchedDest.weightInTons || prev.cargoWeight,
                     } : {}),
                   }));
@@ -1532,6 +1550,11 @@ export function TripFormDialog({
               <span className="mt-1 text-xs text-gray-400">
                 Auto-fetched from customer destination — editable if needed. Used as baseline for ±10% KM variance check in trip sheet.
               </span>
+              {Number(form.approxKm) > IMPLAUSIBLE_APPROX_KM && (
+                <p className="mt-1 text-xs text-red-500">
+                  {Number(form.approxKm).toLocaleString("en-IN")} km looks unusually high for a single trip — please double-check this wasn&apos;t entered by mistake.
+                </p>
+              )}
             </Field>
 
             <Field label="Assigned Vehicle" className="sm:col-span-2">

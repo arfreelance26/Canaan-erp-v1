@@ -3,10 +3,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
-import { GlassSelect } from "@/components/ui/GlassSelect";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { VENDOR_CATEGORY_OPTIONS, VENDOR_STATUS_OPTIONS } from "@/lib/vendor-data";
+import { vendorCategoriesApi } from "@/lib/api";
 import type { Vendor } from "@/types/vendor";
+import type { VendorCategory } from "@/types/vendor-category";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 
@@ -32,6 +32,7 @@ const emptyForm: Omit<Vendor, "id" | "createdAt"> = {
 
 export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorFormDialogProps) {
   const [form, setForm] = useState<Omit<Vendor, "id" | "createdAt">>(emptyForm);
+  const [categories, setCategories] = useState<VendorCategory[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -41,6 +42,7 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
         ...emptyForm,
       };
       setForm(rest);
+      vendorCategoriesApi.list().then(setCategories).catch(() => {});
     }
   }, [open, initialData]);
 
@@ -81,8 +83,9 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
             <GlassCombobox
               value={form.category}
               onChange={(val) => update("category", val)}
-              placeholder="Select or type a category"
-              options={VENDOR_CATEGORY_OPTIONS.map(opt => ({ value: opt, label: opt }))}
+              placeholder="Select a category"
+              strictSelect
+              options={categories.map(c => ({ value: c.name, label: c.name }))}
             />
           </Field>
 
@@ -123,17 +126,6 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
               onChange={(e) => update("email", e.target.value)}
               className={inputClass}
               placeholder="name@company.com"
-            />
-          </Field>
-
-          <Field label="Status">
-            <GlassSelect
-              value={form.status}
-              onChange={(val) => update("status", val as Vendor["status"])}
-              options={[
-                { value: "", label: "Select status" },
-                ...VENDOR_STATUS_OPTIONS.map(o => ({ value: o, label: o }))
-              ]}
             />
           </Field>
         </div>

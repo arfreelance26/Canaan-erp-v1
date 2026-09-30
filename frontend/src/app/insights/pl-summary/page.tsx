@@ -423,6 +423,7 @@ function TripProfitabilityTab({
   const countedTrips = trips.filter((t) => !t.excludedFromTotals);
   const flaggedCount = trips.length - countedTrips.length;
   const profitable = countedTrips.filter((t) => t.tripPl >= 0).length;
+  const nonProfitable = countedTrips.length - profitable;
   const totalHire  = countedTrips.reduce((s, t) => s + t.hireAmount, 0);
   const totalExp   = countedTrips.reduce((s, t) => s + t.totalExpense, 0);
   const netPl      = countedTrips.reduce((s, t) => s + t.tripPl, 0);
@@ -436,11 +437,14 @@ function TripProfitabilityTab({
   return (
     <div className="flex flex-col gap-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Total Trips"      value={String(trips.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trips" value={`${profitable} / ${countedTrips.length}`}
           sub={countedTrips.length ? `${((profitable / countedTrips.length) * 100).toFixed(0)}% success rate` : ""}
           icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
+        <StatCard label="Non-Profitable Trips" value={`${nonProfitable} / ${countedTrips.length}`}
+          sub={countedTrips.length ? `${((nonProfitable / countedTrips.length) * 100).toFixed(0)}% loss rate` : ""}
+          icon={<TrendingDown className="h-4 w-4" />} color="red" />
         <StatCard label="Total Hire Revenue" value={fmt(totalHire)} sub={`Expenses: ${fmt(totalExp)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
         <StatCard label="Net Trip P&L" value={fmt(netPl)} sub={netPl >= 0 ? "Overall Profit" : "Overall Loss"}
@@ -863,16 +867,20 @@ function TruckProfitabilityTab({
     return acc;
   }, { total: 0, hasCpk: false });
   const profitableTrucks = enriched.filter((e) => e.tripPl >= 0).length;
+  const nonProfitableTrucks = enriched.length - profitableTrucks;
 
   return (
     <div className="flex flex-col gap-5">
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Total Trucks" value={String(enriched.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trucks" value={`${profitableTrucks} / ${enriched.length}`}
           sub={enriched.length ? `${((profitableTrucks / enriched.length) * 100).toFixed(0)}% success rate` : ""}
           icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
+        <StatCard label="Non-Profitable Trucks" value={`${nonProfitableTrucks} / ${enriched.length}`}
+          sub={enriched.length ? `${((nonProfitableTrucks / enriched.length) * 100).toFixed(0)}% loss rate` : ""}
+          icon={<TrendingDown className="h-4 w-4" />} color="red" />
         <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} sub={`Expenses: ${fmt(totals.tExp)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
         <StatCard label="Net P&L" value={fmt(totals.netPl)} sub={totals.netPl >= 0 ? "Overall Profit" : "Overall Loss"}

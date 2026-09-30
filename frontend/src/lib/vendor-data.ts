@@ -1,19 +1,5 @@
 import type { Vendor } from "@/types/vendor";
 
-export const VENDOR_STATUS_OPTIONS = ["ACTIVE", "INACTIVE", "BLACKLISTED"];
-
-export const VENDOR_CATEGORY_OPTIONS = [
-  "Tyre Seller",
-  "Tyre Rethreader",
-  "Tyre Worker",
-  "Mechanic",
-  "Tinker",
-  "Dealer",
-  "Painter",
-  "Spares",
-  "Others",
-];
-
 export const initialVendors: Vendor[] = [
   {
     id: "1",
