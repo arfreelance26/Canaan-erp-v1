@@ -19,7 +19,6 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { dashboardApi, tripsApi, trucksApi, editApprovalsApi } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { SheetTrackingCard } from "./SheetTrackingCard";
@@ -33,8 +32,6 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Separator } from "@/components/ui/separator";
 import type { Trip } from "@/types/trip";
 import type { Truck as TruckType } from "@/types/truck";
-import type { TripSheetData } from "@/types/trip-sheet";
-import { n } from "@/types/trip-sheet";
 
 interface OverviewData {
   total_trucks: number;
@@ -116,7 +113,6 @@ export function FleetManagerDashboard() {
   const [loading, setLoading] = useState(true);
   const [fleetFilter, setFleetFilter] = useState<"all" | "trip" | "free">("all");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [sheetDeliveredFilter, setSheetDeliveredFilter] = useState<"All" | "Awaiting Receipt" | "Received">("All");
   const [sheetDeliveredDate,   setSheetDeliveredDate]   = useState("");
   const [sheetReceivedFilter,  setSheetReceivedFilter]  = useState<"All" | "Pending Entry" | "Entered">("All");
@@ -144,20 +140,6 @@ export function FleetManagerDashboard() {
         editApprovalsApi.list("Pending")
           .then((r) => setPendingApprovals(r.length))
           .catch(() => setPendingApprovals(0));
-
-        if (trips.status === "fulfilled") {
-          const completed = trips.value.filter((t) => t.hasSheet);
-          // Cap concurrency at 8 — this dashboard's P&L table needs every sheet and
-          // re-runs on a 15s timer, so an unbounded burst would repeatedly hammer
-          // the DB pool. mapLimit keeps at most 8 requests in flight.
-          mapLimit(completed, 8, (t) =>
-            tripsApi.getSheet(t.id).then((s) => s ? ({ id: t.id, sheet: s }) : null).catch(() => null)
-          ).then((results) => {
-            const m = new Map<string, TripSheetData>();
-            for (const r of results) { if (r) m.set(r.id, r.sheet); }
-            setSheets(m);
-          });
-        }
       })
       .finally(() => setLoading(false));
   }, [refreshKey]);

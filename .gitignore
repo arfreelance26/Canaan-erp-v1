@@ -94,3 +94,15 @@ desktop/build/
 
 # zip archives
 *.zip
+
+# quotation & invoice documents and generator scripts
+Canaan-ERP-Invoice-01.md
+Canaan-ERP-Quotation.md
+Canaan_ERP_Complete_Quotation.docx
+Canaan_ERP_Invoice_CAN-ERP-2026-INV-01.docx
+Canaan_ERP_Quotation_CAN-ERP-2026-002.docx
+Quotation2.MD
+Quotation3.md
+invoice.js
+quotation.js
+quotation3.js

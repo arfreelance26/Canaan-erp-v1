@@ -11,7 +11,6 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import type { Trip } from "@/types/trip";
@@ -215,27 +214,17 @@ export default function TripHistoryPage() {
     if (toFetch.length === 0) return;
     let cancelled = false;
     (async () => {
-      const results = await Promise.all(
-        toFetch.map(async (t) => {
-          const [cl, sh] = await Promise.all([
-            tripsApi.getClosure(t.id).catch(() => null),
-            tripsApi.getSheet(t.id).catch(() => null),
-          ]);
-          return { id: t.id, cl, sh };
-        }),
-      );
+      // One bulk request each for the whole page, instead of 2 per trip.
+      const ids = toFetch.map((t) => t.id);
+      const [cls, shs] = await Promise.all([
+        tripsApi.getClosuresBulk(ids).catch(() => null),
+        tripsApi.getSheetsBulk(ids).catch(() => null),
+      ]);
       if (cancelled) return;
-      setClosures((prev) => {
-        const next = new Map(prev);
-        for (const r of results) if (r.cl) next.set(r.id, r.cl);
-        return next;
-      });
-      setSheets((prev) => {
-        const next = new Map(prev);
-        for (const r of results) if (r.sh) next.set(r.id, r.sh);
-        return next;
-      });
-      for (const r of results) fetchedDetailIds.current.add(r.id);
+      if (cls) setClosures((prev) => new Map([...prev, ...cls]));
+      if (shs) setSheets((prev) => new Map([...prev, ...shs]));
+      // Only mark as fetched if both succeeded, so a transient failure retries on the next refresh.
+      if (cls && shs) for (const id of ids) fetchedDetailIds.current.add(id);
     })();
     return () => { cancelled = true; };
   }, [paginatedTrips]);
@@ -260,17 +249,16 @@ export default function TripHistoryPage() {
     const groupIds = await tripsApi.getInvoiceGroup(invNo).catch(() => []);
     if (groupIds.length < 2) return;
     const idStrs = groupIds.map(String);
-    const results = await mapLimit(idStrs, 8, async (id) => {
-      const [cl, sh, inv] = await Promise.all([
-        closures.has(id) ? Promise.resolve(closures.get(id) ?? null) : tripsApi.getClosure(id).catch(() => null),
-        sheets.has(id) ? Promise.resolve(sheets.get(id) ?? null) : tripsApi.getSheet(id).catch(() => null),
-        id === trip.id ? Promise.resolve(raw) : tripsApi.getInvoice(id).catch(() => null),
-      ]);
-      return { id, cl, sh, inv };
-    });
-    setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
-    setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
-    setCombineRawInvoices(new Map(results.filter((r) => r.inv).map((r) => [r.id, r.inv as Record<string, unknown>])));
+    const missingCl = idStrs.filter((id) => !closures.has(id));
+    const missingSh = idStrs.filter((id) => !sheets.has(id));
+    const [cls, shs, invs] = await Promise.all([
+      missingCl.length ? tripsApi.getClosuresBulk(missingCl).catch(() => null) : Promise.resolve(null),
+      missingSh.length ? tripsApi.getSheetsBulk(missingSh).catch(() => null) : Promise.resolve(null),
+      tripsApi.getInvoicesBulk(idStrs).catch(() => new Map<string, Record<string, unknown>>()),
+    ]);
+    if (cls) setClosures((prev) => new Map([...prev, ...cls]));
+    if (shs) setSheets((prev) => new Map([...prev, ...shs]));
+    setCombineRawInvoices(invs);
     setCombinePreview({ trips: trips.filter((t) => idStrs.includes(t.id)) });
   }
 

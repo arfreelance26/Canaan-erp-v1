@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
@@ -386,17 +385,16 @@ export default function TripVerificationPage() {
   // siblings can live on a different page than the one currently visible, so the
   // normal per-page lazy loader (below) can't be relied on to have them yet.
   async function fetchGroupDetails(ids: string[]) {
-    const results = await mapLimit(ids, 8, async (id) => {
-      const [cl, sh, inv] = await Promise.all([
-        closures.has(id) ? Promise.resolve(closures.get(id) ?? null) : tripsApi.getClosure(id).catch(() => null),
-        sheets.has(id) ? Promise.resolve(sheets.get(id) ?? null) : tripsApi.getSheet(id).catch(() => null),
-        tripsApi.getInvoice(id).catch(() => null),
-      ]);
-      return { id, cl, sh, inv };
-    });
-    setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
-    setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
-    setInvoiceData((prev) => { const next = new Map(prev); for (const r of results) if (r.inv) next.set(r.id, r.inv); return next; });
+    const missingCl = ids.filter((id) => !closures.has(id));
+    const missingSh = ids.filter((id) => !sheets.has(id));
+    const [cls, shs, invs] = await Promise.all([
+      missingCl.length ? tripsApi.getClosuresBulk(missingCl).catch(() => null) : Promise.resolve(null),
+      missingSh.length ? tripsApi.getSheetsBulk(missingSh).catch(() => null) : Promise.resolve(null),
+      tripsApi.getInvoicesBulk(ids).catch(() => null),
+    ]);
+    if (cls) setClosures((prev) => new Map([...prev, ...cls]));
+    if (shs) setSheets((prev) => new Map([...prev, ...shs]));
+    if (invs) setInvoiceData((prev) => new Map([...prev, ...invs]));
   }
 
   async function handleEditInvoice(trip: Trip) {
@@ -699,38 +697,34 @@ export default function TripVerificationPage() {
     if (toFetch.length === 0) return;
     let cancelled = false;
     (async () => {
-      const results = await mapLimit(toFetch, 8, async (t) => {
-        const [cl, sh, inv] = await Promise.all([
-          tripsApi.getClosure(t.id).catch(() => null),
-          tripsApi.getSheet(t.id).catch(() => null),
-          invoicedIds.has(t.id) ? tripsApi.getInvoice(t.id).catch(() => null) : Promise.resolve(null),
-        ]);
-        return { id: t.id, cl, sh, inv };
-      });
+      // One bulk request each for the whole page, instead of up to 3 per trip.
+      const ids = toFetch.map((t) => t.id);
+      const invIds = ids.filter((id) => invoicedIds.has(id));
+      const [cls, shs, invs] = await Promise.all([
+        tripsApi.getClosuresBulk(ids).catch(() => null),
+        tripsApi.getSheetsBulk(ids).catch(() => null),
+        invIds.length ? tripsApi.getInvoicesBulk(invIds).catch(() => null) : Promise.resolve(new Map()),
+      ]);
       if (cancelled) return;
-      setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
-      setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
-      setInvoiceData((prev) => { const next = new Map(prev); for (const r of results) if (r.inv) next.set(r.id, r.inv); return next; });
-      for (const r of results) fetchedDetailIds.current.add(r.id);
+      if (cls) setClosures((prev) => new Map([...prev, ...cls]));
+      if (shs) setSheets((prev) => new Map([...prev, ...shs]));
+      if (invs) setInvoiceData((prev) => new Map([...prev, ...invs]));
+      if (cls && shs && invs) for (const id of ids) fetchedDetailIds.current.add(id);
     })();
     return () => { cancelled = true; };
   }, [paginatedTrips, invoicedIds]);
 
   // The report modal / PDF filters and displays invoice data across ALL invoiced
-  // trips (not just the visible page), so when it opens we batch-fetch any invoice
-  // data not already cached — concurrency-limited so it never bursts the pool.
+  // trips (not just the visible page), so when it opens we bulk-fetch any invoice
+  // data not already cached.
   useEffect(() => {
     if (!showReportModal) return;
     const missing = trips.filter((t) => invoicedIds.has(t.id) && !invoiceData.has(t.id));
     if (missing.length === 0) return;
     let cancelled = false;
-    (async () => {
-      const results = await mapLimit(missing, 8, (t) =>
-        tripsApi.getInvoice(t.id).then((inv) => ({ id: t.id, inv })).catch(() => null),
-      );
-      if (cancelled) return;
-      setInvoiceData((prev) => { const next = new Map(prev); for (const r of results) if (r?.inv) next.set(r.id, r.inv); return next; });
-    })();
+    tripsApi.getInvoicesBulk(missing.map((t) => t.id))
+      .then((invs) => { if (!cancelled) setInvoiceData((prev) => new Map([...prev, ...invs])); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [showReportModal, trips, invoicedIds]);
 

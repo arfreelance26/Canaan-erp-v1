@@ -1766,6 +1766,14 @@ export const customersApi = {
 
   listDestinations: (customerId: string) =>
     req<B[]>(`/customers/${customerId}/destinations`).then((d) => d.map(toCustomerDestination)),
+  // Bulk variants — every active customer's rows in one request instead of
+  // one request per customer.
+  listAllDestinations: () =>
+    req<B[]>(`/customers/bulk/destinations`).then((d) => d.map(toCustomerDestination)),
+  listAllPricing: () =>
+    req<B[]>(`/customers/bulk/pricing`).then((d) => d.map(toCustomerPricing)),
+  listAllFinalPricing: () =>
+    req<B[]>(`/customers/bulk/final-pricing`).then((d) => d.map(toFinalCustomerPricing)),
   createDestination: (customerId: string, dest: CustomerDestination) =>
     req<B>(`/customers/${customerId}/destinations`, {
       method: "POST",
@@ -1978,9 +1986,23 @@ export type AuditVerifiedTrip = {
   wasDisputed: boolean;
 };
 
+const BULK_CHUNK = 200;
+
+async function bulkByTripId<T>(dbIds: string[], path: string, convert: (b: B) => T): Promise<Map<string, T>> {
+  const ids = Array.from(new Set(dbIds));
+  const out = new Map<string, T>();
+  for (let i = 0; i < ids.length; i += BULK_CHUNK) {
+    const chunk = ids.slice(i, i + BULK_CHUNK);
+    const rows = await req<B[]>(`${path}?ids=${chunk.join(",")}`);
+    for (const r of rows) out.set(String(r.trip_id), convert(r));
+  }
+  return out;
+}
+
 export const tripsApi = {
   list: (status?: string) =>
     req<B[]>(`/trips${status ? `?status=${status}` : ""}`).then((d) => d.map(toTrip)),
+  get: (dbId: string) => req<B>(`/trips/${dbId}`).then(toTrip),
   create: (trip: Trip) =>
     req<B>("/trips", { method: "POST", body: JSON.stringify(fromTrip(trip)) }).then(toTrip),
   // editContext tags the save for the Trip Edit History log — "BookingSheet"
@@ -2008,6 +2030,16 @@ export const tripsApi = {
   getSheet: (dbId: string) =>
     req<B | null>(`/trips/${dbId}/sheet`).then((b) => (b ? toSheet(b) : null)),
 
+  // Bulk — sheets/closures for many trips in one request (chunked) instead of
+  // one request per trip. Keyed by trip id; trips with no sheet/closure are
+  // simply absent from the map.
+  getSheetsBulk: (dbIds: string[]) =>
+    bulkByTripId(dbIds, "/trips/bulk/sheets", toSheet),
+  getClosuresBulk: (dbIds: string[]) =>
+    bulkByTripId(dbIds, "/trips/bulk/closures", toClosure),
+  getInvoicesBulk: (dbIds: string[]) =>
+    bulkByTripId(dbIds, "/trips/bulk/invoices", (b) => b as Record<string, unknown>),
+
   // Workflow
   verify: (dbId: string) => req<B>(`/trips/${dbId}/verify`, { method: "POST" }).then(toTrip),
   waiveInvoice: (dbId: string) => req<B>(`/trips/${dbId}/waive-invoice`, { method: "POST" }).then(toTrip),
@@ -2026,6 +2058,18 @@ export const tripsApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }).then(toTrip),
+  // Trip Summary (P&L/Mileage) page — one page of rows plus totals aggregated
+  // across every filtered trip, computed server-side so the page never needs
+  // to fetch every trip's sheet just to show accurate page-wide totals.
+  getPnlSummary: (params: { search?: string; dateFrom?: string; dateTo?: string; limit: number; offset: number }) => {
+    const qs = new URLSearchParams();
+    if (params.search) qs.set("search", params.search);
+    if (params.dateFrom) qs.set("date_from", params.dateFrom);
+    if (params.dateTo) qs.set("date_to", params.dateTo);
+    qs.set("limit", String(params.limit));
+    qs.set("offset", String(params.offset));
+    return req<TripPnlSummaryData>(`/trips/pnl-summary?${qs.toString()}`);
+  },
   getInvoice: (dbId: string) => req<Record<string, unknown>>(`/trips/${dbId}/invoice`),
   getNextInvoiceNo: (type: string) => req<{ invoice_no: string }>(`/trips/invoices/next-seq?invoice_type=${encodeURIComponent(type)}`),
   // Combined invoicing — one invoice number spans several trips for the same customer.
@@ -2886,6 +2930,26 @@ export const deletionApprovalsApi = {
 // ---------------------------------------------------------------------------
 // AdBlue API
 // ---------------------------------------------------------------------------
+
+export type TripPnlSummaryData = {
+  total_count: number;
+  total_hire: number;
+  total_expense: number;
+  total_pnl: number;
+  rows: {
+    id: string;
+    trip_id: string;
+    scheduled_date: string | null;
+    driver_name: string | null;
+    truck_registration: string | null;
+    origin: string | null;
+    destination: string | null;
+    hire: number;
+    expense: number;
+    pnl: number;
+    km: number;
+  }[];
+};
 
 export type CustomerProfitabilityData = {
   customer_id: string;

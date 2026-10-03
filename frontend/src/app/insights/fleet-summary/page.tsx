@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { trucksApi, tripsApi } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
@@ -98,15 +97,9 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
       const all = await tripsApi.list();
       const truckTrips = all.filter((t) => t.vehicleId === truck.truckId);
       setAllTrips(truckTrips);
-      const withSheet = truckTrips.filter((t) => t.hasSheet);
-      // Cap concurrency at 8 so a truck with a long history doesn't fire dozens
-      // of simultaneous requests (each holds a DB connection). Order is preserved.
-      const results = await mapLimit(withSheet, 8, (t) =>
-        tripsApi.getSheet(t.id).then((s) => ({ id: t.id, sheet: s })).catch(() => null)
-      );
-      const map = new Map<string, TripSheetData>();
-      for (const r of results) if (r && r.sheet) map.set(r.id, r.sheet);
-      setSheets(map);
+      const withSheet = truckTrips.filter((t) => t.hasSheet).map((t) => t.id);
+      // One bulk request for the truck's whole history instead of one per trip.
+      setSheets(withSheet.length ? await tripsApi.getSheetsBulk(withSheet) : new Map());
     }
     load().catch(() => {
       showError("Couldn't load trip history — showing an empty list, not necessarily an empty result.");

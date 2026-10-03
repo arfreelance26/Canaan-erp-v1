@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   TrendingUp, TrendingDown, Route, ChevronLeft, ChevronRight,
   Compass, Calculator, X, FileText, Wallet, MousePointerClick, CalendarDays, FileSpreadsheet,
 } from "lucide-react";
-import { tripsApi } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
-import { n } from "@/types/trip-sheet";
+import { tripsApi, type TripPnlSummaryData } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
@@ -20,13 +18,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 const PAGE_SIZE = 10;
 
-type Row = {
-  trip: Trip;
-  hire: number;
-  expense: number;
-  pnl: number;
-  km: number;
-};
+type Row = TripPnlSummaryData["rows"][number];
 
 function fmt(v: number) {
   return `₹${Math.round(v).toLocaleString("en-IN")}`;
@@ -171,113 +163,87 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function PnlMileagePage() {
-  const [allTrips, setAllTrips] = useState<Trip[]>([]);
-  const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
-  const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
+  const [summary, setSummary] = useState<TripPnlSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
 
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState<TripSheetData | undefined>(undefined);
+  const [selectedClosure, setSelectedClosure] = useState<TripClosureData | undefined>(undefined);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [showHowCalculated, setShowHowCalculated] = useState(false);
   const [showQuickStart, setShowQuickStart] = useState(false);
 
   const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    // This is an analytics page — P&L/mileage totals aggregate across every trip
-    // in range, so all sheets/closures are genuinely needed (not just one page).
-    // mapLimit caps concurrency at 8 so the fetch never bursts the DB pool.
-    tripsApi.list().then((trips) => {
-      setAllTrips(trips);
-      const withSheet = trips.filter((t) => t.hasSheet);
-      mapLimit(withSheet, 8, (t) =>
-        tripsApi.getSheet(t.id)
-          .then((s) => s ? ({ id: t.id, sheet: s }) : null)
-          .catch(() => null)
-      ).then((results) => {
-        const m = new Map<string, TripSheetData>();
-        for (const r of results) { if (r) m.set(r.id, r.sheet); }
-        setSheets(m);
 
-        const withClosure = trips.filter((t) => t.hasClosure);
-        return mapLimit(withClosure, 8, (t) =>
-          tripsApi.getClosure(t.id)
-            .then((c) => ({ id: t.id, closure: c }))
-            .catch(() => null)
-        );
-      }).then((results) => {
-        const m = new Map<string, TripClosureData>();
-        for (const r of results) { if (r) m.set(r.id, r.closure); }
-        setClosures(m);
-      }).catch(() => {
-        // A single failure here (e.g. the sheets fetch) previously left `sheets`
-        // empty, which silently renders as "No trips found matching your
-        // filters" — indistinguishable from a genuinely quiet period.
-        showError("Couldn't load trip sheet/closure data — the table below may be incomplete.");
-      }).finally(() => setLoading(false));
-    }).catch(() => {
-      showError("Couldn't load trips — showing last known data, not necessarily current.");
-      setLoading(false);
-    });
-  }, [refreshKey]);
+  // Debounce the search box so every keystroke doesn't fire a request —
+  // only the aggregate fetch below depends on `debouncedSearch`, so typing
+  // stays instant while the network call settles 300ms after the user pauses.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [debouncedSearch, dateFrom, dateTo]);
+
+  useEffect(() => {
+    // Lazy — only the current page's rows are fetched. Total Hire/Expense/Net
+    // P&L are computed server-side across every filtered trip, so they stay
+    // accurate even though the browser never holds more than one page of data.
+    setLoading(true);
+    tripsApi.getPnlSummary({
+      search: debouncedSearch || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+    })
+      .then(setSummary)
+      .catch(() => showError("Couldn't load trip summary — showing last known data, not necessarily current."))
+      .finally(() => setLoading(false));
+  }, [debouncedSearch, dateFrom, dateTo, page, refreshKey]);
+
   // A trip sheet closed, edited, or a trip soft-deleted elsewhere previously
   // left this page's totals/table stale until a manual reload.
   useWebSocketEvent("trip_closed", () => setRefreshKey((k) => k + 1));
   useWebSocketEvent("trip_updated", () => setRefreshKey((k) => k + 1));
 
-  // Reset to page 1 whenever filters change
-  useEffect(() => { setPage(1); }, [search, dateFrom, dateTo]);
-
-  const rows: Row[] = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allTrips
-      .filter((t) => sheets.has(t.id))
-      .map((t) => {
-        const s = sheets.get(t.id)!;
-        // Hire Amount excluding Commission Amount — matches the "Hire Amount
-        // (excluding Commission Amount)" field on the trip assignment form.
-        const hire = n(s.hireAmount) - n(t.transportCommissionAmount ?? "");
-        const expense = n(s.totalExpense);
-        const pnl = hire - expense;
-        const km = n(s.totalKm);
-        return { trip: t, hire, expense, pnl, km };
+  function openRow(row: Row) {
+    if (detailLoading) return;
+    setDetailLoading(true);
+    Promise.all([
+      tripsApi.get(row.id),
+      tripsApi.getSheet(row.id),
+      tripsApi.getClosure(row.id).catch(() => undefined),
+    ])
+      .then(([trip, sheet, closure]) => {
+        setSelectedTrip(trip);
+        setSelectedSheet(sheet ?? undefined);
+        setSelectedClosure(closure);
       })
-      .filter(({ trip: t }) => {
-        if (dateFrom && t.scheduledDate && t.scheduledDate < dateFrom) return false;
-        if (dateTo && t.scheduledDate && t.scheduledDate > dateTo) return false;
-        if (q) {
-          const haystack = [t.tripId, t.vehicleId, t.origin, t.destination].join(" ").toLowerCase();
-          if (!haystack.includes(q)) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        // Explicit fallback for a missing scheduledDate — keeps it consistently
-        // at the bottom of this latest-first sort rather than relying on empty
-        // string ("") happening to compare smallest.
-        const aDate = a.trip.scheduledDate || "";
-        const bDate = b.trip.scheduledDate || "";
-        if (bDate > aDate) return 1;
-        if (bDate < aDate) return -1;
-        return b.pnl - a.pnl;
-      });
-  }, [allTrips, sheets, search, dateFrom, dateTo]);
+      .catch(() => showError("Couldn't load this trip's sheet."))
+      .finally(() => setDetailLoading(false));
+  }
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const rows: Row[] = summary?.rows ?? [];
+  const totalCount = summary?.total_count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const totalPnl = rows.reduce((s, r) => s + r.pnl, 0);
-  const totalHire = rows.reduce((s, r) => s + r.hire, 0);
-  const totalExpense = rows.reduce((s, r) => s + r.expense, 0);
+  const totalPnl = summary?.total_pnl ?? 0;
+  const totalHire = summary?.total_hire ?? 0;
+  const totalExpense = summary?.total_expense ?? 0;
 
   const clearFilters = () => { setDateFrom(""); setDateTo(""); setSearch(""); };
   const hasFilters = !!(dateFrom || dateTo || search);
 
-  if (loading) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={9} rows={10} />;
+  if (loading && !summary) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={9} rows={10} />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -315,7 +281,7 @@ export default function PnlMileagePage() {
       {/* Summary tiles */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: "Trips", value: String(rows.length), icon: Route, chip: "bg-blue-100 text-blue-600", text: "text-gray-900" },
+          { label: "Trips", value: String(totalCount), icon: Route, chip: "bg-blue-100 text-blue-600", text: "text-gray-900" },
           { label: "Total Hire", value: fmt(totalHire), icon: Wallet, chip: "bg-sky-100 text-sky-600", text: "text-gray-900" },
           { label: "Total Expense", value: fmt(totalExpense), icon: Calculator, chip: "bg-amber-100 text-amber-600", text: "text-gray-900" },
           {
@@ -357,7 +323,7 @@ export default function PnlMileagePage() {
       </div>
 
       {/* Table */}
-      <div className="dk-inset max-h-[75vh] overflow-auto rounded-2xl border border-gray-200/80 bg-white shadow-sm">
+      <div className={`dk-inset max-h-[75vh] overflow-auto rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-opacity ${detailLoading ? "pointer-events-none opacity-60" : ""}`}>
         {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-20 text-sm text-gray-400">
             <Route className="h-8 w-8 text-gray-300" />
@@ -378,41 +344,41 @@ export default function PnlMileagePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {pageRows.map(({ trip: t, hire, expense, pnl, km }) => (
+              {rows.map((r) => (
                 <tr
-                  key={t.id}
+                  key={r.id}
                   className="cursor-pointer hover:bg-blue-50 transition-colors"
-                  onClick={() => setSelectedTrip(t)}
+                  onClick={() => openRow(r)}
                 >
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{t.tripId}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">{r.trip_id}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500">
-                    {t.scheduledDate
-                      ? new Date(t.scheduledDate).toLocaleDateString("en-GB", {
+                    {r.scheduled_date
+                      ? new Date(r.scheduled_date).toLocaleDateString("en-GB", {
                           day: "2-digit",
                           month: "2-digit",
                           year: "numeric",
                         }).replace(/\//g, "-")
                       : "—"}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{t.driverName || "—"}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{t.truckRegistration || "—"}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{t.origin} → {t.destination}</td>
-                  <td className="whitespace-nowrap px-4 py-3 font-medium text-blue-700">{fmt(hire)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{fmt(expense)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{r.driver_name || "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{r.truck_registration || "—"}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{r.origin} → {r.destination}</td>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-blue-700">{fmt(r.hire)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{fmt(r.expense)}</td>
                   <td className="whitespace-nowrap px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${pnl >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
-                      {pnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                      {fmt(pnl)}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${r.pnl >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                      {r.pnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                      {fmt(r.pnl)}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{km > 0 ? `${km} km` : "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">{r.km > 0 ? `${r.km} km` : "—"}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
                 <td colSpan={5} className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Total ({rows.length} trips)
+                  Total ({totalCount} trips)
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-blue-700">{fmt(totalHire)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-700">{fmt(totalExpense)}</td>
@@ -427,10 +393,10 @@ export default function PnlMileagePage() {
       </div>
 
       {/* Pagination */}
-      {!loading && rows.length > PAGE_SIZE && (
+      {!loading && totalCount > PAGE_SIZE && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-500">
-            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, rows.length)} of {rows.length} trips
+            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, totalCount)} of {totalCount} trips
           </p>
           <div className="flex items-center gap-1.5">
             <button
@@ -480,17 +446,17 @@ export default function PnlMileagePage() {
         </div>
       )}
 
-      {/* Trip sheet popup */}
+      {/* Trip sheet popup — sheet/closure are lazy-fetched on row click (see openRow) */}
       <TripSheetDialog
         open={selectedTrip !== null}
         trip={selectedTrip}
-        closure={selectedTrip ? closures.get(selectedTrip.id) : undefined}
-        existingSheet={selectedTrip ? sheets.get(selectedTrip.id) : undefined}
+        closure={selectedClosure}
+        existingSheet={selectedSheet}
         readOnly
         drivers={[]}
         trucks={[]}
         onSubmit={() => {}}
-        onClose={() => setSelectedTrip(null)}
+        onClose={() => { setSelectedTrip(null); setSelectedSheet(undefined); setSelectedClosure(undefined); }}
       />
 
       {showHowCalculated && <HowCalculatedModal onClose={() => setShowHowCalculated(false)} />}

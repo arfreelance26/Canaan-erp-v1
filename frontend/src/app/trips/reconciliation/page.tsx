@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
@@ -639,35 +638,31 @@ export default function TripReconciliationPage() {
     if (toFetch.length === 0) return;
     let cancelled = false;
     (async () => {
-      const results = await mapLimit(toFetch, 8, async (t) => {
-        const [cl, sh] = await Promise.all([
-          tripsApi.getClosure(t.id).catch(() => null),
-          t.hasSheet ? tripsApi.getSheet(t.id).catch(() => null) : Promise.resolve(null),
-        ]);
-        return { id: t.id, cl, sh };
-      });
+      // One bulk request each for the whole page, instead of 2 per trip.
+      const ids = toFetch.map((t) => t.id);
+      const sheetIds = toFetch.filter((t) => t.hasSheet).map((t) => t.id);
+      const [cls, shs] = await Promise.all([
+        tripsApi.getClosuresBulk(ids).catch(() => null),
+        sheetIds.length ? tripsApi.getSheetsBulk(sheetIds).catch(() => null) : Promise.resolve(new Map()),
+      ]);
       if (cancelled) return;
-      setClosures((prev) => { const next = new Map(prev); for (const r of results) if (r.cl) next.set(r.id, r.cl); return next; });
-      setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r.sh) next.set(r.id, r.sh); return next; });
-      for (const r of results) fetchedDetailIds.current.add(r.id);
+      if (cls) setClosures((prev) => new Map([...prev, ...cls]));
+      if (shs) setSheets((prev) => new Map([...prev, ...shs]));
+      if (cls && shs) for (const id of ids) fetchedDetailIds.current.add(id);
     })();
     return () => { cancelled = true; };
   }, [paginatedTrips]);
 
   // The report modal shows sheet/closure data across ALL trips in range, so when
-  // it opens we batch-fetch any not already cached — concurrency-limited.
+  // it opens we bulk-fetch any not already cached.
   useEffect(() => {
     if (!showReportModal) return;
     const missing = trips.filter((t) => t.hasSheet && !sheets.has(t.id));
     if (missing.length === 0) return;
     let cancelled = false;
-    (async () => {
-      const results = await mapLimit(missing, 8, (t) =>
-        tripsApi.getSheet(t.id).then((sheet) => ({ id: t.id, sheet })).catch(() => null),
-      );
-      if (cancelled) return;
-      setSheets((prev) => { const next = new Map(prev); for (const r of results) if (r?.sheet) next.set(r.id, r.sheet); return next; });
-    })();
+    tripsApi.getSheetsBulk(missing.map((t) => t.id))
+      .then((shs) => { if (!cancelled) setSheets((prev) => new Map([...prev, ...shs])); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [showReportModal, trips]);
 

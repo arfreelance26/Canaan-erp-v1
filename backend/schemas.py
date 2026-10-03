@@ -2562,6 +2562,34 @@ class CustomerProfitabilityOut(BaseModel):
         from_attributes = True
 
 
+class TripPnlRowOut(BaseModel):
+    """One row of the Trip Summary (P&L/Mileage) page — the per-trip figures
+    derived from its trip sheet, already resolved server-side so the frontend
+    never needs to fetch a trip's full sheet just to render the table."""
+    id: str
+    trip_id: str
+    scheduled_date: Optional[str] = None
+    driver_name: Optional[str] = None
+    truck_registration: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    hire: float
+    expense: float
+    pnl: float
+    km: float
+
+
+class TripPnlSummaryOut(BaseModel):
+    """Totals aggregate over EVERY trip matching the current filters (not just
+    the current page), computed in SQL — paired with one page of `rows` so the
+    frontend can lazy-load pages without losing the page-wide totals."""
+    total_count: int
+    total_hire: float
+    total_expense: float
+    total_pnl: float
+    rows: list[TripPnlRowOut]
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------

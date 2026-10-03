@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IdCard, FileText, ClipboardList, Calculator, Route, Wallet, ChevronDown, Flag, CheckCircle2 } from "lucide-react";
 import { driversApi, tripsApi, trucksApi, customersApi } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
@@ -265,23 +264,15 @@ export default function DriverRecordPage() {
       (t) => t.hasSheet && !sheets.has(t.id) && !requestedSheetIds.current.has(t.id)
     );
     if (toFetch.length === 0) return;
-    for (const t of toFetch) requestedSheetIds.current.add(t.id);
-    mapLimit(toFetch, 8, (t) =>
-      tripsApi.getSheet(t.id)
-        .then((sh) => ({ id: t.id, sh, failed: false }))
-        .catch(() => ({ id: t.id, sh: null as TripSheetData | null, failed: true }))
-    ).then((results) => {
-      setSheets((prev) => {
-        let changed = false;
-        const next = new Map(prev);
-        for (const r of results) if (r.sh) { next.set(r.id, r.sh); changed = true; }
-        return changed ? next : prev;
-      });
+    const ids = toFetch.map((t) => t.id);
+    for (const id of ids) requestedSheetIds.current.add(id);
+    // One bulk request (chunked) instead of one per trip.
+    tripsApi.getSheetsBulk(ids)
+      .then((shs) => { if (shs.size) setSheets((prev) => new Map([...prev, ...shs])); })
       // A genuine failure (network error, timeout) is allowed to retry on a
       // later pass rather than being stuck for the rest of the session — a
       // successful call that simply found no sheet is left marked done.
-      for (const r of results) if (r.failed) requestedSheetIds.current.delete(r.id);
-    });
+      .catch(() => { for (const id of ids) requestedSheetIds.current.delete(id); });
   }, [tripsInRange, sheets]);
 
   // Lazy-load booking-sheet closures for the "View Booking Sheet" button — same
@@ -292,20 +283,11 @@ export default function DriverRecordPage() {
       (t) => t.hasClosure && !closures.has(t.id) && !requestedClosureIds.current.has(t.id)
     );
     if (toFetch.length === 0) return;
-    for (const t of toFetch) requestedClosureIds.current.add(t.id);
-    mapLimit(toFetch, 8, (t) =>
-      tripsApi.getClosure(t.id)
-        .then((cl) => ({ id: t.id, cl, failed: false }))
-        .catch(() => ({ id: t.id, cl: null as TripClosureData | null, failed: true }))
-    ).then((results) => {
-      setClosures((prev) => {
-        let changed = false;
-        const next = new Map(prev);
-        for (const r of results) if (r.cl) { next.set(r.id, r.cl); changed = true; }
-        return changed ? next : prev;
-      });
-      for (const r of results) if (r.failed) requestedClosureIds.current.delete(r.id);
-    });
+    const ids = toFetch.map((t) => t.id);
+    for (const id of ids) requestedClosureIds.current.add(id);
+    tripsApi.getClosuresBulk(ids)
+      .then((cls) => { if (cls.size) setClosures((prev) => new Map([...prev, ...cls])); })
+      .catch(() => { for (const id of ids) requestedClosureIds.current.delete(id); });
   }, [tripsInRange, closures]);
 
   const tripsByDriverId = useMemo(() => {

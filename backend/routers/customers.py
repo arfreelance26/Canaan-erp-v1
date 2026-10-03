@@ -125,6 +125,36 @@ def list_all_customer_edit_events(db: Session = Depends(get_db)):
     return result
 
 
+# Bulk variants of the per-customer list endpoints below — one query across
+# every active customer instead of one request per customer. Scoped to
+# non-deleted customers, matching what GET /customers returns. Registered
+# before GET /{customer_id} so "bulk" isn't swallowed as a customer_id.
+
+def _active_customer_ids(db: Session):
+    return db.query(models.Customer.id).filter(models.Customer.deleted_at.is_(None))
+
+
+@router.get("/bulk/destinations", response_model=list[schemas.CustomerDestinationOut])
+def list_all_destinations(db: Session = Depends(get_db)):
+    return db.query(models.CustomerDestination).filter(
+        models.CustomerDestination.customer_id.in_(_active_customer_ids(db))
+    ).all()
+
+
+@router.get("/bulk/pricing", response_model=list[schemas.CustomerPricingOut])
+def list_all_pricing(db: Session = Depends(get_db)):
+    return db.query(models.CustomerPricing).filter(
+        models.CustomerPricing.customer_id.in_(_active_customer_ids(db))
+    ).all()
+
+
+@router.get("/bulk/final-pricing", response_model=list[schemas.FinalCustomerPricingOut])
+def list_all_final_pricing(db: Session = Depends(get_db)):
+    return db.query(models.FinalCustomerPricing).filter(
+        models.FinalCustomerPricing.customer_id.in_(_active_customer_ids(db))
+    ).all()
+
+
 @router.get("/{customer_id}", response_model=schemas.CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db)):
     customer = db.get(models.Customer, customer_id)

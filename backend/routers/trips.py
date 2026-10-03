@@ -345,6 +345,140 @@ def get_customer_profitability(db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/pnl-summary", response_model=schemas.TripPnlSummaryOut, tags=["Trips"])
+def get_pnl_summary(
+    search: Optional[str] = Query(None, description="Matches Trip ID, vehicle, origin, or destination"),
+    date_from: Optional[str] = Query(None, description="Filter by Trip.scheduled_date >="),
+    date_to: Optional[str] = Query(None, description="Filter by Trip.scheduled_date <="),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """Backs the "Trip Summary" page. Computes Total Hire/Expense/Net P&L across
+    EVERY trip matching the filters in SQL (not just the returned page), then
+    returns only one page of rows — the frontend no longer needs to fetch every
+    trip's sheet up front just to show accurate page-wide totals.
+    """
+    hire_expr = func.coalesce(models.TripSheet.hire_amount, 0) - func.coalesce(models.Trip.transport_commission_amount, 0)
+    expense_expr = func.coalesce(models.TripSheet.total_expense, 0)
+
+    base = (
+        db.query(models.Trip, models.TripSheet)
+        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .filter(models.Trip.deleted_at.is_(None))
+    )
+    if date_from:
+        base = base.filter(models.Trip.scheduled_date >= date_from)
+    if date_to:
+        base = base.filter(models.Trip.scheduled_date <= date_to)
+    if search:
+        s = f"%{search.strip()}%"
+        base = base.filter(or_(
+            models.Trip.trip_id.ilike(s),
+            models.Trip.vehicle_id.ilike(s),
+            models.Trip.origin.ilike(s),
+            models.Trip.destination.ilike(s),
+        ))
+
+    totals = base.with_entities(
+        func.count(models.Trip.id),
+        func.coalesce(func.sum(hire_expr), 0),
+        func.coalesce(func.sum(expense_expr), 0),
+    ).one()
+    total_count, total_hire, total_expense = int(totals[0]), float(totals[1]), float(totals[2])
+
+    # Latest-scheduled first, then highest P&L — same order the page showed
+    # when it sorted everything client-side. A NULL scheduled_date sorts last
+    # within its own date group, same as the old `|| ""` fallback did.
+    page = (
+        base.order_by(
+            func.coalesce(models.Trip.scheduled_date, date_type(1, 1, 1)).desc(),
+            (hire_expr - expense_expr).desc(),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    driver_ids = {t.driver_id for t, _ in page if t.driver_id}
+    vehicle_ids = {t.vehicle_id for t, _ in page if t.vehicle_id}
+    driver_names = {
+        d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).filter(models.Driver.driver_id.in_(driver_ids))
+    } if driver_ids else {}
+    truck_regs = {
+        t.truck_id: t.registration_number for t in db.query(models.Truck.truck_id, models.Truck.registration_number).filter(models.Truck.truck_id.in_(vehicle_ids))
+    } if vehicle_ids else {}
+
+    rows = []
+    for trip, sheet in page:
+        hire = float(sheet.hire_amount or 0) - float(trip.transport_commission_amount or 0)
+        expense = float(sheet.total_expense or 0)
+        rows.append({
+            "id": str(trip.id),
+            "trip_id": trip.trip_id,
+            "scheduled_date": trip.scheduled_date.isoformat() if trip.scheduled_date else None,
+            "driver_name": driver_names.get(trip.driver_id),
+            "truck_registration": truck_regs.get(trip.vehicle_id),
+            "origin": trip.origin,
+            "destination": trip.destination,
+            "hire": round(hire, 2),
+            "expense": round(expense, 2),
+            "pnl": round(hire - expense, 2),
+            "km": float(sheet.total_km or 0),
+        })
+
+    return {
+        "total_count": total_count,
+        "total_hire": round(total_hire, 2),
+        "total_expense": round(total_expense, 2),
+        "total_pnl": round(total_hire - total_expense, 2),
+        "rows": rows,
+    }
+
+
+_BULK_MAX_IDS = 500
+
+
+def _parse_bulk_ids(ids: str) -> list[int]:
+    try:
+        parsed = sorted({int(x) for x in ids.split(",") if x.strip()})
+    except ValueError:
+        raise HTTPException(400, "ids must be a comma-separated list of integers")
+    if len(parsed) > _BULK_MAX_IDS:
+        raise HTTPException(400, f"At most {_BULK_MAX_IDS} ids per request")
+    return parsed
+
+
+@router.get("/bulk/sheets", response_model=list[schemas.TripSheetOut])
+def get_trip_sheets_bulk(ids: str = Query(..., description="Comma-separated trip ids"), db: Session = Depends(get_db)):
+    """Trip sheets for many trips in one query — replaces one GET /{trip_id}/sheet
+    per row. Trips without a sheet are simply absent from the result."""
+    trip_ids = _parse_bulk_ids(ids)
+    if not trip_ids:
+        return []
+    return db.query(models.TripSheet).filter(models.TripSheet.trip_id.in_(trip_ids)).all()
+
+
+@router.get("/bulk/closures", response_model=list[schemas.TripClosureOut])
+def get_trip_closures_bulk(ids: str = Query(..., description="Comma-separated trip ids"), db: Session = Depends(get_db)):
+    """Trip closures for many trips in one query — replaces one GET
+    /{trip_id}/closure per row. Trips without a closure are simply absent."""
+    trip_ids = _parse_bulk_ids(ids)
+    if not trip_ids:
+        return []
+    return db.query(models.TripClosure).filter(models.TripClosure.trip_id.in_(trip_ids)).all()
+
+
+@router.get("/bulk/invoices", response_model=list[schemas.TripInvoiceOut])
+def get_trip_invoices_bulk(ids: str = Query(..., description="Comma-separated trip ids"), db: Session = Depends(get_db)):
+    """Trip invoices for many trips in one query — replaces one GET
+    /{trip_id}/invoice per row. Trips without an invoice are simply absent."""
+    trip_ids = _parse_bulk_ids(ids)
+    if not trip_ids:
+        return []
+    return db.query(models.TripInvoice).filter(models.TripInvoice.trip_id.in_(trip_ids)).all()
+
+
 @router.get("/customer-profitability/top-trips", tags=["Trips"])
 def get_customer_top_profitable_trips(
     customer_id: int = Query(...),

@@ -82,19 +82,10 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
     if (!open || !driver || driverTrips.length === 0) return;
     setLoading(true);
     setClosures(new Map());
-    Promise.all(
-      driverTrips.map((t) =>
-        tripsApi
-          .getClosure(t.id)
-          .then((closure) => (closure ? { id: t.id, closure } : null))
-          .catch(() => null)
-      )
-    )
-      .then((results) => {
-        const map = new Map<string, TripClosureData>();
-        for (const r of results) if (r) map.set(r.id, r.closure);
-        setClosures(map);
-      })
+    // One bulk request for the driver's trips instead of one per trip.
+    tripsApi.getClosuresBulk(driverTrips.map((t) => t.id))
+      .then(setClosures)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [open, driver?.id]);
 

@@ -15,7 +15,6 @@ import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { customersApi, editApprovalsApi, type CustomerEditEventRow } from "@/lib/api";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatDateTime } from "@/lib/format-date";
-import { mapLimit } from "@/lib/async-pool";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
@@ -217,24 +216,30 @@ export default function CustomersPage() {
   // needs them to populate the destination dropdown.
   useEffect(() => {
     // Each tab needs its data across all customers (the lists are aggregated), so
-    // mapLimit caps concurrency at 8 instead of firing one request per customer
-    // at once — keeps the DB pool safe when there are many customers.
+    // each is one bulk request instead of one request per customer. Rows are
+    // re-grouped in the customer list's order, same as the per-customer fetch was.
+    const order = new Map(customers.map((c, i) => [c.id, i]));
+    const byCustomer = <T extends { customerId: string }>(rows: T[]) =>
+      rows
+        .filter((r) => order.has(r.customerId))
+        .sort((a, b) => order.get(a.customerId)! - order.get(b.customerId)!);
+
     if (activeTab === "pricing" && customers.length > 0 && pricing.length === 0) {
       setLoadingPricing(true);
-      mapLimit(customers, 8, (c) => customersApi.listPricing(c.id))
-        .then((results) => setPricing(results.flat()))
+      customersApi.listAllPricing()
+        .then((rows) => setPricing(byCustomer(rows)))
         .catch(() => {}).finally(() => setLoadingPricing(false));
     }
     if ((activeTab === "destinations" || activeTab === "pricing") && customers.length > 0 && destinations.length === 0) {
       setLoadingDestinations(true);
-      mapLimit(customers, 8, (c) => customersApi.listDestinations(c.id))
-        .then((results) => setDestinations(results.flat()))
+      customersApi.listAllDestinations()
+        .then((rows) => setDestinations(byCustomer(rows)))
         .catch(() => {}).finally(() => setLoadingDestinations(false));
     }
     if (activeTab === "finalPricing" && customers.length > 0 && finalPricing.length === 0) {
       setLoadingFinalPricing(true);
-      mapLimit(customers, 8, (c) => customersApi.listFinalPricing(c.id))
-        .then((results) => setFinalPricing(results.flat()))
+      customersApi.listAllFinalPricing()
+        .then((rows) => setFinalPricing(byCustomer(rows)))
         .catch(() => {}).finally(() => setLoadingFinalPricing(false));
     }
   }, [activeTab, customers, pricing.length, destinations.length, finalPricing.length]);

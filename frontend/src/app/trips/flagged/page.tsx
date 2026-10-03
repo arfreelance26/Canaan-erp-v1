@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Flag, Undo2, FileText, ClipboardList, Pencil, History as HistoryIcon, CheckCircle2 } from "lucide-react";
 import { tripsApi, driversApi, trucksApi, customersApi, type TripRecheckEventRow } from "@/lib/api";
-import { mapLimit } from "@/lib/async-pool";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -85,31 +84,20 @@ export default function FlaggedTripsPage() {
       t.flaggedRemark?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-  // Closures/sheets for every flagged trip, in one small batch — this list is
-  // never large enough (a handful of disputed trips at a time) to need the
-  // lazy, ref-guarded fetching Driver Record uses for its full trip history.
+  // Closures/sheets for every flagged trip — one bulk request each. This list
+  // is small (a handful of disputed trips at a time), so no per-page slicing.
   useEffect(() => {
-    const toFetchClosures = flaggedTrips.filter((t) => t.hasClosure && !closures.has(t.id));
-    const toFetchSheets = flaggedTrips.filter((t) => t.hasSheet && !sheets.has(t.id));
-    if (toFetchClosures.length > 0) {
-      mapLimit(toFetchClosures, 8, (t) => tripsApi.getClosure(t.id).then((cl) => ({ id: t.id, cl })).catch(() => null))
-        .then((results) => {
-          setClosures((prev) => {
-            const next = new Map(prev);
-            for (const r of results) if (r) next.set(r.id, r.cl);
-            return next;
-          });
-        });
+    const closureIds = flaggedTrips.filter((t) => t.hasClosure && !closures.has(t.id)).map((t) => t.id);
+    const sheetIds = flaggedTrips.filter((t) => t.hasSheet && !sheets.has(t.id)).map((t) => t.id);
+    if (closureIds.length > 0) {
+      tripsApi.getClosuresBulk(closureIds)
+        .then((cls) => setClosures((prev) => new Map([...prev, ...cls])))
+        .catch(() => {});
     }
-    if (toFetchSheets.length > 0) {
-      mapLimit(toFetchSheets, 8, (t) => tripsApi.getSheet(t.id).then((sh) => ({ id: t.id, sh })).catch(() => null))
-        .then((results) => {
-          setSheets((prev) => {
-            const next = new Map(prev);
-            for (const r of results) if (r?.sh) next.set(r.id, r.sh);
-            return next;
-          });
-        });
+    if (sheetIds.length > 0) {
+      tripsApi.getSheetsBulk(sheetIds)
+        .then((shs) => setSheets((prev) => new Map([...prev, ...shs])))
+        .catch(() => {});
     }
   }, [flaggedTrips.map((t) => t.id).join(",")]);
 

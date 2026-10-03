@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
+import { mapLimit } from "@/lib/async-pool";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -293,17 +294,16 @@ export default function SheetCollectionPage() {
     const targets = filtered.filter((t) => selected.has(t.id) && !t.tripSheetCollected && advanceOk(t));
     let successCount = 0;
     const errors: string[] = [];
-    await Promise.all(
-      targets.map(async (trip) => {
-        try {
-          const updated = await tripsApi.collectSheet(trip.id);
-          setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
-          successCount++;
-        } catch (err: unknown) {
-          errors.push(trip.tripId);
-        }
-      })
-    );
+    // Capped at 4 concurrent writes so a large selection doesn't burst the DB pool.
+    await mapLimit(targets, 4, async (trip) => {
+      try {
+        const updated = await tripsApi.collectSheet(trip.id);
+        setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
+        successCount++;
+      } catch {
+        errors.push(trip.tripId);
+      }
+    });
     setSelected(new Set());
     setBulkBusy(false);
     if (errors.length === 0) {

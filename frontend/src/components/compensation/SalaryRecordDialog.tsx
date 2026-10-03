@@ -92,19 +92,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
     if (!open || !driver || driverTrips.length === 0) return;
     setLoading(true);
     setSheets(new Map());
-    Promise.all(
-      driverTrips.map((t) =>
-        tripsApi
-          .getSheet(t.id)
-          .then((sheet) => (sheet ? { id: t.id, sheet } : null))
-          .catch(() => null)
-      )
-    )
-      .then((results) => {
-        const map = new Map<string, TripSheetData>();
-        for (const r of results) if (r) map.set(r.id, r.sheet);
-        setSheets(map);
-      })
+    // One bulk request for the driver's trips instead of one per trip.
+    tripsApi.getSheetsBulk(driverTrips.map((t) => t.id))
+      .then(setSheets)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [open, driver?.id]);
 

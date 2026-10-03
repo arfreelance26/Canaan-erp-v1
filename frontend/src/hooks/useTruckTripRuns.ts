@@ -27,10 +27,12 @@ export function useTruckTripRuns(truck: Truck | null, active: boolean) {
         const truckTrips = allTrips
           .filter((t) => t.vehicleId === truck.truckId)
           .sort((a, b) => (b.assignedDate || "").localeCompare(a.assignedDate || ""));
-        const sheets = await Promise.all(
-          truckTrips.map((t) => tripsApi.getSheet(t.id).catch(() => null))
-        );
-        setRows(truckTrips.map((trip, i) => ({ trip, totalKm: sheets[i]?.totalKm || "" })));
+        // One bulk request for the truck's whole history instead of one per trip.
+        const withSheet = truckTrips.filter((t) => t.hasSheet).map((t) => t.id);
+        const sheets = withSheet.length
+          ? await tripsApi.getSheetsBulk(withSheet).catch(() => new Map())
+          : new Map();
+        setRows(truckTrips.map((trip) => ({ trip, totalKm: sheets.get(trip.id)?.totalKm || "" })));
       })
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
