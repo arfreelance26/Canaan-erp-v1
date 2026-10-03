@@ -482,7 +482,7 @@ def get_trip_invoices_bulk(ids: str = Query(..., description="Comma-separated tr
 @router.get("/customer-profitability/top-trips", tags=["Trips"])
 def get_customer_top_profitable_trips(
     customer_id: int = Query(...),
-    route: Optional[str] = Query(None, description="Trip.destination label — omit for this customer's trips across every route"),
+    route: Optional[str] = Query(None, description="Trip.destination label — trips on this route are listed first; other routes fill any remaining slots"),
     limit: int = Query(10, le=500),
     db: Session = Depends(get_db),
 ):
@@ -510,8 +510,6 @@ def get_customer_top_profitable_trips(
             models.Trip.flagged_for_recheck.is_(False),
         )
     )
-    if route:
-        q = q.filter(models.Trip.destination == route)
     trips = q.all()
     if not trips:
         return []
@@ -542,9 +540,13 @@ def get_customer_top_profitable_trips(
             "profit": round(profit, 2),
             "margin_pct": round((profit / revenue * 100) if revenue > 0 else 0.0, 2),
             "km": round(km, 2),
+            "on_route": (not route) or trip.destination == route,
         })
 
-    results.sort(key=lambda t: t["profit"], reverse=True)
+    # Trips on the picked route come first (by profit); if there are fewer than
+    # `limit` of them, the list is filled with this customer's other routes so
+    # the panel still has a useful top list. Each row says which it is.
+    results.sort(key=lambda t: (not t["on_route"], -t["profit"]))
     return results[:limit]
 
 

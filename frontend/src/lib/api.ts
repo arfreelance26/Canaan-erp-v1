@@ -3001,6 +3001,7 @@ export type CustomerTopProfitableTrip = {
   profit: number;
   margin_pct: number;
   km: number;
+  on_route: boolean;
 };
 
 export type TruckCostPerKmRanking = {
@@ -3271,6 +3272,11 @@ export const financeApi = {
 
   listDriverCompensation: (personId?: string) =>
     req<B[]>(`/finance/compensation/drivers${personId ? `?driver_id=${personId}` : ""}`).then((d) => d.map(toCompensationTransaction)),
+  // Total Net Payable per driver (keyed by driver_id, e.g. "CGI-D001") for one YYYY-MM month
+  driverMonthlyNetPayable: (month: string, driverIds: string[]) => {
+    const params = new URLSearchParams({ month, driver_ids: driverIds.join(",") });
+    return req<Record<string, number>>(`/finance/compensation/drivers/monthly-net-payable?${params.toString()}`);
+  },
   addDriverCompensation: (personId: string, type: string, amount: number, date: string, note?: string, tripNumber?: string) =>
     req<B>("/finance/compensation/drivers", {
       method: "POST",

@@ -184,6 +184,13 @@ export function TripFormDialog({
   drivers,
 }: TripFormDialogProps) {
   const [form, setForm] = useState(emptyForm);
+  // The route the user clicked, by its CustomerDestination id. Route cards are
+  // compared by this id, never by their origin/destination labels, because two
+  // routes can share both labels and differ only by cargo, container or weight.
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  // What the route list is filtered by. Only the Cargo/Container dropdowns change
+  // it, so picking a route (which fills those fields) never narrows the list.
+  const [routeListFilter, setRouteListFilter] = useState<{ cargo: string; spec: string }>({ cargo: "", spec: "" });
   const [vehicleAssignmentId, setVehicleAssignmentId] = useState<string>("");
   const [branches, setBranches] = useState<Branch[]>([]);
   // Optimistic branch reassignment from the quick-change pills below the
@@ -251,6 +258,8 @@ export function TripFormDialog({
       setPendingTripPayload(null);
       setCommissionConfirmed(null);
       setCommissionConfirmedValue(null);
+      setSelectedRouteId(null);
+      setRouteListFilter({ cargo: "", spec: "" });
       if (initialData) {
         const { id: _id, tripId: _tripId, status: _status, vehicleId: _vehicleId, ...rest } = initialData;
         setForm(rest);
@@ -527,6 +536,7 @@ export function TripFormDialog({
   }, [isDefaultComp, isReturnTrip, defaultBattaAmount]);
 
   type RouteOption = {
+    id: string;
     originState: string;
     originAddress: string;
     destinationState: string;
@@ -565,12 +575,23 @@ export function TripFormDialog({
   // Cargo/container/weight now live on the destination itself; the rate still
   // comes from the matching pricing row for that destination (see
   // findPricingForDestination above for how that match is made).
+  // All routes show first. Each choice made in Cargo Classification or Container
+  // Specification narrows the list to routes that match it; a field left blank
+  // doesn't filter anything. Filtering uses routeListFilter, not the form, so the
+  // values a picked route fills in don't shrink the list.
   const availableRoutes: RouteOption[] = customerDestinations
     .filter((d) => d.originState && d.destinationState)
+    .filter((d) =>
+      !routeListFilter.cargo || !d.cargoClassification || d.cargoClassification === routeListFilter.cargo
+    )
+    .filter((d) =>
+      !routeListFilter.spec || containerTypeToSpec(d.containerType ?? "") === routeListFilter.spec
+    )
     .map((d) => {
       const destLabel = d.destinationName ?? d.destinationAddress ?? "";
       const matchedPricing = findPricingForDestination(d);
       return {
+        id: d.id,
         originState: d.originState!,
         originAddress: d.originAddress ?? "",
         destinationState: d.destinationState,
@@ -584,6 +605,16 @@ export function TripFormDialog({
       };
     });
 
+  // Clicked route wins. Without a click (e.g. editing a saved trip), fall back to
+  // the first route whose saved values agree with the form.
+  const activeRouteId = selectedRouteId ?? availableRoutes.find((r) =>
+    (r.originAddress || r.originState) === form.origin &&
+    (r.destLabel || r.destinationState) === form.destination &&
+    (!r.cargoClassification || r.cargoClassification === form.cargoClassification) &&
+    (!r.containerType || containerTypeToSpec(r.containerType) === form.containerSpecification) &&
+    (!r.cargoWeight || r.cargoWeight === form.cargoWeight)
+  )?.id ?? null;
+
   function containerTypeToSpec(ct: string): Trip["containerSpecification"] | "" {
     const map: Record<string, Trip["containerSpecification"]> = {
       "20 FEET": "20 FT CONTAINER",
@@ -593,6 +624,21 @@ export function TripFormDialog({
     };
     return map[ct] ?? "";
   }
+
+  // A picked route belongs to one cargo classification + container spec. When
+  // either changes, the route is dropped rather than left mismatched.
+  function routeStillMatches(cargo: string, spec: string): boolean {
+    if (!activeRouteId) return true;
+    const route = customerDestinations.find((d) => d.id === activeRouteId);
+    return !!route && routeFitsChoice(route, cargo, spec, form.cargoWeight);
+  }
+  const clearedRoute = {
+    origin: "",
+    destination: "",
+    transportHireAmount: "",
+    transportCommissionAmount: "",
+    approxTripDistance: "",
+  } as Partial<typeof form>;
 
   function calcCompensation(hireAmount: string, pct: number | null): string {
     if (pct === null || !hireAmount) return "";
@@ -650,6 +696,7 @@ export function TripFormDialog({
     setCustomerDestinations([]);
     setCustomerPricing([]);
     setFinalCustomerPricingList([]);
+    setRouteListFilter({ cargo: "", spec: "" });
     if (customerId) {
       customersApi.listFinalPricing(customerId).then(setFinalCustomerPricingList).catch(() => {});
       customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
@@ -665,8 +712,10 @@ export function TripFormDialog({
     if (isShifting) return;
     const routeOrigin = route.originAddress || route.originState;
     const routeDestination = route.destLabel || route.destinationState;
-    const alreadySelected = form.origin === routeOrigin && form.destination === routeDestination;
+    const alreadySelected = activeRouteId === route.id;
+    setSelectedRouteId(alreadySelected ? null : route.id);
     if (alreadySelected) {
+      setRouteListFilter({ cargo: "", spec: "" });
       setForm((prev) => ({
         ...prev,
         origin: "",
@@ -719,27 +768,13 @@ export function TripFormDialog({
     }));
   }
 
-  // Cargo classification / container type / weight now live on the customer
-  // destination itself (not on the pricing row — a destination is 1:1 with a
-  // single cargo/container/weight combo, and its rate is looked up separately
-  // via findPricingForDestination, keyed off the resolved destination's own
-  // id — never re-derive the rate from the destination's label alone).
-  function findDestinationForSpec(
-    destination: string,
-    containerSpec: string,
-    cargoClassification?: string,
-    weightInTons?: string,
-  ): CustomerDestination | undefined {
-    return customerDestinations.find((d) => {
-      const dest = d.destinationName ?? d.destinationAddress ?? "";
-      if (dest !== destination) return false;
-      if (containerSpec && containerTypeToSpec(d.containerType ?? "") !== containerSpec) return false;
-      // Match on cargo classification only when both sides are non-empty
-      if (cargoClassification && d.cargoClassification && d.cargoClassification !== cargoClassification) return false;
-      // Match on weight only when both sides are non-empty
-      if (weightInTons && d.weightInTons && d.weightInTons !== weightInTons) return false;
-      return true;
-    });
+  // Does a specific route (by id) still fit the chosen cargo, container and weight?
+  // A blank choice filters nothing, same as the route list.
+  function routeFitsChoice(d: CustomerDestination, cargo: string, spec: string, weight: string): boolean {
+    if (cargo && d.cargoClassification && d.cargoClassification !== cargo) return false;
+    if (spec && containerTypeToSpec(d.containerType ?? "") !== spec) return false;
+    if (weight && d.weightInTons && d.weightInTons !== weight) return false;
+    return true;
   }
 
   async function handleVehicleChange(assignmentDriverId: string) {
@@ -1222,10 +1257,14 @@ export function TripFormDialog({
                 onChange={(val) => {
                   const spec = val === "OPEN LOAD" ? "OPEN LOAD CARGO" : form.containerSpecification === "OPEN LOAD CARGO" ? "" : form.containerSpecification;
                   const wasExport = form.cargoClassification === "EXPORT";
+                  const keepRoute = routeStillMatches(val, spec);
+                  if (!keepRoute) setSelectedRouteId(null);
+                  setRouteListFilter({ cargo: val, spec });
                   setForm((prev) => ({
                     ...prev,
                     cargoClassification: val as Trip["cargoClassification"],
                     containerSpecification: spec as Trip["containerSpecification"],
+                    ...(keepRoute ? {} : clearedRoute),
                     // Auto-set origin to TUTICORIN when EXPORT is chosen; clear if switching away from EXPORT
                     ...(val === "EXPORT" ? { origin: "TUTICORIN" } : wasExport ? { origin: "" } : {}),
                   }));
@@ -1242,14 +1281,18 @@ export function TripFormDialog({
                 value={form.containerSpecification}
                 onChange={(val) => {
                   const cls = val === "OPEN LOAD CARGO" ? "OPEN LOAD" : form.cargoClassification === "OPEN LOAD" ? "" : form.cargoClassification;
-                  // Re-fetch hire amount for the new spec against the already-chosen destination
-                  const matchedDest = form.destination
-                    ? findDestinationForSpec(form.destination, val, cls, form.cargoWeight)
+                  const keepRoute = routeStillMatches(cls, val);
+                  // Re-fetch the hire amount for the same route, by its id, if it still fits
+                  const matchedDest = keepRoute && activeRouteId
+                    ? customerDestinations.find((d) => d.id === activeRouteId)
                     : undefined;
+                  if (!keepRoute) setSelectedRouteId(null);
+                  setRouteListFilter({ cargo: cls, spec: val });
                   setForm((prev) => ({
                     ...prev,
                     containerSpecification: val as Trip["containerSpecification"],
                     cargoClassification: cls as Trip["cargoClassification"],
+                    ...(keepRoute ? {} : clearedRoute),
                     ...(matchedDest ? {
                       transportHireAmount: findPricingForDestination(matchedDest)?.rate ?? "",
                       cargoWeight: matchedDest.weightInTons || prev.cargoWeight,
@@ -1339,26 +1382,26 @@ export function TripFormDialog({
                         <MapPin className="h-4 w-4 text-gray-400" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-500">No Available Routes</p>
+                        <p className="text-sm font-semibold text-gray-500">
+                          {customerDestinations.length === 0 ? "No Available Routes" : "No Matching Routes"}
+                        </p>
                         <p className="mt-0.5 text-xs leading-relaxed text-gray-400">
-                          This customer has no routes configured yet. Add one in the{" "}
-                          <span className="font-medium text-blue-500">&ldquo;Add Customers&rdquo;</span>{" "}
-                          page under Customer Destinations, then it will appear here to select.
+                          {customerDestinations.length === 0
+                            ? "This customer has no routes configured yet. Add one under Customer Destinations, then it will appear here to select."
+                            : "No route for this customer matches the selected cargo classification and container specification."}
                         </p>
                       </div>
                     </div>
                   ) : (
                     <>
                       <div className="flex flex-wrap gap-2.5 pt-0.5">
-                        {availableRoutes.map((route, i) => {
+                        {availableRoutes.map((route) => {
                           const originLabel = route.originAddress || route.originState;
                           const destLabel = route.destLabel || route.destinationState;
-                          const isSelected =
-                            form.origin === (route.originAddress || route.originState) &&
-                            form.destination === (route.destLabel || route.destinationState);
+                          const isSelected = route.id === activeRouteId;
                           return (
                             <button
-                              key={i}
+                              key={route.id}
                               type="button"
                               onClick={() => handleRouteSelect(route)}
                               className={[

@@ -180,6 +180,49 @@ def list_driver_compensation(
     return q.order_by(models.CompensationTransaction.date.desc()).all()
 
 
+@router.get("/compensation/drivers/monthly-net-payable")
+def driver_monthly_net_payable(
+    month: str = Query(..., pattern=r"^\d{4}-\d{2}$", description="YYYY-MM"),
+    driver_ids: str = Query(..., description="Comma-separated drivers.driver_id values, e.g. CGI-D001,CGI-D002"),
+    db: Session = Depends(get_db),
+):
+    """Total Net Payable per driver for one calendar month — the same rules as
+    the Driver Compensation page's Salary Record, computed server-side so the
+    Customer Insights panel doesn't have to fetch every trip sheet. Keyed by
+    the trip's completion date; return trips whose batta isn't applicable are
+    left out, and each trip's net is Regular Pay − (advance − driver expenses)."""
+    from datetime import date as _date
+    year, mon = (int(p) for p in month.split("-"))
+    start = _date(year, mon, 1)
+    end = _date(year + (mon == 12), mon % 12 + 1, 1)
+    ids = [i.strip() for i in driver_ids.split(",") if i.strip()]
+    totals = {i: 0.0 for i in ids}
+    if not ids:
+        return totals
+
+    rows = (
+        db.query(models.Trip, models.TripSheet)
+        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .filter(
+            models.Trip.driver_id.in_(ids),
+            models.Trip.deleted_at.is_(None),
+            models.TripSheet.trip_completed_date >= start,
+            models.TripSheet.trip_completed_date < end,
+        )
+        .all()
+    )
+    for trip, sheet in rows:
+        if trip.trip_category == "RETURN TRIP" and not trip.is_batta_applicable:
+            continue
+        regular_pay = float(
+            trip.driver_advance_amount if trip.driver_advance_amount is not None else (sheet.driver_pay or 0)
+        )
+        outstanding_advance = float(sheet.driver_advance_amount or 0) - float(sheet.driver_expenses_total or 0)
+        totals[trip.driver_id] += regular_pay - outstanding_advance
+
+    return {driver_id: round(total, 2) for driver_id, total in totals.items()}
+
+
 @router.get("/compensation/edit-events", response_model=list[schemas.CompensationEditEventListOut])
 def list_all_compensation_edit_events(
     person_type: Optional[str] = Query(None, description="'driver' or 'staff'; omit for both"),

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, Gauge, Loader2, Truck as TruckIcon, User, Wallet } from "lucide-react";
 import { tripsApi, trucksApi, financeApi, type CustomerTopProfitableTrip, type TruckCostPerKmRanking } from "@/lib/api";
-import type { CompensationTransaction } from "@/types/compensation";
 import { formatDate } from "@/lib/format-date";
 
 type Props = {
@@ -23,6 +22,9 @@ const TABS = [
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
+// How many rows each tab shows. Route trips come first; other routes fill the rest.
+const TOP_N = 7;
+
 /**
  * Companion panel for the Assign Trip dialog — appears once both a customer
  * and a route are picked. Shows (1) this customer's most profitable past
@@ -39,12 +41,14 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
   const [tripsLoading, setTripsLoading] = useState(true);
   const [ranking, setRanking] = useState<TruckCostPerKmRanking[]>([]);
   const [rankingLoading, setRankingLoading] = useState(true);
-  const [driverCompTx, setDriverCompTx] = useState<CompensationTransaction[]>([]);
+  // Total Net Payable this month, keyed by driver_id. undefined = still loading,
+  // null = the lookup failed.
+  const [monthlyNetByDriver, setMonthlyNetByDriver] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
     if (!customerId) return;
     setTripsLoading(true);
-    tripsApi.getCustomerTopProfitableTrips(customerId, route || undefined)
+    tripsApi.getCustomerTopProfitableTrips(customerId, route || undefined, TOP_N)
       .then(setTrips)
       .catch(() => setTrips([]))
       .finally(() => setTripsLoading(false));
@@ -53,35 +57,11 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
   useEffect(() => {
     setRankingLoading(true);
     trucksApi.getCostPerKmRanking()
-      .then((r) => setRanking(r.slice(0, 5)))
+      .then((r) => setRanking(r.slice(0, TOP_N)))
       .catch(() => setRanking([]))
       .finally(() => setRankingLoading(false));
   }, []);
 
-  // All driver compensation (Advance + Salary) payouts — used to derive
-  // "Earnings this month" per driver in the Profitable Drivers tab, so a
-  // Commercial Manager can see who's already been paid out this month
-  // before deciding who to assign next.
-  useEffect(() => {
-    financeApi.listDriverCompensation()
-      .then(setDriverCompTx)
-      .catch(() => setDriverCompTx([]));
-  }, []);
-
-  // Keyed by personName (a snapshot on the transaction, matching the
-  // driver_name already resolved on each trip — there's no driver DB id in
-  // scope here to join on instead).
-  const monthlyEarningsByDriver = useMemo(() => {
-    const now = new Date();
-    const map = new Map<string, number>();
-    for (const tx of driverCompTx) {
-      const d = new Date(tx.date);
-      if (isNaN(d.getTime()) || d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) continue;
-      const key = tx.personName || "—";
-      map.set(key, (map.get(key) ?? 0) + tx.amount);
-    }
-    return map;
-  }, [driverCompTx]);
 
   // "Profitable Trucks" — derived from the same route-scoped trips already
   // fetched for "Profitable Trips" above, grouped by truck. Ranked by AVERAGE
@@ -111,19 +91,21 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
   }, [trips]);
 
   // "Profitable Drivers" — same idea as truckStats, grouped by driver instead.
+  // Grouped by driver_id so two drivers who share a name stay separate.
   const driverStats = useMemo(() => {
-    const map = new Map<string, { tripCount: number; totalProfit: number; totalMarginPct: number }>();
+    const map = new Map<string, { driverId: string | null; driverName: string; tripCount: number; totalProfit: number; totalMarginPct: number }>();
     for (const t of trips) {
-      const key = t.driver_name || "—";
-      const entry = map.get(key) ?? { tripCount: 0, totalProfit: 0, totalMarginPct: 0 };
+      const key = t.driver_id || t.driver_name || "—";
+      const entry = map.get(key) ?? { driverId: t.driver_id, driverName: t.driver_name || "—", tripCount: 0, totalProfit: 0, totalMarginPct: 0 };
       entry.tripCount += 1;
       entry.totalProfit += t.profit;
       entry.totalMarginPct += t.margin_pct;
       map.set(key, entry);
     }
-    return [...map.entries()]
-      .map(([driverName, e]) => ({
-        driverName,
+    return [...map.values()]
+      .map((e) => ({
+        driverId: e.driverId,
+        driverName: e.driverName,
         tripCount: e.tripCount,
         totalProfit: e.totalProfit,
         avgProfitPerTrip: e.totalProfit / e.tripCount,
@@ -131,6 +113,20 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
       }))
       .sort((a, b) => b.avgProfitPerTrip - a.avgProfitPerTrip);
   }, [trips]);
+
+  // Total Net Payable this month for the drivers on the Profitable Drivers tab —
+  // one request for all of them. Only fetched while that tab is open.
+  useEffect(() => {
+    if (tab !== "drivers") return;
+    const ids = [...new Set(driverStats.map((s) => s.driverId).filter((id): id is string => !!id))];
+    const missing = ids.filter((id) => !(id in monthlyNetByDriver));
+    if (missing.length === 0) return;
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    financeApi.driverMonthlyNetPayable(month, missing)
+      .then((totals) => setMonthlyNetByDriver((prev) => ({ ...prev, ...Object.fromEntries(missing.map((id) => [id, totals[id] ?? 0])) })))
+      .catch(() => setMonthlyNetByDriver((prev) => ({ ...prev, ...Object.fromEntries(missing.map((id) => [id, null])) })));
+  }, [tab, driverStats, monthlyNetByDriver]);
 
   return (
     <div className="flex w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
@@ -181,7 +177,10 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[11px] font-semibold text-gray-500">{t.trip_id_str}</span>
+                      <span className="truncate text-[11px] font-semibold text-gray-500">
+                        {t.trip_id_str}
+                        {!t.on_route && <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-semibold text-gray-500">Other route</span>}
+                      </span>
                       <span className="shrink-0 text-sm font-bold text-emerald-700">{fmtCurrency(t.profit)}</span>
                     </div>
                     <div className="mt-1.5 flex flex-col gap-1">
@@ -256,7 +255,7 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
           ) : (
             <div className="flex flex-col gap-2.5">
               {driverStats.map((s, i) => (
-                <div key={s.driverName} className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
+                <div key={s.driverId ?? s.driverName} className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
                   <div className="flex items-center gap-3">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-[11px] font-bold text-violet-600">
                       #{i + 1}
@@ -274,9 +273,13 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
                   </div>
                   <div className="mt-2 flex items-center gap-1.5 border-t border-gray-100 pt-2 text-[11px] text-gray-600">
                     <Wallet className="h-3 w-3 shrink-0 text-gray-400" />
-                    <span>Earnings this month:</span>
+                    <span>Net payable this month:</span>
                     <span className="font-semibold text-gray-800">
-                      {monthlyEarningsByDriver.has(s.driverName) ? fmtCurrency(monthlyEarningsByDriver.get(s.driverName)!) : "—"}
+                      {!s.driverId || !(s.driverId in monthlyNetByDriver)
+                        ? "…"
+                        : monthlyNetByDriver[s.driverId] === null
+                          ? "—"
+                          : fmtCurrency(monthlyNetByDriver[s.driverId] as number)}
                     </span>
                   </div>
                 </div>

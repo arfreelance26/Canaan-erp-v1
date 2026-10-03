@@ -154,11 +154,8 @@ export default function TripHistoryPage() {
     if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
 
     if (allTrips.status === "fulfilled") {
-      // Admin sees ALL trips so they can delete any; others see only closed/cancelled
-      const closedTrips = isAdmin
-        ? allTrips.value
-        : allTrips.value.filter((t) => (t as any).hasClosure === true || t.status === "Cancelled");
-      setTrips(closedTrips);
+      // Every role sees all trips, open ones included, so the Assigned and Current cards work for everyone.
+      setTrips(allTrips.value);
       fetchedDetailIds.current = new Set();
     } else {
       failed.push("Trips");

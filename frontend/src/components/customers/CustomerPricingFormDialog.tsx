@@ -256,8 +256,8 @@ export function CustomerPricingFormDialog({
                 />
                 {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
-                    {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).map((tag) => (
-                      <span key={tag} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    {[linkedDestination.cargoClassification, linkedDestination.containerType, linkedDestination.weightInTons].filter(Boolean).map((tag, i) => (
+                      <span key={`${i}-${tag}`} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                         {tag}
                       </span>
                     ))}
@@ -306,8 +306,8 @@ export function CustomerPricingFormDialog({
                         />
                         {tags.length > 0 && (
                           <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
-                            {tags.map((tag) => (
-                              <span key={tag} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                            {tags.map((tag, i) => (
+                              <span key={`${i}-${tag}`} className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                                 {tag}
                               </span>
                             ))}
@@ -372,9 +372,9 @@ export function CustomerPricingFormDialog({
                       />
                       {tags.length > 0 && (
                         <div className="mt-4 flex flex-wrap gap-1.5 border-t border-gray-100 pt-3">
-                          {tags.map((tag) => (
+                          {tags.map((tag, i) => (
                             <span
-                              key={tag}
+                              key={`${i}-${tag}`}
                               className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700"
                             >
                               {tag}
