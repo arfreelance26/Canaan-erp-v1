@@ -35,7 +35,7 @@ import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/main
 import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail, ChatPresence } from "@/types/chat";
 import type { PaymentRequest } from "@/types/payment-request";
 
-import { cacheGet, cacheSet, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
+import { cacheGet, cacheSet, cacheGeneration, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -162,11 +162,20 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
 
   const cached = cacheGet(path);
 
-  const revalidate = () =>
-    dedupe(path, () => rawReq<T>(path, options)).then((fresh) => {
+  // A write to this resource while the GET is in flight means the response may
+  // predate it. Never cache that — caching it would resurrect the old state
+  // (e.g. a trip just marked Delivered reappearing as Pending). Background
+  // refreshes just drop it; a caller awaiting data refetches once.
+  const revalidate = (retried = false): Promise<T> => {
+    const gen = cacheGeneration(path);
+    return dedupe(path, () => rawReq<T>(path, options)).then((fresh) => {
+      if (cacheGeneration(path) !== gen) {
+        return retried ? (fresh as T) : revalidate(true);
+      }
       if (cacheSet(path, fresh)) emitRevalidated();
       return fresh as T;
     });
+  };
 
   if (cached) {
     // Fresh enough → zero network. Stale → refresh in background, return cached now.
@@ -2000,8 +2009,13 @@ async function bulkByTripId<T>(dbIds: string[], path: string, convert: (b: B) =>
 }
 
 export const tripsApi = {
-  list: (status?: string) =>
-    req<B[]>(`/trips${status ? `?status=${status}` : ""}`).then((d) => d.map(toTrip)),
+  list: (status?: string, opts?: { hasClosure?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (status) qs.set("status", status);
+    if (opts?.hasClosure !== undefined) qs.set("has_closure", String(opts.hasClosure));
+    const q = qs.toString();
+    return req<B[]>(`/trips${q ? `?${q}` : ""}`).then((d) => d.map(toTrip));
+  },
   get: (dbId: string) => req<B>(`/trips/${dbId}`).then(toTrip),
   create: (trip: Trip) =>
     req<B>("/trips", { method: "POST", body: JSON.stringify(fromTrip(trip)) }).then(toTrip),
@@ -2091,8 +2105,10 @@ export const tripsApi = {
   restore: (dbId: string) => req<B>(`/trips/${dbId}/restore`, { method: "POST" }).then(toTrip),
   removePermanent: (dbId: string) => req<void>(`/trips/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/trips/deleted-ids"),
-  collectSheet: (dbId: string) =>
-    req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST" }).then(toTrip),
+  // Sends the desired state (not a toggle) so a repeated click or retry can't
+  // flip a delivery back.
+  collectSheet: (dbId: string, collected: boolean) =>
+    req<B>(`/trips/${dbId}/collect-sheet`, { method: "POST", body: JSON.stringify({ collected }) }).then(toTrip),
   receiveSheet: (dbId: string) =>
     req<B>(`/trips/${dbId}/receive-sheet`, { method: "POST" }).then(toTrip),
   unmarkSheet: (dbId: string) =>

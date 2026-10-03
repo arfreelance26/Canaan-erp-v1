@@ -67,7 +67,10 @@ export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) 
   useEffect(() => {
     if (intervalMs <= 0) return;
     const id = setInterval(() => {
-      if (Date.now() - lastWsEvent.current < FALLBACK_MS) return;
+      // Poll at the caller's interval (never faster than FALLBACK_MS). Before,
+      // every page polled every ~3.5s whenever WS was silent, regardless of
+      // intervalMs — a heavy load on shared hosting where WS rarely delivers.
+      if (Date.now() - lastWsEvent.current < Math.max(FALLBACK_MS, intervalMs)) return;
       // Never refresh while the user is actively typing/editing a field — a
       // background refetch here would re-render the open form and wipe what
       // they're entering. Skip this cycle without advancing the timer, so the
