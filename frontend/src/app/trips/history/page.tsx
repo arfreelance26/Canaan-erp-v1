@@ -345,7 +345,7 @@ export default function TripHistoryPage() {
             </p>
           </div>
         </div>
-        {isAdmin && (
+        {(isAdmin || isFleetManager) && (
 <button
           type="button"
           onClick={openEditHistory}
