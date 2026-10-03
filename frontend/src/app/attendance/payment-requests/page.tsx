@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IndianRupee, Clock, CircleDollarSign, Check, X, Banknote, Loader2, Upload, ImageIcon } from "lucide-react";
-import { paymentRequestsApi } from "@/lib/api";
+import { IndianRupee, Clock, CircleDollarSign, Check, X, Banknote, Loader2, Upload, ImageIcon, History } from "lucide-react";
+import { paymentRequestsApi, type PaymentRequestEditEventRow } from "@/lib/api";
 import type { PaymentRequest } from "@/types/payment-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
@@ -12,6 +12,21 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useAuth } from "@/context/AuthContext";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { cn } from "@/lib/utils";
+
+const EDIT_EVENT_ICON: Record<PaymentRequestEditEventRow["event"], typeof Check> = {
+  "Approved for Payment": Check,
+  "Rejected by Accounts": X,
+  "Marked as Paid": Banknote,
+};
+
+const EDIT_EVENT_COLOR: Record<PaymentRequestEditEventRow["event"], string> = {
+  "Approved for Payment": "bg-emerald-100 text-emerald-700",
+  "Rejected by Accounts": "bg-red-100 text-red-700",
+  "Marked as Paid": "bg-blue-100 text-blue-700",
+};
 
 const ALLOWED_ROLES = ["Admin", "Accounts"];
 
@@ -88,6 +103,8 @@ function statusOf(r: PaymentRequest): FilterStatus {
 }
 
 export default function PaymentRequestsPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -114,6 +131,19 @@ export default function PaymentRequestsPage() {
 
   const [viewingProofUrl, setViewingProofUrl] = useState<string | null>(null);
   const [loadingProofId, setLoadingProofId] = useState<number | null>(null);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<PaymentRequestEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    paymentRequestsApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
     if (!isAllowed) return;
@@ -225,14 +255,26 @@ export default function PaymentRequestsPage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
-            <CircleDollarSign className="h-5 w-5" />
-          </span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Payment Requests</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Review and manage payment requests raised by staff</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
+              <CircleDollarSign className="h-5 w-5" />
+            </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Payment Requests</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Review and manage payment requests raised by staff</p>
+          </div>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -478,6 +520,64 @@ export default function PaymentRequestsPage() {
           />
         </div>
       )}
+
+      {/* Edit History — every finance decision/mark-paid event ever logged,
+          across every payment request, in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by description or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q || ev.description.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No decisions have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Request</th>
+                      <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-gray-400">Amount</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.description || "—"}</td>
+                          <td className="px-3 py-2 text-right text-gray-600">₹{Number(ev.amount).toLocaleString("en-IN")}</td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

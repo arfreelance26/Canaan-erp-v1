@@ -1282,23 +1282,98 @@ function toCompensationTransaction(b: B): CompensationTransaction {
 // Trucks API
 // ---------------------------------------------------------------------------
 
+export type TruckEditEventType = "Truck Created" | "Truck Edited" | "Truck Deleted" | "Truck Restored";
+
+// One row in the page-wide "Edit History" log on Compliance & Renewals —
+// every compliance document update ever logged, across every truck. Derived
+// directly from ComplianceUpdateHistory (already populated by Truck
+// create/update).
+export type ComplianceEditEventRow = {
+  id: number;
+  truckDbId: string;
+  truckIdStr: string;
+  registrationNumber: string;
+  documentType: string;
+  actorName: string;
+  createdAt: string;
+};
+
+// One row in the page-wide "Edit History" log on Our Fleet — every Create/
+// Edit/Delete/Restore ever logged, across every truck. See
+// TruckEditEventListOut on the backend.
+export type TruckEditEventRow = {
+  id: number;
+  truckDbId: string;
+  truckIdStr: string;
+  registrationNumber: string;
+  event: TruckEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type TruckRunConfigEditEventType = "Run Configuration Saved";
+
+export type TruckRunConfigEditEventRow = {
+  id: number;
+  event: TruckRunConfigEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const trucksApi = {
   list: () => req<B[]>("/trucks").then((d) => d.map(toTruck)),
   create: (truck: Truck) =>
     req<B>("/trucks", { method: "POST", body: JSON.stringify(fromTruck(truck)) }).then(toTruck),
-  update: (dbId: string, truck: Truck, branchChangeNote?: string) =>
+  // skipEditLog is only ever true for the automatic odometer sync fired on
+  // every trip sheet save — keeps that out of the Truck Edit History log.
+  update: (dbId: string, truck: Truck, branchChangeNote?: string, skipEditLog?: boolean) =>
     req<B>(`/trucks/${dbId}`, {
       method: "PUT",
-      body: JSON.stringify({ ...fromTruck(truck), branch_change_note: branchChangeNote || undefined }),
+      body: JSON.stringify({
+        ...fromTruck(truck),
+        branch_change_note: branchChangeNote || undefined,
+        ...(skipEditLog ? { skip_edit_log: true } : {}),
+      }),
     }).then(toTruck),
   delete: (dbId: string) => req<void>(`/trucks/${dbId}`, { method: "DELETE" }),
   restore: (dbId: string) => req<B>(`/trucks/${dbId}/restore`, { method: "POST" }).then(toTruck),
   removePermanent: (dbId: string) => req<void>(`/trucks/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/trucks/deleted-ids"),
   getNextId: () => req<{ truck_id: string }>("/trucks/next-id").then((d) => d.truck_id),
+  // Page-wide "Edit History" log on Our Fleet — every Create/Edit/Delete/
+  // Restore across every truck, enriched with identity for search.
+  listEditEvents: (): Promise<TruckEditEventRow[]> =>
+    req<B[]>(`/trucks/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        truckDbId: String(r.truck_id ?? ""),
+        truckIdStr: String(r.truck_id_str ?? ""),
+        registrationNumber: String(r.registration_number ?? ""),
+        event: String(r.event) as TruckEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   getBranchHistory: (dbId: string) =>
     req<{ id: number; truck_id: number; from_branch: string | null; to_branch: string; note: string; changed_by_name: string; changed_at: string }[]>(
       `/trucks/${dbId}/branch-history`
+    ),
+  // Page-wide "Edit History" log on Compliance & Renewals — every compliance
+  // document update ever logged, across every truck.
+  listComplianceEditEvents: (): Promise<ComplianceEditEventRow[]> =>
+    req<B[]>(`/trucks/compliance-history/all`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        truckDbId: String(r.truck_id ?? ""),
+        truckIdStr: String(r.truck_id_str ?? ""),
+        registrationNumber: String(r.registration_number ?? ""),
+        documentType: String(r.document_type ?? ""),
+        actorName: String(r.actor_name ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }))
     ),
   // "This Trip Only" branch reassignment from the Assign Trip flow — note is
   // the user's reason for the change, appended to the system-logged entry.
@@ -1315,6 +1390,16 @@ export const trucksApi = {
   getRunConfig: () => req<{ tyre_layout: string; km_per_month: string | null; km_per_day: string | null }[]>("/trucks/run-config"),
   saveRunConfig: (configs: { tyre_layout: string; km_per_month: number | null; km_per_day: number | null }[]) =>
     req<B[]>("/trucks/run-config", { method: "PUT", body: JSON.stringify({ configs }) }),
+  listRunConfigEditEvents: (): Promise<TruckRunConfigEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/trucks/run-config/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        event: String(r.event) as TruckRunConfigEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   getBaseTyreCost: () =>
     req<{ id: number; tyre_layout: string; cost: string | null; updated_at: string | null }[]>("/trucks/base-tyre-cost"),
   saveBaseTyreCost: (configs: { tyre_layout: string; cost: number | null }[]) =>
@@ -1337,6 +1422,17 @@ export const trucksApi = {
 // Tyre Range Config API
 // ---------------------------------------------------------------------------
 
+export type TyreRangeConfigEditEventType = "Tyre Range Config Saved" | "Tyre Type Deleted";
+
+export type TyreRangeConfigEditEventRow = {
+  id: number;
+  tyreType: string | null;
+  event: TyreRangeConfigEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const tyreRangeConfigApi = {
   list: () => req<{ id: number; tyre_type: string; range_km: number | null; base_tyre_cost: number | null; base_cost_per_km: number | null; updated_at: string | null }[]>("/tyre-range-config"),
   save: (configs: { tyre_type: string; range_km: number | null; base_tyre_cost: number | null; base_cost_per_km: number | null }[]) =>
@@ -1346,6 +1442,17 @@ export const tyreRangeConfigApi = {
     ),
   delete: (tyreType: string) =>
     req<void>(`/tyre-range-config/${encodeURIComponent(tyreType)}`, { method: "DELETE" }),
+  listEditEvents: (): Promise<TyreRangeConfigEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/tyre-range-config/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        tyreType: (r.tyre_type as string | null) ?? null,
+        event: String(r.event) as TyreRangeConfigEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 export type DefaultBattaRate = {
@@ -1377,6 +1484,21 @@ function toDefaultBattaRate(r: DefaultBattaRateWire): DefaultBattaRate {
   };
 }
 
+export type DefaultBattaEditEventType = "Default Batta Rate Updated";
+
+export type DefaultBattaEditEventRow = {
+  id: number;
+  branchId: number;
+  branchName: string;
+  tripType: string;
+  cargoType: string;
+  amount: number | null;
+  event: DefaultBattaEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const defaultBattaApi = {
   list: (branchId?: string) =>
     req<DefaultBattaRateWire[]>(
@@ -1387,6 +1509,31 @@ export const defaultBattaApi = {
       method: "PUT",
       body: JSON.stringify({ branch_id: Number(branchId), trip_type: tripType, cargo_type: cargoType, amount }),
     }).then(toDefaultBattaRate),
+  listEditEvents: (): Promise<DefaultBattaEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/default-batta-rates/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        branchId: Number(r.branch_id),
+        branchName: String(r.branch_name ?? ""),
+        tripType: String(r.trip_type ?? ""),
+        cargoType: String(r.cargo_type ?? ""),
+        amount: r.amount != null ? Number(r.amount) : null,
+        event: String(r.event) as DefaultBattaEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
+};
+
+export type TyreLayoutTypeConfigEditEventType = "Tyre Quantity Configuration Updated";
+
+export type TyreLayoutTypeConfigEditEventRow = {
+  id: number;
+  event: TyreLayoutTypeConfigEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
 };
 
 export const tyreLayoutTypeConfigApi = {
@@ -1396,11 +1543,37 @@ export const tyreLayoutTypeConfigApi = {
       "/tyre-layout-type-config",
       { method: "PUT", body: JSON.stringify({ configs }) }
     ),
+  listEditEvents: (): Promise<TyreLayoutTypeConfigEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/tyre-layout-type-config/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        event: String(r.event) as TyreLayoutTypeConfigEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
 // Drivers API
 // ---------------------------------------------------------------------------
+
+export type DriverEditEventType = "Driver Created" | "Driver Edited" | "Driver Deleted" | "Driver Restored";
+
+// One row in the page-wide "Edit History" log on Our Drivers — every Create/
+// Edit/Delete/Restore ever logged, across every driver. See
+// DriverEditEventListOut on the backend.
+export type DriverEditEventRow = {
+  id: number;
+  driverDbId: string;
+  driverIdStr: string;
+  driverName: string;
+  event: DriverEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
 
 export const driversApi = {
   list: () => req<B[]>("/drivers").then((d) => d.map(toDriver)),
@@ -1422,11 +1595,39 @@ export const driversApi = {
     const qs = params.toString();
     return req<Record<string, number>>(`/drivers/salary-summary${qs ? `?${qs}` : ""}`);
   },
+  // Page-wide "Edit History" log on Our Drivers — every Create/Edit/Delete/
+  // Restore across every driver, enriched with driver identity for search.
+  listEditEvents: (): Promise<DriverEditEventRow[]> =>
+    req<B[]>(`/drivers/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        driverDbId: String(r.driver_id ?? ""),
+        driverIdStr: String(r.driver_id_str ?? ""),
+        driverName: String(r.driver_name ?? ""),
+        event: String(r.event) as DriverEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
 // Driver Assignments API
 // ---------------------------------------------------------------------------
+
+export type DriverAssignmentEditEventType = "Driver Assigned" | "Assignment Removed";
+
+export type DriverAssignmentEditEventRow = {
+  id: number;
+  driverId: string;
+  driverName: string;
+  vehicleId: string | null;
+  event: DriverAssignmentEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
 
 export const assignmentsApi = {
   list: (): Promise<DriverAssignment[]> =>
@@ -1439,11 +1640,40 @@ export const assignmentsApi = {
       body: JSON.stringify({ driver_id: driverId, vehicle_id: vehicleId }),
     }),
   remove: (driverId: string) => req<void>(`/drivers/assignments/${driverId}`, { method: "DELETE" }),
+  listEditEvents: (): Promise<DriverAssignmentEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/drivers/assignments/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        driverId: String(r.driver_id ?? ""),
+        driverName: String(r.driver_name ?? ""),
+        vehicleId: (r.vehicle_id as string | null) ?? null,
+        event: String(r.event) as DriverAssignmentEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
 // Staff API
 // ---------------------------------------------------------------------------
+
+export type StaffEditEventType = "Staff Created" | "Staff Edited" | "Staff Deleted" | "Staff Restored";
+
+// One row in the page-wide "Edit History" log on Our Staff — every Create/
+// Edit/Delete/Restore ever logged, across every staff member. See
+// StaffEditEventListOut on the backend.
+export type StaffEditEventRow = {
+  id: number;
+  staffDbId: string;
+  staffIdStr: string;
+  staffName: string;
+  event: StaffEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
 
 export const staffApi = {
   list: () => req<B[]>("/staff").then((d) => d.map(toStaff)),
@@ -1461,11 +1691,41 @@ export const staffApi = {
       `/staff/${dbId}/reset-device`,
       { method: "POST", body: JSON.stringify({ device: device ?? null }) },
     ),
+  // Page-wide "Edit History" log on Our Staff — every Create/Edit/Delete/
+  // Restore across every staff member, enriched with identity for search.
+  listEditEvents: (): Promise<StaffEditEventRow[]> =>
+    req<B[]>(`/staff/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        staffDbId: String(r.staff_id ?? ""),
+        staffIdStr: String(r.staff_id_str ?? ""),
+        staffName: String(r.staff_name ?? ""),
+        event: String(r.event) as StaffEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
 // Customers API
 // ---------------------------------------------------------------------------
+
+export type CustomerEditEventType = "Customer Created" | "Customer Edited" | "Customer Deleted" | "Customer Restored";
+
+// One row in the page-wide "Edit History" log on Our Customers — every
+// Create/Edit/Delete/Restore ever logged, across every customer. See
+// CustomerEditEventListOut on the backend.
+export type CustomerEditEventRow = {
+  id: number;
+  customerDbId: string;
+  customerName: string;
+  event: CustomerEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
 
 export const customersApi = {
   list: () => req<B[]>("/customers").then((d) => d.map(toCustomer)),
@@ -1479,6 +1739,20 @@ export const customersApi = {
   restore: (dbId: string) => req<B>(`/customers/${dbId}/restore`, { method: "POST" }).then(toCustomer),
   removePermanent: (dbId: string) => req<void>(`/customers/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/customers/deleted-ids"),
+  // Page-wide "Edit History" log on Our Customers — every Create/Edit/
+  // Delete/Restore across every customer, enriched with name for search.
+  listEditEvents: (): Promise<CustomerEditEventRow[]> =>
+    req<B[]>(`/customers/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        customerDbId: String(r.customer_id ?? ""),
+        customerName: String(r.customer_name ?? ""),
+        event: String(r.event) as CustomerEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 
   listOrigins: (customerId: string) =>
     req<B[]>(`/customers/${customerId}/origins`).then((d) => d.map(toCustomerOrigin)),
@@ -1579,6 +1853,21 @@ export const customersApi = {
 // Vendors API
 // ---------------------------------------------------------------------------
 
+export type VendorEditEventType = "Vendor Created" | "Vendor Edited" | "Vendor Deleted" | "Vendor Restored";
+
+// One row in the page-wide "Edit History" log on Our Vendors — every
+// Create/Edit/Delete/Restore ever logged, across every vendor. See
+// VendorEditEventListOut on the backend.
+export type VendorEditEventRow = {
+  id: number;
+  vendorDbId: string;
+  vendorName: string;
+  event: VendorEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const vendorsApi = {
   list: () => req<B[]>("/vendors").then((d) => d.map(toVendor)),
   create: (vendor: Vendor) =>
@@ -1589,6 +1878,20 @@ export const vendorsApi = {
   restore: (dbId: string) => req<B>(`/vendors/${dbId}/restore`, { method: "POST" }).then(toVendor),
   removePermanent: (dbId: string) => req<void>(`/vendors/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/vendors/deleted-ids"),
+  // Page-wide "Edit History" log on Our Vendors — every Create/Edit/Delete/
+  // Restore across every vendor, enriched with name for search.
+  listEditEvents: (): Promise<VendorEditEventRow[]> =>
+    req<B[]>(`/vendors/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        vendorDbId: String(r.vendor_id ?? ""),
+        vendorName: String(r.vendor_name ?? ""),
+        event: String(r.event) as VendorEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 function toVendorCategory(b: B): VendorCategory {
@@ -1637,6 +1940,27 @@ export type TripRecheckEventRow = {
   createdAt: string;
 };
 
+export type TripEditEventType =
+  | "Booking Created" | "Booking Edited" | "Trip Sheet Saved" | "Trip Updated"
+  | "Trip Closed" | "Verification Confirmed" | "Verification Rejected"
+  | "Trip Deleted" | "Trip Restored";
+
+// One row in the page-wide "Edit History" log on the Trip History page —
+// who edited the Booking Sheet/Trip Sheet/Closure/Verification on a trip and
+// when. See TripEditEventListOut on the backend.
+export type TripEditEventRow = {
+  id: number;
+  tripDbId: string;
+  tripIdStr: string;
+  driverName: string | null;
+  origin: string | null;
+  destination: string | null;
+  event: TripEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 // One row on the "Audit Verified Trips" page — see AuditVerifiedTripOut on the
 // backend. tripDbId is the internal numeric Trip.id (as a string, matching
 // this file's `_dbId`/dbId convention elsewhere), tripId is the human TRP-xxxx.
@@ -1659,8 +1983,14 @@ export const tripsApi = {
     req<B[]>(`/trips${status ? `?status=${status}` : ""}`).then((d) => d.map(toTrip)),
   create: (trip: Trip) =>
     req<B>("/trips", { method: "POST", body: JSON.stringify(fromTrip(trip)) }).then(toTrip),
-  update: (dbId: string, trip: Trip) =>
-    req<B>(`/trips/${dbId}`, { method: "PUT", body: JSON.stringify(fromTrip(trip)) }).then(toTrip),
+  // editContext tags the save for the Trip Edit History log — "BookingSheet"
+  // when called from the booking-edit flow, so the log reads "Booking Edited"
+  // instead of the generic fallback "Trip Updated".
+  update: (dbId: string, trip: Trip, editContext?: "BookingSheet" | "TripSheet") =>
+    req<B>(`/trips/${dbId}`, {
+      method: "PUT",
+      body: JSON.stringify({ ...fromTrip(trip), ...(editContext ? { edit_context: editContext } : {}) }),
+    }).then(toTrip),
   updateStatus: (dbId: string, status: Trip["status"]) =>
     req<B>(`/trips/${dbId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }).then(toTrip),
   cancel: (dbId: string) =>
@@ -1762,6 +2092,24 @@ export const tripsApi = {
         createdAt: String(r.created_at ?? ""),
       }))
     ),
+  // Page-wide "Edit History" log on the Trip History page — every Booking/
+  // Trip Sheet/Closure/Verification save across every trip, enriched with
+  // trip identity so it's searchable without opening each trip individually.
+  listEditEvents: (): Promise<TripEditEventRow[]> =>
+    req<B[]>(`/trips/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        tripDbId: String(r.trip_id ?? ""),
+        tripIdStr: String(r.trip_id_str ?? ""),
+        driverName: (r.driver_name as string | null) ?? null,
+        origin: (r.origin as string | null) ?? null,
+        destination: (r.destination as string | null) ?? null,
+        event: String(r.event) as TripEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   // Counterpart to Flagged Trips — trips whose most recent recheck event is
   // "Verified". See types.ts-style AuditVerifiedTrip below.
   listAuditVerified: (): Promise<AuditVerifiedTrip[]> =>
@@ -1802,6 +2150,57 @@ export const tripsApi = {
 // ---------------------------------------------------------------------------
 // Attendance API
 // ---------------------------------------------------------------------------
+
+export type DriverAttendanceEditEventType =
+  | "Attendance Marked" | "Attendance Updated"
+  | "Remark Added" | "Remark Edited" | "Remark Deleted";
+
+export type DriverAttendanceEditEventRow = {
+  id: number;
+  driverId: string;
+  driverName: string;
+  date: string;
+  event: DriverAttendanceEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type StaffAttendanceEditEventType = "Attendance Marked" | "Attendance Updated";
+
+export type StaffAttendanceEditEventRow = {
+  id: number;
+  staffId: number;
+  staffName: string;
+  date: string;
+  event: StaffAttendanceEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type HolidayEditEventType = "Holiday Created" | "Holiday Updated" | "Holiday Deleted";
+
+export type HolidayEditEventRow = {
+  id: number;
+  holidayDate: string;
+  name: string;
+  event: HolidayEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type LeaveRequestEditEventType = "Leave Requested" | "Leave Approved" | "Leave Rejected";
+
+export type LeaveRequestEditEventRow = {
+  id: number;
+  applicantName: string;
+  category: string;
+  event: LeaveRequestEditEventType;
+  actorName: string;
+  createdAt: string;
+};
 
 export const attendanceApi = {
   getLatestDate: (category: "driver" | "staff") =>
@@ -1868,6 +2267,19 @@ export const attendanceApi = {
     })),
   deleteDriverRemark: (remarkId: string) =>
     req<void>(`/attendance/drivers/remarks/${remarkId}`, { method: "DELETE" }),
+  listDriverEditEvents: (): Promise<DriverAttendanceEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/attendance/drivers/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        driverId: String(r.driver_id ?? ""),
+        driverName: String(r.driver_name ?? ""),
+        date: String(r.date ?? ""),
+        event: String(r.event) as DriverAttendanceEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   getLateEntryLog: (date: string) =>
     req<B[]>(`/attendance/drivers/late-entry-log?date=${date}`).then((d) =>
       d.length > 0 ? { id: String(d[0].id), date: d[0].date ?? "", remark: d[0].remark ?? "", createdAt: d[0].created_at ?? null } : null
@@ -1896,6 +2308,19 @@ export const attendanceApi = {
       method: "PUT",
       body: JSON.stringify({ status, check_in_time: checkInTime ?? null }),
     }).then(toStaffAttendance),
+  listStaffEditEvents: (): Promise<StaffAttendanceEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/attendance/staff/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        staffId: Number(r.staff_id ?? 0),
+        staffName: String(r.staff_name ?? ""),
+        date: String(r.date ?? ""),
+        event: String(r.event) as StaffAttendanceEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 
   /**
    * Self-service mark for the Mark Attendance page.
@@ -1962,6 +2387,18 @@ export const attendanceApi = {
     })),
   deleteHoliday: (id: string) =>
     req<void>(`/attendance/holidays/${id}`, { method: "DELETE" }),
+  listHolidayEditEvents: (): Promise<HolidayEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/attendance/holidays/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        holidayDate: String(r.holiday_date ?? ""),
+        name: String(r.name ?? ""),
+        event: String(r.event) as HolidayEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 
   lookupApplicant: (code: string) =>
     req<B>(`/attendance/lookup-applicant?code=${encodeURIComponent(code)}`),
@@ -1992,6 +2429,17 @@ export const attendanceApi = {
     req<B>(`/attendance/leave-requests/${id}/approve`, { method: "PATCH" }).then(toLeaveRequest),
   rejectLeave: (id: string) =>
     req<B>(`/attendance/leave-requests/${id}/reject`, { method: "PATCH" }).then(toLeaveRequest),
+  listLeaveRequestEditEvents: (): Promise<LeaveRequestEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/attendance/leave-requests/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        applicantName: String(r.applicant_name ?? ""),
+        category: String(r.category ?? ""),
+        event: String(r.event) as LeaveRequestEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 
   getSummary: (category: "driver" | "staff", from: string, to: string) =>
     req<B[]>(`/attendance/summary?category=${category}&from=${from}&to=${to}`).then((d) =>
@@ -2041,9 +2489,60 @@ function toMaintStatus(b: MaintStatusBackend): TruckMaintenanceStatus {
   };
 }
 
+export type MaintenanceRecordEditEventType = "Record Created" | "Record Edited" | "Record Deleted";
+
+// One row in the page-wide "Edit History" log on Truck Maintenance — every
+// Create/Edit/Delete ever logged, across every maintenance record. See
+// MaintenanceRecordEditEventListOut on the backend. maintenanceType/
+// recordDate are a snapshot taken at log time — a deleted record is
+// hard-deleted, so there's nothing left to join back to for those rows.
+export type MaintenanceRecordEditEventRow = {
+  id: number;
+  truckDbId: string;
+  truckIdStr: string;
+  registrationNumber: string;
+  recordId: number;
+  maintenanceType: string;
+  recordDate: string | null;
+  event: MaintenanceRecordEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+// One row in the page-wide "Edit History" log on Air Filter R&R — every log
+// ever added, across every truck, derived directly from AirFilterRecord.
+export type AirFilterRecordEditEventRow = {
+  id: number;
+  truckDbId: string;
+  registrationNumber: string;
+  date: string;
+  odometerDuringChange: number;
+  actorName: string;
+  createdAt: string;
+};
+
 export const maintenanceApi = {
   listRecords: (truckId?: string) =>
     req<B[]>(`/maintenance/records${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toMaintenanceRecord)),
+  // Page-wide "Edit History" log on Truck Maintenance — every Create/Edit/
+  // Delete across every maintenance record, enriched for search.
+  listRecordEditEvents: (): Promise<MaintenanceRecordEditEventRow[]> =>
+    req<B[]>(`/maintenance/record-edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        truckDbId: String(r.truck_id ?? ""),
+        truckIdStr: String(r.truck_id_str ?? ""),
+        registrationNumber: String(r.registration_number ?? ""),
+        recordId: Number(r.record_id),
+        maintenanceType: String(r.maintenance_type ?? ""),
+        recordDate: (r.record_date as string | null) ?? null,
+        event: String(r.event) as MaintenanceRecordEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   // Read-only EMI listing — routers/finance.py's /finance/emi requires Accounts/Admin;
   // this is the same data via a login-only endpoint, for roles like Auditor.
   listEmiRecordsReadOnly: () => req<B[]>("/maintenance/emi-records").then((d) => d.map(toEmiRecord)),
@@ -2060,6 +2559,20 @@ export const maintenanceApi = {
         remarks: record.remarks.trim() || null,
       }),
     }).then(toAirFilterRecord),
+  // Page-wide "Edit History" log on Air Filter R&R — derived directly from
+  // AirFilterRecord (create-only), no dedicated event table.
+  listAirFilterRecordEditEvents: (): Promise<AirFilterRecordEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/maintenance/air-filter-records/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        truckDbId: String(r.truck_id ?? ""),
+        registrationNumber: String(r.registration_number ?? ""),
+        date: String(r.date ?? ""),
+        odometerDuringChange: Number(r.odometer_during_change ?? 0),
+        actorName: String(r.actor_name ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   createRecord: (record: MaintenanceRecord, truckDbId: string) =>
     req<B>("/maintenance/records", {
       method: "POST",
@@ -2113,8 +2626,43 @@ export const maintenanceApi = {
   getMaintenanceCostPerKm: () => req<Record<string, number>>("/maintenance/cost-per-km/all"),
 };
 
+export type FuelLogEditEventType = "Log Created" | "Log Edited" | "Log Deleted";
+
+// One row in the page-wide "Edit History" log on Fuel History — every
+// Create/Edit/Delete ever logged, across every fuel log. date/litres are a
+// snapshot taken at log time (a deleted log is hard-deleted).
+export type FuelLogEditEventRow = {
+  id: number;
+  truckDbId: string;
+  truckIdStr: string;
+  registrationNumber: string;
+  logId: number;
+  logDate: string | null;
+  litres: string | null;
+  event: FuelLogEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const fuelLogsApi = {
   listFuelStations: () => req<string[]>("/maintenance/fuel-stations"),
+  listEditEvents: (): Promise<FuelLogEditEventRow[]> =>
+    req<B[]>(`/maintenance/fuel-logs/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        truckDbId: String(r.truck_id ?? ""),
+        truckIdStr: String(r.truck_id_str ?? ""),
+        registrationNumber: String(r.registration_number ?? ""),
+        logId: Number(r.log_id),
+        logDate: (r.log_date as string | null) ?? null,
+        litres: r.litres != null ? String(r.litres) : null,
+        event: String(r.event) as FuelLogEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   listFuelLogs: (truckId?: string) =>
     req<B[]>(`/maintenance/fuel-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toFuelLog)),
   createFuelLog: (log: Omit<FuelLog, "id" | "distance" | "mileage" | "createdAt" | "pricePerLitre" | "enteredByName" | "source">) =>
@@ -2260,6 +2808,18 @@ const DELETION_RESOURCE_SEGMENT: Record<string, string> = {
   TyreInventory: "/tyre-inventory",
 };
 
+export type DeletionApprovalEditEventType = "Deletion Approved" | "Deletion Rejected";
+
+export type DeletionApprovalEditEventRow = {
+  id: number;
+  requestedByName: string;
+  resourceType: string;
+  resourceName: string;
+  event: DeletionApprovalEditEventType;
+  actorName: string;
+  createdAt: string;
+};
+
 export const deletionApprovalsApi = {
   create: (payload: {
     resourceType: string;
@@ -2287,6 +2847,9 @@ export const deletionApprovalsApi = {
       d.map(toDeletionApproval)
     );
   },
+  /** Every deletion request the logged-in user has filed (any status). */
+  listMine: (): Promise<DeletionApprovalRequest[]> =>
+    req<B[]>("/deletion-approvals/mine").then((d) => d.map(toDeletionApproval)),
   approve: (id: number, adminNote?: string): Promise<DeletionApprovalRequest> =>
     req<B>(`/deletion-approvals/${id}/approve`, {
       method: "PUT",
@@ -2306,6 +2869,18 @@ export const deletionApprovalsApi = {
       method: "PUT",
       body: JSON.stringify({ admin_note: adminNote ?? null }),
     }).then(toDeletionApproval),
+  listEditEvents: (): Promise<DeletionApprovalEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/deletion-approvals/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        requestedByName: String(r.requested_by_name ?? ""),
+        resourceType: String(r.resource_type ?? ""),
+        resourceName: String(r.resource_name ?? ""),
+        event: String(r.event) as DeletionApprovalEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -2402,7 +2977,36 @@ function toAdBlueManufacturer(b: B): AdBlueManufacturer {
   };
 }
 
+export type AdBlueEditEventType =
+  | "Log Created" | "Log Edited" | "Log Deleted"
+  | "Manufacturer Created" | "Manufacturer Edited" | "Manufacturer Deleted";
+
+// One row in the page-wide "Edit History" log on the AdBlue page — merges
+// AdBlue Log and AdBlue Manufacturer edit events (both editable from this
+// same page) into one chronological, searchable list.
+export type AdBlueEditEventRow = {
+  id: string;
+  category: "Log" | "Manufacturer";
+  label: string;
+  event: AdBlueEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const adblueApi = {
+  listEditEvents: (): Promise<AdBlueEditEventRow[]> =>
+    req<B[]>(`/maintenance/adblue/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: String(r.id),
+        category: r.category as "Log" | "Manufacturer",
+        label: String(r.label ?? ""),
+        event: String(r.event) as AdBlueEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   listManufacturers: () =>
     req<B[]>("/maintenance/adblue-manufacturers").then((d) => d.map(toAdBlueManufacturer)),
   createManufacturer: (name: string, defaultPricePerLitre: string) =>
@@ -2423,8 +3027,75 @@ export const adblueApi = {
 // Tyre API
 // ---------------------------------------------------------------------------
 
+export type TyreInventoryEditEventType = "Tyre Created" | "Tyre Edited" | "Tyre Deleted" | "Tyre Restored";
+
+// One row in the page-wide "Edit History" log on Tyre Inventory — every
+// Create/Edit/Delete/Restore ever logged, across every tyre stock record.
+export type TyreInventoryEditEventRow = {
+  id: number;
+  tyreDbId: string;
+  tyreNumber: string;
+  brand: string;
+  event: TyreInventoryEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type TyreFitmentEventType = "Tyre Fitted" | "Tyre Removed";
+
+// One row in the page-wide "Edit History" log on Tyre Management — every
+// fit/remove (including each half of a position swap) ever logged, derived
+// from TyreFitmentRecord.
+export type TyreFitmentEventRow = {
+  id: string;
+  truckDbId: string;
+  truckIdStr: string;
+  registrationNumber: string;
+  tyreDbId: string;
+  tyreNumber: string;
+  position: string;
+  event: TyreFitmentEventType;
+  actorName: string;
+  eventDate: string | null;
+  remark: string | null;
+};
+
 export const tyreApi = {
   listInventory: () => req<B[]>("/tyre-inventory").then((d) => d.map(toTyreInventory)),
+  // Page-wide "Edit History" log on Tyre Inventory — every Create/Edit/
+  // Delete/Restore across every tyre stock record.
+  listInventoryEditEvents: (): Promise<TyreInventoryEditEventRow[]> =>
+    req<B[]>(`/tyre-inventory/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        tyreDbId: String(r.tyre_id ?? ""),
+        tyreNumber: String(r.tyre_number ?? ""),
+        brand: String(r.brand ?? ""),
+        event: String(r.event) as TyreInventoryEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
+  // Page-wide "Edit History" log on Tyre Management — every fit/remove
+  // across every truck, derived from TyreFitmentRecord.
+  listFitmentEvents: (): Promise<TyreFitmentEventRow[]> =>
+    req<B[]>(`/tyre-fitment/events`).then((rows) =>
+      rows.map((r) => ({
+        id: String(r.id),
+        truckDbId: String(r.truck_id ?? ""),
+        truckIdStr: String(r.truck_id_str ?? ""),
+        registrationNumber: String(r.registration_number ?? ""),
+        tyreDbId: String(r.tyre_id ?? ""),
+        tyreNumber: String(r.tyre_number ?? ""),
+        position: String(r.position ?? ""),
+        event: String(r.event) as TyreFitmentEventType,
+        actorName: String(r.actor_name ?? ""),
+        eventDate: (r.event_date as string | null) ?? null,
+        remark: (r.remark as string | null) ?? null,
+      }))
+    ),
   availableInventory: () => req<B[]>("/tyre-inventory/available").then((d) => d.map(toTyreInventory)),
   createTyre: (tyre: TyreInventoryItem) =>
     req<B>("/tyre-inventory", { method: "POST", body: JSON.stringify(fromTyreInventory(tyre)) }).then(toTyreInventory),
@@ -2473,8 +3144,54 @@ export const tyreApi = {
 // Finance API
 // ---------------------------------------------------------------------------
 
+export type EmiRecordEditEventType = "EMI Created" | "EMI Edited" | "EMI Deleted";
+
+// One row in the page-wide "Edit History" log on EMI Tracking — every
+// Create/Edit/Delete ever logged, across every EMI record.
+export type EmiRecordEditEventRow = {
+  id: number;
+  emiId: number;
+  emiName: string;
+  truckRegistration: string | null;
+  event: EmiRecordEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type CompensationEditEventType = "Transaction Added" | "Transaction Deleted";
+
+// One row in the page-wide "Edit History" log shared by the Driver
+// Compensation and Staff Compensation pages (filtered by personType).
+export type CompensationEditEventRow = {
+  id: number;
+  personType: "driver" | "staff";
+  personId: number;
+  personName: string | null;
+  txType: "Advance" | "Salary";
+  amount: string;
+  txDate: string | null;
+  event: CompensationEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const financeApi = {
   listEmi: () => req<B[]>("/finance/emi").then((d) => d.map(toEmiRecord)),
+  listEmiEditEvents: (): Promise<EmiRecordEditEventRow[]> =>
+    req<B[]>(`/finance/emi/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        emiId: Number(r.emi_id),
+        emiName: String(r.emi_name ?? ""),
+        truckRegistration: (r.truck_registration as string | null) ?? null,
+        event: String(r.event) as EmiRecordEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   createEmi: (record: EmiRecord) =>
     req<B>("/finance/emi", { method: "POST", body: JSON.stringify(fromEmiRecord(record)) }).then(toEmiRecord),
   updateEmi: (dbId: string, record: EmiRecord) =>
@@ -2505,6 +3222,25 @@ export const financeApi = {
     }).then(toCompensationTransaction),
 
   deleteCompensation: (txId: string) => req<void>(`/finance/compensation/${txId}`, { method: "DELETE" }),
+
+  // Page-wide "Edit History" log shared by Driver Compensation and Staff
+  // Compensation — pass personType to scope it to that page.
+  listCompensationEditEvents: (personType: "driver" | "staff"): Promise<CompensationEditEventRow[]> =>
+    req<B[]>(`/finance/compensation/edit-events?person_type=${personType}`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        personType: r.person_type as "driver" | "staff",
+        personId: Number(r.person_id),
+        personName: (r.person_name as string | null) ?? null,
+        txType: r.tx_type as "Advance" | "Salary",
+        amount: String(r.amount ?? "0"),
+        txDate: (r.tx_date as string | null) ?? null,
+        event: String(r.event) as CompensationEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -2559,8 +3295,32 @@ function toSacCode(b: B): SacCode {
   };
 }
 
+export type RepairTypeEditEventType = "Repair Type Created" | "Repair Type Edited" | "Repair Type Deleted";
+
+export type RepairTypeEditEventRow = {
+  id: number;
+  repairTypeId: number;
+  name: string;
+  event: RepairTypeEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const repairTypesApi = {
   list: () => req<B[]>("/repair-types").then((d) => d.map(toRepairType)),
+  listEditEvents: (): Promise<RepairTypeEditEventRow[]> =>
+    req<B[]>(`/repair-types/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        repairTypeId: Number(r.repair_type_id),
+        name: String(r.name ?? ""),
+        event: String(r.event) as RepairTypeEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   create: (payload: Omit<RepairType, "id">) =>
     req<B>("/repair-types", {
       method: "POST",
@@ -2597,8 +3357,38 @@ function toMaintenanceCategory(b: B): MaintenanceCategory {
   };
 }
 
+export type MaintenanceCategoryEditEventType =
+  | "Category Created" | "Category Edited" | "Category Deleted"
+  | "Repair Created" | "Repair Edited" | "Repair Deleted";
+
+export type MaintenanceCategoryEditEventRow = {
+  id: number;
+  categoryId: number;
+  categoryName: string;
+  repairId: number | null;
+  repairName: string | null;
+  event: MaintenanceCategoryEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const maintenanceCategoriesApi = {
   list: () => req<B[]>("/maintenance-categories").then((d) => d.map(toMaintenanceCategory)),
+  listEditEvents: (): Promise<MaintenanceCategoryEditEventRow[]> =>
+    req<B[]>(`/maintenance-categories/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        categoryId: Number(r.category_id),
+        categoryName: String(r.category_name ?? ""),
+        repairId: r.repair_id != null ? Number(r.repair_id) : null,
+        repairName: (r.repair_name as string | null) ?? null,
+        event: String(r.event) as MaintenanceCategoryEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   create: (name: string) =>
     req<B>("/maintenance-categories", { method: "POST", body: JSON.stringify({ name }) }).then(toMaintenanceCategory),
   update: (id: string, name: string, clientVersion?: number) =>
@@ -2631,8 +3421,32 @@ function toMaintenanceType(b: MTypeBackend): MaintenanceTypeItem {
   return { id: String(b.id), name: b.name, intervalKm: b.interval_km, version: b.version };
 }
 
+export type MaintenanceTypeEditEventType = "Type Created" | "Type Edited" | "Type Deleted";
+
+export type MaintenanceTypeEditEventRow = {
+  id: number;
+  typeId: number;
+  name: string;
+  event: MaintenanceTypeEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const maintenanceTypesApi = {
   list: () => req<MTypeBackend[]>("/maintenance-types").then((d) => d.map(toMaintenanceType)),
+  listEditEvents: (): Promise<MaintenanceTypeEditEventRow[]> =>
+    req<B[]>(`/maintenance-types/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        typeId: Number(r.type_id),
+        name: String(r.name ?? ""),
+        event: String(r.event) as MaintenanceTypeEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   create: (name: string, intervalKm: number) =>
     req<MTypeBackend>("/maintenance-types", {
       method: "POST",
@@ -2646,8 +3460,34 @@ export const maintenanceTypesApi = {
   delete: (id: string) => req<void>(`/maintenance-types/${id}`, { method: "DELETE" }),
 };
 
+export type SacCodeEditEventType = "SAC Code Created" | "SAC Code Edited" | "SAC Code Deleted";
+
+export type SacCodeEditEventRow = {
+  id: number;
+  sacCodeId: number;
+  code: string;
+  description: string;
+  event: SacCodeEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const sacCodesApi = {
   list: () => req<B[]>("/sac-codes").then((d) => d.map(toSacCode)),
+  listEditEvents: (): Promise<SacCodeEditEventRow[]> =>
+    req<B[]>(`/sac-codes/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        sacCodeId: Number(r.sac_code_id),
+        code: String(r.code ?? ""),
+        description: String(r.description ?? ""),
+        event: String(r.event) as SacCodeEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   create: (payload: Omit<SacCode, "id">) =>
     req<B>("/sac-codes", {
       method: "POST",
@@ -2679,8 +3519,32 @@ export const sacCodesApi = {
   delete: (id: string) => req<void>(`/sac-codes/${id}`, { method: "DELETE" }),
 };
 
+export type BranchEditEventType = "Branch Created" | "Branch Edited" | "Branch Deleted";
+
+export type BranchEditEventRow = {
+  id: number;
+  branchId: number;
+  name: string;
+  event: BranchEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const branchesApi = {
   list: () => req<B[]>("/branches").then((d) => d.map(toBranch)),
+  listEditEvents: (): Promise<BranchEditEventRow[]> =>
+    req<B[]>(`/branches/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        branchId: Number(r.branch_id),
+        name: String(r.name ?? ""),
+        event: String(r.event) as BranchEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
   get: (id: string) => req<B>(`/branches/${id}`).then(toBranch),
   create: (branch: Branch) =>
     req<B>("/branches", { method: "POST", body: JSON.stringify(fromBranch(branch)) }).then(toBranch),
@@ -2768,6 +3632,16 @@ function fromTripExpenseRate(ter: Partial<TripExpenseRate> & { clientVersion?: n
   return out;
 }
 
+export type TripExpenseRateEditEventType = "Trip Expense Rates Updated";
+
+export type TripExpenseRateEditEventRow = {
+  id: number;
+  event: TripExpenseRateEditEventType;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const tripExpenseRatesApi = {
   getConfig: () => req<TER>("/trip-expense-rates").then(toTripExpenseRate),
   saveConfig: (data: Partial<TripExpenseRate>, clientVersion?: number) =>
@@ -2775,6 +3649,16 @@ export const tripExpenseRatesApi = {
       method: "PUT",
       body: JSON.stringify(fromTripExpenseRate({ ...data, clientVersion })),
     }).then(toTripExpenseRate),
+  listEditEvents: (): Promise<TripExpenseRateEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/trip-expense-rates/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        event: String(r.event) as TripExpenseRateEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -2982,6 +3866,18 @@ function toEditApproval(b: B): EditApprovalRequest {
   };
 }
 
+export type EditApprovalEditEventType = "Edit Request Approved" | "Edit Request Rejected";
+
+export type EditApprovalEditEventRow = {
+  id: number;
+  staffName: string;
+  resourceType: string;
+  resourceName: string;
+  event: EditApprovalEditEventType;
+  actorName: string;
+  createdAt: string;
+};
+
 export const editApprovalsApi = {
   list: (status?: string, resourceType?: string) => {
     const params = new URLSearchParams();
@@ -3024,6 +3920,18 @@ export const editApprovalsApi = {
     req<B>(`/edit-approvals/${id}/reject`, { method: "PATCH" }).then(toEditApproval),
   remove: (id: string) =>
     req<void>(`/edit-approvals/${id}`, { method: "DELETE" }),
+  listEditEvents: (): Promise<EditApprovalEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/edit-approvals/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        staffName: String(r.staff_name ?? ""),
+        resourceType: String(r.resource_type ?? ""),
+        resourceName: String(r.resource_name ?? ""),
+        event: String(r.event) as EditApprovalEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -3691,9 +4599,31 @@ function toPaymentRequest(b: B): PaymentRequest {
   };
 }
 
+export type PaymentRequestEditEventType = "Approved for Payment" | "Rejected by Accounts" | "Marked as Paid";
+
+export type PaymentRequestEditEventRow = {
+  id: string;
+  description: string;
+  amount: string;
+  event: PaymentRequestEditEventType;
+  actorName: string;
+  createdAt: string;
+};
+
 export const paymentRequestsApi = {
   list: (): Promise<PaymentRequest[]> =>
     req<B[]>("/payment-requests").then((d) => d.map(toPaymentRequest)),
+  listEditEvents: (): Promise<PaymentRequestEditEventRow[]> =>
+    req<Record<string, unknown>[]>(`/payment-requests/edit-events`).then((rows) =>
+      rows.map((r) => ({
+        id: String(r.id),
+        description: String(r.description ?? ""),
+        amount: String(r.amount ?? "0"),
+        event: String(r.event) as PaymentRequestEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
 
   /** "Approve for Payment" (-> "approved", i.e. Unpaid) or "Reject" (terminal).
    * Once decided, the same request can't be decided again here. */
@@ -3749,5 +4679,125 @@ export const paymentRequestsApi = {
     }
     const blob = await res.blob();
     return URL.createObjectURL(blob);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// SW Usage Analytics API
+// ---------------------------------------------------------------------------
+
+export type ModuleUsageRow = {
+  module: string;
+  activeSeconds: number;
+  idleSeconds: number;
+  visitCount: number;
+};
+
+export type UsageSessionRow = {
+  id: number;
+  loginAt: string;
+  logoutAt: string | null;
+  endedReason: "logout" | "timeout" | null;
+  totalActiveSeconds: number;
+  totalIdleSeconds: number;
+};
+
+export type ActionLogRow = {
+  source: string;
+  event: string;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export type UsageOverviewRow = {
+  staffId: number;
+  staffName: string;
+  staffRole: string | null;
+  isOnline: boolean;
+  lastSeenAt: string | null;
+  totalActiveSeconds: number;
+  totalIdleSeconds: number;
+  totalLoginSeconds: number;
+  actionCount: number;
+};
+
+export type UsageDetail = {
+  staffId: number;
+  staffName: string;
+  staffRole: string | null;
+  totalActiveSeconds: number;
+  totalIdleSeconds: number;
+  totalLoginSeconds: number;
+  actionCount: number;
+  modules: ModuleUsageRow[];
+  sessions: UsageSessionRow[];
+  recentActions: ActionLogRow[];
+};
+
+export const usageApi = {
+  /** Fire-and-forget: posted every ~5 minutes (+ on tab-hide/unload/module
+   * change) by useUsageHeartbeat.ts. Never throws into the caller's render
+   * path — the hook itself swallows failures, same as every other
+   * best-effort background ping in this app. */
+  heartbeat: (module: string, activeSeconds: number, idleSeconds: number) =>
+    req<void>("/usage/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({ module, active_seconds: activeSeconds, idle_seconds: idleSeconds }),
+    }),
+  getOverview: (dateFrom?: string, dateTo?: string): Promise<UsageOverviewRow[]> => {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    const qs = params.toString();
+    return req<Record<string, unknown>[]>(`/usage/overview${qs ? `?${qs}` : ""}`).then((rows) =>
+      rows.map((r) => ({
+        staffId: Number(r.staff_id),
+        staffName: String(r.staff_name ?? ""),
+        staffRole: (r.staff_role as string | null) ?? null,
+        isOnline: Boolean(r.is_online),
+        lastSeenAt: (r.last_seen_at as string | null) ?? null,
+        totalActiveSeconds: Number(r.total_active_seconds ?? 0),
+        totalIdleSeconds: Number(r.total_idle_seconds ?? 0),
+        totalLoginSeconds: Number(r.total_login_seconds ?? 0),
+        actionCount: Number(r.action_count ?? 0),
+      }))
+    );
+  },
+  getDetail: (staffId: number, dateFrom?: string, dateTo?: string): Promise<UsageDetail> => {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    const qs = params.toString();
+    return req<Record<string, unknown>>(`/usage/detail/${staffId}${qs ? `?${qs}` : ""}`).then((r) => ({
+      staffId: Number(r.staff_id),
+      staffName: String(r.staff_name ?? ""),
+      staffRole: (r.staff_role as string | null) ?? null,
+      totalActiveSeconds: Number(r.total_active_seconds ?? 0),
+      totalIdleSeconds: Number(r.total_idle_seconds ?? 0),
+      totalLoginSeconds: Number(r.total_login_seconds ?? 0),
+      actionCount: Number(r.action_count ?? 0),
+      modules: ((r.modules as Record<string, unknown>[]) ?? []).map((m) => ({
+        module: String(m.module ?? ""),
+        activeSeconds: Number(m.active_seconds ?? 0),
+        idleSeconds: Number(m.idle_seconds ?? 0),
+        visitCount: Number(m.visit_count ?? 0),
+      })),
+      sessions: ((r.sessions as Record<string, unknown>[]) ?? []).map((s) => ({
+        id: Number(s.id),
+        loginAt: String(s.login_at ?? ""),
+        logoutAt: (s.logout_at as string | null) ?? null,
+        endedReason: (s.ended_reason as "logout" | "timeout" | null) ?? null,
+        totalActiveSeconds: Number(s.total_active_seconds ?? 0),
+        totalIdleSeconds: Number(s.total_idle_seconds ?? 0),
+      })),
+      recentActions: ((r.recent_actions as Record<string, unknown>[]) ?? []).map((a) => ({
+        source: String(a.source ?? ""),
+        event: String(a.event ?? ""),
+        actorName: String(a.actor_name ?? ""),
+        actorRole: (a.actor_role as string | null) ?? null,
+        createdAt: String(a.created_at ?? ""),
+      })),
+    }));
   },
 };

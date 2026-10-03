@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Plus, X, Smartphone, Laptop, Users } from "lucide-react";
+import { Download, FileText, Loader2, Plus, X, Smartphone, Laptop, Users, History, Pencil, Trash2, Undo2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { staffApi, uploadFile, fileUrl } from "@/lib/api";
+import { staffApi, uploadFile, fileUrl, type StaffEditEventRow } from "@/lib/api";
 import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
@@ -14,8 +14,26 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { Dialog } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+
+const EDIT_EVENT_ICON: Record<StaffEditEventRow["event"], typeof Plus> = {
+  "Staff Created": Plus,
+  "Staff Edited": Pencil,
+  "Staff Deleted": Trash2,
+  "Staff Restored": Undo2,
+};
+
+const EDIT_EVENT_COLOR: Record<StaffEditEventRow["event"], string> = {
+  "Staff Created": "bg-blue-100 text-blue-700",
+  "Staff Edited": "bg-amber-100 text-amber-700",
+  "Staff Deleted": "bg-red-100 text-red-700",
+  "Staff Restored": "bg-emerald-100 text-emerald-700",
+};
+
 export default function StaffPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
@@ -27,6 +45,22 @@ export default function StaffPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingStaff, setViewingStaff] = useState<Staff | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<StaffEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  // Fetched fresh every time it's opened, covering every staff edit ever
+  // logged — searching by staff name/ID here doubles as that staff member's
+  // own edit history.
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    staffApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   const filteredStaff = staff.filter(s =>
     !searchQuery ||
@@ -237,14 +271,26 @@ export default function StaffPage() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-        >
-          <Plus className="h-4 w-4" />
-          Add Staff
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+            Add Staff
+          </button>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
@@ -392,6 +438,73 @@ export default function StaffPage() {
           </div>
         );
       })()}
+
+      {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
+          every staff member (not just the ones currently on this page), in
+          one searchable log instead of having to open each staff member
+          individually. Searching by a specific name/ID doubles as that
+          staff member's own history. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by staff name, ID, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch ||
+              ev.staffIdStr.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.staffName.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No staff edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Staff</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-gray-800">{ev.staffName}</p>
+                            <p className="text-[11px] text-gray-400">{ev.staffIdStr}</p>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

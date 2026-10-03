@@ -13,6 +13,9 @@ import {
   Users,
   Building2,
   Handshake,
+  History,
+  Plus,
+  Pencil,
   type LucideIcon,
 } from "lucide-react";
 import { deletionApprovalsApi, driversApi, trucksApi, staffApi, customersApi, vendorsApi, type DeletionApprovalRequest } from "@/lib/api";
@@ -23,6 +26,9 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { Dialog } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Admin"];
 
@@ -49,6 +55,37 @@ const KIND_CONFIG: Record<ArchivedResource, KindConfig> = {
 };
 const ARCHIVED_KINDS: ArchivedResource[] = ["Driver", "Truck", "Staff", "Customer", "Vendor"];
 
+// A unified row across all 5 entities' own edit-event logs (DriverEditEvent,
+// TruckEditEvent, StaffEditEvent, CustomerEditEvent, VendorEditEvent) — each
+// already exists and already logs Create/Edit/Delete/Restore, this page just
+// merges and displays them in one combined log, same reuse pattern as Tyre
+// Archive reusing Tyre Inventory's log.
+type CombinedEditEvent = {
+  id: string;
+  kind: ArchivedResource;
+  name: string;
+  event: string;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+function iconForEvent(event: string) {
+  if (event.endsWith("Created")) return Plus;
+  if (event.endsWith("Edited")) return Pencil;
+  if (event.endsWith("Deleted")) return Trash2;
+  if (event.endsWith("Restored")) return RotateCcw;
+  return Pencil;
+}
+
+function colorForEvent(event: string) {
+  if (event.endsWith("Created")) return "bg-blue-100 text-blue-700";
+  if (event.endsWith("Edited")) return "bg-amber-100 text-amber-700";
+  if (event.endsWith("Deleted")) return "bg-red-100 text-red-700";
+  if (event.endsWith("Restored")) return "bg-emerald-100 text-emerald-700";
+  return "bg-gray-100 text-gray-700";
+}
+
 function formatDate(raw: string | null): string {
   if (!raw) return "—";
   const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
@@ -64,6 +101,8 @@ function formatDate(raw: string | null): string {
 }
 
 export default function ArchivePage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   const router = useRouter();
   const isAllowed = !user || ALLOWED_ROLES.includes(user.softwareDesignation);
@@ -81,6 +120,44 @@ export default function ArchivePage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewing, setViewing] = useState<ArchiveRow | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<CombinedEditEvent[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+  const [editHistoryKindFilter, setEditHistoryKindFilter] = useState<"All" | ArchivedResource>("All");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    Promise.allSettled([
+      driversApi.listEditEvents(),
+      trucksApi.listEditEvents(),
+      staffApi.listEditEvents(),
+      customersApi.listEditEvents(),
+      vendorsApi.listEditEvents(),
+    ])
+      .then(([drivers, trucks, staff, customers, vendors]) => {
+        const combined: CombinedEditEvent[] = [];
+        if (drivers.status === "fulfilled") {
+          for (const e of drivers.value) combined.push({ id: `Driver-${e.id}`, kind: "Driver", name: e.driverName, event: e.event, actorName: e.actorName, actorRole: e.actorRole, createdAt: e.createdAt });
+        }
+        if (trucks.status === "fulfilled") {
+          for (const e of trucks.value) combined.push({ id: `Truck-${e.id}`, kind: "Truck", name: e.registrationNumber, event: e.event, actorName: e.actorName, actorRole: e.actorRole, createdAt: e.createdAt });
+        }
+        if (staff.status === "fulfilled") {
+          for (const e of staff.value) combined.push({ id: `Staff-${e.id}`, kind: "Staff", name: e.staffName, event: e.event, actorName: e.actorName, actorRole: e.actorRole, createdAt: e.createdAt });
+        }
+        if (customers.status === "fulfilled") {
+          for (const e of customers.value) combined.push({ id: `Customer-${e.id}`, kind: "Customer", name: e.customerName, event: e.event, actorName: e.actorName, actorRole: e.actorRole, createdAt: e.createdAt });
+        }
+        if (vendors.status === "fulfilled") {
+          for (const e of vendors.value) combined.push({ id: `Vendor-${e.id}`, kind: "Vendor", name: e.vendorName, event: e.event, actorName: e.actorName, actorRole: e.actorRole, createdAt: e.createdAt });
+        }
+        combined.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setEditHistoryEvents(combined);
+      })
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   async function loadData() {
     try {
@@ -194,16 +271,28 @@ export default function ArchivePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white text-slate-600 shadow-sm">
-          <ArchiveIcon className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Archive</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            Staff, drivers, trucks, customers, and vendors removed from the Resource Hub — restore them or permanently delete
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white text-slate-600 shadow-sm">
+            <ArchiveIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Archive</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Staff, drivers, trucks, customers, and vendors removed from the Resource Hub — restore them or permanently delete
+            </p>
+          </div>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -379,6 +468,92 @@ export default function ArchivePage() {
           </div>
         </div>
       )}
+
+      {/* Edit History — combines every Create/Edit/Delete/Restore ever
+          logged, across Drivers, Trucks, Staff, Customers, and Vendors (each
+          entity's own log, already shown on its own page), into one
+          searchable, filterable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <PillSearch placeholder="Search by name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+            <div className="flex gap-1.5 rounded-lg border border-gray-200 bg-white/60 p-1">
+              {(["All", ...ARCHIVED_KINDS] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setEditHistoryKindFilter(t)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                    editHistoryKindFilter === t ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
+                  )}
+                >
+                  {t === "All" ? "All" : t === "Driver" ? "Drivers" : t === "Truck" ? "Trucks" : t === "Customer" ? "Customers" : t === "Vendor" ? "Vendors" : "Staff"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              (editHistoryKindFilter === "All" || ev.kind === editHistoryKindFilter) &&
+              (!q || ev.name.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q))
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Type</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Name</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = iconForEvent(ev.event);
+                      const KindIcon = KIND_CONFIG[ev.kind].icon;
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", KIND_CONFIG[ev.kind].badgeClass)}>
+                              <KindIcon className="h-3 w-3" /> {ev.kind}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.name}</td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", colorForEvent(ev.event))}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -21,6 +21,19 @@ def get_tyre_range_config(db: Session = Depends(get_db)):
     return rows
 
 
+@router.get("/edit-events", response_model=list[schemas.TyreRangeConfigEditEventListOut])
+def list_tyre_range_config_edit_events(db: Session = Depends(get_db)):
+    """Every save/delete on Tyre Range Configuration ever logged — the
+    page-wide "Edit History" log. Most recent first. Registered before
+    DELETE /{tyre_type} so "edit-events" isn't swallowed as a tyre_type
+    path param."""
+    return (
+        db.query(models.TyreRangeConfigEditEvent)
+        .order_by(models.TyreRangeConfigEditEvent.created_at.desc(), models.TyreRangeConfigEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.put("", response_model=list[schemas.TyreRangeConfigOut])
 def save_tyre_range_config(
     payload: schemas.TyreRangeConfigBulkSave,
@@ -46,6 +59,9 @@ def save_tyre_range_config(
                 base_tyre_cost=item.base_tyre_cost,
                 base_cost_per_km=item.base_cost_per_km,
             ))
+    db.add(models.TyreRangeConfigEditEvent(
+        event="Tyre Range Config Saved", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     return db.query(models.TyreRangeConfig).order_by(models.TyreRangeConfig.tyre_type).all()
 
@@ -57,5 +73,8 @@ def delete_tyre_range_config(tyre_type: str, db: Session = Depends(get_db), curr
     row = db.query(models.TyreRangeConfig).filter(models.TyreRangeConfig.tyre_type == tyre_type).first()
     if not row:
         raise HTTPException(404, "Tyre type not found")
+    db.add(models.TyreRangeConfigEditEvent(
+        tyre_type=tyre_type, event="Tyre Type Deleted", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(row)
     db.commit()

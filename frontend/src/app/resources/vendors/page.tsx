@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Handshake } from "lucide-react";
+import { Plus, X, Handshake, History, Pencil, Trash2, Undo2 } from "lucide-react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
 import { VendorCategoryDialog } from "@/components/vendors/VendorCategoryDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
-import { vendorsApi, editApprovalsApi } from "@/lib/api";
+import { vendorsApi, editApprovalsApi, type VendorEditEventRow } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Vendor } from "@/types/vendor";
 import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-approval";
@@ -15,10 +15,29 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { Dialog } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+
+const EDIT_EVENT_ICON: Record<VendorEditEventRow["event"], typeof Plus> = {
+  "Vendor Created": Plus,
+  "Vendor Edited": Pencil,
+  "Vendor Deleted": Trash2,
+  "Vendor Restored": Undo2,
+};
+
+const EDIT_EVENT_COLOR: Record<VendorEditEventRow["event"], string> = {
+  "Vendor Created": "bg-blue-100 text-blue-700",
+  "Vendor Edited": "bg-amber-100 text-amber-700",
+  "Vendor Deleted": "bg-red-100 text-red-700",
+  "Vendor Restored": "bg-emerald-100 text-emerald-700",
+};
 export default function VendorsPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   // Every role except Admin must file an edit request to change vendor records.
   const isGated = user?.softwareDesignation !== "Admin";
@@ -31,6 +50,21 @@ export default function VendorsPage() {
   const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<VendorEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  // Fetched fresh every time it's opened, covering every vendor edit ever
+  // logged — searching by name here doubles as that vendor's own history.
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    vendorsApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   // Edit approval state (non-Admin roles)
   const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
@@ -156,6 +190,16 @@ export default function VendorsPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
           <button
             type="button"
             onClick={() => setCategoryDialogOpen(true)}
@@ -265,6 +309,68 @@ export default function VendorsPage() {
           onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
         />
       )}
+
+      {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
+          every vendor (not just the ones currently on this page), in one
+          searchable log instead of having to open each vendor individually.
+          Searching by a specific name doubles as that vendor's own history. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by vendor name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch ||
+              ev.vendorName.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No vendor edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Vendor</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.vendorName}</td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

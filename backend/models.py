@@ -25,6 +25,20 @@ class Branch(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class BranchEditEvent(Base):
+    """Who created/edited/deleted a Branch and when. Branch is hard-deleted,
+    so branch_id is a plain reference and name is snapshotted at log time."""
+    __tablename__ = "branch_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    branch_id = Column(Integer, nullable=False)
+    name = Column(String(200), nullable=False)
+    event = Column(Enum("Branch Created", "Branch Edited", "Branch Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Resource Hub
 # ---------------------------------------------------------------------------
@@ -107,6 +121,22 @@ class Truck(Base):
     tyre_fitments = relationship("TyreFitmentRecord", back_populates="truck", cascade="all, delete-orphan")
 
 
+class TruckEditEvent(Base):
+    """Who edited a Truck record and when — same pattern as DriverEditEvent/
+    StaffEditEvent. Logs the action only (not a field-level diff). Does NOT
+    log the automatic odometer sync triggered by every Trip Sheet save (see
+    update_truck's skip_edit_log) — only deliberate edits from "Our Fleet"
+    and the Update Document dialog, plus branch reassignments."""
+    __tablename__ = "truck_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Truck Created", "Truck Edited", "Truck Deleted", "Truck Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class Driver(Base):
     __tablename__ = "drivers"
 
@@ -157,6 +187,20 @@ class Driver(Base):
         primaryjoin="and_(CompensationTransaction.person_type=='driver', foreign(CompensationTransaction.person_id)==Driver.id)",
         viewonly=True,
     )
+
+
+class DriverEditEvent(Base):
+    """Who edited a Driver record and when — same pattern as TripEditEvent.
+    Logs the action only (not a field-level diff). The only edit surface for
+    Driver fields is the "Our Drivers" page's Add/Edit Driver dialog."""
+    __tablename__ = "driver_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(Integer, ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Driver Created", "Driver Edited", "Driver Deleted", "Driver Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Staff(Base):
@@ -212,6 +256,20 @@ class Staff(Base):
     def device_bound(self) -> bool:
         """True when this account is locked to a device (has a stored device_hash)."""
         return bool(self.device_hash)
+
+
+class StaffEditEvent(Base):
+    """Who edited a Staff record and when — same pattern as DriverEditEvent.
+    Logs the action only (not a field-level diff). The only edit surface for
+    Staff fields is the "Our Staff" page's Add/Edit Staff dialog."""
+    __tablename__ = "staff_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Staff Created", "Staff Edited", "Staff Deleted", "Staff Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     @property
     def devices(self) -> list:
@@ -275,6 +333,22 @@ class Customer(Base):
     pricing = relationship("CustomerPricing", back_populates="customer", cascade="all, delete-orphan")
     final_pricing = relationship("FinalCustomerPricing", back_populates="customer", cascade="all, delete-orphan")
     trips = relationship("Trip", back_populates="customer")
+
+
+class CustomerEditEvent(Base):
+    """Who edited a Customer record and when — same pattern as
+    DriverEditEvent/StaffEditEvent. Logs the action only (not a field-level
+    diff). Scoped to the core Customer record only (name, GSTIN, contact,
+    etc.) — edits to a customer's Origins/Destinations/Pricing sub-resources
+    are a separate editing surface and out of scope here."""
+    __tablename__ = "customer_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Customer Created", "Customer Edited", "Customer Deleted", "Customer Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class CustomerOrigin(Base):
@@ -384,6 +458,20 @@ class Vendor(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class VendorEditEvent(Base):
+    """Who edited a Vendor record and when — same pattern as
+    CustomerEditEvent/DriverEditEvent/StaffEditEvent. Logs the action only
+    (not a field-level diff)."""
+    __tablename__ = "vendor_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Vendor Created", "Vendor Edited", "Vendor Deleted", "Vendor Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Trip & Driver Management
 # ---------------------------------------------------------------------------
@@ -396,6 +484,18 @@ class DriverAssignment(Base):
     vehicle_id = Column(String(20), nullable=False)                     # truck_id string e.g. CGI-T001
 
     driver = relationship("Driver", back_populates="assignment")
+
+
+class DriverAssignmentEditEvent(Base):
+    __tablename__ = "driver_assignment_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(String(20), nullable=False)
+    driver_name = Column(String(100), nullable=False)
+    vehicle_id = Column(String(20), nullable=True)  # NULL on "Assignment Removed"
+    event = Column(Enum("Driver Assigned", "Assignment Removed"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class Trip(Base):
@@ -740,6 +840,25 @@ class DriverAttendanceRemark(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class DriverAttendanceEditEvent(Base):
+    """Driver Attendance has no actor column of its own (status is set by
+    Commercial Manager/Assistant Commercial Manager on a driver's behalf), so
+    unlike the other Edit History tables this is the only record of who
+    actually marked or remarked a given day."""
+    __tablename__ = "driver_attendance_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    driver_id = Column(String(20), nullable=False)
+    driver_name = Column(String(100), nullable=False)
+    date = Column(Date, nullable=False)
+    event = Column(Enum(
+        "Attendance Marked", "Attendance Updated",
+        "Remark Added", "Remark Edited", "Remark Deleted",
+    ), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class DriverAttendanceLateEntryLog(Base):
     """One record per date — stores the reason a non-admin submitted attendance past the 2-day lock.
     Presence of this record also serves as the backend bypass key for that date."""
@@ -771,6 +890,22 @@ class StaffAttendance(Base):
     admin_override = Column(Boolean, default=False, nullable=False)
 
     staff = relationship("Staff", back_populates="attendance_records")
+
+
+class StaffAttendanceEditEvent(Base):
+    """Only the Admin-override path (mark_staff_attendance/update_staff_attendance
+    on the Staff Attendance page) is logged here — a self-mark/close-shift is
+    always the staff member acting on their own record, so there's no "who did
+    this to someone else" question to answer there."""
+    __tablename__ = "staff_attendance_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, nullable=False)
+    staff_name = Column(String(100), nullable=False)
+    date = Column(Date, nullable=False)
+    event = Column(Enum("Attendance Marked", "Attendance Updated"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class LeaveRequest(Base):
@@ -807,6 +942,17 @@ class Holiday(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class HolidayEditEvent(Base):
+    __tablename__ = "holiday_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    holiday_date = Column(Date, nullable=False)
+    name = Column(String(200), nullable=False)
+    event = Column(Enum("Holiday Created", "Holiday Updated", "Holiday Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Maintenance & Care
 # ---------------------------------------------------------------------------
@@ -834,6 +980,27 @@ class MaintenanceRecord(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     truck = relationship("Truck", back_populates="maintenance_records")
+
+
+class MaintenanceRecordEditEvent(Base):
+    """Who created/edited/deleted a Maintenance Record and when — same
+    pattern as the other *EditEvent tables, with one difference: a deleted
+    MaintenanceRecord is hard-deleted (no soft-delete/restore here), so
+    record_id is a plain reference (not an FK) and maintenance_type/
+    record_date are snapshotted at log time — the only way this row stays
+    meaningful once the record itself is gone. truck_id IS an FK (trucks are
+    soft-deleted, so it survives) and drives the join for display."""
+    __tablename__ = "maintenance_record_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    record_id = Column(Integer, nullable=False)
+    maintenance_type = Column(String(200), nullable=False)
+    record_date = Column(Date, nullable=True)
+    event = Column(Enum("Record Created", "Record Edited", "Record Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class AirFilterRecord(Base):
@@ -883,6 +1050,25 @@ class FuelLog(Base):
     truck = relationship("Truck", back_populates="fuel_logs")
 
 
+class FuelLogEditEvent(Base):
+    """Who created/edited/deleted a Fuel Log entry and when. FuelLog is
+    hard-deleted (no soft-delete here), so log_id is a plain reference (not
+    an FK) and log_date/litres are snapshotted at log time — the only way
+    this row stays meaningful once the log itself is gone. truck_id IS an
+    FK (trucks are soft-deleted, so it survives)."""
+    __tablename__ = "fuel_log_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    log_id = Column(Integer, nullable=False)
+    log_date = Column(Date, nullable=True)
+    litres = Column(Numeric(10, 2), nullable=True)
+    event = Column(Enum("Log Created", "Log Edited", "Log Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class FuelBaseConfig(Base):
     __tablename__ = "fuel_base_config"
 
@@ -910,6 +1096,22 @@ class AdBlueLog(Base):
     truck = relationship("Truck", back_populates="adblue_logs")
 
 
+class AdBlueLogEditEvent(Base):
+    """Who created/edited/deleted an AdBlue Log entry and when — same
+    hard-delete snapshot pattern as FuelLogEditEvent."""
+    __tablename__ = "adblue_log_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
+    log_id = Column(Integer, nullable=False)
+    log_date = Column(Date, nullable=True)
+    litres = Column(Numeric(10, 2), nullable=True)
+    event = Column(Enum("Log Created", "Log Edited", "Log Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class AdBlueManufacturer(Base):
     __tablename__ = "adblue_manufacturers"
 
@@ -918,6 +1120,22 @@ class AdBlueManufacturer(Base):
     default_price_per_litre = Column(Numeric(10, 2), default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AdBlueManufacturerEditEvent(Base):
+    """Who created/edited/deleted an AdBlue Manufacturer entry and when.
+    AdBlueManufacturer is hard-deleted and has no parent to key off, so
+    manufacturer_id is a plain reference (not an FK) and name is
+    snapshotted at log time."""
+    __tablename__ = "adblue_manufacturer_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    manufacturer_id = Column(Integer, nullable=False)
+    name = Column(String(200), nullable=False)
+    event = Column(Enum("Manufacturer Created", "Manufacturer Edited", "Manufacturer Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class TyreInventory(Base):
@@ -944,6 +1162,19 @@ class TyreInventory(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     fitment_records = relationship("TyreFitmentRecord", back_populates="tyre", cascade="all, delete-orphan")
+
+
+class TyreInventoryEditEvent(Base):
+    """Who created/edited/deleted/restored a Tyre Inventory record and when —
+    same pattern as the other *EditEvent tables (CustomerEditEvent etc.)."""
+    __tablename__ = "tyre_inventory_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_id = Column(Integer, ForeignKey("tyre_inventory.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Tyre Created", "Tyre Edited", "Tyre Deleted", "Tyre Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class TyreFitmentRecord(Base):
@@ -985,6 +1216,24 @@ class SacCode(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class SacCodeEditEvent(Base):
+    """Who created/edited/deleted a SAC Code and when. SacCode is
+    hard-deleted, so sac_code_id is a plain reference and code/description
+    are snapshotted at log time. Linking an expense or setting
+    auto-populate also counts as "SAC Code Edited" — they modify the
+    record, just through dedicated PATCH endpoints."""
+    __tablename__ = "sac_code_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sac_code_id = Column(Integer, nullable=False)
+    code = Column(String(20), nullable=False)
+    description = Column(String(500), nullable=False)
+    event = Column(Enum("SAC Code Created", "SAC Code Edited", "SAC Code Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class TripExpenseRate(Base):
     __tablename__ = "trip_expense_rates"
 
@@ -1014,6 +1263,15 @@ class TripExpenseRate(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class TripExpenseRateEditEvent(Base):
+    __tablename__ = "trip_expense_rate_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event = Column(Enum("Trip Expense Rates Updated"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class RepairType(Base):
     __tablename__ = "repair_types"
 
@@ -1023,6 +1281,21 @@ class RepairType(Base):
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class RepairTypeEditEvent(Base):
+    """Who created/edited/deleted a Repair Type and when. RepairType is
+    hard-deleted, so repair_type_id is a plain reference and name is
+    snapshotted at log time."""
+    __tablename__ = "repair_type_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    repair_type_id = Column(Integer, nullable=False)
+    name = Column(String(200), nullable=False)
+    event = Column(Enum("Repair Type Created", "Repair Type Edited", "Repair Type Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class VendorCategory(Base):
@@ -1069,6 +1342,29 @@ class MaintenanceCategoryRepair(Base):
     __table_args__ = (UniqueConstraint("category_id", "name", name="uq_category_repair_name"),)
 
 
+class MaintenanceCategoryEditEvent(Base):
+    """Who created/edited/deleted a Maintenance Category OR a repair nested
+    under one, and when — merged into one page-wide log on Maintenance
+    Management. Both levels are hard-deleted (and repairs cascade-delete
+    with their category), so category_id/repair_id are plain references,
+    not FKs — snapshots are the only way these rows stay meaningful once
+    the category/repair is gone."""
+    __tablename__ = "maintenance_category_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category_id = Column(Integer, nullable=False)
+    category_name = Column(String(200), nullable=False)
+    repair_id = Column(Integer, nullable=True)  # NULL when the event is about the category itself
+    repair_name = Column(String(200), nullable=True)
+    event = Column(Enum(
+        "Category Created", "Category Edited", "Category Deleted",
+        "Repair Created", "Repair Edited", "Repair Deleted",
+    ), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class MaintenanceType(Base):
     __tablename__ = "maintenance_types"
 
@@ -1078,6 +1374,21 @@ class MaintenanceType(Base):
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class MaintenanceTypeEditEvent(Base):
+    """Who created/edited/deleted a Maintenance (Alert) Type and when.
+    MaintenanceType is hard-deleted, so type_id is a plain reference and
+    name is snapshotted at log time."""
+    __tablename__ = "maintenance_type_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    type_id = Column(Integer, nullable=False)
+    name = Column(String(200), nullable=False)
+    event = Column(Enum("Type Created", "Type Edited", "Type Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1108,6 +1419,44 @@ class EmiRecord(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class EmiRecordEditEvent(Base):
+    """Who created/edited/deleted an EMI record and when. EmiRecord is
+    hard-deleted (no soft-delete here) and isn't FK'd to Truck (just a free-
+    text truck_registration string), so emi_id is a plain reference and
+    emi_name/truck_registration are snapshotted at log time."""
+    __tablename__ = "emi_record_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    emi_id = Column(Integer, nullable=False)
+    emi_name = Column(String(200), nullable=False)
+    truck_registration = Column(String(30), nullable=True)
+    event = Column(Enum("EMI Created", "EMI Edited", "EMI Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class CompensationEditEvent(Base):
+    """Who added/deleted a Driver/Staff Compensation transaction and when.
+    CompensationTransaction is hard-deleted and person_id has no FK (shared
+    between drivers and staff, by design — see CompensationTransaction), so
+    this snapshots person_name/tx_type/amount/date at log time. No "Edited"
+    event — there's no update endpoint for compensation transactions."""
+    __tablename__ = "compensation_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    person_type = Column(Enum("driver", "staff"), nullable=False)
+    person_id = Column(Integer, nullable=False)
+    person_name = Column(String(100), nullable=True)
+    tx_type = Column(Enum("Advance", "Salary"), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    tx_date = Column(Date, nullable=True)
+    event = Column(Enum("Transaction Added", "Transaction Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class TruckRunConfig(Base):
     __tablename__ = "truck_run_configs"
 
@@ -1116,6 +1465,15 @@ class TruckRunConfig(Base):
     km_per_month = Column(Numeric(10, 2), nullable=True)
     km_per_day = Column(Numeric(10, 4), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TruckRunConfigEditEvent(Base):
+    __tablename__ = "truck_run_config_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event = Column(Enum("Run Configuration Saved"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class TyreLayoutCostConfig(Base):
@@ -1166,6 +1524,16 @@ class TyreRangeConfig(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class TyreRangeConfigEditEvent(Base):
+    __tablename__ = "tyre_range_config_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_type = Column(String(50), nullable=True)  # set only on a delete; a bulk save touches the whole page
+    event = Column(Enum("Tyre Range Config Saved", "Tyre Type Deleted"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
 class TyreLayoutTypeConfig(Base):
     __tablename__ = "tyre_layout_type_configs"
     __table_args__ = (UniqueConstraint("tyre_layout", "tyre_type", name="uq_layout_type"),)
@@ -1175,6 +1543,15 @@ class TyreLayoutTypeConfig(Base):
     tyre_type = Column(String(50), nullable=False)
     quantity = Column(Integer, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class TyreLayoutTypeConfigEditEvent(Base):
+    __tablename__ = "tyre_layout_type_config_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event = Column(Enum("Tyre Quantity Configuration Updated"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class RecurringPayment(Base):
@@ -1295,6 +1672,59 @@ class AuditLog(Base):
 
 
 # ---------------------------------------------------------------------------
+# SW Usage Analytics — one row per login session, updated incrementally by a
+# heartbeat the frontend posts every ~5 minutes (see useUsageHeartbeat.ts),
+# plus a flush on tab-hide/unload. login_at/logout_at come from the existing
+# /auth/login and /auth/logout calls; total_active_seconds/total_idle_seconds
+# accumulate from heartbeats in between — NOT one row per heartbeat, which
+# would make this table grow without bound. A session with no heartbeat for
+# USAGE_STALE_MINUTES (see routers/usage_analytics.py) is treated as ended at
+# its last heartbeat the next time that staff member's heartbeat is handled
+# (covers a closed tab/laptop that never called /auth/logout).
+# ---------------------------------------------------------------------------
+
+class UsageSession(Base):
+    __tablename__ = "usage_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False, index=True)
+    staff_name = Column(String(100), nullable=False)
+    staff_role = Column(String(50), nullable=True)
+    login_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    last_heartbeat_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    logout_at = Column(DateTime, nullable=True)
+    # "logout" (explicit /auth/logout), "timeout" (no heartbeat for
+    # USAGE_STALE_MINUTES — tab/laptop closed without logging out), or NULL
+    # while still open.
+    ended_reason = Column(Enum("logout", "timeout"), nullable=True)
+    total_active_seconds = Column(Integer, nullable=False, default=0)
+    total_idle_seconds = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        Index("ix_usage_sessions_staff_login", "staff_id", "login_at"),
+    )
+
+
+class ModuleUsage(Base):
+    """Per-session, per-sidebar-section (module) accumulated time — the module
+    name is whatever the frontend's nav-config section title is (e.g. "Trip
+    and Driver Management", "Finance Hub"), sent as-is in the heartbeat so the
+    mapping only has to live in one place (lib/usage-modules.ts)."""
+    __tablename__ = "module_usage"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("usage_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    module = Column(String(100), nullable=False)
+    active_seconds = Column(Integer, nullable=False, default=0)
+    idle_seconds = Column(Integer, nullable=False, default=0)
+    visit_count = Column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("session_id", "module", name="uq_module_usage_session_module"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Auditor recheck history — one row per Flag / Return for Review / Verify
 # action on a trip. The trip's own flagged_for_recheck / recheck_returned
 # columns are the live state; this table is the durable trail behind it, so
@@ -1309,6 +1739,28 @@ class TripRecheckEvent(Base):
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
     event = Column(Enum("Flagged", "Returned for Review", "Verified"), nullable=False)
     remark = Column(Text, nullable=True)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Trip Edit History — who edited what and when, across the Booking Sheet,
+# Trip Sheet, Closure, and Verification dialogs. Logs the action only (not a
+# field-level diff) — see TripRecheckEvent above for the same pattern used
+# for the Auditor recheck workflow.
+# ---------------------------------------------------------------------------
+
+class TripEditEvent(Base):
+    __tablename__ = "trip_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum(
+        "Booking Created", "Booking Edited", "Trip Sheet Saved", "Trip Updated",
+        "Trip Closed", "Verification Confirmed", "Verification Rejected",
+        "Trip Deleted", "Trip Restored",
+    ), nullable=False)
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -1572,3 +2024,17 @@ class DefaultBattaRate(Base):
         UniqueConstraint("branch_id", "trip_type", "cargo_type", name="uq_default_batta_cell"),
         Index("ix_default_batta_branch", "branch_id"),
     )
+
+
+class DefaultBattaEditEvent(Base):
+    __tablename__ = "default_batta_edit_events"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    branch_id = Column(Integer, nullable=False)
+    branch_name = Column(String(200), nullable=False)
+    trip_type = Column(String(50), nullable=False)
+    cargo_type = Column(String(50), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=True)
+    event = Column(Enum("Default Batta Rate Updated"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

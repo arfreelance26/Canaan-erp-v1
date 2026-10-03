@@ -145,6 +145,41 @@ def list_maintenance_records(
     return q.all()
 
 
+@router.get("/maintenance/record-edit-events", response_model=list[schemas.MaintenanceRecordEditEventListOut], tags=["Maintenance"])
+def list_all_maintenance_record_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete event ever logged, across every maintenance
+    record — the page-wide "Edit History" log on Truck Maintenance, so
+    who-changed-what is searchable in one place. Most recent first.
+    """
+    events = (
+        db.query(models.MaintenanceRecordEditEvent)
+        .order_by(models.MaintenanceRecordEditEvent.created_at.desc(), models.MaintenanceRecordEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    truck_ids = {e.truck_id for e in events}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
+
+    result = []
+    for e in events:
+        truck = trucks_by_id.get(e.truck_id)
+        result.append({
+            "id": e.id,
+            "truck_id": e.truck_id,
+            "truck_id_str": truck.truck_id if truck else "—",
+            "registration_number": truck.registration_number if truck else "(deleted)",
+            "record_id": e.record_id,
+            "maintenance_type": e.maintenance_type,
+            "record_date": e.record_date,
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/maintenance/emi-records", response_model=list[schemas.EmiRecordOut], tags=["Maintenance"])
 def list_emi_records_readonly(db: Session = Depends(get_db)):
     """Read-only EMI listing for roles that need to see loan/EMI data without the
@@ -160,6 +195,38 @@ def list_air_filter_records(truck_id: int | None = None, db: Session = Depends(g
     if truck_id:
         q = q.filter(models.AirFilterRecord.truck_id == truck_id)
     return q.order_by(models.AirFilterRecord.date.desc()).all()
+
+
+@router.get("/maintenance/air-filter-records/edit-events", response_model=list[schemas.AirFilterRecordEditEventListOut], tags=["Maintenance"])
+def list_air_filter_record_edit_events(db: Session = Depends(get_db)):
+    """Every Air Filter log ever added, across every truck — the page-wide
+    "Edit History" log on Air Filter R&R. Derived straight from
+    AirFilterRecord (create-only, no edit/delete endpoints exist), so no
+    dedicated event table is needed. Most recent first. Registered before
+    POST on the same base path has no path-param collision risk, but kept
+    consistent with the rest of the codebase regardless."""
+    rows = (
+        db.query(models.AirFilterRecord)
+        .order_by(models.AirFilterRecord.created_at.desc(), models.AirFilterRecord.id.desc())
+        .all()
+    )
+    if not rows:
+        return []
+    truck_ids = {r.truck_id for r in rows}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
+    result = []
+    for r in rows:
+        truck = trucks_by_id.get(r.truck_id)
+        result.append({
+            "id": r.id,
+            "truck_id": r.truck_id,
+            "registration_number": truck.registration_number if truck else "(deleted)",
+            "date": r.date,
+            "odometer_during_change": r.odometer_during_change,
+            "actor_name": r.entered_by_name or "Unknown",
+            "created_at": r.created_at,
+        })
+    return result
 
 
 @router.post("/maintenance/air-filter-records", response_model=schemas.AirFilterRecordOut, status_code=201, tags=["Maintenance"])
@@ -188,6 +255,13 @@ def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Sess
     db.add(record)
     db.commit()
     db.refresh(record)
+    db.add(models.MaintenanceRecordEditEvent(
+        truck_id=record.truck_id, record_id=record.id,
+        maintenance_type=record.maintenance_type, record_date=record.date,
+        event="Record Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("maintenance_updated", {})
     return record
 
@@ -213,6 +287,12 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
         setattr(record, field, value)
     record.entered_by_name = current_user.name
     record.version = (record.version or 1) + 1
+    db.add(models.MaintenanceRecordEditEvent(
+        truck_id=record.truck_id, record_id=record.id,
+        maintenance_type=record.maintenance_type, record_date=record.date,
+        event="Record Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(record)
     emit("maintenance_updated", {})
@@ -226,6 +306,12 @@ def delete_maintenance_record(record_id: int, db: Session = Depends(get_db), cur
     record = db.get(models.MaintenanceRecord, record_id)
     if not record:
         raise HTTPException(404, "Maintenance record not found")
+    db.add(models.MaintenanceRecordEditEvent(
+        truck_id=record.truck_id, record_id=record.id,
+        maintenance_type=record.maintenance_type, record_date=record.date,
+        event="Record Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(record)
     db.commit()
     emit("maintenance_updated", {})
@@ -439,6 +525,40 @@ def list_fuel_logs(
     return q.all()
 
 
+@router.get("/maintenance/fuel-logs/edit-events", response_model=list[schemas.FuelLogEditEventListOut], tags=["Fuel Logs"])
+def list_all_fuel_log_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete event ever logged, across every fuel log —
+    the page-wide "Edit History" log on Fuel History. Most recent first.
+    """
+    events = (
+        db.query(models.FuelLogEditEvent)
+        .order_by(models.FuelLogEditEvent.created_at.desc(), models.FuelLogEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    truck_ids = {e.truck_id for e in events}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
+
+    result = []
+    for e in events:
+        truck = trucks_by_id.get(e.truck_id)
+        result.append({
+            "id": e.id,
+            "truck_id": e.truck_id,
+            "truck_id_str": truck.truck_id if truck else "—",
+            "registration_number": truck.registration_number if truck else "(deleted)",
+            "log_id": e.log_id,
+            "log_date": e.log_date,
+            "litres": e.litres,
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/maintenance/fuel-stations", response_model=list[str], tags=["Fuel Logs"])
 def list_fuel_stations(db: Session = Depends(get_db)):
     rows = db.query(models.FuelLog.fuel_station).filter(models.FuelLog.fuel_station.isnot(None)).distinct().all()
@@ -506,6 +626,11 @@ def create_fuel_log(payload: schemas.FuelLogCreate, db: Session = Depends(get_db
     db.add(log)
     db.commit()
     db.refresh(log)
+    db.add(models.FuelLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Created", actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("fuel_updated", {})
     return log
 
@@ -631,6 +756,10 @@ def update_fuel_log(log_id: int, payload: schemas.FuelLogUpdate, db: Session = D
         setattr(log, field, value)
     log.entered_by_name = current_user.name
     log.version = (log.version or 1) + 1
+    db.add(models.FuelLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Edited", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.flush()  # persist field changes before re-sequencing
 
     # Re-sequence distance/mileage for ALL logs of this truck so that editing
@@ -666,6 +795,10 @@ def delete_fuel_log(log_id: int, db: Session = Depends(get_db), current_user: To
     if not log:
         raise HTTPException(404, "Fuel log not found")
     truck_id = log.truck_id
+    db.add(models.FuelLogEditEvent(
+        truck_id=truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Deleted", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(log)
     db.flush()  # remove from session so it's excluded from the query below
 
@@ -694,6 +827,42 @@ def delete_fuel_log(log_id: int, db: Session = Depends(get_db), current_user: To
 # ---------------------------------------------------------------------------
 # AdBlue Logs
 # ---------------------------------------------------------------------------
+
+@router.get("/maintenance/adblue/edit-events", response_model=list[schemas.AdBlueEditEventOut], tags=["AdBlue"])
+def list_all_adblue_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete event ever logged, across both AdBlue Logs
+    and AdBlue Manufacturers (both editable from the same AdBlue page) —
+    merged into one chronological, searchable page-wide "Edit History" log.
+    Most recent first.
+    """
+    log_events = db.query(models.AdBlueLogEditEvent).all()
+    mfr_events = db.query(models.AdBlueManufacturerEditEvent).all()
+
+    truck_ids = {e.truck_id for e in log_events}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()} if truck_ids else {}
+
+    result = []
+    for e in log_events:
+        truck = trucks_by_id.get(e.truck_id)
+        reg = truck.registration_number if truck else "(deleted truck)"
+        litres_str = f"{e.litres}L" if e.litres is not None else ""
+        date_str = e.log_date.isoformat() if e.log_date else ""
+        label = " · ".join(p for p in [reg, date_str, litres_str] if p)
+        result.append({
+            "id": f"log-{e.id}", "category": "Log", "label": label,
+            "event": e.event, "actor_name": e.actor_name, "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    for e in mfr_events:
+        result.append({
+            "id": f"mfr-{e.id}", "category": "Manufacturer", "label": e.name,
+            "event": e.event, "actor_name": e.actor_name, "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+
+    result.sort(key=lambda r: r["created_at"], reverse=True)
+    return result
+
 
 @router.get("/maintenance/adblue-logs", response_model=list[schemas.AdBlueLogOut], tags=["AdBlue"])
 def list_adblue_logs(
@@ -756,6 +925,11 @@ def create_adblue_log(
     db.add(log)
     db.commit()
     db.refresh(log)
+    db.add(models.AdBlueLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Created", actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("adblue_updated", {})
     return log
 
@@ -776,6 +950,10 @@ def update_adblue_log(
         setattr(log, field, value)
     log.entered_by_name = current_user.name
     log.version = (log.version or 1) + 1
+    db.add(models.AdBlueLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Edited", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(log)
     emit("adblue_updated", {})
@@ -783,10 +961,14 @@ def update_adblue_log(
 
 
 @router.delete("/maintenance/adblue-logs/{log_id}", status_code=204, tags=["AdBlue"])
-def delete_adblue_log(log_id: int, db: Session = Depends(get_db)):
+def delete_adblue_log(log_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     log = db.get(models.AdBlueLog, log_id)
     if not log:
         raise HTTPException(404, "AdBlue log not found")
+    db.add(models.AdBlueLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Deleted", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(log)
     db.commit()
     emit("adblue_updated", {})
@@ -801,7 +983,7 @@ def list_adblue_manufacturers(db: Session = Depends(get_db)):
 def create_adblue_manufacturer(
     payload: schemas.AdBlueManufacturerCreate,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(get_current_user),
+    current_user: TokenUser = Depends(get_current_user),
 ):
     if db.query(models.AdBlueManufacturer).filter_by(name=payload.name).first():
         raise HTTPException(400, f"Manufacturer '{payload.name}' already exists.")
@@ -809,6 +991,11 @@ def create_adblue_manufacturer(
     db.add(m)
     db.commit()
     db.refresh(m)
+    db.add(models.AdBlueManufacturerEditEvent(
+        manufacturer_id=m.id, name=m.name, event="Manufacturer Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("adblue_updated", {})
     return m
 
@@ -818,7 +1005,7 @@ def update_adblue_manufacturer(
     manufacturer_id: int,
     payload: schemas.AdBlueManufacturerUpdate,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(get_current_user),
+    current_user: TokenUser = Depends(get_current_user),
 ):
     m = db.get(models.AdBlueManufacturer, manufacturer_id)
     if not m:
@@ -828,6 +1015,10 @@ def update_adblue_manufacturer(
             raise HTTPException(400, f"Manufacturer '{payload.name}' already exists.")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(m, field, value)
+    db.add(models.AdBlueManufacturerEditEvent(
+        manufacturer_id=m.id, name=m.name, event="Manufacturer Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(m)
     emit("adblue_updated", {})
@@ -838,11 +1029,15 @@ def update_adblue_manufacturer(
 def delete_adblue_manufacturer(
     manufacturer_id: int,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(get_current_user),
+    current_user: TokenUser = Depends(get_current_user),
 ):
     m = db.get(models.AdBlueManufacturer, manufacturer_id)
     if not m:
         raise HTTPException(404, "Manufacturer not found.")
+    db.add(models.AdBlueManufacturerEditEvent(
+        manufacturer_id=m.id, name=m.name, event="Manufacturer Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(m)
     db.commit()
     emit("adblue_updated", {})
@@ -880,20 +1075,66 @@ def list_deleted_tyre_ids(db: Session = Depends(get_db)):
     return [i for (i,) in rows]
 
 
+@router.get("/tyre-inventory/edit-events", response_model=list[schemas.TyreInventoryEditEventListOut], tags=["Tyre"])
+def list_all_tyre_inventory_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete/Restore event ever logged, across every tyre
+    stock record — the page-wide "Edit History" log on Tyre Inventory.
+    Registered before any dynamic /tyre-inventory/{tyre_id} route so
+    "edit-events" isn't swallowed as a tyre_id path param."""
+    events = (
+        db.query(models.TyreInventoryEditEvent)
+        .order_by(models.TyreInventoryEditEvent.created_at.desc(), models.TyreInventoryEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    tyre_ids = {e.tyre_id for e in events}
+    tyres_by_id = {t.id: t for t in db.query(models.TyreInventory).filter(models.TyreInventory.id.in_(tyre_ids)).all()}
+
+    result = []
+    for e in events:
+        tyre = tyres_by_id.get(e.tyre_id)
+        result.append({
+            "id": e.id,
+            "tyre_id": e.tyre_id,
+            "tyre_number": tyre.tyre_number if tyre else "(deleted)",
+            "brand": tyre.brand if tyre else "",
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.post("/tyre-inventory", response_model=schemas.TyreInventoryOut, status_code=201, tags=["Tyre"])
-def create_tyre(payload: schemas.TyreInventoryCreate, db: Session = Depends(get_db)):
+def create_tyre(
+    payload: schemas.TyreInventoryCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     if db.query(models.TyreInventory).filter(models.TyreInventory.tyre_number == payload.tyre_number).first():
         raise HTTPException(400, f"Tyre number {payload.tyre_number} already exists")
     tyre = models.TyreInventory(**payload.model_dump())
     db.add(tyre)
     db.commit()
     db.refresh(tyre)
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre.id, event="Tyre Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("tyre_updated", {})
     return tyre
 
 
 @router.put("/tyre-inventory/{tyre_id}", response_model=schemas.TyreInventoryOut, tags=["Tyre"])
-def update_tyre(tyre_id: int, payload: schemas.TyreInventoryUpdate, db: Session = Depends(get_db)):
+def update_tyre(
+    tyre_id: int,
+    payload: schemas.TyreInventoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
     if not tyre:
         raise HTTPException(404, "Tyre not found")
@@ -906,6 +1147,10 @@ def update_tyre(tyre_id: int, payload: schemas.TyreInventoryUpdate, db: Session 
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(tyre, field, value)
     tyre.version = (tyre.version or 1) + 1
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre.id, event="Tyre Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(tyre)
     emit("tyre_updated", {})
@@ -940,12 +1185,20 @@ def delete_tyre(tyre_id: int, db: Session = Depends(get_db), current_user: Token
         approved_by_name=current_user.name,
         approved_at=now,
     ))
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre_id, event="Tyre Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("tyre_updated", {})
 
 
 @router.post("/tyre-inventory/{tyre_id}/restore", response_model=schemas.TyreInventoryOut, dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
-def restore_tyre(tyre_id: int, db: Session = Depends(get_db)):
+def restore_tyre(
+    tyre_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin/Maintenance: undo a soft-delete — the tyre reappears in Tyre
     Inventory exactly as it was."""
     tyre = db.get(models.TyreInventory, tyre_id)
@@ -954,6 +1207,10 @@ def restore_tyre(tyre_id: int, db: Session = Depends(get_db)):
     if tyre.deleted_at is None:
         raise HTTPException(409, "Tyre is not deleted")
     tyre.deleted_at = None
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre.id, event="Tyre Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(tyre)
     emit("tyre_updated", {})
@@ -994,6 +1251,53 @@ def list_fitments(truck_id: Optional[int] = Query(None), active_only: bool = Que
     if active_only:
         q = q.filter(models.TyreFitmentRecord.removed_odometer.is_(None))
     return q.all()
+
+
+@router.get("/tyre-fitment/events", response_model=list[schemas.TyreFitmentEventOut], tags=["Tyre"])
+def list_all_tyre_fitment_events(db: Session = Depends(get_db)):
+    """Every tyre fit/remove ever logged, across every truck — the page-wide
+    "Edit History" log on Tyre Management, searchable in one place instead
+    of opening each truck's own history individually. Derived directly from
+    TyreFitmentRecord (fitted_by_name/removed_by_name were already captured
+    there on every fit/remove/swap — this just surfaces them). Most recent
+    first. A position swap shows as one "Removed" + one "Fitted" row per
+    tyre involved, same as a plain remove/fit — the data doesn't distinguish
+    a swap from two separate actions.
+    """
+    fitments = db.query(models.TyreFitmentRecord).all()
+    if not fitments:
+        return []
+    truck_ids = {f.truck_id for f in fitments}
+    tyre_ids = {f.tyre_id for f in fitments}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
+    tyres_by_id = {t.id: t for t in db.query(models.TyreInventory).filter(models.TyreInventory.id.in_(tyre_ids)).all()}
+
+    result = []
+    for f in fitments:
+        truck = trucks_by_id.get(f.truck_id)
+        tyre = tyres_by_id.get(f.tyre_id)
+        truck_id_str = truck.truck_id if truck else "—"
+        registration_number = truck.registration_number if truck else "(deleted)"
+        tyre_number = tyre.tyre_number if tyre else "(deleted)"
+        if f.fitted_date:
+            result.append({
+                "id": f"{f.id}-fit",
+                "truck_id": f.truck_id, "truck_id_str": truck_id_str, "registration_number": registration_number,
+                "tyre_id": f.tyre_id, "tyre_number": tyre_number, "position": f.position,
+                "event": "Tyre Fitted", "actor_name": f.fitted_by_name or "Unknown",
+                "event_date": f.fitted_date, "remark": f.fitted_remark,
+            })
+        if f.removed_date:
+            result.append({
+                "id": f"{f.id}-remove",
+                "truck_id": f.truck_id, "truck_id_str": truck_id_str, "registration_number": registration_number,
+                "tyre_id": f.tyre_id, "tyre_number": tyre_number, "position": f.position,
+                "event": "Tyre Removed", "actor_name": f.removed_by_name or "Unknown",
+                "event_date": f.removed_date, "remark": f.removal_remark,
+            })
+
+    result.sort(key=lambda r: (r["event_date"] or _DateType.min, r["id"]), reverse=True)
+    return result
 
 
 @router.post("/tyre-fitment", response_model=schemas.TyreFitmentOut, status_code=201, tags=["Tyre"])

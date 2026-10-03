@@ -1,20 +1,25 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { ComplianceTable } from "@/components/fleet/ComplianceTable";
 import { UpdateDocumentDialog } from "@/components/fleet/UpdateDocumentDialog";
 import { getComplianceStatus } from "@/lib/compliance";
-import { ShieldCheck } from "lucide-react";
-import { trucksApi } from "@/lib/api";
+import { ShieldCheck, History, FileClock } from "lucide-react";
+import { trucksApi, type ComplianceEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { Dialog } from "@/components/ui/Dialog";
+import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 export default function CompliancePage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [updateOpen, setUpdateOpen] = useState(false);
@@ -22,6 +27,22 @@ export default function CompliancePage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<ComplianceEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  // Fetched fresh every time it's opened, covering every compliance document
+  // update ever logged — searching by registration/truck ID doubles as that
+  // truck's own compliance history.
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    trucksApi.listComplianceEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
         trucksApi.list().then(setTrucks).catch(() => {}).finally(() => setLoading(false));
@@ -67,13 +88,25 @@ export default function CompliancePage() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setUpdateOpen(true)}
-          className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-        >
-          Update Document
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
+          <button
+            type="button"
+            onClick={() => setUpdateOpen(true)}
+            className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            Update Document
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -116,6 +149,66 @@ export default function CompliancePage() {
           setTrucks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
         }
       />
+
+      {/* Edit History — every compliance document update ever logged, across
+          every truck (not just the ones currently on this page), in one
+          searchable log instead of having to open each truck individually. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by registration, truck ID, document, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch ||
+              ev.truckIdStr.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.registrationNumber.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.documentType.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No compliance updates have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Truck</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Document</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-gray-800">{ev.registrationNumber}</p>
+                          <p className="text-[11px] text-gray-400">{ev.truckIdStr}</p>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            <FileClock className="h-3 w-3" /> {ev.documentType}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

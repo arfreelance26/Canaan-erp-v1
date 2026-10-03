@@ -15,6 +15,19 @@ def get_tyre_layout_type_config(db: Session = Depends(get_db)):
     ).all()
 
 
+@router.get("/edit-events", response_model=list[schemas.TyreLayoutTypeConfigEditEventListOut])
+def list_tyre_layout_type_config_edit_events(db: Session = Depends(get_db)):
+    """Every save of tyre quantities ever logged — the page-wide "Edit
+    History" log on Tyre Cost Configuration. Most recent first. No
+    colliding path-param routes exist on this router, but registered
+    before PUT regardless for consistency."""
+    return (
+        db.query(models.TyreLayoutTypeConfigEditEvent)
+        .order_by(models.TyreLayoutTypeConfigEditEvent.created_at.desc(), models.TyreLayoutTypeConfigEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.put("", response_model=list[schemas.TyreLayoutTypeConfigOut])
 def save_tyre_layout_type_config(
     payload: schemas.TyreLayoutTypeConfigBulkSave,
@@ -38,6 +51,9 @@ def save_tyre_layout_type_config(
                 tyre_type=item.tyre_type,
                 quantity=item.quantity,
             ))
+    db.add(models.TyreLayoutTypeConfigEditEvent(
+        event="Tyre Quantity Configuration Updated", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     return db.query(models.TyreLayoutTypeConfig).order_by(
         models.TyreLayoutTypeConfig.tyre_layout,

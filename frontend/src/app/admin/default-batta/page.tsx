@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Coins, Check, Loader2 } from "lucide-react";
+import { Coins, Check, Loader2, History } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { branchesApi, defaultBattaApi } from "@/lib/api";
+import { branchesApi, defaultBattaApi, type DefaultBattaEditEventRow } from "@/lib/api";
 import type { Branch } from "@/types/branch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError } from "@/lib/swal";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { formatDateTime } from "@/lib/format-date";
 
 const TRIP_TYPES = ["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"] as const;
 type TripType = (typeof TRIP_TYPES)[number];
@@ -32,6 +35,19 @@ export default function DefaultBattaManagementPage() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<DefaultBattaEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    defaultBattaApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
     if (ready && !canView) router.replace("/");
@@ -117,17 +133,29 @@ export default function DefaultBattaManagementPage() {
           </div>
         </div>
 
-        <div className="h-6">
-          {saveStatus === "saving" && (
-            <span className="flex items-center gap-1.5 text-xs text-gray-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-            </span>
-          )}
-          {saveStatus === "saved" && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-              <Check className="h-3.5 w-3.5" /> Saved
-            </span>
-          )}
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="h-6">
+            {saveStatus === "saving" && (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                <Check className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
         </div>
       </div>
 
@@ -219,6 +247,68 @@ export default function DefaultBattaManagementPage() {
           </div>
         )}
       </div>
+
+      {/* Edit History — every cell ever updated on Default Batta Management,
+          in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by branch, trip type, cargo type, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q ||
+              ev.branchName.toLowerCase().includes(q) ||
+              ev.tripType.toLowerCase().includes(q) ||
+              ev.cargoType.toLowerCase().includes(q) ||
+              ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No default batta edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Branch</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip Type</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Cargo Type</th>
+                      <th className="px-3 py-2 text-right text-[11px] font-bold uppercase tracking-wide text-gray-400">Amount</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2 font-semibold text-gray-800">{ev.branchName}</td>
+                        <td className="px-3 py-2 text-gray-600">{ev.tripType}</td>
+                        <td className="px-3 py-2 text-gray-600">{ev.cargoType}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {ev.amount != null ? `₹${ev.amount.toLocaleString("en-IN")}` : <span className="text-gray-400">—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {ev.actorName}
+                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

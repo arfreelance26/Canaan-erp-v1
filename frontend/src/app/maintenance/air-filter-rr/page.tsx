@@ -2,21 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Filter, Truck as TruckIcon, ChevronDown, Plus, X, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Filter, Truck as TruckIcon, ChevronDown, Plus, X, AlertTriangle, ShieldCheck, History } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { trucksApi, maintenanceApi } from "@/lib/api";
+import { trucksApi, maintenanceApi, type AirFilterRecordEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import type { AirFilterRecord } from "@/types/truck-maintenance";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { getAirFilterAlerts } from "@/lib/air-filter-alerts";
+import { Dialog } from "@/components/ui/Dialog";
 
 const ALLOWED_ROLES = ["Maintenance", "Admin"];
 const SERVICE_INTERVAL_KM = 100_000;
@@ -170,6 +171,8 @@ function AddLogDialog({
 }
 
 export default function AirFilterRRPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   const router = useRouter();
   const isAllowed = !user || ALLOWED_ROLES.includes(user.softwareDesignation);
@@ -189,6 +192,19 @@ export default function AirFilterRRPage() {
   const [exportTo, setExportTo] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAddLog, setShowAddLog] = useState(false);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<AirFilterRecordEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    maintenanceApi.listAirFilterRecordEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
     if (!isAllowed) return;
@@ -262,14 +278,26 @@ export default function AirFilterRRPage() {
             <p className="mt-0.5 text-sm text-gray-500">Air filter remove &amp; replace records for every truck in the fleet</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAddLog(true)}
-          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-        >
-          <Plus className="h-4 w-4" />
-          Add Log
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
+          <button
+            type="button"
+            onClick={() => setShowAddLog(true)}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+            Add Log
+          </button>
+        </div>
       </div>
 
       {/* Air filter change alerts */}
@@ -446,6 +474,59 @@ export default function AirFilterRRPage() {
           }}
         />
       )}
+
+      {/* Edit History — every Air Filter log ever added, across every
+          truck, in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by truck or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q || ev.registrationNumber.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No air filter logs have been added yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Truck</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2 font-mono font-semibold text-gray-800">{ev.registrationNumber}</td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                            <Plus className="h-3 w-3" /> Air Filter Log Added
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

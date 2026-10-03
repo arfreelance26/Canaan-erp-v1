@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
@@ -35,6 +36,8 @@ export function TyreInventoryTable({
   onDelete,
   onViewHistory,
 }: TyreInventoryTableProps) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   if (tyres.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -89,13 +92,15 @@ export function TyreInventoryTable({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <button
+                    {isAdmin && (
+<button
                       type="button"
                       onClick={() => onViewHistory(tyre)}
                       className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       View Tyre History
                     </button>
+)}
                     <div className="flex items-center gap-1 ml-2 border-l pl-2">
                       <button
                         type="button"

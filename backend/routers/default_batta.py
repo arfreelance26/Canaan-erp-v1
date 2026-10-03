@@ -20,6 +20,18 @@ def list_default_batta_rates(
     return q.all()
 
 
+@router.get("/edit-events", response_model=list[schemas.DefaultBattaEditEventListOut])
+def list_all_default_batta_edit_events(db: Session = Depends(get_db)):
+    """Every cell ever updated on Default Batta Management — the page-wide
+    "Edit History" log. Most recent first. Registered before GET /{branch_id}-
+    shaped routes don't exist on this router, but kept consistent regardless."""
+    return (
+        db.query(models.DefaultBattaEditEvent)
+        .order_by(models.DefaultBattaEditEvent.created_at.desc(), models.DefaultBattaEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.put("", response_model=schemas.DefaultBattaRateOut)
 def upsert_default_batta_rate(
     payload: schemas.DefaultBattaRateUpsert,
@@ -59,6 +71,11 @@ def upsert_default_batta_rate(
             amount=payload.amount,
         )
         db.add(row)
+    db.add(models.DefaultBattaEditEvent(
+        branch_id=branch.id, branch_name=branch.name, trip_type=payload.trip_type,
+        cargo_type=payload.cargo_type, amount=payload.amount,
+        event="Default Batta Rate Updated", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(row)
     return row

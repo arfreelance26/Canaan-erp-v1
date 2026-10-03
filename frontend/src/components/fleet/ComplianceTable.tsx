@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -947,6 +948,8 @@ const COLUMNS = [
 ];
 
 export function ComplianceTable({ trucks }: ComplianceTableProps) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [viewTruck,    setViewTruck]    = useState<Truck | null>(null);
   const [historyTruck, setHistoryTruck] = useState<Truck | null>(null);
   const [costTruck,    setCostTruck]    = useState<Truck | null>(null);
@@ -993,13 +996,15 @@ export function ComplianceTable({ trucks }: ComplianceTableProps) {
                     >
                       View Truck Data
                     </button>
-                    <button
+                    {isAdmin && (
+<button
                       type="button"
                       onClick={() => setHistoryTruck(truck)}
                       className="whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100"
                     >
                       View Updation History
                     </button>
+)}
                     <button
                       type="button"
                       onClick={() => setCostTruck(truck)}

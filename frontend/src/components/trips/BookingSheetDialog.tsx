@@ -153,7 +153,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
     if (!readOnly && tripForm && trip) {
       setSaving(true);
       try {
-        await tripsApi.update(trip.id, tripForm);
+        await tripsApi.update(trip.id, tripForm, "BookingSheet");
       } catch (err: unknown) {
         showError(err instanceof Error ? err.message : "Failed to save trip details.");
         setSaving(false);

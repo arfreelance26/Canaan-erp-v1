@@ -89,29 +89,70 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
     onSave({ id: initialData?.id ?? crypto.randomUUID(), ...form }, files);
   }
 
-  async function handleRemoveIdentityImage() {
-    // A freshly-picked, not-yet-saved image is only local state — no server call needed.
-    if (form.identityImageUrl?.startsWith("data:")) {
-      setForm((prev) => ({ ...prev, identityImageUrl: null }));
-      setFiles((prev) => ({ ...prev, identity: null }));
+  // Clears one uploaded file. A freshly-picked, not-yet-saved file is only local
+  // state, so it's dropped without a server call. An already-stored file is
+  // deleted server-side (the same endpoint as before, just per field).
+  async function removeUpload(opts: {
+    field: "photo" | "aadhar" | "identity";
+    isLocal: boolean;
+    label: string;
+    clearLocal: () => void;
+  }) {
+    if (opts.isLocal) {
+      opts.clearLocal();
       return;
     }
     if (!initialData) return;
     const result = await confirmAction(
-      "Remove identity image?",
-      "This deletes the stored passport-size photo. You can upload a new one anytime.",
+      `Remove ${opts.label.toLowerCase()}?`,
+      "This deletes the stored file. You can upload a new one anytime.",
       "Remove",
     );
     if (!result.isConfirmed) return;
     try {
-      await deleteFile("staff", initialData.id, "identity");
-      setForm((prev) => ({ ...prev, identityImageUrl: null }));
-      setFiles((prev) => ({ ...prev, identity: null }));
-      showSuccess("Identity image removed.");
+      await deleteFile("staff", initialData.id, opts.field);
+      opts.clearLocal();
+      showSuccess(`${opts.label} removed.`);
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to remove identity image.");
+      showError(err instanceof Error ? err.message : `Failed to remove ${opts.label.toLowerCase()}.`);
     }
   }
+
+  const removeIdentityImage = () =>
+    removeUpload({
+      field: "identity",
+      label: "Identity image",
+      isLocal: !!form.identityImageUrl?.startsWith("data:"),
+      clearLocal: () => {
+        setForm((prev) => ({ ...prev, identityImageUrl: null }));
+        setFiles((prev) => ({ ...prev, identity: null }));
+      },
+    });
+
+  const removePhoto = () =>
+    removeUpload({
+      field: "photo",
+      label: "Staff photo",
+      isLocal: !!form.photoUrl?.startsWith("data:"),
+      clearLocal: () => {
+        setForm((prev) => ({ ...prev, photoUrl: null }));
+        setFiles((prev) => ({ ...prev, photo: null }));
+      },
+    });
+
+  const removeAadhar = () =>
+    removeUpload({
+      field: "aadhar",
+      label: "Aadhar card",
+      isLocal: !!files.aadhar,
+      clearLocal: () => {
+        setForm((prev) => ({ ...prev, aadharFileName: null }));
+        setFiles((prev) => ({ ...prev, aadhar: null }));
+      },
+    });
+
+  const removeButtonClass =
+    "flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors";
 
   return (
     <Dialog
@@ -137,6 +178,12 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               }}
               className="text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100"
             />
+            {form.photoUrl && (
+              <button type="button" onClick={removePhoto} className={removeButtonClass}>
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </button>
+            )}
           </div>
         </Field>
 
@@ -168,8 +215,8 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
               {form.identityImageUrl && (
                 <button
                   type="button"
-                  onClick={handleRemoveIdentityImage}
-                  className="flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
+                  onClick={removeIdentityImage}
+                  className={removeButtonClass}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Remove
@@ -381,6 +428,12 @@ export function StaffFormDialog({ open, onClose, onSave, initialData }: StaffFor
             entityId={initialData?.id}
             field="aadhar"
           />
+          {form.aadharFileName && (
+            <button type="button" onClick={removeAadhar} className={`${removeButtonClass} mt-1`}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </button>
+          )}
         </Field>
 
         <div className="mt-2 flex justify-end gap-3">

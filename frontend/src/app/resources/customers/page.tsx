@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, History, Undo2 } from "lucide-react";
 import { CustomerTable } from "@/components/customers/CustomerTable";
 import { CustomerFormDialog, DRAFT_KEY as CUSTOMER_DRAFT_KEY } from "@/components/customers/CustomerFormDialog";
 import { CustomerPricingTable } from "@/components/customers/CustomerPricingTable";
@@ -12,7 +12,9 @@ import { FinalCustomerPricingFormDialog } from "@/components/customers/FinalCust
 import { TablePagination } from "@/components/ui/TablePagination";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
-import { customersApi, editApprovalsApi } from "@/lib/api";
+import { customersApi, editApprovalsApi, type CustomerEditEventRow } from "@/lib/api";
+import { Dialog } from "@/components/ui/Dialog";
+import { formatDateTime } from "@/lib/format-date";
 import { mapLimit } from "@/lib/async-pool";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/types/customer";
@@ -39,7 +41,23 @@ type TabId = (typeof TABS)[number]["id"];
 
 const PAGE_SIZE = 10;
 
+const EDIT_EVENT_ICON: Record<CustomerEditEventRow["event"], typeof Plus> = {
+  "Customer Created": Plus,
+  "Customer Edited": Pencil,
+  "Customer Deleted": Trash2,
+  "Customer Restored": Undo2,
+};
+
+const EDIT_EVENT_COLOR: Record<CustomerEditEventRow["event"], string> = {
+  "Customer Created": "bg-blue-100 text-blue-700",
+  "Customer Edited": "bg-amber-100 text-amber-700",
+  "Customer Deleted": "bg-red-100 text-red-700",
+  "Customer Restored": "bg-emerald-100 text-emerald-700",
+};
+
 export default function CustomersPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   // Every role except Admin must file an edit request to change customer records.
   const isGated = user?.softwareDesignation !== "Admin";
@@ -53,6 +71,23 @@ export default function CustomersPage() {
   const [destinationsPage, setDestinationsPage] = useState(1);
   const [pricingPage, setPricingPage] = useState(1);
   const [finalPricingPage, setFinalPricingPage] = useState(1);
+
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<CustomerEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  // Fetched fresh every time it's opened, covering every customer edit ever
+  // logged — searching by name here doubles as that customer's own history.
+  // Scoped to the core Customer record only (not Origins/Destinations/Pricing).
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    customersApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
@@ -417,6 +452,16 @@ export default function CustomersPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
           <div className="flex flex-col items-end rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
               {activeTab === "list" ? "Total Customers" : activeTab === "destinations" ? "Total Destinations" : activeTab === "pricing" ? "Total Pricing Rules" : "Final Pricing Entries"}
@@ -693,6 +738,70 @@ export default function CustomersPage() {
           onClose={() => { setEditRequestOpen(false); setPendingAction(null); }}
         />
       )}
+
+      {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
+          every customer (not just the ones currently on this page), in one
+          searchable log instead of having to open each customer individually.
+          Searching by a specific name doubles as that customer's own
+          history. Scoped to the core Customer record — not Origins/
+          Destinations/Pricing, which are a separate editing surface. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by customer name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch ||
+              ev.customerName.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No customer edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Customer</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.customerName}</td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

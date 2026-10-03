@@ -38,7 +38,11 @@ def list_drivers(
 
 
 @router.post("", response_model=schemas.DriverOut, status_code=201)
-def create_driver(payload: schemas.DriverCreate, db: Session = Depends(get_db)):
+def create_driver(
+    payload: schemas.DriverCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_driver_duplicates(db, payload)
     if db.query(models.Driver).filter(models.Driver.driver_id == payload.driver_id).first():
         raise HTTPException(400, f"Driver ID {payload.driver_id} already exists")
@@ -48,6 +52,11 @@ def create_driver(payload: schemas.DriverCreate, db: Session = Depends(get_db)):
     db.add(driver)
     db.commit()
     db.refresh(driver)
+    db.add(models.DriverEditEvent(
+        driver_id=driver.id, event="Driver Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("driver_updated", {"id": driver.id})
     return driver
 
@@ -109,6 +118,40 @@ def get_driver_salary_summary(
     return {str(person_id): float(total or 0) for person_id, total in rows}
 
 
+@router.get("/edit-events", response_model=list[schemas.DriverEditEventListOut])
+def list_all_driver_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete/Restore event ever logged, across every
+    driver — the page-wide "Edit History" log on Our Drivers, so
+    who-changed-what is searchable in one place instead of opening each
+    driver individually. Most recent first. Registered before GET
+    /{driver_id} so "edit-events" isn't swallowed as a driver_id path param.
+    """
+    events = (
+        db.query(models.DriverEditEvent)
+        .order_by(models.DriverEditEvent.created_at.desc(), models.DriverEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    driver_ids = {e.driver_id for e in events}
+    drivers_by_id = {d.id: d for d in db.query(models.Driver).filter(models.Driver.id.in_(driver_ids)).all()}
+
+    result = []
+    for e in events:
+        driver = drivers_by_id.get(e.driver_id)
+        result.append({
+            "id": e.id,
+            "driver_id": e.driver_id,
+            "driver_id_str": driver.driver_id if driver else "—",
+            "driver_name": driver.name if driver else "(deleted)",
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/{driver_id}", response_model=schemas.DriverOut)
 def get_driver(driver_id: int, db: Session = Depends(get_db)):
     driver = db.get(models.Driver, driver_id)
@@ -118,7 +161,12 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{driver_id}", response_model=schemas.DriverOut)
-def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = Depends(get_db)):
+def update_driver(
+    driver_id: int,
+    payload: schemas.DriverUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_driver_duplicates(db, payload, exclude_id=driver_id)
     driver = db.query(models.Driver).with_for_update().filter(models.Driver.id == driver_id).first()
     if not driver:
@@ -135,6 +183,10 @@ def update_driver(driver_id: int, payload: schemas.DriverUpdate, db: Session = D
     for field, value in data.items():
         setattr(driver, field, value)
     driver.version = (driver.version or 1) + 1
+    db.add(models.DriverEditEvent(
+        driver_id=driver.id, event="Driver Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(driver)
     emit("driver_updated", {"id": driver.id})
@@ -175,12 +227,20 @@ def delete_driver(driver_id: int, db: Session = Depends(get_db), current_user: T
         approved_by_name=current_user.name,
         approved_at=now,
     ))
+    db.add(models.DriverEditEvent(
+        driver_id=driver_id, event="Driver Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("driver_updated", {})
 
 
 @router.post("/{driver_id}/restore", response_model=schemas.DriverOut, dependencies=[Depends(require_roles())])
-def restore_driver(driver_id: int, db: Session = Depends(get_db)):
+def restore_driver(
+    driver_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin only: undo a soft-delete — the driver reappears in Our Drivers (and
     every assignment picker) exactly as they were."""
     driver = db.get(models.Driver, driver_id)
@@ -189,6 +249,10 @@ def restore_driver(driver_id: int, db: Session = Depends(get_db)):
     if driver.deleted_at is None:
         raise HTTPException(409, "Driver is not deleted")
     driver.deleted_at = None
+    db.add(models.DriverEditEvent(
+        driver_id=driver.id, event="Driver Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(driver)
     emit("driver_updated", {})
@@ -212,24 +276,47 @@ def permanently_delete_driver(driver_id: int, db: Session = Depends(get_db), cur
 # Driver Assignments  (nested under /drivers for clarity)
 # ---------------------------------------------------------------------------
 
+@router.get("/assignments/edit-events", response_model=list[schemas.DriverAssignmentEditEventListOut])
+def list_assignment_edit_events(db: Session = Depends(get_db)):
+    """Every Assign/Remove event ever logged, across every driver — the
+    page-wide "Edit History" log on Assign Drivers. Most recent first.
+    Registered before GET /assignments/all has no path-param collision risk,
+    but kept consistent with the rest of the codebase regardless."""
+    return (
+        db.query(models.DriverAssignmentEditEvent)
+        .order_by(models.DriverAssignmentEditEvent.created_at.desc(), models.DriverAssignmentEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.get("/assignments/all", response_model=list[schemas.DriverAssignmentOut])
 def list_assignments(db: Session = Depends(get_db)):
     return db.query(models.DriverAssignment).all()
 
 
 @router.post("/assignments", response_model=schemas.DriverAssignmentOut, status_code=201)
-def assign_vehicle(payload: schemas.DriverAssignmentCreate, db: Session = Depends(get_db)):
+def assign_vehicle(payload: schemas.DriverAssignmentCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == payload.driver_id).first()
+    driver_name = driver.name if driver else payload.driver_id
     existing = db.query(models.DriverAssignment).with_for_update().filter(
         models.DriverAssignment.driver_id == payload.driver_id
     ).first()
     if existing:
         existing.vehicle_id = payload.vehicle_id
+        db.add(models.DriverAssignmentEditEvent(
+            driver_id=payload.driver_id, driver_name=driver_name, vehicle_id=payload.vehicle_id,
+            event="Driver Assigned", actor_name=current_user.name, actor_role=current_user.role,
+        ))
         db.commit()
         db.refresh(existing)
         emit("driver_updated", {})
         return existing
     assignment = models.DriverAssignment(**payload.model_dump())
     db.add(assignment)
+    db.add(models.DriverAssignmentEditEvent(
+        driver_id=payload.driver_id, driver_name=driver_name, vehicle_id=payload.vehicle_id,
+        event="Driver Assigned", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(assignment)
     emit("driver_updated", {})
@@ -237,12 +324,17 @@ def assign_vehicle(payload: schemas.DriverAssignmentCreate, db: Session = Depend
 
 
 @router.delete("/assignments/{driver_id_str}", status_code=204)
-def remove_assignment(driver_id_str: str, db: Session = Depends(get_db)):
+def remove_assignment(driver_id_str: str, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     assignment = db.query(models.DriverAssignment).filter(
         models.DriverAssignment.driver_id == driver_id_str
     ).first()
     if not assignment:
         raise HTTPException(404, "Assignment not found")
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == driver_id_str).first()
+    db.add(models.DriverAssignmentEditEvent(
+        driver_id=driver_id_str, driver_name=driver.name if driver else driver_id_str, vehicle_id=None,
+        event="Assignment Removed", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(assignment)
     db.commit()
     emit("driver_updated", {})

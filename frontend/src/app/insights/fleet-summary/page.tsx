@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { trucksApi, tripsApi } from "@/lib/api";
@@ -436,6 +437,8 @@ function TruckDetailsDialog({ truck, onClose }: TruckDetailsDialogProps) {
 }
 
 export default function FleetSummaryPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [trucks, setTrucks]           = useState<Truck[]>([]);
   const [loading, setLoading]         = useState(true);
   const [historyTruck, setHistoryTruck]   = useState<Truck | null>(null);
@@ -506,7 +509,8 @@ export default function FleetSummaryPage() {
 
             {/* Action buttons */}
             <div className="flex shrink-0 items-center gap-2 border-l border-gray-100 px-5 py-4">
-              <button
+              {isAdmin && (
+<button
                 type="button"
                 onClick={() => setHistoryTruck(truck)}
                 className="flex h-9 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-gray-300 hover:shadow-md"
@@ -514,6 +518,7 @@ export default function FleetSummaryPage() {
                 <History className="h-3.5 w-3.5" />
                 Trip History
               </button>
+)}
               <button
                 type="button"
                 onClick={() => setDetailsTruck(truck)}

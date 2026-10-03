@@ -1,8 +1,9 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { Droplets, Plus, Pencil, Trash2, Check, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen } from "lucide-react";
-import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer } from "@/lib/api";
+import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer, type AdBlueEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import { showError, showSuccess } from "@/lib/swal";
@@ -13,14 +14,52 @@ import type { AdBlueLog } from "@/types/adblue-log";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
+
+const EDIT_EVENT_ICON: Record<AdBlueEditEventRow["event"], typeof Plus> = {
+  "Log Created": Plus,
+  "Log Edited": Pencil,
+  "Log Deleted": Trash2,
+  "Manufacturer Created": Plus,
+  "Manufacturer Edited": Pencil,
+  "Manufacturer Deleted": Trash2,
+};
+
+const EDIT_EVENT_COLOR: Record<AdBlueEditEventRow["event"], string> = {
+  "Log Created": "bg-blue-100 text-blue-700",
+  "Log Edited": "bg-amber-100 text-amber-700",
+  "Log Deleted": "bg-red-100 text-red-700",
+  "Manufacturer Created": "bg-blue-100 text-blue-700",
+  "Manufacturer Edited": "bg-amber-100 text-amber-700",
+  "Manufacturer Deleted": "bg-red-100 text-red-700",
+};
 
 export default function AdblueManagementPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [manufacturers, setManufacturers] = useState<AdBlueManufacturer[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<AdBlueEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  // Fetched fresh every time it's opened, covering both AdBlue Logs and
+  // AdBlue Manufacturers (both editable from this page) — merged into one
+  // chronological, searchable log.
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    adblueApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -106,14 +145,26 @@ export default function AdblueManagementPage() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Page header */}
-      <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
-          <Droplets className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck&apos;s Adblue History</h1>
-          <p className="mt-0.5 text-sm text-gray-500">Track AdBlue usage and stock across the fleet</p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+            <Droplets className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck&apos;s Adblue History</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Track AdBlue usage and stock across the fleet</p>
+          </div>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
 
       {/* Toolbar: search on the left, date range + View on the right */}
@@ -350,6 +401,71 @@ export default function AdblueManagementPage() {
         onClose={() => setHistoryTruck(null)}
         truck={historyTruck}
       />
+
+      {/* Edit History — every Create/Edit/Delete ever logged, across both
+          AdBlue Logs and AdBlue Manufacturers (both editable from this same
+          page), merged into one searchable log. A deleted log/manufacturer's
+          row still shows since it's logged as a snapshot, not a live join. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by label or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch ||
+              ev.label.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[600px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Item</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-gray-800">{ev.label}</p>
+                            <p className="text-[11px] text-gray-400">{ev.category}</p>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }
@@ -367,6 +483,8 @@ function TruckCard({
   onViewHistory: () => void;
   onEnterLog: () => void;
 }) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const layout = truck.tyreLayout ? getTyreLayout(truck.tyreLayout) : null;
   const totalTyres = layout ? totalTyresFromLayout(layout.id) : null;
 
@@ -423,7 +541,8 @@ function TruckCard({
 
       {/* Actions */}
       <div className="mt-1 flex gap-2 border-t border-gray-100 pt-3">
-        <button
+        {isAdmin && (
+<button
           type="button"
           onClick={onViewHistory}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-1.5 text-[11px] font-bold text-gray-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
@@ -431,6 +550,7 @@ function TruckCard({
           <History className="h-3.5 w-3.5" />
           View History
         </button>
+)}
         <button
           type="button"
           onClick={onEnterLog}

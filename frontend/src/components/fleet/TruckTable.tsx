@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { Pencil, Trash2, Eye, Truck as TruckIcon, Gauge, History } from "lucide-react";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import { getComplianceStatus, type ComplianceField, type ComplianceStatus } from "@/lib/compliance";
@@ -40,6 +41,8 @@ function ExpiryPill({ label, date, field }: { label: string; date: string; field
 }
 
 export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChangeBranch, onBranchHistory }: TruckTableProps) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500 dark:border-gray-300/20 dark:bg-gray-200/60 dark:text-gray-600">
@@ -141,7 +144,8 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
             className="flex items-center justify-between gap-1 border-t border-gray-100 pt-3 dark:border-gray-300/20"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
+            {isAdmin && (
+<button
               type="button"
               onClick={() => onBranchHistory(truck)}
               aria-label={`Branch history for ${truck.truckId}`}
@@ -150,6 +154,7 @@ export function TruckTable({ trucks, branches, onView, onEdit, onDelete, onChang
               <History className="h-3.5 w-3.5" />
               Branch History
             </button>
+)}
             <div className="flex items-center gap-1">
             <button
               type="button"

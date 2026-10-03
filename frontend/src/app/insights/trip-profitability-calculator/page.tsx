@@ -1,6 +1,8 @@
 "use client";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import { GlassCombobox } from "@/components/ui/GlassCombobox";
+import { Segmented } from "@/components/ui/Segmented";
 import { useEffect, useState } from "react";
 import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2, Calculator } from "lucide-react";
 import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, adblueLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
@@ -929,6 +931,12 @@ export default function TripProfitabilityCalculatorPage() {
   const [trucks, setTrucks]               = useState<Truck[]>([]);
   const [trucksLoading, setTrucksLoading] = useState(true);
   const [truckSearch, setTruckSearch]     = useState("");
+  const [selectedTruckId, setSelectedTruckId]   = useState("");
+  const [selectedTruckIdB, setSelectedTruckIdB] = useState("");
+  // "single" = one vehicle picked from a dropdown (default); "compare" = two
+  // vehicles picked side-by-side; "list" = the original type-to-search layout
+  // with every matching truck's card shown.
+  const [truckView, setTruckView] = useState<"single" | "compare" | "list">("single");
   const [showGuide, setShowGuide]         = useState(false);
   const [showCalc, setShowCalc]           = useState(false);
   const [branches, setBranches]           = useState<Branch[]>([]);
@@ -1113,9 +1121,14 @@ export default function TripProfitabilityCalculatorPage() {
     if (v && v > 0) tyreLayoutKmPerDayMap[c.tyre_layout] = v;
   }
 
-  const filtered = trucks.filter((t) =>
-    t.registrationNumber.toLowerCase().includes(truckSearch.toLowerCase())
-  );
+  const filtered = truckView === "list"
+    ? trucks.filter((t) => t.registrationNumber.toLowerCase().includes(truckSearch.toLowerCase()))
+    : truckView === "compare"
+    ? [trucks.find((t) => t.id === selectedTruckId), trucks.find((t) => t.id === selectedTruckIdB)].filter((t): t is Truck => !!t)
+    : (() => {
+        const t = trucks.find((t) => t.id === selectedTruckId);
+        return t ? [t] : [];
+      })();
 
   return (
     <div className="flex flex-col gap-6">
@@ -1150,9 +1163,51 @@ export default function TripProfitabilityCalculatorPage() {
         </div>
       </div>
 
-      {/* Toolbar: truck search */}
+      {/* Toolbar: truck view switch + vehicle picker(s) */}
       <div className="flex flex-wrap items-center gap-3">
-        <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
+        <Segmented
+          size="md"
+          label="Truck view"
+          value={truckView}
+          onChange={setTruckView}
+          options={[{ value: "single", label: "Single" }, { value: "compare", label: "Compare" }, { value: "list", label: "List" }]}
+        />
+        {truckView === "single" && (
+          <div className="w-full max-w-xs">
+            <GlassCombobox
+              value={selectedTruckId}
+              onChange={setSelectedTruckId}
+              placeholder="Select a vehicle…"
+              strictSelect
+              options={trucks.map((t) => ({ value: t.id, label: t.registrationNumber }))}
+            />
+          </div>
+        )}
+        {truckView === "compare" && (
+          <>
+            <div className="w-full max-w-xs">
+              <GlassCombobox
+                value={selectedTruckId}
+                onChange={setSelectedTruckId}
+                placeholder="Select vehicle A…"
+                strictSelect
+                options={trucks.filter((t) => t.id !== selectedTruckIdB).map((t) => ({ value: t.id, label: t.registrationNumber }))}
+              />
+            </div>
+            <div className="w-full max-w-xs">
+              <GlassCombobox
+                value={selectedTruckIdB}
+                onChange={setSelectedTruckIdB}
+                placeholder="Select vehicle B…"
+                strictSelect
+                options={trucks.filter((t) => t.id !== selectedTruckId).map((t) => ({ value: t.id, label: t.registrationNumber }))}
+              />
+            </div>
+          </>
+        )}
+        {truckView === "list" && (
+          <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
+        )}
       </div>
 
       {/* Main layout */}
@@ -1194,8 +1249,8 @@ export default function TripProfitabilityCalculatorPage() {
             </div>
           </div>
 
-          {/* Truck cards — 2-up grid */}
-          <div className="grid grid-cols-2 gap-4 items-start">
+          {/* Truck cards — 2-up grid (Compare/List), single column (Single) */}
+          <div className={truckView === "single" ? "grid grid-cols-1 gap-4 items-start" : "grid grid-cols-2 gap-4 items-start"}>
           {trucksLoading ? (
             [1, 2, 3, 4].map((i) => (
               <div key={i} className="h-40 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />
@@ -1206,7 +1261,11 @@ export default function TripProfitabilityCalculatorPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="col-span-2 flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-10 text-sm text-gray-400">
-              No trucks match &quot;{truckSearch}&quot;.
+              {truckView === "list"
+                ? `No trucks match "${truckSearch}".`
+                : truckView === "compare"
+                ? "Select both vehicles above to compare."
+                : "Select a vehicle above to see its profitability breakdown."}
             </div>
           ) : (
             filtered.map((truck, idx) => (

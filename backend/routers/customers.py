@@ -61,12 +61,21 @@ def list_customers(
 
 
 @router.post("", response_model=schemas.CustomerOut, status_code=201)
-def create_customer(payload: schemas.CustomerCreate, db: Session = Depends(get_db)):
+def create_customer(
+    payload: schemas.CustomerCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_customer_duplicates(db, payload)
     customer = models.Customer(**payload.model_dump())
     db.add(customer)
     db.commit()
     db.refresh(customer)
+    db.add(models.CustomerEditEvent(
+        customer_id=customer.id, event="Customer Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("customer_updated", {})
     return customer
 
@@ -82,6 +91,40 @@ def list_deleted_customer_ids(db: Session = Depends(get_db)):
     return [i for (i,) in rows]
 
 
+@router.get("/edit-events", response_model=list[schemas.CustomerEditEventListOut])
+def list_all_customer_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete/Restore event ever logged, across every
+    customer — the page-wide "Edit History" log on Our Customers, so
+    who-changed-what is searchable in one place instead of opening each
+    customer individually. Most recent first. Registered before GET
+    /{customer_id} so "edit-events" isn't swallowed as a customer_id path
+    param.
+    """
+    events = (
+        db.query(models.CustomerEditEvent)
+        .order_by(models.CustomerEditEvent.created_at.desc(), models.CustomerEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    customer_ids = {e.customer_id for e in events}
+    customers_by_id = {c.id: c for c in db.query(models.Customer).filter(models.Customer.id.in_(customer_ids)).all()}
+
+    result = []
+    for e in events:
+        customer = customers_by_id.get(e.customer_id)
+        result.append({
+            "id": e.id,
+            "customer_id": e.customer_id,
+            "customer_name": customer.name if customer else "(deleted)",
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/{customer_id}", response_model=schemas.CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db)):
     customer = db.get(models.Customer, customer_id)
@@ -91,7 +134,12 @@ def get_customer(customer_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{customer_id}", response_model=schemas.CustomerOut)
-def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Session = Depends(get_db)):
+def update_customer(
+    customer_id: int,
+    payload: schemas.CustomerUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_customer_duplicates(db, payload, exclude_id=customer_id)
     customer = db.query(models.Customer).with_for_update().filter(models.Customer.id == customer_id).first()
     if not customer:
@@ -105,6 +153,10 @@ def update_customer(customer_id: int, payload: schemas.CustomerUpdate, db: Sessi
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(customer, field, value)
     customer.version = (customer.version or 1) + 1
+    db.add(models.CustomerEditEvent(
+        customer_id=customer.id, event="Customer Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(customer)
     emit("customer_updated", {})
@@ -137,12 +189,20 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db), current_use
         approved_by_name=current_user.name,
         approved_at=now,
     ))
+    db.add(models.CustomerEditEvent(
+        customer_id=customer_id, event="Customer Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("customer_updated", {})
 
 
 @router.post("/{customer_id}/restore", response_model=schemas.CustomerOut, dependencies=[Depends(require_roles())])
-def restore_customer(customer_id: int, db: Session = Depends(get_db)):
+def restore_customer(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin only: undo a soft-delete — the customer reappears in Our Customers
     exactly as they were."""
     customer = db.get(models.Customer, customer_id)
@@ -151,6 +211,10 @@ def restore_customer(customer_id: int, db: Session = Depends(get_db)):
     if customer.deleted_at is None:
         raise HTTPException(409, "Customer is not deleted")
     customer.deleted_at = None
+    db.add(models.CustomerEditEvent(
+        customer_id=customer.id, event="Customer Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(customer)
     emit("customer_updated", {})

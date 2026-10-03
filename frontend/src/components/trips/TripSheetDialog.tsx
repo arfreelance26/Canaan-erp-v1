@@ -362,7 +362,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       const endKmVal = n(form.endKm);
       const truckToUpdate = trucks.find((t) => t.truckId === form.vehicleId);
       if (endKmVal > 0 && truckToUpdate && endKmVal > Number(truckToUpdate.odometer)) {
-        trucksApi.update(truckToUpdate.id, { ...truckToUpdate, odometer: String(endKmVal) }).catch(() => {});
+        trucksApi.update(truckToUpdate.id, { ...truckToUpdate, odometer: String(endKmVal) }, undefined, true).catch(() => {});
       }
       setSaving(false);
     }

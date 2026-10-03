@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon } from "lucide-react";
+import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon, History, Pencil, Trash2, Undo2 } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
 import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
-import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
+import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type TruckEditEventRow } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
@@ -20,10 +20,29 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
+import { Dialog } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+
+const EDIT_EVENT_ICON: Record<TruckEditEventRow["event"], typeof Plus> = {
+  "Truck Created": Plus,
+  "Truck Edited": Pencil,
+  "Truck Deleted": Trash2,
+  "Truck Restored": Undo2,
+};
+
+const EDIT_EVENT_COLOR: Record<TruckEditEventRow["event"], string> = {
+  "Truck Created": "bg-blue-100 text-blue-700",
+  "Truck Edited": "bg-amber-100 text-amber-700",
+  "Truck Deleted": "bg-red-100 text-red-700",
+  "Truck Restored": "bg-emerald-100 text-emerald-700",
+};
 export default function FleetPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   // Every role except Admin, Assistant Commercial Manager, and Commercial Manager
   // (who all have free edit rights on the fleet) must file an edit request to
@@ -49,6 +68,22 @@ export default function FleetPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingTruck, setViewingTruck] = useState<Truck | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TruckEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  // Fetched fresh every time it's opened, covering every truck edit ever
+  // logged — searching by registration/ID here doubles as that truck's own
+  // edit history.
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    trucksApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   // Edit approval state (non-Admin roles)
   const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
@@ -354,14 +389,26 @@ export default function FleetPage() {
             <p className="mt-0.5 text-sm text-gray-500">Manage trucks across all branches</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-        >
-          <Plus className="h-4 w-4" />
-          Add Truck
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Plus className="h-4 w-4" />
+            Add Truck
+          </button>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
@@ -568,6 +615,74 @@ export default function FleetPage() {
           </div>
         );
       })()}
+
+      {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
+          every truck (not just the ones currently on this page), in one
+          searchable log instead of having to open each truck individually.
+          Searching by a specific registration/ID doubles as that truck's
+          own history. Does not include the automatic odometer sync fired on
+          every trip sheet save. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-3xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by registration, truck ID, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch ||
+              ev.truckIdStr.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.registrationNumber.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No truck edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Truck</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-gray-800">{ev.registrationNumber}</p>
+                            <p className="text-[11px] text-gray-400">{ev.truckIdStr}</p>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

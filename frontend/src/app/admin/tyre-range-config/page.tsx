@@ -2,9 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CircleDot, Plus, X, Check, Loader2, Trash2 } from "lucide-react";
-import { tyreRangeConfigApi } from "@/lib/api";
+import { CircleDot, Plus, X, Check, Loader2, Trash2, History, Save } from "lucide-react";
+import { tyreRangeConfigApi, type TyreRangeConfigEditEventRow } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
+
+const EDIT_EVENT_ICON: Record<TyreRangeConfigEditEventRow["event"], typeof Save> = {
+  "Tyre Range Config Saved": Save,
+  "Tyre Type Deleted": Trash2,
+};
+
+const EDIT_EVENT_COLOR: Record<TyreRangeConfigEditEventRow["event"], string> = {
+  "Tyre Range Config Saved": "bg-amber-100 text-amber-700",
+  "Tyre Type Deleted": "bg-red-100 text-red-700",
+};
 
 const DEFAULT_TYPES = ["RADIAL", "TUBELESS", "NYLON", "RETREADED"];
 
@@ -108,6 +122,8 @@ function AddTyreTypeDialog({
 }
 
 export default function TyreRangeConfigPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   const [tyreTypes, setTyreTypes] = useState<string[]>([]);
   const [ranges, setRanges] = useState<Record<string, string>>({});
@@ -116,6 +132,19 @@ export default function TyreRangeConfigPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TyreRangeConfigEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    tyreRangeConfigApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
     tyreRangeConfigApi.list().then((rows) => {
@@ -222,6 +251,16 @@ export default function TyreRangeConfigPage() {
             </span>
           )}
 
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
           <button
             type="button"
             onClick={() => setShowAdd(true)}
@@ -356,6 +395,65 @@ export default function TyreRangeConfigPage() {
           onClose={() => setShowAdd(false)}
         />
       )}
+
+      {/* Edit History — every save/delete on Tyre Range Configuration ever
+          logged, in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by tyre type or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q || (ev.tyreType ?? "").toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[480px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Tyre Type</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.tyreType ?? <span className="text-gray-400">All types</span>}</td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

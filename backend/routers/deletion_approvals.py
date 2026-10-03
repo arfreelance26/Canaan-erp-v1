@@ -95,6 +95,35 @@ def list_deletion_approvals(
     return q.all()
 
 
+@router.get("/edit-events", response_model=list[schemas.DeletionApprovalEditEventListOut])
+def list_deletion_approval_edit_events(
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(require_roles()),  # Admin only
+):
+    """Every Approved/Rejected decision ever logged, across every deletion
+    approval request — the page-wide "Edit History" log on Deletion
+    Approvals. Derived directly from DeletionApprovalRequest itself (status/
+    approved_by_name/approved_at already live on the row), no dedicated
+    event table needed. Registered before PUT /{req_id}/approve|reject so
+    "edit-events" isn't swallowed as a req_id path param."""
+    rows = (
+        db.query(models.DeletionApprovalRequest)
+        .filter(models.DeletionApprovalRequest.status.in_(["Approved", "Rejected"]))
+        .order_by(models.DeletionApprovalRequest.approved_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id, "requested_by_name": r.requested_by_name, "resource_type": r.resource_type,
+            "resource_name": r.resource_name,
+            "event": "Deletion Approved" if r.status == "Approved" else "Deletion Rejected",
+            "actor_name": r.approved_by_name or "Unknown",
+            "created_at": r.approved_at,
+        }
+        for r in rows if r.approved_at is not None
+    ]
+
+
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -110,6 +139,25 @@ def _to_ist(dt: Optional[datetime]) -> Optional[datetime]:
 def _fmt_ist(dt: Optional[datetime]) -> str:
     local = _to_ist(dt)
     return local.strftime("%d-%m-%Y %I:%M %p") if local else ""
+
+
+@router.get("/mine", response_model=list[schemas.DeletionApprovalRequestOut])
+def list_my_deletion_approvals(
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Every deletion request the calling user has filed, any status. Read-only
+    for the requester — the "Edit & Delete Requests" page. Registered before any
+    /{req_id}-shaped route so "mine" isn't taken as a req_id."""
+    if current_user.id is None:
+        return []
+    q = db.query(models.DeletionApprovalRequest).filter(
+        models.DeletionApprovalRequest.requested_by_staff_id == current_user.id
+    )
+    if status:
+        q = q.filter(models.DeletionApprovalRequest.status == status)
+    return q.order_by(models.DeletionApprovalRequest.created_at.desc()).all()
 
 
 @router.get("/export", dependencies=[Depends(require_roles())])
@@ -239,6 +287,10 @@ def approve_deletion(
             raise HTTPException(409, "This driver no longer exists — the request may be a stale duplicate. Reject it instead.")
         if driver.deleted_at is None:
             driver.deleted_at = datetime.now(timezone.utc)
+            db.add(models.DriverEditEvent(
+                driver_id=driver.id, event="Driver Deleted",
+                actor_name=current_user.name, actor_role=current_user.role,
+            ))
             emit("driver_updated", {})
     elif req.resource_type == "Truck":
         truck = db.get(models.Truck, req.resource_id)
@@ -246,6 +298,10 @@ def approve_deletion(
             raise HTTPException(409, "This truck no longer exists — the request may be a stale duplicate. Reject it instead.")
         if truck.deleted_at is None:
             truck.deleted_at = datetime.now(timezone.utc)
+            db.add(models.TruckEditEvent(
+                truck_id=truck.id, event="Truck Deleted",
+                actor_name=current_user.name, actor_role=current_user.role,
+            ))
             emit("truck_updated", {})
     elif req.resource_type == "Staff":
         staff = db.get(models.Staff, req.resource_id)
@@ -253,12 +309,20 @@ def approve_deletion(
             raise HTTPException(409, "This staff member no longer exists — the request may be a stale duplicate. Reject it instead.")
         if staff.deleted_at is None:
             staff.deleted_at = datetime.now(timezone.utc)
+            db.add(models.StaffEditEvent(
+                staff_id=staff.id, event="Staff Deleted",
+                actor_name=current_user.name, actor_role=current_user.role,
+            ))
     elif req.resource_type == "Customer":
         customer = db.get(models.Customer, req.resource_id)
         if not customer:
             raise HTTPException(409, "This customer no longer exists — the request may be a stale duplicate. Reject it instead.")
         if customer.deleted_at is None:
             customer.deleted_at = datetime.now(timezone.utc)
+            db.add(models.CustomerEditEvent(
+                customer_id=customer.id, event="Customer Deleted",
+                actor_name=current_user.name, actor_role=current_user.role,
+            ))
             emit("customer_updated", {})
     elif req.resource_type == "Vendor":
         vendor = db.get(models.Vendor, req.resource_id)
@@ -266,6 +330,10 @@ def approve_deletion(
             raise HTTPException(409, "This vendor no longer exists — the request may be a stale duplicate. Reject it instead.")
         if vendor.deleted_at is None:
             vendor.deleted_at = datetime.now(timezone.utc)
+            db.add(models.VendorEditEvent(
+                vendor_id=vendor.id, event="Vendor Deleted",
+                actor_name=current_user.name, actor_role=current_user.role,
+            ))
             emit("vendor_updated", {})
     elif req.resource_type == "TyreInventory":
         # Soft delete — keeps the tyre recoverable from the "Tyre Archive" page
@@ -276,6 +344,10 @@ def approve_deletion(
             raise HTTPException(409, "This tyre no longer exists — the request may be a stale duplicate. Reject it instead.")
         if tyre.deleted_at is None:
             tyre.deleted_at = datetime.now(timezone.utc)
+            db.add(models.TyreInventoryEditEvent(
+                tyre_id=tyre.id, event="Tyre Deleted",
+                actor_name=current_user.name, actor_role=current_user.role,
+            ))
             emit("tyre_updated", {})
 
     req.status = "Approved"

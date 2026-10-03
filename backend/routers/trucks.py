@@ -55,6 +55,10 @@ def create_truck(
                 updated_at=now,
                 updated_by_name=current_user.name or "Unknown",
             ))
+    db.add(models.TruckEditEvent(
+        truck_id=truck.id, event="Truck Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
 
     emit("truck_updated", {"id": truck.id})
@@ -89,6 +93,19 @@ def get_run_config(db: Session = Depends(get_db)):
     return db.query(models.TruckRunConfig).order_by(models.TruckRunConfig.tyre_layout).all()
 
 
+@router.get("/run-config/edit-events", response_model=list[schemas.TruckRunConfigEditEventListOut])
+def list_run_config_edit_events(db: Session = Depends(get_db)):
+    """Every "Save Configuration" click on Truck Run Configuration ever
+    logged — the page-wide "Edit History" log. Most recent first.
+    Registered before GET /{truck_id}-shaped routes so "run-config/edit-events"
+    isn't swallowed as a truck_id path param."""
+    return (
+        db.query(models.TruckRunConfigEditEvent)
+        .order_by(models.TruckRunConfigEditEvent.created_at.desc(), models.TruckRunConfigEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.put("/run-config", response_model=list[schemas.TruckRunConfigOut])
 def save_run_config(payload: schemas.TruckRunConfigBulkSave, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     if current_user.role != "Admin":
@@ -106,6 +123,9 @@ def save_run_config(payload: schemas.TruckRunConfigBulkSave, db: Session = Depen
                 km_per_month=item.km_per_month,
                 km_per_day=item.km_per_day,
             ))
+    db.add(models.TruckRunConfigEditEvent(
+        event="Run Configuration Saved", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("truck_updated", {})
     return db.query(models.TruckRunConfig).order_by(models.TruckRunConfig.tyre_layout).all()
@@ -326,6 +346,71 @@ def list_deleted_truck_ids(db: Session = Depends(get_db)):
     return [i for (i,) in rows]
 
 
+@router.get("/edit-events", response_model=list[schemas.TruckEditEventListOut])
+def list_all_truck_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete/Restore event ever logged, across every
+    truck — the page-wide "Edit History" log on Our Fleet, so
+    who-changed-what is searchable in one place instead of opening each
+    truck individually. Most recent first. Registered before GET
+    /{truck_id} so "edit-events" isn't swallowed as a truck_id path param.
+    """
+    events = (
+        db.query(models.TruckEditEvent)
+        .order_by(models.TruckEditEvent.created_at.desc(), models.TruckEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    truck_ids = {e.truck_id for e in events}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
+
+    result = []
+    for e in events:
+        truck = trucks_by_id.get(e.truck_id)
+        result.append({
+            "id": e.id,
+            "truck_id": e.truck_id,
+            "truck_id_str": truck.truck_id if truck else "—",
+            "registration_number": truck.registration_number if truck else "(deleted)",
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
+@router.get("/compliance-history/all", response_model=list[schemas.ComplianceEditEventOut], tags=["Trucks"])
+def list_all_compliance_history(db: Session = Depends(get_db)):
+    """Every compliance document update ever logged, across every truck —
+    the page-wide "Edit History" log on Compliance & Renewals, derived
+    directly from ComplianceUpdateHistory (already populated by Truck
+    create/update). Most recent first."""
+    events = (
+        db.query(models.ComplianceUpdateHistory)
+        .order_by(models.ComplianceUpdateHistory.updated_at.desc(), models.ComplianceUpdateHistory.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    truck_ids = {e.truck_id for e in events}
+    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
+
+    result = []
+    for e in events:
+        truck = trucks_by_id.get(e.truck_id)
+        result.append({
+            "id": e.id,
+            "truck_id": e.truck_id,
+            "truck_id_str": truck.truck_id if truck else "—",
+            "registration_number": truck.registration_number if truck else "(deleted)",
+            "document_type": e.document_type,
+            "actor_name": e.updated_by_name,
+            "created_at": e.updated_at,
+        })
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Per-truck CRUD  (parameterized routes after all static routes)
 # ---------------------------------------------------------------------------
@@ -377,7 +462,7 @@ def update_truck(
         )
 
     # Snapshot compliance dates + branch before applying changes
-    payload_dict = payload.model_dump(exclude_unset=True, exclude={"client_version", "branch_change_note"})
+    payload_dict = payload.model_dump(exclude_unset=True, exclude={"client_version", "branch_change_note", "skip_edit_log"})
     old_dates = {f: str(getattr(truck, f) or "") for f in _COMPLIANCE_FIELDS}
     old_branch = truck.branch_registered_to
 
@@ -421,6 +506,12 @@ def update_truck(
             changed_by=current_user.id,
             changed_by_name=current_user.name or "Unknown",
             changed_at=now,
+        ))
+
+    if not payload.skip_edit_log:
+        db.add(models.TruckEditEvent(
+            truck_id=truck.id, event="Truck Edited",
+            actor_name=current_user.name, actor_role=current_user.role,
         ))
 
     db.commit()
@@ -488,6 +579,10 @@ def change_truck_branch(
         changed_by_name=current_user.name or "Unknown",
         changed_at=now,
     ))
+    db.add(models.TruckEditEvent(
+        truck_id=truck.id, event="Truck Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(truck)
     emit("truck_updated", {"id": truck.id})
@@ -526,12 +621,20 @@ def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: Tok
         approved_by_name=current_user.name,
         approved_at=now,
     ))
+    db.add(models.TruckEditEvent(
+        truck_id=truck_id, event="Truck Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("truck_updated", {})
 
 
 @router.post("/{truck_id}/restore", response_model=schemas.TruckOut, dependencies=[Depends(require_roles())])
-def restore_truck(truck_id: int, db: Session = Depends(get_db)):
+def restore_truck(
+    truck_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin only: undo a soft-delete — the truck reappears in Our Fleet (and
     every assignment picker) exactly as it was."""
     truck = db.get(models.Truck, truck_id)
@@ -540,6 +643,10 @@ def restore_truck(truck_id: int, db: Session = Depends(get_db)):
     if truck.deleted_at is None:
         raise HTTPException(409, "Truck is not deleted")
     truck.deleted_at = None
+    db.add(models.TruckEditEvent(
+        truck_id=truck.id, event="Truck Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(truck)
     emit("truck_updated", {})

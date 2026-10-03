@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { trucksApi } from "@/lib/api";
+import { trucksApi, type TruckRunConfigEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { Truck as TruckIcon, LayoutGrid, Settings2, X, Info, Gauge } from "lucide-react";
+import { Truck as TruckIcon, LayoutGrid, Settings2, X, Info, Gauge, History, Save } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { formatDateTime } from "@/lib/format-date";
 
 export const RUN_CONFIG_STORAGE_KEY = "erp_truck_run_config";
 
@@ -239,11 +242,26 @@ function TruckCard({ truck }: { truck: Truck }) {
 
 
 export default function TruckRunConfigPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   const [trucks, setTrucks]                     = useState<Truck[]>([]);
   const [loading, setLoading]                   = useState(true);
   const [showConfig, setShowConfig]     = useState(false);
   const [runConfigMap, setRunConfigMap] = useState<Record<string, { month: string; day: string }>>({});
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TruckRunConfigEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    trucksApi.listRunConfigEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
     trucksApi.list().then(setTrucks).catch(() => {}).finally(() => setLoading(false));
@@ -283,14 +301,26 @@ export default function TruckRunConfigPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowConfig(true)}
-          className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-        >
-          <Settings2 className="h-4 w-4" />
-          Set Run Configuration
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
+          <button
+            type="button"
+            onClick={() => setShowConfig(true)}
+            className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+          >
+            <Settings2 className="h-4 w-4" />
+            Set Run Configuration
+          </button>
+        </div>
       </div>
 
       {trucks.length === 0 && (
@@ -355,6 +385,58 @@ export default function TruckRunConfigPage() {
         />
       )}
 
+      {/* Edit History — every "Save Configuration" click ever logged, in
+          one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-lg"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch || ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            <Save className="h-3 w-3" /> {ev.event}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {ev.actorName}
+                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

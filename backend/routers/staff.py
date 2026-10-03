@@ -25,7 +25,11 @@ def list_staff(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=schemas.StaffOut, status_code=201, dependencies=[Depends(require_roles())])
-def create_staff(payload: schemas.StaffCreate, db: Session = Depends(get_db)):
+def create_staff(
+    payload: schemas.StaffCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_staff_duplicates(db, payload)
     if db.query(models.Staff).filter(models.Staff.staff_id == payload.staff_id).first():
         raise HTTPException(400, f"Staff ID {payload.staff_id} already exists")
@@ -35,6 +39,11 @@ def create_staff(payload: schemas.StaffCreate, db: Session = Depends(get_db)):
     db.add(member)
     db.commit()
     db.refresh(member)
+    db.add(models.StaffEditEvent(
+        staff_id=member.id, event="Staff Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     return member
 
 
@@ -49,6 +58,40 @@ def list_deleted_staff_ids(db: Session = Depends(get_db)):
     return [i for (i,) in rows]
 
 
+@router.get("/edit-events", response_model=list[schemas.StaffEditEventListOut])
+def list_all_staff_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete/Restore event ever logged, across every staff
+    member — the page-wide "Edit History" log on Our Staff, so
+    who-changed-what is searchable in one place instead of opening each staff
+    member individually. Most recent first. Registered before GET
+    /{staff_id} so "edit-events" isn't swallowed as a staff_id path param.
+    """
+    events = (
+        db.query(models.StaffEditEvent)
+        .order_by(models.StaffEditEvent.created_at.desc(), models.StaffEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    staff_ids = {e.staff_id for e in events}
+    staff_by_id = {s.id: s for s in db.query(models.Staff).filter(models.Staff.id.in_(staff_ids)).all()}
+
+    result = []
+    for e in events:
+        member = staff_by_id.get(e.staff_id)
+        result.append({
+            "id": e.id,
+            "staff_id": e.staff_id,
+            "staff_id_str": member.staff_id if member else "—",
+            "staff_name": member.name if member else "(deleted)",
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/{staff_id}", response_model=schemas.StaffOut)
 def get_staff(staff_id: int, db: Session = Depends(get_db)):
     member = db.get(models.Staff, staff_id)
@@ -58,7 +101,12 @@ def get_staff(staff_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{staff_id}", response_model=schemas.StaffOut, dependencies=[Depends(require_roles())])
-def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depends(get_db)):
+def update_staff(
+    staff_id: int,
+    payload: schemas.StaffUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_staff_duplicates(db, payload, exclude_id=staff_id)
     member = db.query(models.Staff).with_for_update().filter(models.Staff.id == staff_id).first()
     if not member:
@@ -75,6 +123,10 @@ def update_staff(staff_id: int, payload: schemas.StaffUpdate, db: Session = Depe
     for field, value in data.items():
         setattr(member, field, value)
     member.version = (member.version or 1) + 1
+    db.add(models.StaffEditEvent(
+        staff_id=member.id, event="Staff Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(member)
     return member
@@ -106,11 +158,19 @@ def delete_staff(staff_id: int, db: Session = Depends(get_db), current_user: Tok
         approved_by_name=current_user.name,
         approved_at=now,
     ))
+    db.add(models.StaffEditEvent(
+        staff_id=staff_id, event="Staff Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
 
 
 @router.post("/{staff_id}/restore", response_model=schemas.StaffOut, dependencies=[Depends(require_roles())])
-def restore_staff(staff_id: int, db: Session = Depends(get_db)):
+def restore_staff(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin only: undo a soft-delete — the staff member reappears in Our Staff
     exactly as they were."""
     member = db.get(models.Staff, staff_id)
@@ -119,6 +179,10 @@ def restore_staff(staff_id: int, db: Session = Depends(get_db)):
     if member.deleted_at is None:
         raise HTTPException(409, "Staff member is not deleted")
     member.deleted_at = None
+    db.add(models.StaffEditEvent(
+        staff_id=member.id, event="Staff Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(member)
     return member

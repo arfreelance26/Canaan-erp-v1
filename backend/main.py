@@ -56,7 +56,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, vendor_categories, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories
+from routers import trucks, drivers, staff, customers, vendors, vendor_categories, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories, usage_analytics
 
 Base.metadata.create_all(bind=engine)
 
@@ -493,6 +493,12 @@ def _run_schema_migrations():
         # "Repair Type" on a maintenance record — populated from the selected
         # Maintenance Type category's repair types (see maintenance_categories.py).
         "ALTER TABLE maintenance_records ADD COLUMN repair_type VARCHAR(200) NULL",
+        # Trip soft-delete/restore now gets logged in Trip Edit History too,
+        # same as every other soft-deletable entity.
+        "ALTER TABLE trip_edit_events MODIFY COLUMN event "
+        "ENUM('Booking Created','Booking Edited','Trip Sheet Saved','Trip Updated',"
+        "'Trip Closed','Verification Confirmed','Verification Rejected',"
+        "'Trip Deleted','Trip Restored') NOT NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -1288,6 +1294,7 @@ app.include_router(chat.router, dependencies=AUTH)
 app.include_router(chat.photo_router)                         # GET group photo: public route, auth done inside (img tags)
 app.include_router(default_batta.router, dependencies=AUTH)
 app.include_router(maintenance_categories.router, dependencies=AUTH)
+app.include_router(usage_analytics.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

@@ -3,8 +3,11 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
-import { Receipt, CheckCircle2, Loader2, AlertCircle, Anchor, ShieldCheck, Forklift, Zap } from "lucide-react";
+import { tripExpenseRatesApi, type TripExpenseRate, type TripExpenseRateEditEventRow } from "@/lib/api";
+import { Receipt, CheckCircle2, Loader2, AlertCircle, Anchor, ShieldCheck, Forklift, Zap, History, Pencil } from "lucide-react";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { formatDateTime } from "@/lib/format-date";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -187,6 +190,8 @@ function Section({
 // ---------------------------------------------------------------------------
 
 export default function TripExpensesPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user, ready } = useAuth();
   const router = useRouter();
 
@@ -197,6 +202,19 @@ export default function TripExpensesPage() {
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const configRef = useRef<TripExpenseRate | null>(null);
   const formRef = useRef<FormData>(EMPTY_FORM);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TripExpenseRateEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    tripExpenseRatesApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => { configRef.current = config; }, [config]);
   useEffect(() => { formRef.current = form; }, [form]);
@@ -272,6 +290,16 @@ export default function TripExpensesPage() {
             to pre-fill those fields in every new trip sheet
           </p>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
 
       {loading ? (
@@ -333,6 +361,59 @@ export default function TripExpensesPage() {
           </Section>
         </div>
       )}
+
+      {/* Edit History — every save of the Trip Expenses config ever logged,
+          in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-lg"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch || ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            <Pencil className="h-3 w-3" /> {ev.event}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {ev.actorName}
+                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

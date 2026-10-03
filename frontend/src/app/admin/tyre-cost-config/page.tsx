@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { trucksApi, tyreRangeConfigApi, tyreLayoutTypeConfigApi } from "@/lib/api";
+import { trucksApi, tyreRangeConfigApi, tyreLayoutTypeConfigApi, type TyreLayoutTypeConfigEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { LayoutGrid, Info, CircleDot, Loader2, Check, DollarSign } from "lucide-react";
+import { LayoutGrid, Info, CircleDot, Loader2, Check, DollarSign, History, Save } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { formatDateTime } from "@/lib/format-date";
 
 type TyreRangeRow = {
   tyre_type: string;
@@ -19,6 +22,8 @@ function groupLayouts(trucks: Truck[]): string[] {
 }
 
 export default function TyreCostConfigPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const { user } = useAuth();
   const [layouts, setLayouts]       = useState<string[]>([]);
   const [tyreRows, setTyreRows]     = useState<TyreRangeRow[]>([]);
@@ -26,6 +31,19 @@ export default function TyreCostConfigPage() {
   const [loading, setLoading]       = useState(true);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const qtyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TyreLayoutTypeConfigEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    tyreLayoutTypeConfigApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   useEffect(() => {
     Promise.all([
@@ -113,18 +131,30 @@ export default function TyreCostConfigPage() {
           </div>
         </div>
 
-        {/* Auto-save status */}
-        <div className="mt-2 h-6">
-          {saveStatus === "saving" && (
-            <span className="flex items-center gap-1.5 text-xs text-gray-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-            </span>
-          )}
-          {saveStatus === "saved" && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-              <Check className="h-3.5 w-3.5" /> Saved
-            </span>
-          )}
+        <div className="flex shrink-0 items-center gap-3 mt-2">
+          {/* Auto-save status */}
+          <div className="h-6">
+            {saveStatus === "saving" && (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+              </span>
+            )}
+            {saveStatus === "saved" && (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                <Check className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
         </div>
       </div>
 
@@ -244,6 +274,59 @@ export default function TyreCostConfigPage() {
           })}
         </div>
       )}
+
+      {/* Edit History — every save of tyre quantities ever logged, in one
+          searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-lg"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const filtered = editHistoryEvents.filter((ev) =>
+              !editHistorySearch || ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            <Save className="h-3 w-3" /> {ev.event}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {ev.actorName}
+                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

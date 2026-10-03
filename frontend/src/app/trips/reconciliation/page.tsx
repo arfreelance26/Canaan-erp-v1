@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { mapLimit } from "@/lib/async-pool";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
@@ -17,7 +17,7 @@ import type { EditApprovalResourceType, EditApprovalRequest } from "@/types/edit
 import { n } from "@/types/trip-sheet";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { Eye, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, Trash2 } from "lucide-react";
+import { Eye, CheckCircle2, Download, Inbox, ClipboardList, Navigation, X, Trash2, History, Plus, Pencil, XCircle, RotateCcw } from "lucide-react";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError } from "@/lib/swal";
@@ -25,6 +25,33 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
+import { Dialog } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
+
+const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
+  "Booking Created": Plus,
+  "Booking Edited": Pencil,
+  "Trip Sheet Saved": ClipboardList,
+  "Trip Updated": Pencil,
+  "Trip Closed": CheckCircle2,
+  "Verification Confirmed": CheckCircle2,
+  "Verification Rejected": XCircle,
+  "Trip Deleted": Trash2,
+  "Trip Restored": RotateCcw,
+};
+
+const EDIT_EVENT_COLOR: Record<TripEditEventRow["event"], string> = {
+  "Booking Created": "bg-blue-100 text-blue-700",
+  "Booking Edited": "bg-amber-100 text-amber-700",
+  "Trip Sheet Saved": "bg-violet-100 text-violet-700",
+  "Trip Updated": "bg-amber-100 text-amber-700",
+  "Trip Closed": "bg-emerald-100 text-emerald-700",
+  "Verification Confirmed": "bg-emerald-100 text-emerald-700",
+  "Verification Rejected": "bg-red-100 text-red-700",
+  "Trip Deleted": "bg-red-100 text-red-700",
+  "Trip Restored": "bg-emerald-100 text-emerald-700",
+};
 import { useNotifications } from "@/context/NotificationContext";
 import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-colors";
 import { todayIst } from "@/lib/format-date";
@@ -346,6 +373,19 @@ export default function TripReconciliationPage() {
   const [downloading, setDownloading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [modalStatusFilter, setModalStatusFilter] = useState<"All" | "Sheet Entered" | "Pending Sheet Entry" | "Rejected">("All");
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TripEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    tripsApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   const fmt = (v: number) =>
     `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -668,6 +708,16 @@ export default function TripReconciliationPage() {
             View and manage booking sheets and trip sheets for closed trips
           </p>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="ml-auto flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
       {/* Toolbar: search + current trips on the left, trip-date range + View on the right */}
       <div className="flex flex-wrap items-center gap-3">
@@ -1375,6 +1425,74 @@ export default function TripReconciliationPage() {
           </div>
         );
       })()}
+
+      {/* Edit History — every Create/Edit/Sheet/Close/Verify/Delete/Restore
+          ever logged, across every trip (the same log shown on Trip
+          History), in one searchable log. Useful here specifically for
+          seeing whether an approved edit request actually got used to
+          change a booking/trip sheet, and what changed. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by trip ID, driver, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q ||
+              ev.tripIdStr.toLowerCase().includes(q) ||
+              (ev.driverName ?? "").toLowerCase().includes(q) ||
+              ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No trip edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Trip</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">
+                            {ev.tripIdStr}
+                            {ev.driverName && <span className="text-[11px] font-normal text-gray-400"> ({ev.driverName})</span>}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

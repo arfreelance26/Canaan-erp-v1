@@ -115,6 +115,44 @@ def list_payment_requests(
     return [_to_out(m) for m in msgs]
 
 
+@router.get("/edit-events", response_model=list[schemas.PaymentRequestEditEventListOut])
+def list_payment_request_edit_events(
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Every finance decision/mark-paid event ever logged, across every
+    payment request — the page-wide "Edit History" log on Payment Requests.
+    Derived directly from the underlying chat payment message's own
+    finance_decided_by_name/paid_by_name fields, no dedicated event table
+    needed. Registered before any {message_id}-shaped routes below so
+    "edit-events" isn't swallowed as a message_id path param."""
+    msgs = (
+        db.query(models.ChatMessage)
+        .filter(
+            models.ChatMessage.content_type == "payment",
+            models.ChatMessage.payment_status.in_(["approved", "rejected"]),
+            models.ChatMessage.deleted_at.is_(None),
+        )
+        .all()
+    )
+    events = []
+    for m in msgs:
+        amount, note = _parse_note(m)
+        if m.finance_decided_by_name and m.finance_decided_at:
+            events.append({
+                "id": f"{m.id}-decision", "description": note, "amount": amount,
+                "event": "Approved for Payment" if m.finance_status == "approved" else "Rejected by Accounts",
+                "actor_name": m.finance_decided_by_name, "created_at": m.finance_decided_at,
+            })
+        if m.paid_by_name and m.paid_at:
+            events.append({
+                "id": f"{m.id}-paid", "description": note, "amount": amount,
+                "event": "Marked as Paid", "actor_name": m.paid_by_name, "created_at": m.paid_at,
+            })
+    events.sort(key=lambda e: e["created_at"], reverse=True)
+    return events
+
+
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 

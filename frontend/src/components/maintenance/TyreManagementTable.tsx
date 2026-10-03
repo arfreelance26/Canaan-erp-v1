@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Truck } from "@/types/truck";
@@ -15,6 +16,8 @@ const columns = ["Truck Photo", "Truck Registration", "Upcoming Maintenance"];
 
 
 export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onViewTruckHistory }: TyreManagementTableProps) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -63,13 +66,15 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
                     >
                       View Tyre Data
                     </button>
-                    <button
+                    {isAdmin && (
+<button
                       type="button"
                       onClick={() => onViewTruckHistory(truck)}
                       className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
                     >
                       View Truck History
                     </button>
+)}
                   </div>
                 </td>
               </tr>

@@ -14,6 +14,19 @@ def list_repair_types(db: Session = Depends(get_db)):
     return db.query(models.RepairType).order_by(models.RepairType.name).all()
 
 
+@router.get("/edit-events", response_model=list[schemas.RepairTypeEditEventListOut])
+def list_all_repair_type_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete event ever logged, across every repair type
+    — the page-wide "Edit History" log on Repairs Management. Most recent
+    first. Registered before GET /{repair_type_id} so "edit-events" isn't
+    swallowed as a repair_type_id path param."""
+    return (
+        db.query(models.RepairTypeEditEvent)
+        .order_by(models.RepairTypeEditEvent.created_at.desc(), models.RepairTypeEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.post("", response_model=schemas.RepairTypeOut, status_code=201)
 def create_repair_type(payload: schemas.RepairTypeCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     if current_user.role not in _REPAIRS_ROLES:
@@ -24,6 +37,11 @@ def create_repair_type(payload: schemas.RepairTypeCreate, db: Session = Depends(
     db.add(record)
     db.commit()
     db.refresh(record)
+    db.add(models.RepairTypeEditEvent(
+        repair_type_id=record.id, name=record.name, event="Repair Type Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     return record
 
 
@@ -43,6 +61,10 @@ def update_repair_type(repair_type_id: int, payload: schemas.RepairTypeUpdate, d
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(record, field, value)
     record.version = (record.version or 1) + 1
+    db.add(models.RepairTypeEditEvent(
+        repair_type_id=record.id, name=record.name, event="Repair Type Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(record)
     return record
@@ -55,5 +77,9 @@ def delete_repair_type(repair_type_id: int, db: Session = Depends(get_db), curre
     record = db.get(models.RepairType, repair_type_id)
     if not record:
         raise HTTPException(404, "Repair type not found")
+    db.add(models.RepairTypeEditEvent(
+        repair_type_id=record.id, name=record.name, event="Repair Type Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.delete(record)
     db.commit()

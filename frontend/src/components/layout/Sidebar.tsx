@@ -33,6 +33,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/report",
     "/admin/repairs",
     "/admin/default-batta",
+    "/personal/edit-delete-requests",
   ],
   // Assistant Commercial Manager has EQUAL access to Commercial Manager.
   "Assistant Commercial Manager": [
@@ -54,6 +55,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/report",
     "/admin/repairs",
     "/admin/default-batta",
+    "/personal/edit-delete-requests",
   ],
   Accounts: [
     "/",
@@ -69,6 +71,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
     "/attendance/payment-requests",
     "/admin/sac-codes",
+    "/personal/edit-delete-requests",
   ],
   Maintenance: [
     "/",
@@ -83,6 +86,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/admin/maintenance",
     "/attendance/mark",
     "/attendance/leave-requests",
+    "/personal/edit-delete-requests",
   ],
   "Yard Supervisor": [
     "/connect/chat",
@@ -90,6 +94,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/mark",
     "/attendance/leave-requests",
     "/admin/repairs",
+    "/personal/edit-delete-requests",
   ],
   "Trip Sheet Register": [
     "/connect/chat",
@@ -99,12 +104,14 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/mark",
     "/attendance/leave-requests",
     "/admin/repairs",
+    "/personal/edit-delete-requests",
   ],
   // Auditor gets a bare dashboard + chat + their own Driver Record.
   Auditor: [
     "/",
     "/connect/chat",
     "/resources/driver-record",
+    "/personal/edit-delete-requests",
   ],
 };
 

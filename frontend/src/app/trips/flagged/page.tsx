@@ -162,7 +162,8 @@ export default function FlaggedTripsPage() {
             <p className="mt-0.5 text-sm text-gray-500">Trips flagged for review</p>
           </div>
         </div>
-        <button
+        {isAdmin && (
+<button
           type="button"
           onClick={openHistory}
           className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
@@ -170,6 +171,7 @@ export default function FlaggedTripsPage() {
           <HistoryIcon className="h-4 w-4" />
           History
         </button>
+)}
       </div>
 
       <PillSearch placeholder="Search by trip ID, driver, or reason…" value={searchQuery} onChange={setSearchQuery} />

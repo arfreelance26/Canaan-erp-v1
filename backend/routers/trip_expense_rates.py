@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
-from security import require_roles
+from security import require_roles, get_current_user, TokenUser
 
 router = APIRouter(prefix="/trip-expense-rates", tags=["Trip Expense Rates"])
 
@@ -29,8 +29,25 @@ def get_config(db: Session = Depends(get_db)):
     return _get_or_create(db)
 
 
+@router.get("/edit-events", response_model=list[schemas.TripExpenseRateEditEventListOut])
+def list_trip_expense_rate_edit_events(db: Session = Depends(get_db)):
+    """Every save of the Trip Expenses rate config ever logged — the
+    page-wide "Edit History" log on Trip Expenses. Most recent first.
+    Registered before no colliding path-param routes exist on this router,
+    but kept consistent with the rest of the codebase regardless."""
+    return (
+        db.query(models.TripExpenseRateEditEvent)
+        .order_by(models.TripExpenseRateEditEvent.created_at.desc(), models.TripExpenseRateEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.put("", response_model=schemas.TripExpenseRateOut, dependencies=[Depends(require_roles())])
-def save_config(payload: schemas.TripExpenseRateUpdate, db: Session = Depends(get_db)):
+def save_config(
+    payload: schemas.TripExpenseRateUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     # Admin only: editing rates is restricted to the "Trip Expenses" admin
     # page, which every other role (including Trip Sheet Register) is now
     # blocked from even opening on the frontend.
@@ -50,6 +67,9 @@ def save_config(payload: schemas.TripExpenseRateUpdate, db: Session = Depends(ge
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version", "name"}).items():
         setattr(row, field, value)
     row.version = (row.version or 1) + 1
+    db.add(models.TripExpenseRateEditEvent(
+        event="Trip Expense Rates Updated", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(row)
     return row

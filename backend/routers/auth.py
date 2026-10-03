@@ -131,6 +131,8 @@ def login(
         token = create_access_token(user_id=admin_staff.id, name=admin_staff.name, role="Admin", staff_id=admin_staff.staff_id, token_version=admin_staff.token_version or 0)
         record_audit("login.success", request=request, actor_id=admin_staff.id,
                      actor_name=admin_staff.name, actor_role="Admin", detail="built-in admin")
+        db.add(models.UsageSession(staff_id=admin_staff.id, staff_name=admin_staff.name, staff_role="Admin"))
+        db.commit()
         return LoginResponse(
             access_token=token,
             id=admin_staff.id,
@@ -218,6 +220,8 @@ def login(
     token = create_access_token(user_id=member.id, name=member.name, role=role, staff_id=member.staff_id, token_version=member.token_version or 0)
     record_audit("login.success", request=request, actor_id=member.id,
                  actor_name=member.name, actor_role=role)
+    db.add(models.UsageSession(staff_id=member.id, staff_name=member.name, staff_role=role))
+    db.commit()
     return LoginResponse(
         access_token=token,
         id=member.id,
@@ -321,7 +325,7 @@ def reset_lockout(payload: ResetLockoutRequest, request: Request, user: TokenUse
 
 
 @router.post("/logout", status_code=204)
-def logout(request: Request, user: TokenUser = Depends(get_current_user)):
+def logout(request: Request, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
     """Server-side logout: add this token's jti to the revocation denylist so a
     stolen-but-not-yet-expired token cannot be reused after the user logs out."""
     auth = request.headers.get("Authorization", "")
@@ -333,3 +337,14 @@ def logout(request: Request, user: TokenUser = Depends(get_current_user)):
     except Exception:  # noqa: BLE001 — logout is best-effort; already-invalid tokens are fine
         pass
     record_audit("logout", request=request, actor_id=user.id, actor_name=user.name, actor_role=user.role)
+    if user.id is not None:
+        session = (
+            db.query(models.UsageSession)
+            .filter(models.UsageSession.staff_id == user.id, models.UsageSession.logout_at.is_(None))
+            .order_by(models.UsageSession.id.desc())
+            .first()
+        )
+        if session:
+            session.logout_at = datetime.now(timezone.utc)
+            session.ended_reason = "logout"
+            db.commit()

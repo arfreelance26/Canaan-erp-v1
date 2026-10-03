@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useIdleTimer } from "@/hooks/useIdleTimer";
+import { useUsageHeartbeat } from "@/hooks/useUsageHeartbeat";
 import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // initialIdle=false — otherwise the hook reports "idle" on first render and
   // the effect below would log the user out immediately on every refresh.
   const isIdle = useIdleTimer(IDLE_TIMEOUT_MS, false);
+  useUsageHeartbeat(Boolean(user));
 
   useChatMessageToasts();
 

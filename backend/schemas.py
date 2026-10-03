@@ -93,6 +93,11 @@ class TruckUpdate(TruckBase):
     # approval, just a record of why. Ignored when branch isn't part of the
     # diff, enforced (400 if blank) when it is — see routers/trucks.py.
     branch_change_note: Optional[str] = None
+    # True only for the automatic odometer sync TripSheetDialog fires on every
+    # trip sheet save — skips the Truck Edit History log so it isn't flooded
+    # with a non-deliberate update on every trip completion. Never applied to
+    # the Truck record itself.
+    skip_edit_log: bool = False
 
 
 class TruckOut(TruckBase):
@@ -500,6 +505,10 @@ class TripBase(OrmBase):
     driver_change_remark: Optional[str] = None
     booking_instructions: Optional[str] = None
     invoice_required: bool = True
+    # Which dialog this update came from — only used to label the Trip Edit
+    # History event correctly (both TripFormDialog and TripSheetDialog save
+    # through this same endpoint); never applied to the Trip record itself.
+    edit_context: Optional[Literal["BookingSheet", "TripSheet"]] = None
 
 
     @model_validator(mode="after")
@@ -627,6 +636,606 @@ class TripRecheckEventListOut(BaseModel):
     actor_name: str
     actor_role: Optional[str] = None
     created_at: datetime
+
+
+TripEditEventType = Literal[
+    "Booking Created", "Booking Edited", "Trip Sheet Saved", "Trip Updated",
+    "Trip Closed", "Verification Confirmed", "Verification Rejected",
+    "Trip Deleted", "Trip Restored",
+]
+
+
+class TripEditEventOut(BaseModel):
+    id: int
+    event: TripEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TripEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Trip History page —
+    every Booking/Trip Sheet/Closure/Verification save ever logged, across
+    every trip, enriched with just enough trip context to be searchable
+    without opening each trip individually."""
+    id: int
+    trip_id: int
+    trip_id_str: str
+    driver_name: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    event: TripEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+DriverEditEventType = Literal["Driver Created", "Driver Edited", "Driver Deleted", "Driver Restored"]
+
+
+class DriverEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Our Drivers page —
+    every Create/Edit/Delete/Restore ever logged, across every driver,
+    enriched with just enough driver identity to be searchable."""
+    id: int
+    driver_id: int
+    driver_id_str: str
+    driver_name: str
+    event: DriverEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+StaffEditEventType = Literal["Staff Created", "Staff Edited", "Staff Deleted", "Staff Restored"]
+
+
+class StaffEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Our Staff page —
+    every Create/Edit/Delete/Restore ever logged, across every staff member,
+    enriched with just enough staff identity to be searchable."""
+    id: int
+    staff_id: int
+    staff_id_str: str
+    staff_name: str
+    event: StaffEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TruckEditEventType = Literal["Truck Created", "Truck Edited", "Truck Deleted", "Truck Restored"]
+
+
+class TruckEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Our Fleet page —
+    every Create/Edit/Delete/Restore ever logged, across every truck,
+    enriched with just enough truck identity to be searchable."""
+    id: int
+    truck_id: int
+    truck_id_str: str
+    registration_number: str
+    event: TruckEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+CustomerEditEventType = Literal["Customer Created", "Customer Edited", "Customer Deleted", "Customer Restored"]
+
+
+class CustomerEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Our Customers page —
+    every Create/Edit/Delete/Restore ever logged, across every customer,
+    enriched with just enough customer identity to be searchable."""
+    id: int
+    customer_id: int
+    customer_name: str
+    event: CustomerEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+VendorEditEventType = Literal["Vendor Created", "Vendor Edited", "Vendor Deleted", "Vendor Restored"]
+
+
+class VendorEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Our Vendors page —
+    every Create/Edit/Delete/Restore ever logged, across every vendor,
+    enriched with just enough vendor identity to be searchable."""
+    id: int
+    vendor_id: int
+    vendor_name: str
+    event: VendorEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+MaintenanceRecordEditEventType = Literal["Record Created", "Record Edited", "Record Deleted"]
+
+
+class MaintenanceRecordEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Truck Maintenance
+    page — every Create/Edit/Delete ever logged, across every maintenance
+    record, enriched with just enough truck/record identity to be
+    searchable. maintenance_type/record_date are a snapshot taken at log
+    time (a deleted record is hard-deleted, so there's nothing to join back
+    to for those rows)."""
+    id: int
+    truck_id: int
+    truck_id_str: str
+    registration_number: str
+    record_id: int
+    maintenance_type: str
+    record_date: Optional[date] = None
+    event: MaintenanceRecordEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TyreInventoryEditEventType = Literal["Tyre Created", "Tyre Edited", "Tyre Deleted", "Tyre Restored"]
+
+
+class TyreInventoryEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Tyre Inventory
+    page — every Create/Edit/Delete/Restore ever logged, across every tyre
+    stock record."""
+    id: int
+    tyre_id: int
+    tyre_number: str
+    brand: str
+    event: TyreInventoryEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TyreFitmentEventType = Literal["Tyre Fitted", "Tyre Removed"]
+
+
+class TyreFitmentEventOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Tyre Management
+    page — every fit/remove (including each half of a position swap) ever
+    logged, derived directly from TyreFitmentRecord (fitted_by_name/
+    removed_by_name were already captured there; this just surfaces them as
+    one unified, searchable, page-wide log instead of per-truck only)."""
+    id: str
+    truck_id: int
+    truck_id_str: str
+    registration_number: str
+    tyre_id: int
+    tyre_number: str
+    position: str
+    event: TyreFitmentEventType
+    actor_name: str
+    event_date: Optional[date] = None
+    remark: Optional[str] = None
+
+
+FuelLogEditEventType = Literal["Log Created", "Log Edited", "Log Deleted"]
+
+
+class FuelLogEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Fuel History page."""
+    id: int
+    truck_id: int
+    truck_id_str: str
+    registration_number: str
+    log_id: int
+    log_date: Optional[date] = None
+    litres: Optional[Decimal] = None
+    event: FuelLogEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+AdBlueEditEventType = Literal[
+    "Log Created", "Log Edited", "Log Deleted",
+    "Manufacturer Created", "Manufacturer Edited", "Manufacturer Deleted",
+]
+
+
+class AdBlueEditEventOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the AdBlue page —
+    merges AdBlue Log and AdBlue Manufacturer edit events (both editable
+    from this same page) into one chronological, searchable list."""
+    id: str
+    category: Literal["Log", "Manufacturer"]
+    label: str
+    event: AdBlueEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+EmiRecordEditEventType = Literal["EMI Created", "EMI Edited", "EMI Deleted"]
+
+
+class EmiRecordEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the EMI Tracking page."""
+    id: int
+    emi_id: int
+    emi_name: str
+    truck_registration: Optional[str] = None
+    event: EmiRecordEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+CompensationEditEventType = Literal["Transaction Added", "Transaction Deleted"]
+
+
+class CompensationEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Driver/Staff
+    Compensation pages — filtered server-side by person_type."""
+    id: int
+    person_type: Literal["driver", "staff"]
+    person_id: int
+    person_name: Optional[str] = None
+    tx_type: Literal["Advance", "Salary"]
+    amount: Decimal
+    tx_date: Optional[date] = None
+    event: CompensationEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+class ComplianceEditEventOut(BaseModel):
+    """One row in the page-wide "Edit History" log on the Compliance &
+    Renewals page, derived directly from ComplianceUpdateHistory (already
+    populated by Truck create/update — this just surfaces it as one
+    searchable log instead of per-truck only)."""
+    id: int
+    truck_id: int
+    truck_id_str: str
+    registration_number: str
+    document_type: str
+    actor_name: str
+    created_at: datetime
+
+
+BranchEditEventType = Literal["Branch Created", "Branch Edited", "Branch Deleted"]
+
+
+class BranchEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Branch Management."""
+    id: int
+    branch_id: int
+    name: str
+    event: BranchEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+RepairTypeEditEventType = Literal["Repair Type Created", "Repair Type Edited", "Repair Type Deleted"]
+
+
+class RepairTypeEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Repairs Management."""
+    id: int
+    repair_type_id: int
+    name: str
+    event: RepairTypeEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+MaintenanceTypeEditEventType = Literal["Type Created", "Type Edited", "Type Deleted"]
+
+
+class MaintenanceTypeEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Maintenance Alert
+    Management."""
+    id: int
+    type_id: int
+    name: str
+    event: MaintenanceTypeEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+MaintenanceCategoryEditEventType = Literal[
+    "Category Created", "Category Edited", "Category Deleted",
+    "Repair Created", "Repair Edited", "Repair Deleted",
+]
+
+
+class MaintenanceCategoryEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Maintenance
+    Management — merges category-level and nested-repair-level events."""
+    id: int
+    category_id: int
+    category_name: str
+    repair_id: Optional[int] = None
+    repair_name: Optional[str] = None
+    event: MaintenanceCategoryEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+SacCodeEditEventType = Literal["SAC Code Created", "SAC Code Edited", "SAC Code Deleted"]
+
+
+class SacCodeEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on SAC Code Management."""
+    id: int
+    sac_code_id: int
+    code: str
+    description: str
+    event: SacCodeEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TripExpenseRateEditEventType = Literal["Trip Expense Rates Updated"]
+
+
+class TripExpenseRateEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Trip Expenses."""
+    id: int
+    event: TripExpenseRateEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+DefaultBattaEditEventType = Literal["Default Batta Rate Updated"]
+
+
+class DefaultBattaEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Default Batta Management."""
+    id: int
+    branch_id: int
+    branch_name: str
+    trip_type: str
+    cargo_type: str
+    amount: Optional[Decimal] = None
+    event: DefaultBattaEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TyreRangeConfigEditEventType = Literal["Tyre Range Config Saved", "Tyre Type Deleted"]
+
+
+class TyreRangeConfigEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Tyre Range Configuration."""
+    id: int
+    tyre_type: Optional[str] = None
+    event: TyreRangeConfigEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TruckRunConfigEditEventType = Literal["Run Configuration Saved"]
+
+
+class TruckRunConfigEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Truck Run Configuration."""
+    id: int
+    event: TruckRunConfigEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+TyreLayoutTypeConfigEditEventType = Literal["Tyre Quantity Configuration Updated"]
+
+
+class TyreLayoutTypeConfigEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Tyre Cost Configuration."""
+    id: int
+    event: TyreLayoutTypeConfigEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+DriverAttendanceEditEventType = Literal[
+    "Attendance Marked", "Attendance Updated",
+    "Remark Added", "Remark Edited", "Remark Deleted",
+]
+
+
+class DriverAttendanceEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Driver Attendance."""
+    id: int
+    driver_id: str
+    driver_name: str
+    date: date
+    event: DriverAttendanceEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+StaffAttendanceEditEventType = Literal["Attendance Marked", "Attendance Updated"]
+
+
+class StaffAttendanceEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Staff Attendance —
+    Admin-override marks/edits only (see StaffAttendanceEditEvent)."""
+    id: int
+    staff_id: int
+    staff_name: str
+    date: date
+    event: StaffAttendanceEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+HolidayEditEventType = Literal["Holiday Created", "Holiday Updated", "Holiday Deleted"]
+
+
+class HolidayEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Staff Holidays."""
+    id: int
+    holiday_date: date
+    name: str
+    event: HolidayEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+DriverAssignmentEditEventType = Literal["Driver Assigned", "Assignment Removed"]
+
+
+class DriverAssignmentEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Assign Drivers."""
+    id: int
+    driver_id: str
+    driver_name: str
+    vehicle_id: Optional[str] = None
+    event: DriverAssignmentEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+LeaveRequestEditEventType = Literal["Leave Requested", "Leave Approved", "Leave Rejected"]
+
+
+class LeaveRequestEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Leave Approvals —
+    derived directly from LeaveRequest itself (status/decided_by_name/
+    decided_at already live on the row), no dedicated event table needed."""
+    id: int
+    applicant_name: str
+    category: str
+    event: LeaveRequestEditEventType
+    actor_name: str
+    created_at: datetime
+
+
+PaymentRequestEditEventType = Literal["Approved for Payment", "Rejected by Accounts", "Marked as Paid"]
+
+
+class PaymentRequestEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Payment Requests —
+    derived directly from the underlying chat payment message's own
+    finance_decided_by_name/paid_by_name fields, no dedicated event table
+    needed."""
+    id: str
+    description: str
+    amount: str
+    event: PaymentRequestEditEventType
+    actor_name: str
+    created_at: datetime
+
+
+EditApprovalEditEventType = Literal["Edit Request Approved", "Edit Request Rejected"]
+
+
+class EditApprovalEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Edit Approvals —
+    derived directly from EditApprovalRequest itself (status/approved_by_name/
+    approved_at already live on the row), no dedicated event table needed."""
+    id: int
+    staff_name: str
+    resource_type: str
+    resource_name: str
+    event: EditApprovalEditEventType
+    actor_name: str
+    created_at: datetime
+
+
+DeletionApprovalEditEventType = Literal["Deletion Approved", "Deletion Rejected"]
+
+
+class DeletionApprovalEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Deletion Approvals —
+    derived directly from DeletionApprovalRequest itself (status/
+    approved_by_name/approved_at already live on the row), no dedicated event
+    table needed."""
+    id: int
+    requested_by_name: str
+    resource_type: str
+    resource_name: str
+    event: DeletionApprovalEditEventType
+    actor_name: str
+    created_at: datetime
+
+
+class UsageHeartbeatIn(BaseModel):
+    """Posted every ~5 minutes (and on tab-hide/unload/path-change) by
+    useUsageHeartbeat.ts. `module` is the sidebar section title the user is
+    currently under (see lib/usage-modules.ts), not a raw path."""
+    module: str
+    active_seconds: int
+    idle_seconds: int
+
+
+class ModuleUsageOut(BaseModel):
+    module: str
+    active_seconds: int
+    idle_seconds: int
+    visit_count: int
+
+
+class UsageSessionOut(BaseModel):
+    id: int
+    login_at: datetime
+    logout_at: Optional[datetime] = None
+    ended_reason: Optional[str] = None
+    total_active_seconds: int
+    total_idle_seconds: int
+
+
+class ActionLogRowOut(BaseModel):
+    """One row from the dynamic, auto-discovered union across every
+    `*EditEvent`-shaped table (see routers/usage_analytics.py) — the same
+    "who did what, when" data already shown on each entity's own Edit
+    History, just aggregated here per employee for a usage summary."""
+    source: str
+    event: str
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+class UsageOverviewRowOut(BaseModel):
+    """One row per employee on the SW Usage Analytics overview table."""
+    staff_id: int
+    staff_name: str
+    staff_role: Optional[str] = None
+    is_online: bool
+    last_seen_at: Optional[datetime] = None
+    total_active_seconds: int
+    total_idle_seconds: int
+    total_login_seconds: int
+    action_count: int
+
+
+class UsageDetailOut(BaseModel):
+    """One employee's full breakdown for the selected date range."""
+    staff_id: int
+    staff_name: str
+    staff_role: Optional[str] = None
+    total_active_seconds: int
+    total_idle_seconds: int
+    total_login_seconds: int
+    action_count: int
+    modules: list[ModuleUsageOut]
+    sessions: list[UsageSessionOut]
+    recent_actions: list[ActionLogRowOut]
 
 
 class AuditVerifiedTripOut(BaseModel):
@@ -1191,6 +1800,23 @@ class AirFilterRecordOut(OrmBase):
     entered_by_name: Optional[str] = None
     version: int = 1
     created_at: Optional[datetime] = None
+
+
+AirFilterRecordEditEventType = Literal["Air Filter Log Added"]
+
+
+class AirFilterRecordEditEventListOut(BaseModel):
+    """One row in the page-wide "Edit History" log on Air Filter R&R —
+    derived directly from AirFilterRecord itself (every row already carries
+    entered_by_name/created_at), no dedicated event table needed, same
+    technique as Tyre Management's fitment-derived log."""
+    id: int
+    truck_id: int
+    registration_number: str
+    date: date
+    odometer_during_change: int
+    actor_name: str
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------

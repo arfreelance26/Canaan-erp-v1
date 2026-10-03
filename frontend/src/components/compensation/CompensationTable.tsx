@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusBadge } from "@/components/compensation/StatusBadge";
 import type { PersonStatus } from "@/types/compensation";
@@ -33,6 +34,8 @@ export function CompensationTable({
   nameLabel,
   idLabel,
 }: CompensationTableProps) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   if (people.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -96,13 +99,15 @@ export function CompensationTable({
                   >
                     Salary Record
                   </button>
-                  <button
+                  {isAdmin && (
+<button
                     type="button"
                     onClick={() => onViewHistory(person)}
                     className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50"
                   >
                     Transaction History
                   </button>
+)}
                 </div>
               </td>
             </tr>

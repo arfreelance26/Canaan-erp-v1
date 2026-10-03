@@ -1,15 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deletionApprovalsApi, type DeletionApprovalRequest } from "@/lib/api";
+import { deletionApprovalsApi, type DeletionApprovalRequest, type DeletionApprovalEditEventRow } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake, Boxes } from "lucide-react";
-import { formatDate } from "@/lib/format-date";
+import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake, Boxes, History } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/format-date";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { cn } from "@/lib/utils";
+
+const EDIT_EVENT_ICON: Record<DeletionApprovalEditEventRow["event"], typeof CheckCircle> = {
+  "Deletion Approved": CheckCircle,
+  "Deletion Rejected": XCircle,
+};
+
+const EDIT_EVENT_COLOR: Record<DeletionApprovalEditEventRow["event"], string> = {
+  "Deletion Approved": "bg-emerald-100 text-emerald-700",
+  "Deletion Rejected": "bg-red-100 text-red-700",
+};
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -230,6 +243,19 @@ export default function DeletionApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<DeletionApprovalEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    deletionApprovalsApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   function load() {
     setLoading(true);
@@ -287,22 +313,35 @@ export default function DeletionApprovalsPage() {
           </div>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setFilter(t)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                filter === t
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tabLabel[t]}
-            </button>
-          ))}
+        <div className="flex shrink-0 items-center gap-3">
+          {isAdmin && (
+<button
+            type="button"
+            onClick={openEditHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <History className="h-4 w-4" />
+            Edit History
+          </button>
+)}
+
+          {/* Filter tabs */}
+          <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 p-1">
+            {tabs.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFilter(t)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  filter === t
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tabLabel[t]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -343,6 +382,69 @@ export default function DeletionApprovalsPage() {
           ))}
         </div>
       )}
+
+      {/* Edit History — every Approved/Rejected decision ever logged, across
+          every deletion approval request, in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by requester, resource, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q ||
+              ev.requestedByName.toLowerCase().includes(q) ||
+              ev.resourceName.toLowerCase().includes(q) ||
+              ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No decisions have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Requested By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Resource</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.requestedByName}</td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.resourceName} <span className="text-[11px] text-gray-400">({ev.resourceType})</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

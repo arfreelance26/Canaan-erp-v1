@@ -49,6 +49,7 @@ import {
   Activity,
   Flag,
   BadgeCheck,
+  Monitor,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +68,14 @@ export const sidebarSections: NavSection[] = [
   {
     title: "Overview",
     items: [{ label: "Dashboard", href: "/", icon: LayoutDashboard }],
+  },
+  {
+    title: "Personal",
+    items: [
+      { label: "Mark Attendance", href: "/attendance/mark", icon: UserCheck },
+      { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
+      { label: "Edit & Delete Requests", href: "/personal/edit-delete-requests", icon: FileCheck },
+    ],
   },
   {
     title: "Connect",
@@ -90,11 +99,9 @@ export const sidebarSections: NavSection[] = [
   {
     title: "Attendance & Approvals",
     items: [
-      { label: "Mark Attendance", href: "/attendance/mark", icon: UserCheck },
       { label: "Driver Attendance", href: "/attendance/drivers", icon: ClipboardCheck },
       { label: "Staff Attendance", href: "/attendance/staff", icon: ClipboardList },
       { label: "Staff Holidays", href: "/attendance/holidays", icon: CalendarOff },
-      { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
       { label: "Payment Requests", href: "/attendance/payment-requests", icon: IndianRupee },
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
       { label: "Edit Approvals", href: "/attendance/edit-approvals", icon: ShieldAlert },
@@ -124,11 +131,16 @@ export const sidebarSections: NavSection[] = [
     items: [
       { label: "Our Staff", href: "/resources/staff", icon: Users },
       { label: "Our Drivers", href: "/resources/drivers", icon: IdCard },
-      { label: "Driver Record", href: "/resources/driver-record", icon: IdCard },
       { label: "Our Fleet", href: "/resources/fleet", icon: Truck },
       { label: "Our Customers", href: "/resources/customers", icon: Building2 },
       { label: "Our Vendors", href: "/resources/vendors", icon: Handshake },
       { label: "Archive", href: "/resources/archive", icon: Archive },
+    ],
+  },
+  {
+    title: "Auditor Pages",
+    items: [
+      { label: "Driver Record", href: "/resources/driver-record", icon: IdCard },
     ],
   },
   {
@@ -172,6 +184,7 @@ export const sidebarSections: NavSection[] = [
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
       { label: "Default Batta Management", href: "/admin/default-batta", icon: Coins },
       { label: "Security Log", href: "/admin/security", icon: Lock },
+      { label: "SW Usage Analytics", href: "/admin/usage-analytics", icon: Monitor },
     ],
   },
 ];

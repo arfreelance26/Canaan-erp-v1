@@ -1,9 +1,10 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
-import { ShieldAlert, ShieldCheck, ShieldX, Clock, User } from "lucide-react";
+import { ShieldAlert, ShieldCheck, ShieldX, Clock, User, History, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { editApprovalsApi } from "@/lib/api";
+import { editApprovalsApi, type EditApprovalEditEventRow } from "@/lib/api";
 import type { EditApprovalRequest } from "@/types/edit-approval";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -14,6 +15,17 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { showSuccess, showError, confirmDelete, confirmAction } from "@/lib/swal";
 import { Trash2 } from "lucide-react";
+import { formatDateTime } from "@/lib/format-date";
+
+const EDIT_EVENT_ICON: Record<EditApprovalEditEventRow["event"], typeof Check> = {
+  "Edit Request Approved": Check,
+  "Edit Request Rejected": X,
+};
+
+const EDIT_EVENT_COLOR: Record<EditApprovalEditEventRow["event"], string> = {
+  "Edit Request Approved": "bg-emerald-100 text-emerald-700",
+  "Edit Request Rejected": "bg-red-100 text-red-700",
+};
 
 type FilterValue = "Pending" | "Approved" | "Completed" | "Rejected";
 
@@ -50,6 +62,8 @@ function formatDate(raw: string | null): string {
 }
 
 export default function EditApprovalsPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [requests, setRequests] = useState<EditApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterValue>("Pending");
@@ -62,6 +76,19 @@ export default function EditApprovalsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteApproveReq, setDeleteApproveReq] = useState<EditApprovalRequest | null>(null);
   const [deleteApproveNote, setDeleteApproveNote] = useState("");
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<EditApprovalEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    editApprovalsApi.listEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   async function loadData() {
     try {
@@ -208,6 +235,16 @@ export default function EditApprovalsPage() {
             </p>
           </div>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
 
       {/* Summary cards */}
@@ -608,6 +645,69 @@ export default function EditApprovalsPage() {
             </div>
           </div>
         )}
+      </Dialog>
+
+      {/* Edit History — every Approved/Rejected decision ever logged, across
+          every edit approval request, in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by staff, resource, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q ||
+              ev.staffName.toLowerCase().includes(q) ||
+              ev.resourceName.toLowerCase().includes(q) ||
+              ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No decisions have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Staff</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Resource</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.staffName}</td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.resourceName} <span className="text-[11px] text-gray-400">({ev.resourceType})</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
       </Dialog>
     </div>
   );

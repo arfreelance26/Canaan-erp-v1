@@ -426,7 +426,7 @@ def create_trip(
     if db.query(models.Trip).filter(models.Trip.booking_reference_no == payload.booking_reference_no).first():
         raise HTTPException(400, f"Booking reference {payload.booking_reference_no} already exists")
     _check_driver_truck_conflict(db, payload.driver_id, payload.vehicle_id)
-    trip = models.Trip(**payload.model_dump())
+    trip = models.Trip(**payload.model_dump(exclude={"edit_context"}))
     db.add(trip)
     db.commit()
     db.refresh(trip)
@@ -448,6 +448,10 @@ def create_trip(
         target_roles=_ALL_ROLES,
         created_by=current_user.name,
         created_by_role=current_user.role,
+    ))
+    db.add(models.TripEditEvent(
+        trip_id=trip.id, event="Booking Created",
+        actor_name=current_user.name, actor_role=current_user.role,
     ))
     db.commit()
     return _enrich(trip)
@@ -692,6 +696,42 @@ def list_all_recheck_events(db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/edit-events", response_model=list[schemas.TripEditEventListOut])
+def list_all_edit_events(db: Session = Depends(get_db)):
+    """Every Booking/Trip Sheet/Closure/Verification save ever logged, across
+    every trip — the page-wide "Edit History" log on the Trip History page,
+    so who-changed-what is searchable in one place instead of opening each
+    trip individually. Most recent first. Registered before GET /{trip_id}
+    so "edit-events" isn't swallowed as a trip_id path param.
+    """
+    events = (
+        db.query(models.TripEditEvent)
+        .order_by(models.TripEditEvent.created_at.desc(), models.TripEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    trip_ids = {e.trip_id for e in events}
+    trips_by_id = {t.id: t for t in db.query(models.Trip).filter(models.Trip.id.in_(trip_ids)).all()}
+
+    result = []
+    for e in events:
+        trip = trips_by_id.get(e.trip_id)
+        result.append({
+            "id": e.id,
+            "trip_id": e.trip_id,
+            "trip_id_str": trip.trip_id if trip else "—",
+            "driver_name": trip.driver_name if trip else None,
+            "origin": trip.origin if trip else None,
+            "destination": trip.destination if trip else None,
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/audit-verified", response_model=list[schemas.AuditVerifiedTripOut])
 def list_audit_verified_trips(db: Session = Depends(get_db)):
     """The counterpart to Flagged Trips: every trip whose most recent Auditor
@@ -887,13 +927,19 @@ def _sync_sheet_from_trip(trip: "models.Trip", changed_keys: set) -> None:
 
 
 @router.put("/{trip_id}", response_model=schemas.TripOut)
-def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(get_db)):
+def update_trip(
+    trip_id: int,
+    payload: schemas.TripBase,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
     if not trip:
         raise HTTPException(404, "Trip not found")
     update_data = payload.model_dump(exclude_unset=True)
+    edit_context = update_data.pop("edit_context", None)
     effective_driver = update_data.get("driver_id", trip.driver_id)
     effective_vehicle = update_data.get("vehicle_id", trip.vehicle_id)
     # Only check conflict when driver or vehicle is actually changing
@@ -911,6 +957,15 @@ def update_trip(trip_id: int, payload: schemas.TripBase, db: Session = Depends(g
     # Keep the trip sheet's mirrored copies in sync with the booking (see
     # TRIP_TO_SHEET_MIRROR). Prevents the hire-drift class of bug for ANY mirrored field.
     _sync_sheet_from_trip(trip, set(update_data.keys()))
+    event_label = (
+        "Booking Edited" if edit_context == "BookingSheet"
+        else "Trip Sheet Saved" if edit_context == "TripSheet"
+        else "Trip Updated"
+    )
+    db.add(models.TripEditEvent(
+        trip_id=trip.id, event=event_label,
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(trip)
     _remember_customer_origin(db, trip.customer_id, trip.origin)
@@ -981,12 +1036,16 @@ def delete_trip(
             approved_by_name=current_user.name,
             approved_at=now,
         ))
+    db.add(models.TripEditEvent(
+        trip_id=trip_id, event="Trip Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("trip_deleted", {"trip_db_id": trip_id, "trip_id_str": trip_id_str})
 
 
 @router.post("/{trip_id}/restore", response_model=schemas.TripOut, dependencies=[Depends(require_roles())])
-def restore_trip(trip_id: int, db: Session = Depends(get_db)):
+def restore_trip(trip_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     """Admin only: undo a soft-delete — the trip reappears in Trip History (and
     everywhere else) exactly as it was, with its closure/sheet/invoice untouched."""
     trip = db.get(models.Trip, trip_id)
@@ -995,6 +1054,10 @@ def restore_trip(trip_id: int, db: Session = Depends(get_db)):
     if trip.deleted_at is None:
         raise HTTPException(409, "Trip is not deleted")
     trip.deleted_at = None
+    db.add(models.TripEditEvent(
+        trip_id=trip.id, event="Trip Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(trip)
     emit("trip_updated", {"trip_id": trip.trip_id, "id": trip.id})
@@ -1048,6 +1111,10 @@ def close_trip(
             setattr(closure, field, value)
         closure.version = (closure.version or 1) + 1
         _mark_edit_approval_used(db, ["BookingSheet"], trip_id, current_user.id)
+        db.add(models.TripEditEvent(
+            trip_id=trip_id, event="Trip Closed",
+            actor_name=current_user.name, actor_role=current_user.role,
+        ))
         db.commit()
         db.refresh(closure)
         return closure
@@ -1057,6 +1124,10 @@ def close_trip(
     closure = models.TripClosure(trip_id=trip_id, **data)
     db.add(closure)
     _mark_edit_approval_used(db, ["BookingSheet"], trip_id, current_user.id)
+    db.add(models.TripEditEvent(
+        trip_id=trip_id, event="Trip Closed",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(closure)
     emit("trip_closed", {
@@ -1128,6 +1199,10 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     # sheet itself) or a "TripData" approval (editing the auto-fetched trip
     # fields mirrored into this same form) — mark whichever is active as used.
     _mark_edit_approval_used(db, ["TripSheet", "TripData"], trip_id, current_user.id)
+    db.add(models.TripEditEvent(
+        trip_id=trip_id, event="Trip Sheet Saved",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
 
     db.commit()
     db.refresh(sheet)
@@ -1314,7 +1389,11 @@ def save_lr_data(trip_id: int, payload: schemas.LRDataSave, db: Session = Depend
 # ---------------------------------------------------------------------------
 
 @router.post("/{trip_id}/verify", response_model=schemas.TripOut)
-def verify_trip(trip_id: int, db: Session = Depends(get_db)):
+def verify_trip(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
@@ -1335,6 +1414,10 @@ def verify_trip(trip_id: int, db: Session = Depends(get_db)):
         trip.invoice_waived = True
     if trip.is_invoiced or trip.invoice_waived:
         _revert_temp_branch_if_needed(db, trip)
+    db.add(models.TripEditEvent(
+        trip_id=trip_id, event="Verification Confirmed",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(trip)
     return _enrich(trip)
@@ -1364,7 +1447,12 @@ class RejectVerificationBody(BaseModel):
 
 
 @router.post("/{trip_id}/reject-verification", response_model=schemas.TripOut)
-def reject_verification(trip_id: int, body: RejectVerificationBody, db: Session = Depends(get_db)):
+def reject_verification(
+    trip_id: int,
+    body: RejectVerificationBody,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Accounts rejects a trip sheet — sends it back to Docs with a reason."""
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
@@ -1375,6 +1463,10 @@ def reject_verification(trip_id: int, body: RejectVerificationBody, db: Session 
         raise HTTPException(400, "Trip sheet must exist before rejecting")
     trip.verification_status = "rejected"
     trip.verification_rejection_reason = body.reason
+    db.add(models.TripEditEvent(
+        trip_id=trip_id, event="Verification Rejected",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

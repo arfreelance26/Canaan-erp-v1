@@ -1,3 +1,4 @@
+import { useAuth } from "@/context/AuthContext";
 import type { Truck } from "@/types/truck";
 import { cn } from "@/lib/utils";
 import { Fuel, History } from "lucide-react";
@@ -17,6 +18,8 @@ const columns = [
 ];
 
 export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: FuelHistoryTableProps) {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -50,7 +53,8 @@ export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: Fuel
                 <td className="px-4 py-3 text-gray-600">{truck.modelName}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <button
+                    {isAdmin && (
+<button
                       type="button"
                       onClick={() => onViewHistory?.(truck)}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors whitespace-nowrap"
@@ -58,6 +62,7 @@ export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: Fuel
                       <History className="h-3.5 w-3.5" />
                       View Fuel History
                     </button>
+)}
                     <button
                       type="button"
                       onClick={() => onEnterFuelLog?.(truck)}

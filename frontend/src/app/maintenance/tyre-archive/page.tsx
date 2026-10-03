@@ -1,13 +1,31 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
-import { Archive as ArchiveIcon, RotateCcw, Trash2, User, ShieldCheck } from "lucide-react";
-import { deletionApprovalsApi, tyreApi, type DeletionApprovalRequest } from "@/lib/api";
+import { Archive as ArchiveIcon, RotateCcw, Trash2, User, ShieldCheck, History, Plus, Pencil } from "lucide-react";
+import { deletionApprovalsApi, tyreApi, type DeletionApprovalRequest, type TyreInventoryEditEventRow } from "@/lib/api";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { Dialog } from "@/components/ui/Dialog";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
+
+const EDIT_EVENT_ICON: Record<TyreInventoryEditEventRow["event"], typeof Plus> = {
+  "Tyre Created": Plus,
+  "Tyre Edited": Pencil,
+  "Tyre Deleted": Trash2,
+  "Tyre Restored": RotateCcw,
+};
+
+const EDIT_EVENT_COLOR: Record<TyreInventoryEditEventRow["event"], string> = {
+  "Tyre Created": "bg-blue-100 text-blue-700",
+  "Tyre Edited": "bg-amber-100 text-amber-700",
+  "Tyre Deleted": "bg-red-100 text-red-700",
+  "Tyre Restored": "bg-emerald-100 text-emerald-700",
+};
 
 type ArchiveRow = DeletionApprovalRequest;
 
@@ -30,12 +48,27 @@ function formatDate(raw: string | null): string {
 // single kind, and accessible to Admin + Maintenance (see Sidebar.tsx
 // ROLE_HREFS) rather than Admin only.
 export default function TyreArchivePage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [rows, setRows] = useState<ArchiveRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewing, setViewing] = useState<ArchiveRow | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<TyreInventoryEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    tyreApi.listInventoryEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   async function loadData() {
     try {
@@ -115,16 +148,28 @@ export default function TyreArchivePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
-          <ArchiveIcon className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Tyre Archive</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            Tyres removed from Tyre Inventory — restore them or permanently delete
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+            <ArchiveIcon className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Tyre Archive</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Tyres removed from Tyre Inventory — restore them or permanently delete
+            </p>
+          </div>
         </div>
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -267,6 +312,71 @@ export default function TyreArchivePage() {
           </div>
         </div>
       )}
+
+      {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
+          every tyre stock record (the same log shown on Tyre Inventory), in
+          one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-2xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by tyre number, brand, or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q ||
+              ev.tyreNumber.toLowerCase().includes(q) ||
+              ev.brand.toLowerCase().includes(q) ||
+              ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No tyre edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Tyre</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">
+                            {ev.tyreNumber} <span className="text-[11px] font-normal text-gray-400">({ev.brand})</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

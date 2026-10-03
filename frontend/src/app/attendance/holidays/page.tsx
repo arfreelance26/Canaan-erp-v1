@@ -1,13 +1,30 @@
 "use client";
 
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarOff, Plus, Trash2, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Loader2 } from "lucide-react";
-import { attendanceApi } from "@/lib/api";
+import { CalendarOff, Plus, Trash2, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Loader2, History, Pencil } from "lucide-react";
+import { attendanceApi, type HolidayEditEventRow } from "@/lib/api";
 import type { Holiday } from "@/types/attendance";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showSuccess, showError, confirmDelete } from "@/lib/swal";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { Dialog } from "@/components/ui/Dialog";
+import { PillSearch } from "@/components/ui/PillSearch";
+import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format-date";
+
+const EDIT_EVENT_ICON: Record<HolidayEditEventRow["event"], typeof Plus> = {
+  "Holiday Created": Plus,
+  "Holiday Updated": Pencil,
+  "Holiday Deleted": Trash2,
+};
+
+const EDIT_EVENT_COLOR: Record<HolidayEditEventRow["event"], string> = {
+  "Holiday Created": "bg-blue-100 text-blue-700",
+  "Holiday Updated": "bg-amber-100 text-amber-700",
+  "Holiday Deleted": "bg-red-100 text-red-700",
+};
 
 // Pill-shaped form field, same height as the buttons beside it.
 const FIELD =
@@ -16,6 +33,8 @@ const FIELD =
 // Sundays are automatic weekly holidays and are NOT stored — this screen manages
 // government/company holidays only, which drive the staff attendance calculation.
 export default function HolidaysPage() {
+  const { user: authUser } = useAuth();
+  const isAdmin = authUser?.softwareDesignation === "Admin";
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +43,19 @@ export default function HolidaysPage() {
   const [newDate, setNewDate] = useState("");
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"Government" | "Company">("Company");
+  const [editHistoryOpen, setEditHistoryOpen] = useState(false);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<HolidayEditEventRow[]>([]);
+  const [editHistoryLoading, setEditHistoryLoading] = useState(false);
+  const [editHistorySearch, setEditHistorySearch] = useState("");
+
+  function openEditHistory() {
+    setEditHistoryOpen(true);
+    setEditHistoryLoading(true);
+    attendanceApi.listHolidayEditEvents()
+      .then(setEditHistoryEvents)
+      .catch(() => {})
+      .finally(() => setEditHistoryLoading(false));
+  }
 
   function load() {
     setLoading(true);
@@ -94,6 +126,17 @@ export default function HolidaysPage() {
             </p>
           </div>
         </div>
+        <div className="flex items-center gap-3">
+        {isAdmin && (
+<button
+          type="button"
+          onClick={openEditHistory}
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <History className="h-4 w-4" />
+          Edit History
+        </button>
+)}
         <div className="dk-inset flex h-10 items-center rounded-full border border-gray-200 bg-white px-1 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md">
           <button
             type="button"
@@ -112,6 +155,7 @@ export default function HolidaysPage() {
           >
             <ChevronRight className="h-4 w-4" />
           </button>
+        </div>
         </div>
       </div>
 
@@ -205,6 +249,67 @@ export default function HolidaysPage() {
           </div>
         )}
       </div>
+
+      {/* Edit History — every Create/Edit/Delete ever logged, across every
+          holiday, in one searchable log. */}
+      <Dialog
+        open={editHistoryOpen}
+        onClose={() => setEditHistoryOpen(false)}
+        title="Edit History"
+        className="sm:max-w-xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by holiday name or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          {editHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = editHistorySearch.toLowerCase();
+            const filtered = editHistoryEvents.filter((ev) =>
+              !q || ev.name.toLowerCase().includes(q) || ev.actorName.toLowerCase().includes(q)
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {editHistoryEvents.length === 0 ? "No holiday edits have been logged yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[480px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Holiday</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => {
+                      const Icon = EDIT_EVENT_ICON[ev.event];
+                      return (
+                        <tr key={ev.id}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">
+                            {ev.name} <span className="text-[11px] font-normal text-gray-400">({ev.holidayDate})</span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
+                              <Icon className="h-3 w-3" /> {ev.event}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-600">
+                            {ev.actorName}
+                            {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
     </div>
   );
 }

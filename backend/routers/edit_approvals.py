@@ -81,6 +81,35 @@ def list_edit_approvals(
     return _drop_invalid_resource_type(rows)
 
 
+@router.get("/edit-events", response_model=list[schemas.EditApprovalEditEventListOut])
+def list_edit_approval_edit_events(
+    db: Session = Depends(get_db),
+    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager", "Assistant Commercial Manager")),
+):
+    """Every Approved/Rejected decision ever logged, across every edit
+    approval request — the page-wide "Edit History" log on Edit Approvals.
+    Derived directly from EditApprovalRequest itself (status/approved_by_name/
+    approved_at already live on the row), no dedicated event table needed.
+    Registered before PATCH/DELETE /{request_id} so "edit-events" isn't
+    swallowed as a request_id path param."""
+    rows = (
+        db.query(models.EditApprovalRequest)
+        .filter(models.EditApprovalRequest.status.in_(["Approved", "Rejected"]))
+        .order_by(models.EditApprovalRequest.approved_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id, "staff_name": r.staff_name, "resource_type": r.resource_type,
+            "resource_name": r.resource_name,
+            "event": "Edit Request Approved" if r.status == "Approved" else "Edit Request Rejected",
+            "actor_name": r.approved_by_name or "Unknown",
+            "created_at": r.approved_at,
+        }
+        for r in rows if r.approved_at is not None
+    ]
+
+
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -263,12 +292,14 @@ def delete_edit_request(request_id: int, db: Session = Depends(get_db)):
 def reject_edit_request(
     request_id: int,
     db: Session = Depends(get_db),
-    _: TokenUser = Depends(require_roles("Admin", "Commercial Manager", "Assistant Commercial Manager")),
+    current_user: TokenUser = Depends(require_roles("Admin", "Commercial Manager", "Assistant Commercial Manager")),
 ):
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:
         raise HTTPException(404, "Edit approval request not found")
     req.status = "Rejected"
+    req.approved_by_name = current_user.name
+    req.approved_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(req)
     emit("edit_approval_updated", {

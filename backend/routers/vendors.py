@@ -17,12 +17,21 @@ def list_vendors(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=schemas.VendorOut, status_code=201)
-def create_vendor(payload: schemas.VendorCreate, db: Session = Depends(get_db)):
+def create_vendor(
+    payload: schemas.VendorCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_vendor_duplicates(db, payload)
     vendor = models.Vendor(**payload.model_dump())
     db.add(vendor)
     db.commit()
     db.refresh(vendor)
+    db.add(models.VendorEditEvent(
+        vendor_id=vendor.id, event="Vendor Created",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
     emit("vendor_updated", {})
     return vendor
 
@@ -38,6 +47,39 @@ def list_deleted_vendor_ids(db: Session = Depends(get_db)):
     return [i for (i,) in rows]
 
 
+@router.get("/edit-events", response_model=list[schemas.VendorEditEventListOut])
+def list_all_vendor_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete/Restore event ever logged, across every
+    vendor — the page-wide "Edit History" log on Our Vendors, so
+    who-changed-what is searchable in one place instead of opening each
+    vendor individually. Most recent first. Registered before GET
+    /{vendor_id} so "edit-events" isn't swallowed as a vendor_id path param.
+    """
+    events = (
+        db.query(models.VendorEditEvent)
+        .order_by(models.VendorEditEvent.created_at.desc(), models.VendorEditEvent.id.desc())
+        .all()
+    )
+    if not events:
+        return []
+    vendor_ids = {e.vendor_id for e in events}
+    vendors_by_id = {v.id: v for v in db.query(models.Vendor).filter(models.Vendor.id.in_(vendor_ids)).all()}
+
+    result = []
+    for e in events:
+        vendor = vendors_by_id.get(e.vendor_id)
+        result.append({
+            "id": e.id,
+            "vendor_id": e.vendor_id,
+            "vendor_name": vendor.name if vendor else "(deleted)",
+            "event": e.event,
+            "actor_name": e.actor_name,
+            "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        })
+    return result
+
+
 @router.get("/{vendor_id}", response_model=schemas.VendorOut)
 def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
     vendor = db.get(models.Vendor, vendor_id)
@@ -47,7 +89,12 @@ def get_vendor(vendor_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{vendor_id}", response_model=schemas.VendorOut)
-def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = Depends(get_db)):
+def update_vendor(
+    vendor_id: int,
+    payload: schemas.VendorUpdate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     check_vendor_duplicates(db, payload, exclude_id=vendor_id)
     vendor = db.query(models.Vendor).with_for_update().filter(models.Vendor.id == vendor_id).first()
     if not vendor:
@@ -61,6 +108,10 @@ def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = D
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(vendor, field, value)
     vendor.version = (vendor.version or 1) + 1
+    db.add(models.VendorEditEvent(
+        vendor_id=vendor.id, event="Vendor Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(vendor)
     emit("vendor_updated", {})
@@ -93,12 +144,20 @@ def delete_vendor(vendor_id: int, db: Session = Depends(get_db), current_user: T
         approved_by_name=current_user.name,
         approved_at=now,
     ))
+    db.add(models.VendorEditEvent(
+        vendor_id=vendor_id, event="Vendor Deleted",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     emit("vendor_updated", {})
 
 
 @router.post("/{vendor_id}/restore", response_model=schemas.VendorOut, dependencies=[Depends(require_roles())])
-def restore_vendor(vendor_id: int, db: Session = Depends(get_db)):
+def restore_vendor(
+    vendor_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin only: undo a soft-delete — the vendor reappears in Our Vendors
     exactly as they were."""
     vendor = db.get(models.Vendor, vendor_id)
@@ -107,6 +166,10 @@ def restore_vendor(vendor_id: int, db: Session = Depends(get_db)):
     if vendor.deleted_at is None:
         raise HTTPException(409, "Vendor is not deleted")
     vendor.deleted_at = None
+    db.add(models.VendorEditEvent(
+        vendor_id=vendor.id, event="Vendor Restored",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(vendor)
     emit("vendor_updated", {})

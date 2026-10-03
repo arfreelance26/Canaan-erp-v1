@@ -145,6 +145,19 @@ def get_latest_attendance_date(
 # Driver Attendance
 # ---------------------------------------------------------------------------
 
+@router.get("/drivers/edit-events", response_model=list[schemas.DriverAttendanceEditEventListOut])
+def list_driver_attendance_edit_events(db: Session = Depends(get_db)):
+    """Every mark/remark event ever logged, across every driver — the
+    page-wide "Edit History" log on Driver Attendance. Most recent first.
+    Registered before GET /drivers (no {id} path param on this router to
+    collide with, but kept consistent with the rest of the codebase)."""
+    return (
+        db.query(models.DriverAttendanceEditEvent)
+        .order_by(models.DriverAttendanceEditEvent.created_at.desc(), models.DriverAttendanceEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.get("/drivers", response_model=list[schemas.DriverAttendanceOut])
 def list_driver_attendance(
     date: Optional[str] = Query(None, description="Filter by exact date YYYY-MM-DD"),
@@ -176,15 +189,25 @@ def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session 
         models.DriverAttendance.driver_id == payload.driver_id,
         models.DriverAttendance.date == payload.date,
     ).first()
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == payload.driver_id).first()
+    driver_name = driver.name if driver else payload.driver_id
     if existing:
         for field, value in payload.model_dump().items():
             setattr(existing, field, value)
+        db.add(models.DriverAttendanceEditEvent(
+            driver_id=payload.driver_id, driver_name=driver_name, date=payload.date,
+            event="Attendance Updated", actor_name=user.name, actor_role=user.role,
+        ))
         db.commit()
         db.refresh(existing)
         emit("attendance_updated", {})
         return existing
     record = models.DriverAttendance(**payload.model_dump())
     db.add(record)
+    db.add(models.DriverAttendanceEditEvent(
+        driver_id=payload.driver_id, driver_name=driver_name, date=payload.date,
+        event="Attendance Marked", actor_name=user.name, actor_role=user.role,
+    ))
     db.commit()
     db.refresh(record)
     emit("attendance_updated", {})
@@ -203,6 +226,11 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == record.driver_id).first()
+    db.add(models.DriverAttendanceEditEvent(
+        driver_id=record.driver_id, driver_name=driver.name if driver else record.driver_id, date=record.date,
+        event="Attendance Updated", actor_name=user.name, actor_role=user.role,
+    ))
     db.commit()
     db.refresh(record)
     emit("attendance_updated", {})
@@ -268,6 +296,11 @@ def add_driver_remark(payload: schemas.DriverAttendanceRemarkCreate, db: Session
     _assert_editable_date(payload.date, user, bypass_lock=late_entry_exists)
     remark = models.DriverAttendanceRemark(**payload.model_dump())
     db.add(remark)
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == payload.driver_id).first()
+    db.add(models.DriverAttendanceEditEvent(
+        driver_id=payload.driver_id, driver_name=driver.name if driver else payload.driver_id, date=payload.date,
+        event="Remark Added", actor_name=user.name, actor_role=user.role,
+    ))
     db.commit()
     db.refresh(remark)
     emit("attendance_updated", {})
@@ -284,6 +317,11 @@ def update_driver_remark(remark_id: int, payload: schemas.DriverAttendanceRemark
     ).first() is not None
     _assert_editable_date(remark.date, user, bypass_lock=late_entry_exists)
     remark.remark = payload.remark
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == remark.driver_id).first()
+    db.add(models.DriverAttendanceEditEvent(
+        driver_id=remark.driver_id, driver_name=driver.name if driver else remark.driver_id, date=remark.date,
+        event="Remark Edited", actor_name=user.name, actor_role=user.role,
+    ))
     db.commit()
     db.refresh(remark)
     emit("attendance_updated", {})
@@ -299,6 +337,11 @@ def delete_driver_remark(remark_id: int, db: Session = Depends(get_db), user: To
         models.DriverAttendanceLateEntryLog.date == remark.date
     ).first() is not None
     _assert_editable_date(remark.date, user, bypass_lock=late_entry_exists)
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == remark.driver_id).first()
+    db.add(models.DriverAttendanceEditEvent(
+        driver_id=remark.driver_id, driver_name=driver.name if driver else remark.driver_id, date=remark.date,
+        event="Remark Deleted", actor_name=user.name, actor_role=user.role,
+    ))
     db.delete(remark)
     db.commit()
     emit("attendance_updated", {})
@@ -452,6 +495,18 @@ def get_staff_self_summary(
     )
 
 
+@router.get("/staff/edit-events", response_model=list[schemas.StaffAttendanceEditEventListOut])
+def list_staff_attendance_edit_events(db: Session = Depends(get_db)):
+    """Every Admin-override mark/edit ever logged, across every staff member —
+    the page-wide "Edit History" log on Staff Attendance. Most recent first.
+    A self-mark/close-shift is never logged here — see StaffAttendanceEditEvent."""
+    return (
+        db.query(models.StaffAttendanceEditEvent)
+        .order_by(models.StaffAttendanceEditEvent.created_at.desc(), models.StaffAttendanceEditEvent.id.desc())
+        .all()
+    )
+
+
 @router.get("/staff", response_model=list[schemas.StaffAttendanceOut])
 def list_staff_attendance(
     date: Optional[str] = Query(None, description="Filter by exact date YYYY-MM-DD"),
@@ -474,7 +529,7 @@ def list_staff_attendance(
 
 
 @router.post("/staff", response_model=schemas.StaffAttendanceOut, status_code=201, dependencies=[Depends(require_roles())])
-def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = Depends(get_db)):
+def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     staff = db.get(models.Staff, payload.staff_id)
     if not staff:
         raise HTTPException(404, "Staff member not found.")
@@ -487,6 +542,10 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
             setattr(existing, field, value)
         existing.staff_name = staff.name
         existing.admin_override = True
+        db.add(models.StaffAttendanceEditEvent(
+            staff_id=staff.id, staff_name=staff.name, date=payload.date,
+            event="Attendance Updated", actor_name=current_user.name, actor_role=current_user.role,
+        ))
         db.commit()
         db.refresh(existing)
         emit("attendance_updated", {"staff_id": existing.staff_id})
@@ -494,6 +553,10 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
     record = models.StaffAttendance(**payload.model_dump(), staff_name=staff.name)
     record.admin_override = True
     db.add(record)
+    db.add(models.StaffAttendanceEditEvent(
+        staff_id=staff.id, staff_name=staff.name, date=payload.date,
+        event="Attendance Marked", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(record)
     emit("attendance_updated", {"staff_id": record.staff_id})
@@ -501,7 +564,7 @@ def mark_staff_attendance(payload: schemas.StaffAttendanceCreate, db: Session = 
 
 
 @router.put("/staff/{record_id}", response_model=schemas.StaffAttendanceOut, dependencies=[Depends(require_roles())])
-def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpdate, db: Session = Depends(get_db)):
+def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpdate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     record = db.get(models.StaffAttendance, record_id)
     if not record:
         raise HTTPException(404, "Attendance record not found")
@@ -509,6 +572,10 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
         setattr(record, field, value)
     record.marked_at = datetime.now(timezone.utc)
     record.admin_override = True
+    db.add(models.StaffAttendanceEditEvent(
+        staff_id=record.staff_id, staff_name=record.staff_name or "(deleted)", date=record.date,
+        event="Attendance Updated", actor_name=current_user.name, actor_role=current_user.role,
+    ))
     db.commit()
     db.refresh(record)
     emit("attendance_updated", {"staff_id": record.staff_id})
@@ -518,6 +585,19 @@ def update_staff_attendance(record_id: int, payload: schemas.StaffAttendanceUpda
 # ---------------------------------------------------------------------------
 # Holidays (staff attendance only — Sundays are automatic and not stored)
 # ---------------------------------------------------------------------------
+
+@router.get("/holidays/edit-events", response_model=list[schemas.HolidayEditEventListOut])
+def list_holiday_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete ever logged, across every holiday — the
+    page-wide "Edit History" log on Staff Holidays. Most recent first.
+    Registered before DELETE /holidays/{holiday_id} so "edit-events" isn't
+    swallowed as a holiday_id path param."""
+    return (
+        db.query(models.HolidayEditEvent)
+        .order_by(models.HolidayEditEvent.created_at.desc(), models.HolidayEditEvent.id.desc())
+        .all()
+    )
+
 
 @router.get("/holidays", response_model=list[schemas.HolidayOut])
 def list_holidays(
@@ -542,12 +622,20 @@ def create_holiday(payload: schemas.HolidayCreate, db: Session = Depends(get_db)
         # A date is either a holiday or not — update the label/type instead of duplicating.
         existing.name = payload.name
         existing.type = payload.type
+        db.add(models.HolidayEditEvent(
+            holiday_date=existing.date, name=existing.name,
+            event="Holiday Updated", actor_name=user.name, actor_role=user.role,
+        ))
         db.commit()
         db.refresh(existing)
         emit("attendance_updated", {})
         return existing
     holiday = models.Holiday(**payload.model_dump())
     db.add(holiday)
+    db.add(models.HolidayEditEvent(
+        holiday_date=holiday.date, name=holiday.name,
+        event="Holiday Created", actor_name=user.name, actor_role=user.role,
+    ))
     db.commit()
     db.refresh(holiday)
     emit("attendance_updated", {})
@@ -561,6 +649,10 @@ def delete_holiday(holiday_id: int, db: Session = Depends(get_db), user: TokenUs
     holiday = db.get(models.Holiday, holiday_id)
     if not holiday:
         raise HTTPException(404, "Holiday not found")
+    db.add(models.HolidayEditEvent(
+        holiday_date=holiday.date, name=holiday.name,
+        event="Holiday Deleted", actor_name=user.name, actor_role=user.role,
+    ))
     db.delete(holiday)
     db.commit()
     emit("attendance_updated", {})
@@ -684,6 +776,38 @@ def create_leave_request(
     return request
 
 
+@router.get("/leave-requests/edit-events", response_model=list[schemas.LeaveRequestEditEventListOut])
+def list_leave_request_edit_events(db: Session = Depends(get_db), current_user: TokenUser = Depends(require_roles())):
+    """Every Requested/Approved/Rejected event ever logged, across every leave
+    request — the page-wide "Edit History" log on Leave Approvals. Derived
+    directly from LeaveRequest itself (status/decided_by_name/decided_at
+    already live on the row), no dedicated event table needed. Admin only,
+    same gate as approve/reject. Registered before GET /leave-requests/{id}
+    so "edit-events" isn't swallowed as a request_id path param."""
+    requests = db.query(models.LeaveRequest).order_by(models.LeaveRequest.id.desc()).all()
+    submitter_ids = {r.submitted_by for r in requests if r.submitted_by is not None}
+    submitters_by_id = {
+        s.id: s.name for s in db.query(models.Staff).filter(models.Staff.id.in_(submitter_ids)).all()
+    } if submitter_ids else {}
+
+    events = []
+    for r in requests:
+        actor = submitters_by_id.get(r.submitted_by) if r.submitted_by is not None else None
+        events.append({
+            "id": r.id * 10 + 1, "applicant_name": r.applicant_name, "category": r.category,
+            "event": "Leave Requested", "actor_name": actor or r.applicant_name,
+            "created_at": r.applied_at or r.created_at,
+        })
+        if r.status in ("Approved", "Rejected") and r.decided_at:
+            events.append({
+                "id": r.id * 10 + 2, "applicant_name": r.applicant_name, "category": r.category,
+                "event": "Leave Approved" if r.status == "Approved" else "Leave Rejected",
+                "actor_name": r.decided_by_name or "Unknown", "created_at": r.decided_at,
+            })
+    events.sort(key=lambda e: e["created_at"], reverse=True)
+    return events
+
+
 @router.get("/leave-requests/{request_id}", response_model=schemas.LeaveRequestOut)
 def get_leave_request(
     request_id: int,
@@ -704,9 +828,48 @@ def _decide_leave(request_id: int, status: str, db: Session, user: TokenUser) ->
     request.status = status
     request.decided_at = datetime.now(timezone.utc)
     request.decided_by_name = user.name
+
+    # Approving a Staff leave request (Drivers aren't tracked in
+    # StaffAttendance — applicant_id there is a driver.id, not staff.id)
+    # auto-marks every working day in the range "On Leave", overwriting
+    # whatever was already marked — an approved leave is authoritative.
+    # admin_override=True locks the Staff's own Mark Attendance page for
+    # those days (same as any other admin-set record); only the Admin can
+    # change it afterward, from the Staff Attendance page.
+    if status == "Approved" and request.category != "Driver":
+        staff = db.get(models.Staff, request.applicant_id)
+        if staff:
+            holiday_dates = _holiday_dates_in_range(db, request.from_date, request.to_date)
+            non_working = _non_working_dates(request.from_date, request.to_date, holiday_dates)
+            d = request.from_date
+            while d <= request.to_date:
+                if d not in non_working:
+                    existing = db.query(models.StaffAttendance).filter(
+                        models.StaffAttendance.staff_id == staff.id,
+                        models.StaffAttendance.date == d,
+                    ).first()
+                    if existing:
+                        existing.status = "On Leave"
+                        existing.staff_name = staff.name
+                        existing.marked_at = datetime.now(timezone.utc)
+                        existing.admin_override = True
+                    else:
+                        db.add(models.StaffAttendance(
+                            staff_id=staff.id,
+                            staff_name=staff.name,
+                            date=d,
+                            status="On Leave",
+                            marked_at=datetime.now(timezone.utc),
+                            source="Web",
+                            admin_override=True,
+                        ))
+                d += timedelta(days=1)
+
     db.commit()
     db.refresh(request)
     emit("leave_request_updated", {"id": request.id, "status": status})
+    if status == "Approved":
+        emit("attendance_updated", {"staff_id": request.applicant_id})
     return request
 
 
