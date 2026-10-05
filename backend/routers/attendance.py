@@ -8,6 +8,7 @@ from database import get_db
 import models, schemas
 from websocket_manager import emit
 from security import get_current_user, require_roles, TokenUser
+import settings_store
 
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -398,6 +399,48 @@ def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session
     db.refresh(record)
     emit("attendance_updated", {"staff_id": payload.staff_id})
     return record
+
+
+def shift_start_ist(record: models.StaffAttendance) -> Optional[datetime]:
+    """The check-in moment of a shift, in IST, or None if it can't be read."""
+    if not record.check_in_time:
+        return None
+    try:
+        clock = datetime.strptime(record.check_in_time, "%I:%M %p").time()
+    except ValueError:
+        return None
+    return datetime.combine(record.date, clock, tzinfo=_IST)
+
+
+def auto_close_expired_shifts(db: Session) -> int:
+    """Closes every open Present shift whose check-in plus the working-hours limit has passed.
+    The check-out time recorded is the limit moment itself, not the time this ran, so the
+    shift length is exactly the limit. Closed shifts are never changed again, so running this
+    repeatedly is harmless."""
+    limit_hours = settings_store.staff_max_shift_hours(db)
+    now = datetime.now(_IST)
+    open_shifts = db.query(models.StaffAttendance).filter(
+        models.StaffAttendance.status == "Present",
+        models.StaffAttendance.check_out_time.is_(None),
+        models.StaffAttendance.check_in_time.isnot(None),
+        models.StaffAttendance.date <= now.date(),
+    ).with_for_update().all()
+
+    closed = 0
+    for record in open_shifts:
+        start = shift_start_ist(record)
+        if start is None:
+            continue
+        cutoff = start + timedelta(hours=limit_hours)
+        if now < cutoff:
+            continue
+        record.check_out_time = cutoff.strftime("%I:%M %p")
+        record.auto_closed = True
+        closed += 1
+    if closed:
+        db.commit()
+        emit("attendance_updated", {})
+    return closed
 
 
 @router.post("/staff/close-shift", response_model=schemas.StaffAttendanceOut)

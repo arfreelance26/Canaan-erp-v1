@@ -59,15 +59,18 @@ export function TyreInventoryFormDialog({
     }).catch(() => {});
   }, []);
 
-  // Auto-populate rangeKm when tyreType changes
+  // New tyres start with the configured range for their type. Edits keep the
+  // range saved on the tyre, so loading the config never overwrites it.
   useEffect(() => {
-    if (!form.tyreType) return;
+    if (!open || initialData) return;
     const km = rangeConfigMap[form.tyreType];
-    setForm((prev) => ({ ...prev, rangeKm: km != null ? String(km) : "0" }));
-  }, [form.tyreType, rangeConfigMap]);
+    if (km != null && form.rangeKm === "0") {
+      setForm((prev) => ({ ...prev, rangeKm: String(km) }));
+    }
+  }, [open, initialData, form.tyreType, form.rangeKm, rangeConfigMap]);
 
-  // Compute Cost Per KM = Purchase Cost ÷ Expected Range
-  const expectedRange = form.tyreType ? (rangeConfigMap[form.tyreType] ?? null) : null;
+  // Compute Cost Per KM = Purchase Cost ÷ Expected Range (the tyre's own range)
+  const expectedRange = Number(form.rangeKm) > 0 ? Number(form.rangeKm) : null;
   const costPerKm =
     form.cost && expectedRange != null && expectedRange > 0
       ? (Number(form.cost) / expectedRange).toFixed(4)
@@ -131,7 +134,12 @@ export function TyreInventoryFormDialog({
             <GlassCombobox
               required
               value={form.tyreType}
-              onChange={(val) => update("tyreType", val)}
+              onChange={(val) => {
+                update("tyreType", val);
+                // Picking a type suggests its configured range; the range stays editable per tyre.
+                const km = rangeConfigMap[val];
+                if (km != null) update("rangeKm", String(km));
+              }}
               placeholder="Select or type a type"
               options={tyreTypeOptions.map(opt => ({ value: opt, label: opt }))}
             />
@@ -181,22 +189,31 @@ export function TyreInventoryFormDialog({
             />
           </Field>
 
-          <Field label="Expected Range">
+          <Field label="Expected Range (km)">
             <input
-              type="text"
-              readOnly
-              disabled
-              value={
-                form.tyreType && rangeConfigMap[form.tyreType] != null
-                  ? `${Number(rangeConfigMap[form.tyreType]).toLocaleString("en-IN")} km`
-                  : ""
-              }
-              className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-500`}
+              type="number"
+              min="1"
+              step="1"
+              value={form.rangeKm === "0" ? "" : form.rangeKm}
+              onChange={(e) => update("rangeKm", e.target.value)}
+              className={inputClass}
               placeholder={
-                !form.tyreType
-                  ? "Select a tyre type first"
-                  : "No range configured for this type"
+                form.tyreType && rangeConfigMap[form.tyreType] != null
+                  ? `Configured: ${Number(rangeConfigMap[form.tyreType]).toLocaleString("en-IN")} km`
+                  : "Enter expected range"
               }
+            />
+          </Field>
+
+          <Field label="Retread Count">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.retreadCount}
+              onChange={(e) => update("retreadCount", e.target.value)}
+              className={inputClass}
+              placeholder="0"
             />
           </Field>
 
@@ -210,8 +227,8 @@ export function TyreInventoryFormDialog({
               placeholder={
                 !form.cost
                   ? "Enter Purchase Cost first"
-                  : !form.tyreType || expectedRange == null
-                  ? "No range configured for this type"
+                  : expectedRange == null
+                  ? "Enter Expected Range first"
                   : "Purchase Cost ÷ Expected Range"
               }
             />

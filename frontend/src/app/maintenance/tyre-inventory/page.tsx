@@ -6,6 +6,8 @@ import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTab
 import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
+import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
+import { DiscardReasonDialog } from "@/components/tyre-inventory/DiscardReasonDialog";
 import { tyreApi, deletionApprovalsApi, type TyreInventoryEditEventRow } from "@/lib/api";
 import { confirmAction, showSuccess, showError } from "@/lib/swal";
 import { useAuth } from "@/context/AuthContext";
@@ -114,6 +116,33 @@ export default function TyreInventoryPage() {
     }
   }
 
+  async function handleFlagForRetread(tyre: TyreInventoryItem) {
+    const result = await confirmAction(
+      "Flag this tyre for retreading?",
+      `${tyre.tyreNumber} (${tyre.brand}) will move from Tyre Inventory to the Retread Queue page.`,
+      "Yes, flag it"
+    );
+    if (!result.isConfirmed) return;
+    try {
+      await tyreApi.flagForRetread(tyre.id);
+      setTyres((prev) => prev.filter((t) => t.id !== tyre.id));
+      showSuccess("Tyre moved to the Retread Queue.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to flag tyre for retreading.");
+    }
+  }
+
+  async function handleDiscardConfirm(tyre: TyreInventoryItem, reason: string) {
+    try {
+      await tyreApi.flagForDiscard(tyre.id, reason);
+      setTyres((prev) => prev.filter((t) => t.id !== tyre.id));
+      setDiscardTarget(null);
+      showSuccess("Tyre moved to Discarded Tyres.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to discard tyre.");
+    }
+  }
+
   async function handleDeleteRequestSubmit(reason: string) {
     if (!deleteRequestTyre) return;
     try {
@@ -155,19 +184,25 @@ export default function TyreInventoryPage() {
   }
 
   const [searchQuery, setSearchQuery] = useState("");
+  // Set by clicking the summary cards: All shows every tyre, Available / Attached narrow the table.
+  const [statusFilter, setStatusFilter] = useState<"All" | "Available" | "Attached">("All");
+  const [dataTyreId, setDataTyreId] = useState<string | null>(null);
+  const [discardTarget, setDiscardTarget] = useState<TyreInventoryItem | null>(null);
+
+  const attachedIds = new Set(fitmentRecords.filter((f) => !f.removedDate).map((f) => f.tyreId));
+  const totalCount = tyres.length;
+  const availableCount = tyres.filter((t) => !attachedIds.has(t.id)).length;
+  const attachedCount = tyres.filter((t) => attachedIds.has(t.id)).length;
 
   const filteredTyres = tyres.filter((t) => {
+    if (statusFilter === "Available" && attachedIds.has(t.id)) return false;
+    if (statusFilter === "Attached" && !attachedIds.has(t.id)) return false;
     return (
       !searchQuery ||
       t.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.tyreNumber.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
-
-  const attachedIds = new Set(fitmentRecords.filter((f) => !f.removedDate).map((f) => f.tyreId));
-  const totalCount = tyres.length;
-  const availableCount = tyres.filter((t) => !attachedIds.has(t.id)).length;
-  const attachedCount = tyres.filter((t) => attachedIds.has(t.id)).length;
 
   if (loading) return <PageSkeleton hasButton hasSearch columns={6} />;
 
@@ -222,14 +257,24 @@ export default function TyreInventoryPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
-          { label: "Total Tyres", value: totalCount, color: "bg-gray-50 border-gray-200 text-gray-700" },
-          { label: "Available", value: availableCount, color: "bg-blue-50 border-blue-200 text-blue-700" },
-          { label: "Attached", value: attachedCount, color: "bg-purple-50 border-purple-200 text-purple-700" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className={`rounded-xl border px-4 py-3 flex flex-col gap-0.5 ${color}`}>
+          { filter: "All" as const, label: "Total Tyres", value: totalCount, color: "bg-gray-50 border-gray-200 text-gray-700" },
+          { filter: "Available" as const, label: "Available", value: availableCount, color: "bg-blue-50 border-blue-200 text-blue-700" },
+          { filter: "Attached" as const, label: "Attached", value: attachedCount, color: "bg-purple-50 border-purple-200 text-purple-700" },
+        ].map(({ filter, label, value, color }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setStatusFilter(filter)}
+            aria-pressed={statusFilter === filter}
+            className={cn(
+              "rounded-xl border px-4 py-3 flex flex-col items-start gap-0.5 text-left transition-shadow hover:shadow-md",
+              color,
+              statusFilter === filter && "ring-2 ring-blue-400"
+            )}
+          >
             <span className="text-xs font-medium opacity-70">{label}</span>
             <span className="text-2xl font-bold">{value}</span>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -241,7 +286,12 @@ export default function TyreInventoryPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onViewHistory={handleViewHistory}
+          onFlagForRetread={handleFlagForRetread}
+          onViewData={(tyre) => setDataTyreId(tyre.id)}
+          onFlagDiscarded={(tyre) => setDiscardTarget(tyre)}
         />
+        <TyreDataDialog tyreId={dataTyreId} onClose={() => setDataTyreId(null)} />
+        <DiscardReasonDialog tyre={discardTarget} onClose={() => setDiscardTarget(null)} onConfirm={handleDiscardConfirm} />
       </div>
 
       <TyreInventoryFormDialog

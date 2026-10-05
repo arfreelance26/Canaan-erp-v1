@@ -68,3 +68,22 @@ def staff_device_limit(db: Session) -> int:
 
 def set_staff_device_limit(db: Session, limit: int) -> None:
     _set(db, STAFF_LIMIT_KEY, str(max(1, int(limit))))
+
+
+MAX_SHIFT_KEY = "staff_max_shift_hours"
+DEFAULT_MAX_SHIFT_HOURS = 12
+
+
+def staff_max_shift_hours(db: Session) -> int:
+    """Longest a staff shift may run from check-in before it is auto-closed."""
+    v = _get(db, MAX_SHIFT_KEY)
+    if v is None:
+        v = os.getenv("STAFF_MAX_SHIFT_HOURS", str(DEFAULT_MAX_SHIFT_HOURS))
+    try:
+        return min(24, max(1, int(v)))
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_SHIFT_HOURS
+
+
+def set_staff_max_shift_hours(db: Session, hours: int) -> None:
+    _set(db, MAX_SHIFT_KEY, str(int(hours)))

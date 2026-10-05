@@ -1,4 +1,5 @@
 from typing import Optional
+from decimal import Decimal
 from datetime import date, datetime, timedelta, timezone
 # Pydantic v2 resolves annotations via get_type_hints(), folding the class's
 # own namespace into the lookup — a field literally named `date` annotated as
@@ -1049,7 +1050,11 @@ def delete_adblue_manufacturer(
 
 @router.get("/tyre-inventory", response_model=list[schemas.TyreInventoryOut], tags=["Tyre"])
 def list_tyre_inventory(db: Session = Depends(get_db)):
-    return db.query(models.TyreInventory).filter(models.TyreInventory.deleted_at.is_(None)).order_by(models.TyreInventory.brand).all()
+    return db.query(models.TyreInventory).filter(
+        models.TyreInventory.deleted_at.is_(None),
+        models.TyreInventory.retread_flagged_at.is_(None),
+        models.TyreInventory.discarded_at.is_(None),
+    ).order_by(models.TyreInventory.brand).all()
 
 
 @router.get("/tyre-inventory/available", response_model=list[schemas.TyreInventoryOut], tags=["Tyre"])
@@ -1060,7 +1065,56 @@ def available_tyres(db: Session = Depends(get_db)):
     return db.query(models.TyreInventory).filter(
         models.TyreInventory.id.notin_(fitted_ids),
         models.TyreInventory.deleted_at.is_(None),
+        models.TyreInventory.retread_flagged_at.is_(None),
+        models.TyreInventory.discarded_at.is_(None),
     ).all()
+
+
+@router.get("/tyre-inventory/{tyre_id}/data", response_model=schemas.TyreDataOut, tags=["Tyre"])
+def get_tyre_data(tyre_id: int, db: Session = Depends(get_db)):
+    """Everything recorded about one tyre: its current record, when it was first
+    added to inventory, and every move to/from the Retread Queue or Discarded Tyres."""
+    tyre = db.get(models.TyreInventory, tyre_id)
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    created = (
+        db.query(models.TyreInventoryEditEvent.created_at)
+        .filter(models.TyreInventoryEditEvent.tyre_id == tyre_id,
+                models.TyreInventoryEditEvent.event == "Tyre Created")
+        .order_by(models.TyreInventoryEditEvent.created_at)
+        .first()
+    )
+    movements = (
+        db.query(models.TyreMovementEvent)
+        .filter(models.TyreMovementEvent.tyre_id == tyre_id)
+        .order_by(models.TyreMovementEvent.created_at, models.TyreMovementEvent.id)
+        .all()
+    )
+    return {
+        "tyre": tyre,
+        "added_to_inventory_at": created[0] if created else tyre.created_at,
+        "movements": movements,
+    }
+
+
+@router.get("/tyre-inventory/retread-queue", response_model=list[schemas.TyreInventoryOut], tags=["Tyre"])
+def list_retread_queue(db: Session = Depends(get_db)):
+    """Tyres flagged for retreading, oldest flag first. Registered before the
+    dynamic /tyre-inventory/{tyre_id} routes so "retread-queue" isn't read as an id."""
+    return db.query(models.TyreInventory).filter(
+        models.TyreInventory.deleted_at.is_(None),
+        models.TyreInventory.retread_flagged_at.isnot(None),
+        models.TyreInventory.discarded_at.is_(None),
+    ).order_by(models.TyreInventory.retread_flagged_at).all()
+
+
+@router.get("/tyre-inventory/discarded", response_model=list[schemas.TyreInventoryOut], tags=["Tyre"])
+def list_discarded_tyres(db: Session = Depends(get_db)):
+    """Tyres written off with "Flag as Discarded", most recent first."""
+    return db.query(models.TyreInventory).filter(
+        models.TyreInventory.deleted_at.is_(None),
+        models.TyreInventory.discarded_at.isnot(None),
+    ).order_by(models.TyreInventory.discarded_at.desc()).all()
 
 
 @router.get("/tyre-inventory/deleted-ids", dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
@@ -1075,7 +1129,7 @@ def list_deleted_tyre_ids(db: Session = Depends(get_db)):
     return [i for (i,) in rows]
 
 
-@router.get("/tyre-inventory/edit-events", response_model=list[schemas.TyreInventoryEditEventListOut], tags=["Tyre"])
+@router.get("/tyre-inventory/edit-events", response_model=list[schemas.TyreInventoryEditEventListOut], dependencies=[Depends(require_roles())], tags=["Tyre"])
 def list_all_tyre_inventory_edit_events(db: Session = Depends(get_db)):
     """Every Create/Edit/Delete/Restore event ever logged, across every tyre
     stock record — the page-wide "Edit History" log on Tyre Inventory.
@@ -1108,6 +1162,11 @@ def list_all_tyre_inventory_edit_events(db: Session = Depends(get_db)):
 
 
 @router.post("/tyre-inventory", response_model=schemas.TyreInventoryOut, status_code=201, tags=["Tyre"])
+def condition_for_retread_count(count: int) -> str:
+    """Condition is derived from the retread count — 0 is New, one or more is Rethreaded."""
+    return "Rethreaded" if (count or 0) > 0 else "New"
+
+
 def create_tyre(
     payload: schemas.TyreInventoryCreate,
     db: Session = Depends(get_db),
@@ -1116,6 +1175,7 @@ def create_tyre(
     if db.query(models.TyreInventory).filter(models.TyreInventory.tyre_number == payload.tyre_number).first():
         raise HTTPException(400, f"Tyre number {payload.tyre_number} already exists")
     tyre = models.TyreInventory(**payload.model_dump())
+    tyre.condition = condition_for_retread_count(tyre.retread_count)
     db.add(tyre)
     db.commit()
     db.refresh(tyre)
@@ -1146,6 +1206,7 @@ def update_tyre(
         )
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
         setattr(tyre, field, value)
+    tyre.condition = condition_for_retread_count(tyre.retread_count)
     tyre.version = (tyre.version or 1) + 1
     db.add(models.TyreInventoryEditEvent(
         tyre_id=tyre.id, event="Tyre Edited",
@@ -1191,6 +1252,149 @@ def delete_tyre(tyre_id: int, db: Session = Depends(get_db), current_user: Token
     ))
     db.commit()
     emit("tyre_updated", {})
+
+
+@router.post("/tyre-inventory/{tyre_id}/flag-retread", response_model=schemas.TyreInventoryOut, tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])
+def flag_tyre_for_retread(
+    tyre_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Moves a tyre from Tyre Inventory to the Retread Queue. The record is not
+    copied — the same row is marked, so the queue shows its full data. A tyre
+    still fitted to a truck can't be flagged; it has to be removed first."""
+    tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    if tyre.deleted_at is not None:
+        raise HTTPException(409, "Tyre is deleted")
+    if tyre.retread_flagged_at is not None:
+        raise HTTPException(409, "Tyre is already in the Retread Queue")
+    if tyre.discarded_at is not None:
+        raise HTTPException(409, "Tyre is discarded")
+    fitted = db.query(models.TyreFitmentRecord.id).filter(
+        models.TyreFitmentRecord.tyre_id == tyre_id,
+        models.TyreFitmentRecord.removed_odometer.is_(None),
+    ).first()
+    if fitted:
+        raise HTTPException(409, "Tyre is fitted to a truck — remove it from the truck first")
+    tyre.retread_flagged_at = datetime.now(timezone.utc)
+    tyre.retread_flagged_by = current_user.name
+    db.add(models.TyreMovementEvent(
+        tyre_id=tyre.id, event="Flagged for Retreading",
+        actor_name=current_user.name, actor_role=current_user.role,
+        retread_count=tyre.retread_count or 0,
+    ))
+    db.commit()
+    db.refresh(tyre)
+    emit("tyre_updated", {})
+    return tyre
+
+
+@router.post("/tyre-inventory/{tyre_id}/move-to-inventory", response_model=schemas.TyreInventoryOut, tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])
+def move_retread_tyre_to_inventory(
+    tyre_id: int,
+    payload: schemas.TyreMoveToInventory,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Moves a retread-queue tyre back into Tyre Inventory. The retread cost
+    becomes the tyre's purchase cost and retread cost, and the entered expected
+    range replaces its range. Cost per km is recalculated from them."""
+    tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    if tyre.deleted_at is not None:
+        raise HTTPException(409, "Tyre is deleted")
+    if tyre.retread_flagged_at is None:
+        raise HTTPException(409, "Tyre is not in the Retread Queue")
+    tyre.cost = payload.retread_cost
+    tyre.retread_cost = payload.retread_cost
+    tyre.range_km = payload.expected_range
+    tyre.cost_per_km = (payload.retread_cost / payload.expected_range).quantize(Decimal("0.000001"))
+    tyre.retread_count = (tyre.retread_count or 0) + 1
+    tyre.condition = condition_for_retread_count(tyre.retread_count)
+    tyre.retread_flagged_at = None
+    tyre.retread_flagged_by = None
+    db.add(models.TyreMovementEvent(
+        tyre_id=tyre.id, event="Moved to Inventory",
+        actor_name=current_user.name, actor_role=current_user.role,
+        retread_cost=payload.retread_cost, expected_range=payload.expected_range,
+        retread_count=tyre.retread_count, retread_done_by=payload.retread_done_by,
+    ))
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre.id, event="Tyre Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
+    db.refresh(tyre)
+    emit("tyre_updated", {})
+    return tyre
+
+
+@router.post("/tyre-inventory/{tyre_id}/flag-discard", response_model=schemas.TyreInventoryOut, tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])
+def flag_tyre_discarded(
+    tyre_id: int,
+    payload: schemas.TyreDiscardIn,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Writes a tyre off to Discarded Tyres, with a required reason. Works from
+    Tyre Inventory or the Retread Queue; the tyre leaves both. A tyre still
+    fitted to a truck can't be discarded."""
+    tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    if tyre.deleted_at is not None:
+        raise HTTPException(409, "Tyre is deleted")
+    if tyre.discarded_at is not None:
+        raise HTTPException(409, "Tyre is already discarded")
+    fitted = db.query(models.TyreFitmentRecord.id).filter(
+        models.TyreFitmentRecord.tyre_id == tyre_id,
+        models.TyreFitmentRecord.removed_odometer.is_(None),
+    ).first()
+    if fitted:
+        raise HTTPException(409, "Tyre is fitted to a truck - remove it from the truck first")
+    tyre.discarded_at = datetime.now(timezone.utc)
+    tyre.discarded_by = current_user.name
+    tyre.discard_reason = payload.reason
+    tyre.retread_flagged_at = None
+    tyre.retread_flagged_by = None
+    db.add(models.TyreMovementEvent(
+        tyre_id=tyre.id, event="Flagged as Discarded",
+        actor_name=current_user.name, actor_role=current_user.role,
+        retread_count=tyre.retread_count or 0,
+    ))
+    db.commit()
+    db.refresh(tyre)
+    emit("tyre_updated", {})
+    return tyre
+
+
+@router.post("/tyre-inventory/{tyre_id}/restore-from-discard", response_model=schemas.TyreInventoryOut, tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])
+def restore_tyre_from_discard(
+    tyre_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Moves a discarded tyre back into Tyre Inventory."""
+    tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    if tyre.discarded_at is None:
+        raise HTTPException(409, "Tyre is not discarded")
+    tyre.discarded_at = None
+    tyre.discarded_by = None
+    tyre.discard_reason = None
+    db.add(models.TyreMovementEvent(
+        tyre_id=tyre.id, event="Restored from Discard",
+        actor_name=current_user.name, actor_role=current_user.role,
+        retread_count=tyre.retread_count or 0,
+    ))
+    db.commit()
+    db.refresh(tyre)
+    emit("tyre_updated", {})
+    return tyre
 
 
 @router.post("/tyre-inventory/{tyre_id}/restore", response_model=schemas.TyreInventoryOut, dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
@@ -1342,6 +1546,85 @@ def remove_tyre(fitment_id: int, payload: schemas.TyreFitmentRemove, db: Session
     db.refresh(record)
     emit("tyre_updated", {})
     return record
+
+
+@router.post("/tyre-fitment/remove-bulk", response_model=list[schemas.TyreFitmentOut], tags=["Tyre"])
+def remove_tyres_bulk(
+    payload: schemas.TyreFitmentBulkRemove,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Removes several tyres from a truck, all or nothing. Every tyre is checked
+    first: the reading must be at least each tyre's fitted odometer. If any check
+    fails, nothing is changed."""
+    query = db.query(models.TyreFitmentRecord).filter(
+        models.TyreFitmentRecord.truck_id == payload.truck_id,
+        models.TyreFitmentRecord.removed_odometer.is_(None),
+    )
+    if payload.fitment_ids:
+        query = query.filter(models.TyreFitmentRecord.id.in_(payload.fitment_ids))
+    records = query.with_for_update().all()
+
+    if payload.fitment_ids and len(records) != len(set(payload.fitment_ids)):
+        raise HTTPException(409, "Some selected tyres are no longer fitted to this truck. Refresh and try again.")
+    if not records:
+        raise HTTPException(400, "No fitted tyres to remove on this truck.")
+
+    too_low = [r for r in records if payload.removed_odometer < r.fitted_odometer]
+    if too_low:
+        detail = ", ".join(f"{r.position} (fitted at {r.fitted_odometer} km)" for r in too_low)
+        raise HTTPException(
+            400,
+            f"Removal reading {payload.removed_odometer} km is less than the fitted odometer for: {detail}.",
+        )
+
+    for record in records:
+        record.removed_odometer = payload.removed_odometer
+        record.removed_date = payload.removed_date
+        record.removal_remark = payload.removal_remark
+        record.removed_by_name = current_user.name
+    db.commit()
+    for record in records:
+        db.refresh(record)
+    emit("tyre_updated", {})
+    return records
+
+
+@router.get("/tyre-remark-presets", response_model=list[schemas.TyreRemarkPresetOut], tags=["Tyre"])
+def list_tyre_remark_presets(db: Session = Depends(get_db)):
+    return db.query(models.TyreRemarkPreset).order_by(models.TyreRemarkPreset.scenario, models.TyreRemarkPreset.text).all()
+
+
+@router.post("/tyre-remark-presets", response_model=schemas.TyreRemarkPresetOut, status_code=201,
+             dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
+def create_tyre_remark_preset(
+    payload: schemas.TyreRemarkPresetCreate,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    exists = db.query(models.TyreRemarkPreset).filter(
+        models.TyreRemarkPreset.scenario == payload.scenario,
+        func.lower(models.TyreRemarkPreset.text) == payload.text.lower(),
+    ).first()
+    if exists:
+        raise HTTPException(409, f"'{payload.text}' is already a {payload.scenario} remark")
+    preset = models.TyreRemarkPreset(
+        scenario=payload.scenario, text=payload.text, created_by=current_user.name,
+    )
+    db.add(preset)
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+@router.delete("/tyre-remark-presets/{preset_id}", status_code=204,
+               dependencies=[Depends(require_roles("Maintenance"))], tags=["Tyre"])
+def delete_tyre_remark_preset(preset_id: int, db: Session = Depends(get_db)):
+    preset = db.get(models.TyreRemarkPreset, preset_id)
+    if not preset:
+        raise HTTPException(404, "Remark not found")
+    db.delete(preset)
+    db.commit()
 
 
 class _SwapPair(BaseModel):

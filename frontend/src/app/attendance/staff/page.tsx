@@ -1,11 +1,12 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { Download, Eye, Loader2, X, Users, History, Plus, Pencil } from "lucide-react";
+import { Download, Eye, Loader2, X, Users, History, Plus, Pencil, Clock } from "lucide-react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StaffAttendanceTable } from "@/components/attendance/StaffAttendanceTable";
+import { SetWorkingHoursDialog } from "@/components/attendance/SetWorkingHoursDialog";
 import { staffApi, attendanceApi, type StaffAttendanceEditEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
@@ -40,6 +41,7 @@ function getStaffAttendanceForDate(
 export default function StaffAttendancePage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  const [workingHoursOpen, setWorkingHoursOpen] = useState(false);
   const [date, setDate] = useState(todayIst());
   const [search, setSearch] = useState("");
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -337,6 +339,7 @@ export default function StaffAttendancePage() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
+      <SetWorkingHoursDialog open={workingHoursOpen} onClose={() => setWorkingHoursOpen(false)} />
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white text-emerald-600 shadow-sm">
@@ -350,6 +353,16 @@ export default function StaffAttendancePage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setWorkingHoursOpen(true)}
+              className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+            >
+              <Clock className="h-4 w-4" />
+              Set Working Hours
+            </button>
+          )}
           {isAdmin && (
 <button
             type="button"

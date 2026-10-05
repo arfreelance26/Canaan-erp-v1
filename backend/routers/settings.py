@@ -5,7 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import get_db
-from security import require_roles, TokenUser
+from security import get_current_user, require_roles, TokenUser
 from audit import record_audit
 import settings_store
 
@@ -76,3 +76,29 @@ def reset_all_devices(
         actor_role=user.role, detail=f"cleared {result.rowcount} binding(s)",
     )
     return {"ok": True, "cleared": result.rowcount}
+
+
+class MaxShiftHours(BaseModel):
+    hours: int
+
+
+@router.get("/max-shift-hours", response_model=MaxShiftHours)
+def get_max_shift_hours(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    return MaxShiftHours(hours=settings_store.staff_max_shift_hours(db))
+
+
+@router.put("/max-shift-hours", response_model=MaxShiftHours)
+def update_max_shift_hours(
+    payload: MaxShiftHours,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(require_roles()),
+):
+    if not 1 <= payload.hours <= 24:
+        raise HTTPException(400, "Working hours must be between 1 and 24.")
+    settings_store.set_staff_max_shift_hours(db, payload.hours)
+    record_audit(
+        "attendance.shift_hours", request=request, actor_id=user.id, actor_name=user.name,
+        actor_role=user.role, detail=f"max_shift_hours={payload.hours}",
+    )
+    return MaxShiftHours(hours=settings_store.staff_max_shift_hours(db))

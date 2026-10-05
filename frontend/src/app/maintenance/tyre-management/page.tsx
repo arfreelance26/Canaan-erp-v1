@@ -4,10 +4,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { TyreManagementTable } from "@/components/maintenance/TyreManagementTable";
 import { ManageTyresDialog } from "@/components/maintenance/ManageTyresDialog";
+import { ManageRemarksDialog } from "@/components/maintenance/ManageRemarksDialog";
 import { ViewTyreDataDialog } from "@/components/maintenance/ViewTyreDataDialog";
 import { TruckHistoryDialog } from "@/components/maintenance/TruckHistoryDialog";
 import { trucksApi, tyreApi, tyreRangeConfigApi, type TyreFitmentEventRow } from "@/lib/api";
-import { CircleDot, History, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { CircleDot, History, ArrowDownToLine, ArrowUpFromLine, MessageSquareText } from "lucide-react";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
 
 import type { Truck } from "@/types/truck";
@@ -39,6 +40,7 @@ export default function TyreManagementPage() {
 
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [remarksOpen, setRemarksOpen] = useState(false);
   const [viewTyreDataOpen, setViewTyreDataOpen] = useState(false);
   const [viewTruckHistoryTruck, setViewTruckHistoryTruck] = useState<Truck | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,6 +123,15 @@ export default function TyreManagementPage() {
             <p className="mt-0.5 text-sm text-gray-500">Track layouts across the fleet</p>
           </div>
         </div>
+        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setRemarksOpen(true)}
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <MessageSquareText className="h-4 w-4" />
+          Manage Remarks
+        </button>
         {isAdmin && (
 <button
           type="button"
@@ -131,6 +142,7 @@ export default function TyreManagementPage() {
           Edit History
         </button>
 )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -156,6 +168,7 @@ export default function TyreManagementPage() {
       />
 
       <ManageTyresDialog open={manageDialogOpen} onClose={() => setManageDialogOpen(false)} truck={selectedTruck} />
+      <ManageRemarksDialog open={remarksOpen} onClose={() => setRemarksOpen(false)} />
       <ViewTyreDataDialog open={viewTyreDataOpen} onClose={() => { setViewTyreDataOpen(false); setSelectedTruck(null); }} truck={selectedTruck} rangeConfigMap={rangeConfigMap} />
       <TruckHistoryDialog open={viewTruckHistoryTruck !== null} onClose={() => setViewTruckHistoryTruck(null)} truck={viewTruckHistoryTruck} />
 

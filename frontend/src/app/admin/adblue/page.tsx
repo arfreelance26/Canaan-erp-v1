@@ -12,6 +12,7 @@ import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
 import { AdBlueHistoryViewDialog } from "@/components/fleet/AdBlueHistoryViewDialog";
 import type { AdBlueLog } from "@/types/adblue-log";
 import { PillSearch } from "@/components/ui/PillSearch";
+import { onRevalidated } from "@/lib/api-cache";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ export default function AdblueManagementPage() {
   const isAdmin = authUser?.softwareDesignation === "Admin";
   const [manufacturers, setManufacturers] = useState<AdBlueManufacturer[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
@@ -95,7 +97,13 @@ export default function AdblueManagementPage() {
       .then(([mfrs, trks]) => { setManufacturers(mfrs); setTrucks(trks); })
       .catch(() => {})
       .catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [reloadKey]);
+
+  // The API cache answers instantly and refreshes in the background; show the fresher copy when it lands.
+  useEffect(() => onRevalidated(() => setReloadKey((k) => k + 1)), []);
+
+  const knownManufacturers = new Set(manufacturers.map((m) => m.name.trim().toLowerCase()));
+  const unassignedTrucks = trucks.filter((t) => !knownManufacturers.has((t.manufacturer ?? "").trim().toLowerCase()));
 
   function openDialog() {
     setEditingId(null);
@@ -250,6 +258,42 @@ export default function AdblueManagementPage() {
               );
             })
           )}
+
+          {(() => {
+            const q = searchQuery.trim().toLowerCase();
+            const shown = unassignedTrucks.filter(
+              (t) => !q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q)
+            );
+            if (shown.length === 0) return null;
+            return (
+              <section>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                    <TruckIcon className="h-4 w-4 text-amber-700" />
+                  </div>
+                  <div className="flex flex-1 items-baseline gap-2">
+                    <h2 className="text-base font-bold text-gray-900">Unassigned</h2>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                      {shown.length} {shown.length === 1 ? "truck" : "trucks"}
+                    </span>
+                  </div>
+                </div>
+                <p className="mb-3 text-xs text-gray-500">
+                  These trucks&apos; manufacturer doesn&apos;t match a registered AdBlue manufacturer. Set the truck&apos;s manufacturer to one of them to manage its AdBlue.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {shown.map((truck) => (
+                    <TruckCard
+                      key={truck.id}
+                      truck={truck}
+                      onViewHistory={() => setHistoryTruck(truck)}
+                      onEnterLog={() => showError("Set this truck's manufacturer to a registered AdBlue manufacturer first.")}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })()}
         </div>
 
         {/* RIGHT — Registered Manufacturers card */}
@@ -485,6 +529,8 @@ function TruckCard({
 }) {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  // AdBlue history is open to the Maintenance team as well as Admin.
+  const canViewAdblueHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
   const layout = truck.tyreLayout ? getTyreLayout(truck.tyreLayout) : null;
   const totalTyres = layout ? totalTyresFromLayout(layout.id) : null;
 
@@ -541,7 +587,7 @@ function TruckCard({
 
       {/* Actions */}
       <div className="mt-1 flex gap-2 border-t border-gray-100 pt-3">
-        {isAdmin && (
+        {canViewAdblueHistory && (
 <button
           type="button"
           onClick={onViewHistory}

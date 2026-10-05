@@ -44,6 +44,7 @@ import {
   MessageSquare,
   IndianRupee,
   Trash2,
+  RefreshCw,
   Filter,
   Archive,
   Activity,
@@ -147,12 +148,19 @@ export const sidebarSections: NavSection[] = [
     title: "Maintenance and Care",
     items: [
       { label: "Truck Maintenance", href: "/maintenance/trucks", icon: Wrench },
-      { label: "Tyre Management", href: "/maintenance/tyre-management", icon: CircleDot },
-      { label: "Tyre Inventory", href: "/maintenance/tyre-inventory", icon: Boxes },
       { label: "Truck's Fuel History", href: "/maintenance/fuel-history", icon: Fuel },
       { label: "Truck's Adblue History", href: "/admin/adblue", icon: Droplets },
       { label: "Truck Run Record", href: "/maintenance/truck-run-record", icon: Activity },
       { label: "Tyre Archive", href: "/maintenance/tyre-archive", icon: Archive },
+    ],
+  },
+  {
+    title: "Tyre Records",
+    items: [
+      { label: "Tyre Management", href: "/maintenance/tyre-management", icon: CircleDot },
+      { label: "Tyre Inventory", href: "/maintenance/tyre-inventory", icon: Boxes },
+      { label: "Retread Queue", href: "/maintenance/retread-queue", icon: RefreshCw },
+      { label: "Discarded Tyres", href: "/maintenance/discarded-tyres", icon: Trash2 },
     ],
   },
   {
@@ -185,6 +193,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Default Batta Management", href: "/admin/default-batta", icon: Coins },
       { label: "Security Log", href: "/admin/security", icon: Lock },
       { label: "SW Usage Analytics", href: "/admin/usage-analytics", icon: Monitor },
+      { label: "Activity Log", href: "/admin/activity-log", icon: Activity },
     ],
   },
 ];

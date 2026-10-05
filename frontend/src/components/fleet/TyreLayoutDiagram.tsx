@@ -124,6 +124,7 @@ function TruckUnitDiagram({
   filledPositions,
   onPositionClick,
   selectedPosition,
+  selectedPositions,
   animatingPosition,
 }: {
   unit: TruckUnit;
@@ -132,8 +133,12 @@ function TruckUnitDiagram({
   filledPositions: Set<string>;
   onPositionClick?: (position: string) => void;
   selectedPosition?: string | null;
+  selectedPositions?: Set<string>;
   animatingPosition?: string | null;
 }) {
+  // A wheel is highlighted when it's the single selected position or part of a multi-selection.
+  const isPicked = (position: string) =>
+    selectedPosition === position || !!selectedPositions?.has(position);
   const steerAxles = unit.axles
     .map((axle, index) => ({ axle, index }))
     .filter(({ axle }) => axle.wheelsPerSide === 1);
@@ -172,8 +177,8 @@ function TruckUnitDiagram({
           <g key={`steer-${index}`}>
             <line x1={100} x2={300} y1={centerY} y2={centerY} stroke="#78909c" strokeWidth={12} strokeLinecap="round" />
             <circle cx={CENTER_X} cy={centerY} r={10} fill="#cbd5e1" stroke="#94a3b8" strokeWidth={1} />
-            <Wheel x={STEER_LEFT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(leftPos)} position={leftPos} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === leftPos} isAnimating={animatingPosition === leftPos} />
-            <Wheel x={STEER_RIGHT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(rightPos)} position={rightPos} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === rightPos} isAnimating={animatingPosition === rightPos} />
+            <Wheel x={STEER_LEFT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(leftPos)} position={leftPos} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={isPicked(leftPos)} isAnimating={animatingPosition === leftPos} />
+            <Wheel x={STEER_RIGHT_X} y={wheelY} width={STEER_WHEEL_W} height={STEER_WHEEL_H} rx={8} filled={filledPositions.has(rightPos)} position={rightPos} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={isPicked(rightPos)} isAnimating={animatingPosition === rightPos} />
           </g>
         );
       })}
@@ -238,7 +243,7 @@ function TruckUnitDiagram({
           />
           <rect x={115} y={base + 180} width={30} height={25} rx={5} fill="#769a82" />
           {/* spare tyre */}
-          <Wheel x={235} y={base + 170} width={85} height={40} rx={15} filled={filledPositions.has("Spare")} position="Spare" onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === "Spare"} isAnimating={animatingPosition === "Spare"} />
+          <Wheel x={235} y={base + 170} width={85} height={40} rx={15} filled={filledPositions.has("Spare")} position="Spare" onClick={onPositionClick} interactive={!!onPositionClick} isSelected={isPicked("Spare")} isAnimating={animatingPosition === "Spare"} />
         </g>
       )}
 
@@ -308,11 +313,11 @@ function TruckUnitDiagram({
             <circle cx={CENTER_X} cy={centerY} r={20} fill="#618972" stroke="#455a64" strokeWidth={2} />
             {DRIVE_LEFT_X.slice(0, axle.wheelsPerSide).map((x, w) => {
               const position = getTyrePositionLabel(unitLabel, index, "Left", w + 1, axle.wheelsPerSide);
-              return <Wheel key={`l-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} position={position} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === position} isAnimating={animatingPosition === position} />;
+              return <Wheel key={`l-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} position={position} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={isPicked(position)} isAnimating={animatingPosition === position} />;
             })}
             {DRIVE_RIGHT_X.slice(0, axle.wheelsPerSide).map((x, w) => {
               const position = getTyrePositionLabel(unitLabel, index, "Right", w + 1, axle.wheelsPerSide);
-              return <Wheel key={`r-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} position={position} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={selectedPosition === position} isAnimating={animatingPosition === position} />;
+              return <Wheel key={`r-${w}`} x={x} y={wheelY} width={DRIVE_WHEEL_W} height={DRIVE_WHEEL_H} rx={6} filled={filledPositions.has(position)} position={position} onClick={onPositionClick} interactive={!!onPositionClick} isSelected={isPicked(position)} isAnimating={animatingPosition === position} />;
             })}
           </g>
         );
@@ -331,7 +336,7 @@ function TruckUnitDiagram({
             position={getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1)}
             onClick={onPositionClick}
             interactive={!!onPositionClick}
-            isSelected={selectedPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1)}
+            isSelected={isPicked(getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1))}
             isAnimating={animatingPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Left", 1, 1)}
           />
           <Wheel
@@ -344,7 +349,7 @@ function TruckUnitDiagram({
             position={getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1)}
             onClick={onPositionClick}
             interactive={!!onPositionClick}
-            isSelected={selectedPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1)}
+            isSelected={isPicked(getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1))}
             isAnimating={animatingPosition === getTyrePositionLabel(unitLabel, headSteerAxle.index, "Right", 1, 1)}
           />
         </g>
@@ -358,12 +363,14 @@ export function TyreLayoutDiagram({
   filledPositions = new Set<string>(),
   onPositionClick,
   selectedPosition,
+  selectedPositions,
   animatingPosition,
 }: {
   layout: TyreLayout;
   filledPositions?: Set<string>;
   onPositionClick?: (position: string) => void;
   selectedPosition?: string | null;
+  selectedPositions?: Set<string>;
   animatingPosition?: string | null;
 }) {
   return (
@@ -395,6 +402,7 @@ export function TyreLayoutDiagram({
                 filledPositions={filledPositions}
                 onPositionClick={onPositionClick}
                 selectedPosition={selectedPosition}
+                selectedPositions={selectedPositions}
                 animatingPosition={animatingPosition}
               />
               {unit.label && <span className="text-xs font-medium text-gray-500">{unit.label}</span>}

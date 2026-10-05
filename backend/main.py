@@ -911,6 +911,40 @@ def _run_staff_history_migrations():
             conn.execute(text("ALTER TABLE compensation_transactions ADD COLUMN person_name VARCHAR(100) NULL"))
         except Exception:
             pass
+        for ddl in (
+            "ALTER TABLE tyre_inventory ADD COLUMN retread_flagged_at DATETIME NULL",
+            "ALTER TABLE tyre_inventory ADD COLUMN retread_flagged_by VARCHAR(100) NULL",
+            "ALTER TABLE tyre_inventory ADD COLUMN discarded_at DATETIME NULL",
+            "ALTER TABLE tyre_inventory ADD COLUMN discarded_by VARCHAR(100) NULL",
+            "ALTER TABLE tyre_inventory ADD COLUMN discard_reason TEXT NULL",
+            "ALTER TABLE staff_attendance ADD COLUMN auto_closed BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE tyre_movement_events ADD COLUMN retread_done_by VARCHAR(200) NULL",
+            "ALTER TABLE activity_minutes ADD COLUMN first_at DATETIME NULL",
+            "ALTER TABLE activity_minutes ADD COLUMN last_at DATETIME NULL",
+        ):
+            # Re-running is expected on every deploy; only "already exists" is ignored.
+            try:
+                conn.execute(text(ddl))
+            except Exception as exc:
+                if "Duplicate column" not in str(exc):
+                    raise
+        # Seed the shared Manage Tyres remark pills with the original defaults.
+        # INSERT IGNORE skips anything already present, so re-running is safe.
+        for scenario, texts in (
+            ("Attachment", ["New Tyre Fitted", "Retreaded Tyre Reused", "Replacement", "Spare Fitted"]),
+            ("Removal", ["Puncture", "Powder Work", "LHS to RHS to LHS", "Tyre Side Change", "Retreading",
+                         "Tyre Busted", "Tyre Air Fault", "Tyre Side Wall Crack", "Speedometer Issue", "Tyre Rotation"]),
+            ("Swap", ["Tyre Rotation", "LHS to RHS to LHS", "Tyre Side Change", "Wear Balancing", "Preventive Rotation"]),
+        ):
+            for remark in texts:
+                conn.execute(text(
+                    "INSERT IGNORE INTO tyre_remark_presets (scenario, `text`, created_by, created_at) "
+                    "VALUES (:scenario, :remark, 'System', NOW())"
+                ), {"scenario": scenario, "remark": remark})
+        # Condition follows retread_count (0 = New, 1+ = Rethreaded). Idempotent.
+        conn.execute(text(
+            "UPDATE tyre_inventory SET `condition` = CASE WHEN retread_count > 0 THEN 'Rethreaded' ELSE 'New' END"
+        ))
         conn.commit()
 
         # Backfill names for rows written before these columns existed, from
@@ -1185,6 +1219,10 @@ app = FastAPI(
 @app.on_event("startup")
 async def _startup():
     set_event_loop(asyncio.get_running_loop())
+    import auto_close_worker
+    auto_close_worker.start()
+    import activity_tracker
+    activity_tracker.start()
 
 # HIGH-2: CORS origins come from the environment. Wildcard is allowed only when
 # CORS_ORIGINS is literally "*" (development). Production must set the real origin(s).
@@ -1256,6 +1294,32 @@ async def realtime_broadcast(request: Request, call_next):
     return response
 
 
+_ACTIVITY_SKIP = ("/usage/heartbeat", "/activity/batch", "/ws", "/files/")
+
+
+@app.middleware("http")
+async def activity_tracking(request: Request, call_next):
+    """Records every API request for the activity log. Bookkeeping only: it never
+    fails the request or delays the response (see activity_tracker.py)."""
+    import time as _time
+    started = _time.perf_counter()
+    response = await call_next(request)
+    path = request.url.path
+    if not path.startswith(_ACTIVITY_SKIP):
+        try:
+            import activity_tracker
+            forwarded = request.headers.get("x-forwarded-for")
+            ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+            activity_tracker.record_request(
+                request.method, path, response.status_code,
+                (_time.perf_counter() - started) * 1000,
+                request.headers.get("authorization"), ip,
+            )
+        except Exception:
+            pass
+    return response
+
+
 # All business routers require a valid JWT (see security.py).
 AUTH = [Depends(get_current_user)]
 # Finance data additionally requires the Accounts (or Admin) role.
@@ -1295,6 +1359,8 @@ app.include_router(chat.photo_router)                         # GET group photo:
 app.include_router(default_batta.router, dependencies=AUTH)
 app.include_router(maintenance_categories.router, dependencies=AUTH)
 app.include_router(usage_analytics.router, dependencies=AUTH)
+from routers import activity as _activity_router
+app.include_router(_activity_router.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

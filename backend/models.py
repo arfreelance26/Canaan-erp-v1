@@ -885,6 +885,8 @@ class StaffAttendance(Base):
     status = Column(Enum("Present", "Absent", "On Leave", "Not Marked"), nullable=False, default="Not Marked")
     check_in_time = Column(String(20))
     check_out_time = Column(String(20))
+    # True when the shift was closed automatically at the working-hours limit, not by the staff member.
+    auto_closed = Column(Boolean, nullable=False, default=False, server_default="0")
     marked_at = Column(DateTime)
     source = Column(Enum("Web", "App"), default="Web")
     admin_override = Column(Boolean, default=False, nullable=False)
@@ -1158,10 +1160,93 @@ class TyreInventory(Base):
     # so it can be recovered from the "Tyre Archive" page. Same pattern as
     # Driver/Truck/Staff/Customer/Vendor.deleted_at.
     deleted_at = Column(DateTime, nullable=True)
+    # "Flag for Retreading" — the tyre leaves Tyre Inventory and appears on the
+    # Retread Queue page with its full record. Set once, by the flag endpoint.
+    retread_flagged_at = Column(DateTime, nullable=True)
+    retread_flagged_by = Column(String(100), nullable=True)
+    # "Flag as Discarded" - the tyre leaves inventory and the retread queue and
+    # appears on the Discarded Tyres page with the reason it was written off.
+    discarded_at = Column(DateTime, nullable=True)
+    discarded_by = Column(String(100), nullable=True)
+    discard_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     fitment_records = relationship("TyreFitmentRecord", back_populates="tyre", cascade="all, delete-orphan")
+
+
+class ActivityEvent(Base):
+    """One row per saved, deleted, exported or logged-in action, plus page views and
+    clicks sent by the browser. GET reads are counted in ActivityMinute instead."""
+    __tablename__ = "activity_events"
+    __table_args__ = (
+        Index("ix_activity_user_time", "user_key", "created_at"),
+        Index("ix_activity_time", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, nullable=False)
+    user_key = Column(String(64), nullable=False)
+    user_name = Column(String(100), nullable=False, default="")
+    user_id = Column(Integer, nullable=True)
+    role = Column(String(60), nullable=True)
+    kind = Column(String(16), nullable=False)
+    method = Column(String(8), nullable=True)
+    route = Column(String(200), nullable=False)
+    label = Column(String(120), nullable=True)
+    status = Column(Integer, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    ip = Column(String(45), nullable=True)
+
+
+class ActivityMinute(Base):
+    """Read counts: how many times a person loaded a route in a given minute."""
+    __tablename__ = "activity_minutes"
+    __table_args__ = (Index("ix_activity_minute_time", "minute"),)
+
+    user_key = Column(String(64), primary_key=True)
+    route = Column(String(200), primary_key=True)
+    minute = Column(DateTime, primary_key=True)
+    user_name = Column(String(100), nullable=False, default="")
+    count = Column(Integer, nullable=False, default=0)
+    first_at = Column(DateTime, nullable=True)
+    last_at = Column(DateTime, nullable=True)
+
+
+class TyreRemarkPreset(Base):
+    """Shared quick-pick remarks for the Manage Tyres dialog. Each scenario
+    (Attachment, Removal, Swap) has its own list; the pills under the remark
+    field are read from here."""
+    __tablename__ = "tyre_remark_presets"
+    __table_args__ = (UniqueConstraint("scenario", "text", name="uq_tyre_remark_scenario_text"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scenario = Column(Enum("Attachment", "Removal", "Swap"), nullable=False)
+    text = Column(String(200), nullable=False)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class TyreMovementEvent(Base):
+    """One row per move of a tyre between Tyre Inventory, the Retread Queue and
+    Discarded Tyres, with the details of that move. The "View Tyre Data" dialog
+    reads this to show the full movement history of a tyre."""
+    __tablename__ = "tyre_movement_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tyre_id = Column(Integer, ForeignKey("tyre_inventory.id", ondelete="CASCADE"), nullable=False, index=True)
+    event = Column(Enum(
+        "Flagged for Retreading", "Moved to Inventory",
+        "Flagged as Discarded", "Restored from Discard",
+    ), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    retread_cost = Column(Numeric(10, 2), nullable=True)
+    expected_range = Column(Integer, nullable=True)
+    retread_count = Column(Integer, nullable=True)
+    # Vendor that did the retreading (picked from Our Vendors when the tyre comes back).
+    retread_done_by = Column(String(200), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class TyreInventoryEditEvent(Base):

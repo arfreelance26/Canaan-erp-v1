@@ -19,7 +19,7 @@ import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRo
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 import type { MaintenanceRecord, AirFilterRecord } from "@/types/truck-maintenance";
-import type { TyreInventoryItem } from "@/types/tyre-inventory";
+import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
@@ -699,6 +699,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     transportCrossingAmount: String(b.transport_crossing_amount ?? ""),
     transportCommissionAmount: b.transport_commission_amount != null ? String(b.transport_commission_amount) : undefined,
     approxKm: b.approx_km != null ? String(b.approx_km) : undefined,
+    approxTripDistance: b.approx_trip_distance != null ? String(b.approx_trip_distance) : undefined,
     liftOnAmount: b.lift_on_amount != null ? String(b.lift_on_amount) : undefined,
     liftOnRemarks: b.lift_on_remarks ?? undefined,
     chaName: b.cha_name ?? undefined,
@@ -787,6 +788,7 @@ function fromTrip(f: Trip) {
     transport_crossing_amount: f.transportCrossingAmount ? parseFloat(f.transportCrossingAmount) : null,
     transport_commission_amount: f.transportCommissionAmount ? parseFloat(f.transportCommissionAmount) : null,
     approx_km: f.approxKm ? parseFloat(f.approxKm) : null,
+    approx_trip_distance: f.approxTripDistance ? parseFloat(f.approxTripDistance) : null,
     lift_on_amount: f.liftOnAmount ? parseFloat(f.liftOnAmount) : null,
     lift_on_remarks: f.liftOnRemarks || null,
     cha_name: f.chaName || null,
@@ -1040,6 +1042,7 @@ function toStaffAttendance(b: B): StaffAttendanceRecord {
     status: b.status ?? "Not Marked",
     checkInTime: b.check_in_time ?? null,
     checkOutTime: b.check_out_time ?? null,
+    autoClosed: Boolean(b.auto_closed),
     markedAt: b.marked_at ?? null,
     source: b.source ?? "Web",
     adminOverride: b.admin_override ?? false,
@@ -1159,8 +1162,14 @@ function toTyreInventory(b: B): TyreInventoryItem {
     purchaseDate: b.purchase_date ?? "",
     retreadCost: String(b.retread_cost ?? ""),
     retreadCount: String(b.retread_count ?? ""),
-    condition: (b.condition ?? ((parseInt(b.retread_count) || 0) > 0 ? "Rethreaded" : "New")) as "New" | "Rethreaded",
+    // Condition follows the retread count (0 = New, 1+ = Rethreaded).
+    condition: ((Number(b.retread_count) || 0) > 0 ? "Rethreaded" : "New") as "New" | "Rethreaded",
     version: typeof b.version === "number" ? b.version : undefined,
+    retreadFlaggedAt: b.retread_flagged_at ?? null,
+    retreadFlaggedBy: b.retread_flagged_by ?? null,
+    discardedAt: b.discarded_at ?? null,
+    discardedBy: b.discarded_by ?? null,
+    discardReason: b.discard_reason ?? null,
   };
 }
 
@@ -1176,7 +1185,7 @@ function fromTyreInventory(f: TyreInventoryItem) {
     purchase_date: f.purchaseDate || null,
     retread_cost: parseFloat(f.retreadCost) || 0,
     retread_count: parseInt(f.retreadCount) || 0,
-    condition: f.condition,
+    condition: (parseInt(f.retreadCount) || 0) > 0 ? "Rethreaded" : "New",
     client_version: f.version,
   };
 }
@@ -3126,8 +3135,137 @@ export type TyreFitmentEventRow = {
   remark: string | null;
 };
 
+export type ActivityEventRow = {
+  id: number;
+  createdAt: string;
+  userName: string;
+  role: string | null;
+  kind: string;
+  method: string | null;
+  route: string;
+  label: string | null;
+  status: number | null;
+  durationMs: number | null;
+  ip: string | null;
+};
+
+export type ActivitySummaryRow = {
+  userName: string;
+  saves: number;
+  deletes: number;
+  exports: number;
+  logins: number;
+  failedLogins: number;
+  views: number;
+  clicks: number;
+  reads: number;
+  total: number;
+};
+
+export const activityApi = {
+  // Page views and clicks, sent in batches by useActivityTracking.
+  sendBatch: (events: { kind: string; route: string; label?: string }[]) =>
+    req<void>("/activity/batch", { method: "POST", body: JSON.stringify({ events }) }),
+  events: (filters: { day?: string; user?: string; kind?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (filters.day) { params.set("date_from", filters.day); params.set("date_to", filters.day); }
+    if (filters.user) params.set("user", filters.user);
+    if (filters.kind) params.set("kind", filters.kind);
+    params.set("limit", String(filters.limit ?? 200));
+    return req<Record<string, unknown>[]>(`/activity/events?${params.toString()}`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        createdAt: String(r.created_at),
+        userName: String(r.user_name ?? ""),
+        role: (r.role as string | null) ?? null,
+        kind: String(r.kind),
+        method: (r.method as string | null) ?? null,
+        route: String(r.route),
+        label: (r.label as string | null) ?? null,
+        status: (r.status as number | null) ?? null,
+        durationMs: (r.duration_ms as number | null) ?? null,
+        ip: (r.ip as string | null) ?? null,
+      })) as ActivityEventRow[],
+    );
+  },
+  // One employee's day in time order: events and read counts merged.
+  timeline: (userName: string, day: string) => {
+    const params = new URLSearchParams({ user_name: userName, day });
+    return req<{ time: string; type: string; kind: string; method: string | null; route: string;
+                 label: string | null; status: number | null; count: number | null; last?: string | null }[]>(
+      `/activity/timeline?${params.toString()}`,
+    );
+  },
+  summary: (day: string) =>
+    req<Record<string, unknown>[]>(`/activity/summary?day=${encodeURIComponent(day)}`).then((rows) =>
+      rows.map((r) => ({
+        userName: String(r.user_name ?? ""),
+        saves: Number(r.saves ?? 0),
+        deletes: Number(r.deletes ?? 0),
+        exports: Number(r.exports ?? 0),
+        logins: Number(r.logins ?? 0),
+        failedLogins: Number(r.failed_logins ?? 0),
+        views: Number(r.views ?? 0),
+        clicks: Number(r.clicks ?? 0),
+        reads: Number(r.reads ?? 0),
+        total: Number(r.total ?? 0),
+      })) as ActivitySummaryRow[],
+    ),
+};
+
+// Shared quick-pick remarks for the Manage Tyres dialog (Attachment, Removal, Swap).
+export const tyreRemarkPresetApi = {
+  list: () => req<TyreRemarkPreset[]>("/tyre-remark-presets"),
+  create: (scenario: TyreRemarkScenario, text: string) =>
+    req<TyreRemarkPreset>("/tyre-remark-presets", {
+      method: "POST",
+      body: JSON.stringify({ scenario, text }),
+    }),
+  remove: (id: number) => req<void>(`/tyre-remark-presets/${id}`, { method: "DELETE" }),
+};
+
 export const tyreApi = {
   listInventory: () => req<B[]>("/tyre-inventory").then((d) => d.map(toTyreInventory)),
+  // Moves a tyre to the Retread Queue (same record, marked — not copied).
+  flagForRetread: (id: string) => req<B>(`/tyre-inventory/${id}/flag-retread`, { method: "POST" }).then(toTyreInventory),
+  listRetreadQueue: () => req<B[]>("/tyre-inventory/retread-queue").then((d) => d.map(toTyreInventory)),
+  // "Flag as Discarded" — writes a tyre off with a required reason.
+  flagForDiscard: (id: string, reason: string) =>
+    req<B>(`/tyre-inventory/${id}/flag-discard`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }).then(toTyreInventory),
+  listDiscarded: () => req<B[]>("/tyre-inventory/discarded").then((d) => d.map(toTyreInventory)),
+  // Moves a discarded tyre back into Tyre Inventory.
+  restoreFromDiscard: (id: string) =>
+    req<B>(`/tyre-inventory/${id}/restore-from-discard`, { method: "POST" }).then(toTyreInventory),
+  // Everything recorded about one tyre: current record, first-added date and every move.
+  getTyreData: (id: string) =>
+    req<B>(`/tyre-inventory/${id}/data`).then((d) => ({
+      tyre: toTyreInventory(d.tyre),
+      addedToInventoryAt: d.added_to_inventory_at ?? null,
+      movements: (d.movements ?? []).map((m: B) => ({
+        id: m.id,
+        event: m.event,
+        actorName: m.actor_name ?? "",
+        actorRole: m.actor_role ?? null,
+        retreadCost: m.retread_cost != null ? String(m.retread_cost) : null,
+        expectedRange: m.expected_range ?? null,
+        retreadCount: m.retread_count ?? null,
+        retreadDoneBy: m.retread_done_by ?? null,
+        createdAt: m.created_at,
+      })),
+    }) as TyreData),
+  // Moves a retread-queue tyre back to inventory; its retread cost becomes purchase cost.
+  moveToInventory: (id: string, retreadCost: string, expectedRange: string, retreadDoneBy: string) =>
+    req<B>(`/tyre-inventory/${id}/move-to-inventory`, {
+      method: "POST",
+      body: JSON.stringify({
+        retread_cost: retreadCost,
+        expected_range: parseInt(expectedRange, 10),
+        retread_done_by: retreadDoneBy,
+      }),
+    }).then(toTyreInventory),
   // Page-wide "Edit History" log on Tyre Inventory — every Create/Edit/
   // Delete/Restore across every tyre stock record.
   listInventoryEditEvents: (): Promise<TyreInventoryEditEventRow[]> =>
@@ -3192,6 +3330,18 @@ export const tyreApi = {
       method: "PATCH",
       body: JSON.stringify({ removed_odometer: removedOdometer, removed_date: removedDate, removal_remark: removalRemark }),
     }).then(toTyreFitment),
+  // Removes several tyres from one truck, all or nothing. An empty fitmentIds list removes every fitted tyre on the truck.
+  removeTyresBulk: (truckId: string, fitmentIds: string[], removedOdometer: number, removedDate: string, removalRemark: string) =>
+    req<B[]>("/tyre-fitment/remove-bulk", {
+      method: "POST",
+      body: JSON.stringify({
+        truck_id: parseInt(truckId, 10),
+        fitment_ids: fitmentIds.map((id) => parseInt(id, 10)),
+        removed_odometer: removedOdometer,
+        removed_date: removedDate,
+        removal_remark: removalRemark,
+      }),
+    }).then((rows) => rows.map(toTyreFitment)),
   swapPositions: (truckDbId: string, pairs: [string, string][], odometer: number, remark: string, date: string) =>
     req<B[]>("/tyre-fitment/swap", {
       method: "POST",
@@ -4122,6 +4272,14 @@ export const securityApi = {
       method: "POST",
       body: JSON.stringify({ ip_address: ipAddress, username }),
     }),
+  // Longest a staff shift may run from check-in before it is closed automatically.
+  getMaxShiftHours: () =>
+    req<{ hours: number }>("/settings/max-shift-hours").then((r) => Number(r.hours)),
+  updateMaxShiftHours: (hours: number) =>
+    req<{ hours: number }>("/settings/max-shift-hours", {
+      method: "PUT",
+      body: JSON.stringify({ hours }),
+    }).then((r) => Number(r.hours)),
   getDeviceLock: () =>
     req<{ enabled: boolean; admin_limit: number; staff_limit: number }>("/settings/device-lock").then((r) => ({
       enabled: Boolean(r.enabled),

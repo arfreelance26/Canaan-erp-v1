@@ -23,6 +23,7 @@ export type StaffAttendanceRecord = {
   status: AttendanceStatus;
   checkInTime: string | null;
   checkOutTime: string | null;
+  autoClosed?: boolean;
   markedAt: string | null;
   source: AttendanceSource;
   adminOverride: boolean;

@@ -18,6 +18,8 @@ const columns = ["Truck Photo", "Truck Registration", "Upcoming Maintenance"];
 export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onViewTruckHistory }: TyreManagementTableProps) {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  // Truck history is available to the Maintenance team as well as Admin.
+  const canViewTruckHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -66,7 +68,7 @@ export function TyreManagementTable({ trucks, onManageTyres, onViewTyreData, onV
                     >
                       View Tyre Data
                     </button>
-                    {isAdmin && (
+                    {canViewTruckHistory && (
 <button
                       type="button"
                       onClick={() => onViewTruckHistory(truck)}

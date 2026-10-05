@@ -2,7 +2,10 @@
 
 import { useRef, useEffect, useState } from "react";
 import { CombinedInvoice } from "@/components/invoices/CombinedInvoice";
-import { buildCombinedInvoice } from "@/lib/invoice-builder";
+import { buildCombinedInvoice, buildConsolidatedAsSingle } from "@/lib/invoice-builder";
+import { BillOfSupplyInvoice } from "@/components/invoices/BillOfSupplyInvoice";
+import { TransportMemoInvoice } from "@/components/invoices/TransportMemoInvoice";
+import { TaxInvoice } from "@/components/invoices/TaxInvoice";
 import type { Trip } from "@/types/trip";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
@@ -53,7 +56,10 @@ export function CombinedInvoicePreviewDialog({
   const ready = open && trips.length > 0 && trips.every((t) => closures.has(t.id));
   if (!ready) return null;
 
-  const props = buildCombinedInvoice(trips, closures, sheets, customer, rawInvoices);
+  // Consolidated invoices (lines on one trip only) render as a normal invoice of the same type.
+  const consolidated = trips.filter((t) => ((rawInvoices.get(t.id)?.services as unknown[] | undefined)?.length ?? 0) > 0).length <= 1;
+  const single = consolidated ? buildConsolidatedAsSingle(trips, closures, sheets, customer, rawInvoices) : null;
+  const props = single ? single.props : buildCombinedInvoice(trips, closures, sheets, customer, rawInvoices);
   const filename = `CGI-${props.invoiceNo.replace(/\//g, "-")}-Combined.pdf`;
 
   async function handleDownload() {
@@ -211,7 +217,13 @@ export function CombinedInvoicePreviewDialog({
 
       <div className="flex-1 overflow-y-auto">
         <div ref={invoiceRef}>
-          <CombinedInvoice {...props} />
+          {single ? (
+            single.invoiceType === "Bill of Supply" ? <BillOfSupplyInvoice {...props} />
+            : single.invoiceType === "Transport Memo" ? <TransportMemoInvoice {...props} />
+            : <TaxInvoice {...props} />
+          ) : (
+            <CombinedInvoice {...props} />
+          )}
         </div>
       </div>
     </div>

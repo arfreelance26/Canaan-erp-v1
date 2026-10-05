@@ -105,6 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function completeLogin(authUser: AuthUser) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
+    // Drop any cached data from a previous session, so this user never sees another user's snapshot.
+    cacheClear();
     setUser(authUser);
     // All roles land on their dashboard at "/".
     router.replace("/");

@@ -617,6 +617,9 @@ export default function MarkAttendancePage() {
                         Checked out
                       </span>
                       <span className="text-sm font-medium tabular-nums text-gray-900">{checkOutTime}</span>
+                      {todayRecord?.autoClosed && (
+                        <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Auto-closed</span>
+                      )}
                     </div>
                     {length && (
                       <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">

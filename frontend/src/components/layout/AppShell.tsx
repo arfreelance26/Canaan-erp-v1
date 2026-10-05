@@ -7,6 +7,7 @@ import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useIdleTimer } from "@/hooks/useIdleTimer";
 import { useUsageHeartbeat } from "@/hooks/useUsageHeartbeat";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // the effect below would log the user out immediately on every refresh.
   const isIdle = useIdleTimer(IDLE_TIMEOUT_MS, false);
   useUsageHeartbeat(Boolean(user));
+  useActivityTracking(Boolean(user), pathname);
 
   useChatMessageToasts();
 

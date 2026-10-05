@@ -140,6 +140,62 @@ function buildTripLine(trip: Trip, sheet: TripSheetData | undefined, saved?: Rec
   };
 }
 
+// The selected trips become ONE invoice. Numeric trip-sheet expense fields are summed
+// across the trips, and hire is the sum of each trip's booking hire.
+function aggregateSheets(trips: Trip[], sheets: Map<string, TripSheetData>): TripSheetData | undefined {
+  if (trips.length === 0) return undefined;
+  const base = { ...(sheets.get(trips[0].id) ?? {}) } as Record<string, unknown>;
+  const sumFields = new Set(
+    Object.values(EXPENSE_TO_SHEET_FIELD).filter((f): f is keyof TripSheetData => !!f && f !== "hireAmount"),
+  );
+  for (const field of sumFields) {
+    base[field] = String(
+      trips.reduce((sum, t) => sum + (parseFloat(String(sheets.get(t.id)?.[field] ?? "0"))  || 0), 0),
+    );
+  }
+  base.hireAmount = String(trips.reduce((sum, t) => sum + (parseFloat(t.transportHireAmount ?? "0") || 0), 0));
+  return base as unknown as TripSheetData;
+}
+
+// One invoice line for all the selected trips. Saved services win when present.
+function buildCombinedLine(trips: Trip[], sheets: Map<string, TripSheetData>, savedInvoices?: Map<string, Record<string, unknown>>): TripLine {
+  const line: TripLine = {
+    ...buildTripLine(trips[0], sheets.get(trips[0].id), undefined),
+    containerNo: Array.from(new Set(trips.map(resolveContainerNo).filter(Boolean))).join(" / "),
+    from: Array.from(new Set(trips.map((t) => t.origin ?? "").filter(Boolean))).join(" / "),
+    to: Array.from(new Set(trips.map((t) => t.destination ?? "").filter(Boolean))).join(" / "),
+    narration: trips
+      .map((t) => buildNarration(resolveContainerNo(t), t.containerSpecification, t.origin ?? "", t.destination ?? "", t.scheduledDate ?? ""))
+      .join("; "),
+    services: [emptyService()],
+  };
+  const saved = trips.map((t) => savedInvoices?.get(t.id)).find((s) => Array.isArray(s?.services) && (s!.services as unknown[]).length > 0);
+  if (!saved) return line;
+  const str = (v: unknown) => (v != null ? String(v) : "");
+  return {
+    ...line,
+    containerType: str(saved.container_type) || line.containerType,
+    containerNo: str(saved.container_no) || line.containerNo,
+    consignee: str(saved.consignee) || line.consignee,
+    modeOfShipment: str(saved.mode_of_shipment) || line.modeOfShipment,
+    cfs: str(saved.cfs),
+    shippingLine: str(saved.shipping_line) || line.shippingLine,
+    vesselName: str(saved.vessel_name) || line.vesselName,
+    from: str(saved.origin) || line.from,
+    to: str(saved.destination) || line.to,
+    narration: str(saved.narration) || line.narration,
+    services: saved.services as ServiceLine[],
+  };
+}
+
+// Edits saved with per-trip service lines (older combined invoices) keep the per-trip form.
+function countSavedWithServices(trips: Trip[], savedInvoices?: Map<string, Record<string, unknown>>): number {
+  return trips.filter((t) => {
+    const s = savedInvoices?.get(t.id)?.services;
+    return Array.isArray(s) && s.length > 0;
+  }).length;
+}
+
 function buildSharedFields(trips: Trip[], customer: Customer | undefined, first?: Record<string, unknown>): SharedFields {
   const isSelf = trips[0]?.billTo === "SELF/CGI";
   const isGta = customer?.isGta === "Yes";
@@ -200,8 +256,14 @@ export function GenerateCombinedInvoiceDialog({
   const firstSaved = trips[0] ? savedInvoices?.get(trips[0].id) : undefined;
 
   const [shared, setShared] = useState<SharedFields>(() => buildSharedFields(trips, customer, firstSaved));
+  const isConsolidated = mode === "create" || countSavedWithServices(trips, savedInvoices) <= 1;
+  const combinedSheet = useMemo(() => aggregateSheets(trips, sheets), [trips, sheets]);
+  const combinedHire = trips.reduce((sum, t) => sum + (parseFloat(t.transportHireAmount ?? "0") || 0), 0);
+  const hireFor = (l: TripLine) => (isConsolidated ? combinedHire : Number(l.trip.transportHireAmount || 0));
   const [lines, setLines] = useState<TripLine[]>(() =>
-    trips.map((t) => buildTripLine(t, sheets.get(t.id), savedInvoices?.get(t.id)))
+    isConsolidated
+      ? [buildCombinedLine(trips, sheets, savedInvoices)]
+      : trips.map((t) => buildTripLine(t, sheets.get(t.id), savedInvoices?.get(t.id)))
   );
   const [saving, setSaving] = useState(false);
   const [taxWarning, setTaxWarning] = useState(false);
@@ -366,6 +428,26 @@ export function GenerateCombinedInvoiceDialog({
   const grandTotalRounded = useMemo(() => roundGrandTotal(grandTotal), [grandTotal]);
   const amountInWords = useMemo(() => amountToWords(String(grandTotalRounded)), [grandTotalRounded]);
 
+  // One payload entry per trip. The consolidated lines sit on the first trip; the others carry
+  // the same shared details and no services, so totals are never counted twice.
+  function consolidatedPayloadLines() {
+    const master = lines[0];
+    return trips.map((t, i) => ({
+      trip_id: parseInt(t.id, 10),
+      mode_of_shipment: master.modeOfShipment,
+      container_type: master.containerType,
+      cfs: master.cfs,
+      shipping_line: master.shippingLine,
+      vessel_name: master.vesselName,
+      origin: master.from,
+      destination: master.to,
+      container_no: master.containerNo,
+      consignee: master.consignee,
+      services: i === 0 ? master.services : [],
+      narration: i === 0 ? master.narration : "",
+    }));
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSaving(true);
@@ -384,7 +466,7 @@ export function GenerateCombinedInvoiceDialog({
         contact: shared.contact,
         gst_applicable: shared.gstApplicable,
         igst_applicable: shared.igstApplicable,
-        trips: lines.map((l) => ({
+        trips: isConsolidated ? consolidatedPayloadLines() : lines.map((l) => ({
           trip_id: parseInt(l.tripDbId, 10),
           mode_of_shipment: l.modeOfShipment,
           container_type: l.containerType,
@@ -510,11 +592,15 @@ export function GenerateCombinedInvoiceDialog({
           return (
             <section key={line.tripDbId} className="flex flex-col gap-4 rounded-xl border-2 border-gray-200 bg-gray-50/60 p-4">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className={sh}>Trip {li + 1} of {lines.length} — {line.trip.tripId}</p>
+                <p className={sh}>
+                  {isConsolidated
+                    ? `Combined invoice — ${trips.length} trip${trips.length !== 1 ? "s" : ""}: ${trips.map((t) => t.tripId).join(", ")}`
+                    : `Trip ${li + 1} of ${lines.length} — ${line.trip.tripId}`}
+                </p>
                 <div className="flex items-center gap-2">
-                  {line.trip.transportHireAmount && Number(line.trip.transportHireAmount) > 0 && (
+                  {hireFor(line) > 0 && (
                     <span className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                      Trip Hire Amount &nbsp;·&nbsp; ₹{Number(line.trip.transportHireAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      {isConsolidated ? "Total Hire Amount" : "Trip Hire Amount"} &nbsp;·&nbsp; ₹{hireFor(line).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </span>
                   )}
                   <button
@@ -709,7 +795,7 @@ export function GenerateCombinedInvoiceDialog({
               ) : (
                 sacCodes.map((sc, i) => {
                   const activeLine = showSacTableFor !== null ? lines[showSacTableFor] : undefined;
-                  const linkedVal = activeLine ? getLinkedExpenseValue(sc.linkedExpense, sheets.get(activeLine.trip.id)) : "";
+                  const linkedVal = activeLine ? getLinkedExpenseValue(sc.linkedExpense, isConsolidated ? combinedSheet : sheets.get(activeLine.trip.id)) : "";
                   const hasValue = linkedVal && parseFloat(linkedVal) > 0;
                   const scHasGst = parseFloat(sc.gstRate) > 0;
                   const blockedForTm = shared.invoiceType === "Transport Memo" && scHasGst;

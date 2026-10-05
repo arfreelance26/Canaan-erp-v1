@@ -340,6 +340,11 @@ export function buildCombinedInvoice(
   let combinedSubtotal = 0;
   let combinedGst = 0;
 
+  // Consolidated invoices keep their service lines on one trip only; the others are empty.
+  // Older combined invoices have lines on every trip and keep the per-trip totals they always had.
+  const rowsWithServices = trips.filter((t) => (rawInvoices.get(t.id)?.services?.length ?? 0) > 0).length;
+  const legacyPerTrip = rowsWithServices > 1;
+
   const sections: CombinedInvoiceTripSection[] = trips.map((trip) => {
     const closure = closures.get(trip.id) ?? ({} as TripClosureData);
     const sheet = sheets.get(trip.id);
@@ -347,7 +352,9 @@ export function buildCombinedInvoice(
     const common = commonFields(trip, closure, sheet, customer, invoice);
     const { subtotal, gstTotal } = invoice?.services?.length
       ? computeServiceTotals(invoice.services)
-      : { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 };
+      : legacyPerTrip
+      ? { subtotal: n(closure.billingAmount) || n(closure.hireAmount), gstTotal: 0 }
+      : { subtotal: 0, gstTotal: 0 };
     combinedSubtotal += subtotal;
     combinedGst += gstTotal;
     return {
@@ -365,7 +372,9 @@ export function buildCombinedInvoice(
       containerNo: common.containerNo,
       consignee: common.consignee,
       narration: common.narration,
-      serviceItems: common.serviceItems,
+      // In a consolidated invoice only the trip that carries the lines shows them; the others
+      // must not fall back to their own hire, or that hire appears as a second service.
+      serviceItems: legacyPerTrip || rowsWithServices === 0 || invoice?.services?.length ? common.serviceItems : [],
       tripSubtotal: fmt(subtotal + gstTotal),
     };
   });
@@ -436,4 +445,82 @@ export function buildTaxInvoice(
     ],
     hsnTotal: fmt(grand),
   };
+}
+
+
+/**
+ * A consolidated combined invoice (one set of lines on the master row) rendered with the
+ * same template a normal invoice uses. Shared details are joined across the trips and
+ * money values are totals across the trips; the single-invoice builders do the rest.
+ */
+export function buildConsolidatedAsSingle(
+  trips: Trip[],
+  closures: Map<string, TripClosureData>,
+  sheets: Map<string, TripSheetData>,
+  customer: Customer | undefined,
+  rawInvoices: Map<string, Record<string, any>>,
+): { invoiceType: string; props: any } {
+  const first = trips[0];
+  const master = trips.find((t) => (rawInvoices.get(t.id)?.services?.length ?? 0) > 0) ?? first;
+  const masterRow: Record<string, any> = rawInvoices.get(master.id) ?? {};
+
+  const join = (xs: (string | null | undefined)[], sep = " / ") =>
+    Array.from(new Set(xs.map((x) => (x ?? "").toString().trim()).filter(Boolean))).join(sep);
+  const sum = (xs: (string | number | null | undefined)[]) =>
+    String(xs.reduce<number>((acc, x) => acc + (parseFloat(String(x ?? 0)) || 0), 0));
+
+  const containerNo = join(trips.map((t) => resolveContainerNo(t, closures.get(t.id) ?? ({} as TripClosureData))));
+  const origin = join(trips.map((t) => t.origin));
+  const destination = join(trips.map((t) => t.destination));
+  const narration = trips.map((t) => rawInvoices.get(t.id)?.narration).filter(Boolean).join("; ");
+
+  const trip: Trip = {
+    ...first,
+    bookingReferenceNo: join(trips.map((t) => t.bookingReferenceNo), ", "),
+    releaseOrderReference: join(trips.map((t) => t.releaseOrderReference), ", "),
+    origin,
+    destination,
+    containerNumber: containerNo,
+    containerSpecification: join(trips.map((t) => t.containerSpecification)) as Trip["containerSpecification"],
+    shipperConsignee: join(trips.map((t) => t.shipperConsignee)),
+    transportHireAmount: sum(trips.map((t) => t.transportHireAmount)),
+  };
+
+  const closureFirst = closures.get(first.id) ?? ({} as TripClosureData);
+  const closure = {
+    ...closureFirst,
+    bookingNo: trip.bookingReferenceNo,
+    releaseOrderNo: trip.releaseOrderReference,
+    containerType: join(trips.map((t) => t.containerSpecification)),
+    fromLocation: origin,
+    toLocation: destination,
+    hireAmount: sum(trips.map((t) => t.transportHireAmount)),
+    billingAmount: sum(trips.map((t) => closures.get(t.id)?.billingAmount)),
+  } as TripClosureData;
+
+  const sheetsList = trips.map((t) => sheets.get(t.id)).filter((s): s is TripSheetData => !!s);
+  const sheet = sheetsList.length
+    ? ({ ...sheetsList[0], tripSheetNo: join(sheetsList.map((s) => s.tripSheetNo), ", ") } as TripSheetData)
+    : undefined;
+
+  const invoice: Record<string, any> = {
+    ...masterRow,
+    origin,
+    destination,
+    from: origin,
+    to: destination,
+    container_no: containerNo,
+    containerNo,
+    consignee: join(trips.map((t) => t.shipperConsignee)),
+    narration: narration || masterRow.narration,
+  };
+
+  const invoiceType = (masterRow.invoice_type as string) ?? "Tax Invoice";
+  const props =
+    invoiceType === "Bill of Supply"
+      ? buildBillOfSupply(trip, closure, sheet, customer, invoice)
+      : invoiceType === "Transport Memo"
+      ? buildTransportMemo(trip, closure, sheet, customer, invoice)
+      : buildTaxInvoice(trip, closure, sheet, customer, invoice);
+  return { invoiceType, props };
 }

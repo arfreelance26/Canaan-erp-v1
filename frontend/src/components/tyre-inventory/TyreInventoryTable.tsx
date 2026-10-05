@@ -15,11 +15,15 @@ type TyreInventoryTableProps = {
   onEdit: (tyre: TyreInventoryItem) => void;
   onDelete: (id: string) => void;
   onViewHistory: (tyre: TyreInventoryItem) => void;
+  onFlagForRetread?: (tyre: TyreInventoryItem) => void;
+  onFlagDiscarded?: (tyre: TyreInventoryItem) => void;
+  onViewData?: (tyre: TyreInventoryItem) => void;
 };
 
 const columns = [
   "Brand",
   "Tyre Type",
+  "Condition",
   "Tyre Number",
   "Tyre Size",
   "Cost",
@@ -35,9 +39,13 @@ export function TyreInventoryTable({
   onEdit,
   onDelete,
   onViewHistory,
+  onFlagForRetread,
+  onFlagDiscarded,
+  onViewData,
 }: TyreInventoryTableProps) {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  const canViewTyreHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
   if (tyres.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -70,6 +78,18 @@ export function TyreInventoryTable({
               <tr key={tyre.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{tyre.brand}</td>
                 <td className="px-4 py-3 text-gray-600">{tyre.tyreType}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-xs font-medium",
+                      tyre.condition === "Rethreaded"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-emerald-50 text-emerald-700"
+                    )}
+                  >
+                    {tyre.condition}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-gray-600">{tyre.tyreNumber}</td>
                 <td className="px-4 py-3 text-gray-600">{tyre.size}</td>
                 <td className="px-4 py-3 text-gray-600">₹{Number(tyre.cost).toLocaleString()}</td>
@@ -92,7 +112,14 @@ export function TyreInventoryTable({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => onViewData?.(tyre)}
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      View Tyre Data
+                    </button>
+                    {canViewTyreHistory && (
 <button
                       type="button"
                       onClick={() => onViewHistory(tyre)}
@@ -101,6 +128,24 @@ export function TyreInventoryTable({
                       View Tyre History
                     </button>
 )}
+                    <button
+                      type="button"
+                      disabled={isAttached}
+                      title={isAttached ? "Remove this tyre from its truck first" : undefined}
+                      onClick={() => onFlagForRetread?.(tyre)}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-amber-50"
+                    >
+                      Flag for Retreading
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isAttached}
+                      title={isAttached ? "Remove this tyre from its truck first" : undefined}
+                      onClick={() => onFlagDiscarded?.(tyre)}
+                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-red-50"
+                    >
+                      Flag as Discarded
+                    </button>
                     <div className="flex items-center gap-1 ml-2 border-l pl-2">
                       <button
                         type="button"

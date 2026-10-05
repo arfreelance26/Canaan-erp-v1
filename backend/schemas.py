@@ -1567,6 +1567,7 @@ class StaffAttendanceOut(OrmBase):
     marked_at: Optional[datetime] = None
     source: Literal["Web", "App"] = "Web"
     admin_override: bool = False
+    auto_closed: bool = False
 
 
 class AttendanceSummaryOut(BaseModel):
@@ -1983,11 +1984,80 @@ class TyreInventoryUpdate(OrmBase):
     condition: Optional[str] = None
 
 
+class TyreDiscardIn(OrmBase):
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def _reason_required(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("A reason is required to discard a tyre")
+        return v
+
+
+class TyreMovementEventOut(OrmBase):
+    id: int
+    event: str
+    actor_name: str
+    actor_role: Optional[str] = None
+    retread_cost: Optional[Decimal] = None
+    expected_range: Optional[int] = None
+    retread_count: Optional[int] = None
+    retread_done_by: Optional[str] = None
+    created_at: datetime
+
+
+class TyreDataOut(OrmBase):
+    tyre: "TyreInventoryOut"
+    added_to_inventory_at: Optional[datetime] = None
+    movements: list[TyreMovementEventOut] = []
+
+
+class TyreMoveToInventory(OrmBase):
+    """Body for moving a Retread Queue tyre back to Tyre Inventory."""
+    retread_cost: Decimal
+    expected_range: int
+    retread_done_by: str
+
+    @field_validator("retread_done_by")
+    @classmethod
+    def _done_by_required(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Select the vendor that did the retreading")
+        if len(v) > 200:
+            raise ValueError("Vendor name must be 200 characters or fewer")
+        return v
+
+    @field_validator("retread_cost")
+    @classmethod
+    def _cost_non_negative(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("Retread cost cannot be negative")
+        return v
+
+    @field_validator("expected_range")
+    @classmethod
+    def _range_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Expected range must be greater than zero")
+        return v
+
+
 class TyreInventoryOut(TyreInventoryBase):
     id: int
     version: int = 1
+    retread_flagged_at: Optional[datetime] = None
+    retread_flagged_by: Optional[str] = None
+    discarded_at: Optional[datetime] = None
+    discarded_by: Optional[str] = None
+    discard_reason: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+TyreDataOut.model_rebuild()
 
 
 # ---------------------------------------------------------------------------
@@ -2004,6 +2074,44 @@ class TyreFitmentCreate(OrmBase):
 
 
 class TyreFitmentRemove(OrmBase):
+    removed_odometer: int
+    removed_date: date
+    removal_remark: str
+
+
+class TyreRemarkPresetOut(OrmBase):
+    id: int
+    scenario: str
+    text: str
+
+
+class TyreRemarkPresetCreate(OrmBase):
+    scenario: str
+    text: str
+
+    @field_validator("scenario")
+    @classmethod
+    def _known_scenario(cls, v: str) -> str:
+        if v not in ("Attachment", "Removal", "Swap"):
+            raise ValueError("Scenario must be Attachment, Removal or Swap")
+        return v
+
+    @field_validator("text")
+    @classmethod
+    def _text_required(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Remark cannot be empty")
+        if len(v) > 200:
+            raise ValueError("Remark must be 200 characters or fewer")
+        return v
+
+
+class TyreFitmentBulkRemove(OrmBase):
+    """Remove several tyres from one truck in one go. An empty fitment_ids list
+    means every tyre currently fitted to the truck."""
+    truck_id: int
+    fitment_ids: list[int] = []
     removed_odometer: int
     removed_date: date
     removal_remark: str

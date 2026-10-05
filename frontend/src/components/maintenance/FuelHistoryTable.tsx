@@ -20,6 +20,8 @@ const columns = [
 export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: FuelHistoryTableProps) {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  // Fuel history is open to the Maintenance team as well as Admin.
+  const canViewFuelHistory = isAdmin || authUser?.softwareDesignation === "Maintenance";
   if (trucks.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -53,7 +55,7 @@ export function FuelHistoryTable({ trucks, onViewHistory, onEnterFuelLog }: Fuel
                 <td className="px-4 py-3 text-gray-600">{truck.modelName}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    {isAdmin && (
+                    {canViewFuelHistory && (
 <button
                       type="button"
                       onClick={() => onViewHistory?.(truck)}

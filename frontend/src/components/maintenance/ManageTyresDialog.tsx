@@ -13,33 +13,16 @@ import {
   getFitmentForPosition,
 } from "@/lib/tyre-fitment-data";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
-import { tyreApi } from "@/lib/api";
-import { ArrowLeftRight, ArrowUpDown } from "lucide-react";
+import { tyreApi, tyreRemarkPresetApi } from "@/lib/api";
+import type { TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventory";
+import { ArrowLeftRight, ArrowUpDown, ChevronDown, ChevronRight } from "lucide-react";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
 import { showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 import { Search, Plus } from "lucide-react";
 
-const REMOVAL_QUICK_REMARKS = [
-  "Puncture",
-  "Powder Work",
-  "LHS to RHS to LHS",
-  "Tyre Side Change",
-  "Retreading",
-  "Tyre Busted",
-  "Tyre Air Fault",
-  "Tyre Side Wall Crack",
-  "Speedometer Issue",
-  "Tyre Rotation",
-];
-
-const ATTACH_QUICK_REMARKS = [
-  "New Tyre Fitted",
-  "Retreaded Tyre Reused",
-  "Replacement",
-  "Spare Fitted",
-];
 import { DecimalInput } from "@/components/ui/DecimalInput";
 
 // ── Swap helpers ───────────────────────────────────────────────────────────
@@ -78,13 +61,13 @@ function getLRSwapPairs(entry: AxleEntry): [string, string][] {
   ];
 }
 
-function getIOSwapPairs(entry: AxleEntry): [string, string][] {
+type IOSide = "Left" | "Right" | "Both";
+
+function getIOSwapPairs(entry: AxleEntry, side: IOSide = "Both"): [string, string][] {
   const { axleLabel } = entry;
-  // Left: swap wheel 1 (outer) ↔ wheel 2 (inner); same on Right
-  return [
-    [`${axleLabel} - Left 1`, `${axleLabel} - Left 2`],
-    [`${axleLabel} - Right 1`, `${axleLabel} - Right 2`],
-  ];
+  // Each side: swap wheel 1 (outer) ↔ wheel 2 (inner)
+  const sides = side === "Both" ? ["Left", "Right"] : [side];
+  return sides.map((s) => [`${axleLabel} - ${s} 1`, `${axleLabel} - ${s} 2`] as [string, string]);
 }
 
 // ── Component types ─────────────────────────────────────────────────────────
@@ -112,6 +95,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   const [searchQuery, setSearchQuery] = useState("");
   type SwapStep =
     | { step: "select-axle"; type: "lr" | "io" }
+    | { step: "select-side"; type: "io"; entry: AxleEntry }
     | { step: "confirm"; pairs: [string, string][]; description: string }
     | null;
   const [swapStep, setSwapStep] = useState<SwapStep>(null);
@@ -119,6 +103,29 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   const [swapDate, setSwapDate] = useState(todayIst());
   const [swapRemark, setSwapRemark] = useState("Tyre Rotation");
   const [swapping, setSwapping] = useState(false);
+  // Bulk removal: select several tyre positions, or none to remove every tyre on the truck.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedSet, setSelectedSet] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkOdometer, setBulkOdometer] = useState("");
+  const [bulkDate, setBulkDate] = useState(todayIst());
+  const [bulkRemark, setBulkRemark] = useState("");
+  const [bulkConfirmText, setBulkConfirmText] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [dataTyreId, setDataTyreId] = useState<string | null>(null);
+  const [fittedOpen, setFittedOpen] = useState(false);
+  // Shared quick-pick remarks, managed on the Tyre Management page ("Manage Remarks").
+  const [remarkPresets, setRemarkPresets] = useState<TyreRemarkPreset[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    tyreRemarkPresetApi.list().then(setRemarkPresets).catch(() => {});
+  }, [open]);
+  const presetsFor = (scenario: TyreRemarkScenario) =>
+    remarkPresets.filter((p) => p.scenario === scenario).map((p) => p.text);
+  // Custom swap: click two positions on the diagram and swap them, across axles or the spare.
+  const [customSwap, setCustomSwap] = useState(false);
+  const [pickA, setPickA] = useState<string | null>(null);
+  const [pickB, setPickB] = useState<string | null>(null);
 
   useEffect(() => {
     setOdometerInput(truck ? truck.odometer : "");
@@ -159,6 +166,75 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
   const filledPositions = new Set(
     positions.filter((position) => getFitmentForPosition(truck.id, position, fitmentRecords) !== null)
   );
+
+  // One row per fitted tyre: km run since fitting, and how much of its expected range that is.
+  const tyreRows = activeFitments
+    .map((f) => {
+      const tyre = tyres.find((t) => t.id === f.tyreId);
+      const currentOdometer = Number(truck?.odometer) || 0;
+      const kmRun = Math.max(0, currentOdometer - Number(f.fittedOdometer || 0));
+      const expectedRange = Number(tyre?.rangeKm) || 0;
+      const pctOfRange = expectedRange > 0 ? (kmRun / expectedRange) * 100 : null;
+      const index = positions.indexOf(f.position);
+      return { fitment: f, tyre, kmRun, expectedRange, pctOfRange, order: index === -1 ? positions.length : index };
+    })
+    .sort((a, b) => a.order - b.order);
+
+  async function exportTyres(format: "xlsx" | "pdf") {
+    if (!truck) return;
+    if (tyreRows.length === 0) {
+      showError("No fitted tyres to export.");
+      return;
+    }
+    const reg = truck.registrationNumber.replace(/\s+/g, "_");
+    const rows = tyreRows.map((r) => ({
+      Position: r.fitment.position,
+      "Tyre Number": r.tyre?.tyreNumber ?? "",
+      Brand: r.tyre?.brand ?? "",
+      Size: r.tyre?.size ?? "",
+      "Fitted On": r.fitment.fittedDate ? formatDate(r.fitment.fittedDate) : "",
+      "Fitted Odometer (km)": Number(r.fitment.fittedOdometer) || 0,
+      "Current Odometer (km)": Number(truck.odometer) || 0,
+      "Km Run": r.kmRun,
+      "Expected Range (km)": r.expectedRange || "",
+      "% of Range": r.pctOfRange == null ? "" : Number(r.pctOfRange.toFixed(1)),
+    }));
+
+    if (format === "xlsx") {
+      const { utils, writeFile } = await import("xlsx");
+      const ws = utils.json_to_sheet(rows);
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, ws, "Tyres");
+      writeFile(wb, `Tyres_${reg}.xlsx`);
+      return;
+    }
+
+    const { default: jsPDF } = await import("jspdf");
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    pdf.setFontSize(14);
+    pdf.text(`Tyres on ${truck.registrationNumber}`, 14, 16);
+    pdf.setFontSize(9);
+    pdf.text(`Current odometer: ${truck.odometer} km  ·  Exported ${formatDate(todayIst())}`, 14, 22);
+
+    const headers = Object.keys(rows[0]);
+    const colWidth = 265 / headers.length;
+    let y = 30;
+    const drawRow = (cells: (string | number)[], bold: boolean) => {
+      pdf.setFont("helvetica", bold ? "bold" : "normal");
+      cells.forEach((cell, i) => pdf.text(String(cell), 14 + i * colWidth, y, { maxWidth: colWidth - 2 }));
+      y += 6;
+    };
+    drawRow(headers, true);
+    for (const row of rows) {
+      if (y > 190) {
+        pdf.addPage();
+        y = 16;
+        drawRow(headers, true);
+      }
+      drawRow(Object.values(row), false);
+    }
+    pdf.save(`Tyres_${reg}.pdf`);
+  }
 
   function cancelAction() {
     setSelectedPosition(null);
@@ -226,6 +302,127 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
     }
   }
 
+  function togglePosition(position: string) {
+    if (!filledPositions.has(position)) return;
+    setSelectedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(position)) next.delete(position);
+      else next.add(position);
+      return next;
+    });
+  }
+
+  function openBulkRemove() {
+    setBulkOdometer(truck?.odometer ?? "");
+    setBulkDate(todayIst());
+    setBulkRemark("");
+    setBulkConfirmText("");
+    setError("");
+    setBulkOpen(true);
+  }
+
+  function closeBulkRemove() {
+    setBulkOpen(false);
+    setError("");
+  }
+
+  async function confirmBulkRemove() {
+    if (!truck) return;
+    const fitments = selectedSet.size > 0
+      ? activeFitments.filter((f) => selectedSet.has(f.position))
+      : activeFitments;
+    const removingAll = selectedSet.size === 0;
+
+    const odometer = Number(bulkOdometer);
+    if (!bulkOdometer || Number.isNaN(odometer) || odometer < 0) {
+      setError("Enter a valid odometer reading.");
+      return;
+    }
+    const lowest = fitments.find((f) => odometer < f.fittedOdometer);
+    if (lowest) {
+      setError(`Odometer must be at least ${Number(lowest.fittedOdometer).toLocaleString()} km (${lowest.position} was fitted at that reading).`);
+      return;
+    }
+    if (!bulkDate) {
+      setError("Select a removal date.");
+      return;
+    }
+    if (!bulkRemark.trim()) {
+      setError("Enter a remark for this removal.");
+      return;
+    }
+    if (removingAll && bulkConfirmText.trim() !== truck.registrationNumber) {
+      setError(`Type ${truck.registrationNumber} to confirm removing all tyres.`);
+      return;
+    }
+
+    setBulkSaving(true);
+    setError("");
+    try {
+      const updated = await tyreApi.removeTyresBulk(
+        truck.id,
+        fitments.map((f) => f.id),
+        odometer,
+        bulkDate,
+        bulkRemark.trim(),
+      );
+      setFitmentRecords((prev) => prev.map((f) => updated.find((u) => u.id === f.id) ?? f));
+      setSelectedSet(new Set());
+      setSelectMode(false);
+      setBulkOpen(false);
+      showSuccess(`${updated.length} tyre${updated.length !== 1 ? "s" : ""} removed from ${truck.registrationNumber}.`);
+    } catch (err: any) {
+      setError(err.message || "Failed to remove tyres.");
+      showError(err.message || "Failed to remove tyres.");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  // Label for a position in the custom swap: its tyre number, or "empty".
+  function positionLabel(position: string): string {
+    const fitment = getFitmentForPosition(truck!.id, position, fitmentRecords);
+    if (!fitment) return `${position} (empty)`;
+    const tyre = tyres.find((t) => t.id === fitment.tyreId);
+    return `${position} (${tyre?.tyreNumber ?? "tyre"})`;
+  }
+
+  function toggleCustomSwap() {
+    setCustomSwap((v) => !v);
+    setPickA(null);
+    setPickB(null);
+    setError("");
+  }
+
+  function pickCustomPosition(position: string) {
+    setError("");
+    if (position === pickA) {
+      // Clicking the first pick removes it; the second pick (if any) becomes the first.
+      setPickA(pickB);
+      setPickB(null);
+      return;
+    }
+    if (position === pickB) {
+      setPickB(null);
+      return;
+    }
+    if (!pickA) {
+      setPickA(position);
+      return;
+    }
+    // Two empty positions have nothing to swap.
+    if (!filledPositions.has(pickA) && !filledPositions.has(position)) {
+      setError("Pick at least one position that has a tyre.");
+      return;
+    }
+    setPickB(position);
+  }
+
+  function continueCustomSwap() {
+    if (!pickA || !pickB) return;
+    openConfirm([[pickA, pickB]], `Swap ${positionLabel(pickA)} ↔ ${positionLabel(pickB)}`);
+  }
+
   function openConfirm(pairs: [string, string][], description: string) {
     setSwapOdometer(truck?.odometer ?? "");
     setSwapDate(todayIst());
@@ -262,6 +459,9 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
       }
       setSwapStep(null);
       setSelectedPosition(null);
+      setCustomSwap(false);
+      setPickA(null);
+      setPickB(null);
       showSuccess("Tyre positions swapped and history updated successfully.");
     } catch (err: any) {
       showError(err.message || "Failed to swap tyre positions.");
@@ -299,8 +499,9 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
             <TyreLayoutDiagram
               layout={layout}
               filledPositions={filledPositions}
-              onPositionClick={rotationActive ? undefined : setSelectedPosition}
-              selectedPosition={selectedPosition}
+              onPositionClick={rotationActive ? undefined : (customSwap ? pickCustomPosition : selectMode ? togglePosition : setSelectedPosition)}
+              selectedPosition={customSwap ? pickA : selectedPosition}
+              selectedPositions={customSwap ? new Set<string>(pickB ? [pickB] : []) : selectedSet}
               animatingPosition={animatingPosition}
             />
             {rotationActive && (
@@ -308,9 +509,228 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                 Finish or cancel the tyre rotation below before selecting a position.
               </p>
             )}
+
+            {/* ── Bulk removal ────────────────────────────────────────────── */}
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Bulk Removal</p>
+                <button
+                  type="button"
+                  disabled={rotationActive || !!selectedPosition || bulkOpen || bulkSaving || customSwap}
+                  onClick={() => {
+                    setSelectMode((v) => !v);
+                    setSelectedSet(new Set());
+                    setBulkOpen(false);
+                  }}
+                  className={cn(
+                    "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                    selectMode
+                      ? "border-gray-400 bg-white text-gray-700 hover:bg-gray-100"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100",
+                    (rotationActive || !!selectedPosition || bulkOpen || bulkSaving) && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {selectMode ? "Exit select mode" : "Select tyres"}
+                </button>
+              </div>
+
+              {selectMode && !bulkOpen && (
+                <>
+                  <p className="text-xs text-gray-500">
+                    Click fitted tyre positions to select them. Select none to remove all {activeFitments.length} tyre{activeFitments.length !== 1 ? "s" : ""} on this truck.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium text-gray-700">{selectedSet.size} selected</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSet(new Set())}
+                      disabled={selectedSet.size === 0}
+                      className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openBulkRemove}
+                      disabled={activeFitments.length === 0 || bulkSaving}
+                      className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-40 transition-colors"
+                    >
+                      {selectedSet.size > 0
+                        ? `Remove ${selectedSet.size} selected`
+                        : `Remove all ${activeFitments.length} tyre${activeFitments.length !== 1 ? "s" : ""}`}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {bulkOpen && (
+                <div className="rounded-md border border-red-200 bg-white p-4 flex flex-col gap-3">
+                  <p className="text-xs font-semibold text-red-800">
+                    {selectedSet.size > 0
+                      ? `Remove ${selectedSet.size} tyre${selectedSet.size !== 1 ? "s" : ""} from ${truck.registrationNumber}`
+                      : `Remove all ${activeFitments.length} tyre${activeFitments.length !== 1 ? "s" : ""} from ${truck.registrationNumber}`}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Positions: {(selectedSet.size > 0 ? activeFitments.filter((f) => selectedSet.has(f.position)) : activeFitments)
+                      .map((f) => f.position).join(", ")}
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-gray-700">Odometer at Removal (km) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={bulkOdometer}
+                        onChange={(e) => setBulkOdometer(e.target.value)}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-gray-700">Date of Removal *</label>
+                      <DatePickerInput
+                        required
+                        value={bulkDate}
+                        onChange={setBulkDate}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-700">Remark *</label>
+                    <input
+                      type="text"
+                      value={bulkRemark}
+                      onChange={(e) => setBulkRemark(e.target.value)}
+                      placeholder="e.g. Worn out, end of life"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                    />
+                  </div>
+                  {selectedSet.size === 0 && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-red-700">
+                        Type {truck.registrationNumber} to confirm removing all tyres *
+                      </label>
+                      <input
+                        type="text"
+                        value={bulkConfirmText}
+                        onChange={(e) => setBulkConfirmText(e.target.value)}
+                        className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                      />
+                    </div>
+                  )}
+                  {error && <p className="text-xs text-red-600">{error}</p>}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={closeBulkRemove}
+                      disabled={bulkSaving}
+                      className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmBulkRemove}
+                      disabled={bulkSaving}
+                      className="rounded-md bg-red-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {bulkSaving ? "Removing…" : "Confirm removal"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <p className="text-sm text-gray-500">No tyre layout has been set for this truck.</p>
+        )}
+
+        {/* ── Fitted tyres: km run and range use ──────────────────────── */}
+        {layout && tyreRows.length > 0 && (
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setFittedOpen((v) => !v)}
+                aria-expanded={fittedOpen}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                {fittedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                Fitted Tyres ({tyreRows.length})
+              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportTyres("xlsx")}
+                  className="rounded-md border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                >
+                  Export Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportTyres("pdf")}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Export PDF
+                </button>
+              </div>
+            </div>
+            {fittedOpen && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-gray-200 text-gray-500">
+                    {["Position", "Tyre", "Brand / Size", "Fitted On", "Km Run", "% of Range", ""].map((h) => (
+                      <th key={h} className="px-2 py-2 font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tyreRows.map((r) => {
+                    const pct = r.pctOfRange;
+                    const warning =
+                      pct == null ? null
+                        : pct >= 100 ? { text: "Past range", cls: "bg-red-50 text-red-700" }
+                        : pct >= 90 ? { text: "Near range", cls: "bg-amber-50 text-amber-700" }
+                        : null;
+                    return (
+                      <tr key={r.fitment.id} className="border-b border-gray-100 text-gray-700">
+                        <td className="px-2 py-2 font-medium">{r.fitment.position}</td>
+                        <td className="px-2 py-2">{r.tyre?.tyreNumber ?? "—"}</td>
+                        <td className="px-2 py-2">{[r.tyre?.brand, r.tyre?.size].filter(Boolean).join(" · ") || "—"}</td>
+                        <td className="px-2 py-2">{r.fitment.fittedDate ? formatDate(r.fitment.fittedDate) : "—"}</td>
+                        <td className="px-2 py-2">{r.kmRun.toLocaleString()} km</td>
+                        <td className="px-2 py-2">
+                          {pct == null ? "—" : (
+                            <span className="inline-flex items-center gap-1.5">
+                              {pct.toFixed(0)}%
+                              {warning && (
+                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", warning.cls)}>
+                                  {warning.text}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setDataTyreId(r.fitment.tyreId)}
+                            className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            View Tyre Data
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            )}
+            <TyreDataDialog tyreId={dataTyreId} onClose={() => setDataTyreId(null)} />
+          </div>
         )}
 
         {/* ── Tyre Rotation / Swap Buttons ──────────────────────────────── */}
@@ -318,6 +738,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
           const axleEntries = buildAxleEntries(layout);
           const dualAxles = axleEntries.filter((a) => a.wheelsPerSide === 2);
           const isSelectingAxle = swapStep?.step === "select-axle";
+          const isSelectingSide = swapStep?.step === "select-side";
           const isConfirming = swapStep?.step === "confirm";
 
           return (
@@ -330,11 +751,11 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
               )}
 
               {/* Step 1 — main action buttons */}
-              {!isConfirming && (
+              {!isConfirming && !isSelectingSide && (
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={swapping || !!selectedPosition}
+                    disabled={swapping || !!selectedPosition || customSwap}
                     onClick={() => {
                       const allPairs = axleEntries.flatMap(getLRSwapPairs);
                       openConfirm(allPairs, "Swap Left ↔ Right across all axles");
@@ -346,7 +767,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                   <button
                     type="button"
-                    disabled={swapping || !!selectedPosition}
+                    disabled={swapping || !!selectedPosition || customSwap}
                     onClick={() => setSwapStep(
                       isSelectingAxle && swapStep.type === "lr" ? null : { step: "select-axle", type: "lr" }
                     )}
@@ -363,7 +784,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
 
                   <button
                     type="button"
-                    disabled={swapping || !!selectedPosition || dualAxles.length === 0}
+                    disabled={swapping || !!selectedPosition || customSwap || dualAxles.length === 0}
                     onClick={() => setSwapStep(
                       isSelectingAxle && swapStep.type === "io" ? null : { step: "select-axle", type: "io" }
                     )}
@@ -377,6 +798,61 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                   >
                     <ArrowUpDown className="h-3.5 w-3.5" /> Swap Inner ↔ Outer Tyres
                   </button>
+
+                  <button
+                    type="button"
+                    disabled={swapping || !!selectedPosition || selectMode || rotationActive}
+                    onClick={toggleCustomSwap}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                      customSwap
+                        ? "border-amber-500 bg-amber-600 text-white"
+                        : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
+                      (swapping || !!selectedPosition || selectMode || rotationActive) && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> {customSwap ? "Cancel Custom Swap" : "Custom Swap (Pick Positions)"}
+                  </button>
+                </div>
+              )}
+
+              {/* Custom swap — pick two positions on the diagram */}
+              {customSwap && !isConfirming && (
+                <div className="rounded-md border border-amber-200 bg-white p-3 flex flex-col gap-2">
+                  {!pickA && (
+                    <p className="text-xs font-medium text-gray-600">Click the first position on the diagram (filled or empty, including the spare).</p>
+                  )}
+                  {pickA && !pickB && (
+                    <p className="text-xs font-medium text-gray-600">
+                      First: <span className="font-semibold text-gray-900">{positionLabel(pickA)}</span>. Now click the second position.
+                    </p>
+                  )}
+                  {pickA && pickB && (
+                    <>
+                      <p className="text-xs font-medium text-gray-600">
+                        <span className="font-semibold text-gray-900">{positionLabel(pickA)}</span>
+                        {" ↔ "}
+                        <span className="font-semibold text-gray-900">{positionLabel(pickB)}</span>
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={continueCustomSwap}
+                          className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
+                        >
+                          Continue to confirm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setPickA(null); setPickB(null); setError(""); }}
+                          className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {error && <p className="text-xs text-red-600">{error}</p>}
                 </div>
               )}
 
@@ -394,17 +870,55 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                         key={entry.axleLabel}
                         type="button"
                         onClick={() => {
-                          const pairs = swapStep.type === "lr"
-                            ? getLRSwapPairs(entry)
-                            : getIOSwapPairs(entry);
-                          const verb = swapStep.type === "lr" ? "Left ↔ Right" : "Inner ↔ Outer";
-                          openConfirm(pairs, `Swap ${verb} on ${entry.displayLabel}`);
+                          if (swapStep.type === "io") {
+                            setSwapStep({ step: "select-side", type: "io", entry });
+                            return;
+                          }
+                          openConfirm(getLRSwapPairs(entry), `Swap Left ↔ Right on ${entry.displayLabel}`);
                         }}
                         className="rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                       >
                         {entry.displayLabel}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setSwapStep(null)}
+                      className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2b — inner/outer: choose Left, Right or both sides of the axle */}
+              {isSelectingSide && swapStep.step === "select-side" && (
+                <div className="rounded-md border border-gray-200 bg-white p-3 flex flex-col gap-2">
+                  <p className="text-xs font-medium text-gray-600">
+                    Swap Inner ↔ Outer on {swapStep.entry.displayLabel} — which side?
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(["Left", "Right", "Both"] as const).map((side) => (
+                      <button
+                        key={side}
+                        type="button"
+                        onClick={() => openConfirm(
+                          getIOSwapPairs(swapStep.entry, side),
+                          `Swap Inner ↔ Outer on ${swapStep.entry.displayLabel} — ${side === "Both" ? "both sides" : `${side} side`}`
+                        )}
+                        className="rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 transition-colors"
+                      >
+                        {side === "Both" ? "Both sides" : `${side} side`}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setSwapStep({ step: "select-axle", type: "io" })}
+                      className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Back
+                    </button>
                     <button
                       type="button"
                       onClick={() => setSwapStep(null)}
@@ -455,7 +969,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-medium text-gray-700">Remark *</label>
                     <div className="flex flex-wrap gap-1.5">
-                      {["Tyre Rotation", "LHS to RHS to LHS", "Tyre Side Change", "Wear Balancing", "Preventive Rotation"].map((r) => (
+                      {presetsFor("Swap").map((r) => (
                         <button
                           key={r}
                           type="button"
@@ -581,7 +1095,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {REMOVAL_QUICK_REMARKS.map((remark) => (
+                        {presetsFor("Removal").map((remark) => (
                           <button
                             key={remark}
                             type="button"
@@ -691,7 +1205,7 @@ export function ManageTyresDialog({ open, onClose, truck }: ManageTyresDialogPro
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-medium text-gray-700">Remarks (optional)</label>
                         <div className="flex flex-wrap gap-1.5">
-                          {ATTACH_QUICK_REMARKS.map((remark) => (
+                          {presetsFor("Attachment").map((remark) => (
                             <button
                               key={remark}
                               type="button"
