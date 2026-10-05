@@ -33,7 +33,8 @@ const EDIT_EVENT_COLOR: Record<FuelLogEditEventRow["event"], string> = {
 
 export default function FuelHistoryPage() {
   const { user: authUser } = useAuth();
-  const isAdmin = authUser?.softwareDesignation === "Admin";
+  // Edit History is open to Admin and Maintenance (the team that enters fuel logs).
+  const canViewEditHistory = authUser?.softwareDesignation === "Admin" || authUser?.softwareDesignation === "Maintenance";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,7 +122,7 @@ export default function FuelHistoryPage() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {isAdmin && (
+          {canViewEditHistory && (
 <button
             type="button"
             onClick={openEditHistory}

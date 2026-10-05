@@ -21,16 +21,20 @@ if not DATABASE_URL:
     _encoded = urllib.parse.quote_plus(_DB_PASSWORD)
     DATABASE_URL = f"mysql+pymysql://{_DB_USER}:{_encoded}@{_DB_HOST}/{_DB_NAME}"
 
-# Pool sizing: base 20 persistent connections + up to 40 overflow = 60 max.
+# Pool sizing is PER PROCESS. Passenger (GoDaddy shared hosting) runs several
+# app processes, each with its own pool, so the real ceiling is
+# processes x (pool_size + max_overflow). Defaults of 5 + 10 = 15 per process
+# keep a handful of processes under shared-hosting MySQL connection limits;
+# override with DB_POOL_SIZE / DB_MAX_OVERFLOW if the host allows more.
 # pool_pre_ping revives stale connections; pool_recycle avoids MySQL's 8h idle
 # cutoff; pool_timeout is how long a request waits for a free connection before
-# erroring. Keep the total (60) comfortably under MySQL's max_connections (151).
+# erroring.
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=3600,
-    pool_size=20,
-    max_overflow=40,
+    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
     pool_timeout=30,
 )
 

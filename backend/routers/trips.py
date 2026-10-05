@@ -3,7 +3,7 @@ import json
 from decimal import Decimal
 from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, text, or_, inspect as sa_inspect
 from sqlalchemy.orm import Session, joinedload
@@ -176,6 +176,7 @@ def list_trips(
     search: Optional[str] = Query(None, description="Search trip ID, container, truck, origin, destination"),
     limit: Optional[int] = Query(None, le=100, description="Max rows to return (AI use); omit for full list"),
     offset: int = Query(0, ge=0),
+    has_closure: Optional[bool] = Query(None, description="Only trips that have (true) / lack (false) a closure"),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.Trip).options(
@@ -184,6 +185,10 @@ def list_trips(
     ).filter(models.Trip.deleted_at.is_(None))
     if status:
         q = q.filter(models.Trip.status == status)
+    if has_closure is not None:
+        # Filtered in SQL so Sheet Collection doesn't pull every Completed trip
+        # (with its sheet) on each refresh just to discard the unclosed ones.
+        q = q.filter(models.Trip.closure.has() if has_closure else ~models.Trip.closure.has())
     if search:
         s = f"%{search.strip()}%"
         q = q.filter(or_(
@@ -1779,13 +1784,26 @@ def verify_driver_advance(trip_id: int, body: AdvanceVerifyBody, db: Session = D
     return _enrich(trip)
 
 
+class CollectSheetBody(BaseModel):
+    collected: bool                       # desired state: True = delivered, False = undo
+
+
 @router.post(
     "/{trip_id}/collect-sheet",
     response_model=schemas.TripOut,
     dependencies=[Depends(require_roles(*SHEET_COLLECTOR_ROLES))],
 )
-def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
-    """Mark a trip sheet as delivered by the Yard Staff."""
+def collect_trip_sheet(
+    trip_id: int,
+    body: Optional[CollectSheetBody] = Body(None),
+    db: Session = Depends(get_db),
+):
+    """Mark a trip sheet as delivered by the Yard Staff.
+
+    Clients send the desired state ({"collected": true/false}) so a repeated
+    click or a retried request can't flip a delivery back. A request with no
+    body falls back to the legacy toggle for older mobile builds.
+    """
     trip = db.query(models.Trip).options(
         joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
     ).filter(models.Trip.id == trip_id).first()
@@ -1795,7 +1813,11 @@ def collect_trip_sheet(trip_id: int, db: Session = Depends(get_db)):
         raise HTTPException(400, "Trip sheet can only be marked as delivered for Completed trips")
     if not trip.closure:
         raise HTTPException(400, "Trip must be closed before marking the sheet as delivered")
-    trip.trip_sheet_collected = not trip.trip_sheet_collected
+    target = (not trip.trip_sheet_collected) if body is None else body.collected
+    if bool(trip.trip_sheet_collected) == target:
+        # Already in the requested state — no-op, so a duplicate request is harmless.
+        return _enrich(trip)
+    trip.trip_sheet_collected = target
     trip.trip_sheet_collected_at = datetime.now(timezone.utc) if trip.trip_sheet_collected else None
     if not trip.trip_sheet_collected:
         # Undoing delivery also clears any receive-confirmation

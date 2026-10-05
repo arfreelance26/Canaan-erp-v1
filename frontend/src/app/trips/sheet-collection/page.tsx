@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { tripsApi, customersApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { mapLimit } from "@/lib/async-pool";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { Trip } from "@/types/trip";
-import type { Driver } from "@/types/driver";
-import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -65,8 +63,6 @@ export default function SheetCollectionPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [trucks, setTrucks] = useState<Truck[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -103,34 +99,50 @@ export default function SheetCollectionPage() {
   const [advanceCorrected, setAdvanceCorrected] = useState("");
   const [deleteRequestTrip, setDeleteRequestTrip] = useState<Trip | null>(null);
 
+  // Guards against out-of-order responses. A load that started before a save
+  // (Verify / Mark Delivered / …) carries pre-save data; applying it would make
+  // the row snap back to its old state. loadSeq drops loads superseded by a
+  // newer one; writeGen drops loads that a save landed in the middle of.
+  const loadSeq = useRef(0);
+  const writeGen = useRef(0);
+  function noteWrite() {
+    writeGen.current++;
+  }
+
   function loadData() {
-    // allSettled, not all — a single failed source (e.g. right after relogin)
-    // must not blank the whole table; each keeps its last-known-good state
-    // and a toast names what didn't refresh.
-    return Promise.allSettled([
-      tripsApi.list("Completed"),
-      driversApi.list(),
-      trucksApi.list(),
-      customersApi.list(),
-    ]).then(([t, d, trks, c]) => {
-      const failed: string[] = [];
-      if (t.status === "fulfilled") {
-        const closed = t.value.filter((trip) => (trip as any).hasClosure === true);
-        setTrips(closed);
-      } else failed.push("Trips");
-      if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
-      if (trks.status === "fulfilled") setTrucks(trks.value); else failed.push("Trucks");
-      if (c.status === "fulfilled") setCustomers(c.value); else failed.push("Customers");
-      setSelected(new Set());
-      if (failed.length > 0) {
-        showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
-      }
-    });
+    const seq = ++loadSeq.current;
+    const gen = writeGen.current;
+    return tripsApi.list("Completed", { hasClosure: true }).then(
+      (list) => {
+        if (seq !== loadSeq.current) return;
+        if (gen !== writeGen.current) {
+          setRefreshKey((k) => k + 1); // stale — fetch again after the save
+          return;
+        }
+        setTrips(list.filter((trip) => trip.hasClosure === true));
+        // Keep selections that are still pending; refreshes no longer wipe them.
+        setSelected((prev) => {
+          const pendingIds = new Set(list.filter((t) => !t.tripSheetCollected).map((t) => t.id));
+          const next = new Set([...prev].filter((id) => pendingIds.has(id)));
+          return next.size === prev.size ? prev : next;
+        });
+      },
+      () => {
+        if (seq !== loadSeq.current) return;
+        showError("Couldn't refresh Trips — showing last known data.");
+      },
+    );
   }
 
   useEffect(() => {
     loadData().finally(() => setLoading(false));
   }, [refreshKey]);
+
+  // Customers are only used for names in the report/PDF, so they're loaded
+  // once rather than on every refresh tick.
+  useEffect(() => {
+    customersApi.list().then(setCustomers).catch(() => {});
+  }, []);
 
   useAutoRefresh(() => setRefreshKey(k => k + 1), 10000);
 
@@ -139,8 +151,6 @@ export default function SheetCollectionPage() {
   useWebSocketEvent("trip_closed", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("sheet_entered", () => setRefreshKey(k => k + 1));
 
-  const driverById = new Map(drivers.map((d) => [d.driverId, d]));
-  const truckById = new Map(trucks.map((t) => [t.truckId, t]));
   const customerById = new Map(customers.map((c) => [c.id, c]));
 
   const filtered = trips.filter((t) => {
@@ -226,7 +236,8 @@ export default function SheetCollectionPage() {
     if (toggling.has(trip.id)) return;
     setToggling((prev) => new Set([...prev, trip.id]));
     try {
-      const updated = await tripsApi.collectSheet(trip.id);
+      const updated = await tripsApi.collectSheet(trip.id, !trip.tripSheetCollected);
+      noteWrite();
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
       setSelected((prev) => {
         const next = new Set(prev);
@@ -254,6 +265,7 @@ export default function SheetCollectionPage() {
     setToggling((prev) => new Set([...prev, trip.id]));
     try {
       const updated = await tripsApi.flagSheetMissing(trip.id);
+      noteWrite();
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
       showSuccess(`Alert sent — Admin and Commercial Manager notified for trip ${trip.tripId}.`);
     } catch (err: unknown) {
@@ -271,6 +283,7 @@ export default function SheetCollectionPage() {
     try {
       if (isAdmin) {
         await tripsApi.remove(trip.id, reason);
+        noteWrite();
         setTrips((prev) => prev.filter((t) => t.id !== trip.id));
         showSuccess(`Trip ${trip.tripId} deleted.`);
       } else {
@@ -297,7 +310,8 @@ export default function SheetCollectionPage() {
     // Capped at 4 concurrent writes so a large selection doesn't burst the DB pool.
     await mapLimit(targets, 4, async (trip) => {
       try {
-        const updated = await tripsApi.collectSheet(trip.id);
+        const updated = await tripsApi.collectSheet(trip.id, true);
+        noteWrite();
         setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
         successCount++;
       } catch {
@@ -314,10 +328,13 @@ export default function SheetCollectionPage() {
   }
 
   async function handleVerifyAdvance(trip: Trip, verified: boolean) {
+    if (toggling.has(trip.id)) return;
+    setToggling((prev) => new Set([...prev, trip.id]));
     try {
       const remark = advanceRemark.trim();
       const corrected = advanceCorrected ? parseFloat(advanceCorrected) : null;
       const updated = await tripsApi.verifyAdvance(trip.id, verified, remark, corrected);
+      noteWrite();
       setTrips((prev) => prev.map((t) => (t.id === trip.id ? updated : t)));
       setAdvanceOpen(null);
       setAdvanceRemark("");
@@ -325,6 +342,12 @@ export default function SheetCollectionPage() {
       showSuccess(verified ? `Advance verified as correct for ${trip.tripId}.` : `Advance mismatch recorded for ${trip.tripId}.`);
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to save advance verification.");
+    } finally {
+      setToggling((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.id);
+        return next;
+      });
     }
   }
 

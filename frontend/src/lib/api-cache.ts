@@ -33,6 +33,20 @@ const MAX_LS_ENTRIES = 120;
 const mem = new Map<string, Entry>();
 const inflight = new Map<string, Promise<unknown>>();
 const revalListeners = new Set<() => void>();
+// Per-resource write counter ("/trips" -> n), bumped on every invalidation. A
+// GET records it when it starts; if it changed by the time the response lands,
+// the response may predate the write and must not be cached.
+const generations = new Map<string, number>();
+
+/** Top-level resource segment of a path: "/trips/12/collect-sheet" -> "/trips". */
+function resourceOf(path: string) {
+  return "/" + (path.replace(/^\//, "").split(/[/?]/)[0] ?? "");
+}
+
+/** Current write generation for the resource `path` belongs to. */
+export function cacheGeneration(path: string): number {
+  return generations.get(resourceOf(path)) ?? 0;
+}
 
 function lsKey(key: string) {
   return LS_PREFIX + key;
@@ -110,7 +124,10 @@ export function cacheSet(key: string, data: unknown): boolean {
 export function dedupe<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const existing = inflight.get(key);
   if (existing) return existing as Promise<T>;
-  const p = fn().finally(() => inflight.delete(key));
+  const p: Promise<T> = fn().finally(() => {
+    // Only clear our own slot — an invalidation may have replaced it already.
+    if (inflight.get(key) === p) inflight.delete(key);
+  });
   inflight.set(key, p);
   return p;
 }
@@ -121,9 +138,13 @@ export function dedupe<T>(key: string, fn: () => Promise<T>): Promise<T> {
  * "/trips/123/status" drops all "/trips..." GETs) so the next read is fresh.
  */
 export function cacheInvalidate(path: string) {
-  const seg = "/" + (path.replace(/^\//, "").split(/[/?]/)[0] ?? "");
+  const seg = resourceOf(path);
   const drop = (k: string) => k === seg || k.startsWith(seg + "/") || k.startsWith(seg + "?");
+  generations.set(seg, (generations.get(seg) ?? 0) + 1);
   for (const k of Array.from(mem.keys())) if (drop(k)) mem.delete(k);
+  // Forget in-flight GETs too: they started before this write, so a read made
+  // after it must not join them and get pre-write data back.
+  for (const k of Array.from(inflight.keys())) if (drop(k)) inflight.delete(k);
   if (typeof window !== "undefined") {
     for (let i = window.localStorage.length - 1; i >= 0; i--) {
       const raw = window.localStorage.key(i);

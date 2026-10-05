@@ -4,9 +4,18 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
 from websocket_manager import emit
-from security import get_current_user, TokenUser
+from security import get_current_user, TokenUser, require_roles
 
 router = APIRouter(prefix="/finance", tags=["Finance"])
+
+# Read-only finance figures also shown outside the finance pages (e.g. the
+# Assign Trip dialog's Customer Insights panel), so the Commercial Manager can
+# read them. Mounted separately because `router` is locked to Accounts/Admin.
+insights_router = APIRouter(
+    prefix="/finance",
+    tags=["Finance"],
+    dependencies=[Depends(require_roles("Accounts", "Commercial Manager", "Assistant Commercial Manager"))],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +189,7 @@ def list_driver_compensation(
     return q.order_by(models.CompensationTransaction.date.desc()).all()
 
 
-@router.get("/compensation/drivers/monthly-net-payable")
+@insights_router.get("/compensation/drivers/monthly-net-payable")
 def driver_monthly_net_payable(
     month: str = Query(..., pattern=r"^\d{4}-\d{2}$", description="YYYY-MM"),
     driver_ids: str = Query(..., description="Comma-separated drivers.driver_id values, e.g. CGI-D001,CGI-D002"),
