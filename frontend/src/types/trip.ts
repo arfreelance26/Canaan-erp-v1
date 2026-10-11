@@ -140,6 +140,9 @@ export type Trip = {
   verificationRejectionReason: string | null;
   isInvoiced: boolean;
   invoiceRequired: boolean;
+  /** "Use Yard/CFS instead of Routes" — when on, TripFormDialog's "View All
+   * CFS" / "View All Yard" reference buttons are available (see lib/lane-places.ts). */
+  useYardCfs: boolean;
   invoiceWaived: boolean;
   isCombinedInvoice: boolean;
   driverName: string | null;

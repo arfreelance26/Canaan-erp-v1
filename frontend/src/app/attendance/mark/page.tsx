@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, ShieldAlert, Clock, CalendarCheck, Timer, ClipboardCheck,
+  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, LogIn, ShieldAlert, Clock, CalendarCheck, Timer, ClipboardCheck,
 } from "lucide-react";
-import { attendanceApi } from "@/lib/api";
+import { attendanceApi, usageApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import type { StaffAttendanceRecord, StaffSelfSummary } from "@/types/attendance";
@@ -33,24 +33,12 @@ function fmtTime(iso: string | null | undefined) {
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
-/** "09:30 AM" / "18:05" → minutes since midnight (null when it can't be read). */
-function toMinutes(t: string | null): number | null {
-  if (!t) return null;
-  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/i);
-  if (!m) return null;
-  let h = Number(m[1]);
-  const min = Number(m[2]);
-  const ap = m[3]?.toUpperCase();
-  if (ap === "PM" && h < 12) h += 12;
-  if (ap === "AM" && h === 12) h = 0;
-  return h * 60 + min;
-}
-
-function shiftLength(inTime: string | null, outTime: string | null): string | null {
-  const a = toMinutes(inTime);
-  const b = toMinutes(outTime);
-  if (a === null || b === null || b < a) return null;
-  const mins = b - a;
+/** Genuine worked time, from active seconds — "Total Working Time" everywhere
+ * on this page, not checkout-minus-checkin (see dailyActive's comment). */
+function formatWorkedTime(seconds: number | undefined): string | null {
+  if (!seconds) return null;
+  const mins = Math.round(seconds / 60);
+  if (mins < 1) return null;
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
 }
 
@@ -94,6 +82,11 @@ export default function MarkAttendancePage() {
   const [todayRecord, setTodayRecord] = useState<StaffAttendanceRecord | null | undefined>(undefined);
   const [monthRecords, setMonthRecords] = useState<StaffAttendanceRecord[]>([]);
   const [monthHolidays, setMonthHolidays] = useState<Map<string, string>>(new Map()); // date → holiday name
+  // Real worked time per day — genuine active seconds (idle-filtered, summed
+  // across every login session that day), not checkout-minus-checkin: a
+  // resumed shift's raw span would include any break in the middle. See
+  // usageApi.dailyActive.
+  const [dailyActive, setDailyActive] = useState<Map<string, number>>(new Map());
   const [todayHolidayName, setTodayHolidayName] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [summary, setSummary] = useState<StaffSelfSummary | null>(null);
@@ -142,6 +135,7 @@ export default function MarkAttendancePage() {
       .listHolidays(from, to)
       .then((hs) => setMonthHolidays(new Map(hs.map((h) => [h.date, h.name]))))
       .catch(() => {});
+    usageApi.dailyActive(staffNumericId, from, to).then(setDailyActive).catch(() => {});
   }, [viewYear, viewMonth, staffNumericId, ready]);
 
   // Is today itself a government/company holiday? (Sundays handled separately, from the date.)
@@ -224,6 +218,24 @@ export default function MarkAttendancePage() {
     }
   }, [closingShift, staffNumericId, today, viewYear, viewMonth, currentYear, currentMonth]);
 
+  const [resumingShift, setResumingShift] = useState(false);
+  const handleResumeShift = useCallback(async () => {
+    if (resumingShift || !staffNumericId) return;
+    setResumingShift(true);
+    try {
+      const updated = await attendanceApi.resumeShiftStaff(staffNumericId);
+      setTodayRecord(updated);
+      const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
+      if (isCurrentMonth) {
+        setMonthRecords((prev) => [...prev.filter((r) => r.date !== today), updated]);
+      }
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Could not resume your shift.");
+    } finally {
+      setResumingShift(false);
+    }
+  }, [resumingShift, staffNumericId, today, viewYear, viewMonth, currentYear, currentMonth]);
+
   // History: all elapsed days in the viewed month, newest first
   const historyDates = useMemo(() => {
     const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
@@ -276,7 +288,6 @@ export default function MarkAttendancePage() {
   const checkOutTime = todayRecord?.checkOutTime ?? null;
   const shiftOpen = todayStatus === "Present" && !checkOutTime;
   const adminOverridden = todayRecord?.adminOverride === true;
-  const length = shiftLength(checkInTime, checkOutTime);
 
   const pct = Math.round(summary?.percentage ?? 0);
   const r = 44;
@@ -455,6 +466,7 @@ export default function MarkAttendancePage() {
                   const dayNum = d.getDate();
                   const monthShort = d.toLocaleDateString("en-IN", { month: "short" });
                   const time = fmtTime(rec?.markedAt);
+                  const workedTime = formatWorkedTime(dailyActive.get(dateStr));
                   return (
                     <div
                       key={dateStr}
@@ -485,10 +497,21 @@ export default function MarkAttendancePage() {
                         )}
                       </div>
 
-                      <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_PILL[status]}`}>
-                        <i className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />
-                        {status}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_PILL[status]}`}>
+                          <i className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />
+                          {status}
+                        </span>
+                        {/* Independent of attendance status — real logged-in
+                            activity even on a day marked Absent/On Leave/Not
+                            Marked, not just a Present day with a closed shift. */}
+                        {workedTime && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-50 to-violet-50 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-indigo-700 ring-1 ring-inset ring-indigo-100">
+                            <Timer className="h-3 w-3" />
+                            {workedTime}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -536,6 +559,21 @@ export default function MarkAttendancePage() {
           {/* Action area */}
           <div className="flex flex-1 flex-col gap-2.5 p-5">
 
+            {/* Total Working Time — independent of attendance status: shows
+                real logged-in activity even on a day marked Absent/On Leave/
+                Not Marked, not just a Present day with a closed shift. */}
+            {formatWorkedTime(dailyActive.get(today)) && (
+              <div className="flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+                <span className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                    <Timer className="h-4 w-4" />
+                  </span>
+                  Total Working Time
+                </span>
+                <span className="text-sm font-medium tabular-nums text-gray-900">{formatWorkedTime(dailyActive.get(today))}</span>
+              </div>
+            )}
+
             {/* Admin override */}
             {adminOverridden && (
               <div className="flex items-start gap-3 rounded-xl border border-red-200/80 bg-red-50/70 px-4 py-3">
@@ -549,22 +587,24 @@ export default function MarkAttendancePage() {
               </div>
             )}
 
-            {/* Holiday — nothing to mark */}
+            {/* Holiday — marking is optional, not blocked: some roles (Maintenance,
+                Yard Supervisor, etc.) genuinely work through one, so this sits
+                alongside the mark options below rather than replacing them. */}
             {todayHoliday && todayStatus === "Not Marked" && (
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-200/80 bg-blue-50/70 px-4 py-6 text-center">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                  <CalendarOff className="h-5 w-5" />
+              <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-200/80 bg-blue-50/70 px-4 py-4 text-center">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                  <CalendarOff className="h-4 w-4" />
                 </span>
                 <p className="text-sm font-medium text-gray-900">
                   {todayHoliday === "Sunday" ? "Sunday holiday" : "Holiday"}
+                  {todayHoliday !== "Sunday" && <span className="font-normal text-blue-700"> — {todayHoliday}</span>}
                 </p>
-                {todayHoliday !== "Sunday" && <p className="text-xs text-blue-700">{todayHoliday}</p>}
-                <p className="text-xs text-gray-500">Enjoy your day off — no attendance needed today.</p>
+                <p className="text-xs text-gray-500">No attendance needed today — but if you&apos;re working, go ahead and mark it below.</p>
               </div>
             )}
 
-            {/* Not marked yet → three choices */}
-            {todayStatus === "Not Marked" && !adminOverridden && !todayHoliday && (
+            {/* Not marked yet → three choices — available every day, holiday or not */}
+            {todayStatus === "Not Marked" && !adminOverridden && (
               <>
                 <p className="mb-0.5 text-[11px] uppercase tracking-wider text-gray-400">How is your day?</p>
                 {ACTIONS.map(({ status, label, hint, icon: Icon, chip, hover }) => (
@@ -621,16 +661,24 @@ export default function MarkAttendancePage() {
                         <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Auto-closed</span>
                       )}
                     </div>
-                    {length && (
-                      <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
-                        <span className="flex items-center gap-2 text-sm text-gray-600">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                            <Timer className="h-4 w-4" />
-                          </span>
-                          Shift length
-                        </span>
-                        <span className="text-sm font-medium tabular-nums text-gray-900">{length}</span>
-                      </div>
+                    {/* Total Working Time itself is shown once, always-visible
+                        at the top of this card regardless of status — not
+                        repeated here. */}
+                    {/* A self-close is final — only an auto-close or an Admin
+                        force-close is resumable, since those are guesses on
+                        the person's behalf, not their own confirmation they
+                        were done (e.g. a break longer than the configured
+                        inactivity limit). */}
+                    {todayRecord?.closedBy && todayRecord.closedBy !== "self" && (
+                      <button
+                        type="button"
+                        disabled={resumingShift}
+                        onClick={handleResumeShift}
+                        className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-emerald-600 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
+                      >
+                        <LogIn className="h-4 w-4" />
+                        {resumingShift ? "Resuming…" : "Still working — resume shift"}
+                      </button>
                     )}
                   </>
                 ) : !adminOverridden ? (

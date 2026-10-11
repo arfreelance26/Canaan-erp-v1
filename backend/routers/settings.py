@@ -102,3 +102,27 @@ def update_max_shift_hours(
         actor_role=user.role, detail=f"max_shift_hours={payload.hours}",
     )
     return MaxShiftHours(hours=settings_store.staff_max_shift_hours(db))
+
+
+class AttendanceMandatory(BaseModel):
+    mandatory: bool
+
+
+@router.get("/attendance-mandatory", response_model=AttendanceMandatory)
+def get_attendance_mandatory(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    return AttendanceMandatory(mandatory=settings_store.attendance_marking_mandatory(db))
+
+
+@router.put("/attendance-mandatory", response_model=AttendanceMandatory)
+def update_attendance_mandatory(
+    payload: AttendanceMandatory,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(require_roles()),
+):
+    settings_store.set_attendance_marking_mandatory(db, payload.mandatory)
+    record_audit(
+        "attendance.marking_mandatory", request=request, actor_id=user.id, actor_name=user.name,
+        actor_role=user.role, detail=f"mandatory={payload.mandatory}",
+    )
+    return AttendanceMandatory(mandatory=settings_store.attendance_marking_mandatory(db))

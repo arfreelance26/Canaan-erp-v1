@@ -11,11 +11,14 @@ import { ProfileModal } from "./ProfileModal";
 import { DisplaySettings } from "./DisplaySettings";
 import { NetworkStatus } from "./NetworkStatus";
 import { CalculatorButton } from "./CalculatorButton";
+import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate } from "@/lib/format-date";
 import { useNotifications } from "@/context/NotificationContext";
+import { useOpenShift } from "@/hooks/useOpenShift";
+import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
 // import { useChat } from "@/context/ChatContext"; // Next phase
 import { showToast } from "@/lib/swal";
 
@@ -125,6 +128,17 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: getPageLabel(pathname) }];
   const backendOnline = useBackendStatus();
   const { user, logout } = useAuth();
+
+  // Logout is gated on closing an open self-checked-in shift first — same
+  // rule as Sidebar.tsx's logout icon, duplicated here since this profile
+  // menu is a separate logout entry point, not routed through the sidebar.
+  const openShift = useOpenShift();
+  const [showCloseShiftPrompt, setShowCloseShiftPrompt] = useState(false);
+  function handleLogoutClick() {
+    setIsProfileOpen(false);
+    if (openShift) setShowCloseShiftPrompt(true);
+    else logout();
+  }
 
   const isAdmin          = user?.softwareDesignation === "Admin";
   const isFleetManager   = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
@@ -462,6 +476,9 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
         {/* Display settings — theme + font size */}
         <DisplaySettings />
+
+        {/* Privacy & monitoring notice — visible to every role */}
+        <PrivacyNoticeButton />
 
         {/* Next phase — AI Assistant button
         {process.env.NEXT_PUBLIC_OR_API_KEY && (
@@ -973,7 +990,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 </button>
                 <button
                   className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-red-600 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-red-50/80 hover:shadow-[0_4px_15px_rgba(239,68,68,0.1)] border border-transparent hover:border-red-100/50 after:absolute after:-inset-2"
-                  onClick={() => { setIsProfileOpen(false); logout(); }}
+                  onClick={handleLogoutClick}
                 >
                   Log Out
                 </button>
@@ -988,6 +1005,15 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
       open={isProfileModalOpen}
       onClose={() => setIsProfileModalOpen(false)}
     />
+    {openShift && (
+      <CloseShiftBeforeLogoutDialog
+        open={showCloseShiftPrompt}
+        onClose={() => setShowCloseShiftPrompt(false)}
+        openShift={openShift}
+        onClosedAndLoggedOut={() => { setShowCloseShiftPrompt(false); logout(); }}
+        onLogoutWithoutClosing={() => { setShowCloseShiftPrompt(false); logout(); }}
+      />
+    )}
     </>
   );
 }

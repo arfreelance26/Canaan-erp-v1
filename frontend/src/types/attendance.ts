@@ -27,6 +27,14 @@ export type StaffAttendanceRecord = {
   markedAt: string | null;
   source: AttendanceSource;
   adminOverride: boolean;
+  /** Only populated when fetched with includeLastActive, and only for an
+   * open shift — their real last logged activity (see backend's
+   * activity_tracker.last_activity_at), shown as a staleness cue next to
+   * the Close Shift button, not a claim they're still actively working. */
+  lastActiveAt?: string | null;
+  /** Who closed this shift — "self" is final; "admin"/"auto" are guesses on
+   * the person's behalf and can be resumed (see attendanceApi.resumeShift). */
+  closedBy?: "self" | "admin" | "auto" | null;
 };
 
 export type DriverAttendanceRemark = {

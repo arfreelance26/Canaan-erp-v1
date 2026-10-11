@@ -602,6 +602,11 @@ class Trip(Base):
     driver_change_remark = Column(Text)
     driver_name = Column(String(200), nullable=True)
     booking_instructions = Column(Text)
+    # When on, Route Information's "View All CFS" / "View All Yard" reference
+    # buttons are available (see lib/lane-places.ts for the lists) — the trip
+    # is being routed via a known Tuticorin CFS/yard rather than picked from
+    # the customer's configured Available Routes.
+    use_yard_cfs = Column(Boolean, default=False, nullable=False, server_default="0")
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged", "rejected"), default="pending")
     verification_rejection_reason = Column(Text, nullable=True)
@@ -890,6 +895,11 @@ class StaffAttendance(Base):
     marked_at = Column(DateTime)
     source = Column(Enum("Web", "App"), default="Web")
     admin_override = Column(Boolean, default=False, nullable=False)
+    # Who ended this shift — "self" | "admin" | "auto" | NULL (still open).
+    # Only a "self" close is the person's own deliberate "I'm done for the
+    # day" — "admin" and "auto" are both guesses on their behalf, so those
+    # (and only those) are resumable. See routers/attendance.py resume_shift.
+    closed_by = Column(String(10), nullable=True)
 
     staff = relationship("Staff", back_populates="attendance_records")
 
@@ -1476,6 +1486,23 @@ class MaintenanceTypeEditEvent(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
+class CfsYardEntry(Base):
+    """A known Tuticorin CFS depot or container yard — the directory behind
+    TripFormDialog's "View All CFS" / "View All Yard" (seeded once from the
+    lists that used to be hardcoded in lib/lane-places.ts, now Admin-editable
+    like Maintenance Types). Deletion goes through the same soft-delete +
+    Archive-page restore flow as Driver/Truck/Staff/Customer/Vendor — no DB-
+    level unique constraint on (kind, name) since a deleted name must be
+    re-usable (see main.py's migration dropping uq_cfs_yard_kind_name)."""
+    __tablename__ = "cfs_yard_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    kind = Column(Enum("CFS", "YARD"), nullable=False)
+    name = Column(String(200), nullable=False)
+    version = Column(Integer, default=1, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+
 # ---------------------------------------------------------------------------
 # Finance Hub
 # ---------------------------------------------------------------------------
@@ -1658,7 +1685,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor", "TyreInventory"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor", "TyreInventory", "CfsYardEntry"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request

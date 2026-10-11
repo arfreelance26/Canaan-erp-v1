@@ -84,6 +84,13 @@ frontend/.env.local
 
 # client data files (sensitive Excel imports)
 data/
+# ...except the production default-data seed JSON (committed on purpose, so
+# fresh deploys get default Vendors with no manual step — see main.py's
+# startup seed and the user decision behind it). A directory exclusion can't
+# be re-included file-by-file directly, hence the un-ignore + re-ignore dance.
+!backend/data/
+backend/data/*
+!backend/data/seed_vendors.json
 
 # internal docs — kept local, not published
 docs/

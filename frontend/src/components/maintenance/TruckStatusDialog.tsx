@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { AlertTriangle, Clock, CheckCircle2, Gauge, IndianRupee, CalendarDays } from "lucide-react";
+import { AlertTriangle, Clock, CheckCircle2, HelpCircle, Gauge, IndianRupee, CalendarDays } from "lucide-react";
 import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { trucksApi, maintenanceApi } from "@/lib/api";
@@ -20,7 +20,7 @@ type Props = {
   truck?: Truck | null;
 };
 
-function StatusBadge({ status }: { status: "Overdue" | "Due Soon" | "OK" }) {
+function StatusBadge({ status }: { status: "Overdue" | "Due Soon" | "No Data" | "OK" }) {
   if (status === "Overdue")
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700">
@@ -31,6 +31,12 @@ function StatusBadge({ status }: { status: "Overdue" | "Due Soon" | "OK" }) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
         <Clock className="h-3 w-3" /> Due Soon
+      </span>
+    );
+  if (status === "No Data")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+        <HelpCircle className="h-3 w-3" /> No Data
       </span>
     );
   return (
@@ -107,8 +113,9 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
 
   const overdueItems = effectiveStatus.items.filter((i) => i.status === "Overdue");
   const dueSoonItems = effectiveStatus.items.filter((i) => i.status === "Due Soon");
+  const noDataItems  = effectiveStatus.items.filter((i) => i.status === "No Data");
   const okItems      = effectiveStatus.items.filter((i) => i.status === "OK");
-  const hasAlerts    = effectiveStatus.overdueCount > 0 || effectiveStatus.dueSoonCount > 0;
+  const hasAlerts    = effectiveStatus.overdueCount > 0 || effectiveStatus.dueSoonCount > 0 || effectiveStatus.noDataCount > 0;
 
   return (
     <Dialog
@@ -153,6 +160,11 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
                   {effectiveStatus.dueSoonCount > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
                       <Clock className="h-3 w-3" /> {effectiveStatus.dueSoonCount} Due Soon
+                    </span>
+                  )}
+                  {effectiveStatus.noDataCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+                      <HelpCircle className="h-3 w-3" /> {effectiveStatus.noDataCount} No Data
                     </span>
                   )}
                 </>
@@ -296,7 +308,7 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {[...overdueItems, ...dueSoonItems, ...okItems].map((item) => (
+                {[...overdueItems, ...dueSoonItems, ...noDataItems, ...okItems].map((item) => (
                   <tr
                     key={item.typeName}
                     className={
@@ -304,6 +316,8 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
                         ? "border-l-2 border-l-red-400 bg-red-50/60"
                         : item.status === "Due Soon"
                         ? "border-l-2 border-l-amber-400 bg-amber-50/60"
+                        : item.status === "No Data"
+                        ? "border-l-2 border-l-gray-300 bg-gray-50/60"
                         : "bg-white"
                     }
                   >
@@ -317,13 +331,17 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
                         : <span className="italic text-slate-400">Never</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">
-                      <span className={
-                        item.status === "Overdue"  ? "font-semibold text-red-600" :
-                        item.status === "Due Soon" ? "font-semibold text-amber-600" :
-                        "text-slate-500"
-                      }>
-                        {item.kmSinceLast.toLocaleString("en-IN")} km
-                      </span>
+                      {item.status === "No Data" ? (
+                        <span className="italic text-slate-400">—</span>
+                      ) : (
+                        <span className={
+                          item.status === "Overdue"  ? "font-semibold text-red-600" :
+                          item.status === "Due Soon" ? "font-semibold text-amber-600" :
+                          "text-slate-500"
+                        }>
+                          {item.kmSinceLast.toLocaleString("en-IN")} km
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       <StatusBadge status={item.status} />

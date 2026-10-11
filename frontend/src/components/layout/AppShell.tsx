@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useIdleTimer } from "@/hooks/useIdleTimer";
 import { useUsageHeartbeat } from "@/hooks/useUsageHeartbeat";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
+import { useAttendanceGate } from "@/hooks/useAttendanceGate";
 import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const SIDEBAR_AUTO_COLLAPSE_MS = 4000;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, ready, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,6 +32,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useActivityTracking(Boolean(user), pathname);
 
   useChatMessageToasts();
+
+  // "Set Marking Attendance as Mandatory" (SetWorkingHoursDialog) — while on
+  // and today unmarked, every route but Mark Attendance and Chat bounces back
+  // to it. Admin is exempt (see useAttendanceGate).
+  const { locked: attendanceLocked } = useAttendanceGate();
+  useEffect(() => {
+    if (!attendanceLocked) return;
+    // next.config's trailingSlash:true means usePathname() reports
+    // "/attendance/mark/" — comparing against only the bare path never
+    // matched this guard, so every check re-fired the replace() below,
+    // which itself resolved to "/attendance/mark/" and re-triggered the
+    // effect: an infinite redirect loop instead of a one-time bounce. Fix
+    // is on the comparison only — router.replace() itself must still take
+    // the bare path (no trailing slash): the App Router matches routes on
+    // the canonical path and 404s on a manually-slashed target, even
+    // though trailingSlash:true is what makes usePathname() report one.
+    if (pathname === "/attendance/mark" || pathname === "/attendance/mark/" || pathname?.startsWith("/connect/chat")) return;
+    router.replace("/attendance/mark");
+  }, [attendanceLocked, pathname, router]);
 
   useEffect(() => {
     if (isIdle && user) {
@@ -80,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
         onHoverChange={setSidebarHovered}
+        locked={attendanceLocked}
       />
       {/* Sidebar is `position: fixed` at every breakpoint (see Sidebar.tsx),
           so it no longer participates in this flex row — this spacer exists

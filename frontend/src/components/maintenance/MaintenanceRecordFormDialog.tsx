@@ -5,9 +5,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { maintenanceCategoriesApi } from "@/lib/api";
+import { maintenanceTypesApi } from "@/lib/api";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
-import type { MaintenanceCategory } from "@/types/maintenance-category";
+import type { MaintenanceTypeItem } from "@/types/maintenance-type";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -34,10 +34,16 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
 
 export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: MaintenanceRecordFormDialogProps) {
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
-  const [categories, setCategories] = useState<MaintenanceCategory[]>([]);
+  // Sourced from MaintenanceType (Admin > Maintenance Alert Management) — the
+  // same list the Overdue/Due Soon tracking checks against. This used to pull
+  // from the separate Maintenance Categories list instead, which meant almost
+  // nothing anyone logged here ever matched a tracked type by name, so every
+  // truck's maintenance status looked like "No Data" regardless of how much
+  // real history existed.
+  const [maintenanceTypes, setMaintenanceTypes] = useState<MaintenanceTypeItem[]>([]);
 
   useEffect(() => {
-    maintenanceCategoriesApi.list().then(setCategories).catch(() => {});
+    maintenanceTypesApi.list().then(setMaintenanceTypes).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -46,15 +52,7 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
     }
   }, [open, truck?.id]);
 
-  const categoryOptions = categories.map((c) => ({ value: c.name, label: c.name }));
-  const selectedCategory = categories.find((c) => c.name === form.maintenanceType);
-  const repairOptions = (selectedCategory?.repairs ?? []).map((r) => ({ value: r.name, label: r.name }));
-
-  // Picking a different Maintenance Type invalidates whatever Repair Type was
-  // chosen for the previous category, so it's cleared rather than left stale.
-  function handleMaintenanceTypeChange(value: string) {
-    setForm((prev) => ({ ...prev, maintenanceType: value, repairType: "" }));
-  }
+  const typeOptions = maintenanceTypes.map((t) => ({ value: t.name, label: t.name }));
 
   const draftKey = `erp_maintenance_record_draft_${truck?.id ?? "none"}`;
   // Merge over emptyForm rather than replacing outright — an older draft saved
@@ -141,24 +139,21 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
               required
               strictSelect
               value={form.maintenanceType}
-              onChange={handleMaintenanceTypeChange}
+              onChange={(val) => update("maintenanceType", val)}
               placeholder="Select a maintenance type"
-              options={categoryOptions}
+              options={typeOptions}
             />
           </Field>
 
-          {form.maintenanceType && (
-            <Field label="Repair Type" required>
-              <GlassCombobox
-                required
-                strictSelect
-                value={form.repairType}
-                onChange={(val) => update("repairType", val)}
-                placeholder="Select a repair type"
-                options={repairOptions}
-              />
-            </Field>
-          )}
+          <Field label="Repair Type">
+            <input
+              type="text"
+              value={form.repairType}
+              onChange={(e) => update("repairType", e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Front brake pads replaced"
+            />
+          </Field>
 
           <Field label="Cost" required>
             <DecimalInput type="number"

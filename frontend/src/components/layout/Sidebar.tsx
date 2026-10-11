@@ -10,6 +10,8 @@ import { useAuth } from "@/context/AuthContext";
 import { editApprovalsApi, deletionApprovalsApi, chatApi, paymentRequestsApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useTheme } from "@/context/ThemeContext";
+import { useOpenShift } from "@/hooks/useOpenShift";
+import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
 
 // Allowed hrefs per software designation (Admin gets everything)
 const ROLE_HREFS: Record<string, string[] | "all"> = {
@@ -167,12 +169,26 @@ type SidebarProps = {
   onMobileClose: () => void;
   /** Pointer entered/left the sidebar (AppShell uses it to pause the auto-collapse timer). */
   onHoverChange?: (hovered: boolean) => void;
+  /** Mandatory-attendance gate is active (see useAttendanceGate) — only Mark
+   * Attendance and Chat stay in the menu until today's attendance is marked. */
+  locked?: boolean;
 };
 
-export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHoverChange }: SidebarProps) {
+const ATTENDANCE_LOCK_HREFS = ["/attendance/mark", "/connect/chat"];
+
+export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHoverChange, locked }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { theme } = useTheme();
+
+  // Logout is gated on closing an open self-checked-in shift first — see
+  // CloseShiftBeforeLogoutDialog for why this isn't skippable.
+  const openShift = useOpenShift();
+  const [showCloseShiftPrompt, setShowCloseShiftPrompt] = useState(false);
+  function handleLogoutClick() {
+    if (openShift) setShowCloseShiftPrompt(true);
+    else logout();
+  }
   const isAdmin = user?.softwareDesignation === "Admin";
   const isAccounts = user?.softwareDesignation === "Accounts";
   const isCommercialManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
@@ -291,7 +307,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
     return 0;
   };
 
-  const sections = getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
+  const sections = locked
+    ? sidebarSections
+        .map((section) => ({ ...section, items: section.items.filter((item) => ATTENDANCE_LOCK_HREFS.includes(item.href)) }))
+        .filter((section) => section.items.length > 0)
+    : getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
 
   return (
     <>
@@ -498,7 +518,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                 type="button"
                 aria-label="Log out"
                 title="Log out"
-                onClick={logout}
+                onClick={handleLogoutClick}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 active:scale-95"
               >
                 <LogOut className="h-4 w-4" />
@@ -508,6 +528,15 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         </div>
       </div>
     </aside>
+    {openShift && (
+      <CloseShiftBeforeLogoutDialog
+        open={showCloseShiftPrompt}
+        onClose={() => setShowCloseShiftPrompt(false)}
+        openShift={openShift}
+        onClosedAndLoggedOut={() => { setShowCloseShiftPrompt(false); logout(); }}
+        onLogoutWithoutClosing={() => { setShowCloseShiftPrompt(false); logout(); }}
+      />
+    )}
     </>
   );
 }

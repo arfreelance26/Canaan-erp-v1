@@ -9,6 +9,7 @@ import models, schemas
 from websocket_manager import emit
 from security import get_current_user, require_roles, TokenUser
 import settings_store
+import activity_tracker
 
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -368,12 +369,12 @@ def self_mark_staff_attendance(payload: schemas.StaffSelfMarkCreate, db: Session
     if current_user.role != "Admin" and current_user.id != payload.staff_id:
         raise HTTPException(403, "You can only mark your own attendance.")
     today = _today_ist()
-    # Sundays and government/company holidays are non-working days — no marking needed.
-    if today.weekday() == 6:
-        raise HTTPException(400, "Today is a Sunday holiday — attendance marking is not required.")
-    holiday = db.query(models.Holiday).filter(models.Holiday.date == today).first()
-    if holiday:
-        raise HTTPException(400, f"Today is a holiday ({holiday.name}) — attendance marking is not required.")
+    # Sundays and government/company holidays are non-working days — nobody is
+    # required to mark one (see get_staff_self_summary's working_days, which
+    # still excludes them). But not everyone is off: Maintenance, Yard
+    # Supervisor and others genuinely work through them, so marking is no
+    # longer blocked outright — just optional, same self-mark flow as any
+    # other day for whoever actually is working.
     existing = db.query(models.StaffAttendance).filter(
         models.StaffAttendance.staff_id == payload.staff_id,
         models.StaffAttendance.date == today,
@@ -412,10 +413,39 @@ def shift_start_ist(record: models.StaffAttendance) -> Optional[datetime]:
     return datetime.combine(record.date, clock, tzinfo=_IST)
 
 
+def _activity_checkout_time(record: models.StaffAttendance, fallback: datetime) -> str:
+    """The IST "HH:MM AM/PM" check-out stamp for closing `record`'s shift: the
+    staff member's actual last logged activity that day, clamped to never be
+    before their check-in (a clock-skew/no-activity edge case, not the norm)
+    and never after `fallback` (the moment/limit the caller is closing at).
+    Falls back to `fallback` itself if no activity is on record at all — e.g.
+    an admin-created record with no real session behind it."""
+    last = activity_tracker.last_activity_at(str(record.staff_id), record.date)
+    start = shift_start_ist(record)
+    if last is None:
+        return fallback.strftime("%I:%M %p")
+    last_ist = last.replace(tzinfo=timezone.utc).astimezone(_IST)
+    if start is not None and last_ist < start:
+        last_ist = start
+    if last_ist > fallback:
+        last_ist = fallback
+    return last_ist.strftime("%I:%M %p")
+
+
 def auto_close_expired_shifts(db: Session) -> int:
-    """Closes every open Present shift whose check-in plus the working-hours limit has passed.
-    The check-out time recorded is the limit moment itself, not the time this ran, so the
-    shift length is exactly the limit. Closed shifts are never changed again, so running this
+    """Closes every open Present shift that's gone quiet for the configured
+    number of hours — based on genuine INACTIVITY (their last real logged
+    activity), not elapsed time since check-in.
+
+    This used to trigger purely on "check-in + limit_hours has passed,"
+    which broke anyone working a split/dynamic schedule (a bit in the
+    morning, more in the evening, sometimes past midnight): a person still
+    actively working that night would get force-closed mid-shift just
+    because a lot of wall-clock time had passed since their morning
+    check-in. Keying off last activity instead means continued real use
+    keeps resetting the window, so only a shift someone has actually
+    stopped touching — forgotten, device died, whatever — ever gets closed
+    this way. Closed shifts are never changed again, so running this
     repeatedly is harmless."""
     limit_hours = settings_store.staff_max_shift_hours(db)
     now = datetime.now(_IST)
@@ -428,14 +458,17 @@ def auto_close_expired_shifts(db: Session) -> int:
 
     closed = 0
     for record in open_shifts:
-        start = shift_start_ist(record)
-        if start is None:
+        if not record.staff_id:
             continue
-        cutoff = start + timedelta(hours=limit_hours)
-        if now < cutoff:
+        last = activity_tracker.last_activity_at(str(record.staff_id), record.date)
+        reference = last.replace(tzinfo=timezone.utc).astimezone(_IST) if last else shift_start_ist(record)
+        if reference is None:
             continue
-        record.check_out_time = cutoff.strftime("%I:%M %p")
+        if reference >= now - timedelta(hours=limit_hours):
+            continue  # still within the inactivity window — leave it open
+        record.check_out_time = _activity_checkout_time(record, now)
         record.auto_closed = True
+        record.closed_by = "auto"
         closed += 1
     if closed:
         db.commit()
@@ -462,7 +495,51 @@ def close_shift(staff_id: int, db: Session = Depends(get_db), current_user: Toke
         raise HTTPException(400, "Close shift is only applicable for Present status.")
     if record.check_out_time:
         raise HTTPException(400, "Shift already closed for today.")
-    record.check_out_time = datetime.now(_IST).strftime("%I:%M %p")
+    # Stamped at their real last activity, not the moment this was clicked —
+    # closing the shift long after they actually stopped working (whether
+    # forgotten or left open deliberately) shouldn't credit that dead time.
+    record.check_out_time = _activity_checkout_time(record, datetime.now(_IST))
+    # Only the person themselves closing their own shift is a deliberate
+    # "I'm done for the day" — that's final. Admin closing it on their behalf
+    # is still a guess, same as auto-close, so it stays resumable (see
+    # resume_shift below).
+    record.closed_by = "self" if current_user.id == staff_id else "admin"
+    db.commit()
+    db.refresh(record)
+    emit("attendance_updated", {"staff_id": staff_id})
+    return record
+
+
+@router.post("/staff/resume-shift", response_model=schemas.StaffAttendanceOut)
+def resume_shift(staff_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Reopens today's shift after an auto-close or an Admin force-close —
+    both are guesses on the person's behalf, not their own confirmation that
+    they're done, so either can be wrong (e.g. a break longer than the
+    configured inactivity limit). A self-close stays final; there's nothing
+    to resume from that.
+
+    Keeps the original check_in_time rather than starting a new one — this
+    is "the same shift continuing," not a second shift. The eventual
+    check-out (whenever close-shift is next called) is still always stamped
+    at real last activity, so resuming never opens a way to pad hours."""
+    if current_user.role != "Admin" and current_user.id != staff_id:
+        raise HTTPException(403, "You can only resume your own shift.")
+    today = _today_ist()
+    record = db.query(models.StaffAttendance).filter(
+        models.StaffAttendance.staff_id == staff_id,
+        models.StaffAttendance.date == today,
+    ).first()
+    if not record:
+        raise HTTPException(404, "No attendance record found for today.")
+    if record.status != "Present" or not record.check_in_time:
+        raise HTTPException(400, "There's no shift to resume today.")
+    if not record.check_out_time:
+        raise HTTPException(400, "This shift is still open — nothing to resume.")
+    if record.closed_by == "self":
+        raise HTTPException(400, "This shift was closed for the day and can't be resumed. Mark attendance again tomorrow.")
+    record.check_out_time = None
+    record.auto_closed = False
+    record.closed_by = None
     db.commit()
     db.refresh(record)
     emit("attendance_updated", {"staff_id": staff_id})
@@ -510,20 +587,31 @@ def get_staff_self_summary(
         .all()
     )
 
-    counts = {"Present": 0, "Absent": 0, "On Leave": 0}
-    for r in records:
-        if r.status in counts:
-            counts[r.status] += 1
-
-    # Working days exclude Sundays and government/company holidays elapsed so far.
+    # Working days exclude Sundays and government/company holidays elapsed so far
+    # — nobody is REQUIRED to mark on one, so these stay out of the denominator
+    # even though self-mark no longer blocks marking on one (some roles — e.g.
+    # Maintenance, Yard Supervisor — genuinely work through them).
     holiday_dates = _holiday_dates_in_range(db, start, effective_end)
     non_working = _non_working_dates(start, effective_end, holiday_dates)
     days_elapsed = (effective_end - start).days + 1
-    holidays = len(non_working)
-    working_days = max(days_elapsed - holidays, 0)
-    marked = sum(counts.values())
-    # Only working days can be "not marked" — holidays never count against staff.
-    not_marked = max(working_days - marked, 0)
+    working_days = max(days_elapsed - len(non_working), 0)
+
+    counts = {"Present": 0, "Absent": 0, "On Leave": 0}
+    working_day_marked = 0
+    marked_dates: set = set()
+    for r in records:
+        if r.status in counts:
+            counts[r.status] += 1
+            marked_dates.add(r.date)
+            if r.date not in non_working:
+                working_day_marked += 1
+    # "Holiday" only counts a non-working day nobody chose to mark — one
+    # someone actually worked (and marked Present/Absent/On Leave for) shows
+    # up under its real status instead, not double-counted here too.
+    holidays = len([d for d in non_working if d not in marked_dates])
+    # Only working days can be "not marked" — holidays never count against staff,
+    # and a voluntary holiday mark isn't "filling" a required working day either.
+    not_marked = max(working_days - working_day_marked, 0)
     percentage = round(min((counts["Present"] / working_days) * 100, 100.0), 1) if working_days else 0.0
 
     return schemas.StaffSelfSummaryOut(
@@ -556,6 +644,7 @@ def list_staff_attendance(
     staff_id: Optional[int] = Query(None),
     date_from: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
     date_to: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    include_last_active: bool = Query(False, description="Populate last_active_at for open shifts (Staff Attendance page only — skipped otherwise, it's one activity-log query per open shift)"),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.StaffAttendance)
@@ -568,7 +657,17 @@ def list_staff_attendance(
             q = q.filter(models.StaffAttendance.date <= date_to)
     if staff_id:
         q = q.filter(models.StaffAttendance.staff_id == staff_id)
-    return q.order_by(models.StaffAttendance.date.asc(), models.StaffAttendance.id.asc()).all()
+    records = q.order_by(models.StaffAttendance.date.asc(), models.StaffAttendance.id.asc()).all()
+    if not include_last_active:
+        return records
+
+    out = []
+    for r in records:
+        item = schemas.StaffAttendanceOut.model_validate(r)
+        if r.status == "Present" and r.check_in_time and not r.check_out_time and r.staff_id:
+            item.last_active_at = activity_tracker.last_activity_at(str(r.staff_id), r.date)
+        out.append(item)
+    return out
 
 
 @router.post("/staff", response_model=schemas.StaffAttendanceOut, status_code=201, dependencies=[Depends(require_roles())])

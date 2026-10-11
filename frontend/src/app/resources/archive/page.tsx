@@ -13,12 +13,13 @@ import {
   Users,
   Building2,
   Handshake,
+  Warehouse,
   History,
   Plus,
   Pencil,
   type LucideIcon,
 } from "lucide-react";
-import { deletionApprovalsApi, driversApi, trucksApi, staffApi, customersApi, vendorsApi, type DeletionApprovalRequest } from "@/lib/api";
+import { deletionApprovalsApi, driversApi, trucksApi, staffApi, customersApi, vendorsApi, cfsYardApi, type DeletionApprovalRequest } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -32,10 +33,11 @@ import { formatDateTime } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Admin"];
 
-type ArchivedResource = "Driver" | "Truck" | "Staff" | "Customer" | "Vendor";
+type ArchivedResource = "Driver" | "Truck" | "Staff" | "Customer" | "Vendor" | "CfsYardEntry";
 type ArchiveRow = DeletionApprovalRequest & { kind: ArchivedResource };
 
 type KindConfig = {
+  label: string;
   homeLabel: string;
   icon: LucideIcon;
   badgeClass: string;
@@ -47,13 +49,17 @@ type KindConfig = {
 };
 
 const KIND_CONFIG: Record<ArchivedResource, KindConfig> = {
-  Driver: { homeLabel: "Our Drivers", icon: IdCard, badgeClass: "bg-indigo-50 text-indigo-700", api: driversApi },
-  Truck: { homeLabel: "Our Fleet", icon: TruckIcon, badgeClass: "bg-amber-50 text-amber-700", api: trucksApi },
-  Staff: { homeLabel: "Our Staff", icon: Users, badgeClass: "bg-emerald-50 text-emerald-700", api: staffApi },
-  Customer: { homeLabel: "Our Customers", icon: Building2, badgeClass: "bg-blue-50 text-blue-700", api: customersApi },
-  Vendor: { homeLabel: "Our Vendors", icon: Handshake, badgeClass: "bg-purple-50 text-purple-700", api: vendorsApi },
+  Driver: { label: "Driver", homeLabel: "Our Drivers", icon: IdCard, badgeClass: "bg-indigo-50 text-indigo-700", api: driversApi },
+  Truck: { label: "Truck", homeLabel: "Our Fleet", icon: TruckIcon, badgeClass: "bg-amber-50 text-amber-700", api: trucksApi },
+  Staff: { label: "Staff", homeLabel: "Our Staff", icon: Users, badgeClass: "bg-emerald-50 text-emerald-700", api: staffApi },
+  Customer: { label: "Customer", homeLabel: "Our Customers", icon: Building2, badgeClass: "bg-blue-50 text-blue-700", api: customersApi },
+  Vendor: { label: "Vendor", homeLabel: "Our Vendors", icon: Handshake, badgeClass: "bg-purple-50 text-purple-700", api: vendorsApi },
+  CfsYardEntry: { label: "CFS/Yard", homeLabel: "the CFS/Yard Directory", icon: Warehouse, badgeClass: "bg-teal-50 text-teal-700", api: cfsYardApi },
 };
-const ARCHIVED_KINDS: ArchivedResource[] = ["Driver", "Truck", "Staff", "Customer", "Vendor"];
+const ARCHIVED_KINDS: ArchivedResource[] = ["Driver", "Truck", "Staff", "Customer", "Vendor", "CfsYardEntry"];
+const PLURAL_LABEL: Record<ArchivedResource, string> = {
+  Driver: "Drivers", Truck: "Trucks", Staff: "Staff", Customer: "Customers", Vendor: "Vendors", CfsYardEntry: "CFS/Yard",
+};
 
 // A unified row across all 5 entities' own edit-event logs (DriverEditEvent,
 // TruckEditEvent, StaffEditEvent, CustomerEditEvent, VendorEditEvent) — each
@@ -226,9 +232,9 @@ export default function ArchivePage() {
     try {
       await KIND_CONFIG[row.kind].api.restore(String(row.resourceId));
       setRows((prev) => prev.filter((r) => r.id !== row.id));
-      showSuccess(`${row.kind} ${row.resourceName} restored — it's back in ${KIND_CONFIG[row.kind].homeLabel}.`);
+      showSuccess(`${KIND_CONFIG[row.kind].label} ${row.resourceName} restored — it's back in ${KIND_CONFIG[row.kind].homeLabel}.`);
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : `Failed to restore ${row.kind.toLowerCase()}.`);
+      showError(err instanceof Error ? err.message : `Failed to restore ${KIND_CONFIG[row.kind].label.toLowerCase()}.`);
     } finally {
       setActingId(null);
     }
@@ -236,16 +242,16 @@ export default function ArchivePage() {
 
   async function handlePermanentDelete(row: ArchiveRow) {
     const res = await confirmDelete(
-      `${row.kind} ${row.resourceName} and ALL its data will be permanently and irreversibly deleted. This cannot be undone.`
+      `${KIND_CONFIG[row.kind].label} ${row.resourceName} and ALL its data will be permanently and irreversibly deleted. This cannot be undone.`
     );
     if (!res.isConfirmed) return;
     setActingId(row.id);
     try {
       await KIND_CONFIG[row.kind].api.removePermanent(String(row.resourceId));
       setRows((prev) => prev.filter((r) => r.id !== row.id));
-      showSuccess(`${row.kind} ${row.resourceName} permanently deleted.`);
+      showSuccess(`${KIND_CONFIG[row.kind].label} ${row.resourceName} permanently deleted.`);
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : `Failed to permanently delete ${row.kind.toLowerCase()}.`);
+      showError(err instanceof Error ? err.message : `Failed to permanently delete ${KIND_CONFIG[row.kind].label.toLowerCase()}.`);
     } finally {
       setActingId(null);
     }
@@ -307,7 +313,7 @@ export default function ArchivePage() {
                 typeFilter === t ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
               }`}
             >
-              {t === "All" ? "All" : t === "Driver" ? "Drivers" : t === "Truck" ? "Trucks" : t === "Customer" ? "Customers" : t === "Vendor" ? "Vendors" : "Staff"}
+              {t === "All" ? "All" : PLURAL_LABEL[t]}
             </button>
           ))}
         </div>
@@ -353,7 +359,7 @@ export default function ArchivePage() {
                           const KindIcon = KIND_CONFIG[row.kind].icon;
                           return <KindIcon className="h-3 w-3" />;
                         })()}
-                        {row.kind}
+                        {KIND_CONFIG[row.kind].label}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -391,7 +397,7 @@ export default function ArchivePage() {
                           disabled={actingId === row.id}
                           onClick={() => handleRestore(row)}
                           className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                          title={`Put this ${row.kind.toLowerCase()} back in ${KIND_CONFIG[row.kind].homeLabel}`}
+                          title={`Put this ${KIND_CONFIG[row.kind].label.toLowerCase()} back in ${KIND_CONFIG[row.kind].homeLabel}`}
                         >
                           <RotateCcw className="h-3.5 w-3.5" />
                           Restore
@@ -401,7 +407,7 @@ export default function ArchivePage() {
                           disabled={actingId === row.id}
                           onClick={() => handlePermanentDelete(row)}
                           className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
-                          title={`Permanently and irreversibly delete this ${row.kind.toLowerCase()}`}
+                          title={`Permanently and irreversibly delete this ${KIND_CONFIG[row.kind].label.toLowerCase()}`}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Permanently Delete
@@ -493,7 +499,7 @@ export default function ArchivePage() {
                     editHistoryKindFilter === t ? "bg-blue-600 text-white" : "text-gray-500 hover:bg-gray-100"
                   )}
                 >
-                  {t === "All" ? "All" : t === "Driver" ? "Drivers" : t === "Truck" ? "Trucks" : t === "Customer" ? "Customers" : t === "Vendor" ? "Vendors" : "Staff"}
+                  {t === "All" ? "All" : PLURAL_LABEL[t]}
                 </button>
               ))}
             </div>

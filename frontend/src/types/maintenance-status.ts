@@ -4,7 +4,9 @@ export type MaintenanceStatusItem = {
   lastOdometer: number | null;
   kmSinceLast: number;
   nextDueOdometer: number;
-  status: "Overdue" | "Due Soon" | "OK";
+  /** "No Data" = this type has never had a maintenance record logged for
+   * this truck — not evidence it's overdue, just that nothing's been entered. */
+  status: "Overdue" | "Due Soon" | "No Data" | "OK";
 };
 
 export type TruckMaintenanceStatus = {
@@ -14,5 +16,6 @@ export type TruckMaintenanceStatus = {
   odometer: number;
   overdueCount: number;
   dueSoonCount: number;
+  noDataCount: number;
   items: MaintenanceStatusItem[];
 };

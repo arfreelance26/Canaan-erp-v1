@@ -1,51 +1,20 @@
 "use client";
 
-import { AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
+import { Truck as TruckIcon, Pencil, Eye, Activity } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
-import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 
 type TruckMaintenanceTableProps = {
   trucks: Truck[];
   records: MaintenanceRecord[];
-  statusByTruckDbId: Map<string, TruckMaintenanceStatus>;
   onUpdateRecord: (truck: Truck) => void;
   onViewRecord: (truck: Truck) => void;
   onViewStatus: (truck: Truck) => void;
 };
 
-function StatusChip({ status }: { status: TruckMaintenanceStatus | undefined }) {
-  if (!status) {
-    return <span className="text-xs text-gray-400">—</span>;
-  }
-  if (status.overdueCount > 0) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-        <AlertTriangle className="h-3 w-3" />
-        {status.overdueCount} Overdue
-      </span>
-    );
-  }
-  if (status.dueSoonCount > 0) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-        <Clock className="h-3 w-3" />
-        {status.dueSoonCount} Due Soon
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-      <CheckCircle2 className="h-3 w-3" />
-      All OK
-    </span>
-  );
-}
-
 export function TruckMaintenanceTable({
   trucks,
   records,
-  statusByTruckDbId,
   onUpdateRecord,
   onViewRecord,
   onViewStatus,
@@ -59,56 +28,55 @@ export function TruckMaintenanceTable({
   }
 
   return (
-    <div className="overflow-auto max-h-[75vh] rounded-xl border border-white/80 bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
-      <table className="w-full text-left text-sm">
-        <thead className="sticky top-0 z-10">
-          <tr className="border-b border-gray-200 bg-gray-50">
-            {["Registration Number", "Maintenance Status", "Actions"].map((col) => (
-              <th key={col} className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase whitespace-nowrap">
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {trucks.map((truck) => {
-            const status = statusByTruckDbId.get(truck.id);
-            return (
-              <tr key={truck.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{truck.registrationNumber}</td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <StatusChip status={status} />
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => onUpdateRecord(truck)}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Update Record
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onViewRecord(truck)}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                    >
-                      View Record
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onViewStatus(truck)}
-                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Full Status
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="flex max-h-[75vh] flex-col gap-3 overflow-auto pr-1">
+      {trucks.map((truck) => {
+        const recordCount = records.filter((r) => r.truckId === truck.id).length;
+        return (
+          <div
+            key={truck.id}
+            className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/80 bg-white/90 px-5 py-4 shadow-sm backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+          >
+            <div className="flex items-center gap-3.5">
+              <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white text-orange-600 shadow-sm">
+                <TruckIcon className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-semibold text-gray-900">{truck.registrationNumber}</p>
+                <p className="mt-0.5 text-xs text-gray-400">
+                  {recordCount} maintenance record{recordCount === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onUpdateRecord(truck)}
+                className="flex h-9 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3.5 text-xs font-semibold text-amber-700 transition-all duration-200 hover:scale-105 hover:bg-amber-100"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Update Record
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewRecord(truck)}
+                className="flex h-9 items-center gap-1.5 rounded-full bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:scale-105 hover:bg-blue-700"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View Record
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewStatus(truck)}
+                className="flex h-9 items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3.5 text-xs font-semibold text-indigo-700 transition-all duration-200 hover:scale-105 hover:bg-indigo-100"
+              >
+                <Activity className="h-3.5 w-3.5" />
+                Full Status
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

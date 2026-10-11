@@ -167,7 +167,6 @@ export default function TruckMaintenancePage() {
       <TruckMaintenanceTable
         trucks={filteredTrucks}
         records={records}
-        statusByTruckDbId={statusByTruckDbId}
         onUpdateRecord={handleUpdateRecord}
         onViewRecord={handleViewRecord}
         onViewStatus={handleViewStatus}

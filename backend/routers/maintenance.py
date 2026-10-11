@@ -59,15 +59,25 @@ def _iqr_filter(intervals: list[dict]) -> list[dict]:
 
 
 def _compute_maint_status(truck_odo: int, last_odo_map: dict, maint_types: list) -> dict:
-    """Return overdue_count, due_soon_count, items for a single truck."""
+    """Return overdue_count, due_soon_count, no_data_count, items for a single truck.
+
+    A type with no maintenance record at all gets "No Data", not "Overdue" —
+    there being nothing logged yet isn't evidence the service is overdue, and
+    counting it as such silently turned "we have no history for this" into a
+    red alert for every truck/type combination no one ever entered a record
+    for (the dominant source of the dashboard's old inflated overdue count)."""
     items = []
     overdue_count = 0
     due_soon_count = 0
+    no_data_count = 0
     for mt in maint_types:
         type_lower = mt.name.lower()
         last_odo = last_odo_map.get(type_lower)
         km_since_last = truck_odo - last_odo if last_odo is not None else truck_odo
-        if km_since_last >= mt.interval_km:
+        if last_odo is None:
+            status = "No Data"
+            no_data_count += 1
+        elif km_since_last >= mt.interval_km:
             status = "Overdue"
             overdue_count += 1
         elif km_since_last >= mt.interval_km - UPCOMING_WINDOW_KM:
@@ -83,10 +93,13 @@ def _compute_maint_status(truck_odo: int, last_odo_map: dict, maint_types: list)
             "next_due_odometer": (last_odo + mt.interval_km) if last_odo is not None else mt.interval_km,
             "status": status,
         })
-    # Sort: Overdue first, then Due Soon, then OK, then alphabetical
-    priority = {"Overdue": 0, "Due Soon": 1, "OK": 2}
+    # Sort: Overdue first, then Due Soon, then No Data, then OK, then alphabetical
+    priority = {"Overdue": 0, "Due Soon": 1, "No Data": 2, "OK": 3}
     items.sort(key=lambda x: (priority[x["status"]], x["type_name"]))
-    return {"overdue_count": overdue_count, "due_soon_count": due_soon_count, "items": items}
+    return {
+        "overdue_count": overdue_count, "due_soon_count": due_soon_count,
+        "no_data_count": no_data_count, "items": items,
+    }
 
 
 def _compliance_status(expiry_date) -> str:
@@ -352,7 +365,10 @@ def get_compliance(db: Session = Depends(get_db)):
 @router.get("/maintenance/status", tags=["Maintenance"])
 def get_maintenance_status(db: Session = Depends(get_db)):
     """Fleet-wide maintenance status for all trucks, driven by DB maintenance types."""
-    trucks = db.query(models.Truck).all()
+    # Unlike the normal trucks listing, this query had no deleted_at filter —
+    # a soft-deleted (removed from "Our Fleet") truck kept contributing to the
+    # fleet-wide overdue count indefinitely.
+    trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
     maint_types = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
     if not maint_types:
         return []

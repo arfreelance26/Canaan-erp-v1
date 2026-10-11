@@ -75,7 +75,10 @@ DEFAULT_MAX_SHIFT_HOURS = 12
 
 
 def staff_max_shift_hours(db: Session) -> int:
-    """Longest a staff shift may run from check-in before it is auto-closed."""
+    """Hours of genuine inactivity (no real logged activity, not just elapsed
+    time since check-in — see routers/attendance.py auto_close_expired_shifts)
+    before an open shift is auto-closed. Key/function names kept as-is since
+    this is just a stored hour count either way; only the trigger changed."""
     v = _get(db, MAX_SHIFT_KEY)
     if v is None:
         v = os.getenv("STAFF_MAX_SHIFT_HOURS", str(DEFAULT_MAX_SHIFT_HOURS))
@@ -87,3 +90,56 @@ def staff_max_shift_hours(db: Session) -> int:
 
 def set_staff_max_shift_hours(db: Session, hours: int) -> None:
     _set(db, MAX_SHIFT_KEY, str(int(hours)))
+
+
+ATTENDANCE_MANDATORY_KEY = "attendance_marking_mandatory"
+
+
+def attendance_marking_mandatory(db: Session) -> bool:
+    """Whether staff are required to mark attendance. Stored here as a flag
+    only — nothing enforces it yet (see SetWorkingHoursDialog's toggle)."""
+    v = _get(db, ATTENDANCE_MANDATORY_KEY)
+    if v is None:
+        v = os.getenv("ATTENDANCE_MARKING_MANDATORY", "false")
+    return v.strip().lower() in _TRUE
+
+
+def set_attendance_marking_mandatory(db: Session, mandatory: bool) -> None:
+    _set(db, ATTENDANCE_MANDATORY_KEY, "true" if mandatory else "false")
+
+
+# ---------------------------------------------------------------------------
+# Canaan Chat owner view — the password that unlocks the read-only, every-
+# conversation view. Deliberately separate from any staff login password.
+# ---------------------------------------------------------------------------
+from passlib.context import CryptContext  # noqa: E402 — grouped with the setting it serves, not at top of file
+
+CHAT_OWNER_VIEW_PASSWORD_HASH_KEY = "chat_owner_view_password_hash"
+_owner_view_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def chat_owner_view_password_hash(db: Session) -> str | None:
+    """The stored hash, or None if owner view has never been set up.
+
+    On first use only, if CHAT_OWNER_VIEW_PASSWORD is set in the environment,
+    that password is hashed and saved here once — the plain env value is never
+    read again after that, and changing it later requires the current password
+    (see update_chat_owner_view_password)."""
+    v = _get(db, CHAT_OWNER_VIEW_PASSWORD_HASH_KEY)
+    if v is not None:
+        return v
+    initial = os.getenv("CHAT_OWNER_VIEW_PASSWORD")
+    if not initial:
+        return None
+    hashed = _owner_view_pwd_ctx.hash(initial)
+    _set(db, CHAT_OWNER_VIEW_PASSWORD_HASH_KEY, hashed)
+    return hashed
+
+
+def verify_chat_owner_view_password(db: Session, password: str) -> bool:
+    hashed = chat_owner_view_password_hash(db)
+    return bool(hashed) and _owner_view_pwd_ctx.verify(password, hashed)
+
+
+def set_chat_owner_view_password(db: Session, new_password: str) -> None:
+    _set(db, CHAT_OWNER_VIEW_PASSWORD_HASH_KEY, _owner_view_pwd_ctx.hash(new_password))

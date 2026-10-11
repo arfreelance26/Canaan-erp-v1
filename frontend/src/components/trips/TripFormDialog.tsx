@@ -1,7 +1,9 @@
 "use client";
 
-import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User, Check, CheckCircle2, AlertTriangle } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User, Check, CheckCircle2, AlertTriangle, Building2, Warehouse, Pencil, Trash2, Plus, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
 import { CustomerInsightsPanel } from "./CustomerInsightsPanel";
 import { Field, inputClass } from "@/components/ui/Field";
@@ -28,7 +30,8 @@ import type { CustomerDestination } from "@/types/customer-destination";
 import type { CustomerPricing } from "@/types/customer-pricing";
 import type { FinalCustomerPricing } from "@/types/final-customer-pricing";
 import type { Branch } from "@/types/branch";
-import { branchesApi, customersApi, defaultBattaApi, tripsApi, trucksApi, type DefaultBattaRate } from "@/lib/api";
+import { branchesApi, customersApi, defaultBattaApi, tripsApi, trucksApi, cfsYardApi, deletionApprovalsApi, type DefaultBattaRate } from "@/lib/api";
+import type { CfsYardEntry } from "@/types/cfs-yard";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -56,6 +59,336 @@ const COMPENSATION_TYPE_OPTIONS = ["Normal", "DEFAULT", "CUSTOM"] as const;
 // realistic single road trip within India is roughly this order of
 // magnitude, so anything past it is far more likely a typo than a real trip.
 const IMPLAUSIBLE_APPROX_KM = 4000;
+
+// Non-admins can't delete a CFS/Yard entry directly — the backend's
+// DELETE /cfs-yard/{id} is Admin-only (deletion_approvals.py's generic
+// approve/reject flow owns everything else). This files that request, same
+// pattern as MaintenanceRecordHistoryDialog's DeletionReasonDialog.
+function CfsYardDeletionReasonDialog({
+  entry, onClose, onSubmit,
+}: {
+  entry: CfsYardEntry;
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { textareaRef.current?.focus(); }, []);
+
+  async function handleSubmit() {
+    if (!reason.trim()) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(reason.trim());
+      onClose();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to submit deletion request. Please try again.");
+      setSubmitting(false);
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between border-b border-gray-100 bg-amber-50 px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-white">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">Request Deletion</p>
+              <p className="text-[11px] text-gray-500">Admin approval required</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="bg-gray-50 border-b border-gray-100 px-5 py-3">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Entry to delete</p>
+          <p className="text-xs text-gray-700">{entry.kind} — {entry.name}</p>
+        </div>
+
+        <div className="px-5 py-5 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-gray-700">
+              Reason for deletion <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              ref={textareaRef}
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Explain why this entry needs to be deleted…"
+              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100 placeholder-gray-400"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!reason.trim() || submitting}
+              className="rounded-lg bg-amber-500 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              {submitting ? "Submitting…" : "Submit Request"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// "View All CFS" / "View All Yard" — a self-managed reference directory of
+// known CFS depots / yards in the Tuticorin port area (see routers/cfs_yard.py),
+// Admin-editable here, so whoever's typing the From/To route always has the
+// current list instead of a hardcoded one that drifts out of date.
+function CfsYardListDialog({
+  open, onClose, title, icon: Icon, kind, onSetOrigin, onSetDestination,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  icon: typeof Building2;
+  kind: CfsYardEntry["kind"];
+  onSetOrigin: (name: string) => void;
+  onSetDestination: (name: string) => void;
+}) {
+  const [entries, setEntries] = useState<CfsYardEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reasonEntry, setReasonEntry] = useState<CfsYardEntry | null>(null);
+  const noun = kind === "CFS" ? "CFS" : "Yard";
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    cfsYardApi.list(kind).then(setEntries).catch(() => {}).finally(() => setLoading(false));
+  }, [kind]);
+
+  useEffect(() => {
+    if (open) refresh();
+    else { setEditingId(null); setAdding(false); setNewName(""); }
+  }, [open, refresh]);
+
+  async function handleAdd() {
+    const name = newName.trim();
+    if (!name || saving) return;
+    setSaving(true);
+    try {
+      await cfsYardApi.create(kind, name);
+      setNewName("");
+      setAdding(false);
+      refresh();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : `Could not add this ${noun}.`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit(entry: CfsYardEntry) {
+    const name = editValue.trim();
+    if (!name || saving) return;
+    setSaving(true);
+    try {
+      await cfsYardApi.update(entry.id, name, entry.version);
+      setEditingId(null);
+      refresh();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : `Could not update this ${noun}.`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(entry: CfsYardEntry) {
+    const confirmed = await confirmAction(`Delete "${entry.name}"?`, "This can't be undone.");
+    if (!confirmed) return;
+    try {
+      await cfsYardApi.delete(entry.id);
+      refresh();
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : `Could not delete this ${noun}.`);
+    }
+  }
+
+  async function handleRequestDeletion(entry: CfsYardEntry, reason: string) {
+    await deletionApprovalsApi.create({
+      resourceType: "CfsYardEntry",
+      resourceId: Number(entry.id),
+      resourceName: `${entry.kind} — ${entry.name}`,
+      reason,
+    });
+    showSuccess("Deletion request submitted. Awaiting admin approval.");
+  }
+
+  return (
+    <>
+    <Dialog open={open} onClose={onClose} title={title}>
+      <div className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto py-1 pr-1">
+        {loading ? (
+          <p className="py-6 text-center text-sm text-gray-400">Loading…</p>
+        ) : entries.length === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-400">Nothing here yet — add one below.</p>
+        ) : (
+          entries.map((entry, i) => {
+            const isEditing = editingId === entry.id;
+            return (
+              <div
+                key={entry.id}
+                className="flex flex-col gap-2.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-gray-500 shadow-sm ring-1 ring-gray-100">
+                    {i + 1}
+                  </span>
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                    />
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-700">{entry.name}</span>
+                  )}
+                  {!isEditing && <Icon className="h-4 w-4 shrink-0 text-gray-300" />}
+                  {isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEdit(entry)}
+                        disabled={saving}
+                        className="shrink-0 rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        disabled={saving}
+                        className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        title="Edit"
+                        onClick={() => { setEditingId(entry.id); setEditValue(entry.name); }}
+                        className="shrink-0 rounded-lg border border-gray-200 bg-white p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        title={isAdmin ? "Delete" : "Request deletion"}
+                        onClick={() => (isAdmin ? handleDelete(entry) : setReasonEntry(entry))}
+                        className="shrink-0 rounded-lg border border-red-200 bg-white p-1.5 text-red-500 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+                {!isEditing && (
+                  <div className="flex items-center gap-2 pl-10">
+                    <button
+                      type="button"
+                      onClick={() => onSetOrigin(entry.name)}
+                      className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      Set as Origin
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSetDestination(entry.name)}
+                      className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                      Set as Destination
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="mt-3 border-t border-gray-100 pt-3">
+        {adding ? (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={`New ${noun} name`}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={saving || !newName.trim()}
+              className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAdding(false); setNewName(""); }}
+              disabled={saving}
+              className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm font-medium text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
+          >
+            <Plus className="h-4 w-4" />
+            Add New {noun}
+          </button>
+        )}
+      </div>
+    </Dialog>
+    {reasonEntry && (
+      <CfsYardDeletionReasonDialog
+        entry={reasonEntry}
+        onClose={() => setReasonEntry(null)}
+        onSubmit={(reason) => handleRequestDeletion(reasonEntry, reason)}
+      />
+    )}
+    </>
+  );
+}
 
 function toDefaultBattaCargoType(containerSpecification: string): string {
   const map: Record<string, string> = {
@@ -167,6 +500,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   verificationRejectionReason: null,
   isInvoiced: false,
   invoiceRequired: true,
+  useYardCfs: false,
   invoiceWaived: false,
   isCombinedInvoice: false,
   driverName: null,
@@ -212,6 +546,8 @@ export function TripFormDialog({
   // orphaned branch reassignment.
   const [branchChangeNoteRequest, setBranchChangeNoteRequest] = useState<{ truck: Truck; branchName: string } | null>(null);
   const [pendingTripPayload, setPendingTripPayload] = useState<Trip | null>(null);
+  // "View All CFS" / "View All Yard" — LOCAL / LOCAL CFS trips only, see CfsYardListDialog.
+  const [cfsYardDialog, setCfsYardDialog] = useState<"cfs" | "yard" | null>(null);
   // Default Batta Management rates for the assigned truck's current branch —
   // refetched whenever the effective branch changes. Compensation Type
   // "DEFAULT" looks amounts up from here by trip category + container type.
@@ -1369,7 +1705,49 @@ export function TripFormDialog({
 
         {/* Route Information */}
         <section className="flex flex-col gap-5">
-          <p className={sectionHeadingClass}>Route Information</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className={sectionHeadingClass}>Route Information</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                Use Yard/CFS instead of Routes
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={form.useYardCfs}
+                  onClick={() => update("useYardCfs", !form.useYardCfs)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    form.useYardCfs ? "bg-blue-600" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      form.useYardCfs ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </label>
+              {form.useYardCfs && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCfsYardDialog("cfs")}
+                    className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    <Building2 className="h-3.5 w-3.5" />
+                    View All CFS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCfsYardDialog("yard")}
+                    className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                  >
+                    <Warehouse className="h-3.5 w-3.5" />
+                    View All Yard
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
 
             {/* Available Routes — always visible except for Shifting trips */}
@@ -2141,6 +2519,25 @@ export function TripFormDialog({
         toBranch={branchChangeNoteRequest?.branchName || ""}
         onSubmit={submitVehicleBranchChange}
         onClose={cancelBranchChangeNoteRequest}
+      />
+
+      <CfsYardListDialog
+        open={cfsYardDialog === "cfs"}
+        onClose={() => setCfsYardDialog(null)}
+        title="All CFS"
+        icon={Building2}
+        kind="CFS"
+        onSetOrigin={(name) => { update("origin", name); setCfsYardDialog(null); }}
+        onSetDestination={(name) => { update("destination", name); setCfsYardDialog(null); }}
+      />
+      <CfsYardListDialog
+        open={cfsYardDialog === "yard"}
+        onClose={() => setCfsYardDialog(null)}
+        title="All Yard"
+        icon={Warehouse}
+        kind="YARD"
+        onSetOrigin={(name) => { update("origin", name); setCfsYardDialog(null); }}
+        onSetDestination={(name) => { update("destination", name); setCfsYardDialog(null); }}
       />
     </Dialog>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, CalendarOff, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, CalendarOff, Loader2, LogOut } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { cn } from "@/lib/utils";
 import { getStaffAttendanceForDate } from "@/lib/attendance-data";
@@ -14,9 +14,16 @@ type StaffAttendanceTableProps = {
   records: StaffAttendanceRecord[];
   date: string;
   onMark: (staffId: string, currentRecord: StaffAttendanceRecord | undefined, status: string) => Promise<void>;
+  /** Admin force-close for someone who self-checked-in but never closed their
+   * own shift — see close_shift on the backend, which already allows Admin to
+   * act on any staff_id. Only meaningful for today (see isToday). */
+  onCloseShift: (staffId: string) => Promise<void>;
+  /** close_shift always acts on TODAY's record regardless of which date is
+   * passed, so the button only appears while viewing today. */
+  isToday: boolean;
 };
 
-const columns = ["Photo", "Staff ID", "Name", "Role", "Attendance", "Marked At", "Source"];
+const columns = ["Photo", "Staff ID", "Name", "Role", "Attendance", "Shift", "Marked At", "Source"];
 
 const sourceStyles: Record<string, string> = {
   Web: "bg-blue-50 text-blue-700",
@@ -33,13 +40,22 @@ function AttendanceRadioGroup({
   staffId,
   record,
   onMark,
+  onCloseShift,
+  isToday,
 }: {
   staffId: string;
   record: StaffAttendanceRecord | undefined;
   onMark: StaffAttendanceTableProps["onMark"];
+  onCloseShift: StaffAttendanceTableProps["onCloseShift"];
+  isToday: boolean;
 }) {
   const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const current = record?.status ?? "Not Marked";
+  // Admin force-close — only when there's an actual open, self-checked-in
+  // shift to close, and only for today (close_shift always acts on today's
+  // record regardless of which date is being viewed).
+  const canCloseShift = isToday && record?.status === "Present" && record.checkInTime && !record.checkOutTime;
 
   async function handleSelect(status: string) {
     if (status === current || saving) return;
@@ -48,6 +64,15 @@ function AttendanceRadioGroup({
       await onMark(staffId, record, status);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCloseShift() {
+    setClosing(true);
+    try {
+      await onCloseShift(staffId);
+    } finally {
+      setClosing(false);
     }
   }
 
@@ -79,11 +104,57 @@ function AttendanceRadioGroup({
         );
       })}
       {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      {canCloseShift && (
+        <button
+          type="button"
+          onClick={handleCloseShift}
+          disabled={closing}
+          title="Close this shift now, on their behalf"
+          className="flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+        >
+          {closing ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
+          Close Shift
+        </button>
+      )}
     </div>
   );
 }
 
-export function StaffAttendanceTable({ staff, records, date, onMark }: StaffAttendanceTableProps) {
+/** "11m ago" / "3h ago" — coarse on purpose, this is a staleness cue next to
+ * the Close Shift button, not a precise clock. */
+function relativeAgo(iso: string): string {
+  const then = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : `${iso}Z`).getTime();
+  if (Number.isNaN(then)) return "";
+  const minutes = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours}h ago`;
+}
+
+function ShiftCell({ record, isToday }: { record: StaffAttendanceRecord | undefined; isToday: boolean }) {
+  if (!record || record.status !== "Present" || !record.checkInTime) {
+    return <span className="text-gray-400">—</span>;
+  }
+  if (record.checkOutTime) {
+    return <span className="text-gray-600">{record.checkInTime} → {record.checkOutTime}</span>;
+  }
+  if (!isToday) {
+    return <span className="text-gray-600">{record.checkInTime} → <span className="italic text-amber-600">open</span></span>;
+  }
+  return (
+    <span className="flex flex-col text-gray-600">
+      <span>{record.checkInTime}</span>
+      {record.lastActiveAt && (
+        <span className="text-[11px] text-gray-400" title="When this person was last actually active">
+          last active {relativeAgo(record.lastActiveAt)}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function StaffAttendanceTable({ staff, records, date, onMark, onCloseShift, isToday }: StaffAttendanceTableProps) {
   if (staff.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
@@ -116,7 +187,16 @@ export function StaffAttendanceTable({ staff, records, date, onMark }: StaffAtte
                 <td className="px-4 py-3 text-gray-600">{member.name}</td>
                 <td className="px-4 py-3 text-gray-600">{member.softwareDesignation}</td>
                 <td className="px-4 py-3">
-                  <AttendanceRadioGroup staffId={member.id} record={record || undefined} onMark={onMark} />
+                  <AttendanceRadioGroup
+                    staffId={member.id}
+                    record={record || undefined}
+                    onMark={onMark}
+                    onCloseShift={onCloseShift}
+                    isToday={isToday}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <ShiftCell record={record || undefined} isToday={isToday} />
                 </td>
                 <td className="px-4 py-3 text-gray-600">{formatDateTime(record?.markedAt)}</td>
                 <td className="px-4 py-3">

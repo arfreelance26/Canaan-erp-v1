@@ -103,6 +103,43 @@ def post_heartbeat(
 
 
 # ---------------------------------------------------------------------------
+# Daily active seconds — self-service, for Mark Attendance's "Total Working
+# Time". A resumed shift's checkout-minus-checkin span would include any
+# break time in the middle, but active_seconds only ever accumulates during
+# genuine heartbeat-confirmed activity, so this is the accurate number
+# regardless of breaks or multiple logins in a day.
+# ---------------------------------------------------------------------------
+
+@router.get("/daily-active/{staff_id}", response_model=list[schemas.DailyActiveSecondsOut])
+def get_daily_active(
+    staff_id: int,
+    date_from: str = Query(...),
+    date_to: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    if current_user.role != "Admin" and current_user.id != staff_id:
+        raise HTTPException(403, "You can only view your own usage time.")
+    start, end = _day_bounds_utc(date_from, date_to)
+    sessions = db.query(models.UsageSession).filter(
+        models.UsageSession.staff_id == staff_id,
+        models.UsageSession.login_at >= start,
+        models.UsageSession.login_at <= end,
+    ).all()
+    # Bucketed by the IST calendar day the session started — a session that
+    # happens to run past midnight is rare for this kind of work and would
+    # need per-heartbeat timestamps to split correctly, not worth it here.
+    by_day: dict[str, int] = {}
+    for s in sessions:
+        day = _aware(s.login_at).astimezone(_IST).date().isoformat()
+        by_day[day] = by_day.get(day, 0) + s.total_active_seconds
+    return [
+        schemas.DailyActiveSecondsOut(date=d, active_seconds=secs)
+        for d, secs in sorted(by_day.items())
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Overview — every employee, for the SW Usage Analytics landing table.
 # ---------------------------------------------------------------------------
 

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import re
@@ -918,9 +919,14 @@ def _run_staff_history_migrations():
             "ALTER TABLE tyre_inventory ADD COLUMN discarded_by VARCHAR(100) NULL",
             "ALTER TABLE tyre_inventory ADD COLUMN discard_reason TEXT NULL",
             "ALTER TABLE staff_attendance ADD COLUMN auto_closed BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE staff_attendance ADD COLUMN closed_by VARCHAR(10) NULL",
+            "ALTER TABLE trips ADD COLUMN use_yard_cfs BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type "
+            "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory','CfsYardEntry') NOT NULL",
             "ALTER TABLE tyre_movement_events ADD COLUMN retread_done_by VARCHAR(200) NULL",
             "ALTER TABLE activity_minutes ADD COLUMN first_at DATETIME NULL",
             "ALTER TABLE activity_minutes ADD COLUMN last_at DATETIME NULL",
+            "ALTER TABLE cfs_yard_entries ADD COLUMN deleted_at DATETIME NULL",
         ):
             # Re-running is expected on every deploy; only "already exists" is ignored.
             try:
@@ -928,6 +934,14 @@ def _run_staff_history_migrations():
             except Exception as exc:
                 if "Duplicate column" not in str(exc):
                     raise
+        # cfs_yard_entries used to enforce (kind, name) uniqueness at the DB
+        # level, which would block re-adding a name after it's soft-deleted
+        # (restore/archive flow below) — dropped in favor of the app-level
+        # check in routers/cfs_yard.py that already ignores deleted rows.
+        try:
+            conn.execute(text("ALTER TABLE cfs_yard_entries DROP INDEX uq_cfs_yard_kind_name"))
+        except Exception:
+            pass
         # Seed the shared Manage Tyres remark pills with the original defaults.
         # INSERT IGNORE skips anything already present, so re-running is safe.
         for scenario, texts in (
@@ -945,6 +959,111 @@ def _run_staff_history_migrations():
         conn.execute(text(
             "UPDATE tyre_inventory SET `condition` = CASE WHEN retread_count > 0 THEN 'Rethreaded' ELSE 'New' END"
         ))
+        # Seed cfs_yard_entries with the directory that used to be hardcoded in
+        # lib/lane-places.ts — one-time. cfs_yard_entries has no unique
+        # constraint on (kind, name) (dropped above to allow reusing a name
+        # after a soft delete), so INSERT IGNORE can no longer dedupe this —
+        # checked against existing (kind, name) pairs in Python instead.
+        existing_cfs_yard_pairs = {
+            (row[0], row[1].strip().lower())
+            for row in conn.execute(text("SELECT kind, name FROM cfs_yard_entries")).fetchall()
+        }
+        for kind, names in (
+            ("CFS", [
+                "A.S. Shipping Agencies Pvt. Ltd. – CFS", "Central Warehousing Corporation – CFS",
+                "Chola Logistiks Pvt. Ltd. – CFS", "Container Corporation of India Ltd. – CFS",
+                "DahNay Tuticorin Terminal Pvt. Ltd. – CFS", "Diamond CFS Park",
+                "DP World Multimodal Logistics Pvt. Ltd. – CFS", "Hari & Co. – CFS",
+                "Indev Infra Pvt. Ltd. – CFS", "KSPS CFS Park Pvt. Ltd.",
+                "Prompt Terminals Pvt. Ltd. – CFS", "Raja Agencies – CFS", "Sans CFS Ltd.",
+                "SEC Services Pvt. Ltd. – CFS", "SICAL Multimodal & Rail Transport Ltd. – CFS",
+                "St. John Freight Systems Ltd. – ICD Division", "Vilsons CFS",
+            ]),
+            ("YARD", [
+                "St Anthony Empty Container Yard", "Sravan Yard (Maersk Yard)", "Zircon Marine 1",
+                "Zircon Marine 2", "Zircon Marine 3", "Gloden Horn Container MSC Yard",
+                "Gloden Horn Container CMCA Yard", "ACT Container Yard", "Blue Berkhs Container Yard",
+                "Indu Bharat Container Yard", "Blue Ocean Yard", "Vilsons Container Yard",
+                "Empezar Container Yard", "Dimaond Container Yard",
+            ]),
+        ):
+            for name in names:
+                key = (kind, name.strip().lower())
+                if key in existing_cfs_yard_pairs:
+                    continue
+                conn.execute(text(
+                    "INSERT INTO cfs_yard_entries (kind, name, version) VALUES (:kind, :name, 1)"
+                ), {"kind": kind, "name": name})
+                existing_cfs_yard_pairs.add(key)
+
+        # Seed Vendor Categories — used to require running
+        # scripts/add_vendor_categories.py by hand after every fresh deploy.
+        # vendor_categories.name is UNIQUE, so INSERT IGNORE skips anything
+        # already present (including anything since renamed), safe to re-run.
+        for name in (
+            "TYRE RETREADER", "ADBLUE VENDOR", "SPARES",
+            "MECHANICAL & ELECTRICAL WORKSHOP", "TRANSPORT CONTRACTOR",
+            "ACCIDENT WORK", "FC WORK", "TOLL", "ENGINE WORKSHOP",
+        ):
+            conn.execute(text(
+                "INSERT IGNORE INTO vendor_categories (name, version, created_at, updated_at) "
+                "VALUES (:name, 1, NOW(), NOW())"
+            ), {"name": name})
+
+        # Seed Maintenance Categories — used to require running
+        # scripts/add_maintenance_categories.py by hand. Same UNIQUE-name
+        # dedupe as Vendor Categories above.
+        for name in (
+            "ACCIDENT WORK", "AMC", "BRAKE SYSTEM", "CABIN", "CHASSIS & AXLE",
+            "DIFFERENTIAL", "ELECTRICAL", "ENGINE", "FABRICATION & WELDING WORK",
+            "FC WORK", "NEUMATIC", "STEERING UNIT", "SUSPENSION WORK", "TRANSVISION",
+        ):
+            conn.execute(text(
+                "INSERT IGNORE INTO maintenance_categories (name, version, created_at, updated_at) "
+                "VALUES (:name, 1, NOW(), NOW())"
+            ), {"name": name})
+        conn.commit()
+
+        # Seed Maintenance Category Repairs under the categories just above —
+        # used to require running scripts/add_maintenance_category_repairs.py
+        # by hand. maintenance_category_repairs has no unique constraint on
+        # name (repairs are only unique per category), so dedupe here against
+        # existing (category_id, name) pairs instead of relying on INSERT IGNORE.
+        category_ids_by_name = {
+            row[0]: row[1]
+            for row in conn.execute(text("SELECT name, id FROM maintenance_categories")).fetchall()
+        }
+        existing_repair_pairs = {
+            (row[0], row[1].strip().lower())
+            for row in conn.execute(text("SELECT category_id, name FROM maintenance_category_repairs")).fetchall()
+        }
+        for category_name, repair_names in (
+            ("CABIN", ["Cabin Lift Jockey", "Cabin Front Shock Absorber", "Cabin Rear Shock Absorber", "First Axle Shock Absorber"]),
+            ("ENGINE", ["Engine Oil Change – Local", "Engine Oil – Company Service", "Half Engine Work", "Full Engine Work", "Nozzle Work", "Diesel Feed Pump"]),
+            ("TRANSVISION", ["Gearbox Work", "Propeller Shaft", "Oil Service", "Clutch Pedal", "Clutch Booster", "Clutch Work"]),
+            ("DIFFERENTIAL", ["Crown & Pinion Work", "Axle Shaft", "Oil Service"]),
+            ("NEUMATIC", ["Air Dryer", "Air Compressor", "Dual Brake Valve", "RG2 Valve", "Load Sensing Valve", "Distributor Valve", "Quick Release Valve", "Lift Axle Control Valve", "Air Hose", "Hose Crimping Work"]),
+            ("SUSPENSION WORK", ["Pin & Bush Work", "Leaf Spring Work", "Cabin Shock Absorber", "Lift Axle Shock Absorber"]),
+            ("STEERING UNIT", ["Power Steering Pump", "Steering Box", "Steering Column", "Oil Service"]),
+            ("ELECTRICAL", ["New Starter Motor", "Starter Motor O/H", "New Alternator", "Alternator O/H", "Wiring Work", "Light Fitting Work", "Relay", "EDC Work", "New Electrical Line Installation"]),
+            ("BRAKE SYSTEM", ["Brake Master Cylinder", "Brake Lining", "Brake Booster Cylinder", "Brake Pedal Cylinder"]),
+            ("CHASSIS & AXLE", ["Chassis Bend Checkup", "Axle Work", "Hub Grease"]),
+            ("ACCIDENT WORK", ["Major", "Minor"]),
+            ("FABRICATION & WELDING WORK", ["Fabrication Work", "Welding Work"]),
+            ("FC WORK", ["Water Service", "Painting Work", "RTO Work"]),
+        ):
+            cat_id = category_ids_by_name.get(category_name)
+            if cat_id is None:
+                continue
+            for repair_name in repair_names:
+                key = (cat_id, repair_name.strip().lower())
+                if key in existing_repair_pairs:
+                    continue
+                conn.execute(text(
+                    "INSERT INTO maintenance_category_repairs (category_id, name, version, created_at, updated_at) "
+                    "VALUES (:cat_id, :name, 1, NOW(), NOW())"
+                ), {"cat_id": cat_id, "name": repair_name})
+                existing_repair_pairs.add(key)
         conn.commit()
 
         # Backfill names for rows written before these columns existed, from
@@ -1034,9 +1153,80 @@ def _widen_blob_columns():
                 print(f"[migration] skip widening {table}.{column}: {e}")
 
 
+def _seed_default_vendors():
+    """Seeds the "Our Vendors" page from data/seed_vendors.json — used to
+    require running scripts/import_vendors_from_excel.py by hand after every
+    fresh deploy. Runs after _run_staff_history_migrations() so the Vendor
+    Categories it seeds already exist for category resolution below.
+
+    Idempotent: skips any (name, category) pair that already exists among
+    non-deleted vendors, same dedupe as the standalone script. Missing or
+    unreadable data file is not an error — just nothing to seed (e.g. a dev
+    environment that never had the file).
+    """
+    data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "seed_vendors.json")
+    if not os.path.isfile(data_path):
+        return
+    try:
+        with open(data_path, "r", encoding="utf-8") as f:
+            rows = json.load(f)
+    except Exception as e:
+        print(f"[seed] skip default vendors: could not read {data_path}: {e}")
+        return
+
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        categories_by_lower = {
+            c.name.strip().lower(): c.name
+            for c in db.query(models.VendorCategory).all()
+        }
+        existing_vendor_keys = {
+            (v.name.strip().lower(), (v.category or "").strip().lower())
+            for v in db.query(models.Vendor).filter(models.Vendor.deleted_at.is_(None)).all()
+        }
+        added = 0
+        for row in rows:
+            name = (row.get("name") or "").strip()
+            if not name:
+                continue
+            raw_category = (row.get("category") or "").strip()
+            if raw_category:
+                category = categories_by_lower.get(raw_category.lower())
+                if category is None:
+                    category = raw_category
+                    db.add(models.VendorCategory(name=category))
+                    categories_by_lower[category.lower()] = category
+            else:
+                category = ""
+            key = (name.lower(), category.lower())
+            if key in existing_vendor_keys:
+                continue
+            db.add(models.Vendor(
+                name=name,
+                category=category or None,
+                contact_number=row.get("contact_number") or None,
+                gstin=row.get("gstin") or None,
+                pan=row.get("pan") or None,
+                email=row.get("email") or None,
+                address=row.get("address") or None,
+            ))
+            existing_vendor_keys.add(key)
+            added += 1
+        db.commit()
+        if added:
+            print(f"[seed] default vendors: added {added} new vendor(s) from {data_path}")
+    except Exception as e:
+        db.rollback()
+        print(f"[seed] skip default vendors: {e}")
+    finally:
+        db.close()
+
+
 _run_schema_migrations()
 _run_chat_migrations()
 _run_staff_history_migrations()
+_seed_default_vendors()
 _widen_blob_columns()
 
 def _normalize_shipping_lines():
@@ -1294,7 +1484,7 @@ async def realtime_broadcast(request: Request, call_next):
     return response
 
 
-_ACTIVITY_SKIP = ("/usage/heartbeat", "/activity/batch", "/ws", "/files/")
+_ACTIVITY_SKIP = ("/usage/heartbeat", "/activity/batch", "/ws")
 
 
 @app.middleware("http")
@@ -1305,7 +1495,18 @@ async def activity_tracking(request: Request, call_next):
     started = _time.perf_counter()
     response = await call_next(request)
     path = request.url.path
-    if not path.startswith(_ACTIVITY_SKIP):
+    # CORS preflights carry no Authorization header by spec (the browser sends
+    # them bare, before deciding whether the real request is even allowed), so
+    # recording them always attributed a phantom "anonymous" event right next
+    # to the real, correctly-attributed one for almost every authenticated call.
+    # "/" is also excluded (exact match, not a prefix — "/" as a prefix would
+    # match every route): it's the unauthenticated health check Topbar polls
+    # every 15s for the online/offline dot, not a real person reading anything.
+    # GET /files/... is just inline <img> serving (document previews) and is
+    # skipped too — but POST/DELETE on that same prefix are real uploads and
+    # deletions of someone's license/RC/Aadhaar, so those must still be tracked.
+    files_get = request.method == "GET" and path.startswith("/files/")
+    if request.method != "OPTIONS" and path != "/" and not files_get and not path.startswith(_ACTIVITY_SKIP):
         try:
             import activity_tracker
             forwarded = request.headers.get("x-forwarded-for")
@@ -1351,11 +1552,15 @@ app.include_router(backup.router, dependencies=AUTH)
 app.include_router(settings.router, dependencies=AUTH)
 app.include_router(running_cost.router, dependencies=AUTH)
 app.include_router(maintenance_types.router, dependencies=AUTH)
+from routers import cfs_yard
+app.include_router(cfs_yard.router, dependencies=AUTH)
 app.include_router(tyre_range_config.router, dependencies=AUTH)
 app.include_router(tyre_layout_type_config.router, dependencies=AUTH)
 app.include_router(deletion_approvals.router, dependencies=AUTH)
 app.include_router(payment_requests.router, dependencies=FINANCE)
 app.include_router(chat.router, dependencies=AUTH)
+from routers import chat_owner_view
+app.include_router(chat_owner_view.router, dependencies=AUTH)
 app.include_router(chat.photo_router)                         # GET group photo: public route, auth done inside (img tags)
 app.include_router(default_batta.router, dependencies=AUTH)
 app.include_router(maintenance_categories.router, dependencies=AUTH)

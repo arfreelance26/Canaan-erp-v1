@@ -242,3 +242,54 @@ def require_roles(*roles: str):
         return user
 
     return checker
+
+
+# ---------------------------------------------------------------------------
+# Chat owner-view — a separate, short-lived, read-only scope for the one Admin
+# who holds the owner password (see routers/chat_owner_view.py). This token is
+# never accepted as a normal Bearer token: it's sent in its own header, it
+# carries no role/staff_id, and it's checked by require_owner_view alone.
+# ---------------------------------------------------------------------------
+
+def create_owner_view_token(staff_id: int, minutes: int = 30) -> tuple[str, datetime]:
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=minutes)
+    payload = {
+        "sub": str(staff_id), "typ": "chat_owner_view", "iat": now, "exp": expires_at,
+        "jti": secrets.token_hex(16),  # lets lock_owner_view_token kill it the instant the dialog is closed
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return token, expires_at
+
+
+def lock_owner_view_token(token: str) -> None:
+    """Revoke an owner-view token immediately — called when the dialog is
+    closed, so closing it is a real lock, not just hiding the UI for the rest
+    of its 30-minute lifetime (reopening the dialog would otherwise skip the
+    password prompt as long as the token hadn't expired yet)."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return
+    jti = payload.get("jti")
+    if jti:
+        revoke_token(jti)
+
+
+def require_owner_view(request: Request, current_user: TokenUser = Depends(require_roles())) -> TokenUser:
+    """Admin role + a valid, still-fresh, not-yet-locked owner-view token,
+    bound to this same admin. Read-only gate for Canaan Chat's company-wide
+    view."""
+    token = request.headers.get("x-owner-view-token")
+    if not token:
+        raise HTTPException(401, "Owner view is locked. Enter the owner password.")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(401, "Owner view session has expired. Enter the password again.")
+    jti = payload.get("jti")
+    if jti and is_token_revoked(jti):
+        raise HTTPException(401, "Owner view was locked. Enter the password again.")
+    if payload.get("typ") != "chat_owner_view" or str(payload.get("sub")) != str(current_user.id):
+        raise HTTPException(401, "Owner view session has expired. Enter the password again.")
+    return current_user

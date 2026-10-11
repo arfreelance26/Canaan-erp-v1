@@ -121,6 +121,11 @@ def record_request(method: str, path: str, status: int, duration_ms: float,
         kind = "delete"
     elif "export" in path:
         kind = "export"
+    elif method == "POST" and "remove" in path:
+        # Bulk-removal endpoints (e.g. /tyre-fitment/remove-bulk) are a real
+        # delete semantically, just shaped as a POST because they take a body
+        # (a list of ids) rather than one id in the URL like a normal DELETE.
+        kind = "delete"
     else:
         kind = "save"
 
@@ -248,3 +253,50 @@ def day_bounds_utc(day: date) -> tuple[datetime, datetime]:
     start_ist = datetime.combine(day, dtime(), tzinfo=_IST)
     start_utc = start_ist.astimezone(timezone.utc).replace(tzinfo=None)
     return start_utc, start_utc + timedelta(days=1)
+
+
+def last_activity_at(user_key: str, day: date) -> datetime | None:
+    """The latest moment this user actually did something on `day` — saved
+    click/view/login/logout/save/delete/export events only (checking the
+    not-yet-flushed in-memory buffer too, so a close-shift right after
+    someone's last click doesn't miss it). Returns naive UTC, or None if
+    nothing is on record.
+
+    Deliberately excludes GET-read rollups (ActivityMinute): those are
+    touched by background polling (notifications, leave requests, etc.) that
+    keeps firing on its own timer whether or not anyone is actually at the
+    keyboard, so including it would let "last activity" stay artificially
+    fresh for as long as a tab just sits open — exactly the padding this is
+    meant to prevent. ActivityEvent only ever gets a row from a deliberate
+    click, a real page navigation, or a mutating request — none of which fire
+    on their own.
+
+    Used to stamp a shift's real end time instead of whenever Close Shift
+    happens to run (self-close, Admin force-close, or the auto-close worker)
+    — see routers/attendance.py close_shift / auto_close_expired_shifts. A
+    shift closed hours after someone's last click shouldn't credit that dead
+    time, and a shift closed after a long-but-legitimate break shouldn't be
+    cut short at the break's start either; the actual last activity handles
+    both correctly regardless of when the close happens to run.
+    """
+    candidates: list[datetime] = []
+
+    with _lock:
+        for e in _events:
+            if e["user_key"] == user_key and e["created_at"].date() == day:
+                candidates.append(e["created_at"])
+
+    db = SessionLocal()
+    try:
+        start, end = day_bounds_utc(day)
+        max_event = db.query(func.max(models.ActivityEvent.created_at)).filter(
+            models.ActivityEvent.user_key == user_key,
+            models.ActivityEvent.created_at >= start,
+            models.ActivityEvent.created_at < end,
+        ).scalar()
+        if max_event:
+            candidates.append(max_event)
+    finally:
+        db.close()
+
+    return max(candidates) if candidates else None

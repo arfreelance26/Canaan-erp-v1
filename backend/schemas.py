@@ -213,6 +213,7 @@ class StaffBase(OrmBase):
     email: Optional[str] = None
     contact_number: Optional[str] = None
     address: Optional[str] = None
+    branch: Optional[str] = None
 
     aadhar_number: Optional[str] = None
     aadhar_file_name: Optional[str] = None
@@ -505,6 +506,7 @@ class TripBase(OrmBase):
     driver_change_remark: Optional[str] = None
     booking_instructions: Optional[str] = None
     invoice_required: bool = True
+    use_yard_cfs: bool = False
     # Which dialog this update came from — only used to label the Trip Edit
     # History event correctly (both TripFormDialog and TripSheetDialog save
     # through this same endpoint); never applied to the Trip record itself.
@@ -1211,6 +1213,15 @@ class ActionLogRowOut(BaseModel):
     created_at: datetime
 
 
+class DailyActiveSecondsOut(BaseModel):
+    """One IST calendar day's total active seconds for one staff member,
+    summed across every login session that started that day — see Mark
+    Attendance's "Total Working Time" (routers/usage_analytics.py
+    get_daily_active)."""
+    date: str
+    active_seconds: int
+
+
 class UsageOverviewRowOut(BaseModel):
     """One row per employee on the SW Usage Analytics overview table."""
     staff_id: int
@@ -1568,6 +1579,12 @@ class StaffAttendanceOut(OrmBase):
     source: Literal["Web", "App"] = "Web"
     admin_override: bool = False
     auto_closed: bool = False
+    closed_by: Optional[str] = None
+    # Only populated when ?include_last_active=true and the shift is still
+    # open — their real last logged activity (see activity_tracker.last_activity_at),
+    # not whether they're "still working": a stale value is a visibility cue
+    # for Admin's Close Shift button, not an enforcement signal.
+    last_active_at: Optional[datetime] = None
 
 
 class AttendanceSummaryOut(BaseModel):
@@ -2585,6 +2602,26 @@ class MaintenanceTypeOut(OrmBase):
     updated_at: Optional[datetime] = None
 
 
+CfsYardKind = Literal["CFS", "YARD"]
+
+
+class CfsYardEntryCreate(OrmBase):
+    kind: CfsYardKind
+    name: str
+
+
+class CfsYardEntryUpdate(OrmBase):
+    client_version: Optional[int] = None
+    name: Optional[str] = None
+
+
+class CfsYardEntryOut(OrmBase):
+    id: int
+    kind: CfsYardKind
+    name: str
+    version: int = 1
+
+
 # ---------------------------------------------------------------------------
 # SAC Codes
 # ---------------------------------------------------------------------------
@@ -2778,6 +2815,18 @@ class ChatMessageOut(OrmBase):
     created_at: Optional[datetime] = None
     edited_at: Optional[datetime] = None
     deleted: bool = False
+
+
+class ChatOwnerConversationOut(OrmBase):
+    """One row in the owner-view conversation list — see routers/chat_owner_view.py.
+    No unread_count/muted/my_role: the owner isn't a participant in these threads."""
+    id: int
+    kind: str
+    title: str
+    members: list[ChatMemberOut] = []
+    last_message: Optional[ChatMessageOut] = None
+    last_message_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
 
 CHAT_MAX_PAYMENT_AMOUNT = Decimal("10000000")   # 1 crore — a sane ceiling for a chat note, not a real transfer

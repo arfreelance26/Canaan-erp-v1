@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Activity, X } from "lucide-react";
 import { activityApi, type ActivityEventRow, type ActivitySummaryRow } from "@/lib/api";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
@@ -8,6 +9,8 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { TAB_CLOSED_LABEL } from "@/hooks/useActivityTracking";
 
 const KINDS = ["", "save", "delete", "export", "login", "login_failed", "logout", "view", "click"] as const;
 
@@ -35,23 +38,52 @@ type TimelineItem = {
   last?: string | null;
 };
 
-// One readable line per timeline entry. Reads show how many times that screen was loaded in the minute.
-function describe(item: TimelineItem): string {
-  switch (item.kind) {
+/** A screen name a non-technical reader recognizes, for an API path they'd
+ * never parse (e.g. "/trips/4521" → "Trips", "/maintenance/tyre-inventory"
+ * → "Tyre Inventory"). Falls back to a cleaned-up version of the path itself
+ * for anything not in the map, so nothing silently goes blank. */
+const ROUTE_LABELS: Record<string, string> = {
+  trips: "Trips", "trips/assign": "Trip Assignment", "trips/history": "Trip History",
+  attendance: "Attendance", resources: "Resources", maintenance: "Maintenance",
+  finance: "Finance", insights: "Insights", connect: "Canaan Chat", admin: "Admin",
+  personal: "Personal", auth: "Login", files: "Documents",
+};
+
+function friendlyRoute(route: string): string {
+  const segment = route.split("?")[0].split("/").filter(Boolean)[0] ?? "";
+  if (ROUTE_LABELS[segment]) return ROUTE_LABELS[segment];
+  if (!segment) return "the app";
+  return segment.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** One plain-English line for any single activity event — shared by the raw
+ * Events table and the per-employee Timeline, so both read the same way
+ * instead of the Events table dumping raw method/route/status fields that
+ * mean nothing to a non-technical reader. */
+function describeActivity(e: { kind: string; method: string | null; route: string; label: string | null; status: number | null }): string {
+  const failed = e.status != null && e.status >= 400;
+  switch (e.kind) {
     case "login": return "Logged in";
     case "login_failed": return "Failed login attempt";
     case "logout": return "Logged out";
-    case "save": return `Saved — ${item.method ?? ""} ${item.route}${item.status ? ` (${item.status})` : ""}`;
-    case "delete": return `Deleted — ${item.method ?? ""} ${item.route}${item.status ? ` (${item.status})` : ""}`;
-    case "export": return `Exported — ${item.route}`;
-    case "view": return `Opened ${item.route}`;
-    case "click": return `Clicked “${item.label ?? ""}” on ${item.route}`;
-    case "reads": {
-      const times = item.last && item.last !== item.time ? ` (${clock(item.time)}–${clock(item.last)})` : "";
-      return `Loaded ${item.route}${item.count && item.count > 1 ? ` ×${item.count}` : ""}${times}`;
-    }
-    default: return `${item.kind} ${item.route}`;
+    case "save": return failed ? `Tried to save in ${friendlyRoute(e.route)} — didn't go through` : `Saved changes in ${friendlyRoute(e.route)}`;
+    case "delete": return failed ? `Tried to delete in ${friendlyRoute(e.route)} — didn't go through` : `Deleted something in ${friendlyRoute(e.route)}`;
+    case "export": return `Exported a file from ${friendlyRoute(e.route)}`;
+    case "view": return `Opened ${friendlyRoute(e.route)}`;
+    case "click":
+      if (e.label === TAB_CLOSED_LABEL) return `Left ${friendlyRoute(e.route)} (closed tab or navigated away)`;
+      return e.label ? `Clicked "${e.label}" in ${friendlyRoute(e.route)}` : `Clicked something in ${friendlyRoute(e.route)}`;
+    default: return `${e.kind} in ${friendlyRoute(e.route)}`;
   }
+}
+
+// One readable line per timeline entry. Reads show how many times that screen was loaded in the minute.
+function describe(item: TimelineItem): string {
+  if (item.kind === "reads") {
+    const times = item.last && item.last !== item.time ? ` (${clock(item.time)}–${clock(item.last)})` : "";
+    return `Loaded ${friendlyRoute(item.route)}${item.count && item.count > 1 ? ` ×${item.count}` : ""}${times}`;
+  }
+  return describeActivity(item);
 }
 
 function clock(iso: string): string {
@@ -61,6 +93,15 @@ function clock(iso: string): string {
 }
 
 export default function ActivityLogPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && user.softwareDesignation !== "Admin") {
+      router.replace("/");
+    }
+  }, [user, router]);
+
   const [day, setDay] = useState(todayIst());
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("");
@@ -105,6 +146,8 @@ export default function ActivityLogPage() {
       .finally(() => { if (!cancelled) setTimelineLoading(false); });
     return () => { cancelled = true; };
   }, [timelineUser, day, refreshKey]);
+
+  if (!user || user.softwareDesignation !== "Admin") return null;
 
   if (loading && summary.length === 0 && events.length === 0) {
     return <PageSkeleton hasButton={false} hasSearch columns={4} />;
@@ -263,17 +306,14 @@ export default function ActivityLogPage() {
                 <th className="px-3 py-2">Time</th>
                 <th className="px-3 py-2">Employee</th>
                 <th className="px-3 py-2">Kind</th>
-                <th className="px-3 py-2">Route</th>
-                <th className="px-3 py-2">What</th>
-                <th className="px-3 py-2 text-right">Status</th>
-                <th className="px-3 py-2 text-right">ms</th>
+                <th className="px-3 py-2">What happened</th>
                 <th className="px-3 py-2">IP</th>
               </tr>
             </thead>
             <tbody>
               {events.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-gray-400">No events match these filters.</td>
+                  <td colSpan={5} className="px-3 py-6 text-center text-gray-400">No events match these filters.</td>
                 </tr>
               )}
               {events.map((e) => (
@@ -283,10 +323,7 @@ export default function ActivityLogPage() {
                   <td className="px-3 py-1.5">
                     <span className={cn("rounded-full px-2 py-0.5 font-semibold", KIND_STYLE[e.kind] ?? "bg-gray-100 text-gray-600")}>{e.kind}</span>
                   </td>
-                  <td className="px-3 py-1.5 font-mono text-gray-600">{e.method ? `${e.method} ` : ""}{e.route}</td>
-                  <td className="px-3 py-1.5 text-gray-700">{e.label ?? ""}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{e.status ?? ""}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-gray-500">{e.durationMs ?? ""}</td>
+                  <td className="px-3 py-1.5 text-gray-700">{describeActivity(e)}</td>
                   <td className="px-3 py-1.5 text-gray-500">{e.ip ?? ""}</td>
                 </tr>
               ))}

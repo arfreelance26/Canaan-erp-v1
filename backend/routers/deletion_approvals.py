@@ -194,7 +194,7 @@ def export_deletion_approvals(
 
 @router.get("/archive-export", dependencies=[Depends(require_roles())])
 def export_archive(
-    resource_type: Optional[str] = Query(None, description="Driver, Truck, Staff, Customer or Vendor; omit for all"),
+    resource_type: Optional[str] = Query(None, description="Driver, Truck, Staff, Customer, Vendor or CfsYardEntry; omit for all"),
     db: Session = Depends(get_db),
 ):
     """Admin only: Excel export of the Archive page. Mirrors the page: the latest
@@ -202,7 +202,7 @@ def export_archive(
     resources are excluded)."""
     models_by_type = {
         "Driver": models.Driver, "Truck": models.Truck, "Staff": models.Staff,
-        "Customer": models.Customer, "Vendor": models.Vendor,
+        "Customer": models.Customer, "Vendor": models.Vendor, "CfsYardEntry": models.CfsYardEntry,
     }
     if resource_type and resource_type not in models_by_type:
         raise HTTPException(400, "Invalid resource_type.")
@@ -335,6 +335,14 @@ def approve_deletion(
                 actor_name=current_user.name, actor_role=current_user.role,
             ))
             emit("vendor_updated", {})
+    elif req.resource_type == "CfsYardEntry":
+        # Soft delete — keeps the entry recoverable from the "Archive" page,
+        # same pattern as Driver/Truck/Staff/Customer/Vendor below.
+        entry = db.get(models.CfsYardEntry, req.resource_id)
+        if not entry:
+            raise HTTPException(409, "This entry no longer exists — the request may be a stale duplicate. Reject it instead.")
+        if entry.deleted_at is None:
+            entry.deleted_at = datetime.now(timezone.utc)
     elif req.resource_type == "TyreInventory":
         # Soft delete — keeps the tyre recoverable from the "Tyre Archive" page
         # instead of destroying it outright, same pattern as maintenance.py's

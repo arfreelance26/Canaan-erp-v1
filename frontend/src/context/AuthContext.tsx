@@ -86,13 +86,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error((err as { detail?: string }).detail ?? "Invalid credentials");
     }
     const data = await res.json();
+    // data.photo_url from the login response is just the original uploaded
+    // filename (metadata), not a servable path — the actual bytes live behind
+    // the authenticated GET /files/staff/{id}/photo endpoint (see lib/api.ts's
+    // fileUrl helper, used the same way everywhere else a staff photo shows).
+    // Built inline (not via fileUrl()) because the token isn't in localStorage
+    // yet at this point in login — it's only written below, in completeLogin.
     const authUser: AuthUser = {
       id: data.id ?? null,
       name: data.name,
       email: data.email,
       softwareDesignation: data.software_designation,
       staffId: data.staff_id ?? null,
-      photoUrl: data.photo_url ?? null,
+      photoUrl: data.photo_url
+        ? `${API_URL}/files/staff/${data.id}/photo?token=${encodeURIComponent(data.access_token)}`
+        : null,
       token: data.access_token,
     };
     

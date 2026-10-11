@@ -91,8 +91,12 @@ const ALIASES: Record<string, string> = {
   "OTTHAKKAL MANDAPAM": "OTTHAKKAL_MANDAPAM",
 };
 
-// Yards, CFS depots and villages inside the Tuticorin port area. At map scale they
-// sit on top of Tuticorin, so they are counted as "port shuttles", not as lanes.
+// The full CFS/yard directory (TripFormDialog's "View All CFS" / "View All
+// Yard") now lives in the backend — cfs_yard_entries, Admin-editable via
+// /cfs-yard (see routers/cfs_yard.py) — not hardcoded here anymore. This set
+// stays purely for map matching: short forms only, matching what's actually
+// typed into a trip's From/To route (free text like "AS CFS", never the full
+// directory names).
 const LOCAL_TO_TUTICORIN = new Set([
   "TUTICORIN", "ALLIKULAM", "SWAMINATHAM", "KATTALANGULAM", "PASUVANTHANAI", "HARBOUR",
   "AS CFS", "RAJA CFS", "CONCOR CFS", "SEC CFS", "CGI YARD", "RAJA YARD",

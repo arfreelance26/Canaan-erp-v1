@@ -6,7 +6,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
 import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, adblueLogsApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
-import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
+import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
@@ -1891,7 +1891,30 @@ export default function RunningCostCalculatorPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [trucksLoading, setTrucksLoading] = useState(true);
   const [selectedTruckId, setSelectedTruckId] = useState("");
-  const [selectedTruckIdB, setSelectedTruckIdB] = useState("");
+  // Compare mode: one id per slot, in picker order. At least 2 slots are kept at all times;
+  // the cap is just the fleet size (a slot can't pick a truck another slot already has).
+  const [compareTruckIds, setCompareTruckIds] = useState<string[]>(["", ""]);
+
+  function handleTruckViewChange(view: "single" | "compare" | "list") {
+    if (view === "compare" && compareTruckIds.filter(Boolean).length === 0 && selectedTruckId) {
+      // First time into Compare: carry the Single-mode selection into slot 1 so the
+      // user isn't starting from a blank picker.
+      setCompareTruckIds([selectedTruckId, ""]);
+    }
+    setTruckView(view);
+  }
+
+  function updateCompareSlot(index: number, truckId: string) {
+    setCompareTruckIds((prev) => prev.map((id, i) => (i === index ? truckId : id)));
+  }
+
+  function addCompareSlot() {
+    setCompareTruckIds((prev) => (prev.length < trucks.length ? [...prev, ""] : prev));
+  }
+
+  function removeCompareSlot(index: number) {
+    setCompareTruckIds((prev) => (prev.length <= 2 ? prev : prev.filter((_, i) => i !== index)));
+  }
   const [truckSearch, setTruckSearch] = useState("");
   // "single" = one vehicle picked from a dropdown (default); "compare" = two
   // vehicles picked side-by-side; "list" = the original type-to-search layout
@@ -2349,7 +2372,7 @@ export default function RunningCostCalculatorPage() {
           size="md"
           label="Truck view"
           value={truckView}
-          onChange={setTruckView}
+          onChange={handleTruckViewChange}
           options={[{ value: "single", label: "Single" }, { value: "compare", label: "Compare" }, { value: "list", label: "List" }]}
         />
         {truckView === "single" && (
@@ -2364,26 +2387,43 @@ export default function RunningCostCalculatorPage() {
           </div>
         )}
         {truckView === "compare" && (
-          <>
-            <div className="w-full max-w-xs">
-              <GlassCombobox
-                value={selectedTruckId}
-                onChange={setSelectedTruckId}
-                placeholder="Select vehicle A…"
-                strictSelect
-                options={trucks.filter((t) => t.id !== selectedTruckIdB).map((t) => ({ value: t.id, label: t.registrationNumber }))}
-              />
-            </div>
-            <div className="w-full max-w-xs">
-              <GlassCombobox
-                value={selectedTruckIdB}
-                onChange={setSelectedTruckIdB}
-                placeholder="Select vehicle B…"
-                strictSelect
-                options={trucks.filter((t) => t.id !== selectedTruckId).map((t) => ({ value: t.id, label: t.registrationNumber }))}
-              />
-            </div>
-          </>
+          <div className="flex flex-wrap items-center gap-2">
+            {compareTruckIds.map((id, index) => (
+              <div key={index} className="flex items-center gap-1">
+                <div className="w-56">
+                  <GlassCombobox
+                    value={id}
+                    onChange={(val) => updateCompareSlot(index, val)}
+                    placeholder={`Select vehicle ${index + 1}…`}
+                    strictSelect
+                    options={trucks
+                      .filter((t) => t.id === id || !compareTruckIds.includes(t.id))
+                      .map((t) => ({ value: t.id, label: t.registrationNumber }))}
+                  />
+                </div>
+                {compareTruckIds.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => removeCompareSlot(index)}
+                    aria-label={`Remove vehicle ${index + 1}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {compareTruckIds.length < trucks.length && (
+              <button
+                type="button"
+                onClick={addCompareSlot}
+                className="flex h-10 shrink-0 items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 text-sm font-medium text-gray-500 hover:border-blue-400 hover:text-blue-600"
+              >
+                <Plus className="h-4 w-4" />
+                Add vehicle
+              </button>
+            )}
+          </div>
         )}
         {truckView === "list" && (
           <PillSearch placeholder="Search reg. no…" value={truckSearch} onChange={setTruckSearch} />
@@ -2412,7 +2452,7 @@ export default function RunningCostCalculatorPage() {
         <div className="grid grid-cols-4 gap-6 items-start">
 
           {/* Left — 75% (3 cols): per-truck cost cards */}
-          <div className={truckView === "compare" ? "col-span-3 grid grid-cols-2 gap-4 items-start" : "col-span-3 flex flex-col gap-4"}>
+          <div className={truckView === "compare" ? "col-span-3 grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 items-start" : "col-span-3 flex flex-col gap-4"}>
             {(() => {
               if (trucksLoading) {
                 return truckView === "list"
@@ -2432,16 +2472,17 @@ export default function RunningCostCalculatorPage() {
               const displayedTrucks = truckView === "list"
                 ? trucks.filter((t) => t.registrationNumber.toLowerCase().includes(truckSearch.toLowerCase()))
                 : truckView === "compare"
-                ? [trucks.find((t) => t.id === selectedTruckId), trucks.find((t) => t.id === selectedTruckIdB)].filter((t): t is Truck => !!t)
+                ? compareTruckIds.map((id) => trucks.find((t) => t.id === id)).filter((t): t is Truck => !!t)
                 : (() => {
                     const t = trucks.find((t) => t.id === selectedTruckId);
                     return t ? [t] : [];
                   })();
 
               if (truckView === "compare" && displayedTrucks.length < 2) {
+                const stillNeeded = 2 - displayedTrucks.length;
                 return (
-                  <div className="col-span-2 flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
-                    Select both vehicles above to compare.
+                  <div className="col-span-full flex items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-white py-16 text-sm text-gray-400">
+                    Select {stillNeeded} more vehicle{stillNeeded !== 1 ? "s" : ""} above to compare.
                   </div>
                 );
               }

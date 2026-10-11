@@ -81,7 +81,7 @@ export default function StaffAttendancePage() {
 
   // Reload records when date changes or WS event fires
   useEffect(() => {
-    attendanceApi.listStaff(date).then(setRecords);
+    attendanceApi.listStaff(date, undefined, undefined, undefined, true).then(setRecords);
   }, [date, refreshKey]);
 
   useWebSocketEvent("attendance_updated", () => setRefreshKey(k => k + 1));
@@ -105,6 +105,23 @@ export default function StaffAttendancePage() {
     },
     [date]
   );
+
+  // Admin force-close for someone who self-checked-in but never closed their own
+  // shift — the backend already allowed this (close_shift permits Admin to act
+  // on any staff_id), it just had no button anywhere. Always acts on TODAY's
+  // record regardless of which date is being viewed (see close_shift), so the
+  // table only shows/enables this while date === today.
+  const handleCloseShift = useCallback(async (staffId: string) => {
+    try {
+      const updated = await attendanceApi.closeShiftStaff(parseInt(staffId));
+      setRecords((prev) => {
+        const without = prev.filter((r) => r.id !== updated.id);
+        return [...without, updated];
+      });
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to close shift.");
+    }
+  }, []);
 
   async function handleDownloadPDF() {
     if (downloading || staff.length === 0) return;
@@ -428,6 +445,8 @@ export default function StaffAttendancePage() {
         records={records}
         date={date}
         onMark={handleMark}
+        onCloseShift={handleCloseShift}
+        isToday={date === todayIst()}
       />
       {showReportModal && (
         <div

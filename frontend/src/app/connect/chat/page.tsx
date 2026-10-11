@@ -32,9 +32,12 @@ import {
   File as FileIcon,
   IndianRupee,
   Camera,
+  KeyRound,
 } from "lucide-react";
-import { chatApi, toChatMessage } from "@/lib/api";
+import { chatApi, chatOwnerApi, toChatMessage } from "@/lib/api";
+import { OwnerViewDialog, type OwnerViewToken } from "@/components/chat/OwnerViewDialog";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
+import { Avatar, getInitials, formatTime, senderColor } from "@/components/chat/shared";
 import type { ChatConversation, ChatConversationDetail, ChatMember, ChatMessage } from "@/types/chat";
 import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -43,46 +46,6 @@ import { showError, confirmAction } from "@/lib/swal";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_MB = 25;
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-/**
- * Deterministic per-sender color for group chats — so at a glance you can tell
- * two consecutive senders apart by their avatar/name color alone, not just by
- * re-reading the name label on every run.
- */
-const SENDER_PALETTE = [
-  { bg: "bg-rose-500", text: "text-rose-600" },
-  { bg: "bg-orange-500", text: "text-orange-600" },
-  { bg: "bg-amber-500", text: "text-amber-700" },
-  { bg: "bg-emerald-500", text: "text-emerald-600" },
-  { bg: "bg-teal-500", text: "text-teal-600" },
-  { bg: "bg-cyan-600", text: "text-cyan-700" },
-  { bg: "bg-blue-500", text: "text-blue-600" },
-  { bg: "bg-indigo-500", text: "text-indigo-600" },
-  { bg: "bg-violet-500", text: "text-violet-600" },
-  { bg: "bg-fuchsia-500", text: "text-fuchsia-600" },
-  { bg: "bg-pink-500", text: "text-pink-600" },
-] as const;
-
-function senderColor(id: number | null): (typeof SENDER_PALETTE)[number] {
-  const key = id ?? 0;
-  return SENDER_PALETTE[Math.abs(key) % SENDER_PALETTE.length];
-}
-
-function formatTime(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-}
 
 /** Day separator label — "Today" / "Yesterday" / a date, like WhatsApp. */
 function dayLabel(iso: string | null): string {
@@ -135,37 +98,6 @@ function formatLastSeen(epochSeconds?: number): string {
   if (label === "Today") return `last seen today at ${time}`;
   if (label === "Yesterday") return `last seen yesterday at ${time}`;
   return `last seen ${label} at ${time}`;
-}
-
-function Avatar({
-  name,
-  photoUrl,
-  size = 44,
-  group = false,
-}: {
-  name: string;
-  photoUrl?: string | null;
-  size?: number;
-  group?: boolean;
-}) {
-  if (photoUrl) {
-    return (
-      <img
-        src={photoUrl}
-        alt={name}
-        style={{ width: size, height: size }}
-        className="shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <div
-      style={{ width: size, height: size }}
-      className="flex shrink-0 items-center justify-center rounded-full bg-brand-navy text-sm font-semibold text-white"
-    >
-      {group ? <Users className="h-1/2 w-1/2 text-brand-gold" /> : getInitials(name || "?")}
-    </div>
-  );
 }
 
 /**
@@ -760,6 +692,29 @@ export default function CanaanChatPage() {
   const recordingConversationIdRef = useRef<number | null>(null);
 
   const [showNewGroup, setShowNewGroup] = useState(false);
+
+  // Owner View — Admin-only, password-gated, read-only window into every
+  // conversation (see components/chat/OwnerViewDialog.tsx). The token lives
+  // only in this page's memory, never localStorage, so a refresh always
+  // re-locks it; it also auto-expires on its own 30-minute timer below.
+  const [ownerViewOpen, setOwnerViewOpen] = useState(false);
+  const [ownerToken, setOwnerToken] = useState<OwnerViewToken | null>(null);
+  useEffect(() => {
+    if (!ownerToken) return;
+    const msLeft = ownerToken.expiresAt - Date.now();
+    if (msLeft <= 0) { setOwnerToken(null); return; }
+    const t = setTimeout(() => setOwnerToken(null), msLeft);
+    return () => clearTimeout(t);
+  }, [ownerToken]);
+  // Closing the dialog must actually lock it — revoke the token server-side
+  // right away, don't just let it sit valid (and reusable with no password)
+  // for the rest of its 30-minute window. A denied/failed revoke still clears
+  // the local copy, so the UI re-prompts either way.
+  const handleCloseOwnerView = useCallback(() => {
+    if (ownerToken) chatOwnerApi.lock(ownerToken.token).catch(() => {});
+    setOwnerToken(null);
+    setOwnerViewOpen(false);
+  }, [ownerToken]);
   const [groupTitle, setGroupTitle] = useState("");
   const [groupMembers, setGroupMembers] = useState<number[]>([]);
   const [newGroupMemberSearch, setNewGroupMemberSearch] = useState("");
@@ -1823,6 +1778,16 @@ export default function CanaanChatPage() {
               <span className="text-base font-semibold text-white">Canaan Chat</span>
             </div>
             <div className="flex items-center gap-2">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setOwnerViewOpen(true)}
+                  title="Owner view"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-brand-gold transition-colors hover:bg-white/25"
+                >
+                  <KeyRound className="h-4 w-4" />
+                </button>
+              )}
               {activeTab === "groups" && isAdmin && (
                 <button
                   type="button"
@@ -2800,6 +2765,13 @@ export default function CanaanChatPage() {
           </div>
         </div>
       )}
+
+      <OwnerViewDialog
+        open={ownerViewOpen}
+        onClose={handleCloseOwnerView}
+        ownerToken={ownerToken}
+        onUnlocked={setOwnerToken}
+      />
 
       {/* New group dialog */}
       {showNewGroup && (

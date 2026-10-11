@@ -66,3 +66,28 @@ export type ChatPresence = {
   online: number[];
   lastSeen: Record<string, number>;
 };
+
+/** One conversation in the Admin-only, read-only "owner view" — every thread
+ * in the company, not just the ones the viewer is a participant in. */
+export type ChatOwnerConversation = {
+  id: number;
+  kind: ChatConversationKind;
+  title: string;
+  members: ChatMember[];
+  lastMessage: ChatMessage | null;
+  lastMessageAt: string | null;
+  createdAt: string | null;
+};
+
+/** One row of Owner View's own audit trail — unlock attempts, password
+ * changes, conversations opened. Visible to any Admin, not just whoever
+ * holds the owner password (see backend/routers/chat_owner_view.py). */
+export type ChatOwnerHistoryEntry = {
+  id: number;
+  event: string;
+  outcome: string;
+  actorName: string | null;
+  resource: string | null;
+  detail: string | null;
+  createdAt: string;
+};

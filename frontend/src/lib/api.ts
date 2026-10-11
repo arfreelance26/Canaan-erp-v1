@@ -30,9 +30,10 @@ import type { RepairType } from "@/types/repair-type";
 import type { VendorCategory } from "@/types/vendor-category";
 import type { SacCode } from "@/types/sac-code";
 import type { MaintenanceTypeItem } from "@/types/maintenance-type";
+import type { CfsYardEntry } from "@/types/cfs-yard";
 import type { MaintenanceCategory, MaintenanceCategoryRepair } from "@/types/maintenance-category";
 import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/maintenance-status";
-import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail, ChatPresence } from "@/types/chat";
+import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail, ChatPresence, ChatOwnerConversation, ChatOwnerHistoryEntry } from "@/types/chat";
 import type { PaymentRequest } from "@/types/payment-request";
 
 import { cacheGet, cacheSet, cacheGeneration, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
@@ -733,6 +734,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     verificationRejectionReason: b.verification_rejection_reason ?? null,
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,
+    useYardCfs: b.use_yard_cfs ?? false,
     invoiceWaived: b.invoice_waived ?? false,
     isCombinedInvoice: b.is_combined_invoice ?? false,
     driverName: b.driver_name ?? null,
@@ -810,6 +812,7 @@ function fromTrip(f: Trip) {
     driver_change_remark: f.driverChangeRemark || null,
     booking_instructions: f.bookingInstructions || null,
     invoice_required: f.invoiceRequired ?? true,
+    use_yard_cfs: f.useYardCfs ?? false,
   };
 }
 
@@ -1055,6 +1058,8 @@ function toStaffAttendance(b: B): StaffAttendanceRecord {
     markedAt: b.marked_at ?? null,
     source: b.source ?? "Web",
     adminOverride: b.admin_override ?? false,
+    lastActiveAt: b.last_active_at ?? null,
+    closedBy: (b.closed_by as StaffAttendanceRecord["closedBy"]) ?? null,
   };
 }
 
@@ -1695,6 +1700,10 @@ export type StaffEditEventRow = {
 
 export const staffApi = {
   list: () => req<B[]>("/staff").then((d) => d.map(toStaff)),
+  // Raw (snake_case) single-record fetch for the Profile modal — unlike the
+  // rest of this module it isn't remapped into the camelCase Staff type,
+  // since the modal reads backend field names directly.
+  getDetail: (dbId: string) => req<B>(`/staff/${dbId}`),
   create: (member: Staff, password: string) =>
     req<B>("/staff", { method: "POST", body: JSON.stringify(fromStaff(member, password)) }).then(toStaff),
   update: (dbId: string, member: Staff, password?: string) =>
@@ -2359,12 +2368,13 @@ export const attendanceApi = {
       body: JSON.stringify({ date, remark }),
     }).then((b) => ({ id: String(b.id), date: b.date ?? "", remark: b.remark ?? "", createdAt: b.created_at ?? null })),
 
-  listStaff: (date?: string, staffId?: number, dateFrom?: string, dateTo?: string) => {
+  listStaff: (date?: string, staffId?: number, dateFrom?: string, dateTo?: string, includeLastActive?: boolean) => {
     const params = new URLSearchParams();
     if (date) params.set("date", date);
     if (staffId) params.set("staff_id", String(staffId));
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
+    if (includeLastActive) params.set("include_last_active", "true");
     return req<B[]>(`/attendance/staff?${params}`).then((d) => d.map(toStaffAttendance));
   },
   markStaff: (staffId: number, date: string, status: string, checkInTime?: string, source?: string) =>
@@ -2404,6 +2414,12 @@ export const attendanceApi = {
 
   closeShiftStaff: (staffId: number) =>
     req<B>(`/attendance/staff/close-shift?staff_id=${staffId}`, {
+      method: "POST",
+    }).then(toStaffAttendance),
+  // Reopens today's shift after an auto-close or Admin force-close (a
+  // self-close stays final — see backend's resume_shift for why).
+  resumeShiftStaff: (staffId: number) =>
+    req<B>(`/attendance/staff/resume-shift?staff_id=${staffId}`, {
       method: "POST",
     }).then(toStaffAttendance),
 
@@ -2535,8 +2551,8 @@ export const attendanceApi = {
 
 type MaintStatusBackend = {
   truck_db_id: number; truck_id: string; registration_number: string; odometer: number;
-  overdue_count: number; due_soon_count: number;
-  items: Array<{ type_name: string; interval_km: number; last_odometer: number | null; km_since_last: number; next_due_odometer: number; status: "Overdue" | "Due Soon" | "OK" }>;
+  overdue_count: number; due_soon_count: number; no_data_count?: number;
+  items: Array<{ type_name: string; interval_km: number; last_odometer: number | null; km_since_last: number; next_due_odometer: number; status: "Overdue" | "Due Soon" | "No Data" | "OK" }>;
 };
 
 function toMaintStatus(b: MaintStatusBackend): TruckMaintenanceStatus {
@@ -2547,6 +2563,7 @@ function toMaintStatus(b: MaintStatusBackend): TruckMaintenanceStatus {
     odometer: b.odometer,
     overdueCount: b.overdue_count,
     dueSoonCount: b.due_soon_count,
+    noDataCount: b.no_data_count ?? 0,
     items: b.items.map((i): MaintenanceStatusItem => ({
       typeName: i.type_name,
       intervalKm: i.interval_km,
@@ -3180,8 +3197,11 @@ export type ActivitySummaryRow = {
 
 export const activityApi = {
   // Page views and clicks, sent in batches by useActivityTracking.
-  sendBatch: (events: { kind: string; route: string; label?: string }[]) =>
-    req<void>("/activity/batch", { method: "POST", body: JSON.stringify({ events }) }),
+  // keepalive=true for the pagehide flush — a plain fetch is routinely
+  // cancelled by the browser mid-flight once the page is being torn down;
+  // keepalive is what's actually guaranteed to survive that.
+  sendBatch: (events: { kind: string; route: string; label?: string }[], keepalive = false) =>
+    req<void>("/activity/batch", { method: "POST", body: JSON.stringify({ events }), keepalive }),
   events: (filters: { day?: string; user?: string; kind?: string; limit?: number }) => {
     const params = new URLSearchParams();
     if (filters.day) { params.set("date_from", filters.day); params.set("date_to", filters.day); }
@@ -3694,6 +3714,27 @@ export const maintenanceTypesApi = {
       body: JSON.stringify({ name, interval_km: intervalKm, client_version: version }),
     }).then(toMaintenanceType),
   delete: (id: string) => req<void>(`/maintenance-types/${id}`, { method: "DELETE" }),
+};
+
+// The CFS/yard directory behind TripFormDialog's "View All CFS" / "View All
+// Yard" — Admin-editable, same pattern as Maintenance Types above.
+function toCfsYardEntry(b: B): CfsYardEntry {
+  return { id: String(b.id), kind: b.kind as CfsYardEntry["kind"], name: String(b.name ?? ""), version: Number(b.version ?? 1) };
+}
+export const cfsYardApi = {
+  list: (kind: CfsYardEntry["kind"]) =>
+    req<B[]>("/cfs-yard").then((rows) => rows.filter((r) => r.kind === kind).map(toCfsYardEntry)),
+  create: (kind: CfsYardEntry["kind"], name: string) =>
+    req<B>("/cfs-yard", { method: "POST", body: JSON.stringify({ kind, name }) }).then(toCfsYardEntry),
+  update: (id: string, name: string, version?: number) =>
+    req<B>(`/cfs-yard/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ name, client_version: version }),
+    }).then(toCfsYardEntry),
+  delete: (id: string) => req<void>(`/cfs-yard/${id}`, { method: "DELETE" }),
+  restore: (id: string) => req<B>(`/cfs-yard/${id}/restore`, { method: "POST" }).then(toCfsYardEntry),
+  removePermanent: (id: string) => req<void>(`/cfs-yard/${id}/permanent`, { method: "DELETE" }),
+  listDeletedIds: () => req<number[]>("/cfs-yard/deleted-ids"),
 };
 
 export type SacCodeEditEventType = "SAC Code Created" | "SAC Code Edited" | "SAC Code Deleted";
@@ -4296,6 +4337,15 @@ export const securityApi = {
       method: "PUT",
       body: JSON.stringify({ hours }),
     }).then((r) => Number(r.hours)),
+  // Whether marking attendance is required — just the stored flag for now,
+  // nothing enforces it yet (see SetWorkingHoursDialog.tsx).
+  getAttendanceMandatory: () =>
+    req<{ mandatory: boolean }>("/settings/attendance-mandatory").then((r) => Boolean(r.mandatory)),
+  updateAttendanceMandatory: (mandatory: boolean) =>
+    req<{ mandatory: boolean }>("/settings/attendance-mandatory", {
+      method: "PUT",
+      body: JSON.stringify({ mandatory }),
+    }).then((r) => Boolean(r.mandatory)),
   getDeviceLock: () =>
     req<{ enabled: boolean; admin_limit: number; staff_limit: number }>("/settings/device-lock").then((r) => ({
       enabled: Boolean(r.enabled),
@@ -4531,6 +4581,71 @@ function toChatConversationDetail(b: B): ChatConversationDetail {
     members: Array.isArray(b.members) ? (b.members as B[]).map(toChatMember) : [],
   };
 }
+
+function toChatOwnerConversation(b: B): ChatOwnerConversation {
+  return {
+    id: Number(b.id),
+    kind: (b.kind as ChatOwnerConversation["kind"]) ?? "direct",
+    title: b.title ?? "",
+    members: Array.isArray(b.members) ? (b.members as B[]).map(toChatMember) : [],
+    lastMessage: b.last_message ? toChatMessage(b.last_message as B) : null,
+    lastMessageAt: b.last_message_at ?? null,
+    createdAt: b.created_at ?? null,
+  };
+}
+
+// Canaan Chat — owner view. Admin-only, read-only, gated by a password separate
+// from login (see backend/routers/chat_owner_view.py). The unlock token is sent
+// as its own header, never as the normal Authorization bearer, and is kept only
+// in memory on the frontend — it's never written to localStorage.
+export const chatOwnerApi = {
+  unlock: (password: string) =>
+    req<{ token: string; expires_at: string }>("/chat/owner-view/unlock", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req<void>("/chat/owner-view/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+  listConversations: (token: string) =>
+    req<B[]>("/chat/owner-view/conversations", {
+      headers: { "X-Owner-View-Token": token },
+    }).then((d) => d.map(toChatOwnerConversation)),
+  listMessages: (conversationId: number, token: string, beforeId?: number) => {
+    const params = new URLSearchParams();
+    if (beforeId) params.set("before_id", String(beforeId));
+    return req<B[]>(`/chat/owner-view/conversations/${conversationId}/messages?${params.toString()}`, {
+      headers: { "X-Owner-View-Token": token },
+    }).then((d) => d.map(toChatMessage));
+  },
+  /** Revokes the token server-side right away — called when the dialog is
+   * closed, so closing it is a real lock and reopening always asks for the
+   * password again, instead of silently reusing the token for the rest of
+   * its 30-minute window (see backend/security.py:lock_owner_view_token). */
+  lock: (token: string) =>
+    req<void>("/chat/owner-view/lock", {
+      method: "POST",
+      headers: { "X-Owner-View-Token": token },
+    }),
+  /** Every unlock/change-password/view event, for any Admin — not gated by
+   * the owner-view token (see backend/routers/chat_owner_view.py:list_history). */
+  history: () =>
+    req<B[]>("/chat/owner-view/history").then((d) =>
+      d.map(
+        (b): ChatOwnerHistoryEntry => ({
+          id: Number(b.id),
+          event: b.event,
+          outcome: b.outcome,
+          actorName: b.actor_name ?? null,
+          resource: b.resource ?? null,
+          detail: b.detail ?? null,
+          createdAt: b.created_at,
+        })
+      )
+    ),
+};
 
 export const chatApi = {
   /** Everyone the current user can start a conversation with. */
@@ -4989,6 +5104,13 @@ export const usageApi = {
       method: "POST",
       body: JSON.stringify({ module, active_seconds: activeSeconds, idle_seconds: idleSeconds }),
     }),
+  /** Real worked time per day (genuine active seconds, idle-filtered,
+   * summed across every login session that day) — see Mark Attendance's
+   * "Total Working Time". Self-or-Admin only. */
+  dailyActive: (staffId: number, dateFrom: string, dateTo: string) =>
+    req<{ date: string; active_seconds: number }[]>(
+      `/usage/daily-active/${staffId}?date_from=${dateFrom}&date_to=${dateTo}`
+    ).then((rows) => new Map(rows.map((r) => [r.date, r.active_seconds]))),
   getOverview: (dateFrom?: string, dateTo?: string): Promise<UsageOverviewRow[]> => {
     const params = new URLSearchParams();
     if (dateFrom) params.set("date_from", dateFrom);

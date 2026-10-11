@@ -64,15 +64,31 @@ type Tab = "trips" | "trucks";
 type TripSortKey = "date" | "hire" | "expense" | "pl";
 
 // ── Shared components ──────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, icon, color }: {
+function StatCard({ label, value, sub, icon, color, onClick, active }: {
   label: string; value: string; sub?: string;
   icon: React.ReactNode;
   color: "blue" | "emerald" | "red" | "amber" | "purple" | "slate";
+  /** When set, the card becomes a toggleable filter — see TripProfitabilityTab's
+   * profitFilter (clicking "Profitable"/"Non-Profitable" drills the table below
+   * into just those trips; clicking the active one again clears it). */
+  onClick?: () => void;
+  active?: boolean;
 }) {
   const ring = { blue: "border-blue-200 bg-blue-50", emerald: "border-emerald-200 bg-emerald-50", red: "border-red-200 bg-red-50", amber: "border-amber-200 bg-amber-50", purple: "border-purple-200 bg-purple-50", slate: "border-slate-200 bg-slate-50" };
+  const activeRing = { blue: "ring-2 ring-blue-400", emerald: "ring-2 ring-emerald-400", red: "ring-2 ring-red-400", amber: "ring-2 ring-amber-400", purple: "ring-2 ring-purple-400", slate: "ring-2 ring-slate-400" };
   const txt  = { blue: "text-blue-700", emerald: "text-emerald-700", red: "text-red-700", amber: "text-amber-700", purple: "text-purple-700", slate: "text-slate-700" };
   return (
-    <div className={`rounded-xl border p-5 ${ring[color]}`}>
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      className={cn(
+        `rounded-xl border p-5 text-left ${ring[color]}`,
+        onClick && "cursor-pointer transition-shadow hover:shadow-sm",
+        active && activeRing[color]
+      )}
+    >
       <div className={`flex items-center gap-2 mb-2 ${txt[color]}`}>
         {icon}
         <span className="text-xs font-semibold uppercase tracking-wider opacity-70">{label}</span>
@@ -400,6 +416,11 @@ function TripProfitabilityTab({
 }) {
   const [sortKey, setSortKey] = useState<TripSortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Clicking "Profitable Trips" / "Non-Profitable Trips" below drills the
+  // table into exactly the trips each card counts (tripPl >=/< 0, among
+  // countedTrips — the same set the cards' own "X / Y" figures are built
+  // from, so the filtered list never shows something the card didn't count).
+  const [profitFilter, setProfitFilter] = useState<"all" | "profitable" | "non-profitable">("all");
 
   function toggleSort(col: TripSortKey) {
     if (sortKey === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -407,14 +428,20 @@ function TripProfitabilityTab({
   }
 
   // ── Sorted trips ──────────────────────────────────────────────────────────
-  const sorted = useMemo(() => [...trips].sort((a, b) => {
-    let d = 0;
-    if (sortKey === "date")    d = a.tripSheetDate.localeCompare(b.tripSheetDate);
-    if (sortKey === "hire")    d = a.hireAmount - b.hireAmount;
-    if (sortKey === "expense") d = a.totalExpense - b.totalExpense;
-    if (sortKey === "pl")      d = a.tripPl - b.tripPl;
-    return sortDir === "asc" ? d : -d;
-  }), [trips, sortKey, sortDir]);
+  const sorted = useMemo(() => {
+    const base =
+      profitFilter === "all" ? trips :
+      profitFilter === "profitable" ? trips.filter((t) => !t.excludedFromTotals && t.tripPl >= 0) :
+      trips.filter((t) => !t.excludedFromTotals && t.tripPl < 0);
+    return [...base].sort((a, b) => {
+      let d = 0;
+      if (sortKey === "date")    d = a.tripSheetDate.localeCompare(b.tripSheetDate);
+      if (sortKey === "hire")    d = a.hireAmount - b.hireAmount;
+      if (sortKey === "expense") d = a.totalExpense - b.totalExpense;
+      if (sortKey === "pl")      d = a.tripPl - b.tripPl;
+      return sortDir === "asc" ? d : -d;
+    });
+  }, [trips, sortKey, sortDir, profitFilter]);
 
   // ── Summary stats ─────────────────────────────────────────────────────────
   // A trip an Auditor has flagged for rechecking still appears in the table
@@ -441,10 +468,14 @@ function TripProfitabilityTab({
         <StatCard label="Total Trips"      value={String(trips.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trips" value={`${profitable} / ${countedTrips.length}`}
           sub={countedTrips.length ? `${((profitable / countedTrips.length) * 100).toFixed(0)}% success rate` : ""}
-          icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
+          icon={<TrendingUp className="h-4 w-4" />} color="emerald"
+          onClick={() => setProfitFilter((f) => (f === "profitable" ? "all" : "profitable"))}
+          active={profitFilter === "profitable"} />
         <StatCard label="Non-Profitable Trips" value={`${nonProfitable} / ${countedTrips.length}`}
           sub={countedTrips.length ? `${((nonProfitable / countedTrips.length) * 100).toFixed(0)}% loss rate` : ""}
-          icon={<TrendingDown className="h-4 w-4" />} color="red" />
+          icon={<TrendingDown className="h-4 w-4" />} color="red"
+          onClick={() => setProfitFilter((f) => (f === "non-profitable" ? "all" : "non-profitable"))}
+          active={profitFilter === "non-profitable"} />
         <StatCard label="Total Hire Revenue" value={fmt(totalHire)} sub={`Expenses: ${fmt(totalExp)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
         <StatCard label="Net Trip P&L" value={fmt(netPl)} sub={netPl >= 0 ? "Overall Profit" : "Overall Loss"}
@@ -456,11 +487,32 @@ function TripProfitabilityTab({
           color={!hasCpkTrips ? "slate" : (finalProfit >= 0 ? "emerald" : "red")} />
       </div>
 
+      {profitFilter !== "all" && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold",
+            profitFilter === "profitable" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+          )}>
+            {profitFilter === "profitable" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            Showing: {profitFilter === "profitable" ? "Profitable" : "Non-Profitable"} trips only
+          </span>
+          <button
+            type="button"
+            onClick={() => setProfitFilter("all")}
+            className="font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
         {sorted.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-400">No trips found for this period.</p>
+            <p className="text-sm text-gray-400">
+              {profitFilter === "all" ? "No trips found for this period." : "No trips match this filter."}
+            </p>
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
@@ -840,6 +892,11 @@ function TruckProfitabilityTab({
   costPerKmMap: Record<string, Record<string, number | null>>;
 }) {
   const [expandedTruck, setExpandedTruck] = useState<string | null>(null);
+  // Clicking "Profitable Trucks" / "Non-Profitable Trucks" below drills the
+  // table into exactly the trucks each card counts (tripPl >=/< 0) — same
+  // pattern as TripProfitabilityTab's profitFilter. The other KPI cards
+  // (Total Hire Revenue, Net P&L, Final Profit) stay fleet-wide totals.
+  const [profitFilter, setProfitFilter] = useState<"all" | "profitable" | "non-profitable">("all");
 
   const enriched = useMemo<EnrichedTruck[]>(() =>
     data.map((e) => ({
@@ -848,6 +905,13 @@ function TruckProfitabilityTab({
       netTruckPl:  e.netPl,
     })),
     [data],
+  );
+
+  const filteredTrucks = useMemo(() =>
+    profitFilter === "all" ? enriched :
+    profitFilter === "profitable" ? enriched.filter((e) => e.tripPl >= 0) :
+    enriched.filter((e) => e.tripPl < 0),
+    [enriched, profitFilter],
   );
 
 
@@ -877,10 +941,14 @@ function TruckProfitabilityTab({
         <StatCard label="Total Trucks" value={String(enriched.length)} icon={<BarChart3 className="h-4 w-4" />} color="blue" />
         <StatCard label="Profitable Trucks" value={`${profitableTrucks} / ${enriched.length}`}
           sub={enriched.length ? `${((profitableTrucks / enriched.length) * 100).toFixed(0)}% success rate` : ""}
-          icon={<TrendingUp className="h-4 w-4" />} color="emerald" />
+          icon={<TrendingUp className="h-4 w-4" />} color="emerald"
+          onClick={() => setProfitFilter((f) => (f === "profitable" ? "all" : "profitable"))}
+          active={profitFilter === "profitable"} />
         <StatCard label="Non-Profitable Trucks" value={`${nonProfitableTrucks} / ${enriched.length}`}
           sub={enriched.length ? `${((nonProfitableTrucks / enriched.length) * 100).toFixed(0)}% loss rate` : ""}
-          icon={<TrendingDown className="h-4 w-4" />} color="red" />
+          icon={<TrendingDown className="h-4 w-4" />} color="red"
+          onClick={() => setProfitFilter((f) => (f === "non-profitable" ? "all" : "non-profitable"))}
+          active={profitFilter === "non-profitable"} />
         <StatCard label="Total Hire Revenue" value={fmt(totals.hire)} sub={`Expenses: ${fmt(totals.tExp)}`}
           icon={<DollarSign className="h-4 w-4" />} color="blue" />
         <StatCard label="Net P&L" value={fmt(totals.netPl)} sub={totals.netPl >= 0 ? "Overall Profit" : "Overall Loss"}
@@ -892,11 +960,32 @@ function TruckProfitabilityTab({
           color={!hasCpkTrucks ? "slate" : (finalProfit >= 0 ? "emerald" : "red")} />
       </div>
 
+      {profitFilter !== "all" && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-semibold",
+            profitFilter === "profitable" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+          )}>
+            {profitFilter === "profitable" ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            Showing: {profitFilter === "profitable" ? "Profitable" : "Non-Profitable"} trucks only
+          </span>
+          <button
+            type="button"
+            onClick={() => setProfitFilter("all")}
+            className="font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white">
-        {enriched.length === 0 ? (
+        {filteredTrucks.length === 0 ? (
           <div className="py-14 text-center">
-            <p className="text-sm text-gray-400">No trucks found for this period.</p>
+            <p className="text-sm text-gray-400">
+              {profitFilter === "all" ? "No trucks found for this period." : "No trucks match this filter."}
+            </p>
           </div>
         ) : (
           <div className="overflow-auto max-h-[70vh]">
@@ -909,7 +998,7 @@ function TruckProfitabilityTab({
                 </tr>
               </thead>
               <tbody>
-                {enriched.map((entry) => {
+                {filteredTrucks.map((entry) => {
                   const isOpen = expandedTruck === entry.truckId;
                   return (
                   <Fragment key={entry.truckId}>
