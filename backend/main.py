@@ -1163,80 +1163,9 @@ def _widen_blob_columns():
                 print(f"[migration] skip widening {table}.{column}: {e}")
 
 
-def _seed_default_vendors():
-    """Seeds the "Our Vendors" page from data/seed_vendors.json — used to
-    require running scripts/import_vendors_from_excel.py by hand after every
-    fresh deploy. Runs after _run_staff_history_migrations() so the Vendor
-    Categories it seeds already exist for category resolution below.
-
-    Idempotent: skips any (name, category) pair that already exists among
-    non-deleted vendors, same dedupe as the standalone script. Missing or
-    unreadable data file is not an error — just nothing to seed (e.g. a dev
-    environment that never had the file).
-    """
-    data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "seed_vendors.json")
-    if not os.path.isfile(data_path):
-        return
-    try:
-        with open(data_path, "r", encoding="utf-8") as f:
-            rows = json.load(f)
-    except Exception as e:
-        print(f"[seed] skip default vendors: could not read {data_path}: {e}")
-        return
-
-    from database import SessionLocal
-    db = SessionLocal()
-    try:
-        categories_by_lower = {
-            c.name.strip().lower(): c.name
-            for c in db.query(models.VendorCategory).all()
-        }
-        existing_vendor_keys = {
-            (v.name.strip().lower(), (v.category or "").strip().lower())
-            for v in db.query(models.Vendor).filter(models.Vendor.deleted_at.is_(None)).all()
-        }
-        added = 0
-        for row in rows:
-            name = (row.get("name") or "").strip()
-            if not name:
-                continue
-            raw_category = (row.get("category") or "").strip()
-            if raw_category:
-                category = categories_by_lower.get(raw_category.lower())
-                if category is None:
-                    category = raw_category
-                    db.add(models.VendorCategory(name=category))
-                    categories_by_lower[category.lower()] = category
-            else:
-                category = ""
-            key = (name.lower(), category.lower())
-            if key in existing_vendor_keys:
-                continue
-            db.add(models.Vendor(
-                name=name,
-                category=category or None,
-                contact_number=row.get("contact_number") or None,
-                gstin=row.get("gstin") or None,
-                pan=row.get("pan") or None,
-                email=row.get("email") or None,
-                address=row.get("address") or None,
-            ))
-            existing_vendor_keys.add(key)
-            added += 1
-        db.commit()
-        if added:
-            print(f"[seed] default vendors: added {added} new vendor(s) from {data_path}")
-    except Exception as e:
-        db.rollback()
-        print(f"[seed] skip default vendors: {e}")
-    finally:
-        db.close()
-
-
 _run_schema_migrations()
 _run_chat_migrations()
 _run_staff_history_migrations()
-_seed_default_vendors()
 _widen_blob_columns()
 
 def _normalize_shipping_lines():
