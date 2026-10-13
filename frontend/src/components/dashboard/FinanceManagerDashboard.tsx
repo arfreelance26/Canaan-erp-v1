@@ -21,7 +21,7 @@ import { financeApi, tripsApi, trucksApi, dashboardApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { ComplianceAlertBanner } from "./ComplianceAlertBanner";
-import { StatCard } from "./StatCard";
+import { FleetStatusPanel } from "./FleetStatusPanel";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getComplianceStatus } from "@/lib/compliance";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
@@ -199,12 +199,52 @@ export function FinanceManagerDashboard() {
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Landmark}      label="Active EMIs"          value={loading ? "—" : activeEmis.length}          variant="blue"    caption={loading ? "" : `${fmt(monthlyEmiTotal)}/mo`} />
-        <StatCard icon={CalendarCheck} label="Pending Finalization" value={loading ? "—" : pendingFinalization.length} variant="purple"  caption="Trips awaiting invoice" />
-        <StatCard icon={ShieldCheck}   label="Compliance Alerts"    value={loading ? "—" : complianceAlerts.length}    variant={complianceAlerts.some(a => a.status === "Expired") ? "red" : "amber"} caption={complianceAlerts.length > 0 ? `${complianceAlerts.filter(a => a.status === "Expired").length} expired` : "All valid"} />
-        <StatCard icon={Flag}          label="Flagged Trips"        value={loading ? "—" : flaggedNeedingFix}           variant={flaggedNeedingFix > 0 ? "red" : "emerald"} caption={flaggedNeedingFix > 0 ? "Need your fix" : "None needing a fix"} onClick={() => router.push("/trips/flagged")} />
-      </div>
+      <FleetStatusPanel
+        segments={[
+          {
+            key: "active-emis", kind: "count",
+            label: "Active EMIs", icon: Landmark,
+            value: loading ? "—" : String(activeEmis.length),
+            caption: loading ? "" : `${fmt(monthlyEmiTotal)}/mo`,
+          },
+          {
+            key: "pending-finalization", kind: "count",
+            label: "Pending finalization", icon: CalendarCheck,
+            value: loading ? "—" : String(pendingFinalization.length),
+            caption: "Trips awaiting invoice",
+          },
+          complianceAlerts.some(a => a.status === "Expired")
+            ? {
+                key: "compliance-alerts", kind: "alert",
+                label: "Compliance alerts", icon: ShieldCheck,
+                value: loading ? "—" : String(complianceAlerts.length), active: true,
+                caption: `${complianceAlerts.filter(a => a.status === "Expired").length} expired`,
+              }
+            : {
+                key: "compliance-alerts", kind: "count",
+                label: "Compliance alerts", icon: ShieldCheck,
+                value: loading ? "—" : String(complianceAlerts.length),
+                tone: complianceAlerts.length > 0 ? "warn" : "good",
+                caption: complianceAlerts.length > 0 ? `${complianceAlerts.length} to review` : "All valid",
+              },
+          flaggedNeedingFix > 0
+            ? {
+                key: "flagged-trips", kind: "alert",
+                label: "Flagged trips", icon: Flag,
+                value: loading ? "—" : String(flaggedNeedingFix), active: true,
+                caption: "Need your fix",
+                onClick: () => router.push("/trips/flagged"),
+              }
+            : {
+                key: "flagged-trips", kind: "count",
+                label: "Flagged trips", icon: Flag,
+                value: loading ? "—" : String(flaggedNeedingFix),
+                tone: "good",
+                caption: "None needing a fix",
+                onClick: () => router.push("/trips/flagged"),
+              },
+        ]}
+      />
 
       {/* Quick Links */}
       <div>

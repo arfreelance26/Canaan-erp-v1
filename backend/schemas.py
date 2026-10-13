@@ -507,6 +507,7 @@ class TripBase(OrmBase):
     booking_instructions: Optional[str] = None
     invoice_required: bool = True
     use_yard_cfs: bool = False
+    use_custom_route: bool = False
     # Which dialog this update came from — only used to label the Trip Edit
     # History event correctly (both TripFormDialog and TripSheetDialog save
     # through this same endpoint); never applied to the Trip record itself.
@@ -1669,6 +1670,7 @@ class DeletionApprovalRequestOut(OrmBase):
     approved_by_name: Optional[str] = None
     approved_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    requester_seen_at: Optional[datetime] = None
 
 
 class DeletionApprovalActionPayload(OrmBase):
@@ -1702,6 +1704,7 @@ class EditApprovalRequestOut(OrmBase):
     expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     used_at: Optional[datetime] = None
+    requester_seen_at: Optional[datetime] = None
 
 
 class ApproveDeletePayload(OrmBase):
@@ -2996,6 +2999,75 @@ class ChatMutePayload(BaseModel):
 
 class ChatTypingPayload(BaseModel):
     typing: bool
+
+
+# ---------------------------------------------------------------------------
+# Room Summon — Admin-only "come to my room" push (see routers/room_summon.py)
+# ---------------------------------------------------------------------------
+
+class RoomSummonCreate(BaseModel):
+    target_type: Literal["user", "group"]
+    target_id: int
+
+
+class RoomSummonOut(OrmBase):
+    id: int
+    summoned_by: Optional[int] = None
+    summoned_by_name: Optional[str] = None
+    target_type: str
+    target_id: int
+    target_label: str
+    recipient_ids: list[int] = []
+    recipient_names: list[str] = []
+    created_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------------------
+# Events — Admin-scheduled meetings (see routers/events.py)
+# ---------------------------------------------------------------------------
+
+class EventTarget(BaseModel):
+    target_type: Literal["user", "group"]
+    target_id: int
+
+
+class EventCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    location: Optional[str] = None
+    starts_at: datetime
+    ends_at: Optional[datetime] = None
+    targets: list[EventTarget]
+
+    @field_validator("title")
+    @classmethod
+    def _title_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Title is required.")
+        return v
+
+    @field_validator("targets")
+    @classmethod
+    def _targets_not_empty(cls, v: list["EventTarget"]) -> list["EventTarget"]:
+        if not v:
+            raise ValueError("Select at least one person or group.")
+        return v
+
+
+class EventOut(OrmBase):
+    id: int
+    title: str
+    description: Optional[str] = None
+    location: Optional[str] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    created_by: Optional[int] = None
+    created_by_name: Optional[str] = None
+    participant_names: list[str] = []
+    created_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    completed_by_name: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

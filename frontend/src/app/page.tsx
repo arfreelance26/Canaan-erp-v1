@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { FleetManagerDashboard } from "@/components/dashboard/FleetManagerDashboard";
@@ -35,9 +35,11 @@ import {
   Pencil,
   LayoutDashboard,
   Flag,
+  Download,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StatCard } from "@/components/dashboard/StatCard";
+import { FleetStatusPanel } from "@/components/dashboard/FleetStatusPanel";
 import {
   trucksApi,
   driversApi,
@@ -164,6 +166,18 @@ function AdminDashboard() {
   const [sheetReceivedDate, setSheetReceivedDate] = useState("");
   const [sheetEnteredDate, setSheetEnteredDate] = useState("");
   const [backupLoading, setBackupLoading] = useState<"excel" | "sql" | "files" | null>(null);
+  const [backupMenuOpen, setBackupMenuOpen] = useState(false);
+  const backupMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!backupMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (backupMenuRef.current && !backupMenuRef.current.contains(e.target as Node)) {
+        setBackupMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [backupMenuOpen]);
   const [fuelRate, setFuelRate] = useState<{ costPerLitre: number | null; updatedAt: string | null }>({ costPerLitre: null, updatedAt: null });
   const [fuelRateInput, setFuelRateInput] = useState("");
   const [fuelRateSaving, setFuelRateSaving] = useState(false);
@@ -171,6 +185,7 @@ function AdminDashboard() {
   const today = todayIst();
 
   async function handleBackup(type: "excel" | "sql" | "files") {
+    setBackupMenuOpen(false);
     setBackupLoading(type);
     const extMap = { excel: "xlsx", sql: "sql", files: "zip" } as const;
     const fallbackName = type === "files" ? "canaan_erp_files.zip" : `canaan_erp_backup.${extMap[type]}`;
@@ -397,7 +412,6 @@ function AdminDashboard() {
   );
 
   // ── Derived totals ────────────────────────────────────────────────────────
-  const criticalAlerts = complianceCounts.Expired + maintenanceOverdueCount;
   const presentToday = driverAttendanceToday.Present + staffAttendanceToday.Present;
   const totalWorkforce = drivers.length + staffList.length;
   const trucksOnTripCount = trucksOnTripIds.size;
@@ -501,35 +515,44 @@ function AdminDashboard() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {(
-              [
-                { key: "excel", label: "Download Excel", icon: FileSpreadsheet, tone: "emerald" },
-                { key: "sql", label: "Download SQL", icon: Database, tone: "indigo" },
-                { key: "files", label: "Download Files (ZIP)", icon: FolderArchive, tone: "amber" },
-              ] as const
-            ).map(({ key, label, icon: Icon, tone }) => {
-              const busy = backupLoading === key;
-              const styles = {
-                emerald: "border-emerald-200/80 from-emerald-50 to-white text-emerald-800 hover:border-emerald-300 hover:shadow-emerald-200/60 [--chip:var(--color-emerald-100)] [--icon:var(--color-emerald-600)]",
-                indigo: "border-indigo-200/80 from-indigo-50 to-white text-indigo-900 hover:border-indigo-300 hover:shadow-indigo-200/60 [--chip:var(--color-indigo-100)] [--icon:var(--color-indigo-600)]",
-                amber: "border-amber-200/80 from-amber-50 to-white text-amber-800 hover:border-amber-300 hover:shadow-amber-200/60 [--chip:var(--color-amber-100)] [--icon:var(--color-amber-600)]",
-              }[tone];
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleBackup(key)}
-                  disabled={backupLoading !== null}
-                  className={`group flex h-11 items-center gap-2.5 rounded-full border bg-gradient-to-b py-1 pl-1.5 pr-5 text-sm font-semibold shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm ${styles}`}
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--chip)] text-[var(--icon)] transition-transform duration-300 group-hover:scale-110">
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
-                  </span>
-                  {busy ? "Downloading…" : label}
-                </button>
-              );
-            })}
+          <div className="relative" ref={backupMenuRef}>
+            <button
+              type="button"
+              onClick={() => setBackupMenuOpen((v) => !v)}
+              disabled={backupLoading !== null}
+              className="group flex h-11 items-center gap-2.5 rounded-full border border-gray-200 bg-white py-1 pl-1.5 pr-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-transform duration-300 group-hover:scale-110">
+                {backupLoading !== null ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              </span>
+              {backupLoading !== null ? "Downloading…" : "Backup"}
+              <ChevronDown className={cn("h-3.5 w-3.5 text-gray-400 transition-transform duration-200", backupMenuOpen && "rotate-180")} />
+            </button>
+
+            {backupMenuOpen && (
+              <div className="absolute left-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg">
+                {(
+                  [
+                    { key: "excel", label: "Download Excel", icon: FileSpreadsheet, chip: "bg-emerald-100 text-emerald-600" },
+                    { key: "sql", label: "Download SQL", icon: Database, chip: "bg-indigo-100 text-indigo-600" },
+                    { key: "files", label: "Download Files (ZIP)", icon: FolderArchive, chip: "bg-amber-100 text-amber-600" },
+                  ] as const
+                ).map(({ key, label, icon: Icon, chip }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleBackup(key)}
+                    disabled={backupLoading !== null}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${chip}`}>
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -684,77 +707,79 @@ function AdminDashboard() {
         );
       })()}
 
-      {/* ── Section 1: Hero KPIs ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
-        <StatCard
-          label="Active Trips"
-          value={String(activeTripsCount)}
-          caption={`${tripStatusCounts.Completed} completed · ${trips.length} total`}
-          icon={Navigation}
-          variant="blue"
-          onClick={() => router.push("/trips/current")}
-        />
-        <StatCard
-          label="Fleet on Road"
-          value={`${trucksOnTripCount}/${trucks.length}`}
-          caption={`${trucksAvailableCount} truck${trucksAvailableCount !== 1 ? "s" : ""} available`}
-          icon={Truck}
-          variant={trucksOnTripCount > 0 ? "default" : "emerald"}
-          onClick={() => router.push("/trips/current")}
-        />
-        <StatCard
-          label="Urgent Alerts"
-          value={String(criticalAlerts)}
-          caption={`${complianceCounts.Expired} docs expired · ${maintenanceOverdueCount} maint. overdue`}
-          icon={AlertTriangle}
-          variant={criticalAlerts > 0 ? "red" : "emerald"}
-        />
-        <StatCard
-          label="Present Today"
-          value={`${presentToday}/${totalWorkforce}`}
-          caption={`${leaveSummary.Pending} leave request${leaveSummary.Pending !== 1 ? "s" : ""} pending`}
-          icon={UserCheck}
-          variant={totalWorkforce > 0 && presentToday < totalWorkforce * 0.7 ? "amber" : "emerald"}
-          onClick={() => router.push("/attendance/report")}
-        />
-        <StatCard
-          label="Customers"
-          value={String(customers.length)}
-          caption={`${vendors.length} vendor${vendors.length !== 1 ? "s" : ""} registered`}
-          icon={UserCheck}
-          variant="purple"
-          onClick={() => router.push("/resources/customers")}
-        />
-        <StatCard
-          label="Monthly Fixed"
-          value={formatCurrency(monthlyEmiTotal + monthlyRecurringTotal)}
-          caption={`${emiRecords.length} EMI · ${activeRecurringPayments.length} recurring`}
-          icon={Wallet}
-          variant="default"
-        />
-      </div>
+      {/* ── Section 1: Fleet status ─────────────────────────────────────── */}
+      <FleetStatusPanel
+        segments={[
+          {
+            key: "active-trips", kind: "count",
+            label: "Active trips", icon: Navigation,
+            value: String(activeTripsCount),
+            caption: `${tripStatusCounts.Completed} completed · ${trips.length} total`,
+            onClick: () => router.push("/trips/current"),
+          },
+          {
+            key: "fleet-on-road", kind: "ratio",
+            label: "Fleet on road", icon: Truck,
+            numerator: trucksOnTripCount, denominator: trucks.length,
+            tone: trucksOnTripCount > 0 ? "neutral" : "good",
+            caption: `${trucksAvailableCount} truck${trucksAvailableCount !== 1 ? "s" : ""} available`,
+            onClick: () => router.push("/trips/current"),
+          },
+          {
+            key: "present-today", kind: "ratio",
+            label: "Present today", icon: UserCheck,
+            numerator: presentToday, denominator: totalWorkforce,
+            tone: totalWorkforce > 0 && presentToday < totalWorkforce * 0.7 ? "warn" : "good",
+            caption: `${leaveSummary.Pending} leave request${leaveSummary.Pending !== 1 ? "s" : ""} pending`,
+            onClick: () => router.push("/attendance/report"),
+          },
+          {
+            key: "customers", kind: "count",
+            label: "Customers", icon: UserCheck,
+            value: String(customers.length),
+            caption: `${vendors.length} vendor${vendors.length !== 1 ? "s" : ""} registered`,
+            onClick: () => router.push("/resources/customers"),
+          },
+          {
+            key: "monthly-fixed", kind: "count",
+            label: "Monthly fixed", icon: Wallet,
+            value: formatCurrency(monthlyEmiTotal + monthlyRecurringTotal),
+            caption: `${emiRecords.length} EMI · ${activeRecurringPayments.length} recurring`,
+          },
+        ]}
+      />
 
       {/* ── Section 1b: Audit ────────────────────────────────────────────── */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-400">Audit</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-3">
-          <StatCard
-            label="Flagged Trips"
-            value={String(flaggedTotalCount)}
-            caption={`${flaggedUnderReviewCount} under review · ${flaggedReturnedCount} returned`}
-            icon={Flag}
-            variant={flaggedUnderReviewCount > 0 ? "red" : flaggedTotalCount > 0 ? "amber" : "emerald"}
-            onClick={() => router.push("/trips/flagged")}
-          />
-          <StatCard
-            label="Audit Verified"
-            value={String(auditVerifiedTrips.length)}
-            caption="Trips Audit has signed off on"
-            icon={CheckCircle2}
-            variant="emerald"
-            onClick={() => router.push("/trips/audit-verified")}
-          />
-        </div>
+        <FleetStatusPanel
+          segments={[
+            flaggedUnderReviewCount > 0
+              ? {
+                  key: "flagged-trips", kind: "alert",
+                  label: "Flagged trips", icon: Flag,
+                  value: String(flaggedTotalCount), active: true,
+                  caption: `${flaggedUnderReviewCount} under review · ${flaggedReturnedCount} returned`,
+                  onClick: () => router.push("/trips/flagged"),
+                }
+              : {
+                  key: "flagged-trips", kind: "count",
+                  label: "Flagged trips", icon: Flag,
+                  value: String(flaggedTotalCount),
+                  tone: flaggedTotalCount > 0 ? "warn" : "good",
+                  caption: `${flaggedUnderReviewCount} under review · ${flaggedReturnedCount} returned`,
+                  onClick: () => router.push("/trips/flagged"),
+                },
+            {
+              key: "audit-verified", kind: "count",
+              label: "Audit verified", icon: CheckCircle2,
+              value: String(auditVerifiedTrips.length),
+              tone: "good",
+              caption: "Trips Audit has signed off on",
+              onClick: () => router.push("/trips/audit-verified"),
+            },
+          ]}
+        />
       </div>
 
       {/* ── Trip Sheet Tracking ─────────────────────────────────────────── */}

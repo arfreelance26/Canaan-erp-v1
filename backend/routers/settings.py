@@ -104,6 +104,30 @@ def update_max_shift_hours(
     return MaxShiftHours(hours=settings_store.staff_max_shift_hours(db))
 
 
+class AutoCloseEnabled(BaseModel):
+    enabled: bool
+
+
+@router.get("/auto-close-enabled", response_model=AutoCloseEnabled)
+def get_auto_close_enabled(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    return AutoCloseEnabled(enabled=settings_store.auto_close_shifts_enabled(db))
+
+
+@router.put("/auto-close-enabled", response_model=AutoCloseEnabled)
+def update_auto_close_enabled(
+    payload: AutoCloseEnabled,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(require_roles()),
+):
+    settings_store.set_auto_close_shifts_enabled(db, payload.enabled)
+    record_audit(
+        "attendance.auto_close_enabled", request=request, actor_id=user.id, actor_name=user.name,
+        actor_role=user.role, detail=f"enabled={payload.enabled}",
+    )
+    return AutoCloseEnabled(enabled=settings_store.auto_close_shifts_enabled(db))
+
+
 class AttendanceMandatory(BaseModel):
     mandatory: bool
 

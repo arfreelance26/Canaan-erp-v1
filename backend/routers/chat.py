@@ -31,7 +31,9 @@ rather than per-message receipt rows, which keeps them O(unread) instead of
 O(participants x messages).
 """
 import json
+import re
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
@@ -58,6 +60,12 @@ from websocket_manager import emit_to_users, manager
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 MAX_PAGE_SIZE = 100
+# How many text messages the "Links" tab will decrypt-and-scan per request
+# before giving up — links aren't indexed, so unlike Media/Docs this can't be
+# a plain WHERE content_type = ... query. Bounds worst case (a thread with
+# thousands of messages and zero links) to a fixed amount of work per page.
+MEDIA_LINK_SCAN_CAP = 500
+URL_RE = re.compile(r'(https?://|www\.)\S+', re.IGNORECASE)
 DEFAULT_PAGE_SIZE = 50
 MAX_GROUP_MEMBERS = 256
 MAX_GROUP_PHOTO_BYTES = 5 * 1024 * 1024   # 5 MB — a group icon, not a document
@@ -593,6 +601,56 @@ def list_messages(
     msgs.reverse()   # hand back in reading order
 
     return [_message_out(m) for m in msgs]
+
+
+@router.get("/conversations/{conversation_id}/media", response_model=list[schemas.ChatMessageOut])
+def list_media(
+    conversation_id: int,
+    kind: Literal["image", "file", "link"] = Query(...),
+    before_id: int | None = Query(None, description="Return items older than this message id (keyset paging)"),
+    limit: int = Query(30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Backs the Media / Links / Docs tabs on the conversation info panel — a
+    filtered view of the same message history, not a separate store.
+
+    Images and files are a plain indexed query. Links aren't a stored property
+    of a message (a URL is just text that happens to look like one), so that
+    branch decrypts text messages newest-first and regex-checks each one,
+    capped at MEDIA_LINK_SCAN_CAP per request so a long, link-free thread can't
+    turn one page load into an unbounded decrypt loop.
+    """
+    me = _me(current_user)
+    _require_participant(db, conversation_id, me)
+
+    base = db.query(models.ChatMessage).filter(
+        models.ChatMessage.conversation_id == conversation_id,
+        models.ChatMessage.deleted_at.is_(None),
+    )
+    if before_id:
+        base = base.filter(models.ChatMessage.id < before_id)
+
+    if kind in ("image", "file"):
+        rows = (
+            base.filter(models.ChatMessage.content_type == kind)
+            .order_by(models.ChatMessage.id.desc())
+            .limit(limit)
+            .all()
+        )
+        return [_message_out(m) for m in rows]
+
+    found: list[models.ChatMessage] = []
+    scanned = 0
+    q = base.filter(models.ChatMessage.content_type == "text").order_by(models.ChatMessage.id.desc())
+    for msg in q.limit(MEDIA_LINK_SCAN_CAP):
+        scanned += 1
+        text = safe_decrypt(msg.ciphertext, conversation_id=msg.conversation_id, sender_id=msg.sender_id)
+        if URL_RE.search(text):
+            found.append(msg)
+            if len(found) >= limit:
+                break
+    return [_message_out(m) for m in found]
 
 
 def _commit_new_message(

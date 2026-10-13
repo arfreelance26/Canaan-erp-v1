@@ -23,7 +23,7 @@ import {
 import { tyreApi, trucksApi, maintenanceApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
-import { StatCard } from "./StatCard";
+import { FleetStatusPanel } from "./FleetStatusPanel";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
 import { getAirFilterAlerts } from "@/lib/air-filter-alerts";
@@ -259,12 +259,42 @@ export function TyreManagerDashboard() {
       <Separator />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Boxes}        label="Total Tyres"      value={loading ? "—" : totalTyres}       variant="blue"    />
-        <StatCard icon={CircleDot}    label="Fitted on Trucks" value={loading ? "—" : fittedCount}      variant="purple"  caption={loading ? "" : `${trucks.length} trucks`} />
-        <StatCard icon={CheckCircle2} label="In Stock"         value={loading ? "—" : availableCount}   variant="emerald" caption="Ready to fit" />
-        <StatCard icon={Wrench}       label="Maint. Overdue"   value={loading ? "—" : allAlerts.length} variant={allAlerts.length > 0 ? "red" : "default"} caption={allAlerts.length > 0 ? "Needs attention" : "All clear"} />
-      </div>
+      <FleetStatusPanel
+        segments={[
+          {
+            key: "total-tyres", kind: "count",
+            label: "Total tyres", icon: Boxes,
+            value: loading ? "—" : String(totalTyres),
+          },
+          {
+            key: "fitted-on-trucks", kind: "count",
+            label: "Fitted on trucks", icon: CircleDot,
+            value: loading ? "—" : String(fittedCount),
+            caption: loading ? "" : `${trucks.length} trucks`,
+          },
+          {
+            key: "in-stock", kind: "count",
+            label: "In stock", icon: CheckCircle2,
+            value: loading ? "—" : String(availableCount),
+            tone: "good",
+            caption: "Ready to fit",
+          },
+          allAlerts.length > 0
+            ? {
+                key: "maint-overdue", kind: "alert",
+                label: "Maint. overdue", icon: Wrench,
+                value: loading ? "—" : String(allAlerts.length), active: true,
+                caption: "Needs attention",
+              }
+            : {
+                key: "maint-overdue", kind: "count",
+                label: "Maint. overdue", icon: Wrench,
+                value: loading ? "—" : String(allAlerts.length),
+                tone: "good",
+                caption: "All clear",
+              },
+        ]}
+      />
 
       {/* Quick Access */}
       <div>

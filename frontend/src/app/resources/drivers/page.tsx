@@ -19,6 +19,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
+import { useNotifications } from "@/context/NotificationContext";
+import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 
@@ -38,6 +40,12 @@ const EDIT_EVENT_COLOR: Record<DriverEditEventRow["event"], string> = {
 export default function DriversPage() {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
+  // License-expiry reminders used to only surface as "Renewals & Payments"
+  // in the Topbar bell — lives here now, where you'd actually come to
+  // update a driver's license. See routers/notifications.py's reminders
+  // endpoint: "license" kind, href already points at this page.
+  const { reminders } = useNotifications();
+  const licenseReminders = reminders.filter((r) => r.kind === "license");
   const isCommercialManagerRole = user?.softwareDesignation === "Commercial Manager";
   const isCommercialManager =
     isCommercialManagerRole || user?.softwareDesignation === "Assistant Commercial Manager";
@@ -351,6 +359,8 @@ export default function DriversPage() {
           </button>
         </div>
       </div>
+
+      <ReminderAlertBanner items={licenseReminders} />
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">

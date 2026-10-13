@@ -129,6 +129,8 @@ export const showToast = (
   message: string,
   icon: 'success' | 'error' | 'info' | 'warning' | 'chat' = 'info',
   title?: string,
+  /** Overrides the Toaster's default 6s auto-dismiss (see components/ui/toaster.tsx) for this one toast. */
+  durationMs?: number,
 ) => {
   // Defer to a macrotask (not just a microtask): base-ui's Toast.Root calls
   // flushSync internally when a toast is added. A microtask can still run inside
@@ -139,6 +141,7 @@ export const showToast = (
       title: title ?? message,
       description: title ? message : undefined,
       type: icon,
+      ...(durationMs != null ? { timeout: durationMs } : {}),
     });
   }, 0);
 };

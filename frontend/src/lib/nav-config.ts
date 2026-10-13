@@ -51,6 +51,7 @@ import {
   Flag,
   BadgeCheck,
   Monitor,
+  Bell,
   type LucideIcon,
 } from "lucide-react";
 
@@ -76,6 +77,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Mark Attendance", href: "/attendance/mark", icon: UserCheck },
       { label: "Leave Requests", href: "/attendance/leave-requests", icon: Send },
       { label: "Edit & Delete Requests", href: "/personal/edit-delete-requests", icon: FileCheck },
+      { label: "Notifications", href: "/personal/notifications", icon: Bell },
     ],
   },
   {
@@ -95,6 +97,14 @@ export const sidebarSections: NavSection[] = [
       { label: "Truck EMI Record", href: "/finance/truck-emi-record", icon: Landmark },
       { label: "Truck Compliance Record", href: "/maintenance/truck-compliance-record", icon: ShieldCheck },
       { label: "Customer Profitability Analytics", href: "/insights/customer-profitability-analytics", icon: LineChart },
+    ],
+  },
+  {
+    title: "Monitoring",
+    items: [
+      { label: "SW Usage Analytics", href: "/admin/usage-analytics", icon: Monitor },
+      { label: "Activity Log", href: "/admin/activity-log", icon: Activity },
+      { label: "Security Log", href: "/admin/security", icon: Lock },
     ],
   },
   {
@@ -191,9 +201,6 @@ export const sidebarSections: NavSection[] = [
       { label: "Tyre Range Configuration", href: "/admin/tyre-range-config", icon: CircleDot },
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
       { label: "Default Batta Management", href: "/admin/default-batta", icon: Coins },
-      { label: "Security Log", href: "/admin/security", icon: Lock },
-      { label: "SW Usage Analytics", href: "/admin/usage-analytics", icon: Monitor },
-      { label: "Activity Log", href: "/admin/activity-log", icon: Activity },
     ],
   },
 ];

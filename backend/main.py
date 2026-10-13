@@ -500,6 +500,13 @@ def _run_schema_migrations():
         "ENUM('Booking Created','Booking Edited','Trip Sheet Saved','Trip Updated',"
         "'Trip Closed','Verification Confirmed','Verification Rejected',"
         "'Trip Deleted','Trip Restored') NOT NULL",
+        # Event Management — "Mark as Completed" (any participant) moves a meeting
+        # from Upcoming into the History tab (own history for everyone, all-users
+        # history for Admin).
+        "ALTER TABLE events ADD COLUMN completed_at DATETIME NULL",
+        "ALTER TABLE events ADD COLUMN completed_by INT NULL",
+        "ALTER TABLE events ADD COLUMN completed_by_name VARCHAR(100) NULL",
+        "CREATE INDEX IF NOT EXISTS ix_event_completed_at ON events (completed_at)",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -921,12 +928,15 @@ def _run_staff_history_migrations():
             "ALTER TABLE staff_attendance ADD COLUMN auto_closed BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE staff_attendance ADD COLUMN closed_by VARCHAR(10) NULL",
             "ALTER TABLE trips ADD COLUMN use_yard_cfs BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE trips ADD COLUMN use_custom_route BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type "
             "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory','CfsYardEntry') NOT NULL",
             "ALTER TABLE tyre_movement_events ADD COLUMN retread_done_by VARCHAR(200) NULL",
             "ALTER TABLE activity_minutes ADD COLUMN first_at DATETIME NULL",
             "ALTER TABLE activity_minutes ADD COLUMN last_at DATETIME NULL",
             "ALTER TABLE cfs_yard_entries ADD COLUMN deleted_at DATETIME NULL",
+            "ALTER TABLE deletion_approval_requests ADD COLUMN requester_seen_at DATETIME NULL",
+            "ALTER TABLE edit_approval_requests ADD COLUMN requester_seen_at DATETIME NULL",
         ):
             # Re-running is expected on every deploy; only "already exists" is ignored.
             try:
@@ -1413,6 +1423,37 @@ async def _startup():
     auto_close_worker.start()
     import activity_tracker
     activity_tracker.start()
+    import event_reminder_worker
+    event_reminder_worker.start()
+
+# Production (cPanel/Phusion Passenger, see passenger_asgi.py) spawns worker
+# processes by forking a single preloaded template process ("smart spawning",
+# Passenger's default). Python threads do not survive fork() — a background
+# thread started before the fork (e.g. by the ASGI startup event above, if it
+# happens to run in the template rather than per-worker) simply does not
+# exist in the forked child, so activity_tracker's flush loop and
+# auto_close_worker's shift-closing loop would silently never run in that
+# worker: requests still get handled, events still queue in memory, nothing
+# ever reaches the database. Passenger's starting_worker_process hook exists
+# specifically to re-initialize things like this after every fork — both
+# .start() calls are idempotent (see their own _started guards), so calling
+# them again here is always safe, whether or not the ASGI startup event also
+# fired in this same process. A complete no-op outside Passenger (e.g. local
+# `uvicorn main:app` dev) since phusion_passenger isn't importable there.
+try:
+    import phusion_passenger
+
+    def _passenger_starting_worker_process(forked):
+        import auto_close_worker
+        auto_close_worker.start()
+        import activity_tracker
+        activity_tracker.start()
+        import event_reminder_worker
+        event_reminder_worker.start()
+
+    phusion_passenger.on_event("starting_worker_process", _passenger_starting_worker_process)
+except ImportError:
+    pass
 
 # HIGH-2: CORS origins come from the environment. Wildcard is allowed only when
 # CORS_ORIGINS is literally "*" (development). Production must set the real origin(s).
@@ -1567,6 +1608,10 @@ app.include_router(maintenance_categories.router, dependencies=AUTH)
 app.include_router(usage_analytics.router, dependencies=AUTH)
 from routers import activity as _activity_router
 app.include_router(_activity_router.router, dependencies=AUTH)
+from routers import room_summon
+app.include_router(room_summon.router, dependencies=AUTH)
+from routers import events as _events_router
+app.include_router(_events_router.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

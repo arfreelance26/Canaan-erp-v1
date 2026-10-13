@@ -195,6 +195,25 @@ def get_my_requests(
     return _drop_invalid_resource_type(rows)
 
 
+@router.post("/mine/mark-seen")
+def mark_my_edit_requests_seen(
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Clears the Topbar bell badge for this user's decided edit requests —
+    called when they open the bell or visit "Edit & Delete Requests"."""
+    if current_user.id is None:
+        return {"ok": True}
+    now = datetime.now(timezone.utc)
+    db.query(models.EditApprovalRequest).filter(
+        models.EditApprovalRequest.staff_db_id == current_user.id,
+        models.EditApprovalRequest.status != "Pending",
+        models.EditApprovalRequest.requester_seen_at.is_(None),
+    ).update({"requester_seen_at": now}, synchronize_session=False)
+    db.commit()
+    return {"ok": True}
+
+
 @router.patch("/{request_id}/approve", response_model=schemas.EditApprovalRequestOut)
 def approve_edit_request(
     request_id: int,

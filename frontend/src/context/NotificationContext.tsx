@@ -62,6 +62,21 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     user?.softwareDesignation === "Assistant Commercial Manager" ||
     user?.softwareDesignation === "Accounts";
 
+  // The provider is mounted once in the root layout and stays mounted across
+  // a logout→login cycle (logout is a client-side route replace, not a page
+  // reload — see AppShell), so without this, whatever an eligible role last
+  // fetched here (sheet/KM-variance alerts, reminders, compliance count)
+  // would keep leaking into the next, ineligible role that logs in on the
+  // same tab (e.g. Trip Sheet Register seeing an Admin's stale Renewals &
+  // Payments) until a hard refresh happened to clear React state.
+  useEffect(() => {
+    if (canReceive) return;
+    setSheetAlerts([]);
+    setKmVarianceAlerts([]);
+    setReminders([]);
+    setComplianceAlertCount(0);
+  }, [canReceive]);
+
   // Server-backed: fetch on login, poll every 20s, and refetch instantly when
   // the WebSocket reports a data change — works even if the socket is down.
   useEffect(() => {

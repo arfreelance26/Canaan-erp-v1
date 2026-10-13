@@ -36,6 +36,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/admin/repairs",
     "/admin/default-batta",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
   // Assistant Commercial Manager has EQUAL access to Commercial Manager.
   "Assistant Commercial Manager": [
@@ -58,6 +59,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/admin/repairs",
     "/admin/default-batta",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
   Accounts: [
     "/",
@@ -74,6 +76,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/payment-requests",
     "/admin/sac-codes",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
   Maintenance: [
     "/",
@@ -92,6 +95,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/mark",
     "/attendance/leave-requests",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
   "Yard Supervisor": [
     "/connect/chat",
@@ -100,6 +104,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
     "/admin/repairs",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
   "Trip Sheet Register": [
     "/connect/chat",
@@ -110,6 +115,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/leave-requests",
     "/admin/repairs",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
   // Auditor gets a bare dashboard + chat + their own Driver Record.
   Auditor: [
@@ -117,6 +123,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/connect/chat",
     "/resources/driver-record",
     "/personal/edit-delete-requests",
+    "/personal/notifications",
   ],
 };
 
@@ -404,7 +411,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                 A small waypoint dot precedes the label — ties section headers
                 to the same "route" language as the nav rail below. */}
             {!collapsed && (
-              <p className="flex items-center gap-1.5 px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-blue-600">
+              <p className="flex items-center gap-1.5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600/90">
                 <span className="h-1 w-1 shrink-0 rounded-full bg-blue-300" />
                 {section.title}
               </p>
@@ -440,7 +447,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                         // it would force a layout reflow on every item, every frame,
                         // for the whole 300ms the sidebar width is animating.
                         "relative flex items-center rounded-lg transition-[color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5",
-                        collapsed ? "justify-center px-0 py-2" : "gap-2.5 py-1.5 pl-4 pr-2.5 text-[14px] font-medium",
+                        collapsed ? "justify-center px-0 py-2" : "gap-2.5 py-1.5 pl-4 pr-2.5 text-[14px] font-medium tracking-[-0.006em]",
                         isActive
                           ? "text-gray-900 font-semibold"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -457,8 +464,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                       {/* Label — opacity-only fade; the real clip comes for free
                           from the parent Link's own (already-animating) width. */}
                       {!collapsed && (
-                        <span className="flex-1 truncate opacity-100 transition-opacity duration-200">
-                          {item.label}
+                        <span className="flex flex-1 items-center gap-1.5 truncate opacity-100 transition-opacity duration-200">
+                          <span className="truncate">{item.label}</span>
+                          {/* A pulsing dot catches the eye even before the
+                              number registers — same ping-ring device as
+                              "Current Trips"'s live indicator, not a new motif. */}
+                          {badge > 0 && (
+                            <span className="relative flex h-2 w-2 shrink-0">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                            </span>
+                          )}
                         </span>
                       )}
                       {/* Badge count pill */}
@@ -469,7 +485,10 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                       )}
                       {/* Badge dot — only when collapsed */}
                       {badge > 0 && collapsed && (
-                        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
+                        <span className="absolute right-1.5 top-1.5 flex h-2.5 w-2.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                        </span>
                       )}
                     </Link>
                   </li>
@@ -506,9 +525,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
           {!collapsed && (
             <>
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                <span className="truncate text-[13px] font-semibold leading-tight text-gray-900">{user?.name ?? "—"}</span>
+                <span className="truncate text-[14px] font-semibold leading-tight tracking-[-0.01em] text-gray-900">{user?.name ?? "—"}</span>
                 <span className={cn(
-                  "mt-0.5 inline-flex w-fit items-center truncate rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                  "mt-1 inline-flex w-fit items-center truncate rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]",
                   ROLE_ACCENT[user?.softwareDesignation ?? ""] ?? "bg-blue-50 text-blue-600"
                 )}>
                   {user?.softwareDesignation ?? ""}

@@ -22,4 +22,7 @@ export type EditApprovalRequest = {
   // Set the moment the staff member actually saves an edit under this
   // approval — null means it's approved but the user hasn't acted on it yet.
   usedAt: string | null;
+  // Set once the requester has been shown this decision (Topbar bell) —
+  // null means a decided request is still unseen by them.
+  requesterSeenAt: string | null;
 };

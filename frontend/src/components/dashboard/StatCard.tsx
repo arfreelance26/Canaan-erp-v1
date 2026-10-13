@@ -14,59 +14,54 @@ type StatCardProps = {
   trend?: { delta: number; label: string };
 };
 
-const VARIANTS: Record<
-  StatCardVariant,
-  { card: string; icon: string; label: string; value: string; caption: string }
-> = {
-  default: {
-    card:    "border-gray-200 bg-white",
-    icon:    "text-gray-400",
-    label:   "text-gray-400",
-    value:   "text-gray-900",
-    caption: "text-gray-500",
-  },
-  blue: {
-    card:    "border-blue-200 bg-blue-50",
-    icon:    "text-blue-500",
-    label:   "text-blue-500",
-    value:   "text-blue-800",
-    caption: "text-blue-600/80",
-  },
-  emerald: {
-    card:    "border-emerald-200 bg-emerald-50",
-    icon:    "text-emerald-500",
-    label:   "text-emerald-600",
-    value:   "text-emerald-800",
-    caption: "text-emerald-600/80",
-  },
-  amber: {
-    card:    "border-amber-200 bg-amber-50",
-    icon:    "text-amber-500",
-    label:   "text-amber-600",
-    value:   "text-amber-800",
-    caption: "text-amber-600/80",
-  },
-  red: {
-    card:    "border-red-200 bg-red-50",
-    icon:    "text-red-500",
-    label:   "text-red-600",
-    value:   "text-red-700",
-    caption: "text-red-600/80",
-  },
-  purple: {
-    card:    "border-purple-200 bg-purple-50",
-    icon:    "text-purple-500",
-    label:   "text-purple-600",
-    value:   "text-purple-800",
-    caption: "text-purple-600/80",
-  },
-  indigo: {
-    card:    "border-indigo-200 bg-indigo-50",
-    icon:    "text-indigo-500",
-    label:   "text-indigo-600",
-    value:   "text-indigo-800",
-    caption: "text-indigo-600/80",
-  },
+// Every variant used to tint the whole card — six stat cards side by side
+// each shouting a different color, with nothing to tell a routine number
+// (Customers, Monthly Fixed) apart from a genuine alert (Urgent Alerts).
+// Now only the icon chip carries the category color (same small-badge
+// language as every page header elsewhere in the app); the card itself
+// stays on the same neutral white surface as the rest of the UI, and the
+// number is always plain dark gray — that's the thing someone's actually
+// reading, it doesn't need to compete with its own card for attention.
+//
+// "red" is the one deliberate exception: callers only pass it when there's
+// something to actually be alarmed about (see page.tsx's Urgent Alerts /
+// Flagged Trips — variant is chosen FROM the real count, not hardcoded), so
+// it keeps the full tint. That's what makes it register as an alert instead
+// of just another one of six identically-loud boxes.
+//
+// The icon chip is a flat, fuller tint (not the pale gradient-to-white
+// page-header version) and each card gets a thin colored rail on its left
+// edge — same "active route" motif the Sidebar uses — so every card still
+// carries its own color identity at a glance without going back to fully
+// painting the card.
+const ICON_CHIP: Record<StatCardVariant, string> = {
+  default: "border-gray-200 bg-gray-100 text-gray-500",
+  blue:    "border-blue-200 bg-blue-100 text-blue-600",
+  emerald: "border-emerald-200 bg-emerald-100 text-emerald-600",
+  amber:   "border-amber-200 bg-amber-100 text-amber-600",
+  red:     "border-red-200 bg-red-100 text-red-600",
+  purple:  "border-purple-200 bg-purple-100 text-purple-600",
+  indigo:  "border-indigo-200 bg-indigo-100 text-indigo-600",
+};
+
+const RAIL: Record<StatCardVariant, string> = {
+  default: "bg-gray-300",
+  blue:    "bg-blue-500",
+  emerald: "bg-emerald-500",
+  amber:   "bg-amber-500",
+  red:     "bg-red-500",
+  purple:  "bg-purple-500",
+  indigo:  "bg-indigo-500",
+};
+
+const HOVER_RING: Record<StatCardVariant, string> = {
+  default: "hover:ring-gray-400",
+  blue:    "hover:ring-blue-400",
+  emerald: "hover:ring-emerald-400",
+  amber:   "hover:ring-amber-400",
+  red:     "hover:ring-red-400",
+  purple:  "hover:ring-purple-400",
+  indigo:  "hover:ring-indigo-400",
 };
 
 export function StatCard({
@@ -78,33 +73,37 @@ export function StatCard({
   onClick,
   trend,
 }: StatCardProps) {
-  const s = VARIANTS[variant];
+  const alert = variant === "red";
   return (
     <div
       className={cn(
-        "rounded-xl border p-5 transition-shadow",
-        s.card,
-        onClick ? "cursor-pointer hover:shadow-md hover:ring-2 hover:ring-offset-1" : "",
-        onClick && variant === "blue"    ? "hover:ring-blue-400"    : "",
-        onClick && variant === "emerald" ? "hover:ring-emerald-400" : "",
-        onClick && variant === "amber"   ? "hover:ring-amber-400"   : "",
-        onClick && variant === "red"     ? "hover:ring-red-400"     : "",
-        onClick && variant === "purple"  ? "hover:ring-purple-400"  : "",
-        onClick && variant === "indigo"  ? "hover:ring-indigo-400"  : "",
-        onClick && variant === "default" ? "hover:ring-gray-400"    : "",
+        "relative overflow-hidden rounded-xl border p-5 pl-6 transition-shadow",
+        alert ? "border-red-200 bg-red-50" : "border-gray-200 bg-white",
+        onClick ? cn("cursor-pointer hover:shadow-md hover:ring-2 hover:ring-offset-1", HOVER_RING[variant]) : "",
       )}
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") onClick(); } : undefined}
     >
+      <span className={cn("absolute left-0 top-0 h-full w-1", RAIL[variant])} />
       <div className="flex items-center justify-between">
-        <p className={cn("text-xs font-semibold tracking-wider uppercase", s.label)}>
+        <p className={cn(
+          "text-xs font-semibold tracking-wider uppercase",
+          alert ? "text-red-600" : "text-gray-400"
+        )}>
           {label}
         </p>
-        <Icon className={cn("h-5 w-5 shrink-0", s.icon)} />
+        <span className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border shadow-sm",
+          ICON_CHIP[variant]
+        )}>
+          <Icon className="h-4 w-4" />
+        </span>
       </div>
-      <p className={cn("mt-2 text-4xl font-bold leading-none", s.value)}>{value}</p>
+      <p className={cn("mt-2 text-4xl font-bold leading-none", alert ? "text-red-700" : "text-gray-900")}>
+        {value}
+      </p>
       {trend && (
         <p className={cn(
           "mt-1.5 flex items-center gap-1 text-xs font-medium",
@@ -116,7 +115,7 @@ export function StatCard({
           {trend.delta >= 0 ? "+" : ""}{trend.delta} {trend.label}
         </p>
       )}
-      {caption && <p className={cn("mt-1 text-sm", s.caption)}>{caption}</p>}
+      {caption && <p className={cn("mt-1 text-sm", alert ? "text-red-600/80" : "text-gray-500")}>{caption}</p>}
     </div>
   );
 }

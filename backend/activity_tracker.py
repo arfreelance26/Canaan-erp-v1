@@ -37,6 +37,8 @@ _ID_SEGMENT = re.compile(
 )
 
 _lock = threading.Lock()
+_started = False
+_started_lock = threading.Lock()
 _events: deque = deque()
 # (user_key, user_name, route, minute) -> [count, first_at, last_at]
 _reads: dict = {}
@@ -240,6 +242,15 @@ def _flush_at_exit() -> None:
 
 
 def start() -> None:
+    """Idempotent — safe to call more than once in the same process (e.g. once
+    from FastAPI's ASGI startup event, once from the Phusion Passenger
+    starting_worker_process fork hook in main.py). Only the first call in a
+    given process actually launches the thread."""
+    global _started
+    with _started_lock:
+        if _started:
+            return
+        _started = True
     threading.Thread(target=_loop, name="activity-tracker", daemon=True).start()
     atexit.register(_flush_at_exit)
 

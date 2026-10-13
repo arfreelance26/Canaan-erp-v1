@@ -21,8 +21,10 @@ export function ComplianceAlertBanner({
 }: {
   expired: Item[];
   expiringSoon: Item[];
-  href: string;
-  actionLabel: string;
+  /** Omit both href and actionLabel to render without an action button —
+   * for a page the alert already lives on. */
+  href?: string;
+  actionLabel?: string;
 }) {
   const router = useRouter();
   if (expired.length === 0 && expiringSoon.length === 0) return null;
@@ -58,17 +60,19 @@ export function ComplianceAlertBanner({
             {hasExpired ? "Renewal required" : "Renew soon"} · {truckCount} truck{truckCount === 1 ? "" : "s"} affected
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push(href)}
-          className={cn(
-            "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md",
-            hasExpired ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"
-          )}
-        >
-          {actionLabel}
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
+        {actionLabel && href && (
+          <button
+            type="button"
+            onClick={() => router.push(href)}
+            className={cn(
+              "flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md",
+              hasExpired ? "bg-red-600 hover:bg-red-700" : "bg-amber-600 hover:bg-amber-700"
+            )}
+          >
+            {actionLabel}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       <div className={cn("flex flex-col gap-2.5 border-t px-5 py-3", hasExpired ? "border-red-100" : "border-amber-100")}>

@@ -501,6 +501,7 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   isInvoiced: false,
   invoiceRequired: true,
   useYardCfs: false,
+  useCustomRoute: false,
   invoiceWaived: false,
   isCombinedInvoice: false,
   driverName: null,
@@ -1313,7 +1314,12 @@ export function TripFormDialog({
     }
 
     if (!isShifting && (!form.origin || !form.destination)) {
-      await showError("Please select a route from Available Routes.", "Route Required");
+      await showError(
+        form.useCustomRoute
+          ? "Please enter both Origin and Destination Location."
+          : "Please select a route from Available Routes.",
+        "Route Required"
+      );
       return;
     }
 
@@ -1726,6 +1732,24 @@ export function TripFormDialog({
                   />
                 </button>
               </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                Use Custom Input
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={form.useCustomRoute}
+                  onClick={() => update("useCustomRoute", !form.useCustomRoute)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    form.useCustomRoute ? "bg-blue-600" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      form.useCustomRoute ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              </label>
               {form.useYardCfs && (
                 <div className="flex items-center gap-2">
                   <button
@@ -1750,8 +1774,8 @@ export function TripFormDialog({
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
 
-            {/* Available Routes — always visible except for Shifting trips */}
-            {!isShifting && (
+            {/* Available Routes — hidden for Shifting trips or when Custom Input is on */}
+            {!isShifting && !form.useCustomRoute && (
               <div className="sm:col-span-2">
                 <Field label="Available Routes">
                   {availableRoutes.length === 0 ? (
@@ -1866,6 +1890,18 @@ export function TripFormDialog({
                   />
                   <span className="mt-1 text-xs text-blue-600">Export trips — origin restricted to Tuticorin or Chennai</span>
                 </>
+              ) : form.useCustomRoute ? (
+                <>
+                  <input
+                    type="text"
+                    required
+                    value={form.origin}
+                    onChange={(e) => update("origin", e.target.value)}
+                    className={inputClass}
+                    placeholder="Enter origin location"
+                  />
+                  <span className="mt-1 text-xs text-blue-600">Custom Input — enter origin manually, no auto-fill from customer</span>
+                </>
               ) : (
                 <>
                   <div className={`${inputClass} flex cursor-not-allowed items-center bg-gray-50 text-gray-700`}>
@@ -1892,6 +1928,18 @@ export function TripFormDialog({
                     placeholder="Enter destination location"
                   />
                   <span className="mt-1 text-xs text-amber-600">Shifting trips — enter destination manually, no auto-fill from customer</span>
+                </>
+              ) : form.useCustomRoute ? (
+                <>
+                  <input
+                    type="text"
+                    required
+                    value={form.destination}
+                    onChange={(e) => update("destination", e.target.value)}
+                    className={inputClass}
+                    placeholder="Enter destination location"
+                  />
+                  <span className="mt-1 text-xs text-blue-600">Custom Input — enter destination manually, no auto-fill from customer</span>
                 </>
               ) : (
                 <>

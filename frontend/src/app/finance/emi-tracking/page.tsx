@@ -22,6 +22,8 @@ import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
+import { useNotifications } from "@/context/NotificationContext";
+import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 
 const EDIT_EVENT_ICON: Record<EmiRecordEditEventRow["event"], typeof Plus> = {
   "EMI Created": Plus,
@@ -45,6 +47,11 @@ function formatCurrency(amount: number): string {
 export default function EmiTrackingPage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  // Recurring-payment reminders used to only surface as "Renewals &
+  // Payments" in the Topbar bell — lives here now, same reasoning as the
+  // other relocated reminder categories.
+  const { reminders } = useNotifications();
+  const recurringReminders = reminders.filter((r) => r.kind === "recurring");
   const [records, setRecords] = useState<EmiRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
@@ -208,6 +215,8 @@ export default function EmiTrackingPage() {
           </button>
         </div>
       </div>
+
+      <ReminderAlertBanner items={recurringReminders} />
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search EMIs..." value={searchQuery} onChange={setSearchQuery} />

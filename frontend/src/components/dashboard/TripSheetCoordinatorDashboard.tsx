@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { tripsApi } from "@/lib/api";
 import { CurrentTripsCard } from "./CurrentTripsCard";
-import { StatCard } from "./StatCard";
+import { FleetStatusPanel } from "./FleetStatusPanel";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -135,12 +135,36 @@ export function TripSheetCoordinatorDashboard() {
       <Separator />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Layers}       label="Total Closed Trips" value={loading ? "—" : closedTrips.length}    variant="blue"    caption="Ready for collection" />
-        <StatCard icon={Clock}        label="Pending Collection" value={loading ? "—" : pending.length}        variant={pending.length > 0 ? "amber" : "default"} caption="Sheets not yet received" />
-        <StatCard icon={CheckCircle2} label="Delivered"          value={loading ? "—" : delivered.length}      variant="emerald" caption="Sheets handed over" />
-        <StatCard icon={CalendarDays} label="Delivered Today"    value={loading ? "—" : deliveredToday.length} variant="purple"  caption={new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-")} />
-      </div>
+      <FleetStatusPanel
+        segments={[
+          {
+            key: "total-closed-trips", kind: "count",
+            label: "Total closed trips", icon: Layers,
+            value: loading ? "—" : String(closedTrips.length),
+            caption: "Ready for collection",
+          },
+          {
+            key: "pending-collection", kind: "count",
+            label: "Pending collection", icon: Clock,
+            value: loading ? "—" : String(pending.length),
+            tone: pending.length > 0 ? "warn" : "neutral",
+            caption: "Sheets not yet received",
+          },
+          {
+            key: "delivered", kind: "count",
+            label: "Delivered", icon: CheckCircle2,
+            value: loading ? "—" : String(delivered.length),
+            tone: "good",
+            caption: "Sheets handed over",
+          },
+          {
+            key: "delivered-today", kind: "count",
+            label: "Delivered today", icon: CalendarDays,
+            value: loading ? "—" : String(deliveredToday.length),
+            caption: new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"),
+          },
+        ]}
+      />
 
       {/* Quick Access */}
       <div>

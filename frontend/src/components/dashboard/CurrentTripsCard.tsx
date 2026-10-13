@@ -16,18 +16,22 @@ const STAGE_ORDER = [
   "Completed", "Pending Sheet Delivery", "Pending Sheet Entry", "Pending Verification", "Ready to Invoice",
 ] as const;
 
+// Unselected tabs — pale tints, not alert-saturated ones: this is a filter
+// row someone glances past, not a status badge meant to grab attention. The
+// selected state (STAGE_ACTIVE_CLASSES below) still goes solid, so the
+// active filter stays unambiguous.
 const STAGE_CLASSES: Record<string, string> = {
-  "Assigned":                "bg-sky-100 text-sky-700",
-  "Started":                 "bg-violet-100 text-violet-700",
-  "Loaded":                  "bg-violet-100 text-violet-700",
-  "On-Transit":              "bg-violet-100 text-violet-700",
-  "Reached":                 "bg-violet-100 text-violet-700",
-  "Unloaded":                "bg-violet-100 text-violet-700",
-  "Completed":               "bg-teal-100 text-teal-700",
-  "Pending Sheet Delivery":  "bg-amber-100 text-amber-700",
-  "Pending Sheet Entry":     "bg-orange-100 text-orange-700",
-  "Pending Verification":    "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300",
-  "Ready to Invoice":        "bg-emerald-100 text-emerald-700",
+  "Assigned":                "bg-sky-50 text-sky-700",
+  "Started":                 "bg-violet-50 text-violet-700",
+  "Loaded":                  "bg-violet-50 text-violet-700",
+  "On-Transit":              "bg-violet-50 text-violet-700",
+  "Reached":                 "bg-violet-50 text-violet-700",
+  "Unloaded":                "bg-violet-50 text-violet-700",
+  "Completed":               "bg-teal-50 text-teal-700",
+  "Pending Sheet Delivery":  "bg-amber-50 text-amber-700",
+  "Pending Sheet Entry":     "bg-orange-50 text-orange-700",
+  "Pending Verification":    "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/20 dark:text-fuchsia-300",
+  "Ready to Invoice":        "bg-emerald-50 text-emerald-700",
 };
 
 // Selected state: the soft tint above turns into a solid fill.

@@ -33,6 +33,8 @@ import {
   IndianRupee,
   Camera,
   KeyRound,
+  ArrowLeft,
+  ExternalLink,
 } from "lucide-react";
 import { chatApi, chatOwnerApi, toChatMessage } from "@/lib/api";
 import { OwnerViewDialog, type OwnerViewToken } from "@/components/chat/OwnerViewDialog";
@@ -629,6 +631,207 @@ function PaymentBubble({
   );
 }
 
+/** Matches the backend's own URL_RE (routers/chat.py) — used only to find and
+ * underline the link within a message's text, the actual filtering already
+ * happened server-side. */
+const CLIENT_URL_RE = /(https?:\/\/|www\.)\S+/i;
+
+function extractFirstUrl(text: string): string | null {
+  const m = text.match(CLIENT_URL_RE);
+  if (!m) return null;
+  return m[0].startsWith("www.") ? `https://${m[0]}` : m[0];
+}
+
+/** A small square thumbnail for the Media grid — same lazy authenticated-blob
+ * fetch as ImageBubble, just sized for a grid cell instead of a chat bubble. */
+function MediaThumbnail({ message, onOpen }: { message: ChatMessage; onOpen: (url: string, name: string) => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const urlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    chatApi
+      .getAttachmentBlobUrl(message.id)
+      .then((blobUrl) => {
+        if (cancelled) {
+          URL.revokeObjectURL(blobUrl);
+          return;
+        }
+        urlRef.current = blobUrl;
+        setUrl(blobUrl);
+      })
+      .catch(() => setFailed(true));
+    return () => {
+      cancelled = true;
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+  }, [message.id]);
+
+  if (failed) {
+    return (
+      <div className="flex aspect-square items-center justify-center rounded-lg bg-gray-100 text-gray-400">
+        <ImageIcon className="h-4 w-4" />
+      </div>
+    );
+  }
+  if (!url) {
+    return (
+      <div className="flex aspect-square items-center justify-center rounded-lg bg-gray-100">
+        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={message.mediaFilename ?? "Photo"}
+      onClick={() => onOpen(url, message.mediaFilename ?? "photo")}
+      className="aspect-square w-full cursor-pointer rounded-lg object-cover transition-opacity hover:opacity-90"
+    />
+  );
+}
+
+/** One row of the Docs list — name/size/sender, download on click. */
+function MediaDocRow({ message }: { message: ChatMessage }) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const url = await chatApi.getAttachmentBlobUrl(message.id);
+      triggerBlobDownload(url, message.mediaFilename ?? "attachment");
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Could not download this file.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleDownload}
+      disabled={downloading}
+      className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-gray-50 disabled:opacity-70"
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-navy/10">
+        <FileIcon className="h-4 w-4 text-brand-navy" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-gray-800">{message.mediaFilename ?? "Attachment"}</p>
+        <p className="text-xs text-gray-500">
+          {message.senderName ?? "Unknown"} · {formatFileSize(message.mediaSize)}
+        </p>
+      </div>
+      {downloading ? (
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+      ) : (
+        <Download className="h-4 w-4 shrink-0 text-gray-400" />
+      )}
+    </button>
+  );
+}
+
+/** One row of the Links list — the message's text with its URL underlined, opens in a new tab. */
+function MediaLinkRow({ message }: { message: ChatMessage }) {
+  const url = extractFirstUrl(message.text);
+  return (
+    <a
+      href={url ?? undefined}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-gray-50"
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-navy/10">
+        <Link2 className="h-4 w-4 text-brand-navy" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-blue-600 underline-offset-2 hover:underline">{url ?? message.text}</p>
+        <p className="truncate text-xs text-gray-500">{message.senderName ?? "Unknown"} · {dayLabel(message.createdAt)}</p>
+      </div>
+      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-gray-300" />
+    </a>
+  );
+}
+
+/** Backs the Media / Links / Docs tabs in the group info panel — same list for
+ * all three kinds, shaped per `kind`. */
+function MediaListView({
+  kind,
+  items,
+  loading,
+  loadingMore,
+  hasMore,
+  onLoadMore,
+  onOpenImage,
+}: {
+  kind: "image" | "file" | "link";
+  items: ChatMessage[];
+  loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  onOpenImage: (url: string, name: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-brand-navy" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    const Icon = kind === "image" ? ImageIcon : kind === "file" ? FileText : Link2;
+    const label = kind === "image" ? "photos or videos" : kind === "file" ? "documents" : "links";
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+        <Icon className="h-7 w-7 text-gray-300" />
+        <p className="text-xs text-gray-400">No {label} shared in this conversation yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-3">
+      {kind === "image" ? (
+        <div className="grid grid-cols-3 gap-1.5">
+          {items.map((m) => (
+            <MediaThumbnail key={m.id} message={m} onOpen={onOpenImage} />
+          ))}
+        </div>
+      ) : kind === "file" ? (
+        <div className="flex flex-col gap-0.5">
+          {items.map((m) => (
+            <MediaDocRow key={m.id} message={m} />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-0.5">
+          {items.map((m) => (
+            <MediaLinkRow key={m.id} message={m} />
+          ))}
+        </div>
+      )}
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold text-brand-navy transition-colors hover:bg-gray-50 disabled:opacity-60"
+        >
+          {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function CanaanChatPage() {
   const { user } = useAuth();
   const myId = user?.id ?? null;
@@ -734,6 +937,13 @@ export default function CanaanChatPage() {
   const [addingMembers, setAddingMembers] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [leavingGroup, setLeavingGroup] = useState(false);
+
+  // -- Media / Links / Docs tabs (inside group info) ----------------------
+  const [mediaTab, setMediaTab] = useState<"image" | "file" | "link" | null>(null);
+  const [mediaItems, setMediaItems] = useState<ChatMessage[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
+  const [hasMoreMedia, setHasMoreMedia] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const groupTitleInputRef = useRef<HTMLInputElement>(null);
@@ -1648,6 +1858,45 @@ export default function CanaanChatPage() {
     setEditingTitle(false);
     setShowAddMembers(false);
     setAddMemberIds([]);
+    closeMediaTab();
+  }
+
+  async function openMediaTab(kind: "image" | "file" | "link") {
+    if (!groupDetail) return;
+    setMediaTab(kind);
+    setMediaItems([]);
+    setHasMoreMedia(false);
+    setLoadingMedia(true);
+    try {
+      const items = await chatApi.listMedia(groupDetail.id, kind, { limit: 30 });
+      setMediaItems(items);
+      setHasMoreMedia(items.length === 30);
+    } catch {
+      showError("Could not load this.");
+    } finally {
+      setLoadingMedia(false);
+    }
+  }
+
+  function closeMediaTab() {
+    setMediaTab(null);
+    setMediaItems([]);
+    setHasMoreMedia(false);
+  }
+
+  async function loadMoreMedia() {
+    if (!groupDetail || !mediaTab || loadingMoreMedia || mediaItems.length === 0) return;
+    setLoadingMoreMedia(true);
+    try {
+      const oldestId = mediaItems[mediaItems.length - 1].id;
+      const items = await chatApi.listMedia(groupDetail.id, mediaTab, { beforeId: oldestId, limit: 30 });
+      setMediaItems((prev) => [...prev, ...items]);
+      setHasMoreMedia(items.length === 30);
+    } catch {
+      showError("Could not load more.");
+    } finally {
+      setLoadingMoreMedia(false);
+    }
   }
 
   async function handleSaveTitle() {
@@ -2401,18 +2650,30 @@ export default function CanaanChatPage() {
             <div className="flex shrink-0 items-center gap-3 bg-brand-navy px-4 py-3">
               <button
                 type="button"
-                onClick={closeGroupInfo}
+                onClick={mediaTab ? closeMediaTab : closeGroupInfo}
                 className="rounded-lg p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               >
-                <X className="h-4 w-4" />
+                {mediaTab ? <ArrowLeft className="h-4 w-4" /> : <X className="h-4 w-4" />}
               </button>
-              <h2 className="text-sm font-bold text-white">Group Info</h2>
+              <h2 className="text-sm font-bold text-white">
+                {mediaTab === "image" ? "Media" : mediaTab === "file" ? "Docs" : mediaTab === "link" ? "Links" : "Group Info"}
+              </h2>
             </div>
 
             {loadingGroupDetail || !groupDetail ? (
               <div className="flex flex-1 items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-brand-navy" />
               </div>
+            ) : mediaTab ? (
+              <MediaListView
+                kind={mediaTab}
+                items={mediaItems}
+                loading={loadingMedia}
+                loadingMore={loadingMoreMedia}
+                hasMore={hasMoreMedia}
+                onLoadMore={loadMoreMedia}
+                onOpenImage={(url, name) => setLightbox({ url, name })}
+              />
             ) : (
               <div className="flex-1 overflow-y-auto">
                 {/* Identity */}
@@ -2509,18 +2770,22 @@ export default function CanaanChatPage() {
                   </p>
                 </div>
 
-                {/* Media, links, docs — no attachment backend yet, so shown as empty */}
+                {/* Media, links, docs — a filtered view of this thread's own history. */}
                 <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-200 border-b border-gray-100 dark:border-gray-200">
-                  {[
-                    { icon: ImageIcon, label: "Media" },
-                    { icon: Link2, label: "Links" },
-                    { icon: FileText, label: "Docs" },
-                  ].map(({ icon: Icon, label }) => (
-                    <div key={label} className="flex flex-col items-center gap-1 px-2 py-3.5">
+                  {([
+                    { icon: ImageIcon, label: "Media", kind: "image" },
+                    { icon: Link2, label: "Links", kind: "link" },
+                    { icon: FileText, label: "Docs", kind: "file" },
+                  ] as const).map(({ icon: Icon, label, kind }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => openMediaTab(kind)}
+                      className="flex flex-col items-center gap-1 px-2 py-3.5 transition-colors hover:bg-gray-50"
+                    >
                       <Icon className="h-4 w-4 text-gray-400" />
                       <span className="text-[11px] font-medium text-gray-500">{label}</span>
-                      <span className="text-[10px] text-gray-400">None yet</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
 

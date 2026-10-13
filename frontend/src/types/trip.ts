@@ -143,6 +143,10 @@ export type Trip = {
   /** "Use Yard/CFS instead of Routes" — when on, TripFormDialog's "View All
    * CFS" / "View All Yard" reference buttons are available (see lib/lane-places.ts). */
   useYardCfs: boolean;
+  /** "Use Custom Input" — when on, Origin/Destination Location in Route
+   * Information become free-text instead of being locked to a selected
+   * Available Route (or the Shifting/Export restricted dropdowns). */
+  useCustomRoute: boolean;
   invoiceWaived: boolean;
   isCombinedInvoice: boolean;
   driverName: string | null;

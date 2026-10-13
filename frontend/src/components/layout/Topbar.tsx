@@ -11,6 +11,8 @@ import { ProfileModal } from "./ProfileModal";
 import { DisplaySettings } from "./DisplaySettings";
 import { NetworkStatus } from "./NetworkStatus";
 import { CalculatorButton } from "./CalculatorButton";
+import { AlertsButton } from "./AlertsButton";
+import { EventsButton } from "./EventsButton";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -84,6 +86,42 @@ function timeAgo(raw: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// The bell dropdown only ever shows the last 24h of a notification's life —
+// anything older is still fully there, just on the dedicated Notifications
+// page (/personal/notifications, which doesn't filter by age) instead of
+// cluttering this quick preview forever. Doesn't apply to Compliance Alerts
+// or Renewals & Payments: both are live-recomputed from "days until this
+// expires" on every fetch, with no real "first seen" timestamp to measure
+// age from, so they stay always-visible here by design.
+const RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+function isRecent(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
+  const t = new Date(s).getTime();
+  return !Number.isNaN(t) && Date.now() - t < RECENT_WINDOW_MS;
+}
+
+// Collapses repeated notifications from the same person (e.g. 5 separate
+// "Siva is requesting edit access" rows) into one group, so the bell shows
+// "Siva — 5 requests pending" instead of 5 near-identical cards. The real
+// fix for a dropdown that grows unbounded over months is to never render
+// one row per item in the first place.
+function groupByKey<T>(items: T[], keyFn: (item: T) => string): { key: string; items: T[] }[] {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const k = keyFn(item);
+    const arr = map.get(k);
+    if (arr) arr.push(item);
+    else map.set(k, [item]);
+  }
+  return [...map.entries()].map(([key, items]) => ({ key, items }));
+}
+
+// Same list-length problem even after grouping (many different people, not
+// just one person many times) — cap how many rows render and fold the rest
+// into the existing "View all" link's label instead of growing forever.
+const NOTIF_ROW_CAP = 4;
+
 function fmtIST(raw: string): string {
   if (!raw) return "";
   const s = raw.endsWith("Z") || raw.includes("+") ? raw : raw + "Z";
@@ -105,13 +143,22 @@ type EditRequestNotif = {
   createdAt: string;
 };
 
-type EditApprovalNotif = {
-  id: number;
+// A decided (Approved/Rejected) edit or deletion request this user raised,
+// that they haven't been shown yet (requesterSeenAt is null server-side) —
+// unlike the old live-only toast, this is backed by the DB (see
+// editApprovalsApi/deletionApprovalsApi .getMine()/.listMine()), so it
+// survives being offline when the decision happened and still shows up the
+// next time they open the bell.
+type MyDecidedRequest = {
+  key: string;                      // `${kind}-${id}`, unique across both kinds
+  kind: "edit" | "deletion";
+  id: string | number;
   resourceName: string;
-  action: string;
+  resourceType: string;
+  action?: string;                  // edit requests only ("Edit" | "Delete")
   status: "Approved" | "Rejected";
-  expiresAt: string;
-  notifiedAt: string;
+  approvedAt: string | null;
+  expiresAt?: string | null;        // edit-approve only — the 8h edit window
 };
 
 type DeletionRequestNotif = {
@@ -122,7 +169,7 @@ type DeletionRequestNotif = {
   createdAt: string;
 };
 
-export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
+export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => void; attendanceLocked?: boolean }) {
   const pathname = usePathname();
   const router   = useRouter();
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: getPageLabel(pathname) }];
@@ -144,16 +191,10 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const isFleetManager   = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
   const isFinanceManager = user?.softwareDesignation === "Accounts";
   const isStaff          = user?.softwareDesignation === "Trip Sheet Register";
-  // Header for the reminders block depends on what the role actually receives
-  const remindersHeading = isAdmin
-    ? "Renewals & Payments"
-    : isFleetManager
-    ? "Renewals"
-    : isFinanceManager
-    ? "Payments"
-    : "Reminders";
 
-  const { sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert } = useNotifications();
+  // Compliance Alerts and Renewals & Payments no longer come through here —
+  // see the comment where their bell sections used to render, further down.
+  const { sheetAlerts, kmVarianceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert } = useNotifications();
   // const { isOpen: isChatOpen, toggle: toggleChat } = useChat(); // Next phase
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
@@ -161,8 +202,8 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [isNotifOpen, setIsNotifOpen]             = useState(false);
   const [leaveRequests, setLeaveRequests]         = useState<LeaveRequest[]>([]);
   const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);       // Admin
-  const [editApprovalNotifs, setEditApprovalNotifs] = useState<EditApprovalNotif[]>([]);    // Staff
   const [deletionRequestNotifs, setDeletionRequestNotifs] = useState<DeletionRequestNotif[]>([]); // Admin
+  const [myDecidedRequests, setMyDecidedRequests] = useState<MyDecidedRequest[]>([]);       // everyone
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
@@ -233,6 +274,53 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
       setDeletionRequestNotifs(updated);
     }).catch(() => {});
   }, [isAdmin]);
+
+  // Decided (Approved/Rejected) edit/deletion requests THIS user raised that
+  // they haven't been shown yet — persisted server-side (requesterSeenAt),
+  // so unlike a live-only toast this survives being offline when the
+  // decision happened. Every role can have filed a request, so unlike the
+  // Admin-only loaders above this always runs.
+  const loadMyDecidedRequests = useCallback(() => {
+    if (user?.id == null) return;
+    Promise.allSettled([editApprovalsApi.getMine(), deletionApprovalsApi.listMine()]).then(([e, d]) => {
+      const fromEdit: MyDecidedRequest[] = e.status === "fulfilled"
+        ? e.value
+            .filter((r) => r.status !== "Pending" && !r.requesterSeenAt)
+            .map((r) => ({
+              key: `edit-${r.id}`, kind: "edit" as const, id: r.id,
+              resourceName: r.resourceName, resourceType: r.resourceType,
+              action: r.action, status: r.status as "Approved" | "Rejected",
+              approvedAt: r.approvedAt, expiresAt: r.expiresAt,
+            }))
+        : [];
+      const fromDeletion: MyDecidedRequest[] = d.status === "fulfilled"
+        ? d.value
+            .filter((r) => r.status !== "Pending" && !r.requesterSeenAt)
+            .map((r) => ({
+              key: `deletion-${r.id}`, kind: "deletion" as const, id: r.id,
+              resourceName: r.resourceName, resourceType: r.resourceType,
+              status: r.status as "Approved" | "Rejected", approvedAt: r.approvedAt,
+            }))
+        : [];
+      setMyDecidedRequests(
+        [...fromEdit, ...fromDeletion].sort((a, b) => (b.approvedAt ?? "").localeCompare(a.approvedAt ?? ""))
+      );
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadMyDecidedRequests();
+    const id = setInterval(loadMyDecidedRequests, 20000);
+    return () => clearInterval(id);
+  }, [loadMyDecidedRequests]);
+
+  // Mark seen once the bell is actually opened — clears the badge server-side
+  // so it doesn't come back on the next poll/reload, but the list stays
+  // visible for this viewing (cleared locally only when the dropdown closes).
+  useEffect(() => {
+    if (!isNotifOpen || myDecidedRequests.length === 0) return;
+    Promise.allSettled([editApprovalsApi.markMineSeen(), deletionApprovalsApi.markMineSeen()]).catch(() => {});
+  }, [isNotifOpen]);
 
   useEffect(() => {
     if (!isAdmin && !isFleetManager) return;
@@ -342,8 +430,23 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   // Admin approved / rejected deletion — remove from pending list
   useWebSocketEvent("deletion_approval_updated", (payload) => {
-    if (!isAdmin) return;
-    setDeletionRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
+    if (isAdmin) {
+      setDeletionRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
+    }
+    // The staff member who raised this request gets a pop-up toast now, and
+    // loadMyDecidedRequests picks up the persisted row for the bell/badge —
+    // same two-layer notice (instant if online, persistent either way) as
+    // the edit-approval handler below.
+    if (!isAdmin && user?.id != null && Number(payload.requested_by_staff_id) === user.id) {
+      const status = String(payload.status ?? "") as "Approved" | "Rejected";
+      const resourceName = String(payload.resource_name ?? "");
+      if (status === "Approved") {
+        showToast(`"${resourceName}" has been deleted.`, "success", "Deletion approved");
+      } else if (status === "Rejected") {
+        showToast(`Your deletion request for "${resourceName}" was rejected by the Admin.`, "error", "Deletion rejected");
+      }
+      loadMyDecidedRequests();
+    }
   });
 
   // Staff submitted an edit request — Admin + Commercial Manager get notified
@@ -373,18 +476,12 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     if (isAdmin || isFleetManager) {
       setEditRequestNotifs((prev) => prev.filter((n) => n.id !== Number(payload.id)));
     }
-    // The staff member who raised this request gets a pop-up toast + bell entry
+    // The staff member who raised this request gets a pop-up toast now, and
+    // loadMyDecidedRequests picks up the persisted row for the bell/badge —
+    // instant if they're online, but no longer the only way to find out.
     if (!isAdmin && user?.id != null && Number(payload.staff_db_id) === user.id) {
       const status = String(payload.status ?? "") as "Approved" | "Rejected";
       const resourceName = String(payload.resource_name ?? "");
-      setEditApprovalNotifs((prev) => [{
-        id: Number(payload.id),
-        resourceName,
-        action: String(payload.action ?? ""),
-        status,
-        expiresAt: String(payload.expires_at ?? ""),
-        notifiedAt: new Date().toISOString(),
-      }, ...prev]);
       if (status === "Approved") {
         showToast(
           `You have 8 hours to edit "${resourceName}".`,
@@ -398,6 +495,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           "Edit request rejected",
         );
       }
+      loadMyDecidedRequests();
     }
   });
 
@@ -414,6 +512,18 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Recent-only (<24h) views of each timestamped category — these, not the
+  // raw state, drive both the badge counts and the dropdown sections below.
+  // Anything older still exists and is fully actionable, just on
+  // /personal/notifications instead of here. See isRecent's comment for why
+  // Compliance Alerts / reminders are deliberately excluded from this.
+  const recentEditRequestNotifs = editRequestNotifs.filter((n) => isRecent(n.createdAt));
+  const recentDeletionRequestNotifs = deletionRequestNotifs.filter((n) => isRecent(n.createdAt));
+  const recentLeaveRequests = leaveRequests.filter((r) => isRecent(r.appliedAt));
+  const recentSheetAlerts = sheetAlerts.filter((a) => isRecent(a.alertedAt));
+  const recentKmVarianceAlerts = kmVarianceAlerts.filter((a) => isRecent(a.alertedAt));
+  const recentMyDecidedRequests = myDecidedRequests.filter((n) => isRecent(n.approvedAt));
+
   return (
     <>
     <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/50 bg-white/60 backdrop-blur-xl px-3 sm:px-6 shadow-sm">
@@ -428,24 +538,40 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
       </button>
 
       <nav className="dk-inset flex min-w-0 max-w-xs items-center gap-1 rounded-full border border-gray-200/70 bg-white/70 py-1 pl-1 pr-3 shadow-sm sm:max-w-sm">
-        <Link
-          href="/"
-          aria-label="Home"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
-        >
-          <Home className="h-3.5 w-3.5" />
-        </Link>
+        {attendanceLocked ? (
+          // Every other way out of this page (sidebar links, direct URLs) is
+          // already blocked by the gate in AppShell — this breadcrumb Home
+          // icon was the one spot that still linked straight to "/" with no
+          // awareness of the lock, letting someone dodge mandatory attendance
+          // by clicking it before the redirect-back effect caught up.
+          <button
+            type="button"
+            aria-label="Home"
+            onClick={() => showToast("Mark today's attendance first.", "info")}
+            className="flex h-7 w-7 shrink-0 cursor-not-allowed items-center justify-center rounded-full text-gray-300"
+          >
+            <Home className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <Link
+            href="/"
+            aria-label="Home"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
+          >
+            <Home className="h-3.5 w-3.5" />
+          </Link>
+        )}
         {breadcrumbs.slice(1).map((crumb, index, arr) => {
           const isLast = index === arr.length - 1;
           return (
             <span key={crumb.label} className={`flex min-w-0 items-center gap-1 ${isLast ? "hidden sm:flex" : ""}`}>
               <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-300" />
               {crumb.href && !isLast ? (
-                <Link href={crumb.href} className="truncate text-sm font-medium text-gray-500 transition-colors duration-300 hover:text-gray-900">
+                <Link href={crumb.href} className="truncate text-sm font-medium tracking-[-0.006em] text-gray-500 transition-colors duration-300 hover:text-gray-900">
                   {crumb.label}
                 </Link>
               ) : (
-                <span className={`truncate text-sm ${isLast ? "font-semibold text-gray-900" : "font-medium text-gray-500"}`}>
+                <span className={`truncate text-sm tracking-[-0.006em] ${isLast ? "font-semibold text-gray-900" : "font-medium text-gray-500"}`}>
                   {crumb.label}
                 </span>
               )}
@@ -467,6 +593,12 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
             Connected
           </span>
         )} */}
+
+        {/* Invite — Admin only */}
+        {isAdmin && <AlertsButton />}
+
+        {/* Events — everyone sees upcoming meetings, only Admin schedules one */}
+        <EventsButton />
 
         {/* Calculator */}
         <CalculatorButton />
@@ -504,12 +636,11 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {user?.softwareDesignation !== "Yard Supervisor" && <div className="relative" ref={notifRef}>
           {(() => {
             const totalBadge =
-              sheetAlerts.length +
-              kmVarianceAlerts.length +
-              reminders.length +
-              (isAdmin ? leaveRequests.length + complianceAlertCount + deletionRequestNotifs.length : 0) +
-              ((isAdmin || isFleetManager) ? editRequestNotifs.length : 0) +
-              editApprovalNotifs.length;
+              recentSheetAlerts.length +
+              recentKmVarianceAlerts.length +
+              (isAdmin ? recentLeaveRequests.length + recentDeletionRequestNotifs.length : 0) +
+              ((isAdmin || isFleetManager) ? recentEditRequestNotifs.length : 0) +
+              recentMyDecidedRequests.length;
             return (
               <button
                 type="button"
@@ -517,10 +648,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 onClick={() => setIsNotifOpen((v) => !v)}
                 className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-blue-500/10"
               >
-                <Bell className={cn(
-                  "h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110",
-                  complianceAlertCount > 0 && !isNotifOpen && "animate-bounce"
-                )} />
+                <Bell className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
                 {totalBadge > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
                     {totalBadge > 99 ? "99+" : totalBadge}
@@ -540,11 +668,10 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 </div>
                 {(() => {
                   const count =
-                    sheetAlerts.length +
-                    kmVarianceAlerts.length +
-                    reminders.length +
-                    (isAdmin ? leaveRequests.length + editRequestNotifs.length + deletionRequestNotifs.length + complianceAlertCount : 0) +
-                    editApprovalNotifs.length;
+                    recentSheetAlerts.length +
+                    recentKmVarianceAlerts.length +
+                    (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
+                    recentMyDecidedRequests.length;
                   return count > 0 ? (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
                       {count} unread
@@ -554,7 +681,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && editApprovalNotifs.length === 0 ? (
+              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && recentMyDecidedRequests.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <Bell className="h-8 w-8 text-gray-200" />
                   <p className="text-sm font-medium text-gray-500">No notifications yet</p>
@@ -563,41 +690,58 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
               ) : (
                 <div className="max-h-[420px] overflow-y-auto">
 
-                  {/* ── Edit Requests (Admin + Commercial Manager) — always on top ── */}
-                  {(isAdmin || isFleetManager) && editRequestNotifs.length > 0 && (
+                  {/* ── Edit Requests (Admin + Commercial Manager) — always on top ──
+                      Grouped by requester + capped: dozens of individual
+                      "X is requesting edit access" rows (some literally
+                      months old and never actioned) used to render as dozens
+                      of full cards. Now each requester gets one row
+                      regardless of how many resources they've asked about,
+                      and only NOTIF_ROW_CAP rows render at all — the rest
+                      are folded into the "View all" count below. */}
+                  {(isAdmin || isFleetManager) && recentEditRequestNotifs.length > 0 && (() => {
+                    const groups = groupByKey(recentEditRequestNotifs, (n) => n.staffName);
+                    const shown = groups.slice(0, NOTIF_ROW_CAP);
+                    const hiddenCount = recentEditRequestNotifs.length - shown.reduce((sum, g) => sum + g.items.length, 0);
+                    return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-purple-600">
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-purple-600">
                         Edit Requests
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {editRequestNotifs.map((notif, i) => (
-                          <li key={`edit-req-${notif.id}`}>
+                        {shown.map((g) => {
+                          const first = g.items[0];
+                          return (
+                          <li key={`edit-req-${g.key}`}>
                             <button
                               type="button"
-                              onClick={() => {
-                                setEditRequestNotifs((prev) => prev.filter((_, idx) => idx !== i));
-                                setIsNotifOpen(false);
-                                router.push("/attendance/edit-approvals");
-                              }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-purple-50/60"
+                              onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-purple-50/60"
                             >
                               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100">
                                 <CalendarClock className="h-3.5 w-3.5 text-purple-600" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">
-                                  {notif.staffName} is requesting{" "}
-                                  <span className="text-purple-700">{notif.action.toLowerCase()}</span> access
-                                </p>
-                                <p className="text-[11px] text-gray-600">
-                                  {notif.resourceType}: <span className="font-semibold">{notif.resourceName}</span>
-                                </p>
-                                <p className="text-[11px] text-purple-700 font-medium">Tap to review — approve or reject</p>
+                                {g.items.length > 1 ? (
+                                  <p className="text-[12px] font-semibold text-gray-900">
+                                    {g.key} — <span className="text-purple-700">{g.items.length} requests</span> pending
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="text-[12px] font-semibold text-gray-900">
+                                      {g.key} is requesting{" "}
+                                      <span className="text-purple-700">{first.action.toLowerCase()}</span> access
+                                    </p>
+                                    <p className="truncate text-[11px] text-gray-600">
+                                      {first.resourceType}: <span className="font-semibold">{first.resourceName}</span>
+                                    </p>
+                                  </>
+                                )}
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(first.createdAt)}</span>
                             </button>
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                       <div className="border-t border-gray-100 px-4 py-2.5">
                         <button
@@ -605,47 +749,58 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                           onClick={() => { setIsNotifOpen(false); router.push("/attendance/edit-approvals"); }}
                           className="text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
                         >
-                          View all in Edit Approvals →
+                          {hiddenCount > 0 ? `+${hiddenCount} more — view all in Edit Approvals →` : "View all in Edit Approvals →"}
                         </button>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* ── Deletion Requests (Admin only) ── */}
-                  {isAdmin && deletionRequestNotifs.length > 0 && (
+                  {/* ── Deletion Requests (Admin only) — grouped + capped, same
+                      reasoning as Edit Requests above. ── */}
+                  {isAdmin && recentDeletionRequestNotifs.length > 0 && (() => {
+                    const groups = groupByKey(recentDeletionRequestNotifs, (n) => n.requestedByName);
+                    const shown = groups.slice(0, NOTIF_ROW_CAP);
+                    const hiddenCount = recentDeletionRequestNotifs.length - shown.reduce((sum, g) => sum + g.items.length, 0);
+                    return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-600">
                         Deletion Requests
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {deletionRequestNotifs.map((notif, i) => (
-                          <li key={`del-req-${notif.id}`}>
+                        {shown.map((g) => {
+                          const first = g.items[0];
+                          return (
+                          <li key={`del-req-${g.key}`}>
                             <button
                               type="button"
-                              onClick={() => {
-                                setDeletionRequestNotifs((prev) => prev.filter((_, idx) => idx !== i));
-                                setIsNotifOpen(false);
-                                router.push("/attendance/deletion-approvals");
-                              }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/60"
+                              onClick={() => { setIsNotifOpen(false); router.push("/attendance/deletion-approvals"); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-red-50/60"
                             >
                               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
                                 <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">
-                                  {notif.requestedByName} is requesting{" "}
-                                  <span className="text-red-700">deletion</span>
-                                </p>
-                                <p className="text-[11px] text-gray-600">
-                                  {notif.resourceType}: <span className="font-semibold">{notif.resourceName}</span>
-                                </p>
-                                <p className="text-[11px] text-red-700 font-medium">Tap to review — approve or reject</p>
+                                {g.items.length > 1 ? (
+                                  <p className="text-[12px] font-semibold text-gray-900">
+                                    {g.key} — <span className="text-red-700">{g.items.length} deletions</span> requested
+                                  </p>
+                                ) : (
+                                  <>
+                                    <p className="text-[12px] font-semibold text-gray-900">
+                                      {g.key} is requesting <span className="text-red-700">deletion</span>
+                                    </p>
+                                    <p className="truncate text-[11px] text-gray-600">
+                                      {first.resourceType}: <span className="font-semibold">{first.resourceName}</span>
+                                    </p>
+                                  </>
+                                )}
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.createdAt)}</span>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(first.createdAt)}</span>
                             </button>
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                       <div className="border-t border-gray-100 px-4 py-2.5">
                         <button
@@ -653,27 +808,34 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                           onClick={() => { setIsNotifOpen(false); router.push("/attendance/deletion-approvals"); }}
                           className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
                         >
-                          View all in Deletion Approvals →
+                          {hiddenCount > 0 ? `+${hiddenCount} more — view all in Deletion Approvals →` : "View all in Deletion Approvals →"}
                         </button>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* ── Sheet Alerts (Admin + Fleet Manager) ── */}
-                  {sheetAlerts.length > 0 && (
+                  {/* ── Sheet Alerts (Admin + Fleet Manager) — capped, same
+                      reasoning as Edit/Deletion Requests above (no natural
+                      grouping key here, each alert is its own trip). ── */}
+                  {recentSheetAlerts.length > 0 && (() => {
+                    const shown = recentSheetAlerts.slice(0, NOTIF_ROW_CAP);
+                    const hiddenCount = recentSheetAlerts.length - shown.length;
+                    const target = isAdmin ? "/trips/sheet-collection" : "/trips/current";
+                    return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-orange-600">
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-orange-600">
                         Trip Sheet Alerts
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {sheetAlerts.map((alert, i) => (
+                        {shown.map((alert, i) => (
                           <li key={`${alert.tripDbId}-${i}`}>
                             <button
                               type="button"
                               onClick={() => {
                                 dismissSheetAlert(i);
                                 setIsNotifOpen(false);
-                                router.push(isAdmin ? "/trips/sheet-collection" : "/trips/current");
+                                router.push(target);
                               }}
                               className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-orange-50/60"
                             >
@@ -689,7 +851,6 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                                 {alert.reportedBy && (
                                   <p className="text-[11px] text-gray-500">Reported by: <span className="font-medium">{alert.reportedBy}</span></p>
                                 )}
-                                <p className="text-[11px] text-orange-700 font-medium">Please follow up immediately.</p>
                               </div>
                               <span className="shrink-0 text-right text-[10px] text-gray-400">
                                 {timeAgo(alert.alertedAt)}
@@ -700,24 +861,40 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                           </li>
                         ))}
                       </ul>
+                      {hiddenCount > 0 && (
+                        <div className="border-t border-gray-100 px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => { setIsNotifOpen(false); router.push(target); }}
+                            className="text-xs font-medium text-orange-600 hover:text-orange-800 transition-colors"
+                          >
+                            +{hiddenCount} more trip sheet alert{hiddenCount === 1 ? "" : "s"} →
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* ── KM Variance Alerts (Admin + Commercial Manager) ── */}
-                  {kmVarianceAlerts.length > 0 && (isAdmin || isFleetManager) && (
+                  {/* ── KM Variance Alerts (Admin + Commercial Manager) — capped. ── */}
+                  {recentKmVarianceAlerts.length > 0 && (isAdmin || isFleetManager) && (() => {
+                    const shown = recentKmVarianceAlerts.slice(0, NOTIF_ROW_CAP);
+                    const hiddenCount = recentKmVarianceAlerts.length - shown.length;
+                    const target = isAdmin ? "/trips/reconciliation" : "/trips/current";
+                    return (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-amber-600">
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-600">
                         KM Variance Alerts
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {kmVarianceAlerts.map((alert, i) => (
+                        {shown.map((alert, i) => (
                           <li key={`km-${alert.tripDbId}-${i}`}>
                             <button
                               type="button"
                               onClick={() => {
                                 dismissKmVarianceAlert(i);
                                 setIsNotifOpen(false);
-                                router.push(isAdmin ? "/trips/reconciliation" : "/trips/current");
+                                router.push(target);
                               }}
                               className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/60"
                             >
@@ -736,9 +913,6 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                                     {alert.approxKm && <span className="ml-1 text-gray-400">vs approx {alert.approxKm} km</span>}
                                   </p>
                                 )}
-                                <p className="mt-0.5 text-[11px] text-amber-800 font-medium line-clamp-2">
-                                  Reason: {alert.kmRemark}
-                                </p>
                               </div>
                               <span className="shrink-0 text-right text-[10px] text-gray-400">
                                 {timeAgo(alert.alertedAt)}
@@ -749,87 +923,38 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  )}
-
-                  {/* ── Compliance Alerts (Admin only) ── */}
-                  {isAdmin && complianceAlertCount > 0 && (
-                    <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
-                        Compliance Alerts
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => { setIsNotifOpen(false); router.push("/resources/fleet"); }}
-                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/60"
-                      >
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100">
-                          <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                      {hiddenCount > 0 && (
+                        <div className="border-t border-gray-100 px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => { setIsNotifOpen(false); router.push(target); }}
+                            className="text-xs font-medium text-amber-600 hover:text-amber-800 transition-colors"
+                          >
+                            +{hiddenCount} more KM variance alert{hiddenCount === 1 ? "" : "s"} →
+                          </button>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[12px] font-semibold text-gray-900">
-                            {complianceAlertCount} truck document{complianceAlertCount === 1 ? "" : "s"} need attention
-                          </p>
-                          <p className="text-[11px] text-red-700 font-medium">
-                            View Fleet page for details → renew expired documents immediately
-                          </p>
-                        </div>
-                      </button>
+                      )}
                     </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* ── Renewals / Payments (role-dependent) ── */}
-                  {reminders.length > 0 && (
-                    <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-red-600">
-                        {remindersHeading}
-                      </p>
-                      <ul className="divide-y divide-gray-50">
-                        {reminders.map((rem, i) => (
-                          <li key={`rem-${rem.kind}-${rem.entity}-${i}`}>
-                            <button
-                              type="button"
-                              onClick={() => { setIsNotifOpen(false); router.push(rem.href); }}
-                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-red-50/60"
-                            >
-                              <div className={cn(
-                                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                                rem.severity === "overdue" ? "bg-red-100" : "bg-amber-100"
-                              )}>
-                                <CalendarClock className={cn(
-                                  "h-3.5 w-3.5",
-                                  rem.severity === "overdue" ? "text-red-600" : "text-amber-600"
-                                )} />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[12px] font-semibold text-gray-900">{rem.title}</p>
-                                <p className="text-[11px] text-gray-600">{rem.detail}</p>
-                                <p className={cn(
-                                  "text-[11px] font-medium",
-                                  rem.severity === "overdue" ? "text-red-700" : "text-amber-700"
-                                )}>
-                                  {rem.daysLeft < 0
-                                    ? `Overdue by ${Math.abs(rem.daysLeft)} day${Math.abs(rem.daysLeft) === 1 ? "" : "s"}`
-                                    : rem.daysLeft === 0
-                                    ? "Due today"
-                                    : `${rem.daysLeft} day${rem.daysLeft === 1 ? "" : "s"} left`}
-                                </p>
-                              </div>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {/* Compliance Alerts and Renewals & Payments used to live
+                      here — both are now status cards on the pages they're
+                      actually about (Our Fleet, Our Drivers, Compliance &
+                      Renewals, EMI Tracking) instead of a notification feed
+                      entry, since they're persistent state, not events, and
+                      didn't fit the 24h recency model the rest of this
+                      dropdown follows. See ReminderAlertBanner/
+                      ComplianceAlertBanner on those pages. */}
 
-                  {/* ── Leave Requests (Admin only) ── */}
-                  {isAdmin && leaveRequests.length > 0 && (
+                  {/* ── Leave Requests (Admin only) — capped. ── */}
+                  {isAdmin && recentLeaveRequests.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-blue-600">
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-blue-600">
                         Leave Requests
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {leaveRequests.map((req) => (
+                        {recentLeaveRequests.slice(0, NOTIF_ROW_CAP).map((req) => (
                           <li key={req.id}>
                             <button
                               type="button"
@@ -862,28 +987,31 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                           onClick={() => setIsNotifOpen(false)}
                           className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
                         >
-                          View all in Leave Approvals →
+                          {recentLeaveRequests.length > NOTIF_ROW_CAP
+                            ? `+${recentLeaveRequests.length - NOTIF_ROW_CAP} more — view all in Leave Approvals →`
+                            : "View all in Leave Approvals →"}
                         </Link>
                       </div>
                     </div>
                   )}
 
 
-                  {/* ── Edit Request outcomes (the staff member who raised them) ── */}
-                  {editApprovalNotifs.length > 0 && (
+                  {/* ── Your request updates (edit + deletion, whoever raised them) ── */}
+                  {recentMyDecidedRequests.length > 0 && (
                     <div>
-                      <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                        Edit Request Updates
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-500">
+                        Your Request Updates
                       </p>
                       <ul className="divide-y divide-gray-50">
-                        {editApprovalNotifs.map((notif, i) => {
+                        {recentMyDecidedRequests.slice(0, NOTIF_ROW_CAP).map((notif) => {
                           const approved = notif.status === "Approved";
+                          const isEdit = notif.kind === "edit";
                           return (
-                          <li key={`edit-appr-${notif.id}`}>
+                          <li key={notif.key}>
                             <button
                               type="button"
                               onClick={() => {
-                                setEditApprovalNotifs((prev) => prev.filter((_, idx) => idx !== i));
+                                setMyDecidedRequests((prev) => prev.filter((n) => n.key !== notif.key));
                                 setIsNotifOpen(false);
                               }}
                               className={cn(
@@ -899,35 +1027,52 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-[12px] font-semibold text-gray-900">
-                                  {approved
-                                    ? "Your edit access has been approved by the Admin"
-                                    : "Your edit request was rejected by the Admin"}
+                                  {isEdit
+                                    ? (approved
+                                        ? "Your edit access has been approved by the Admin"
+                                        : "Your edit request was rejected by the Admin")
+                                    : (approved
+                                        ? "Your deletion request has been approved by the Admin"
+                                        : "Your deletion request was rejected by the Admin")}
                                 </p>
                                 <p className="text-[11px] text-gray-600">
-                                  {notif.action} access for: <span className="font-semibold">{notif.resourceName}</span>
+                                  {isEdit ? `${notif.action} access for: ` : "Delete: "}
+                                  <span className="font-semibold">{notif.resourceName}</span>
                                 </p>
                                 <p className={cn(
                                   "text-[11px] font-medium",
                                   approved ? "text-green-700" : "text-red-700"
                                 )}>
-                                  {approved ? "Please make your changes within 8 hours." : "Contact the Admin if you need access."}
+                                  {approved
+                                    ? (isEdit ? "Please make your changes within 8 hours." : "The record has been deleted.")
+                                    : "Contact the Admin if you have questions."}
                                 </p>
                               </div>
-                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.notifiedAt)}</span>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(notif.approvedAt ?? "")}</span>
                             </button>
                           </li>
                           );
                         })}
                       </ul>
+                      {recentMyDecidedRequests.length > NOTIF_ROW_CAP && (
+                        <div className="border-t border-gray-100 px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => { setIsNotifOpen(false); router.push("/personal/edit-delete-requests"); }}
+                            className="text-xs font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                          >
+                            +{recentMyDecidedRequests.length - NOTIF_ROW_CAP} more — view all in Edit & Delete Requests →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Empty state */}
-                  {sheetAlerts.length === 0 &&
-                   kmVarianceAlerts.length === 0 &&
-                   reminders.length === 0 &&
-                   editApprovalNotifs.length === 0 &&
-                   (isStaff || isFinanceManager || (isFleetManager && editRequestNotifs.length === 0) || (isAdmin && leaveRequests.length === 0 && editRequestNotifs.length === 0 && deletionRequestNotifs.length === 0 && complianceAlertCount === 0)) && (
+                  {recentSheetAlerts.length === 0 &&
+                   recentKmVarianceAlerts.length === 0 &&
+                   recentMyDecidedRequests.length === 0 &&
+                   (isStaff || isFinanceManager || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Bell className="h-8 w-8 text-gray-200" />
                       <p className="text-sm font-medium text-gray-500">No notifications</p>
@@ -958,7 +1103,7 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 {getInitials(user?.name ?? "U")}
               </div>
             )}
-            <span className="text-[14px] font-semibold text-gray-900">{user?.name ?? "—"}</span>
+            <span className="text-[14px] font-semibold tracking-[-0.01em] text-gray-900">{user?.name ?? "—"}</span>
             <ChevronDown className={cn("h-4 w-4 text-gray-900 transition-transform duration-200", isProfileOpen ? "rotate-180" : "")} />
           </button>
 
@@ -977,8 +1122,8 @@ export function Topbar({ onMenuOpen }: { onMenuOpen?: () => void }) {
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-gray-900">{user?.name}</p>
-                  <p className="text-[11px] text-blue-600 font-medium">{user?.softwareDesignation}</p>
+                  <p className="truncate text-[14px] font-semibold tracking-[-0.01em] text-gray-900">{user?.name}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-blue-600">{user?.softwareDesignation}</p>
                 </div>
               </div>
               <div className="flex flex-col gap-1 animate-stagger">

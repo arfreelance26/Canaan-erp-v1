@@ -3,18 +3,18 @@
 import { Fragment, useState, useMemo, useEffect } from "react";
 import {
   TrendingUp, TrendingDown,
-  Loader2, BarChart3, ArrowRight,
-  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, FileDown, X, ShieldCheck, ChevronDown,
+  Loader2, BarChart3, ArrowRight, Eye,
+  DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, X, ShieldCheck, ChevronDown,
   Calculator, Compass, Route, FileText, Fuel, MousePointerClick, SlidersHorizontal,
 } from "lucide-react";
 import { plSummaryApi, runningCostApi, type TruckPLEntry, type TruckPLTripRow } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Segmented } from "@/components/ui/Segmented";
+import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 import { showError } from "@/lib/swal";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
-import logoSrc from "@/app/companylogo.png";
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
 // Local calendar date — toISOString() is UTC and shifted IST midnights back a day.
@@ -332,7 +332,7 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
             { n: 3, title: "Pick a Cost/KM mode", body: "Manual, Basic or Advanced — controls only the \"Truck Expenses\" and \"Final Profit\" columns. Set actual values first on the Running Cost Calculator page (see the mode tabs above for how each one works)." },
             { n: 4, title: "Expand a truck row", body: "In Truck Profitability, click any row to open the full Net P&L walkthrough — EMI loans, maintenance records, document/compliance share, and the trip list behind the numbers." },
             { n: 5, title: "Read the summary cards", body: "Total Trips/Trucks, Profitable count, Hire Revenue, Net P&L and Final Profit — a snapshot before you dig into the table." },
-            { n: 6, title: "Generate a report", body: "Click \"Generate Report\" top-right to preview the current tab/period/mode, then export it as a PDF." },
+            { n: 6, title: "Export a report", body: "Click \"View\" top-right to preview both Trip and Truck Profitability for the selected period/mode, then download as Excel or PDF." },
           ].map((s) => (
             <div key={s.n} className="flex gap-3">
               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{s.n}</div>
@@ -1129,8 +1129,8 @@ export default function PLSummaryPage() {
   const [error, setError]                    = useState<string | null>(null);
   const [tab, setTab]                        = useState<Tab>("trips");
   const [mode, setMode]                      = useState<"Manual" | "Basic" | "Advanced">("Manual");
-  const [showPreview, setShowPreview]        = useState(false);
-  const [previewCostMap, setPreviewCostMap]  = useState<Record<string, Record<string, number | null>>>({});
+  const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
+  const [preparingExport, setPreparingExport] = useState(false);
   const [showHowCalculated, setShowHowCalculated] = useState(false);
   const [showQuickStart, setShowQuickStart]  = useState(false);
 
@@ -1157,110 +1157,83 @@ export default function PLSummaryPage() {
   useWebSocketEvent("truck_updated", () => fetchData());
   useAutoRefresh(() => fetchData(), 30000);
 
-  function openPreview() {
-    if (!data) return;
-    setPreviewCostMap(costPerKmMap);
-    setShowPreview(true);
-  }
+  /** Builds the same two sheets (Trip Profitability / Truck Profitability) the
+   * old print view rendered, as an actual .xlsx — then opens the standard
+   * View dialog (same component as every other export in this app) with it.
+   * Built client-side rather than via a backend /exports endpoint because
+   * Final Profit depends on the cost-per-km `mode` toggle on this page, which
+   * is UI-only state the backend has no notion of. */
+  async function openExportPreview() {
+    if (!data || preparingExport) return;
+    setPreparingExport(true);
+    try {
+      const { utils, write } = await import("xlsx");
 
-  function printReport() {
-    if (!data) return;
-    const isTrips = tab === "trips";
-    const period  = `${fmtDate(startDate)} to ${fmtDate(endDate)}`;
-    const logoUrl = `${window.location.origin}${logoSrc.src}`;
+      // Truck Expenses = Total KM × Cost/KM — a per-km rate multiplied across a
+      // whole trip/period almost never lands on a clean 2-decimal number, so
+      // round here (same as every other money figure on this page) rather than
+      // exporting the raw floating-point product.
+      const round2 = (n: number) => Math.round(n * 100) / 100;
 
-    let bodyHtml = "";
-    if (isTrips) {
-      const rows = allTrips.map((t) => {
-        const cpk = previewCostMap[mode]?.[t.truckId];
+      const tripRows = allTrips.map((t) => {
+        const cpk = costPerKmMap[mode]?.[t.truckId];
         const gp = t.hireAmount - t.totalExpense;
-        const te = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
-        const fp = te != null ? gp - te : null;
-        return `<tr>
-          <td>${fmtDate(t.tripSheetDate)}</td>
-          <td>${t.tripSheetNo || "—"}</td>
-          <td>${t.truckId}</td>
-          <td>${t.customerName || "—"}</td>
-          <td>${t.fromLocation && t.toLocation ? `${t.fromLocation} → ${t.toLocation}` : "—"}</td>
-          <td class="num">${fmt(t.hireAmount)}</td>
-          <td class="num">${fmt(t.totalExpense)}</td>
-          <td class="num ${gp >= 0 ? "pos" : "neg"}">${gp >= 0 ? "+" : "−"}${fmt(gp)}</td>
-          <td class="num">${te != null ? fmt(te) : "—"}</td>
-          <td class="num ${fp != null ? (fp >= 0 ? "pos" : "neg") : ""}">${fp != null ? `${fp >= 0 ? "+" : "−"}${fmt(fp)}` : "—"}</td>
-        </tr>`;
-      }).join("");
-      bodyHtml = `<table><thead><tr>
-        <th>Date</th><th>Sheet No</th><th>Truck</th><th>Customer</th><th>Route</th>
-        <th class="num">Hire</th><th class="num">Trip Expenses</th><th class="num">Gross Profit</th>
-        <th class="num">Truck Expenses</th><th class="num">Final Profit</th>
-      </tr></thead><tbody>${rows}</tbody></table>`;
-    } else {
-      const rows = data.map((e) => {
-        const cpk = previewCostMap[mode]?.[e.truckId];
-        const gp = e.totalHireAmount - e.tripExpenses;
-        const te = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
-        const fp = te != null ? gp - te : null;
-        return `<tr>
-          <td>${e.truckId}<br><small>${e.registrationNumber}</small></td>
-          <td class="num">${e.tripCount}</td>
-          <td class="num">${e.totalKm > 0 ? `${e.totalKm.toLocaleString("en-IN")} km` : "—"}</td>
-          <td class="num">${fmt(e.totalHireAmount)}</td>
-          <td class="num">${fmt(e.tripExpenses)}</td>
-          <td class="num ${gp >= 0 ? "pos" : "neg"}">${gp >= 0 ? "+" : "−"}${fmt(gp)}</td>
-          <td class="num">${te != null ? fmt(te) : "—"}</td>
-          <td class="num ${fp != null ? (fp >= 0 ? "pos" : "neg") : ""}">${fp != null ? `${fp >= 0 ? "+" : "−"}${fmt(fp)}` : "—"}</td>
-        </tr>`;
-      }).join("");
-      bodyHtml = `<table><thead><tr>
-        <th>Truck</th><th class="num">No of Trips</th><th class="num">Total KM</th>
-        <th class="num">Total Hire Amount</th><th class="num">Total Trip Expenses</th>
-        <th class="num">Total Gross Profit</th><th class="num">Total Truck Expenses</th>
-        <th class="num">Final Profit</th>
-      </tr></thead><tbody>${rows}</tbody></table>`;
-    }
+        const te = (cpk != null && t.totalKm > 0) ? round2(t.totalKm * cpk) : null;
+        const fp = te != null ? round2(gp - te) : null;
+        return {
+          "Date": fmtDate(t.tripSheetDate),
+          "Sheet No": t.tripSheetNo || "—",
+          "Truck": t.truckId,
+          "Customer": t.customerName || "—",
+          "Route": t.fromLocation && t.toLocation ? `${t.fromLocation} -> ${t.toLocation}` : "—",
+          "Hire": t.hireAmount,
+          "Trip Expenses": t.totalExpense,
+          "Gross Profit": gp,
+          "Truck Expenses": te != null ? te : "",
+          "Final Profit": fp != null ? fp : "",
+        };
+      });
 
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-<title>${isTrips ? "Trip" : "Truck"} Profitability — ${period}</title>
-<style>
-  @page{size:A4 landscape;margin:15mm}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a}
-  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;border-bottom:2px solid #2563eb;padding-bottom:12px}
-  .logo{height:52px;width:auto;object-fit:contain}
-  .rt{font-size:13px;font-weight:600;color:#374151;margin-top:4px}
-  .per{font-size:10px;color:#6b7280;margin-top:3px}
-  .badge{font-size:10px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;padding:2px 8px}
-  table{width:100%;border-collapse:collapse}
-  th{background:#f1f5f9;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#475569;padding:7px 8px;border-bottom:1px solid #e2e8f0;text-align:left}
-  td{padding:6px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-  tr:nth-child(even) td{background:#fafafa}
-  .num{text-align:right;font-variant-numeric:tabular-nums}
-  .pos{color:#059669;font-weight:600}
-  .neg{color:#dc2626;font-weight:600}
-  .foot{margin-top:14px;font-size:9px;color:#9ca3af}
-  small{font-size:9px;color:#9ca3af}
-  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-</style></head><body>
-<div class="hdr">
-  <div style="display:flex;align-items:center;gap:14px">
-    <img src="${logoUrl}" class="logo" alt="Canaan ERP" />
-    <div>
-      <div class="rt">${isTrips ? "Trip Profitability Report" : "Truck Profitability Report"}</div>
-      <div class="per">Period: ${period}</div>
-    </div>
-  </div>
-  <div style="text-align:right">
-    <span class="badge">Mode: ${mode}</span>
-    <div class="per" style="margin-top:6px">Generated: ${new Date().toLocaleDateString("en-IN")}</div>
-  </div>
-</div>
-${bodyHtml}
-<div class="foot">Gross Profit = Hire − Trip Expenses &nbsp;|&nbsp; Final Profit = Gross Profit − Truck Expenses &nbsp;|&nbsp; Truck Expenses = Total KM × Cost/KM (${mode} mode)</div>
-</body></html>`);
-    win.document.close();
-    setTimeout(() => { win.print(); }, 400);
+      const truckRows = data.map((e) => {
+        const cpk = costPerKmMap[mode]?.[e.truckId];
+        const gp = e.totalHireAmount - e.tripExpenses;
+        const te = (cpk != null && e.totalKm > 0) ? round2(e.totalKm * cpk) : null;
+        const fp = te != null ? round2(gp - te) : null;
+        return {
+          "Truck": e.truckId,
+          "Registration No": e.registrationNumber,
+          "No of Trips": e.tripCount,
+          "Total KM": e.totalKm,
+          "Total Hire Amount": e.totalHireAmount,
+          "Total Trip Expenses": e.tripExpenses,
+          "Total Gross Profit": gp,
+          "Total Truck Expenses": te != null ? te : "",
+          "Final Profit": fp != null ? fp : "",
+        };
+      });
+
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, utils.json_to_sheet(tripRows), "Trip Profitability");
+      utils.book_append_sheet(wb, utils.json_to_sheet(truckRows), "Truck Profitability");
+      const wbArray = write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+      const blob = new Blob([wbArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+      const toSheet = (name: string, rows: Record<string, unknown>[]): PreviewSheet => {
+        if (rows.length === 0) return { name, rows: [] };
+        const header = Object.keys(rows[0]);
+        return { name, rows: [header, ...rows.map((r) => header.map((h) => String(r[h] ?? "")))] };
+      };
+
+      setExportPreview({
+        blob,
+        filename: `Profitability_${fmtDate(startDate)}_to_${fmtDate(endDate)}.xlsx`,
+        sheets: [toSheet("Trip Profitability", tripRows), toSheet("Truck Profitability", truckRows)],
+      });
+    } catch {
+      showError("Could not prepare the export.");
+    } finally {
+      setPreparingExport(false);
+    }
   }
 
   function applyPreset(p: (typeof PRESETS)[number]) {
@@ -1332,11 +1305,11 @@ ${bodyHtml}
           </button>
           {data && (
             <button
-              type="button" onClick={openPreview}
-              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
+              type="button" onClick={openExportPreview} disabled={preparingExport}
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <FileDown className="h-4 w-4" />
-              Generate Report
+              {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              {preparingExport ? "Preparing…" : "View"}
             </button>
           )}
         </div>
@@ -1442,155 +1415,14 @@ ${bodyHtml}
       {showHowCalculated && <HowCalculatedModal onClose={() => setShowHowCalculated(false)} />}
       {showQuickStart && <QuickStartModal onClose={() => setShowQuickStart(false)} />}
 
-      {/* ── Report Preview Modal ───────────────────────────────────────────────── */}
-      {showPreview && data && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col">
-
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Report Preview</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {tab === "trips" ? "Trip Profitability" : "Truck Profitability"} · {fmtDate(startDate)} to {fmtDate(endDate)} · Mode: {mode}
-                </p>
-              </div>
-              <button type="button" onClick={() => setShowPreview(false)} aria-label="Close"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Preview content */}
-            <div className="flex-1 overflow-auto px-6 py-5">
-
-              {/* Report header block */}
-              <div className="flex items-start justify-between border-b-2 border-blue-600 pb-4 mb-5">
-                <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={logoSrc.src} alt="Canaan ERP" className="h-14 w-auto object-contain" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {tab === "trips" ? "Trip Profitability Report" : "Truck Profitability Report"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">Period: {fmtDate(startDate)} to {fmtDate(endDate)}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="inline-block text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded px-2.5 py-1">
-                    Mode: {mode}
-                  </span>
-                  <p className="text-xs text-gray-400 mt-1.5">Generated: {new Date().toLocaleDateString("en-IN")}</p>
-                </div>
-              </div>
-
-              {/* Preview table */}
-              {tab === "trips" ? (
-                <div className="overflow-auto">
-                  <table className="w-full min-w-[900px] text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        {["Date","Sheet No","Truck","Customer","Route","Hire","Trip Expenses","Gross Profit","Truck Expenses","Final Profit"].map((h) => (
-                          <th key={h} className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 text-[10px] whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allTrips.map((t, i) => {
-                        const cpk = previewCostMap[mode]?.[t.truckId];
-                        const gp = t.hireAmount - t.totalExpense;
-                        const te = (cpk != null && t.totalKm > 0) ? t.totalKm * cpk : null;
-                        const fp = te != null ? gp - te : null;
-                        return (
-                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/60"}>
-                            <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(t.tripSheetDate)}</td>
-                            <td className="px-3 py-2 text-gray-700">{t.tripSheetNo || "—"}</td>
-                            <td className="px-3 py-2 font-medium text-gray-800">{t.truckId}</td>
-                            <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{t.customerName || "—"}</td>
-                            <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
-                              {t.fromLocation && t.toLocation ? `${t.fromLocation} → ${t.toLocation}` : "—"}
-                            </td>
-                            <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{fmt(t.hireAmount)}</td>
-                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{fmt(t.totalExpense)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              <span className={gp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>
-                                {gp >= 0 ? "+" : "−"}{fmt(gp)}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{te != null ? fmt(te) : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {fp != null
-                                ? <span className={fp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>{fp >= 0 ? "+" : "−"}{fmt(fp)}</span>
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="overflow-auto">
-                  <table className="w-full min-w-[820px] text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        {["Truck","No of Trips","Total KM","Total Hire Amount","Total Trip Expenses","Total Gross Profit","Total Truck Expenses","Final Profit"].map((h) => (
-                          <th key={h} className="px-3 py-2.5 text-left font-bold uppercase tracking-wider text-gray-400 border-b border-gray-200 text-[10px] whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.map((e, i) => {
-                        const cpk = previewCostMap[mode]?.[e.truckId];
-                        const gp = e.totalHireAmount - e.tripExpenses;
-                        const te = (cpk != null && e.totalKm > 0) ? e.totalKm * cpk : null;
-                        const fp = te != null ? gp - te : null;
-                        return (
-                          <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/60"}>
-                            <td className="px-3 py-2">
-                              <p className="font-semibold text-gray-800">{e.truckId}</p>
-                              <p className="text-[10px] text-gray-400">{e.registrationNumber}</p>
-                            </td>
-                            <td className="px-3 py-2 text-center font-semibold text-blue-700">{e.tripCount}</td>
-                            <td className="px-3 py-2 text-gray-600 tabular-nums">{e.totalKm > 0 ? `${e.totalKm.toLocaleString("en-IN")} km` : "—"}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-blue-700 tabular-nums">{fmt(e.totalHireAmount)}</td>
-                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{fmt(e.tripExpenses)}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              <span className={gp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>{gp >= 0 ? "+" : "−"}{fmt(gp)}</span>
-                            </td>
-                            <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{te != null ? fmt(te) : <span className="text-gray-300">—</span>}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {fp != null
-                                ? <span className={fp >= 0 ? "text-emerald-600 font-semibold" : "text-red-600 font-semibold"}>{fp >= 0 ? "+" : "−"}{fmt(fp)}</span>
-                                : <span className="text-gray-300">—</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              <p className="mt-4 text-[10px] text-gray-400 italic">
-                Gross Profit = Hire − Trip Expenses · Final Profit = Gross Profit − Truck Expenses · Truck Expenses = Total KM × Cost/KM ({mode} mode)
-              </p>
-            </div>
-
-            {/* Modal footer */}
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 shrink-0">
-              <button type="button" onClick={() => setShowPreview(false)}
-                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:border-blue-300 hover:text-blue-700 hover:shadow-md">
-                Cancel
-              </button>
-              <button type="button" onClick={printReport}
-                className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md">
-                <FileDown className="h-4 w-4" />
-                Generate PDF
-              </button>
-            </div>
-          </div>
-        </div>
+      {exportPreview && (
+        <ExportPreviewDialog
+          title={`Profitability Report — ${fmtDate(startDate)} to ${fmtDate(endDate)}`}
+          filename={exportPreview.filename}
+          blob={exportPreview.blob}
+          sheets={exportPreview.sheets}
+          onClose={() => setExportPreview(null)}
+        />
       )}
     </div>
   );

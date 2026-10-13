@@ -92,6 +92,24 @@ def set_staff_max_shift_hours(db: Session, hours: int) -> None:
     _set(db, MAX_SHIFT_KEY, str(int(hours)))
 
 
+AUTO_CLOSE_ENABLED_KEY = "staff_auto_close_shifts_enabled"
+
+
+def auto_close_shifts_enabled(db: Session) -> bool:
+    """Whether the auto-close-shift feature runs at all. Defaults to on (the
+    original always-on behavior), so an existing deployment's behavior is
+    unchanged until an Admin explicitly turns it off — see
+    auto_close_worker.py's loop, which skips its sweep entirely while off."""
+    v = _get(db, AUTO_CLOSE_ENABLED_KEY)
+    if v is None:
+        v = os.getenv("STAFF_AUTO_CLOSE_SHIFTS_ENABLED", "true")
+    return v.strip().lower() in _TRUE
+
+
+def set_auto_close_shifts_enabled(db: Session, enabled: bool) -> None:
+    _set(db, AUTO_CLOSE_ENABLED_KEY, "true" if enabled else "false")
+
+
 ATTENDANCE_MANDATORY_KEY = "attendance_marking_mandatory"
 
 

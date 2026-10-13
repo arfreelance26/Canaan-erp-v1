@@ -6,14 +6,29 @@ import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
 import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, adblueLogsApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
-import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight } from "lucide-react";
+import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight, Eye, Loader2 } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
 import { isEmiCompleted } from "@/lib/emi-schedule";
+import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
+import { showError } from "@/lib/swal";
 
 const MODES = ["Manual", "Basic", "Advanced"] as const;
 type Mode = (typeof MODES)[number];
+
+/** The same six per-km components TruckCostCard's footer breaks the total
+ * into (see `costComponents` inside it), reported up to the page so the
+ * "View" export can show a breakdown, not just the total. */
+type CostBreakdown = {
+  emiPerKm: number | null;
+  mileagePerKm: number | null;
+  adbluePerKm: number | null;
+  tyrePerKm: number | null;
+  maintenancePerKm: number | null;
+  compliancePerKm: number | null;
+  totalPerKm: number | null;
+};
 
 const STORAGE_KEY = "canaan_rcc_state";
 
@@ -153,7 +168,7 @@ function TruckCostCard({
   // page) — feeds every "(Advanced)" per-km field: EMI, Maintenance, Compliance.
   advMonthlyAvgKm?: number;
   mode: string;
-  onCostChange?: (cost: number | null) => void;
+  onCostChange?: (breakdown: CostBreakdown) => void;
 }) {
   const isAdvancedMode = mode === "Advanced";
   const isBasicMode    = mode === "Basic";
@@ -373,8 +388,16 @@ function TruckCostCard({
     : null;
 
   useEffect(() => {
-    onCostChange?.(totalCostPerKm);
-  }, [totalCostPerKm]); // eslint-disable-line react-hooks/exhaustive-deps
+    onCostChange?.({
+      emiPerKm,
+      mileagePerKm: mileageCostPerKm,
+      adbluePerKm: adblueChargesPerKm,
+      tyrePerKm: tyreChargesPerKm,
+      maintenancePerKm: maintenanceVal,
+      compliancePerKm,
+      totalPerKm: totalCostPerKm,
+    });
+  }, [totalCostPerKm]);
 
   // Same six components as the total, for the footer's share bar + legend.
   // Values under ₹1/km are tiny (maintenance, compliance) — keep 4 decimals so they don't read as ₹0.00.
@@ -1872,6 +1895,8 @@ export default function RunningCostCalculatorPage() {
   });
   const [showCalcInfo, setShowCalcInfo] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
+  const [preparingExport, setPreparingExport] = useState(false);
 
   // Tyre Details state
   const [tyreTypes, setTyreTypes] = useState<string[]>([]);
@@ -1999,13 +2024,72 @@ export default function RunningCostCalculatorPage() {
   // Truck Profitability tab ("Total Truck Expenses") reads this live.
   const costPerKmMapRef = useRef<Record<string, number | null>>({});
   const costPerKmSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  function handleTruckCostChange(truckFleetId: string, truckMode: string, cost: number | null) {
+  // Every truck card's latest breakdown, keyed by fleet truckId — read (not
+  // subscribed to) by the "View" export so reporting six numbers per card on
+  // every recompute doesn't trigger a page-level re-render.
+  const costBreakdownRef = useRef<Record<string, CostBreakdown & { registrationNumber: string }>>({});
+  function handleTruckCostChange(truck: Truck, truckMode: string, breakdown: CostBreakdown) {
+    costBreakdownRef.current = {
+      ...costBreakdownRef.current,
+      [truck.truckId]: { ...breakdown, registrationNumber: truck.registrationNumber },
+    };
     if (truckMode !== "Manual") return;
-    costPerKmMapRef.current = { ...costPerKmMapRef.current, [truckFleetId]: cost };
+    costPerKmMapRef.current = { ...costPerKmMapRef.current, [truck.truckId]: breakdown.totalPerKm };
     if (costPerKmSaveTimerRef.current) clearTimeout(costPerKmSaveTimerRef.current);
     costPerKmSaveTimerRef.current = setTimeout(() => {
       runningCostApi.saveCostPerKm("Manual", costPerKmMapRef.current).catch(() => {});
     }, 800);
+  }
+
+  /** Builds a per-truck cost breakdown export and opens the standard View
+   * dialog (same component as Profitability's export). Every truck's row
+   * comes from costBreakdownRef — only populated for cards that have
+   * actually rendered — so this first switches to List view (the only view
+   * that mounts every truck's card at once) and gives their effects a couple
+   * of ticks to report in before reading the ref. */
+  async function openExportPreview() {
+    if (preparingExport || trucks.length === 0) return;
+    setPreparingExport(true);
+    try {
+      if (truckView !== "list") setTruckView("list");
+      if (truckSearch) setTruckSearch("");
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      const round4 = (n: number | null) => (n != null ? Math.round(n * 10000) / 10000 : "");
+
+      const rows = trucks.map((t) => {
+        const b = costBreakdownRef.current[t.truckId];
+        return {
+          "Truck": t.truckId,
+          "Registration No": t.registrationNumber,
+          "Fuel /KM": round4(b?.mileagePerKm ?? null),
+          "Tyre /KM": round4(b?.tyrePerKm ?? null),
+          "AdBlue /KM": round4(b?.adbluePerKm ?? null),
+          "Maintenance /KM": round4(b?.maintenancePerKm ?? null),
+          "Compliance /KM": round4(b?.compliancePerKm ?? null),
+          "EMI/Finance /KM": round4(b?.emiPerKm ?? null),
+          "Total Cost /KM": round4(b?.totalPerKm ?? null),
+        };
+      });
+
+      const { utils, write } = await import("xlsx");
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, utils.json_to_sheet(rows), "Running Cost");
+      const wbArray = write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+      const blob = new Blob([wbArray], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+      const header = rows.length > 0 ? Object.keys(rows[0]) : [];
+      const sheet: PreviewSheet = {
+        name: "Running Cost",
+        rows: [header, ...rows.map((r) => header.map((h) => String((r as Record<string, unknown>)[h] ?? "")))],
+      };
+
+      setExportPreview({ blob, filename: `Running_Cost_${mode}.xlsx`, sheets: [sheet] });
+    } catch {
+      showError("Could not prepare the export.");
+    } finally {
+      setPreparingExport(false);
+    }
   }
 
   useEffect(() => {
@@ -2363,6 +2447,15 @@ export default function RunningCostCalculatorPage() {
             <Info className="h-4 w-4" />
             How is this calculated?
           </button>
+          {trucks.length > 0 && (
+            <button
+              type="button" onClick={openExportPreview} disabled={preparingExport}
+              className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+              {preparingExport ? "Preparing…" : "View"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -2541,7 +2634,7 @@ export default function RunningCostCalculatorPage() {
                     perKm: advancedCompliancePerKmMap[truck.id] ?? "",
                   } : undefined}
                   mode={mode}
-                  onCostChange={(cost) => handleTruckCostChange(truck.truckId, mode, cost)}
+                  onCostChange={(breakdown) => handleTruckCostChange(truck, mode, breakdown)}
                 />
               ));
             })()}
@@ -2912,6 +3005,16 @@ export default function RunningCostCalculatorPage() {
 
           </div>
         </div>
+      )}
+
+      {exportPreview && (
+        <ExportPreviewDialog
+          title={`Running Cost — ${mode} Mode`}
+          filename={exportPreview.filename}
+          blob={exportPreview.blob}
+          sheets={exportPreview.sheets}
+          onClose={() => setExportPreview(null)}
+        />
       )}
     </div>
   );

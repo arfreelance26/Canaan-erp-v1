@@ -18,6 +18,7 @@ import type { EditApprovalRequest, EditApprovalAction } from "@/types/edit-appro
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
+import { ComplianceAlertBanner } from "@/components/dashboard/ComplianceAlertBanner";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
@@ -113,7 +114,7 @@ export default function FleetPage() {
   }, []);
 
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
-  useComplianceAlerts(trucks);
+  const { expiredItems: complianceExpired, expiringSoonItems: complianceExpiringSoon } = useComplianceAlerts(trucks);
 
   // Load and refresh active edit approvals for non-Admin roles
   useEffect(() => {
@@ -410,6 +411,14 @@ export default function FleetPage() {
           </button>
         </div>
       </div>
+
+      {/* Compliance status for this exact fleet — lives here instead of the
+          notification bell: this is where you'd actually come to renew a
+          document, so the alert belongs on the page, not in a dropdown. */}
+      <ComplianceAlertBanner
+        expired={complianceExpired}
+        expiringSoon={complianceExpiringSoon}
+      />
 
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">

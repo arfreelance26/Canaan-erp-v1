@@ -7,6 +7,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StaffAttendanceTable } from "@/components/attendance/StaffAttendanceTable";
 import { SetWorkingHoursDialog } from "@/components/attendance/SetWorkingHoursDialog";
+import { AttendanceMandatoryToggle } from "@/components/attendance/AttendanceMandatoryToggle";
 import { staffApi, attendanceApi, type StaffAttendanceEditEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
@@ -377,9 +378,10 @@ export default function StaffAttendancePage() {
               className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
             >
               <Clock className="h-4 w-4" />
-              Set Working Hours
+              Auto-Close Settings
             </button>
           )}
+          {isAdmin && <AttendanceMandatoryToggle />}
           {isAdmin && (
 <button
             type="button"

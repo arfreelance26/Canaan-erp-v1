@@ -607,6 +607,11 @@ class Trip(Base):
     # is being routed via a known Tuticorin CFS/yard rather than picked from
     # the customer's configured Available Routes.
     use_yard_cfs = Column(Boolean, default=False, nullable=False, server_default="0")
+    # When on, Origin/Destination Location in Route Information become free-text
+    # instead of being locked to a selected Available Route (or the Shifting/
+    # Export restricted dropdowns) — for one-off routes with no customer route
+    # configured. Noted here so TripFormDialog re-opens in the same mode.
+    use_custom_route = Column(Boolean, default=False, nullable=False, server_default="0")
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged", "rejected"), default="pending")
     verification_rejection_reason = Column(Text, nullable=True)
@@ -1697,6 +1702,13 @@ class DeletionApprovalRequest(Base):
     approved_by_name = Column(String(100), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Set once the requester has actually seen this decision (Topbar bell
+    # opened, or the "Edit & Delete Requests" page visited) — null means a
+    # decided request is still unseen, which is what the bell badge counts.
+    # Deliberately separate from created_at/approved_at: those are audit
+    # timestamps that never change; this one is purely "has the requester
+    # been told yet", set by POST /deletion-approvals/mine/mark-seen.
+    requester_seen_at = Column(DateTime, nullable=True)
 
 
 class EditApprovalRequest(Base):
@@ -1723,6 +1735,9 @@ class EditApprovalRequest(Base):
     # an approval that's been acted on from one that's just sitting approved
     # but unused — powers the Trip Reconciliation "Completed"/"Pending" split.
     used_at = Column(DateTime, nullable=True)
+    # Same "has the requester been told yet" marker as
+    # DeletionApprovalRequest.requester_seen_at — see that column's comment.
+    requester_seen_at = Column(DateTime, nullable=True)
 
 
 class CompensationTransaction(Base):
@@ -2104,6 +2119,84 @@ class ChatMessage(Base):
         # Covers both history paging (WHERE conversation_id = ? AND id < ? ORDER BY id DESC)
         # and the unread count (WHERE conversation_id = ? AND id > ?).
         Index("ix_chat_message_conv_id", "conversation_id", "id"),
+    )
+
+
+class RoomSummon(Base):
+    """Audit trail for the Admin-only "summon" alert (Topbar's BellRing button):
+    pushes a live "the owner has requested your presence" dialog straight to a
+    staff member's screen, or to every member of a Canaan Chat group at once.
+    The push itself is a pure WebSocket event (see routers/room_summon.py) —
+    this row exists only so there's a record of who was summoned, when, and by
+    whom, since nothing else about it touches the database.
+    """
+    __tablename__ = "room_summons"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    summoned_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    summoned_by_name = Column(String(100), nullable=True)   # snapshot, same reasoning as ChatMessage.sender_name
+    target_type = Column(String(10), nullable=False)        # "user" | "group"
+    # The picked Staff.id, or the Canaan Chat group's ChatConversation.id —
+    # not a FK: the target can be a staff member OR a conversation, and either
+    # one may later be deleted without this historical row needing to follow.
+    target_id = Column(Integer, nullable=False)
+    target_label = Column(String(150), nullable=False)      # staff name, or group title, at summon time
+    # Snapshots of who the push actually reached — a group's membership can
+    # change afterwards, so re-deriving "who" from target_id later would give
+    # a wrong answer for an old row.
+    recipient_ids = Column(JSON, nullable=False, default=list)
+    recipient_names = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Event(Base):
+    """Admin-scheduled meeting (Topbar's Event button — sits between Invite and
+    Calculator). Participants are picked the same way as a RoomSummon (a
+    Canaan Chat user or group); the creator is always added as a participant
+    too, so their own "upcoming meetings" list and the live start-time
+    reminder both cover them without needing a separate "my events" query.
+    """
+    __tablename__ = "events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    location = Column(String(150), nullable=True)
+    starts_at = Column(DateTime, nullable=False)
+    ends_at = Column(DateTime, nullable=True)
+    created_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    created_by_name = Column(String(100), nullable=True)   # snapshot, same reasoning as ChatMessage.sender_name
+    # Set once event_reminder_worker.py has pushed the live "starting now"
+    # dialog to every participant, so a later poll tick never re-sends it.
+    reminded_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Marked by any participant via "Mark as Completed" — NULL means it still
+    # shows in Upcoming Meetings (even past its starts_at, until someone
+    # closes it out); once set it moves to the History tab instead.
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
+    completed_by_name = Column(String(100), nullable=True)
+
+    __table_args__ = (
+        Index("ix_event_starts_at", "starts_at"),
+        Index("ix_event_completed_at", "completed_at"),
+    )
+
+
+class EventParticipant(Base):
+    """One invited staff member for an Event — a plain join table (same shape
+    as ChatParticipant) so "my upcoming meetings" is an ordinary indexed join
+    instead of scanning a JSON blob."""
+    __tablename__ = "event_participants"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    staff_name = Column(String(100), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("event_id", "staff_id", name="uq_event_participant"),
+        Index("ix_event_participant_staff", "staff_id"),
     )
 
 

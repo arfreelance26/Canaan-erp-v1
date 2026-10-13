@@ -735,6 +735,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     isInvoiced: b.is_invoiced ?? false,
     invoiceRequired: b.invoice_required ?? true,
     useYardCfs: b.use_yard_cfs ?? false,
+    useCustomRoute: b.use_custom_route ?? false,
     invoiceWaived: b.invoice_waived ?? false,
     isCombinedInvoice: b.is_combined_invoice ?? false,
     driverName: b.driver_name ?? null,
@@ -813,6 +814,7 @@ function fromTrip(f: Trip) {
     booking_instructions: f.bookingInstructions || null,
     invoice_required: f.invoiceRequired ?? true,
     use_yard_cfs: f.useYardCfs ?? false,
+    use_custom_route: f.useCustomRoute ?? false,
   };
 }
 
@@ -2859,6 +2861,7 @@ export type DeletionApprovalRequest = {
   approvedByName: string | null;
   approvedAt: string | null;
   createdAt: string | null;
+  requesterSeenAt: string | null;
 };
 
 function toDeletionApproval(b: B): DeletionApprovalRequest {
@@ -2876,6 +2879,7 @@ function toDeletionApproval(b: B): DeletionApprovalRequest {
     approvedByName: b.approved_by_name ?? null,
     approvedAt: b.approved_at ?? null,
     createdAt: b.created_at ?? null,
+    requesterSeenAt: (b.requester_seen_at as string | null) ?? null,
   };
 }
 
@@ -2936,6 +2940,9 @@ export const deletionApprovalsApi = {
   /** Every deletion request the logged-in user has filed (any status). */
   listMine: (): Promise<DeletionApprovalRequest[]> =>
     req<B[]>("/deletion-approvals/mine").then((d) => d.map(toDeletionApproval)),
+  /** Clears the bell badge for this user's decided deletion requests. */
+  markMineSeen: (): Promise<void> =>
+    req<void>("/deletion-approvals/mine/mark-seen", { method: "POST" }),
   approve: (id: number, adminNote?: string): Promise<DeletionApprovalRequest> =>
     req<B>(`/deletion-approvals/${id}/approve`, {
       method: "PUT",
@@ -4140,6 +4147,7 @@ function toEditApproval(b: B): EditApprovalRequest {
     expiresAt: b.expires_at ?? null,
     createdAt: b.created_at ?? null,
     usedAt: b.used_at ?? null,
+    requesterSeenAt: (b.requester_seen_at as string | null) ?? null,
   };
 }
 
@@ -4169,6 +4177,9 @@ export const editApprovalsApi = {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return req<B[]>(`/edit-approvals/mine${qs}`).then((d) => d.map(toEditApproval));
   },
+  /** Clears the bell badge for this user's decided edit requests. */
+  markMineSeen: (): Promise<void> =>
+    req<void>("/edit-approvals/mine/mark-seen", { method: "POST" }),
   create: (payload: {
     resourceType: EditApprovalResourceType;
     resourceId: number;
@@ -4346,6 +4357,15 @@ export const securityApi = {
       method: "PUT",
       body: JSON.stringify({ mandatory }),
     }).then((r) => Boolean(r.mandatory)),
+  // Whether the auto-close-shift background sweep runs at all. Manual
+  // "Close Shift" (self or Admin) always works regardless of this flag.
+  getAutoCloseEnabled: () =>
+    req<{ enabled: boolean }>("/settings/auto-close-enabled").then((r) => Boolean(r.enabled)),
+  updateAutoCloseEnabled: (enabled: boolean) =>
+    req<{ enabled: boolean }>("/settings/auto-close-enabled", {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }).then((r) => Boolean(r.enabled)),
   getDeviceLock: () =>
     req<{ enabled: boolean; admin_limit: number; staff_limit: number }>("/settings/device-lock").then((r) => ({
       enabled: Boolean(r.enabled),
@@ -4747,6 +4767,20 @@ export const chatApi = {
     if (opts?.limit) p.set("limit", String(opts.limit));
     const qs = p.toString();
     return chatReq<B[]>(`/chat/conversations/${id}/messages${qs ? `?${qs}` : ""}`)
+      .then((d) => d.map(toChatMessage));
+  },
+
+  /** Backs the Media / Links / Docs tabs on the info panel — a filtered slice
+   * of the same message history, not a separate store. */
+  listMedia: (
+    id: number,
+    kind: "image" | "file" | "link",
+    opts?: { beforeId?: number; limit?: number }
+  ): Promise<ChatMessage[]> => {
+    const p = new URLSearchParams({ kind });
+    if (opts?.beforeId) p.set("before_id", String(opts.beforeId));
+    if (opts?.limit) p.set("limit", String(opts.limit));
+    return chatReq<B[]>(`/chat/conversations/${id}/media?${p.toString()}`)
       .then((d) => d.map(toChatMessage));
   },
 
@@ -5166,4 +5200,114 @@ export const usageApi = {
       })),
     }));
   },
+};
+
+// ---------------------------------------------------------------------------
+// Room Summon — Admin-only "come to my room" push (Topbar's BellRing button)
+// ---------------------------------------------------------------------------
+
+export type RoomSummon = {
+  id: number;
+  summonedBy: number | null;
+  summonedByName: string | null;
+  targetType: "user" | "group";
+  targetId: number;
+  targetLabel: string;
+  recipientIds: number[];
+  recipientNames: string[];
+  createdAt: string | null;
+};
+
+function toRoomSummon(b: B): RoomSummon {
+  return {
+    id: Number(b.id),
+    summonedBy: b.summoned_by != null ? Number(b.summoned_by) : null,
+    summonedByName: b.summoned_by_name ?? null,
+    targetType: (b.target_type as RoomSummon["targetType"]) ?? "user",
+    targetId: Number(b.target_id),
+    targetLabel: b.target_label ?? "",
+    recipientIds: Array.isArray(b.recipient_ids) ? b.recipient_ids.map(Number) : [],
+    recipientNames: Array.isArray(b.recipient_names) ? b.recipient_names.map(String) : [],
+    createdAt: b.created_at ?? null,
+  };
+}
+
+export const roomSummonApi = {
+  send: (targetType: "user" | "group", targetId: number): Promise<RoomSummon> =>
+    req<B>("/room-summon", {
+      method: "POST",
+      body: JSON.stringify({ target_type: targetType, target_id: targetId }),
+    }).then(toRoomSummon),
+
+  list: (limit = 50): Promise<RoomSummon[]> =>
+    req<B[]>(`/room-summon?limit=${limit}`).then((d) => d.map(toRoomSummon)),
+};
+
+// ---------------------------------------------------------------------------
+// Events — Admin-scheduled meetings (Topbar's Event button)
+// ---------------------------------------------------------------------------
+
+export type CanaanEvent = {
+  id: number;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdBy: number | null;
+  createdByName: string | null;
+  participantNames: string[];
+  createdAt: string | null;
+  completedAt: string | null;
+  completedByName: string | null;
+};
+
+function toEvent(b: B): CanaanEvent {
+  return {
+    id: Number(b.id),
+    title: b.title ?? "",
+    description: b.description ?? null,
+    location: b.location ?? null,
+    startsAt: b.starts_at ?? null,
+    endsAt: b.ends_at ?? null,
+    createdBy: b.created_by != null ? Number(b.created_by) : null,
+    createdByName: b.created_by_name ?? null,
+    participantNames: Array.isArray(b.participant_names) ? b.participant_names.map(String) : [],
+    createdAt: b.created_at ?? null,
+    completedAt: b.completed_at ?? null,
+    completedByName: b.completed_by_name ?? null,
+  };
+}
+
+export const eventsApi = {
+  create: (payload: {
+    title: string;
+    description?: string;
+    location?: string;
+    startsAt: string;
+    endsAt?: string;
+    targets: { type: "user" | "group"; id: number }[];
+  }): Promise<CanaanEvent> =>
+    req<B>("/events", {
+      method: "POST",
+      body: JSON.stringify({
+        title: payload.title,
+        description: payload.description || undefined,
+        location: payload.location || undefined,
+        starts_at: payload.startsAt,
+        ends_at: payload.endsAt || undefined,
+        targets: payload.targets.map((t) => ({ target_type: t.type, target_id: t.id })),
+      }),
+    }).then(toEvent),
+
+  listUpcoming: (): Promise<CanaanEvent[]> =>
+    req<B[]>("/events/upcoming").then((d) => d.map(toEvent)),
+
+  listHistory: (): Promise<CanaanEvent[]> =>
+    req<B[]>("/events/history").then((d) => d.map(toEvent)),
+
+  complete: (id: number): Promise<CanaanEvent> =>
+    req<B>(`/events/${id}/complete`, { method: "POST" }).then(toEvent),
+
+  cancel: (id: number): Promise<void> => req<void>(`/events/${id}`, { method: "DELETE" }),
 };

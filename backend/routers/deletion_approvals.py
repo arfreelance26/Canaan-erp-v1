@@ -37,7 +37,11 @@ def auto_reject_stale_requests(db: Session, resource_type: str, resource_id: int
         req.approved_by_name = actor_name
         req.approved_at = now
         req.admin_note = "Auto-rejected: this record was permanently deleted before the request could be reviewed."
-        emit("deletion_approval_updated", {"id": req.id, "status": "Rejected"})
+        emit("deletion_approval_updated", {
+            "id": req.id, "status": "Rejected",
+            "requested_by_staff_id": req.requested_by_staff_id,
+            "resource_type": req.resource_type, "resource_name": req.resource_name,
+        })
 
 
 @router.post("", response_model=schemas.DeletionApprovalRequestOut, status_code=201)
@@ -158,6 +162,26 @@ def list_my_deletion_approvals(
     if status:
         q = q.filter(models.DeletionApprovalRequest.status == status)
     return q.order_by(models.DeletionApprovalRequest.created_at.desc()).all()
+
+
+@router.post("/mine/mark-seen")
+def mark_my_deletion_approvals_seen(
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Clears the Topbar bell badge for this user's decided deletion requests
+    — called when they open the bell or visit "Edit & Delete Requests".
+    Registered before /{req_id}-shaped routes so "mine" isn't taken as one."""
+    if current_user.id is None:
+        return {"ok": True}
+    now = datetime.now(timezone.utc)
+    db.query(models.DeletionApprovalRequest).filter(
+        models.DeletionApprovalRequest.requested_by_staff_id == current_user.id,
+        models.DeletionApprovalRequest.status != "Pending",
+        models.DeletionApprovalRequest.requester_seen_at.is_(None),
+    ).update({"requester_seen_at": now}, synchronize_session=False)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/export", dependencies=[Depends(require_roles())])
@@ -364,7 +388,11 @@ def approve_deletion(
     req.admin_note = payload.admin_note
     db.commit()
     db.refresh(req)
-    emit("deletion_approval_updated", {"id": req.id, "status": "Approved"})
+    emit("deletion_approval_updated", {
+        "id": req.id, "status": "Approved",
+        "requested_by_staff_id": req.requested_by_staff_id,
+        "resource_type": req.resource_type, "resource_name": req.resource_name,
+    })
     return req
 
 
@@ -387,5 +415,9 @@ def reject_deletion(
     req.admin_note = payload.admin_note
     db.commit()
     db.refresh(req)
-    emit("deletion_approval_updated", {"id": req.id, "status": "Rejected"})
+    emit("deletion_approval_updated", {
+        "id": req.id, "status": "Rejected",
+        "requested_by_staff_id": req.requested_by_staff_id,
+        "resource_type": req.resource_type, "resource_name": req.resource_name,
+    })
     return req

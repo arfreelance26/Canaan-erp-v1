@@ -15,9 +15,12 @@ type Props = {
 // an open shift — safe for split/dynamic schedules (morning, afternoon,
 // late night, with gaps between) since continued real use keeps resetting
 // the clock; it only fires once someone's actually gone quiet that long.
+// The on/off switch and the hours value used to be two separate header
+// controls — merged back into one dialog since they're really one setting
+// (whether the sweep runs at all, and if so how long it waits), not two.
 export function SetWorkingHoursDialog({ open, onClose }: Props) {
   const [hours, setHours] = useState("");
-  const [mandatory, setMandatory] = useState(false);
+  const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -26,8 +29,8 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
     if (!open) return;
     setLoading(true);
     setError("");
-    Promise.all([securityApi.getMaxShiftHours(), securityApi.getAttendanceMandatory()])
-      .then(([h, m]) => { setHours(String(h)); setMandatory(m); })
+    Promise.all([securityApi.getMaxShiftHours(), securityApi.getAutoCloseEnabled()])
+      .then(([h, e]) => { setHours(String(h)); setEnabled(e); })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Could not load the current settings."))
       .finally(() => setLoading(false));
   }, [open]);
@@ -44,9 +47,13 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
     try {
       const [saved] = await Promise.all([
         securityApi.updateMaxShiftHours(value),
-        securityApi.updateAttendanceMandatory(mandatory),
+        securityApi.updateAutoCloseEnabled(enabled),
       ]);
-      showSuccess(`Shifts will close automatically after ${saved} hours of inactivity.`);
+      showSuccess(
+        enabled
+          ? `Shifts will close automatically after ${saved} hours of inactivity.`
+          : "Auto-closing shifts is off — only manual Close Shift will end a shift."
+      );
       onClose();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save working hours.";
@@ -58,7 +65,7 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
   }
 
   return (
-    <Dialog open={open} onClose={() => !saving && onClose()} title="Set Working Hours">
+    <Dialog open={open} onClose={() => !saving && onClose()} title="Auto-Close Settings">
       <form onSubmit={save} className="flex flex-col gap-4 p-1">
         <p className="text-sm text-gray-600">
           A shift that hasn&apos;t been closed by the staff member is closed automatically once this many
@@ -66,43 +73,46 @@ export function SetWorkingHoursDialog({ open, onClose }: Props) {
           working a split schedule (morning, then evening, then late night) is never cut off mid-shift.
           The check-out time recorded is their real last activity, and the shift is marked &ldquo;Auto-closed.&rdquo;
         </p>
+
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-3 py-2.5">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Auto-Close Shifts</p>
+            <p className="text-xs text-gray-500">Manual &ldquo;Close Shift&rdquo; always works either way.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            disabled={loading}
+            onClick={() => setEnabled((v) => !v)}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+              enabled ? "bg-emerald-500" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                enabled ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-gray-700">Auto-close after this many hours of inactivity</span>
+          <span className={`font-medium ${enabled ? "text-gray-700" : "text-gray-400"}`}>
+            Auto-close after this many hours of inactivity
+          </span>
           <input
             type="number"
             min={1}
             max={24}
             step={1}
             required
-            disabled={loading}
+            disabled={loading || !enabled}
             value={hours}
             onChange={(e) => setHours(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2"
+            className="rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-50 disabled:text-gray-400"
           />
         </label>
-
-        <div className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-3 py-2.5">
-          <div>
-            <p className="text-sm font-medium text-gray-700">Set Marking Attendance as Mandatory</p>
-            <p className="text-xs text-gray-500">Requires staff to mark attendance.</p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={mandatory}
-            disabled={loading}
-            onClick={() => setMandatory((v) => !v)}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-              mandatory ? "bg-emerald-500" : "bg-gray-300"
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                mandatory ? "translate-x-5" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-        </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">

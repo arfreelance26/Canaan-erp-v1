@@ -17,9 +17,17 @@ import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
+import { useNotifications } from "@/context/NotificationContext";
+import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 export default function CompliancePage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
+  // Truck document renewal reminders used to only surface as "Renewals &
+  // Payments" in the Topbar bell — lives here now, the page whose whole job
+  // is already tracking these documents. "license" is driver-side (see
+  // Our Drivers); everything else here is a truck document.
+  const { reminders } = useNotifications();
+  const docReminders = reminders.filter((r) => r.kind !== "license" && r.kind !== "recurring");
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
   const [updateOpen, setUpdateOpen] = useState(false);
@@ -108,6 +116,8 @@ export default function CompliancePage() {
           </button>
         </div>
       </div>
+
+      <ReminderAlertBanner items={docReminders} />
 
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />

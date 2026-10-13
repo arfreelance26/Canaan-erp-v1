@@ -11,6 +11,8 @@ import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAttendanceGate } from "@/hooks/useAttendanceGate";
 import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
+import { RoomSummonListener } from "./RoomSummonListener";
+import { EventReminderListener } from "./EventReminderListener";
 import { cn } from "@/lib/utils";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
@@ -113,10 +115,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           it animates, so the instant snap underneath is never seen. */}
       <div className={cn("hidden shrink-0 md:block", collapsed ? "md:w-16" : "md:w-[310px]")} />
       <div className="flex min-w-0 flex-1 flex-col [contain:layout_style]">
-        <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} />
+        <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} attendanceLocked={attendanceLocked} />
         <main className="flex-1 overflow-y-auto bg-gray-50 p-3 dark:bg-[#090c14] sm:p-4 md:p-6">{children}</main>
       </div>
       {/* <ERPChatWidget /> */}{/* Next phase */}
+      <RoomSummonListener />
+      <EventReminderListener />
     </div>
   );
 }

@@ -22,7 +22,7 @@ import { dashboardApi, tripsApi, trucksApi, editApprovalsApi } from "@/lib/api";
 import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { SheetTrackingCard } from "./SheetTrackingCard";
-import { StatCard } from "./StatCard";
+import { FleetStatusPanel } from "./FleetStatusPanel";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Card, CardContent } from "@/components/ui/card";
@@ -238,13 +238,41 @@ export function FleetManagerDashboard() {
       <Separator />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
-        <StatCard icon={Truck}         label="Total Fleet"            value={loading ? "—" : trucks.length}        variant="blue"    onClick={() => router.push("/trips/assign")} />
-        <StatCard icon={Activity}      label="Active Trips"           value={loading ? "—" : activeCount}          variant="indigo"  onClick={() => router.push("/trips/current")} />
-        <StatCard icon={CheckCircle2}  label="Completed Trips"        value={loading ? "—" : completedCount}       variant="emerald" onClick={() => router.push("/trips/completed")} />
-        <StatCard icon={Users}         label="Total Drivers"          value={loading ? "—" : (overview?.total_drivers ?? 0)} variant="purple" />
-        <StatCard icon={ClipboardList} label="Pending Edit Approvals" value={loading ? "—" : pendingApprovals}     variant={pendingApprovals > 0 ? "amber" : "default"} onClick={() => router.push("/attendance/edit-approvals")} />
-      </div>
+      <FleetStatusPanel
+        segments={[
+          {
+            key: "total-fleet", kind: "count",
+            label: "Total fleet", icon: Truck,
+            value: loading ? "—" : String(trucks.length),
+            onClick: () => router.push("/trips/assign"),
+          },
+          {
+            key: "active-trips", kind: "count",
+            label: "Active trips", icon: Activity,
+            value: loading ? "—" : String(activeCount),
+            onClick: () => router.push("/trips/current"),
+          },
+          {
+            key: "completed-trips", kind: "count",
+            label: "Completed trips", icon: CheckCircle2,
+            value: loading ? "—" : String(completedCount),
+            tone: "good",
+            onClick: () => router.push("/trips/completed"),
+          },
+          {
+            key: "total-drivers", kind: "count",
+            label: "Total drivers", icon: Users,
+            value: loading ? "—" : String(overview?.total_drivers ?? 0),
+          },
+          {
+            key: "pending-edit-approvals", kind: "count",
+            label: "Pending edit approvals", icon: ClipboardList,
+            value: loading ? "—" : String(pendingApprovals),
+            tone: pendingApprovals > 0 ? "warn" : "neutral",
+            onClick: () => router.push("/attendance/edit-approvals"),
+          },
+        ]}
+      />
 
       <Separator />
 
