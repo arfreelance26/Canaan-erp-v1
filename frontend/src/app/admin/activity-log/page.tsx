@@ -16,6 +16,7 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
+import { TablePagination } from "@/components/ui/TablePagination";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { TAB_CLOSED_LABEL } from "@/hooks/useActivityTracking";
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 50;
+const EXPORT_LIMIT = 500; // the most GET /activity/events returns in one call
 const FALLBACK_POLL_MS = 30_000;
 const DASHBOARD_MIN_GAP_MS = 10_000;
 const LIVE_DEBOUNCE_MS = 1_200;
@@ -53,6 +55,9 @@ const CHART_SERIES = [
   { key: "views", label: "Page views", color: "#0ea5e9" },
   { key: "clicks", label: "Clicks", color: "#a5b4fc" },
 ] as const;
+// Mid-tone colours that read on both the light and the dark card.
+const CHART_TICK = "#7d8fab";
+const CHART_AXIS = "rgba(120,135,180,0.4)";
 const SEVERITY_STYLE: Record<ActivityAlert["severity"], string> = {
   high: "border-red-200 bg-red-50 text-red-800",
   medium: "border-amber-200 bg-amber-50 text-amber-800",
@@ -146,6 +151,42 @@ function hourLabel(h: number): string {
   return `${String(h).padStart(2, "0")}:00`;
 }
 
+type HourPayload = { dataKey?: string | number; name?: string; value?: number; color?: string };
+
+/** Built from the app's theme classes (bg-white, text-gray-*), which html.dark
+ *  remaps — Recharts' default tooltip is inline white and ignores dark mode. */
+function HourTooltip({ active, payload, label }: { active?: boolean; payload?: HourPayload[]; label?: number | string }) {
+  if (!active || !payload?.length) return null;
+  const shown = payload.filter((p) => Number(p.value) > 0).reverse();
+  const total = shown.reduce((n, p) => n + Number(p.value), 0);
+  return (
+    <div className="min-w-[150px] rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs shadow-lg">
+      <p className="mb-1.5 font-semibold text-gray-900">{hourLabel(Number(label))}</p>
+      {shown.length === 0 ? (
+        <p className="text-gray-500">No actions</p>
+      ) : (
+        <ul className="space-y-1">
+          {shown.map((p) => (
+            <li key={String(p.dataKey)} className="flex items-center justify-between gap-4 text-gray-600">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-sm" style={{ background: p.color }} />
+                {p.name}
+              </span>
+              <span className="font-semibold text-gray-900">{p.value}</span>
+            </li>
+          ))}
+          {shown.length > 1 && (
+            <li className="flex justify-between gap-4 border-t border-gray-200 pt-1 font-semibold text-gray-900">
+              <span>Total</span>
+              <span>{total}</span>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // -- Page -----------------------------------------------------------------------
 
 export default function ActivityLogPage() {
@@ -173,10 +214,13 @@ export default function ActivityLogPage() {
 
   const [events, setEvents] = useState<ActivityEventRow[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
+  const [eventsTotal, setEventsTotal] = useState(0);
   const [newCount, setNewCount] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
+  // Lazy load: the Events table isn't fetched until it scrolls into view, and
+  // live updates only refresh it while it's on screen.
+  const [eventsSeen, setEventsSeen] = useState(false);
+  const eventsVisibleRef = useRef(false);
 
   const [live, setLive] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
@@ -204,6 +248,12 @@ export default function ActivityLogPage() {
     }),
     [rangeFrom, rangeTo, search, screen, kinds, role, failedOnly],
   );
+  // The page number belongs to one set of filters: change a filter and it's
+  // back to page 1, with no effect needed to reset it.
+  const filtersKey = JSON.stringify(filters);
+  const [pageState, setPageState] = useState({ key: filtersKey, page: 1 });
+  const page = pageState.key === filtersKey ? pageState.page : 1;
+  const totalPages = Math.max(1, Math.ceil(eventsTotal / PAGE_SIZE));
 
   // -- Loaders ---------------------------------------------------------------
 
@@ -222,59 +272,93 @@ export default function ActivityLogPage() {
     }
   }, [day]);
 
+  const eventsSeqRef = useRef(0);
   const loadEvents = useCallback(async () => {
+    const seq = ++eventsSeqRef.current;
     try {
-      const rows = await activityApi.events({ ...filters, limit: PAGE_SIZE });
+      // The total only changes with the filters or new events, so it's
+      // re-counted on page 1 and kept while paging through older pages.
+      // A failed count (e.g. a backend without /events/count yet) must never
+      // hide the rows themselves — fall back to "at least what we've seen".
+      const offset = (page - 1) * PAGE_SIZE;
+      const [rows, total] = await Promise.all([
+        activityApi.events({ ...filters, offset, limit: PAGE_SIZE }),
+        page === 1 ? activityApi.eventsCount(filters).catch(() => null) : Promise.resolve(null),
+      ]);
+      if (seq !== eventsSeqRef.current) return; // a newer page/filter request won
       setEvents(rows);
-      setHasMore(rows.length === PAGE_SIZE);
+      if (total != null) setEventsTotal(total);
+      else setEventsTotal((t) => Math.max(t, offset + rows.length + (rows.length === PAGE_SIZE ? 1 : 0)));
       setNewCount(0);
     } catch {
+      if (seq !== eventsSeqRef.current) return;
       setEvents([]);
-      setHasMore(false);
     } finally {
-      setEventsLoading(false);
+      if (seq === eventsSeqRef.current) setEventsLoading(false);
     }
-  }, [filters]);
+  }, [filters, page]);
 
   const eventsRef = useRef(events);
   useLayoutEffect(() => {
     eventsRef.current = events;
   });
 
+  // Live: only page 1 changes when new events arrive, and only while the table
+  // is on screen — otherwise nothing is fetched at all.
   const pullNew = useCallback(async () => {
+    if (!eventsSeen || !eventsVisibleRef.current || page !== 1) return;
     const newest = eventsRef.current[0]?.id;
     if (newest == null) {
       await loadEvents();
       return;
     }
+    const seq = eventsSeqRef.current;
     try {
-      const rows = await activityApi.events({ ...filters, afterId: newest, limit: 500 });
-      if (rows.length === 0) return;
+      const rows = await activityApi.events({ ...filters, afterId: newest, limit: PAGE_SIZE });
+      if (rows.length === 0 || seq !== eventsSeqRef.current) return;
+      if (rows.length === PAGE_SIZE) {
+        // A whole page or more arrived at once: reload page 1 and its total.
+        await loadEvents();
+        return;
+      }
       setEvents((prev) => {
         const seen = new Set(prev.map((e) => e.id));
-        return [...rows.filter((r) => !seen.has(r.id)), ...prev];
+        return [...rows.filter((r) => !seen.has(r.id)), ...prev].slice(0, PAGE_SIZE);
       });
+      setEventsTotal((t) => t + rows.length);
       if ((listRef.current?.scrollTop ?? 0) > 40) setNewCount((n) => n + rows.length);
     } catch {
       /* next update will retry */
     }
-  }, [filters, loadEvents]);
+  }, [eventsSeen, page, filters, loadEvents]);
 
-  async function loadMore() {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const rows = await activityApi.events({ ...filters, offset: events.length, limit: PAGE_SIZE });
-      setEvents((prev) => {
-        const seen = new Set(prev.map((e) => e.id));
-        return [...prev, ...rows.filter((r) => !seen.has(r.id))];
-      });
-      setHasMore(rows.length === PAGE_SIZE);
-    } catch {
-      showError("Could not load more events.");
-    } finally {
-      setLoadingMore(false);
-    }
+  const pullNewRef = useRef(pullNew);
+  useLayoutEffect(() => {
+    pullNewRef.current = pullNew;
+  });
+
+  const observeEvents = useCallback((el: HTMLElement | null) => {
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const wasVisible = eventsVisibleRef.current;
+        eventsVisibleRef.current = entry.isIntersecting;
+        if (!entry.isIntersecting) return;
+        setEventsSeen(true);
+        // Back on screen after scrolling away: catch up on what was missed.
+        if (!wasVisible) void pullNewRef.current();
+      },
+      { rootMargin: "300px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  function changePage(next: number) {
+    if (next === page) return;
+    setEventsLoading(true);
+    setPageState({ key: filtersKey, page: next });
+    listRef.current?.scrollTo({ top: 0 });
   }
 
   const loadTimeline = useCallback(async (name: string) => {
@@ -292,8 +376,8 @@ export default function ActivityLogPage() {
   }, [loadDashboard]);
 
   useEffect(() => {
-    void loadEvents();
-  }, [loadEvents]);
+    if (eventsSeen) void loadEvents();
+  }, [eventsSeen, loadEvents]);
 
   useEffect(() => {
     if (drawerUser) void loadTimeline(drawerUser);
@@ -400,7 +484,7 @@ export default function ActivityLogPage() {
       ];
       const eventRows: string[][] = [
         ["Time", "Employee", "Role", "Kind", "What happened", "IP"],
-        ...events.map((e) => [formatDateTime(e.createdAt), e.userName, e.role ?? "", KIND_LABEL[e.kind] ?? e.kind, describeActivity(e), e.ip ?? ""]),
+        ...(await activityApi.events({ ...filters, limit: EXPORT_LIMIT })).map((e) => [formatDateTime(e.createdAt), e.userName, e.role ?? "", KIND_LABEL[e.kind] ?? e.kind, describeActivity(e), e.ip ?? ""]),
       ];
       const alertRows: string[][] = [
         ["Severity", "Employee", "Alert", "Time"],
@@ -574,12 +658,9 @@ export default function ActivityLogPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={overview?.hourly ?? []} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(120,135,180,0.18)" />
-                <XAxis dataKey="hour" tickFormatter={(h: number) => String(h).padStart(2, "0")} tick={{ fontSize: 11 }} interval={1} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                <Tooltip
-                  labelFormatter={(h) => hourLabel(Number(h))}
-                  contentStyle={{ borderRadius: 10, fontSize: 12 }}
-                />
+                <XAxis dataKey="hour" tickFormatter={(h: number) => String(h).padStart(2, "0")} tick={{ fontSize: 11, fill: CHART_TICK }} stroke={CHART_AXIS} interval={1} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: CHART_TICK }} stroke={CHART_AXIS} />
+                <Tooltip cursor={{ fill: "rgba(120,135,180,0.14)" }} content={<HourTooltip />} />
                 {CHART_SERIES.map((s) => (
                   <Bar key={s.key} dataKey={s.key} name={s.label} stackId="a" fill={s.color} />
                 ))}
@@ -675,9 +756,14 @@ export default function ActivityLogPage() {
       </div>
 
       {/* Events */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
+      <section ref={observeEvents} className="rounded-xl border border-gray-200 bg-white p-4">
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <h2 className="mr-auto text-sm font-semibold text-gray-900">Events</h2>
+          <h2 className="mr-auto text-sm font-semibold text-gray-900">
+            Events
+            {eventsSeen && !eventsLoading && (
+              <span className="ml-2 text-xs font-normal text-gray-400">{eventsTotal.toLocaleString("en-IN")} total</span>
+            )}
+          </h2>
           <PillSearch placeholder="Filter by employee…" value={search} onChange={setSearch} />
           <PillSearch placeholder="Filter by screen…" value={screen} onChange={setScreen} />
           <select
@@ -745,7 +831,7 @@ export default function ActivityLogPage() {
           <div
             ref={listRef}
             onScroll={(e) => { if (e.currentTarget.scrollTop <= 40 && newCount) setNewCount(0); }}
-            className="max-h-[60vh] overflow-auto"
+            className={cn("max-h-[60vh] overflow-auto transition-opacity", eventsLoading && events.length > 0 && "opacity-60")}
           >
             <table className="w-full whitespace-nowrap text-left text-xs">
               <thead className="sticky top-0 bg-white text-gray-500">
@@ -783,20 +869,17 @@ export default function ActivityLogPage() {
                 ))}
               </tbody>
             </table>
-            {hasMore && (
-              <div className="flex justify-center py-3">
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-                >
-                  {loadingMore && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Load more
-                </button>
-              </div>
-            )}
           </div>
+        </div>
+        <div className="mt-3">
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            pageSize={PAGE_SIZE}
+            totalItems={eventsTotal}
+            onPageChange={changePage}
+            itemLabel="events"
+          />
         </div>
       </section>
 

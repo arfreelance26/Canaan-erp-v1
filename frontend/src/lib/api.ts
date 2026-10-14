@@ -3250,6 +3250,18 @@ export type ActivityOverview = {
   alerts: ActivityAlert[];
 };
 
+function activityFilterParams(filters: ActivityEventFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+  if (filters.dateTo) params.set("date_to", filters.dateTo);
+  if (filters.user) params.set("user", filters.user);
+  if (filters.kinds && filters.kinds.length) params.set("kind", filters.kinds.join(","));
+  if (filters.role) params.set("role", filters.role);
+  if (filters.route) params.set("route", filters.route);
+  if (filters.failedOnly) params.set("failed_only", "true");
+  return params;
+}
+
 // Reads below use rawReq, not the cached req(): the Activity Log refreshes on
 // every live push, and a 12s-fresh cache would show the previous numbers.
 export const activityApi = {
@@ -3260,14 +3272,7 @@ export const activityApi = {
   sendBatch: (events: { kind: string; route: string; label?: string }[], keepalive = false) =>
     req<void>("/activity/batch", { method: "POST", body: JSON.stringify({ events }), keepalive }),
   events: (filters: ActivityEventFilters) => {
-    const params = new URLSearchParams();
-    if (filters.dateFrom) params.set("date_from", filters.dateFrom);
-    if (filters.dateTo) params.set("date_to", filters.dateTo);
-    if (filters.user) params.set("user", filters.user);
-    if (filters.kinds && filters.kinds.length) params.set("kind", filters.kinds.join(","));
-    if (filters.role) params.set("role", filters.role);
-    if (filters.route) params.set("route", filters.route);
-    if (filters.failedOnly) params.set("failed_only", "true");
+    const params = activityFilterParams(filters);
     if (filters.afterId != null) params.set("after_id", String(filters.afterId));
     if (filters.offset) params.set("offset", String(filters.offset));
     params.set("limit", String(filters.limit ?? 200));
@@ -3287,6 +3292,11 @@ export const activityApi = {
       })) as ActivityEventRow[],
     );
   },
+  // Total matching the same filters, for the Events page numbers.
+  eventsCount: (filters: ActivityEventFilters) =>
+    rawReq<{ total: number }>(`/activity/events/count?${activityFilterParams(filters).toString()}`).then((r) =>
+      Number(r.total ?? 0),
+    ),
   // One employee's day in time order: events and read counts merged.
   timeline: (userName: string, day: string) => {
     const params = new URLSearchParams({ user_name: userName, day });
