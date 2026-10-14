@@ -1197,6 +1197,7 @@ class ActivityEvent(Base):
     __table_args__ = (
         Index("ix_activity_user_time", "user_key", "created_at"),
         Index("ix_activity_time", "created_at"),
+        Index("ix_activity_name_time", "user_name", "created_at"),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)

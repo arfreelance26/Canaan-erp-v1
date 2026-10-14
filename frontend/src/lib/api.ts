@@ -3191,6 +3191,10 @@ export type ActivityEventRow = {
 
 export type ActivitySummaryRow = {
   userName: string;
+  role: string | null;
+  firstAt: string | null;
+  lastAt: string | null;
+  activeMinutes: number;
   saves: number;
   deletes: number;
   exports: number;
@@ -3202,6 +3206,50 @@ export type ActivitySummaryRow = {
   total: number;
 };
 
+export type ActivityEventFilters = {
+  dateFrom?: string;
+  dateTo?: string;
+  user?: string;
+  kinds?: string[];
+  role?: string;
+  route?: string;
+  failedOnly?: boolean;
+  afterId?: number;
+  offset?: number;
+  limit?: number;
+};
+
+export type ActivityTimelineItem = {
+  time: string;
+  type: string;
+  kind: string;
+  method: string | null;
+  route: string;
+  label: string | null;
+  status: number | null;
+  count: number | null;
+  last?: string | null;
+  ip?: string | null;
+};
+
+export type ActivityAlert = {
+  type: string;
+  severity: "high" | "medium" | "low";
+  userName: string;
+  at: string | null;
+  message: string;
+};
+
+export type ActivityOverview = {
+  day: string;
+  activeUsers: number;
+  failedActions: number;
+  hourly: { hour: number; saves: number; deletes: number; exports: number; logins: number; views: number; clicks: number; reads: number }[];
+  topScreens: { route: string; views: number; users: number }[];
+  online: { userName: string; role: string | null; status: "active" | "idle"; lastAt: string | null; screen: string | null }[];
+  alerts: ActivityAlert[];
+};
+
 export const activityApi = {
   // Page views and clicks, sent in batches by useActivityTracking.
   // keepalive=true for the pagehide flush — a plain fetch is routinely
@@ -3209,11 +3257,17 @@ export const activityApi = {
   // keepalive is what's actually guaranteed to survive that.
   sendBatch: (events: { kind: string; route: string; label?: string }[], keepalive = false) =>
     req<void>("/activity/batch", { method: "POST", body: JSON.stringify({ events }), keepalive }),
-  events: (filters: { day?: string; user?: string; kind?: string; limit?: number }) => {
+  events: (filters: ActivityEventFilters) => {
     const params = new URLSearchParams();
-    if (filters.day) { params.set("date_from", filters.day); params.set("date_to", filters.day); }
+    if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+    if (filters.dateTo) params.set("date_to", filters.dateTo);
     if (filters.user) params.set("user", filters.user);
-    if (filters.kind) params.set("kind", filters.kind);
+    if (filters.kinds && filters.kinds.length) params.set("kind", filters.kinds.join(","));
+    if (filters.role) params.set("role", filters.role);
+    if (filters.route) params.set("route", filters.route);
+    if (filters.failedOnly) params.set("failed_only", "true");
+    if (filters.afterId != null) params.set("after_id", String(filters.afterId));
+    if (filters.offset) params.set("offset", String(filters.offset));
     params.set("limit", String(filters.limit ?? 200));
     return req<Record<string, unknown>[]>(`/activity/events?${params.toString()}`).then((rows) =>
       rows.map((r) => ({
@@ -3234,15 +3288,54 @@ export const activityApi = {
   // One employee's day in time order: events and read counts merged.
   timeline: (userName: string, day: string) => {
     const params = new URLSearchParams({ user_name: userName, day });
-    return req<{ time: string; type: string; kind: string; method: string | null; route: string;
-                 label: string | null; status: number | null; count: number | null; last?: string | null }[]>(
-      `/activity/timeline?${params.toString()}`,
-    );
+    return req<ActivityTimelineItem[]>(`/activity/timeline?${params.toString()}`);
   },
+  overview: (day: string) =>
+    req<Record<string, unknown>>(`/activity/overview?day=${encodeURIComponent(day)}`).then((d) => {
+      const list = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+      return {
+        day: String(d.day ?? day),
+        activeUsers: Number(d.active_users ?? 0),
+        failedActions: Number(d.failed_actions ?? 0),
+        hourly: list(d.hourly).map((h) => ({
+          hour: Number(h.hour),
+          saves: Number(h.saves ?? 0),
+          deletes: Number(h.deletes ?? 0),
+          exports: Number(h.exports ?? 0),
+          logins: Number(h.logins ?? 0),
+          views: Number(h.views ?? 0),
+          clicks: Number(h.clicks ?? 0),
+          reads: Number(h.reads ?? 0),
+        })),
+        topScreens: list(d.top_screens).map((s) => ({
+          route: String(s.route ?? ""),
+          views: Number(s.views ?? 0),
+          users: Number(s.users ?? 0),
+        })),
+        online: list(d.online).map((o) => ({
+          userName: String(o.user_name ?? ""),
+          role: (o.role as string | null) ?? null,
+          status: o.status === "active" ? "active" : "idle",
+          lastAt: (o.last_at as string | null) ?? null,
+          screen: (o.screen as string | null) ?? null,
+        })),
+        alerts: list(d.alerts).map((a) => ({
+          type: String(a.type ?? ""),
+          severity: (a.severity === "high" || a.severity === "medium" ? a.severity : "low") as ActivityAlert["severity"],
+          userName: String(a.user_name ?? ""),
+          at: (a.at as string | null) ?? null,
+          message: String(a.message ?? ""),
+        })),
+      } as ActivityOverview;
+    }),
   summary: (day: string) =>
     req<Record<string, unknown>[]>(`/activity/summary?day=${encodeURIComponent(day)}`).then((rows) =>
       rows.map((r) => ({
         userName: String(r.user_name ?? ""),
+        role: (r.role as string | null) ?? null,
+        firstAt: (r.first_at as string | null) ?? null,
+        lastAt: (r.last_at as string | null) ?? null,
+        activeMinutes: Number(r.active_minutes ?? 0),
         saves: Number(r.saves ?? 0),
         deletes: Number(r.deletes ?? 0),
         exports: Number(r.exports ?? 0),

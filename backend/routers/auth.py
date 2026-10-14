@@ -85,6 +85,20 @@ class LoginResponse(BaseModel):
     photo_url: str | None
 
 
+def _activity_login(staff_id: int | None, name: str, role: str | None, request: Request, ok: bool) -> None:
+    """Activity Log entry for a login attempt. Done here rather than in the
+    request middleware because a login carries no token yet — this is the
+    only place that knows who it is. An unknown username is still attributed
+    to the name that was typed, never to "anonymous"."""
+    try:
+        import activity_tracker
+        from audit import client_ip
+        key = str(staff_id) if staff_id is not None else f"login:{(name or '').strip().lower()}"
+        activity_tracker.record_login(key, name or "", staff_id, role, client_ip(request), ok)
+    except Exception:
+        pass
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(
     payload: LoginRequest,
@@ -131,6 +145,7 @@ def login(
         token = create_access_token(user_id=admin_staff.id, name=admin_staff.name, role="Admin", staff_id=admin_staff.staff_id, token_version=admin_staff.token_version or 0)
         record_audit("login.success", request=request, actor_id=admin_staff.id,
                      actor_name=admin_staff.name, actor_role="Admin", detail="built-in admin")
+        _activity_login(admin_staff.id, admin_staff.name, "Admin", request, ok=True)
         db.add(models.UsageSession(staff_id=admin_staff.id, staff_name=admin_staff.name, staff_role="Admin"))
         db.commit()
         return LoginResponse(
@@ -152,6 +167,10 @@ def login(
         _record_failure(lockout_key)
         record_audit("login.failure", outcome="failure", request=request,
                      actor_name=username, detail="invalid credentials")
+        if member:
+            _activity_login(member.id, member.name, member.software_designation, request, ok=False)
+        else:
+            _activity_login(None, username, None, request, ok=False)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     _clear_failures(lockout_key)
@@ -196,6 +215,7 @@ def login(
         else:
             record_audit("login.failure", outcome="failure", request=request,
                          actor_id=member.id, actor_name=member.name, detail="device limit reached")
+            _activity_login(member.id, member.name, member.software_designation, request, ok=False)
             raise HTTPException(
                 status_code=403,
                 detail=(
@@ -220,6 +240,7 @@ def login(
     token = create_access_token(user_id=member.id, name=member.name, role=role, staff_id=member.staff_id, token_version=member.token_version or 0)
     record_audit("login.success", request=request, actor_id=member.id,
                  actor_name=member.name, actor_role=role)
+    _activity_login(member.id, member.name, role, request, ok=True)
     db.add(models.UsageSession(staff_id=member.id, staff_name=member.name, staff_role=role))
     db.commit()
     return LoginResponse(

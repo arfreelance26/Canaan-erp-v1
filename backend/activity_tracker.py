@@ -1,9 +1,19 @@
 """Activity tracking: records every API request and client event with almost no cost.
 
-Requests never wait on the database. Each event is appended to an in-memory buffer, and one
-background thread writes the buffer to the database in bulk every few seconds. GET requests
-are not stored one by one: they are counted per person, per route, per minute, with the
-first and last time of those reads inside the minute.
+Requests never wait on the database. Each event is appended to an in-memory buffer, and it
+is written to the database in bulk via flush_if_due() — attached as a Starlette BackgroundTask
+to whichever response happens to be due for one (see activity_tracking middleware in main.py),
+so it always runs *after* that response has already been sent and never adds latency to it.
+GET requests are not stored one by one: they are counted per person, per route, per minute,
+with the first and last time of those reads inside the minute.
+
+This piggybacks flushing on real request traffic instead of a dedicated background thread.
+The previous design needed one of those per worker process, which in turn needed a Phusion
+Passenger "starting_worker_process" fork hook to re-launch it after every worker fork (Python
+threads don't survive fork()) — easy-to-silently-drop wiring that broke activity tracking in
+production once already when a deploy/merge dropped that hook. Piggybacking on request traffic
+needs no such hook: it behaves identically in dev (uvicorn) and prod (Passenger) with no
+environment-specific code at all, so it cannot be broken that way again.
 
 Everything here is best-effort bookkeeping. A failure is logged and never reaches the user.
 """
@@ -19,9 +29,11 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 
+from jose import jwt
+
 import models
 from database import SessionLocal
-from security import decode_token
+from security import ALGORITHM, SECRET_KEY
 
 log = logging.getLogger("activity")
 
@@ -37,14 +49,18 @@ _ID_SEGMENT = re.compile(
 )
 
 _lock = threading.Lock()
-_started = False
-_started_lock = threading.Lock()
 _events: deque = deque()
 # (user_key, user_name, route, minute) -> [count, first_at, last_at]
 _reads: dict = {}
 # user_key -> [window_minute, events_taken_in_that_minute]
 _client_budget: dict = {}
 _dropped = 0
+# Set to "now" at import time (not 0) so a freshly started worker process
+# doesn't immediately treat itself as "due" for a flush/purge on its very
+# first request — with many Passenger workers forking around the same time,
+# that would mean every one of them running a purge query at once.
+_last_flush = time.monotonic()
+_last_purge = time.monotonic()
 
 
 def route_template(path: str) -> str:
@@ -81,14 +97,28 @@ def take_client_budget(user_key: str, wanted: int) -> int:
     return allowed
 
 
-def _who(auth_header: str | None) -> tuple[str, str, int | None, str | None]:
-    """(user_key, user_name, user_id, role). Unauthenticated requests are 'anon'."""
+def _who(auth_header: str | None) -> tuple[str, str, int | None, str | None] | None:
+    """(user_key, user_name, user_id, role), or None when the request can't be
+    tied to a real person.
+
+    Identity only — not authorization (the route itself already did that). So
+    the signature is still verified, but expiry and the logout denylist are
+    deliberately NOT: an expired session's 401s and the /auth/logout call
+    itself (whose token is revoked a moment before this runs) still belong to
+    a real, known employee. Only requests with no token or a forged one are
+    unattributable, and those are simply not recorded — the log never shows
+    an "anonymous" person. Logins (no token yet) are recorded by the auth
+    router itself via record_login(), where the person is known.
+    """
     if not auth_header or not auth_header.startswith("Bearer "):
-        return ("anon", "anonymous", None, None)
+        return None
     try:
-        payload = decode_token(auth_header.removeprefix("Bearer ").strip())
+        payload = jwt.decode(
+            auth_header.removeprefix("Bearer ").strip(), SECRET_KEY,
+            algorithms=[ALGORITHM], options={"verify_exp": False},
+        )
     except Exception:
-        return ("anon", "anonymous", None, None)
+        return None
     sub = payload.get("sub")
     name = (payload.get("name") or "")[:100]
     role = payload.get("role")
@@ -97,15 +127,29 @@ def _who(auth_header: str | None) -> tuple[str, str, int | None, str | None]:
     return (str(sub), name, int(sub), role)
 
 
+def record_login(user_key: str, user_name: str, user_id: int | None, role: str | None,
+                 ip: str | None, ok: bool) -> None:
+    """Called from routers/auth.py, which is the only place that knows who is
+    logging in (the request carries no token yet)."""
+    _push({
+        "created_at": _utc_now(), "user_key": user_key[:64], "user_name": user_name[:100],
+        "user_id": user_id, "role": (role or "")[:60] or None,
+        "kind": "login" if ok else "login_failed", "method": "POST", "route": "/auth/login",
+        "label": None, "status": 200 if ok else 401, "duration_ms": None,
+        "ip": (ip or "")[:45] or None,
+    })
+
+
 def record_request(method: str, path: str, status: int, duration_ms: float,
                    auth_header: str | None, ip: str | None) -> None:
-    user_key, user_name, user_id, role = _who(auth_header)
+    who = _who(auth_header)
+    if who is None or path == "/auth/login":
+        return
+    user_key, user_name, user_id, role = who
     route = route_template(path)
     now = _utc_now()
 
-    if path == "/auth/login":
-        kind = "login" if status < 400 else "login_failed"
-    elif path == "/auth/logout":
+    if path == "/auth/logout":
         kind = "logout"
     elif method == "GET":
         # Reads are counted per minute, with the first and last time inside that minute.
@@ -218,20 +262,69 @@ def _purge_old() -> None:
         db.close()
 
 
-def _loop() -> None:
-    last_purge = 0.0
-    while True:
-        time.sleep(FLUSH_SECONDS)
-        try:
-            _flush_once()
-        except Exception:
-            log.exception("activity flush failed; will retry")
-        if time.time() - last_purge > PURGE_EVERY_SECONDS:
+_admin_ids: list[int] = []
+_admin_ids_at = 0.0
+
+
+def _notify_admins() -> None:
+    """Tell open Activity Log pages (Admin only) that new events landed, so
+    they refetch right away instead of waiting for their fallback poll. Only
+    sent when real events were written — GET read-counts tick constantly from
+    background polling and would turn this into a 3-second heartbeat."""
+    global _admin_ids, _admin_ids_at
+    try:
+        from websocket_manager import emit_to_users
+        now = time.monotonic()
+        if now - _admin_ids_at > 60:
+            db = SessionLocal()
             try:
-                _purge_old()
-                last_purge = time.time()
-            except Exception:
-                log.exception("activity purge failed; will retry")
+                _admin_ids = [
+                    i for (i,) in db.query(models.Staff.id).filter(
+                        models.Staff.software_designation == "Admin",
+                        models.Staff.deleted_at.is_(None),
+                    ).all()
+                ]
+                _admin_ids_at = now
+            finally:
+                db.close()
+        if _admin_ids:
+            emit_to_users(_admin_ids, "activity_updated", {})
+    except Exception:
+        log.exception("activity admin notify failed")
+
+
+def flush_now() -> None:
+    """Flush this process's buffer immediately — the Activity Log's read
+    endpoints call this first so an Admin always reads the freshest data
+    rather than whatever was written before their request arrived."""
+    global _last_flush
+    _last_flush = time.monotonic()
+    try:
+        _flush_once()
+    except Exception:
+        log.exception("activity flush (on read) failed")
+
+
+def flush_if_due() -> None:
+    """Attached as a Starlette BackgroundTask to whichever response happens to
+    be due for one — see activity_tracking middleware in main.py. Runs after
+    that response has already gone out, so it never delays the request that
+    triggers it. A no-op (cheap time check only) on every other request."""
+    global _last_flush, _last_purge
+    now = time.monotonic()
+    if now - _last_flush >= FLUSH_SECONDS:
+        _last_flush = now
+        try:
+            if _flush_once():
+                _notify_admins()
+        except Exception:
+            log.exception("activity flush failed; will retry on a later request")
+    if now - _last_purge >= PURGE_EVERY_SECONDS:
+        _last_purge = now
+        try:
+            _purge_old()
+        except Exception:
+            log.exception("activity purge failed; will retry on a later request")
 
 
 def _flush_at_exit() -> None:
@@ -241,18 +334,88 @@ def _flush_at_exit() -> None:
         pass
 
 
-def start() -> None:
-    """Idempotent — safe to call more than once in the same process (e.g. once
-    from FastAPI's ASGI startup event, once from the Phusion Passenger
-    starting_worker_process fork hook in main.py). Only the first call in a
-    given process actually launches the thread."""
-    global _started
-    with _started_lock:
-        if _started:
-            return
-        _started = True
-    threading.Thread(target=_loop, name="activity-tracker", daemon=True).start()
-    atexit.register(_flush_at_exit)
+# A clean process shutdown (dev reload, a graceful Passenger stop) still gets
+# one last flush so the final few seconds of buffered events aren't lost.
+# Harmless to register unconditionally — no thread is involved.
+atexit.register(_flush_at_exit)
+
+
+ANON_KEY = "anon"
+_AUDIT_EVENT_FOR_KIND = {"login": "login.success", "login_failed": "login.failure", "logout": "logout"}
+
+
+def backfill_anonymous_logins() -> int:
+    """Older builds recorded every login/logout as "anonymous" (a login has no
+    token yet; a logout's token is revoked a moment before it was recorded).
+    The security audit log always knew who it was, so match each such row to
+    its audit_logs twin (same kind, same IP, within 10 seconds) and attribute
+    it. Idempotent — only touches rows still keyed 'anon', so it's a cheap
+    no-op once done. Whatever else is still 'anon' (requests with no or a
+    forged token) is genuinely unattributable and is hidden from every
+    Activity Log query instead (see routers/activity.py).
+    """
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(models.ActivityEvent)
+            .filter(models.ActivityEvent.user_key == ANON_KEY,
+                    models.ActivityEvent.kind.in_(list(_AUDIT_EVENT_FOR_KIND)))
+            .order_by(models.ActivityEvent.created_at)
+            .all()
+        )
+        if not rows:
+            return 0
+        window = timedelta(seconds=10)
+        audits = (
+            db.query(models.AuditLog)
+            .filter(models.AuditLog.event.in_(list(_AUDIT_EVENT_FOR_KIND.values())),
+                    models.AuditLog.created_at >= rows[0].created_at - window,
+                    models.AuditLog.created_at <= rows[-1].created_at + window)
+            .all()
+        )
+        staff_by_username = {
+            (u or "").strip().lower(): (sid, name, role)
+            for sid, u, name, role in db.query(models.Staff.id, models.Staff.username,
+                                               models.Staff.name, models.Staff.software_designation)
+            if u
+        }
+        used: set[int] = set()
+        fixed = 0
+        for row in rows:
+            want = _AUDIT_EVENT_FOR_KIND[row.kind]
+            best, best_gap = None, window
+            for a in audits:
+                if a.id in used or a.event != want or (a.ip_address or None) != (row.ip or None):
+                    continue
+                gap = abs(a.created_at - row.created_at)
+                if gap <= best_gap:
+                    best, best_gap = a, gap
+            if best is None:
+                continue
+            used.add(best.id)
+            if best.actor_id is not None:
+                row.user_key, row.user_id = str(best.actor_id), best.actor_id
+                row.user_name = (best.actor_name or "")[:100]
+                row.role = (best.actor_role or None)
+            else:
+                typed = (best.actor_name or "").strip()
+                if not typed:
+                    continue
+                staff = staff_by_username.get(typed.lower())
+                if staff:
+                    row.user_key, row.user_id = str(staff[0]), staff[0]
+                    row.user_name, row.role = (staff[1] or typed)[:100], staff[2]
+                else:
+                    row.user_key, row.user_name = f"login:{typed.lower()}"[:64], typed[:100]
+            fixed += 1
+        db.commit()
+        return fixed
+    except Exception:
+        db.rollback()
+        log.exception("anonymous login backfill failed")
+        return 0
+    finally:
+        db.close()
 
 
 def today_ist() -> date:

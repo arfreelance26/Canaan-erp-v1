@@ -506,7 +506,11 @@ def _run_schema_migrations():
         "ALTER TABLE events ADD COLUMN completed_at DATETIME NULL",
         "ALTER TABLE events ADD COLUMN completed_by INT NULL",
         "ALTER TABLE events ADD COLUMN completed_by_name VARCHAR(100) NULL",
-        "CREATE INDEX IF NOT EXISTS ix_event_completed_at ON events (completed_at)",
+        # Plain CREATE INDEX (MySQL 8 has no IF NOT EXISTS for indexes); a re-run
+        # fails with "duplicate key name" and is skipped like every other step.
+        "CREATE INDEX ix_event_completed_at ON events (completed_at)",
+        # Activity Log — per-employee timeline/drill-down filters by user_name.
+        "CREATE INDEX ix_activity_name_time ON activity_events (user_name, created_at)",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -1168,6 +1172,19 @@ _run_chat_migrations()
 _run_staff_history_migrations()
 _widen_blob_columns()
 
+
+def _backfill_activity_anonymous():
+    try:
+        import activity_tracker
+        fixed = activity_tracker.backfill_anonymous_logins()
+        if fixed:
+            print(f"[migration] activity log: attributed {fixed} previously-anonymous login/logout event(s)")
+    except Exception as e:
+        print(f"[migration] skip activity backfill: {e}")
+
+
+_backfill_activity_anonymous()
+
 def _normalize_shipping_lines():
     """Normalise historical shipping_line typos/variants to canonical names."""
     rewrites = [
@@ -1350,33 +1367,32 @@ async def _startup():
     set_event_loop(asyncio.get_running_loop())
     import auto_close_worker
     auto_close_worker.start()
-    import activity_tracker
-    activity_tracker.start()
     import event_reminder_worker
     event_reminder_worker.start()
+    # activity_tracker does NOT start a background thread — its flush/purge
+    # instead piggyback on real request traffic (see flush_if_due() and the
+    # activity_tracking middleware below), so it needs no startup call here
+    # and no re-initialization after a Passenger fork.
 
 # Production (cPanel/Phusion Passenger, see passenger_asgi.py) spawns worker
 # processes by forking a single preloaded template process ("smart spawning",
 # Passenger's default). Python threads do not survive fork() — a background
 # thread started before the fork (e.g. by the ASGI startup event above, if it
 # happens to run in the template rather than per-worker) simply does not
-# exist in the forked child, so activity_tracker's flush loop and
-# auto_close_worker's shift-closing loop would silently never run in that
-# worker: requests still get handled, events still queue in memory, nothing
-# ever reaches the database. Passenger's starting_worker_process hook exists
-# specifically to re-initialize things like this after every fork — both
-# .start() calls are idempotent (see their own _started guards), so calling
-# them again here is always safe, whether or not the ASGI startup event also
-# fired in this same process. A complete no-op outside Passenger (e.g. local
-# `uvicorn main:app` dev) since phusion_passenger isn't importable there.
+# exist in the forked child, so auto_close_worker's shift-closing loop and
+# event_reminder_worker's reminder loop would silently never run in that
+# worker. Passenger's starting_worker_process hook exists specifically to
+# re-initialize things like this after every fork — both .start() calls are
+# idempotent (see their own _started guards), so calling them again here is
+# always safe, whether or not the ASGI startup event also fired in this same
+# process. A complete no-op outside Passenger (e.g. local `uvicorn main:app`
+# dev) since phusion_passenger isn't importable there.
 try:
     import phusion_passenger
 
     def _passenger_starting_worker_process(forked):
         import auto_close_worker
         auto_close_worker.start()
-        import activity_tracker
-        activity_tracker.start()
         import event_reminder_worker
         event_reminder_worker.start()
 
@@ -1454,7 +1470,10 @@ async def realtime_broadcast(request: Request, call_next):
     return response
 
 
-_ACTIVITY_SKIP = ("/usage/heartbeat", "/activity/batch", "/ws")
+# "/activity" — the Activity Log page's own live refresh would otherwise fill
+# the log with "Admin loaded Activity Log ×N"; opening that page is still
+# recorded as a normal page view by the browser tracker.
+_ACTIVITY_SKIP = ("/usage/heartbeat", "/activity", "/ws")
 
 
 @app.middleware("http")
@@ -1464,6 +1483,18 @@ async def activity_tracking(request: Request, call_next):
     import time as _time
     started = _time.perf_counter()
     response = await call_next(request)
+
+    # Piggyback activity_tracker's buffer flush/purge on real traffic — runs
+    # as a BackgroundTask *after* this response has already gone out, so it
+    # never adds latency here. Attached to every response (even requests this
+    # middleware doesn't record below, e.g. "/") so the health-check ping the
+    # Topbar sends every 15s is itself enough to keep flushing reliable even
+    # on a quiet night with no other activity. flush_if_due() is a cheap
+    # no-op on every call where a flush/purge isn't actually due yet.
+    from starlette.background import BackgroundTask
+    import activity_tracker
+    response.background = BackgroundTask(activity_tracker.flush_if_due)
+
     path = request.url.path
     # CORS preflights carry no Authorization header by spec (the browser sends
     # them bare, before deciding whether the real request is even allowed), so
