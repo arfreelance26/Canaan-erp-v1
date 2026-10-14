@@ -29,7 +29,9 @@ def _reset_after_fork() -> None:
     _thread = None
 
 
-os.register_at_fork(after_in_child=_reset_after_fork)
+# Unix-only (no fork() on Windows, so local dev there has nothing to reset).
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_after_fork)
 
 
 def _tick() -> None:

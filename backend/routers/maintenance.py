@@ -1177,12 +1177,12 @@ def list_all_tyre_inventory_edit_events(db: Session = Depends(get_db)):
     return result
 
 
-@router.post("/tyre-inventory", response_model=schemas.TyreInventoryOut, status_code=201, tags=["Tyre"])
 def condition_for_retread_count(count: int) -> str:
     """Condition is derived from the retread count — 0 is New, one or more is Rethreaded."""
     return "Rethreaded" if (count or 0) > 0 else "New"
 
 
+@router.post("/tyre-inventory", response_model=schemas.TyreInventoryOut, status_code=201, tags=["Tyre"])
 def create_tyre(
     payload: schemas.TyreInventoryCreate,
     db: Session = Depends(get_db),
