@@ -1362,9 +1362,11 @@ app = FastAPI(
     openapi_url=None if IS_PRODUCTION else "/openapi.json",
 )
 
-@app.on_event("startup")
-async def _startup():
-    set_event_loop(asyncio.get_running_loop())
+def _ensure_background_workers() -> None:
+    """Start this process's background loops if they aren't running. Each
+    start() is a cheap no-op once its thread is alive, so this is safe to call
+    on every request — which is what makes the workers run on Passenger even
+    when neither the startup event nor the fork hook below gets them going."""
     import auto_close_worker
     auto_close_worker.start()
     import event_reminder_worker
@@ -1373,6 +1375,12 @@ async def _startup():
     # instead piggyback on real request traffic (see flush_if_due() and the
     # activity_tracking middleware below), so it needs no startup call here
     # and no re-initialization after a Passenger fork.
+
+
+@app.on_event("startup")
+async def _startup():
+    set_event_loop(asyncio.get_running_loop())
+    _ensure_background_workers()
 
 # Production (cPanel/Phusion Passenger, see passenger_asgi.py) spawns worker
 # processes by forking a single preloaded template process ("smart spawning",
@@ -1391,10 +1399,7 @@ try:
     import phusion_passenger
 
     def _passenger_starting_worker_process(forked):
-        import auto_close_worker
-        auto_close_worker.start()
-        import event_reminder_worker
-        event_reminder_worker.start()
+        _ensure_background_workers()
 
     phusion_passenger.on_event("starting_worker_process", _passenger_starting_worker_process)
 except ImportError:
@@ -1482,6 +1487,11 @@ async def activity_tracking(request: Request, call_next):
     fails the request or delays the response (see activity_tracker.py)."""
     import time as _time
     started = _time.perf_counter()
+    try:
+        # Never rely on the startup event or Passenger's fork hook having run.
+        _ensure_background_workers()
+    except Exception:
+        pass
     response = await call_next(request)
 
     # Piggyback activity_tracker's buffer flush/purge on real traffic — runs

@@ -500,7 +500,10 @@ function AdminDashboard() {
 
       {activeTab === "overview" && <>
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-6">
+      {/* relative z-30: every .animate-stagger child is its own stacking
+          context (animation fill keeps a transform), so without this the
+          Current Trips card below paints over the open Backup menu. */}
+      <div className="relative z-30 flex items-center justify-between gap-6">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3.5">
             <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">

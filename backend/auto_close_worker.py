@@ -1,5 +1,6 @@
 """Runs the staff shift auto-close every few minutes in a background thread."""
 import logging
+import os
 import threading
 import time
 
@@ -9,8 +10,20 @@ from routers.attendance import auto_close_expired_shifts
 
 log = logging.getLogger("auto_close_shifts")
 INTERVAL_SECONDS = 600
-_started = False
 _started_lock = threading.Lock()
+_thread: threading.Thread | None = None
+
+
+def _reset_after_fork() -> None:
+    # Passenger forks worker processes from a preloaded template. Threads don't
+    # survive fork(), but module state does — without this, a forked worker
+    # would inherit "already started" and never run its own loop.
+    global _started_lock, _thread
+    _started_lock = threading.Lock()
+    _thread = None
+
+
+os.register_at_fork(after_in_child=_reset_after_fork)
 
 
 def _loop() -> None:
@@ -34,13 +47,12 @@ def _loop() -> None:
 
 
 def start() -> None:
-    """Idempotent — safe to call more than once in the same process (e.g. once
-    from FastAPI's ASGI startup event, once from the Phusion Passenger
-    starting_worker_process fork hook in main.py). Only the first call in a
-    given process actually launches the thread."""
-    global _started
+    """Idempotent — starts the loop unless this process already has a live
+    one. Safe to call from the ASGI startup event, Passenger's
+    starting_worker_process hook, and the per-request middleware in main.py."""
+    global _thread
     with _started_lock:
-        if _started:
+        if _thread is not None and _thread.is_alive():
             return
-        _started = True
-    threading.Thread(target=_loop, name="auto-close-shifts", daemon=True).start()
+        _thread = threading.Thread(target=_loop, name="auto-close-shifts", daemon=True)
+        _thread.start()

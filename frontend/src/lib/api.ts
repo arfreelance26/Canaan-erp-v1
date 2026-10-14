@@ -3250,6 +3250,8 @@ export type ActivityOverview = {
   alerts: ActivityAlert[];
 };
 
+// Reads below use rawReq, not the cached req(): the Activity Log refreshes on
+// every live push, and a 12s-fresh cache would show the previous numbers.
 export const activityApi = {
   // Page views and clicks, sent in batches by useActivityTracking.
   // keepalive=true for the pagehide flush — a plain fetch is routinely
@@ -3269,7 +3271,7 @@ export const activityApi = {
     if (filters.afterId != null) params.set("after_id", String(filters.afterId));
     if (filters.offset) params.set("offset", String(filters.offset));
     params.set("limit", String(filters.limit ?? 200));
-    return req<Record<string, unknown>[]>(`/activity/events?${params.toString()}`).then((rows) =>
+    return rawReq<Record<string, unknown>[]>(`/activity/events?${params.toString()}`).then((rows) =>
       rows.map((r) => ({
         id: Number(r.id),
         createdAt: String(r.created_at),
@@ -3288,10 +3290,10 @@ export const activityApi = {
   // One employee's day in time order: events and read counts merged.
   timeline: (userName: string, day: string) => {
     const params = new URLSearchParams({ user_name: userName, day });
-    return req<ActivityTimelineItem[]>(`/activity/timeline?${params.toString()}`);
+    return rawReq<ActivityTimelineItem[]>(`/activity/timeline?${params.toString()}`);
   },
   overview: (day: string) =>
-    req<Record<string, unknown>>(`/activity/overview?day=${encodeURIComponent(day)}`).then((d) => {
+    rawReq<Record<string, unknown>>(`/activity/overview?day=${encodeURIComponent(day)}`).then((d) => {
       const list = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
       return {
         day: String(d.day ?? day),
@@ -3329,7 +3331,7 @@ export const activityApi = {
       } as ActivityOverview;
     }),
   summary: (day: string) =>
-    req<Record<string, unknown>[]>(`/activity/summary?day=${encodeURIComponent(day)}`).then((rows) =>
+    rawReq<Record<string, unknown>[]>(`/activity/summary?day=${encodeURIComponent(day)}`).then((rows) =>
       rows.map((r) => ({
         userName: String(r.user_name ?? ""),
         role: (r.role as string | null) ?? null,

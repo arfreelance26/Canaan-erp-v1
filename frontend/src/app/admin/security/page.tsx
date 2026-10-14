@@ -20,8 +20,10 @@ import {
   X,
   Eye,
   Smartphone,
+  MessageSquare,
 } from "lucide-react";
-import { securityApi, fileUrl, type AuditLogEntry, type LockoutEntry } from "@/lib/api";
+import { securityApi, fileUrl, chatOwnerApi, type AuditLogEntry, type LockoutEntry } from "@/lib/api";
+import { OwnerViewDialog, type OwnerViewToken } from "@/components/chat/OwnerViewDialog";
 import { showSuccess, showError, confirmAction } from "@/lib/swal";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -32,7 +34,35 @@ const EVENT_LABELS: Record<string, string> = {
   logout: "Logout",
   "file.download": "Document Download",
   "file.upload": "File Upload",
+  "chat.owner_view.unlock": "Opened private chats (entered owner password)",
+  "chat.owner_view.view": "Read a private chat",
+  "chat.owner_view.lock": "Closed private chats",
+  "chat.owner_view.change_password": "Changed the owner chat password",
 };
+
+// Same events, worded for a failed attempt (outcome "denied").
+const DENIED_EVENT_LABELS: Record<string, string> = {
+  "chat.owner_view.unlock": "Tried to open private chats — wrong password",
+  "chat.owner_view.change_password": "Tried to change the owner chat password — wrong current password",
+};
+
+function eventLabel(row: AuditLogEntry): string {
+  if (row.outcome === "denied" && DENIED_EVENT_LABELS[row.event]) return DENIED_EVENT_LABELS[row.event];
+  return EVENT_LABELS[row.event] ?? row.event;
+}
+
+// Plain-English wording for the backend's short detail notes.
+const DETAIL_LABELS: Record<string, string> = {
+  "wrong password": "Wrong password entered",
+  "owner view not configured": "Owner password hasn't been set up yet",
+  "first-time setup": "Password set for the first time",
+};
+
+/** "conversation/4" -> 4, for the "Open this chat" link. */
+function conversationIdOf(resource: string | null | undefined): number | null {
+  const m = /^conversation\/(\d+)$/.exec(resource ?? "");
+  return m ? Number(m[1]) : null;
+}
 
 const EVENT_FILTERS = [
   { value: "", label: "All Events" },
@@ -40,6 +70,8 @@ const EVENT_FILTERS = [
   { value: "login.failure", label: "Failed Logins" },
   { value: "logout", label: "Logouts" },
   { value: "file.download", label: "Doc Downloads" },
+  { value: "chat.owner_view.view", label: "Private chats read" },
+  { value: "chat.owner_view.unlock", label: "Private chat unlocks" },
 ];
 
 function formatDateTime(iso: string | null): string {
@@ -73,6 +105,12 @@ function OutcomeBadge({ outcome }: { outcome: string }) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-100 dark:text-red-400">
         <XCircle className="h-3 w-3" /> Failed
+      </span>
+    );
+  if (outcome === "denied")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-100 dark:text-red-400">
+        <XCircle className="h-3 w-3" /> Denied
       </span>
     );
   return (
@@ -113,6 +151,27 @@ export default function SecurityLogPage() {
   const [exporting, setExporting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLabel, setPreviewLabel] = useState("");
+
+  // "Open this chat" on a "Read a private chat" row — asks for the owner
+  // password (CHAT_OWNER_VIEW_PASSWORD) in OwnerViewDialog, then opens that
+  // exact conversation. Same rules as the chat page: the unlock lives only in
+  // memory, expires after 30 minutes, and is revoked server-side on close.
+  const [ownerViewOpen, setOwnerViewOpen] = useState(false);
+  const [ownerViewChatId, setOwnerViewChatId] = useState<number | null>(null);
+  const [ownerToken, setOwnerToken] = useState<OwnerViewToken | null>(null);
+  useEffect(() => {
+    if (!ownerToken) return;
+    const msLeft = ownerToken.expiresAt - Date.now();
+    if (msLeft <= 0) { setOwnerToken(null); return; }
+    const t = setTimeout(() => setOwnerToken(null), msLeft);
+    return () => clearTimeout(t);
+  }, [ownerToken]);
+  const handleCloseOwnerView = useCallback(() => {
+    if (ownerToken) chatOwnerApi.lock(ownerToken.token).catch(() => {});
+    setOwnerToken(null);
+    setOwnerViewOpen(false);
+    setOwnerViewChatId(null);
+  }, [ownerToken]);
 
   const REFRESH_INTERVAL = 30;
 
@@ -722,7 +781,7 @@ export default function SecurityLogPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       <span className="font-medium text-gray-800">
-                        {EVENT_LABELS[row.event] ?? row.event}
+                        {eventLabel(row)}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
@@ -760,10 +819,19 @@ export default function SecurityLogPage() {
                             )}
                           </div>
                         );
-                      })() : row.resource ? (
+                      })() : row.event === "chat.owner_view.view" && conversationIdOf(row.resource) !== null ? (
+                        <button
+                          type="button"
+                          onClick={() => { setOwnerViewChatId(conversationIdOf(row.resource)); setOwnerViewOpen(true); }}
+                          title="Asks for the owner password, then shows this chat"
+                          className="flex items-center gap-1 whitespace-nowrap rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-600/20 dark:text-indigo-400"
+                        >
+                          <MessageSquare className="h-3 w-3" /> Open this chat
+                        </button>
+                      ) : row.resource ? (
                         <span className="font-mono text-indigo-600 dark:text-indigo-400">{row.resource}</span>
                       ) : (
-                        row.detail ?? "—"
+                        (row.detail && DETAIL_LABELS[row.detail]) ?? row.detail ?? "—"
                       )}
                     </td>
                   </tr>
@@ -851,6 +919,14 @@ export default function SecurityLogPage() {
           </div>
         </div>
       )}
+
+      <OwnerViewDialog
+        open={ownerViewOpen}
+        onClose={handleCloseOwnerView}
+        ownerToken={ownerToken}
+        onUnlocked={setOwnerToken}
+        initialConversationId={ownerViewChatId}
+      />
     </div>
   );
 }

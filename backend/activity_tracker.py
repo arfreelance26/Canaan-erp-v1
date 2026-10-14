@@ -151,6 +151,9 @@ def record_request(method: str, path: str, status: int, duration_ms: float,
 
     if path == "/auth/logout":
         kind = "logout"
+    elif "export" in path:
+        # Excel downloads are GETs, so this must come before the read counting.
+        kind = "export"
     elif method == "GET":
         # Reads are counted per minute, with the first and last time inside that minute.
         minute = now.replace(second=0, microsecond=0)
@@ -165,8 +168,6 @@ def record_request(method: str, path: str, status: int, duration_ms: float,
         return
     elif method == "DELETE":
         kind = "delete"
-    elif "export" in path:
-        kind = "export"
     elif method == "POST" and "remove" in path:
         # Bulk-removal endpoints (e.g. /tyre-fitment/remove-bulk) are a real
         # delete semantically, just shaped as a POST because they take a body

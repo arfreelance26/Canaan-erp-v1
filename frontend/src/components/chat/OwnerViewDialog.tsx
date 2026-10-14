@@ -40,13 +40,16 @@ type Props = {
    * memory (never localStorage), so a page refresh always re-locks it. */
   ownerToken: OwnerViewToken | null;
   onUnlocked: (token: OwnerViewToken) => void;
+  /** Open straight to this conversation once unlocked — used by the Security
+   * Log's "Open this chat" link. Omit to start on the conversation list. */
+  initialConversationId?: number | null;
 };
 
 // Admin-only, read-only window into every conversation in the company.
 // See backend/routers/chat_owner_view.py for the server-side half of this —
 // a separate password, a short-lived token, no send/edit/delete routes, and
 // every unlock + every conversation opened is written to the audit log.
-export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked }: Props) {
+export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initialConversationId = null }: Props) {
   // The page clears ownerToken on its own 30-minute timer (see page.tsx), so
   // presence alone is the source of truth here — re-checking Date.now() during
   // render would just be a second, impure copy of that same check.
@@ -119,10 +122,16 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked }: Props
     if (!open || !unlocked) return;
     setLoadingList(true);
     chatOwnerApi.listConversations(ownerToken!.token)
-      .then(setConversations)
+      .then((list) => {
+        setConversations(list);
+        if (initialConversationId != null) {
+          if (list.some((c) => c.id === initialConversationId)) setActiveId(initialConversationId);
+          else showError("This chat no longer exists — it may have been deleted.");
+        }
+      })
       .catch((err: unknown) => showError(err instanceof Error ? err.message : "Could not load conversations."))
       .finally(() => setLoadingList(false));
-  }, [open, unlocked, ownerToken]);
+  }, [open, unlocked, ownerToken, initialConversationId]);
 
   useEffect(() => {
     if (!open || !unlocked || activeId === null) return;

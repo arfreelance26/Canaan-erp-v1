@@ -5,6 +5,7 @@ of at a stored time. See routers/events.py for how Events/participants are
 created; this worker only ever reads them and flips reminded_at once sent.
 """
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -15,8 +16,20 @@ from websocket_manager import emit_to_users
 
 log = logging.getLogger("event_reminders")
 INTERVAL_SECONDS = 30
-_started = False
 _started_lock = threading.Lock()
+_thread: threading.Thread | None = None
+
+
+def _reset_after_fork() -> None:
+    # Passenger forks worker processes from a preloaded template. Threads don't
+    # survive fork(), but module state does — without this, a forked worker
+    # would inherit "already started" and never run its own loop.
+    global _started_lock, _thread
+    _started_lock = threading.Lock()
+    _thread = None
+
+
+os.register_at_fork(after_in_child=_reset_after_fork)
 
 
 def _tick() -> None:
@@ -57,12 +70,12 @@ def _loop() -> None:
 
 
 def start() -> None:
-    """Idempotent — safe to call more than once in the same process (see
-    auto_close_worker.py's start() for why: Phusion Passenger's
-    starting_worker_process fork hook, plus the ASGI startup event)."""
-    global _started
+    """Idempotent — starts the loop unless this process already has a live
+    one. Safe to call from the ASGI startup event, Passenger's
+    starting_worker_process hook, and the per-request middleware in main.py."""
+    global _thread
     with _started_lock:
-        if _started:
+        if _thread is not None and _thread.is_alive():
             return
-        _started = True
-    threading.Thread(target=_loop, name="event-reminders", daemon=True).start()
+        _thread = threading.Thread(target=_loop, name="event-reminders", daemon=True)
+        _thread.start()
