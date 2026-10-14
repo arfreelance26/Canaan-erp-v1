@@ -10,6 +10,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { disconnectRealtime } from "@/lib/realtime";
 import { cacheClear } from "@/lib/api-cache";
+import { markGreetingPending } from "@/lib/greetings";
 
 export type AuthUser = {
   id: number | null;
@@ -115,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     // Drop any cached data from a previous session, so this user never sees another user's snapshot.
     cacheClear();
+    markGreetingPending();
     setUser(authUser);
     // All roles land on their dashboard at "/".
     router.replace("/");

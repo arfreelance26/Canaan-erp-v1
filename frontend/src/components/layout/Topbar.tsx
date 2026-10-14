@@ -13,6 +13,7 @@ import { NetworkStatus } from "./NetworkStatus";
 import { CalculatorButton } from "./CalculatorButton";
 import { AlertsButton } from "./AlertsButton";
 import { EventsButton } from "./EventsButton";
+import { GreetingPill } from "./GreetingPill";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -537,7 +538,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
         <Menu className="h-5 w-5" />
       </button>
 
-      <nav className="dk-inset flex min-w-0 max-w-xs items-center gap-1 rounded-full border border-gray-200/70 bg-white/70 py-1 pl-1 pr-3 shadow-sm sm:max-w-sm">
+      <GreetingPill userKey={String(user?.id ?? user?.email ?? "")} name={user?.name ?? ""}>
         {attendanceLocked ? (
           // Every other way out of this page (sidebar links, direct URLs) is
           // already blocked by the gate in AppShell — this breadcrumb Home
@@ -578,7 +579,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
             </span>
           );
         })}
-      </nav>
+      </GreetingPill>
 
       <div className="flex items-center gap-4">
         {/* {backendOnline === false && (

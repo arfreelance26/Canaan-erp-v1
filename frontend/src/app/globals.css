@@ -1343,3 +1343,27 @@ i.fc-key-dot.fc-maint-dot { background: var(--fc-maint); }
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Login greeting in the Topbar breadcrumb pill (see GreetingPill.tsx):
+   fades in, then rolls up and out while the breadcrumb rolls up into place. */
+@keyframes greet-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes greet-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-130%); }
+}
+@keyframes crumb-in {
+  from { opacity: 0; transform: translateY(130%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-greet-in  { animation: greet-in 450ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-greet-out { animation: greet-out 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.animate-crumb-in  { animation: crumb-in 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes greet-out { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes crumb-in  { from { opacity: 0; } to { opacity: 1; } }
+  .animate-greet-in { animation: none; }
+}
