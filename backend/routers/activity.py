@@ -105,21 +105,8 @@ def _event_dict(r: models.ActivityEvent) -> dict:
     }
 
 
-@router.get("/events", dependencies=[Depends(require_roles())])
-def list_events(
-    user: str | None = Query(None, description="Part of the employee's name"),
-    kind: str | None = Query(None, description="One kind, or several comma-separated"),
-    role: str | None = Query(None),
-    route: str | None = Query(None, description="Part of the route, e.g. trips"),
-    failed_only: bool = Query(False, description="Only actions that came back with an error"),
-    date_from: str | None = Query(None, description="YYYY-MM-DD, IST"),
-    date_to: str | None = Query(None, description="YYYY-MM-DD, IST"),
-    after_id: int | None = Query(None, ge=0, description="Only events newer than this id (live updates)"),
-    limit: int = Query(200, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
-):
-    tracker.flush_now()
+def _filtered_events(db: Session, user: str | None, kind: str | None, role: str | None,
+                     route: str | None, failed_only: bool, date_from: str | None, date_to: str | None):
     q = _real_events(db)
     if user:
         q = q.filter(E.user_name.like(f"%{user}%"))
@@ -139,10 +126,46 @@ def list_events(
         q = q.filter(E.created_at >= tracker.day_bounds_utc(start)[0])
     if end:
         q = q.filter(E.created_at < tracker.day_bounds_utc(end)[1])
+    return q
+
+
+@router.get("/events", dependencies=[Depends(require_roles())])
+def list_events(
+    user: str | None = Query(None, description="Part of the employee's name"),
+    kind: str | None = Query(None, description="One kind, or several comma-separated"),
+    role: str | None = Query(None),
+    route: str | None = Query(None, description="Part of the route, e.g. trips"),
+    failed_only: bool = Query(False, description="Only actions that came back with an error"),
+    date_from: str | None = Query(None, description="YYYY-MM-DD, IST"),
+    date_to: str | None = Query(None, description="YYYY-MM-DD, IST"),
+    after_id: int | None = Query(None, ge=0, description="Only events newer than this id (live updates)"),
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    tracker.flush_now()
+    q = _filtered_events(db, user, kind, role, route, failed_only, date_from, date_to)
     if after_id is not None:
         q = q.filter(E.id > after_id)
     rows = q.order_by(E.id.desc()).offset(offset).limit(limit).all()
     return [_event_dict(r) for r in rows]
+
+
+@router.get("/events/count", dependencies=[Depends(require_roles())])
+def count_events(
+    user: str | None = Query(None),
+    kind: str | None = Query(None),
+    role: str | None = Query(None),
+    route: str | None = Query(None),
+    failed_only: bool = Query(False),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """How many events match the same filters as GET /events — for the page
+    numbers. Only a COUNT(*), so it's far cheaper than fetching the rows."""
+    q = _filtered_events(db, user, kind, role, route, failed_only, date_from, date_to)
+    return {"total": q.order_by(None).count()}
 
 
 @router.get("/summary", dependencies=[Depends(require_roles())])
