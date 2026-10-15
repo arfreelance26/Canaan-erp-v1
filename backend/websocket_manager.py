@@ -114,6 +114,21 @@ def set_event_loop(loop: asyncio.AbstractEventLoop) -> None:
     _loop = loop
 
 
+def ensure_event_loop() -> None:
+    """Capture the running loop if we don't have a live one yet. Call from
+    async code that runs on every request/socket (see main.py). Without this
+    the loop was only ever recorded by FastAPI's startup event, which isn't
+    guaranteed to run under Passenger — and with _loop unset, every emit()
+    and emit_to_users() below silently does nothing."""
+    global _loop
+    if _loop is not None and _loop.is_running():
+        return
+    try:
+        _loop = asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+
+
 def emit(event_type: str, payload: dict | None = None) -> None:
     """Schedule a broadcast from any thread (sync route handlers included)."""
     if _loop is None or not _loop.is_running():

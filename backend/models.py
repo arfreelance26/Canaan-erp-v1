@@ -2149,6 +2149,9 @@ class RoomSummon(Base):
     recipient_names = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Every logged-in browser polls /room-summon/inbox for the last few minutes.
+    __table_args__ = (Index("ix_room_summon_created", "created_at"),)
+
 
 class Event(Base):
     """Admin-scheduled meeting (Topbar's Event button — sits between Invite and

@@ -7,9 +7,10 @@ about delivery is awaited or acknowledged — the only thing written to the
 database is an audit row of who was summoned, when, and by whom (see
 models.RoomSummon), since otherwise this leaves no trace anywhere.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import models
@@ -73,12 +74,63 @@ def send_summon(
     db.commit()
     db.refresh(row)
 
+    # Instant delivery where WebSockets work (local dev). Production (cPanel/
+    # Passenger) can't carry WebSockets, so recipients also poll /inbox below —
+    # the id lets the browser show each invite once even if both paths fire.
     emit_to_users(recipients, "room_summon", {
+        "id": row.id,
         "summonedByName": current_user.name,
         "createdAt": row.created_at.isoformat() if row.created_at else None,
     })
 
     return row
+
+
+INBOX_WINDOW = timedelta(minutes=10)
+FIRST_LOAD_WINDOW = timedelta(minutes=2)
+
+
+@router.get("/inbox")
+def my_inbox(
+    after_id: int | None = Query(None, ge=0),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Invites addressed to the caller that they haven't seen yet — polled by
+    RoomSummonListener, since the WebSocket push never arrives in production.
+
+    Only the last 10 minutes are considered: an invite is a "come now" request,
+    so one that sat unseen longer than that is stale. With no after_id (first
+    poll on a device) only the last 2 minutes come back, so opening the app
+    doesn't replay a whole morning's invites. latest_id lets the browser
+    remember where it is even when nothing new arrived.
+    """
+    me = current_user.id
+    if me is None:
+        return {"items": [], "latest_id": after_id or 0}
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    since = now - (INBOX_WINDOW if after_id is not None else FIRST_LOAD_WINDOW)
+    # Read the high-water mark first and cap the rows at it, so an invite
+    # created between these two queries is picked up next poll, never skipped.
+    latest = db.query(func.max(models.RoomSummon.id)).scalar() or 0
+    q = db.query(models.RoomSummon).filter(models.RoomSummon.created_at >= since, models.RoomSummon.id <= latest)
+    if after_id is not None:
+        q = q.filter(models.RoomSummon.id > after_id)
+    rows = q.order_by(models.RoomSummon.id.asc()).limit(200).all()
+    # recipient_ids is a small JSON list; filtering in Python keeps this
+    # working the same on MySQL and MariaDB (whose JSON functions differ).
+    mine = [r for r in rows if me in [int(x) for x in (r.recipient_ids or [])]]
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "summoned_by_name": r.summoned_by_name or "The owner",
+                "created_at": (r.created_at.isoformat() + "Z") if r.created_at else None,
+            }
+            for r in mine
+        ],
+        "latest_id": max(latest, after_id or 0),
+    }
 
 
 @router.get("", response_model=list[schemas.RoomSummonOut], dependencies=[Depends(require_roles())])

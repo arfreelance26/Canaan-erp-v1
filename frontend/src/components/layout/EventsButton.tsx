@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import ReactDatePicker from "react-datepicker";
 import { CalendarClock, CalendarDays, Check, CheckCircle2, Clock, History, Loader2, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,6 +96,11 @@ export function EventsButton() {
     eventsApi.listUpcoming().then(setEvents).catch(() => {}).finally(() => setLoading(false));
   };
 
+  // Background refresh — no spinner, so an open list doesn't flicker.
+  const refreshQuietly = () => {
+    eventsApi.listUpcoming().then(setEvents).catch(() => {});
+  };
+
   const refreshHistory = () => {
     setHistoryLoading(true);
     eventsApi.listHistory().then(setHistory).catch(() => {}).finally(() => {
@@ -106,6 +111,25 @@ export function EventsButton() {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  // The event_created/cancelled/completed pushes below never reach browsers in
+  // production (cPanel/Passenger can't carry WebSockets), so the badge and
+  // list also refresh on a timer and whenever the tab comes back into focus.
+  const refreshRef = useRef(refreshQuietly);
+  useEffect(() => {
+    refreshRef.current = refreshQuietly;
+  });
+  useEffect(() => {
+    const tick = () => {
+      if (!document.hidden) refreshRef.current();
+    };
+    const id = window.setInterval(tick, 60_000);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
 
   useEffect(() => {

@@ -55,7 +55,7 @@ from database import engine, Base
 from security import get_current_user, require_roles, decode_token, SECRET_KEY, ALGORITHM, IS_PRODUCTION
 from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
-from websocket_manager import manager as ws_manager, set_event_loop
+from websocket_manager import manager as ws_manager, set_event_loop, ensure_event_loop
 
 from routers import trucks, drivers, staff, customers, vendors, vendor_categories, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories, usage_analytics
 
@@ -509,6 +509,8 @@ def _run_schema_migrations():
         # Plain CREATE INDEX (MySQL 8 has no IF NOT EXISTS for indexes); a re-run
         # fails with "duplicate key name" and is skipped like every other step.
         "CREATE INDEX ix_event_completed_at ON events (completed_at)",
+        # Invite inbox — every browser polls the last few minutes of room_summons.
+        "CREATE INDEX ix_room_summon_created ON room_summons (created_at)",
         # Activity Log — per-employee timeline/drill-down filters by user_name.
         "CREATE INDEX ix_activity_name_time ON activity_events (user_name, created_at)",
     ]
@@ -1509,7 +1511,10 @@ async def activity_tracking(request: Request, call_next):
     import time as _time
     started = _time.perf_counter()
     try:
-        # Never rely on the startup event or Passenger's fork hook having run.
+        # Never rely on the startup event or Passenger's fork hook having run —
+        # neither for the background workers nor for the event loop that
+        # emit()/emit_to_users() schedule WebSocket pushes on.
+        ensure_event_loop()
         _ensure_background_workers()
     except Exception:
         pass
@@ -1692,6 +1697,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str = ""):
     # Only the *first* socket flips them online and the *last* one flips them
     # offline — so opening a second tab doesn't spam presence events.
     was_online = ws_user_id is not None and ws_manager.is_online(ws_user_id)
+    # The loop serving this socket is the one pushes must be scheduled on.
+    ensure_event_loop()
     if not await ws_manager.connect(websocket, user_id=ws_user_id):
         return  # server at connection capacity
     if ws_user_id is not None and not was_online:

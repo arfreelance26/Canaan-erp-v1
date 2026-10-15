@@ -5346,6 +5346,18 @@ export const roomSummonApi = {
 
   list: (limit = 50): Promise<RoomSummon[]> =>
     req<B[]>(`/room-summon?limit=${limit}`).then((d) => d.map(toRoomSummon)),
+
+  /** Invites addressed to me that I haven't seen — polled, since the WebSocket
+   * push can't reach browsers in production. rawReq: must never be cached. */
+  inbox: (afterId: number | null): Promise<{ items: { id: number; summonedByName: string; createdAt: string | null }[]; latestId: number }> =>
+    rawReq<B>(`/room-summon/inbox${afterId != null ? `?after_id=${afterId}` : ""}`).then((d) => ({
+      items: (Array.isArray(d.items) ? d.items : []).map((r: B) => ({
+        id: Number(r.id),
+        summonedByName: String(r.summoned_by_name ?? "The owner"),
+        createdAt: r.created_at ?? null,
+      })),
+      latestId: Number(d.latest_id ?? 0),
+    })),
 };
 
 // ---------------------------------------------------------------------------
