@@ -1478,6 +1478,27 @@ async def realtime_broadcast(request: Request, call_next):
 # "/activity" — the Activity Log page's own live refresh would otherwise fill
 # the log with "Admin loaded Activity Log ×N"; opening that page is still
 # recorded as a normal page view by the browser tracker.
+@app.middleware("http")
+async def notes_request_size(request: Request, call_next):
+    """Refuse oversized Notes writes before the body is read — FastAPI would
+    otherwise load the whole request into memory before validation rejects
+    it, so one multi-GB request could exhaust the server's RAM. Chunked
+    bodies (no Content-Length) are refused for the same reason; browsers
+    always send a length for these JSON requests."""
+    if request.method in ("POST", "PATCH", "PUT") and request.url.path.startswith("/notes"):
+        from routers.notes import MAX_REQUEST_BYTES
+        length = request.headers.get("content-length")
+        if length is None:
+            return JSONResponse(status_code=411, content={"detail": "Content-Length required."})
+        try:
+            too_big = int(length) > MAX_REQUEST_BYTES
+        except ValueError:
+            too_big = True
+        if too_big:
+            return JSONResponse(status_code=413, content={"detail": "This note is too large to save."})
+    return await call_next(request)
+
+
 _ACTIVITY_SKIP = ("/usage/heartbeat", "/activity", "/ws")
 
 
@@ -1517,7 +1538,11 @@ async def activity_tracking(request: Request, call_next):
     # skipped too — but POST/DELETE on that same prefix are real uploads and
     # deletions of someone's license/RC/Aadhaar, so those must still be tracked.
     files_get = request.method == "GET" and path.startswith("/files/")
-    if request.method != "OPTIONS" and path != "/" and not files_get and not path.startswith(_ACTIVITY_SKIP):
+    # Notes autosave PATCHes every second or so while someone types — one
+    # "Saved changes" per keystroke burst would bury the rest of the log.
+    # Creating and deleting a note is still recorded.
+    note_autosave = request.method == "PATCH" and path.startswith("/notes/")
+    if request.method != "OPTIONS" and path != "/" and not files_get and not note_autosave and not path.startswith(_ACTIVITY_SKIP):
         try:
             import activity_tracker
             forwarded = request.headers.get("x-forwarded-for")
@@ -1582,6 +1607,8 @@ from routers import room_summon
 app.include_router(room_summon.router, dependencies=AUTH)
 from routers import events as _events_router
 app.include_router(_events_router.router, dependencies=AUTH)
+from routers import notes as _notes_router
+app.include_router(_notes_router.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

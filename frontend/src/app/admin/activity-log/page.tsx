@@ -11,6 +11,8 @@ import {
   type ActivityOverview,
   type ActivitySummaryRow,
   type ActivityTimelineItem,
+  notesApi,
+  type NoteAdminUsageRow,
 } from "@/lib/api";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -75,6 +77,7 @@ const API_AREAS: Record<string, string> = {
   trips: "Trips", attendance: "Attendance", resources: "Resources", maintenance: "Maintenance",
   finance: "Finance", insights: "Insights", chat: "Canaan Chat", connect: "Canaan Chat", admin: "Admin",
   personal: "Personal", auth: "Login", files: "Documents", events: "Meetings", "room-summon": "Invites",
+  notes: "Notes",
 };
 
 function areaName(route: string): string {
@@ -160,6 +163,7 @@ export default function ActivityLogPage() {
   const [day, setDay] = useState(todayIst());
   const [summary, setSummary] = useState<ActivitySummaryRow[]>([]);
   const [overview, setOverview] = useState<ActivityOverview | null>(null);
+  const [notesUsage, setNotesUsage] = useState<NoteAdminUsageRow[]>([]);
   const [dashLoading, setDashLoading] = useState(true);
 
   // Events list filters (date range defaults to the selected day).
@@ -211,7 +215,12 @@ export default function ActivityLogPage() {
   const loadDashboard = useCallback(async () => {
     dashAtRef.current = Date.now();
     try {
-      const [s, o] = await Promise.all([activityApi.summary(day), activityApi.overview(day)]);
+      const [s, o, n] = await Promise.all([
+        activityApi.summary(day),
+        activityApi.overview(day),
+        notesApi.adminUsage().catch(() => null),
+      ]);
+      if (n) setNotesUsage(n);
       setSummary(s);
       setOverview(o);
       setUpdatedAt(Date.now());
@@ -673,6 +682,44 @@ export default function ActivityLogPage() {
           )}
         </section>
       </div>
+
+      {/* Notes storage — sizes and counts only; note content is private to its owner */}
+      {notesUsage.length > 0 && (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <h2 className="mb-1 text-sm font-semibold text-gray-900">Notes storage</h2>
+          <p className="mb-3 text-xs text-gray-400">
+            How much each person keeps in Notes and saved today. Note content is private — only sizes are shown.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full whitespace-nowrap text-left text-sm">
+              <thead className="text-xs uppercase tracking-wider text-gray-500">
+                <tr className="border-b border-gray-200">
+                  <th className="px-3 py-2">Employee</th>
+                  <th className="px-3 py-2 text-right">Notes</th>
+                  <th className="px-3 py-2 text-right">Stored</th>
+                  <th className="px-3 py-2 text-right">Saves today</th>
+                  <th className="px-3 py-2 text-right">Saved today</th>
+                  <th className="px-3 py-2 text-right">Limit hits today</th>
+                </tr>
+              </thead>
+              <tbody>
+                {notesUsage.map((r) => (
+                  <tr key={r.staffId} className="border-b border-gray-100">
+                    <td className="px-3 py-2 font-medium text-gray-800">{r.name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.count}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{(r.bytesUsed / 1000).toFixed(1)} KB</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.writesToday}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{(r.writtenToday / 1_000_000).toFixed(2)} MB</td>
+                    <td className={cn("px-3 py-2 text-right tabular-nums", r.blockedToday > 0 && "font-semibold text-amber-600")}>
+                      {r.blockedToday}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Events */}
       <section className="rounded-xl border border-gray-200 bg-white p-4">

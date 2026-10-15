@@ -5374,6 +5374,115 @@ function toEvent(b: B): CanaanEvent {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Notes — private per-user notepad (Topbar's Notes button)
+// ---------------------------------------------------------------------------
+
+export type Note = {
+  id: number;
+  title: string;
+  body: string;
+  pinned: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+/** List entry — the server never sends note bodies in the list. */
+export type NoteSummary = {
+  id: number;
+  title: string;
+  preview: string;
+  sizeBytes: number;
+  pinned: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type NoteUsage = {
+  count: number;
+  maxNotes: number;
+  bytesUsed: number;
+  noteMaxBytes: number;
+  writtenToday: number;
+  dailyWriteLimit: number;
+};
+
+export type NoteAdminUsageRow = {
+  staffId: number;
+  name: string;
+  count: number;
+  bytesUsed: number;
+  writesToday: number;
+  writtenToday: number;
+  blockedToday: number;
+};
+
+function toNote(b: B): Note {
+  return {
+    id: Number(b.id),
+    title: b.title ?? "",
+    body: b.body ?? "",
+    pinned: Boolean(b.pinned),
+    createdAt: b.created_at ?? null,
+    updatedAt: b.updated_at ?? null,
+  };
+}
+
+function toNoteSummary(b: B): NoteSummary {
+  return {
+    id: Number(b.id),
+    title: b.title ?? "",
+    preview: b.preview ?? "",
+    sizeBytes: Number(b.size_bytes ?? 0),
+    pinned: Boolean(b.pinned),
+    createdAt: b.created_at ?? null,
+    updatedAt: b.updated_at ?? null,
+  };
+}
+
+function toNoteUsage(b: B): NoteUsage {
+  return {
+    count: Number(b.count ?? 0),
+    maxNotes: Number(b.max_notes ?? 0),
+    bytesUsed: Number(b.bytes_used ?? 0),
+    noteMaxBytes: Number(b.note_max_bytes ?? 0),
+    writtenToday: Number(b.written_today ?? 0),
+    dailyWriteLimit: Number(b.daily_write_limit ?? 0),
+  };
+}
+
+// rawReq (not the cached req): a note just saved must never come back stale.
+export const notesApi = {
+  list: (): Promise<{ items: NoteSummary[]; usage: NoteUsage }> =>
+    rawReq<B>("/notes").then((d) => ({ items: (d.items ?? []).map(toNoteSummary), usage: toNoteUsage(d.usage ?? {}) })),
+  get: (id: number): Promise<Note> => rawReq<B>(`/notes/${id}`).then(toNote),
+  create: (payload: { title?: string; body?: string } = {}): Promise<Note> =>
+    rawReq<B>("/notes", { method: "POST", body: JSON.stringify(payload) }).then(toNote),
+  update: (
+    id: number,
+    patch: { title?: string; body?: string; pinned?: boolean },
+    keepalive = false,
+  ): Promise<{ note: NoteSummary; usage: NoteUsage }> =>
+    rawReq<B>(`/notes/${id}`, { method: "PATCH", body: JSON.stringify(patch), keepalive }).then((d) => ({
+      note: toNoteSummary(d.note ?? {}),
+      usage: toNoteUsage(d.usage ?? {}),
+    })),
+  remove: (id: number): Promise<NoteUsage> => rawReq<B>(`/notes/${id}`, { method: "DELETE" }).then(toNoteUsage),
+  /** Admin only — counts and sizes per person, never note content. */
+  adminUsage: (): Promise<NoteAdminUsageRow[]> =>
+    rawReq<B[]>("/notes/admin/usage").then((rows) =>
+      rows.map((r) => ({
+        staffId: Number(r.staff_id),
+        name: String(r.name ?? ""),
+        count: Number(r.count ?? 0),
+        bytesUsed: Number(r.bytes_used ?? 0),
+        writesToday: Number(r.writes_today ?? 0),
+        writtenToday: Number(r.written_today ?? 0),
+        blockedToday: Number(r.blocked_today ?? 0),
+      })),
+    ),
+};
+
 export const eventsApi = {
   create: (payload: {
     title: string;

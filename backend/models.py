@@ -2201,6 +2201,42 @@ class EventParticipant(Base):
     )
 
 
+class Note(Base):
+    """Topbar Notes — a private notepad per staff member. Strictly owner-only:
+    every query in routers/notes.py is scoped to the caller, Admin included.
+    Kept until the owner deletes it."""
+    __tablename__ = "notes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(200), nullable=False, default="")
+    # length > 65535 makes MySQL use MEDIUMTEXT instead of the 64 KB TEXT.
+    body = Column(Text(length=1_000_000), nullable=False, default="")
+    pinned = Column(Boolean, nullable=False, default=False, server_default="0")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_note_owner_updated", "staff_id", "updated_at"),
+    )
+
+
+class NoteWriteUsage(Base):
+    """Per-person, per-day tally of note writes (routers/notes.py). Caps how
+    much any one person can push through autosave in a day — every save
+    rewrites the whole note into MySQL's binary log, so without this a
+    script re-saving one note in a loop could fill the disk even though the
+    notes table itself never grows. Stored in the DB (not memory) so the cap
+    holds across every server worker process."""
+    __tablename__ = "note_write_usage"
+
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), primary_key=True)
+    day = Column(Date, primary_key=True)          # IST calendar day
+    bytes_written = Column(Integer, nullable=False, default=0, server_default="0")
+    writes = Column(Integer, nullable=False, default=0, server_default="0")
+    blocked = Column(Integer, nullable=False, default=0, server_default="0")  # writes refused by a limit
+
+
 DEFAULT_BATTA_TRIP_TYPES = ("LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP")
 DEFAULT_BATTA_CARGO_TYPES = ("20FT CONTAINER", "40FT CONTAINER", "2X20 FEET CONTAINERS", "OPEN LOAD CARGO")
 

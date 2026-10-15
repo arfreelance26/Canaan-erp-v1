@@ -10,7 +10,7 @@ from datetime import date, datetime, timezone
 from datetime import date as _DateType
 from decimal import Decimal
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _CONTAINER_RE = re.compile(r'^[A-Z]{4}[0-9]{7}$')
 
@@ -3068,6 +3068,92 @@ class EventOut(OrmBase):
     created_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     completed_by_name: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Notes (Topbar notepad — private per user)
+# ---------------------------------------------------------------------------
+
+NOTE_TITLE_MAX = 200
+NOTE_BODY_MAX = 50_000           # characters (~25 pages)
+NOTE_BODY_MAX_BYTES = 100_000    # stored size — emoji/non-Latin text takes up to 4 bytes per character
+
+
+def _check_note_body(v: Optional[str]) -> Optional[str]:
+    if v is not None and len(v.encode("utf-8")) > NOTE_BODY_MAX_BYTES:
+        raise ValueError(f"This note is too large (max {NOTE_BODY_MAX_BYTES // 1000} KB).")
+    return v
+
+
+class NoteCreate(BaseModel):
+    title: str = Field(default="", max_length=NOTE_TITLE_MAX)
+    body: str = Field(default="", max_length=NOTE_BODY_MAX)
+    pinned: bool = False
+
+    @field_validator("body")
+    @classmethod
+    def _body_bytes(cls, v):
+        return _check_note_body(v)
+
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=NOTE_TITLE_MAX)
+    body: Optional[str] = Field(default=None, max_length=NOTE_BODY_MAX)
+    pinned: Optional[bool] = None
+
+    @field_validator("body")
+    @classmethod
+    def _body_bytes(cls, v):
+        return _check_note_body(v)
+
+
+class NoteSummaryOut(BaseModel):
+    """List entry — no body, so opening Notes never ships every note in full."""
+    id: int
+    title: str
+    preview: str
+    size_bytes: int
+    pinned: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class NoteOut(OrmBase):
+    id: int
+    title: str
+    body: str
+    pinned: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class NoteUsageOut(BaseModel):
+    count: int
+    max_notes: int
+    bytes_used: int
+    note_max_bytes: int
+    written_today: int
+    daily_write_limit: int
+
+
+class NoteListOut(BaseModel):
+    items: list[NoteSummaryOut]
+    usage: NoteUsageOut
+
+
+class NoteSavedOut(BaseModel):
+    note: NoteSummaryOut
+    usage: NoteUsageOut
+
+
+class NoteAdminUsageRow(BaseModel):
+    staff_id: int
+    name: str
+    count: int
+    bytes_used: int
+    writes_today: int
+    written_today: int
+    blocked_today: int
 
 
 # ---------------------------------------------------------------------------

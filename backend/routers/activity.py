@@ -419,6 +419,16 @@ def day_overview(day: str | None = Query(None, description="YYYY-MM-DD, IST; def
         alerts.append({"type": "failed_actions", "severity": "low", "user_name": name, "at": None,
                        "message": f"{count} saves/deletes didn't go through"})
 
+    # Notes abuse limits (routers/notes.py) — counts only, never note content.
+    for name, blocked, written in (
+        db.query(models.Staff.name, models.NoteWriteUsage.blocked, models.NoteWriteUsage.bytes_written)
+        .join(models.Staff, models.Staff.id == models.NoteWriteUsage.staff_id)
+        .filter(models.NoteWriteUsage.day == chosen, models.NoteWriteUsage.blocked > 0)
+        .all()
+    ):
+        alerts.append({"type": "notes_limit", "severity": "medium", "user_name": name, "at": None,
+                       "message": f"Hit a Notes limit {blocked} time(s) — {written / 1_000_000:.1f} MB of note saves today"})
+
     rank = {"high": 0, "medium": 1, "low": 2}
     alerts.sort(key=lambda a: (rank[a["severity"]], a["user_name"].lower()))
 

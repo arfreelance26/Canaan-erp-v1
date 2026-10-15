@@ -14,6 +14,7 @@ import { CalculatorButton } from "./CalculatorButton";
 import { AlertsButton } from "./AlertsButton";
 import { EventsButton } from "./EventsButton";
 import { GreetingPill } from "./GreetingPill";
+import { NotesButton } from "./NotesButton";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -600,6 +601,9 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
 
         {/* Events — everyone sees upcoming meetings, only Admin schedules one */}
         <EventsButton />
+
+        {/* Notes — private per-user notepad */}
+        <NotesButton />
 
         {/* Calculator */}
         <CalculatorButton />
