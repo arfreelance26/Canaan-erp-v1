@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, type CSSProperties } from "react";
+import { type ReactNode } from "react";
 import s from "./invoice.module.css";
 
 const TERMS = [
@@ -80,14 +80,6 @@ function halfRate(rate: string): string {
 function fmtAmt(v: number): string {
   return v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-const taxAmtStyle: CSSProperties = {
-  display: "block",
-  fontSize: "8.5px",
-  fontWeight: 600,
-  color: "#555",
-  marginTop: "1px",
-};
 
 export function InvoiceShell({
   title,
@@ -255,69 +247,69 @@ export function InvoiceShell({
         {(() => {
           const isCgstSgst = !isTransportMemo && gstApplicable === "Yes";
           const isIgst     = !isTransportMemo && igstApplicable === "Yes";
-          const descW      = isCgstSgst ? "34%" : isTransportMemo ? "55%" : "44%";
+          // Each tax gets a rate column and its own amount column (| 18% | 15,300.00 |)
+          // instead of the amount stacked under the rate. Transport Memo is never
+          // taxed, so it keeps its single (always "—") GST % column.
+          const taxLabel   = isIgst ? "IGST" : "GST";
+          const descW      = isCgstSgst ? "24%" : isTransportMemo ? "55%" : "36%";
+          const totalW     = isTransportMemo ? "16%" : "14%";
           // Total-row: blank colSpan covers every col except the last two (TOTAL label + amount)
-          const blankSpan  = isTransportMemo ? 3 : isCgstSgst ? 5 : 4;
+          const blankSpan  = isTransportMemo ? 3 : isCgstSgst ? 7 : 5;
+          const amtCell  = (hasRate: boolean, amount: number) => (hasRate ? fmtAmt(amount) : "—");
           return (
             <table className={s.itemsTable}>
               <thead>
                 <tr>
                   <th style={{ width: descW }}>Description of Service</th>
-                  {!isTransportMemo && <th style={{ width: "10%" }} className={s.center}>SAC Code</th>}
-                  <th style={{ width: "6%" }}  className={s.center}>QTY</th>
-                  <th style={{ width: "12%" }} className={s.right}>Rate (INR)</th>
+                  {!isTransportMemo && <th style={{ width: isCgstSgst ? "9%" : "10%" }} className={s.center}>SAC Code</th>}
+                  <th style={{ width: isCgstSgst ? "5%" : "6%" }}  className={s.center}>QTY</th>
+                  <th style={{ width: isCgstSgst ? "11%" : "12%" }} className={s.right}>Rate (INR)</th>
                   {isCgstSgst ? (
                     <>
-                      <th style={{ width: "8%" }} className={s.center}>CGST %</th>
-                      <th style={{ width: "8%" }} className={s.center}>SGST %</th>
+                      <th style={{ width: "7%" }}  className={s.center}>CGST %</th>
+                      <th style={{ width: "10%" }} className={s.right}>CGST Amt</th>
+                      <th style={{ width: "7%" }}  className={s.center}>SGST %</th>
+                      <th style={{ width: "10%" }} className={s.right}>SGST Amt</th>
                     </>
+                  ) : isTransportMemo ? (
+                    <th style={{ width: "10%" }} className={s.center}>GST %</th>
                   ) : (
-                    <th style={{ width: "10%" }} className={s.center}>
-                      {isIgst ? "IGST %" : "GST %"}
-                    </th>
+                    <>
+                      <th style={{ width: "8%" }}  className={s.center}>{taxLabel} %</th>
+                      <th style={{ width: "12%" }} className={s.right}>{taxLabel} Amt</th>
+                    </>
                   )}
-                  <th style={{ width: "16%" }} className={s.right}>Total (INR)</th>
+                  <th style={{ width: totalW }} className={s.right}>Total (INR)</th>
                 </tr>
               </thead>
               <tbody>
-                {serviceItems.map((item, i) => (
-                  <tr key={i}>
-                    <td>{item.description}</td>
-                    {!isTransportMemo && <td className={s.center}>{item.sacCode}</td>}
-                    <td className={s.center}>{item.qty}</td>
-                    <td className={s.right}>{item.rate}</td>
-                    {isCgstSgst ? (
-                      <>
-                        <td className={s.center}>
-                          {item.gstRate ? (
-                            <>
-                              {halfRate(item.gstRate)}
-                              <span style={taxAmtStyle}>&#8377; {fmtAmt((item.gstAmount ?? 0) / 2)}</span>
-                            </>
-                          ) : "—"}
-                        </td>
-                        <td className={s.center}>
-                          {item.gstRate ? (
-                            <>
-                              {halfRate(item.gstRate)}
-                              <span style={taxAmtStyle}>&#8377; {fmtAmt((item.gstAmount ?? 0) / 2)}</span>
-                            </>
-                          ) : "—"}
-                        </td>
-                      </>
-                    ) : (
-                      <td className={s.center}>
-                        {item.gstRate ? (
-                          <>
-                            {`${item.gstRate}%`}
-                            <span style={taxAmtStyle}>&#8377; {fmtAmt(item.gstAmount ?? 0)}</span>
-                          </>
-                        ) : "—"}
-                      </td>
-                    )}
-                    <td className={`${s.right} ${s.bold}`}>{item.total}</td>
-                  </tr>
-                ))}
+                {serviceItems.map((item, i) => {
+                  const hasRate = !!item.gstRate;
+                  return (
+                    <tr key={i}>
+                      <td>{item.description}</td>
+                      {!isTransportMemo && <td className={s.center}>{item.sacCode}</td>}
+                      <td className={s.center}>{item.qty}</td>
+                      <td className={s.right}>{item.rate}</td>
+                      {isCgstSgst ? (
+                        <>
+                          <td className={s.center}>{item.gstRate ? halfRate(item.gstRate) : "—"}</td>
+                          <td className={s.right}>{amtCell(hasRate, (item.gstAmount ?? 0) / 2)}</td>
+                          <td className={s.center}>{item.gstRate ? halfRate(item.gstRate) : "—"}</td>
+                          <td className={s.right}>{amtCell(hasRate, (item.gstAmount ?? 0) / 2)}</td>
+                        </>
+                      ) : isTransportMemo ? (
+                        <td className={s.center}>—</td>
+                      ) : (
+                        <>
+                          <td className={s.center}>{hasRate ? `${item.gstRate}%` : "—"}</td>
+                          <td className={s.right}>{amtCell(hasRate, item.gstAmount ?? 0)}</td>
+                        </>
+                      )}
+                      <td className={`${s.right} ${s.bold}`}>{item.total}</td>
+                    </tr>
+                  );
+                })}
                 <tr className={s.totalRow}>
                   <td colSpan={blankSpan} style={{ border: "none", background: "transparent" }}></td>
                   <td className={`${s.right} ${s.bold}`} style={{ fontSize: "10px", letterSpacing: "0.3px" }}>TOTAL</td>
