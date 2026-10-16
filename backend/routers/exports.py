@@ -545,24 +545,45 @@ def export_staff_compensation(
 def export_maintenance_records(
     from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
     to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    truck_id: Optional[int] = Query(None, description="Only this truck (trucks.id) — the per-truck Maintenance Record dialog"),
+    vendor_id: Optional[int] = Query(None, description="Only this vendor's jobs — Our Vendors → View Record"),
     db: Session = Depends(get_db),
 ):
     q = (
         db.query(models.MaintenanceRecord)
         .join(models.Truck, models.Truck.id == models.MaintenanceRecord.truck_id)
     )
+    if truck_id:
+        q = q.filter(models.MaintenanceRecord.truck_id == truck_id)
+    if vendor_id:
+        q = q.filter(models.MaintenanceRecord.vendor_id == vendor_id)
     if from_date:
         q = q.filter(models.MaintenanceRecord.date >= from_date)
     if to_date:
         q = q.filter(models.MaintenanceRecord.date <= to_date)
     records = q.order_by(models.MaintenanceRecord.date.desc()).all()
-    headers = ["Truck ID", "Registration Number", "Date", "Odometer", "Maintenance Type", "Description", "Cost"]
+    proof_counts = dict(
+        db.query(models.MaintenanceProof.record_id, func.count(models.MaintenanceProof.id))
+        .filter(models.MaintenanceProof.record_id.in_([r.id for r in records]))
+        .group_by(models.MaintenanceProof.record_id)
+        .all()
+    ) if records else {}
+    headers = ["Truck ID", "Registration Number", "Start Date", "End Date", "Maintenance Type", "Repair Type",
+               "Compliant", "Location", "Maintenance By", "Remarks", "Odometer", "User Modified", "Source",
+               "Cost", "Proof of Payment Files"]
     data = [
-        [r.truck.truck_id, r.truck.registration_number, r.date, r.odometer, r.maintenance_type, r.description, r.cost]
+        [r.truck.truck_id, r.truck.registration_number, r.date, r.maintenance_end_date, r.maintenance_type,
+         r.repair_type, r.compliant, r.maintenance_location, r.maintenance_by, r.description, r.odometer,
+         r.entered_by_name, r.source, r.cost, int(proof_counts.get(r.id, 0))]
         for r in records
     ]
+    truck_part = f"_{records[0].truck.registration_number}" if truck_id and records else ""
+    if vendor_id:
+        v = db.get(models.Vendor, vendor_id)
+        if v:
+            truck_part += "_" + "".join(c if c.isalnum() else "_" for c in v.name).strip("_")
     suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
-    return build_excel_response([("Maintenance Records", headers, data)], f"maintenance_records{suffix}.xlsx")
+    return build_excel_response([("Maintenance Records", headers, data)], f"maintenance_records{truck_part}{suffix}.xlsx")
 
 
 @router.get("/tyre-inventory")

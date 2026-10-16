@@ -110,6 +110,7 @@ BLOB_FILENAME_COL: dict[str, str] = {
     "national_permit_proof_blob":        "national_permit_proof_file_name",
     "local_permit_proof_blob":           "local_permit_proof_file_name",
     "pollution_certificate_blob":        "pollution_certificate_proof_file_name",
+    "data":                              "file_name",  # maintenance_proofs (Proof of Payment)
 }
 
 # Models that hold uploaded file blobs, with the folder name used inside the ZIP.
@@ -118,6 +119,10 @@ BLOB_MODELS = [
     (models.Driver,   "drivers"),
     (models.Staff,    "staff"),
     (models.Customer, "customers"),
+    # Proof of Payment files on maintenance records. Files ZIP only — not in the
+    # SQL/Excel dumps, which skip file bytes (and `data` is NOT NULL, so a
+    # bytes-less INSERT couldn't be restored anyway).
+    (models.MaintenanceProof, "maintenance_proofs"),
 ]
 
 

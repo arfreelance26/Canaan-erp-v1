@@ -44,6 +44,7 @@ export default function TruckMaintenancePage() {
 
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [savingRecord, setSavingRecord] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,18 +103,40 @@ export default function TruckMaintenancePage() {
     setStatusDialogOpen(true);
   }
 
-  async function handleSaveRecord(record: MaintenanceRecord) {
+  async function handleSaveRecord(record: MaintenanceRecord, proofs: File[]) {
     const truck = trucks.find((t) => t.id === record.truckId);
-    if (!truck) return;
+    if (!truck || savingRecord) return;
+    setSavingRecord(true);
     try {
       const created = await maintenanceApi.createRecord(record, truck.id);
-      setRecords((prev) => [...prev, created]);
+      // Proof of Payment needs the new record's id, so it uploads afterwards.
+      // One at a time keeps a slow connection from timing out several at once.
+      const failed: string[] = [];
+      let uploaded = 0;
+      for (const file of proofs) {
+        try {
+          await maintenanceApi.uploadProof(created.id, file);
+          uploaded += 1;
+        } catch (err: unknown) {
+          failed.push(`${file.name}: ${err instanceof Error ? err.message : "upload failed"}`);
+        }
+      }
+      setRecords((prev) => [...prev, { ...created, proofCount: uploaded }]);
       setUpdateDialogOpen(false);
       // Refresh status after a new record is saved
       maintenanceApi.getStatus().then(setAllStatus).catch(() => {});
-      showSuccess("Maintenance record saved successfully.");
+      if (failed.length) {
+        showError(
+          `The record was saved, but ${failed.length} proof file(s) didn't upload:\n${failed.join("\n")}`,
+          "Some files weren't uploaded",
+        );
+      } else {
+        showSuccess("Maintenance record saved successfully.");
+      }
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to save maintenance record.");
+    } finally {
+      setSavingRecord(false);
     }
   }
 
@@ -177,6 +200,7 @@ export default function TruckMaintenancePage() {
         onClose={() => setUpdateDialogOpen(false)}
         onSave={handleSaveRecord}
         truck={selectedTruck}
+        saving={savingRecord}
       />
 
       <MaintenanceRecordHistoryDialog

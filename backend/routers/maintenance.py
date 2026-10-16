@@ -6,7 +6,8 @@ from datetime import date, datetime, timedelta, timezone
 # Optional[date] resolves the type reference to the field itself (None)
 # instead of datetime.date, silently corrupting it into an always-None field.
 from datetime import date as _DateType
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -156,7 +157,18 @@ def list_maintenance_records(
     q = q.order_by(models.MaintenanceRecord.date.desc())
     if limit is not None:
         q = q.offset(offset).limit(limit)
-    return q.all()
+    rows = q.all()
+    # One grouped query for every record's Proof of Payment count.
+    if rows:
+        counts = dict(
+            db.query(models.MaintenanceProof.record_id, func.count(models.MaintenanceProof.id))
+            .filter(models.MaintenanceProof.record_id.in_([r.id for r in rows]))
+            .group_by(models.MaintenanceProof.record_id)
+            .all()
+        )
+        for r in rows:
+            r.proof_count = int(counts.get(r.id, 0))
+    return rows
 
 
 @router.get("/maintenance/record-edit-events", response_model=list[schemas.MaintenanceRecordEditEventListOut], tags=["Maintenance"])
@@ -257,6 +269,23 @@ def create_air_filter_record(payload: schemas.AirFilterRecordCreate, db: Session
     return record
 
 
+def _apply_maintenance_by(db: Session, data: dict) -> dict:
+    """Maintenance By → Vendor links the record to a real vendor (Our Vendors →
+    View Record lists by vendor_id) and snapshots that vendor's current name;
+    → Individual is just a typed name with no vendor link."""
+    kind = data.get("maintenance_by_type")
+    vendor_id = data.get("vendor_id")
+    if kind == "Individual":
+        data["vendor_id"] = None
+    elif vendor_id:
+        vendor = db.get(models.Vendor, vendor_id)
+        if not vendor or vendor.deleted_at is not None:
+            raise HTTPException(400, "The selected vendor no longer exists. Please pick another.")
+        data["maintenance_by_type"] = "Vendor"
+        data["maintenance_by"] = vendor.name
+    return data
+
+
 @router.post("/maintenance/records", response_model=schemas.MaintenanceRecordOut, status_code=201, tags=["Maintenance"])
 def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     truck = db.get(models.Truck, payload.truck_id)
@@ -265,7 +294,8 @@ def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Sess
     current_odo = int(truck.odometer or 0)
     if current_odo > 0 and int(payload.odometer) > current_odo:
         raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
-    record = models.MaintenanceRecord(**payload.model_dump(), entered_by_name=current_user.name, source="Web")
+    data = _apply_maintenance_by(db, payload.model_dump())
+    record = models.MaintenanceRecord(**data, entered_by_name=current_user.name, source="Web")
     db.add(record)
     db.commit()
     db.refresh(record)
@@ -278,6 +308,132 @@ def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Sess
     db.commit()
     emit("maintenance_updated", {})
     return record
+
+
+# -- Proof of Payment (files on a maintenance record) ---------------------------
+#
+# Up to 5 images (JPG, PNG, WEBP, GIF, BMP) and 3 PDFs per record, 10 MB each.
+# Type is checked by the
+# file's actual bytes (not its name or the browser's claim), same as the
+# /files router. Downloads go through the normal Authorization header — the
+# frontend fetches them as blobs — so no token ever lands in a URL.
+
+PROOF_MAX_IMAGES = 5
+PROOF_MAX_PDFS = 3
+PROOF_MAX_BYTES = 10 * 1024 * 1024
+PROOF_IMAGE_MIMES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
+
+
+def _proof_mime(data: bytes) -> str | None:
+    """True type from the file's first bytes — the shared /files sniffer plus BMP."""
+    from routers.files import _sniff_mime
+    if data[:2] == b"BM" and len(data) > 26:
+        return "image/bmp"
+    return _sniff_mime(data)
+
+
+def _proof_record(db: Session, record_id: int, lock: bool = False) -> models.MaintenanceRecord:
+    q = db.query(models.MaintenanceRecord).filter(models.MaintenanceRecord.id == record_id)
+    if lock:
+        q = q.with_for_update()
+    record = q.first()
+    if not record:
+        raise HTTPException(404, "Maintenance record not found")
+    return record
+
+
+@router.get("/maintenance/records/{record_id}/proofs", response_model=list[schemas.MaintenanceProofOut], tags=["Maintenance"])
+def list_maintenance_proofs(record_id: int, db: Session = Depends(get_db)):
+    _proof_record(db, record_id)
+    return (
+        db.query(models.MaintenanceProof)
+        .filter(models.MaintenanceProof.record_id == record_id)
+        .order_by(models.MaintenanceProof.kind.desc(), models.MaintenanceProof.id)
+        .all()
+    )
+
+
+@router.post("/maintenance/records/{record_id}/proofs", response_model=schemas.MaintenanceProofOut, status_code=201, tags=["Maintenance"])
+async def upload_maintenance_proof(
+    record_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    # Read one byte past the cap so an oversized file is caught without
+    # pulling the whole thing into memory.
+    data = await file.read(PROOF_MAX_BYTES + 1)
+    if len(data) > PROOF_MAX_BYTES:
+        raise HTTPException(413, f"File too large. Each proof can be at most {PROOF_MAX_BYTES // (1024 * 1024)} MB.")
+    if not data:
+        raise HTTPException(400, "The file is empty.")
+    mime = _proof_mime(data)
+    if mime in PROOF_IMAGE_MIMES:
+        kind, limit = "image", PROOF_MAX_IMAGES
+    elif mime == "application/pdf":
+        kind, limit = "pdf", PROOF_MAX_PDFS
+    else:
+        raise HTTPException(415, "Only images (JPG, PNG, WEBP, GIF, BMP) and PDF files can be uploaded as Proof of Payment.")
+    # Lock the record so two simultaneous uploads can't both slip under the limit.
+    _proof_record(db, record_id, lock=True)
+    existing = (
+        db.query(func.count(models.MaintenanceProof.id))
+        .filter(models.MaintenanceProof.record_id == record_id, models.MaintenanceProof.kind == kind)
+        .scalar()
+    )
+    if existing >= limit:
+        db.rollback()
+        label = "images" if kind == "image" else "PDFs"
+        raise HTTPException(400, f"This record already has the maximum of {limit} {label}.")
+    name = (file.filename or ("proof.jpg" if kind == "image" else "proof.pdf")).replace("\\", "/").split("/")[-1][:255]
+    proof = models.MaintenanceProof(
+        record_id=record_id, kind=kind, file_name=name, size_bytes=len(data),
+        data=data, uploaded_by_name=current_user.name,
+    )
+    db.add(proof)
+    db.commit()
+    db.refresh(proof)
+    emit("maintenance_updated", {})
+    return proof
+
+
+@router.get("/maintenance/records/{record_id}/proofs/{proof_id}", tags=["Maintenance"])
+def download_maintenance_proof(record_id: int, proof_id: int, db: Session = Depends(get_db)):
+    proof = (
+        db.query(models.MaintenanceProof)
+        .filter(models.MaintenanceProof.id == proof_id, models.MaintenanceProof.record_id == record_id)
+        .first()
+    )
+    if not proof:
+        raise HTTPException(404, "Proof not found")
+    # Served as whatever the bytes actually are (a PNG stays a PNG).
+    mime = _proof_mime(proof.data) or ("application/pdf" if proof.kind == "pdf" else "application/octet-stream")
+    safe_name = proof.file_name.replace('"', "")
+    return Response(
+        content=proof.data,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_name}"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+    )
+
+
+# Admin-only, same as deleting a maintenance record outright (non-Admins go
+# through deletion approval for records).
+@router.delete("/maintenance/records/{record_id}/proofs/{proof_id}", status_code=204, tags=["Maintenance"],
+               dependencies=[Depends(require_roles())])
+def delete_maintenance_proof(record_id: int, proof_id: int, db: Session = Depends(get_db)):
+    deleted = (
+        db.query(models.MaintenanceProof)
+        .filter(models.MaintenanceProof.id == proof_id, models.MaintenanceProof.record_id == record_id)
+        .delete(synchronize_session=False)
+    )
+    if not deleted:
+        raise HTTPException(404, "Proof not found")
+    db.commit()
+    emit("maintenance_updated", {})
 
 
 @router.put("/maintenance/records/{record_id}", response_model=schemas.MaintenanceRecordOut, tags=["Maintenance"])
@@ -297,7 +453,10 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
             current_odo = int(truck.odometer or 0)
             if current_odo > 0 and int(payload.odometer) > current_odo:
                 raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
-    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
+    updates = payload.model_dump(exclude_unset=True, exclude={"client_version"})
+    if {"vendor_id", "maintenance_by_type"} & updates.keys():
+        updates = _apply_maintenance_by(db, updates)
+    for field, value in updates.items():
         setattr(record, field, value)
     record.entered_by_name = current_user.name
     record.version = (record.version or 1) + 1

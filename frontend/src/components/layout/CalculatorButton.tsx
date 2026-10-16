@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { Calculator as CalculatorIcon, Delete } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PercentageCalculator } from "./PercentageCalculator";
 
 type Operator = "+" | "-" | "×" | "÷";
 
@@ -46,7 +47,8 @@ type CalcAction =
   | { type: "PERCENT" }
   | { type: "OPERATOR"; op: Operator }
   | { type: "EQUALS" }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | { type: "LOAD"; value: number };
 
 // A single reducer keeps every transition atomic, so the keyboard listener
 // never needs to re-bind when state changes (see the effect below) — that
@@ -110,6 +112,9 @@ function calcReducer(state: CalcState, action: CalcAction): CalcState {
     }
     case "RESET":
       return INITIAL_STATE;
+    case "LOAD":
+      // A result handed over from the Percentage tab — starts a fresh calculation from it.
+      return { ...INITIAL_STATE, display: formatResult(action.value) };
   }
 }
 
@@ -126,8 +131,12 @@ const KEY_TO_BUTTON: Record<string, string> = {
   Backspace: "back", Delete: "C", Escape: "C", c: "C", C: "C",
 };
 
+type CalcTab = "basic" | "percent";
+const TAB_KEY = "canaan.calc.tab";
+
 export function CalculatorButton() {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<CalcTab>("basic");
   const [state, dispatch] = useReducer(calcReducer, INITIAL_STATE);
   const [flashKey, setFlashKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -143,6 +152,18 @@ export function CalculatorButton() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Remember the last-used tab (per browser).
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(TAB_KEY) === "percent") setTab("percent");
+    } catch { /* storage unavailable — Basic is fine */ }
+  }, []);
+
+  function switchTab(next: CalcTab) {
+    setTab(next);
+    try { window.localStorage.setItem(TAB_KEY, next); } catch { /* ignore */ }
+  }
+
   function flash(buttonId: string) {
     setFlashKey(buttonId);
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
@@ -154,6 +175,12 @@ export function CalculatorButton() {
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
+      // The Percentage tab types into its own fields — the keypad shortcuts
+      // stay off there, so a keystroke never lands in both. Esc just closes.
+      if (tab === "percent") {
+        if (e.key === "Escape") setOpen(false);
+        return;
+      }
       if (e.key >= "0" && e.key <= "9") {
         e.preventDefault();
         dispatch({ type: "DIGIT", digit: e.key });
@@ -211,7 +238,7 @@ export function CalculatorButton() {
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, [open, tab]);
 
   useEffect(() => {
     return () => {
@@ -245,6 +272,32 @@ export function CalculatorButton() {
 
       {open && (
         <div className="absolute right-0 z-[100] mt-3 w-[280px] origin-top-right rounded-2xl border border-white/60 bg-white/95 p-4 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
+          {/* Tabs */}
+          <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1">
+            {([["basic", "Basic"], ["percent", "Percentage"]] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => switchTab(id)}
+                className={cn(
+                  "rounded-lg py-1.5 text-xs font-semibold transition-all",
+                  tab === id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "percent" ? (
+            <PercentageCalculator
+              onUseResult={(value) => {
+                dispatch({ type: "LOAD", value });
+                switchTab("basic");
+              }}
+            />
+          ) : (
+          <>
           {/* Display */}
           <div className="mb-3 rounded-xl bg-gray-900 px-4 py-3 text-right">
             <p className="h-4 truncate text-[11px] font-medium text-gray-400">{expression || " "}</p>
@@ -285,6 +338,8 @@ export function CalculatorButton() {
 
             <button type="button" onClick={() => dispatch({ type: "PERCENT" })} className={keyClass("%", "col-span-4 bg-gray-100 text-gray-600 hover:bg-gray-200")}>%</button>
           </div>
+          </>
+          )}
         </div>
       )}
     </div>

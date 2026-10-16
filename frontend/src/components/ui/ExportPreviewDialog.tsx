@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileSpreadsheet, FileText, Loader2, X } from "lucide-react";
+import { Eye, FileSpreadsheet, FileText, Loader2, X } from "lucide-react";
 import { saveBlob } from "@/lib/api";
 import { showError } from "@/lib/swal";
 
@@ -102,18 +102,24 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-xl bg-white shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-6xl animate-dialog-enter flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
-          <div>
-            <p className="font-semibold text-gray-900">{title}</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Preview · {body.length} row{body.length === 1 ? "" : "s"}
-              {body.length > PREVIEW_ROW_LIMIT && ` (showing first ${PREVIEW_ROW_LIMIT} — the downloads contain everything)`}
-            </p>
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-gray-100 px-6 py-4">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white text-blue-600 shadow-sm">
+              <Eye className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-bold tracking-tight text-gray-900">{title}</h2>
+              <p className="mt-0.5 text-xs text-gray-500">
+                {body.length.toLocaleString("en-IN")} row{body.length === 1 ? "" : "s"}
+                {header ? ` · ${header.length} column${header.length === 1 ? "" : "s"}` : ""}
+                {body.length > PREVIEW_ROW_LIMIT && ` · showing the first ${PREVIEW_ROW_LIMIT}`}
+              </p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
-            <X className="h-4 w-4" />
+          <button type="button" onClick={onClose} aria-label="Close" className="shrink-0 rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-600">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -136,37 +142,52 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
         )}
 
         {/* Table */}
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col bg-gray-50/60 p-4">
           {!header || body.length === 0 ? (
-            <p className="px-5 py-16 text-center text-sm text-gray-400">No data to export for the current selection.</p>
+            <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                <FileSpreadsheet className="h-5 w-5 text-gray-400" />
+              </div>
+              <p className="text-sm font-semibold text-gray-600">Nothing to export</p>
+              <p className="mt-1 text-xs text-gray-400">No data matches the current selection.</p>
+            </div>
           ) : (
-            <table className="w-full whitespace-nowrap text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-gray-50">
-                <tr className="border-b border-gray-200">
-                  {header.map((h, i) => (
-                    <th key={i} className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {shown.map((row, r) => (
-                  <tr key={r} className="hover:bg-gray-50">
-                    {header.map((_, c) => (
-                      <td key={c} className="px-4 py-2 text-gray-700">{row[c] ?? ""}</td>
+            <div className="custom-scrollbar min-h-0 flex-1 overflow-auto rounded-xl border border-gray-200 bg-white">
+              <table className="w-full whitespace-nowrap text-left text-sm">
+                <thead className="sticky top-0 z-10 bg-gray-50">
+                  <tr className="border-b border-gray-200">
+                    {header.map((h, i) => (
+                      <th key={i} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{h}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {shown.map((row, r) => (
+                    <tr key={r} className="odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/40">
+                      {header.map((_, c) => {
+                        const v = row[c] ?? "";
+                        return (
+                          <td key={c} className={`px-4 py-2.5 ${v === "" ? "text-gray-300" : "text-gray-700"}`}>
+                            {v === "" ? "—" : v}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t px-5 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-6 py-3.5">
+          <p className="text-xs text-gray-400">Downloads include every row{sheets.length > 1 ? " and sheet" : ""}.</p>
+          <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => saveBlob(blob, filename)}
-            className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+            className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:shadow-sm"
           >
             <FileSpreadsheet className="h-4 w-4" />
             Download Excel
@@ -175,11 +196,12 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
             type="button"
             onClick={handlePdf}
             disabled={pdfBusy || !header || body.length === 0}
-            className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
           >
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {pdfBusy ? "Generating..." : "Download PDF"}
           </button>
+          </div>
         </div>
       </div>
     </div>,

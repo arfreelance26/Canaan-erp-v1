@@ -8,6 +8,9 @@ import { formatDate } from "@/lib/format-date";
 type Props = {
   customerId: string;
   route: string;
+  /** The picked route's id — trips linked to it count as "this route" even if
+   * it was renamed or shares its name with another route. */
+  routeId?: string | null;
 };
 
 function fmtCurrency(n: number): string {
@@ -34,7 +37,7 @@ const TOP_N = 7;
  * routers/trips.py's get_customer_top_profitable_trips and
  * routers/trucks.py's get_cost_per_km_ranking.
  */
-export function CustomerInsightsPanel({ customerId, route }: Props) {
+export function CustomerInsightsPanel({ customerId, route, routeId }: Props) {
   const [tab, setTab] = useState<TabId>("trips");
   const activeIndex = TABS.findIndex((t) => t.id === tab);
   const [trips, setTrips] = useState<CustomerTopProfitableTrip[]>([]);
@@ -48,11 +51,11 @@ export function CustomerInsightsPanel({ customerId, route }: Props) {
   useEffect(() => {
     if (!customerId) return;
     setTripsLoading(true);
-    tripsApi.getCustomerTopProfitableTrips(customerId, route || undefined, TOP_N)
+    tripsApi.getCustomerTopProfitableTrips(customerId, route || undefined, TOP_N, routeId)
       .then(setTrips)
       .catch(() => setTrips([]))
       .finally(() => setTripsLoading(false));
-  }, [customerId, route]);
+  }, [customerId, route, routeId]);
 
   useEffect(() => {
     setRankingLoading(true);

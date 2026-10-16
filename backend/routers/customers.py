@@ -342,6 +342,15 @@ def update_destination(customer_id: int, dest_id: int, payload: schemas.Customer
         raise HTTPException(404, "Destination not found")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(dest, field, value)
+    # Pricing rows keep a copy of the route's label (used for display and for
+    # matching legacy rows) — re-sync it, or renaming a route leaves its
+    # Customer Pricing / Final Customer Pricing pointing at the old name.
+    label = dest.destination_name or dest.destination_address
+    for model in (models.CustomerPricing, models.FinalCustomerPricing):
+        db.query(model).filter(
+            model.customer_id == customer_id,
+            model.customer_destination_id == dest_id,
+        ).update({model.customer_destination: label}, synchronize_session=False)
     db.commit()
     db.refresh(dest)
     emit("customer_updated", {})
@@ -464,6 +473,7 @@ def create_final_pricing(customer_id: int, payload: schemas.FinalCustomerPricing
     db.add(record)
     db.commit()
     db.refresh(record)
+    emit("customer_updated", {})
     return record
 
 
@@ -485,6 +495,7 @@ def update_final_pricing(customer_id: int, pricing_id: int, payload: schemas.Fin
     record.version = (record.version or 1) + 1
     db.commit()
     db.refresh(record)
+    emit("customer_updated", {})
     return record
 
 
@@ -498,3 +509,4 @@ def delete_final_pricing(customer_id: int, pricing_id: int, db: Session = Depend
         raise HTTPException(404, "Final pricing not found")
     db.delete(record)
     db.commit()
+    emit("customer_updated", {})

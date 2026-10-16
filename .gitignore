@@ -47,6 +47,9 @@ backend/logs/*.log.*
 next-env.d.ts
 frontend/node_modules/
 frontend/.next/
+# Renamed/backup copies of the Next.js cache (e.g. ".next.broken-<date>") —
+# ~16k generated files each; never source code.
+frontend/.next*/
 backend/__pycache__/
 backend/**/*.pyc
 .claude/

@@ -46,6 +46,24 @@ def _mark_edit_approval_used(db: Session, resource_types: list[str], resource_id
         approval.used_at = datetime.now(timezone.utc)
 
 
+def _check_route_link(db: Session, trip: "models.Trip"):
+    """Keep trip.customer_destination_id honest: it must be one of this trip's
+    customer's routes, and is cleared for custom routes / return trips (no
+    route card is used there). Cleared rather than rejected, so a stale link
+    never blocks a save — the origin/destination text is still saved."""
+    if trip.customer_destination_id is None:
+        return
+    if trip.use_custom_route or trip.trip_category == "RETURN TRIP" or not trip.customer_id:
+        trip.customer_destination_id = None
+        return
+    ok = db.query(models.CustomerDestination.id).filter(
+        models.CustomerDestination.id == trip.customer_destination_id,
+        models.CustomerDestination.customer_id == trip.customer_id,
+    ).first()
+    if not ok:
+        trip.customer_destination_id = None
+
+
 def _remember_customer_origin(db: Session, customer_id, origin: Optional[str]):
     """Persist a customer's typed origin so it can be auto-fetched next time the same customer is selected."""
     if not customer_id or not origin or not origin.strip():
@@ -237,6 +255,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             models.Trip.trip_id,
             models.Trip.flagged_for_recheck,
             models.Trip.flagged_remark,
+            models.Trip.customer_destination_id,
         )
         .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
         .join(models.Customer, models.Customer.id == models.Trip.customer_id)
@@ -251,6 +270,21 @@ def get_customer_profitability(db: Session = Depends(get_db)):
 
     customer_map: dict = {}
     customer_trips: dict = defaultdict(list)
+
+    # Trips linked to a customer route group by that route's id and show its
+    # CURRENT name — a renamed route stays one row, and two routes sharing a
+    # name stay separate (told apart by container type). Unlinked (older /
+    # custom-route) trips fall back to the trip sheet's From → To text.
+    route_info = {}
+    linked_ids = {r.customer_destination_id for r in rows if r.customer_destination_id}
+    if linked_ids:
+        for dest in db.query(models.CustomerDestination).filter(models.CustomerDestination.id.in_(linked_ids)):
+            dest_label = dest.destination_name if dest.destination_name is not None else dest.destination_address
+            route_info[dest.id] = (
+                f"{(dest.origin_address or dest.origin_state or '').strip() or '—'} → "
+                f"{((dest_label or dest.destination_state) or '').strip() or '—'}",
+                dest.container_type,
+            )
 
     # A trip an Auditor has flagged for rechecking (Booking Sheet / Trip Sheet
     # data suspected incorrect) is left out of every revenue/expense/km total
@@ -279,8 +313,14 @@ def get_customer_profitability(db: Session = Depends(get_db)):
 
         d = customer_map[cid]
         d["trip_count"] += 1
-        route_key = f"{(row.from_location or '').strip() or '—'} → {(row.to_location or '').strip() or '—'}"
+        if row.customer_destination_id in route_info:
+            route_key = ("route", row.customer_destination_id)
+            route_label = route_info[row.customer_destination_id][0]
+        else:
+            route_label = f"{(row.from_location or '').strip() or '—'} → {(row.to_location or '').strip() or '—'}"
+            route_key = ("text", route_label)
         r = d["routes"][route_key]
+        r["label"] = route_label
         r["trip_count"] += 1
 
         if is_flagged:
@@ -299,7 +339,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             customer_trips[cid].append({
                 "trip_id": row.trip_id,
                 "date": row.trip_completed_date.isoformat() if row.trip_completed_date else None,
-                "route": route_key,
+                "route": route_label,
                 "revenue": round(hire, 2),
                 "expense": round(expense, 2),
                 "profit": round(trip_profit, 2),
@@ -317,8 +357,17 @@ def get_customer_profitability(db: Session = Depends(get_db)):
         profit = revenue - expense
         margin = round((profit / revenue * 100) if revenue > 0 else 0.0, 2)
 
+        # Two different routes with the same name: add the container type so
+        # the rows can be told apart.
+        label_counts: dict = defaultdict(int)
+        for r in d["routes"].values():
+            label_counts[r["label"]] += 1
         routes = []
-        for route_name, r in d["routes"].items():
+        for route_key, r in d["routes"].items():
+            route_name = r["label"]
+            if label_counts[route_name] > 1 and route_key[0] == "route" and route_info[route_key[1]][1]:
+                route_name = f"{route_name} ({route_info[route_key[1]][1]})"
+
             r_profit = r["revenue"] - r["expense"]
             r_margin = round((r_profit / r["revenue"] * 100) if r["revenue"] > 0 else 0.0, 2)
             routes.append({
@@ -488,6 +537,7 @@ def get_trip_invoices_bulk(ids: str = Query(..., description="Comma-separated tr
 def get_customer_top_profitable_trips(
     customer_id: int = Query(...),
     route: Optional[str] = Query(None, description="Trip.destination label — trips on this route are listed first; other routes fill any remaining slots"),
+    route_id: Optional[int] = Query(None, description="Customer route (destination) id — preferred over `route`: trips linked to this route count as on-route; unlinked older trips fall back to the label"),
     limit: int = Query(10, le=500),
     db: Session = Depends(get_db),
 ):
@@ -522,6 +572,13 @@ def get_customer_top_profitable_trips(
     driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
     truck_regs = {t.truck_id: t.registration_number for t in db.query(models.Truck.truck_id, models.Truck.registration_number).all()}
 
+    def _on_route(trip) -> bool:
+        if route_id is not None:
+            if trip.customer_destination_id is not None:
+                return trip.customer_destination_id == route_id
+            return bool(route) and trip.destination == route  # older, unlinked trip
+        return (not route) or trip.destination == route
+
     results = []
     for trip in trips:
         sheet = trip.sheet
@@ -545,7 +602,7 @@ def get_customer_top_profitable_trips(
             "profit": round(profit, 2),
             "margin_pct": round((profit / revenue * 100) if revenue > 0 else 0.0, 2),
             "km": round(km, 2),
-            "on_route": (not route) or trip.destination == route,
+            "on_route": _on_route(trip),
         })
 
     # Trips on the picked route come first (by profit); if there are fewer than
@@ -568,6 +625,7 @@ def create_trip(
         raise HTTPException(400, f"Booking reference {payload.booking_reference_no} already exists")
     _check_driver_truck_conflict(db, payload.driver_id, payload.vehicle_id)
     trip = models.Trip(**payload.model_dump(exclude={"edit_context"}))
+    _check_route_link(db, trip)
     db.add(trip)
     db.commit()
     db.refresh(trip)
@@ -1095,6 +1153,7 @@ def update_trip(
         )
     for field, value in update_data.items():
         setattr(trip, field, value)
+    _check_route_link(db, trip)
     # Keep the trip sheet's mirrored copies in sync with the booking (see
     # TRIP_TO_SHEET_MIRROR). Prevents the hire-drift class of bug for ANY mirrored field.
     _sync_sheet_from_trip(trip, set(update_data.keys()))

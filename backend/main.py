@@ -61,6 +61,30 @@ from routers import trucks, drivers, staff, customers, vendors, vendor_categorie
 
 Base.metadata.create_all(bind=engine)
 
+# Every startup replays each ENUM's whole history of MODIFY statements, oldest
+# (narrowest) first. On a MySQL/MariaDB server NOT in strict mode — as on the
+# production cPanel host — narrowing an ENUM silently rewrites every row whose
+# value isn't in the new list to '' (strict mode refuses instead, which is why
+# local dev never saw it). That is how deletion/edit approval requests for
+# trips, drivers, trucks, etc. lost their type in production. This guard skips
+# any ENUM change that would drop a value the table still holds, so a re-run of
+# an old, narrower definition can never erase data again — whatever the mode.
+_ENUM_MODIFY_RE = re.compile(r"ALTER TABLE\s+`?(\w+)`?\s+MODIFY COLUMN\s+`?(\w+)`?\s+ENUM\((.*?)\)", re.I | re.S)
+
+
+def _enum_change_drops_data(conn, stmt: str) -> bool:
+    m = _ENUM_MODIFY_RE.search(stmt)
+    if not m:
+        return False
+    table, column, raw = m.groups()
+    allowed = {v.strip().strip("'") for v in raw.split(",")}
+    try:
+        present = [r[0] for r in conn.execute(text(f"SELECT DISTINCT `{column}` FROM `{table}`"))]
+    except Exception:
+        return False  # table/column not there yet — let the statement run as before
+    return any(v not in (None, "") and v not in allowed for v in present)
+
+
 def _run_schema_migrations():
     """Idempotent ALTER TABLE migrations that create_all cannot handle (enum changes)."""
     migrations = [
@@ -511,6 +535,12 @@ def _run_schema_migrations():
         "CREATE INDEX ix_event_completed_at ON events (completed_at)",
         # Invite inbox — every browser polls the last few minutes of room_summons.
         "CREATE INDEX ix_room_summon_created ON room_summons (created_at)",
+        # Maintenance By → Vendor is now a real link to the vendor (Our Vendors →
+        # View Record), not just the name typed into maintenance_by.
+        "ALTER TABLE maintenance_records ADD COLUMN maintenance_by_type VARCHAR(12) NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN vendor_id INT NULL",
+        "ALTER TABLE maintenance_records ADD CONSTRAINT fk_maintenance_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (id) ON DELETE SET NULL",
+        "CREATE INDEX ix_maintenance_records_vendor_id ON maintenance_records (vendor_id)",
         # Activity Log — per-employee timeline/drill-down filters by user_name.
         "CREATE INDEX ix_activity_name_time ON activity_events (user_name, created_at)",
     ]
@@ -549,6 +579,8 @@ def _run_schema_migrations():
     for stmt in migrations:
         try:
             with engine.begin() as conn:
+                if _enum_change_drops_data(conn, stmt):
+                    continue
                 conn.execute(text(stmt))
         except Exception:
             pass
@@ -935,6 +967,7 @@ def _run_staff_history_migrations():
             "ALTER TABLE staff_attendance ADD COLUMN closed_by VARCHAR(10) NULL",
             "ALTER TABLE trips ADD COLUMN use_yard_cfs BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE trips ADD COLUMN use_custom_route BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE trips ADD COLUMN customer_destination_id INT NULL",
             "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type "
             "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory','CfsYardEntry') NOT NULL",
             "ALTER TABLE tyre_movement_events ADD COLUMN retread_done_by VARCHAR(200) NULL",
@@ -945,11 +978,24 @@ def _run_staff_history_migrations():
             "ALTER TABLE edit_approval_requests ADD COLUMN requester_seen_at DATETIME NULL",
         ):
             # Re-running is expected on every deploy; only "already exists" is ignored.
+            if _enum_change_drops_data(conn, ddl):
+                continue
             try:
                 conn.execute(text(ddl))
             except Exception as exc:
                 if "Duplicate column" not in str(exc):
                     raise
+        # Index + FK for trips.customer_destination_id — "already exists" on
+        # every later start, so each is tried on its own and failures ignored.
+        for ddl in (
+            "CREATE INDEX ix_trips_customer_destination_id ON trips (customer_destination_id)",
+            "ALTER TABLE trips ADD CONSTRAINT fk_trips_customer_destination FOREIGN KEY (customer_destination_id) "
+            "REFERENCES customer_destinations(id) ON DELETE SET NULL",
+        ):
+            try:
+                conn.execute(text(ddl))
+            except Exception:
+                pass
         # cfs_yard_entries used to enforce (kind, name) uniqueness at the DB
         # level, which would block re-adding a name after it's soft-deleted
         # (restore/archive flow below) — dropped in favor of the app-level
@@ -1186,6 +1232,252 @@ def _backfill_activity_anonymous():
 
 
 _backfill_activity_anonymous()
+
+
+def _backfill_maintenance_vendor_links():
+    """Older maintenance records saved Maintenance By as plain text. Link each
+    one to a vendor when its text matches exactly ONE vendor's name (ignoring
+    case/spaces) — so it shows under Our Vendors → View Record. Ambiguous or
+    unmatched records are left untouched rather than guessed. Only looks at
+    records never linked or classified, so it's a cheap no-op once done."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        candidates = (
+            db.query(models.MaintenanceRecord)
+            .filter(models.MaintenanceRecord.vendor_id.is_(None),
+                    models.MaintenanceRecord.maintenance_by_type.is_(None),
+                    models.MaintenanceRecord.maintenance_by.isnot(None))
+            .all()
+        )
+        if not candidates:
+            return
+        by_name: dict[str, list[int]] = {}
+        for vid, name in db.query(models.Vendor.id, models.Vendor.name).filter(models.Vendor.deleted_at.is_(None)):
+            by_name.setdefault(" ".join((name or "").split()).lower(), []).append(vid)
+        linked = 0
+        for r in candidates:
+            ids = by_name.get(" ".join(r.maintenance_by.split()).lower(), [])
+            if len(ids) == 1:
+                r.vendor_id = ids[0]
+                r.maintenance_by_type = "Vendor"
+                linked += 1
+        db.commit()
+        if linked:
+            print(f"[migration] maintenance records: linked {linked} to their vendor by name")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] skip maintenance vendor backfill: {e}")
+    finally:
+        db.close()
+
+
+_backfill_maintenance_vendor_links()
+
+
+def _repair_blank_approval_types():
+    """Repair approval requests whose resource_type was wiped to '' by the old
+    ENUM-narrowing migrations (see _enum_change_drops_data). A row only gets a
+    type back when exactly ONE candidate type has a record with that
+    resource_id whose name matches the saved resource_name — otherwise it is
+    left blank rather than guessed.
+
+    Deletion requests that were marked Approved while blank never actually
+    deleted anything (no branch matched ''), so the record is still live. Those
+    are re-opened to Pending — with a note — for an Admin to approve again;
+    nothing is deleted automatically here."""
+    from database import SessionLocal
+
+    def norm(v) -> str:
+        return " ".join(str(v or "").split()).lower()
+
+    def has(name: str, *keys) -> bool:
+        return any(norm(k) and norm(k) in name for k in keys)
+
+    def matches(db, rtype: str, rid: int, name: str):
+        """(matched, record) for one candidate type."""
+        if rtype == "Trip":
+            r = db.get(models.Trip, rid)
+            return bool(r) and (name in (norm(r.booking_reference_no), norm(r.trip_id)) or has(name, r.booking_reference_no)), r
+        if rtype == "Driver":
+            r = db.get(models.Driver, rid)
+            return bool(r) and has(name, r.name, r.driver_id), r
+        if rtype == "Truck":
+            r = db.get(models.Truck, rid)
+            return bool(r) and has(name, r.registration_number, r.truck_id), r
+        if rtype == "Staff":
+            r = db.get(models.Staff, rid)
+            return bool(r) and has(name, r.name, r.staff_id), r
+        if rtype == "Customer":
+            r = db.get(models.Customer, rid)
+            return bool(r) and has(name, r.name), r
+        if rtype == "Vendor":
+            r = db.get(models.Vendor, rid)
+            return bool(r) and has(name, r.name), r
+        if rtype == "TyreInventory":
+            r = db.get(models.TyreInventory, rid)
+            return bool(r) and has(name, r.tyre_number), r
+        if rtype == "CfsYardEntry":
+            r = db.get(models.CfsYardEntry, rid)
+            return bool(r) and has(name, r.name), r
+        if rtype == "FuelLog":
+            r = db.get(models.FuelLog, rid)
+            return bool(r) and name.startswith("fuel log"), r
+        return False, None
+
+    targets = (
+        ("deletion_approval_requests",
+         ("Trip", "Driver", "Truck", "Staff", "Customer", "Vendor", "TyreInventory", "CfsYardEntry")),
+        ("edit_approval_requests", ("Trip", "FuelLog", "Driver", "Truck")),
+    )
+    db = SessionLocal()
+    try:
+        for table, candidates in targets:
+            rows = db.execute(text(
+                f"SELECT id, resource_id, resource_name, status FROM {table} "
+                "WHERE resource_type = '' OR resource_type IS NULL"
+            )).fetchall()
+            fixed = reopened = 0
+            unresolved = []
+            for row_id, rid, rname, status in rows:
+                name = norm(rname)
+                hits = []
+                for t in candidates:
+                    ok, rec = matches(db, t, rid, name)
+                    if ok:
+                        hits.append((t, rec))
+                if len(hits) != 1:
+                    unresolved.append(row_id)
+                    continue
+                rtype, rec = hits[0]
+                # Conditional updates: on production several app processes can
+                # run this at the same moment — only the first one applies.
+                res = db.execute(text(
+                    f"UPDATE {table} SET resource_type = :t WHERE id = :i AND (resource_type = '' OR resource_type IS NULL)"
+                ), {"t": rtype, "i": row_id})
+                if not res.rowcount:
+                    continue
+                fixed += 1
+                if (table == "deletion_approval_requests" and status == "Approved"
+                        and getattr(rec, "deleted_at", "n/a") is None):
+                    db.execute(text(
+                        "UPDATE deletion_approval_requests SET status = 'Pending', approved_at = NULL, "
+                        "admin_note = CONCAT(COALESCE(CONCAT(admin_note, ' — '), ''), :note, "
+                        "COALESCE(CONCAT(' (first approved by ', approved_by_name, ')'), '')), "
+                        "approved_by_name = NULL WHERE id = :i AND status = 'Approved'"
+                    ), {"i": row_id, "note": "Re-opened automatically: an earlier approval didn't take effect "
+                                            "because of a data bug. Please approve it again."})
+                    reopened += 1
+            db.commit()
+            if fixed or unresolved:
+                print(f"[migration] {table}: restored the type on {fixed} request(s), "
+                      f"re-opened {reopened} approval(s) that never took effect"
+                      + (f"; could not identify {len(unresolved)} (ids {unresolved[:20]})" if unresolved else ""))
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] skip approval type repair: {e}")
+    finally:
+        db.close()
+
+
+_repair_blank_approval_types()
+
+
+def _resync_pricing_route_labels():
+    """Routes renamed before the destination-update endpoint re-synced labels
+    left Customer Pricing / Final Customer Pricing showing the old route name.
+    Copy the linked route's current label back onto them. A single UPDATE
+    per table that touches nothing once the labels already agree."""
+    total = 0
+    try:
+        with engine.begin() as conn:
+            for table in ("customer_pricing", "final_customer_pricing"):
+                total += conn.execute(text(
+                    f"UPDATE `{table}` p JOIN customer_destinations d ON d.id = p.customer_destination_id "
+                    "SET p.customer_destination = COALESCE(NULLIF(d.destination_name, ''), d.destination_address) "
+                    "WHERE NOT (p.customer_destination <=> COALESCE(NULLIF(d.destination_name, ''), d.destination_address))"
+                )).rowcount
+    except Exception as e:
+        print(f"[migration] pricing label re-sync skipped: {e}")
+        return
+    if total:
+        print(f"[migration] re-synced the route name on {total} pricing row(s)")
+
+
+_resync_pricing_route_labels()
+
+
+_CONTAINER_TYPE_TO_SPEC = {
+    "20 FEET": "20 FT CONTAINER",
+    "40 FEET": "40 FT CONTAINER",
+    "2 X 20 FEET": "2 X 20 FEET CONTAINERS",
+    "OPEN LOAD": "OPEN LOAD CARGO",
+}
+
+
+def _backfill_trip_route_links():
+    """Trips saved before trips.customer_destination_id existed only kept the
+    route's text. Link each to its customer's route using the same test the
+    trip form uses (origin, destination name, cargo, container, weight) — and
+    only when exactly ONE route matches; ambiguous or unmatched trips stay
+    unlinked rather than guessed. Only looks at unlinked trips, so it's a
+    cheap no-op once done."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        trips = (
+            db.query(models.Trip)
+            .filter(models.Trip.customer_destination_id.is_(None),
+                    models.Trip.customer_id.isnot(None),
+                    models.Trip.use_custom_route.is_(False),
+                    models.Trip.destination.isnot(None),
+                    models.Trip.trip_category.notin_(["RETURN TRIP", "SHIFTING"]))
+            .all()
+        )
+        if not trips:
+            return
+        routes_by_customer: dict[int, list] = {}
+        for d in db.query(models.CustomerDestination).filter(
+            models.CustomerDestination.customer_id.in_({t.customer_id for t in trips})
+        ):
+            routes_by_customer.setdefault(d.customer_id, []).append(d)
+
+        def matches(t, d) -> bool:
+            if not (d.origin_state and d.destination_state):
+                return False  # not shown as an Available Route
+            # Same label the trip form builds (destinationName ?? destinationAddress, then state).
+            label = d.destination_name if d.destination_name is not None else d.destination_address
+            if (label or d.destination_state) != t.destination:
+                return False
+            if t.cargo_classification != "EXPORT" and (d.origin_address or d.origin_state) != t.origin:
+                return False
+            if d.cargo_classification and d.cargo_classification != t.cargo_classification:
+                return False
+            if d.container_type and _CONTAINER_TYPE_TO_SPEC.get(d.container_type, "") != t.container_specification:
+                return False
+            if d.weight_in_tons and d.weight_in_tons != t.cargo_weight:
+                return False
+            return True
+
+        linked = ambiguous = 0
+        for t in trips:
+            hits = [d for d in routes_by_customer.get(t.customer_id, []) if matches(t, d)]
+            if len(hits) == 1:
+                t.customer_destination_id = hits[0].id
+                linked += 1
+            elif len(hits) > 1:
+                ambiguous += 1
+        db.commit()
+        if linked or ambiguous:
+            print(f"[migration] trips: linked {linked} to their customer route; {ambiguous} matched several routes and were left unlinked")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] trip route backfill skipped: {e}")
+    finally:
+        db.close()
+
+
+_backfill_trip_route_links()
 
 def _normalize_shipping_lines():
     """Normalise historical shipping_line typos/variants to canonical names."""

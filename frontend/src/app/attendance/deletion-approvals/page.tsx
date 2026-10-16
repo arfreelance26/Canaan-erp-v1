@@ -83,6 +83,9 @@ function RequestCard({
   const isCustomer = req.resourceType === "Customer";
   const isVendor = req.resourceType === "Vendor";
   const isTyre = req.resourceType === "TyreInventory";
+  // Only a real fuel log gets the fuel styling — an unrecognised/blank type
+  // used to fall through to it, making every broken request look like one.
+  const isFuel = req.resourceType === "FuelLog";
 
   const badgeClass = isTrip
     ? "bg-purple-100 text-purple-600"
@@ -100,7 +103,9 @@ function RequestCard({
     ? "bg-teal-100 text-teal-600"
     : isTyre
     ? "bg-orange-100 text-orange-600"
-    : "bg-red-100 text-red-600";
+    : isFuel
+    ? "bg-red-100 text-red-600"
+    : "bg-gray-100 text-gray-500";
   const BadgeIcon = isTrip
     ? Truck
     : isMaintenance
@@ -117,7 +122,9 @@ function RequestCard({
     ? Handshake
     : isTyre
     ? Boxes
-    : Fuel;
+    : isFuel
+    ? Fuel
+    : FileText;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { FileText, Paperclip, X } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
-import { maintenanceTypesApi } from "@/lib/api";
-import type { MaintenanceRecord } from "@/types/truck-maintenance";
-import type { MaintenanceTypeItem } from "@/types/maintenance-type";
+import { maintenanceCategoriesApi, vendorsApi } from "@/lib/api";
+import type { Vendor } from "@/types/vendor";
+import { PROOF_MAX_BYTES, PROOF_MAX_IMAGES, PROOF_MAX_PDFS, type MaintenanceRecord } from "@/types/truck-maintenance";
+import type { MaintenanceCategory } from "@/types/maintenance-category";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -15,9 +17,40 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 type MaintenanceRecordFormDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (record: MaintenanceRecord) => void;
+  /** proofs: the Proof of Payment files to upload once the record is created. */
+  onSave: (record: MaintenanceRecord, proofs: File[]) => void;
   truck: Truck | null;
+  /** True while the record is being saved and its proofs uploaded. */
+  saving?: boolean;
 };
+
+type PickedProof = { key: string; file: File; kind: "image" | "pdf"; url: string | null };
+
+// Same set the server accepts (it re-checks the real bytes). HEIC is left out
+// on purpose: browsers can't display it, so nobody could open the proof.
+const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"]);
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp)$/;
+
+/** "PNG", "JPG", "PDF"… from the file name, for the little caption under it. */
+export function proofTypeLabel(name: string, kind: "image" | "pdf"): string {
+  if (kind === "pdf") return "PDF";
+  const ext = name.split(".").pop()?.toUpperCase() ?? "";
+  return ext === "JPEG" ? "JPG" : ext || "Image";
+}
+
+function proofKind(file: File): "image" | "pdf" | null {
+  const name = file.name.toLowerCase();
+  if (IMAGE_MIMES.has(file.type) || IMAGE_EXT.test(name)) return "image";
+  if (file.type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  return null;
+}
+
+function fileSize(bytes: number): string {
+  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const MAINTENANCE_BY_TYPES = ["Vendor", "Individual"] as const;
+type MaintenanceByType = (typeof MAINTENANCE_BY_TYPES)[number];
 
 const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   date: "",
@@ -32,27 +65,112 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   cost: "",
 };
 
-export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: MaintenanceRecordFormDialogProps) {
+export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, saving = false }: MaintenanceRecordFormDialogProps) {
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
-  // Sourced from MaintenanceType (Admin > Maintenance Alert Management) — the
-  // same list the Overdue/Due Soon tracking checks against. This used to pull
-  // from the separate Maintenance Categories list instead, which meant almost
-  // nothing anyone logged here ever matched a tracked type by name, so every
-  // truck's maintenance status looked like "No Data" regardless of how much
-  // real history existed.
-  const [maintenanceTypes, setMaintenanceTypes] = useState<MaintenanceTypeItem[]>([]);
+  // Maintenance Type and Repair Type both come from Admin > Maintenance
+  // Management (categories and each category's repair types). Note: the
+  // Overdue/Due Soon tracking on Truck Maintenance matches records against the
+  // separate Maintenance Alert Management list by name, so records logged
+  // with these categories don't feed that tracking.
+  const [categories, setCategories] = useState<MaintenanceCategory[]>([]);
+  const [maintenanceByType, setMaintenanceByType] = useState<MaintenanceByType>("Vendor");
+  // The picked vendor's id — saved with the record so Our Vendors → View Record
+  // can list it (form.maintenanceBy keeps the name).
+  const [vendorId, setVendorId] = useState("");
+
+  // "Maintenance By → Vendor" picks from the Our Vendors page. Blacklisted and
+  // inactive vendors are left out — work shouldn't be logged against them.
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [vendorsLoaded, setVendorsLoaded] = useState(false);
 
   useEffect(() => {
-    maintenanceTypesApi.list().then(setMaintenanceTypes).catch(() => {});
+    maintenanceCategoriesApi.list().then(setCategories).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    vendorsApi.list().then(setVendors).catch(() => {}).finally(() => setVendorsLoaded(true));
+  }, [open]);
+
+  const vendorOptions = vendors
+    .filter((v) => v.status !== "BLACKLISTED" && v.status !== "INACTIVE")
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((v) => ({ value: v.id, label: v.category ? `${v.name} — ${v.category}` : v.name }));
+
+  // Proof of Payment: picked here, uploaded by the page right after the record
+  // is created (the upload needs the new record's id). Preview URLs are made
+  // when files are added and revoked when removed/reset — not in render.
+  const [proofs, setProofs] = useState<PickedProof[]>([]);
+  const [proofError, setProofError] = useState("");
+  const proofsRef = useRef<PickedProof[]>([]);
+  useEffect(() => {
+    proofsRef.current = proofs;
+  }, [proofs]);
+  useEffect(() => () => proofsRef.current.forEach((p) => p.url && URL.revokeObjectURL(p.url)), []);
+
+  function clearProofs() {
+    proofsRef.current.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+    setProofs([]);
+    setProofError("");
+  }
+
+  function addProofs(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const problems: string[] = [];
+    let images = proofs.filter((p) => p.kind === "image").length;
+    let pdfs = proofs.filter((p) => p.kind === "pdf").length;
+    const added: PickedProof[] = [];
+    for (const file of Array.from(list)) {
+      const kind = proofKind(file);
+      if (!kind) {
+        problems.push(`"${file.name}" isn't an image or PDF.`);
+      } else if (file.size > PROOF_MAX_BYTES) {
+        problems.push(`"${file.name}" is over ${PROOF_MAX_BYTES / (1024 * 1024)} MB.`);
+      } else if (kind === "image" && images >= PROOF_MAX_IMAGES) {
+        problems.push(`Only ${PROOF_MAX_IMAGES} images allowed — "${file.name}" was skipped.`);
+      } else if (kind === "pdf" && pdfs >= PROOF_MAX_PDFS) {
+        problems.push(`Only ${PROOF_MAX_PDFS} PDFs allowed — "${file.name}" was skipped.`);
+      } else {
+        if (kind === "image") images += 1;
+        else pdfs += 1;
+        added.push({ key: crypto.randomUUID(), file, kind, url: kind === "image" ? URL.createObjectURL(file) : null });
+      }
+    }
+    if (added.length) setProofs((prev) => [...prev, ...added]);
+    setProofError(problems.join(" "));
+  }
+
+  function removeProof(key: string) {
+    setProofs((prev) => {
+      const gone = prev.find((p) => p.key === key);
+      if (gone?.url) URL.revokeObjectURL(gone.url);
+      return prev.filter((p) => p.key !== key);
+    });
+    setProofError("");
+  }
 
   useEffect(() => {
     if (open) {
       setForm(emptyForm);
+      setMaintenanceByType("Vendor");
+      setVendorId("");
+      clearProofs();
     }
   }, [open, truck?.id]);
 
-  const typeOptions = maintenanceTypes.map((t) => ({ value: t.name, label: t.name }));
+  const imageCount = proofs.filter((p) => p.kind === "image").length;
+  const pdfCount = proofs.filter((p) => p.kind === "pdf").length;
+  const proofsFull = imageCount >= PROOF_MAX_IMAGES && pdfCount >= PROOF_MAX_PDFS;
+
+  const categoryOptions = categories.map((c) => ({ value: c.name, label: c.name }));
+  const selectedCategory = categories.find((c) => c.name === form.maintenanceType);
+  const repairOptions = (selectedCategory?.repairs ?? []).map((r) => ({ value: r.name, label: r.name }));
+
+  // A different Maintenance Type invalidates whatever Repair Type was picked
+  // for the previous one — repair types belong to a category.
+  function handleMaintenanceTypeChange(value: string) {
+    setForm((prev) => ({ ...prev, maintenanceType: value, repairType: "" }));
+  }
 
   const draftKey = `erp_maintenance_record_draft_${truck?.id ?? "none"}`;
   // Merge over emptyForm rather than replacing outright — an older draft saved
@@ -74,13 +192,18 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!truck) return;
-    if (odometerTooHigh) return;
+    if (odometerTooHigh || saving) return;
     clearFormDraft(draftKey);
-    onSave({
-      id: crypto.randomUUID(),
-      truckId: truck.id,
-      ...form,
-    });
+    onSave(
+      {
+        id: crypto.randomUUID(),
+        truckId: truck.id,
+        ...form,
+        maintenanceByType: form.maintenanceBy ? maintenanceByType : null,
+        vendorId: maintenanceByType === "Vendor" && vendorId ? vendorId : null,
+      },
+      proofs.map((p) => p.file),
+    );
   }
 
   return (
@@ -139,21 +262,27 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
               required
               strictSelect
               value={form.maintenanceType}
-              onChange={(val) => update("maintenanceType", val)}
+              onChange={handleMaintenanceTypeChange}
               placeholder="Select a maintenance type"
-              options={typeOptions}
+              options={categoryOptions}
             />
           </Field>
 
-          <Field label="Repair Type">
-            <input
-              type="text"
-              value={form.repairType}
-              onChange={(e) => update("repairType", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Front brake pads replaced"
-            />
-          </Field>
+          {/* Only categories that have repair types set up in Maintenance
+              Management get this field — requiring it for one with none
+              would make the form impossible to submit. */}
+          {repairOptions.length > 0 && (
+            <Field label="Repair Type" required>
+              <GlassCombobox
+                required
+                strictSelect
+                value={form.repairType}
+                onChange={(val) => update("repairType", val)}
+                placeholder="Select a repair type"
+                options={repairOptions}
+              />
+            </Field>
+          )}
 
           <Field label="Cost" required>
             <DecimalInput type="number"
@@ -176,15 +305,58 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
             />
           </Field>
 
-          <Field label="Maintenance By">
-            <input
-              type="text"
-              value={form.maintenanceBy}
-              onChange={(e) => update("maintenanceBy", e.target.value)}
-              className={inputClass}
-              placeholder="e.g. workshop or mechanic name"
-            />
-          </Field>
+          {/* Not <Field>: that wraps everything in a <label>, and a click on the
+              label text would be forwarded to the first toggle button. */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-gray-700">Maintenance By</span>
+              <div role="radiogroup" aria-label="Maintenance by" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+                {MAINTENANCE_BY_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={maintenanceByType === t}
+                    onClick={() => {
+                      if (t === maintenanceByType) return;
+                      setMaintenanceByType(t);
+                      // A vendor name and a typed person's name aren't interchangeable.
+                      update("maintenanceBy", "");
+                      setVendorId("");
+                    }}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
+                      maintenanceByType === t
+                        ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
+                        : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {maintenanceByType === "Vendor" ? (
+              <GlassCombobox
+                strictSelect
+                value={vendorId}
+                onChange={(id) => {
+                  setVendorId(id);
+                  update("maintenanceBy", vendors.find((v) => v.id === id)?.name ?? "");
+                }}
+                placeholder={vendorsLoaded && vendorOptions.length === 0 ? "No active vendors — add one in Our Vendors" : "Select a vendor"}
+                options={vendorOptions}
+              />
+            ) : (
+              <input
+                type="text"
+                aria-label="Maintenance by (individual)"
+                value={form.maintenanceBy}
+                onChange={(e) => update("maintenanceBy", e.target.value)}
+                className={inputClass}
+                placeholder="e.g. mechanic name"
+              />
+            )}
+          </div>
         </div>
 
         <Field label="Compliant">
@@ -206,6 +378,67 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           />
         </Field>
 
+        {/* Proof of Payment — up to 5 images and 3 PDFs (10 MB each). Not a
+            <Field>/<label>: a label would forward clicks to the remove buttons. */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium text-gray-700">Proof of Payment</span>
+            <span className="text-xs text-gray-400">
+              Images {imageCount}/{PROOF_MAX_IMAGES} · PDFs {pdfCount}/{PROOF_MAX_PDFS}
+            </span>
+          </div>
+          <label
+            className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-4 text-sm transition-colors ${
+              proofsFull
+                ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
+                : "border-gray-300 text-gray-600 hover:border-blue-400 hover:bg-blue-50/40 hover:text-blue-700"
+            }`}
+          >
+            <Paperclip className="h-4 w-4" />
+            {proofsFull ? "Maximum files added" : "Upload images or PDFs (max 10 MB each)"}
+            <input
+              type="file"
+              multiple
+              disabled={proofsFull}
+              accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,.jpg,.jpeg,.png,.webp,.gif,.bmp,.pdf,application/pdf"
+              className="sr-only"
+              onChange={(e) => {
+                addProofs(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          {proofError && <p className="text-xs text-red-600">{proofError}</p>}
+          {proofs.length > 0 && (
+            <ul className="flex flex-col gap-1.5">
+              {proofs.map((p) => (
+                <li key={p.key} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+                  {p.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.url} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
+                  ) : (
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-red-50 text-red-600">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-gray-800">{p.file.name}</span>
+                    <span className="block text-xs text-gray-400">{proofTypeLabel(p.file.name, p.kind)} · {fileSize(p.file.size)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeProof(p.key)}
+                    aria-label={`Remove ${p.file.name}`}
+                    className="rounded-full p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
@@ -216,9 +449,10 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck }: Ma
           </button>
           <button
             type="submit"
+            disabled={saving}
             className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Add Record
+            {saving ? (proofs.length ? "Saving & uploading…" : "Saving…") : "Add Record"}
           </button>
         </div>
       </form>

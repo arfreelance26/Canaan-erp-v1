@@ -18,7 +18,7 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark, StaffSelfSummary } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
-import type { MaintenanceRecord, AirFilterRecord } from "@/types/truck-maintenance";
+import type { MaintenanceRecord, AirFilterRecord, MaintenanceProof } from "@/types/truck-maintenance";
 import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
@@ -736,6 +736,7 @@ function toTrip(b: B): Trip & { _dbId: number } {
     invoiceRequired: b.invoice_required ?? true,
     useYardCfs: b.use_yard_cfs ?? false,
     useCustomRoute: b.use_custom_route ?? false,
+    customerDestinationId: b.customer_destination_id != null ? String(b.customer_destination_id) : null,
     invoiceWaived: b.invoice_waived ?? false,
     isCombinedInvoice: b.is_combined_invoice ?? false,
     driverName: b.driver_name ?? null,
@@ -815,6 +816,11 @@ function fromTrip(f: Trip) {
     invoice_required: f.invoiceRequired ?? true,
     use_yard_cfs: f.useYardCfs ?? false,
     use_custom_route: f.useCustomRoute ?? false,
+    // Only sent when the caller knows it — a payload built without it must not
+    // wipe the trip's saved route link.
+    ...(f.customerDestinationId !== undefined
+      ? { customer_destination_id: f.customerDestinationId ? parseInt(f.customerDestinationId) : null }
+      : {}),
   };
 }
 
@@ -1099,6 +1105,23 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     enteredByName: b.entered_by_name ?? null,
     source: b.source ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
+    proofCount: Number(b.proof_count ?? 0),
+    maintenanceByType: b.maintenance_by_type === "Vendor" || b.maintenance_by_type === "Individual" ? b.maintenance_by_type : null,
+    vendorId: b.vendor_id != null ? String(b.vendor_id) : null,
+    truckCode: b.truck_code ?? null,
+    truckRegistration: b.truck_registration ?? null,
+  };
+}
+
+function toMaintenanceProof(b: B): MaintenanceProof {
+  return {
+    id: String(b.id),
+    recordId: String(b.record_id),
+    kind: b.kind === "pdf" ? "pdf" : "image",
+    fileName: b.file_name ?? "",
+    sizeBytes: Number(b.size_bytes ?? 0),
+    uploadedByName: b.uploaded_by_name ?? null,
+    createdAt: b.created_at ?? null,
   };
 }
 
@@ -1907,6 +1930,14 @@ export type VendorEditEventRow = {
 
 export const vendorsApi = {
   list: () => req<B[]>("/vendors").then((d) => d.map(toVendor)),
+  /** Our Vendors → View Record: every maintenance job this vendor did. */
+  maintenanceRecords: (vendorId: string, from?: string, to?: string): Promise<MaintenanceRecord[]> => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from_date", from);
+    if (to) qs.set("to_date", to);
+    const q = qs.toString();
+    return rawReq<B[]>(`/vendors/${vendorId}/maintenance-records${q ? `?${q}` : ""}`).then((d) => d.map(toMaintenanceRecord));
+  },
   create: (vendor: Vendor) =>
     req<B>("/vendors", { method: "POST", body: JSON.stringify(fromVendor(vendor)) }).then(toVendor),
   update: (dbId: string, vendor: Vendor) =>
@@ -2220,9 +2251,10 @@ export const tripsApi = {
   // Most profitable completed trips for one customer (+ optional route), with
   // the driver/truck that achieved each — powers the Assign Trip dialog's
   // customer insights panel.
-  getCustomerTopProfitableTrips: (customerId: string, route?: string, limit = 500) => {
+  getCustomerTopProfitableTrips: (customerId: string, route?: string, limit = 500, routeId?: string | null) => {
     const params = new URLSearchParams({ customer_id: customerId, limit: String(limit) });
     if (route) params.set("route", route);
+    if (routeId) params.set("route_id", routeId);
     return req<CustomerTopProfitableTrip[]>(`/trips/customer-profitability/top-trips?${params.toString()}`);
   },
 };
@@ -2674,10 +2706,53 @@ export const maintenanceApi = {
         compliant: record.compliant || null,
         maintenance_location: record.maintenanceLocation || null,
         maintenance_by: record.maintenanceBy || null,
+        maintenance_by_type: record.maintenanceByType || null,
+        vendor_id: record.maintenanceByType === "Vendor" && record.vendorId ? parseInt(record.vendorId) : null,
         description: record.description || null,
         cost: parseFloat(record.cost) || 0,
       }),
     }).then(toMaintenanceRecord),
+  // -- Proof of Payment files on a record (5 JPGs + 3 PDFs max) --------------
+  listProofs: (recordId: string): Promise<MaintenanceProof[]> =>
+    rawReq<B[]>(`/maintenance/records/${recordId}/proofs`).then((d) => d.map(toMaintenanceProof)),
+  uploadProof: async (recordId: string, file: File): Promise<MaintenanceProof> => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/maintenance/records/${recordId}/proofs`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: form,
+      });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Upload failed: HTTP ${res.status}`));
+    return toMaintenanceProof(await res.json());
+  },
+  /** Fetched with the auth header (never a token in the URL), returned as a blob. */
+  fetchProofBlob: async (recordId: string, proofId: string): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/maintenance/records/${recordId}/proofs/${proofId}`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the file: HTTP ${res.status}`));
+    return res.blob();
+  },
+  deleteProof: (recordId: string, proofId: string): Promise<void> =>
+    rawReq<void>(`/maintenance/records/${recordId}/proofs/${proofId}`, { method: "DELETE" }),
+
   updateRecord: (id: string, record: Partial<MaintenanceRecord>) =>
     req<B>(`/maintenance/records/${id}`, {
       method: "PUT",

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Printer, SlidersHorizontal, Trash2, X, AlertTriangle } from "lucide-react";
+import { Trash2, X, AlertTriangle, Paperclip } from "lucide-react";
+import { MaintenanceProofsDialog } from "./MaintenanceProofsDialog";
 import { Dialog } from "@/components/ui/Dialog";
-import { GlassSelect } from "@/components/ui/GlassSelect";
-import { inputClass } from "@/components/ui/Field";
-import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
-import { todayIst, formatDate } from "@/lib/format-date";
+import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 import { maintenanceApi } from "@/lib/api";
 import { showSuccess, showError } from "@/lib/swal";
@@ -24,43 +24,8 @@ type MaintenanceRecordHistoryDialogProps = {
 
 const DATA_COLUMNS = [
   "Start Date", "End Date", "Maintenance Type", "Compliant", "Location", "Maintenance By",
-  "Remarks", "Odometer (km)", "User Modified", "Source", "Cost", "",
+  "Remarks", "Odometer (km)", "User Modified", "Source", "Cost", "Proof of Payment", "",
 ];
-
-const DATE_FILTER_OPTIONS = [
-  { id: "all",      label: "All Time" },
-  { id: "month",    label: "This Month" },
-  { id: "3months",  label: "Past 3 Months" },
-  { id: "6months",  label: "Past 6 Months" },
-  { id: "year",     label: "Past Year" },
-  { id: "custom",   label: "Custom Range" },
-] as const;
-
-type DateFilter = (typeof DATE_FILTER_OPTIONS)[number]["id"];
-
-function getDateRange(filter: DateFilter, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
-  const now = new Date();
-  switch (filter) {
-    case "month":
-      return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
-    case "3months": {
-      const from = new Date(now); from.setMonth(from.getMonth() - 3); return { from, to: now };
-    }
-    case "6months": {
-      const from = new Date(now); from.setMonth(from.getMonth() - 6); return { from, to: now };
-    }
-    case "year": {
-      const from = new Date(now); from.setFullYear(from.getFullYear() - 1); return { from, to: now };
-    }
-    case "custom":
-      return {
-        from: customFrom ? new Date(customFrom) : null,
-        to:   customTo   ? new Date(customTo)   : null,
-      };
-    default:
-      return { from: null, to: null };
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Deletion reason dialog (non-admin flow)
@@ -181,14 +146,18 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
 
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo,   setCustomTo]   = useState("");
+  // Same date range + View (Excel/PDF) as every other page — the range filters
+  // the table below and the export identically.
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reasonRecord, setReasonRecord] = useState<MaintenanceRecord | null>(null);
+  const [proofsRecord, setProofsRecord] = useState<MaintenanceRecord | null>(null);
+  // Counts updated in place after a proof is deleted here (records come from the parent).
+  const [proofCounts, setProofCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (open) { setDateFilter("all"); setCustomFrom(""); setCustomTo(""); }
+    if (open) { setFromDate(""); setToDate(""); }
   }, [open]);
 
   const truckRecords = useMemo(() => {
@@ -198,16 +167,11 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }, [records, truck]);
 
-  const filteredRecords = useMemo(() => {
-    if (dateFilter === "all") return truckRecords;
-    const { from, to } = getDateRange(dateFilter, customFrom, customTo);
-    return truckRecords.filter((r) => {
-      const d = new Date(r.date);
-      if (from && d < from) return false;
-      if (to   && d > to)   return false;
-      return true;
-    });
-  }, [truckRecords, dateFilter, customFrom, customTo]);
+  // Dates are YYYY-MM-DD, so plain string comparison is a correct date comparison.
+  const filteredRecords = useMemo(
+    () => truckRecords.filter((r) => (!fromDate || r.date >= fromDate) && (!toDate || r.date <= toDate)),
+    [truckRecords, fromDate, toDate],
+  );
 
   const totalCost = useMemo(
     () => filteredRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0),
@@ -255,59 +219,6 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
     showSuccess("Deletion request submitted. Awaiting admin approval.");
   }
 
-  function handlePrint() {
-    if (!truck) return;
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-
-    const rows = filteredRecords
-      .map((r) => `<tr>
-        <td>${formatDate(r.date)}</td>
-        <td>${r.maintenanceEndDate ? formatDate(r.maintenanceEndDate) : "—"}</td>
-        <td>${r.maintenanceType}</td>
-        <td>${r.compliant || "—"}</td>
-        <td>${r.maintenanceLocation || "—"}</td>
-        <td>${r.maintenanceBy || "—"}</td>
-        <td>${r.description || "—"}</td>
-        <td>${Number(r.odometer).toLocaleString()} km</td>
-        <td>${r.enteredByName || "—"}</td>
-        <td>${r.source || "—"}</td>
-        <td>₹${Number(r.cost).toLocaleString()}</td>
-      </tr>`)
-      .join("");
-
-    const printCols = [
-      "Start Date", "End Date", "Maintenance Type", "Compliant", "Location", "Maintenance By",
-      "Remarks", "Odometer (km)", "User Modified", "Source", "Cost",
-    ];
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Maintenance Record - ${truck.registrationNumber}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
-            h1 { font-size: 18px; margin-bottom: 4px; }
-            p { font-size: 12px; color: #6b7280; margin-top: 0; margin-bottom: 16px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
-            th { background: #f3f4f6; text-transform: uppercase; }
-          </style>
-        </head>
-        <body>
-          <h1>Maintenance Record &mdash; ${truck.registrationNumber}</h1>
-          <p>Generated on ${todayIst()}</p>
-          <table>
-            <thead><tr>${printCols.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-  }
-
   return (
     <>
       <Dialog
@@ -316,60 +227,33 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         title={`Maintenance Record — ${truck.registrationNumber}`}
         className="max-w-5xl"
       >
-        {/* ── Filter toolbar ── */}
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Filter
-            </span>
-          </div>
-
-          <div className="flex flex-1 flex-wrap items-end gap-3">
-            <GlassSelect
-              value={dateFilter}
-              onChange={(val) => setDateFilter(val as DateFilter)}
-              options={DATE_FILTER_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
-            />
-
-            {dateFilter === "custom" && (
-              <>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">From</span>
-                  <DatePickerInput value={customFrom} onChange={setCustomFrom} className={inputClass} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">To</span>
-                  <DatePickerInput value={customTo} onChange={setCustomTo} className={inputClass} />
-                </label>
-              </>
+        {/* ── Toolbar: count + total on the left, date range + View on the right ── */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            <span>{filteredRecords.length} {filteredRecords.length === 1 ? "record" : "records"}</span>
+            {filteredRecords.length > 0 && (
+              <span>
+                Total:{" "}
+                <span className="tabular-nums text-blue-600">
+                  ₹{totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </span>
             )}
           </div>
-
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Print
-          </button>
-        </div>
-
-        {/* ── Record count + total ── */}
-        {filteredRecords.length > 0 && (
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              {filteredRecords.length} {filteredRecords.length === 1 ? "record" : "records"}
-            </p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Total:{" "}
-              <span className="tabular-nums text-blue-600">
-                ₹{totalCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <DateRangePill from={fromDate} to={toDate} onFromChange={setFromDate} onToChange={setToDate} />
+            <DownloadExcelButton
+              path="/exports/maintenance-records"
+              filename={`maintenance_records_${truck.registrationNumber}.xlsx`}
+              title={`Maintenance Records — ${truck.registrationNumber}`}
+              params={{
+                truck_id: truck.id,
+                ...(fromDate ? { from_date: fromDate } : {}),
+                ...(toDate ? { to_date: toDate } : {}),
+              }}
+            />
           </div>
-        )}
+        </div>
 
         {/* ── Table ── */}
         {filteredRecords.length === 0 ? (
@@ -430,6 +314,20 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                     <td className="px-4 py-2.5 tabular-nums font-semibold text-blue-700">
                       ₹{Number(record.cost).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    <td className="px-4 py-2.5">
+                      {(proofCounts[record.id] ?? record.proofCount ?? 0) > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setProofsRecord(record)}
+                          className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          {proofCounts[record.id] ?? record.proofCount} file{(proofCounts[record.id] ?? record.proofCount) === 1 ? "" : "s"}
+                        </button>
+                      ) : (
+                        <span className="italic text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-2 py-2.5 text-right">
                       <button
                         type="button"
@@ -448,6 +346,15 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
           </div>
         )}
       </Dialog>
+
+      <MaintenanceProofsDialog
+        open={proofsRecord !== null}
+        recordId={proofsRecord?.id ?? null}
+        subtitle={proofsRecord ? `${proofsRecord.maintenanceType} · ${formatDate(proofsRecord.date)}` : undefined}
+        canDelete={isAdmin}
+        onClose={() => setProofsRecord(null)}
+        onCountChange={(n) => proofsRecord && setProofCounts((prev) => ({ ...prev, [proofsRecord.id]: n }))}
+      />
 
       {reasonRecord && (
         <DeletionReasonDialog

@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Pencil, Trash2, Store, Mail, Phone, MapPin } from "lucide-react";
+import { Eye, FileText, Pencil, Trash2, Store, Mail, Phone, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Vendor } from "@/types/vendor";
 
@@ -9,6 +9,8 @@ type VendorTableProps = {
   onView: (vendor: Vendor) => void;
   onEdit: (vendor: Vendor) => void;
   onDelete: (id: string) => void;
+  /** "View Record" on each card — what it opens is still to be decided. */
+  onViewRecord?: (vendor: Vendor) => void;
 };
 
 const statusStyles: Record<string, string> = {
@@ -24,7 +26,7 @@ const categoryAccent: Record<string, string> = {
   Transport: "bg-cyan-50 text-cyan-700",
 };
 
-export function VendorTable({ vendors, onView, onEdit, onDelete }: VendorTableProps) {
+export function VendorTable({ vendors, onView, onEdit, onDelete, onViewRecord }: VendorTableProps) {
   if (vendors.length === 0) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500 dark:border-gray-300/20 dark:bg-gray-200/60 dark:text-gray-600">
@@ -70,7 +72,14 @@ export function VendorTable({ vendors, onView, onEdit, onDelete }: VendorTablePr
             </span>
           )}
 
-          {/* Contact details */}
+          {/* Contact details — only when there's something to show; an empty
+              bordered block just left a gap on vendors with no details. */}
+          {!(vendor.contactNumber || vendor.email || vendor.address || vendor.gstin || vendor.pan) && (
+            <p className="border-t border-gray-100 pt-3 text-xs italic text-gray-400 dark:border-gray-300/20">
+              No contact details added
+            </p>
+          )}
+          {(vendor.contactNumber || vendor.email || vendor.address) && (
           <div className="flex flex-col gap-2 border-t border-gray-100 pt-3 dark:border-gray-300/20">
             {vendor.contactNumber && (
               <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-700">
@@ -91,6 +100,7 @@ export function VendorTable({ vendors, onView, onEdit, onDelete }: VendorTablePr
               </div>
             )}
           </div>
+          )}
 
           {/* GST / PAN row */}
           {(vendor.gstin || vendor.pan) && (
@@ -110,11 +120,20 @@ export function VendorTable({ vendors, onView, onEdit, onDelete }: VendorTablePr
             </div>
           )}
 
-          {/* Actions */}
+          {/* Actions — mt-auto pins them to the bottom, so every card in a
+              row (they stretch to the tallest) lines its buttons up. */}
           <div
-            className="flex items-center justify-end gap-1 border-t border-gray-100 pt-3 dark:border-gray-300/20"
+            className="mt-auto flex items-center justify-end gap-1 border-t border-gray-100 pt-3 dark:border-gray-300/20"
             onClick={(e) => e.stopPropagation()}
           >
+            <button
+              type="button"
+              onClick={() => onViewRecord?.(vendor)}
+              className="mr-auto flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              View Record
+            </button>
             <button
               type="button"
               onClick={() => onView(vendor)}

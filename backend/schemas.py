@@ -508,6 +508,7 @@ class TripBase(OrmBase):
     invoice_required: bool = True
     use_yard_cfs: bool = False
     use_custom_route: bool = False
+    customer_destination_id: Optional[int] = None
     # Which dialog this update came from — only used to label the Trip Edit
     # History event correctly (both TripFormDialog and TripSheetDialog save
     # through this same endpoint); never applied to the Trip record itself.
@@ -1765,6 +1766,8 @@ class MaintenanceRecordCreate(OrmBase):
     compliant: Optional[str] = None               # "Yes" | "No"
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
+    maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    vendor_id: Optional[int] = None
     description: Optional[str] = None             # Remarks
     cost: Optional[Decimal] = None
 
@@ -1779,6 +1782,8 @@ class MaintenanceRecordUpdate(OrmBase):
     compliant: Optional[str] = None
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
+    maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    vendor_id: Optional[int] = None
     description: Optional[str] = None
     cost: Optional[Decimal] = None
 
@@ -1801,6 +1806,26 @@ class MaintenanceRecordOut(OrmBase):
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    maintenance_by_type: Optional[str] = None
+    vendor_id: Optional[int] = None
+    # Number of Proof of Payment files attached (filled in by the list route).
+    proof_count: int = 0
+
+
+class VendorMaintenanceRecordOut(MaintenanceRecordOut):
+    """A maintenance record as listed under Our Vendors → View Record."""
+    truck_code: Optional[str] = None
+    truck_registration: Optional[str] = None
+
+
+class MaintenanceProofOut(OrmBase):
+    id: int
+    record_id: int
+    kind: str
+    file_name: str
+    size_bytes: int
+    uploaded_by_name: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AirFilterRecordCreate(OrmBase):

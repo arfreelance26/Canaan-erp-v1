@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
 from security import get_current_user, TokenUser, require_roles
@@ -187,3 +189,40 @@ def permanently_delete_vendor(vendor_id: int, db: Session = Depends(get_db), cur
     db.delete(vendor)
     db.commit()
     emit("vendor_updated", {})
+
+
+@router.get("/{vendor_id}/maintenance-records", response_model=list[schemas.VendorMaintenanceRecordOut])
+def vendor_maintenance_records(
+    vendor_id: int,
+    from_date: Optional[str] = Query(None, description="YYYY-MM-DD, inclusive"),
+    to_date: Optional[str] = Query(None, description="YYYY-MM-DD, inclusive"),
+    db: Session = Depends(get_db),
+):
+    """Our Vendors → View Record: every maintenance job this vendor did
+    (linked via Maintenance By → Vendor), newest first, with the truck."""
+    if not db.get(models.Vendor, vendor_id):
+        raise HTTPException(404, "Vendor not found")
+    q = (
+        db.query(models.MaintenanceRecord, models.Truck.truck_id, models.Truck.registration_number)
+        .join(models.Truck, models.Truck.id == models.MaintenanceRecord.truck_id)
+        .filter(models.MaintenanceRecord.vendor_id == vendor_id)
+    )
+    if from_date:
+        q = q.filter(models.MaintenanceRecord.date >= from_date)
+    if to_date:
+        q = q.filter(models.MaintenanceRecord.date <= to_date)
+    rows = q.order_by(models.MaintenanceRecord.date.desc(), models.MaintenanceRecord.id.desc()).all()
+    counts = dict(
+        db.query(models.MaintenanceProof.record_id, func.count(models.MaintenanceProof.id))
+        .filter(models.MaintenanceProof.record_id.in_([r.id for r, _, _ in rows]))
+        .group_by(models.MaintenanceProof.record_id)
+        .all()
+    ) if rows else {}
+    out = []
+    for record, code, reg in rows:
+        item = schemas.VendorMaintenanceRecordOut.model_validate(record)
+        item.proof_count = int(counts.get(record.id, 0))
+        item.truck_code = code
+        item.truck_registration = reg
+        out.append(item)
+    return out

@@ -147,6 +147,10 @@ export type Trip = {
    * Information become free-text instead of being locked to a selected
    * Available Route (or the Shifting/Export restricted dropdowns). */
   useCustomRoute: boolean;
+  /** The customer route (Our Customers → destination) picked from Available
+   * Routes — the real link to the route; origin/destination are a text
+   * snapshot. null for custom routes, return trips and unmatched old trips. */
+  customerDestinationId?: string | null;
   invoiceWaived: boolean;
   isCombinedInvoice: boolean;
   driverName: string | null;

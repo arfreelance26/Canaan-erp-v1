@@ -612,6 +612,12 @@ class Trip(Base):
     # Export restricted dropdowns) — for one-off routes with no customer route
     # configured. Noted here so TripFormDialog re-opens in the same mode.
     use_custom_route = Column(Boolean, default=False, nullable=False, server_default="0")
+    # The customer route (Our Customers → destination) this trip was booked on,
+    # when picked from Available Routes. origin/destination above stay as a
+    # text snapshot for documents; this id is what links the trip to the route
+    # (so renames and same-named routes don't break the link). NULL for custom
+    # routes, return trips, and old trips that couldn't be matched unambiguously.
+    customer_destination_id = Column(Integer, ForeignKey("customer_destinations.id", ondelete="SET NULL"), nullable=True, index=True)
     # Workflow state
     verification_status = Column(Enum("pending", "verified", "flagged", "rejected"), default="pending")
     verification_rejection_reason = Column(Text, nullable=True)
@@ -987,7 +993,12 @@ class MaintenanceRecord(Base):
     repair_type = Column(String(200), nullable=True)
     compliant = Column(Text, nullable=True)
     maintenance_location = Column(String(200), nullable=True)
-    maintenance_by = Column(String(200), nullable=True)
+    maintenance_by = Column(String(200), nullable=True)      # name snapshot (vendor or individual)
+    # "Vendor" | "Individual" (the form's toggle). For "Vendor", vendor_id is
+    # the real link — what Our Vendors → View Record lists by — while
+    # maintenance_by keeps the name as it was when the record was saved.
+    maintenance_by_type = Column(String(12), nullable=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
     description = Column(Text)                               # Remarks
     cost = Column(Numeric(10, 2), default=0)
     entered_by_name = Column(String(100), nullable=True)
@@ -997,6 +1008,26 @@ class MaintenanceRecord(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     truck = relationship("Truck", back_populates="maintenance_records")
+
+
+class MaintenanceProof(Base):
+    """"Proof of Payment" files on a maintenance record (Update Maintenance
+    Record form) — up to 5 JPGs and 3 PDFs per record, see
+    routers/maintenance.py. Its own table because the generic /files router
+    holds exactly one file per column. Deleted with its record (FK cascade;
+    maintenance records are hard-deleted)."""
+    __tablename__ = "maintenance_proofs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    record_id = Column(Integer, ForeignKey("maintenance_records.id", ondelete="CASCADE"), nullable=False)
+    kind = Column(String(8), nullable=False)          # "image" | "pdf"
+    file_name = Column(String(255), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    data = deferred(Column(LargeBinary(length=26214400), nullable=False))  # LONGBLOB; never loaded for listings
+    uploaded_by_name = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (Index("ix_maintenance_proof_record", "record_id"),)
 
 
 class MaintenanceRecordEditEvent(Base):

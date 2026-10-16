@@ -22,6 +22,8 @@ type Props = {
    * file straight away (used where a preview is already on screen).
    */
   direct?: boolean;
+  /** Heading for the preview (and the PDF). Defaults to a tidied-up filename. */
+  title?: string;
 };
 
 const VIEW_CLASS =
@@ -29,7 +31,18 @@ const VIEW_CLASS =
 const DIRECT_CLASS =
   "flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-emerald-200 bg-white px-4 text-sm font-medium text-emerald-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-emerald-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50";
 
-export function DownloadExcelButton({ path, filename, label = "Download Excel", className, params, direct = false }: Props) {
+/** "maintenance_records_TN69AP3350.xlsx" → "Maintenance Records TN69AP3350" —
+ * lowercase words get a capital, codes/registrations/dates are left alone. */
+function titleFromFilename(name: string): string {
+  return name
+    .replace(/\.xlsx$/i, "")
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => (w === "to" ? w : /^[a-z]+$/.test(w) ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+export function DownloadExcelButton({ path, filename, label = "Download Excel", className, params, direct = false, title }: Props) {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
 
@@ -79,7 +92,7 @@ export function DownloadExcelButton({ path, filename, label = "Download Excel", 
       </button>
       {preview && (
         <ExportPreviewDialog
-          title={preview.filename.replace(/\.xlsx$/i, "").replace(/_/g, " ")}
+          title={title ?? titleFromFilename(preview.filename)}
           filename={preview.filename}
           blob={preview.blob}
           sheets={preview.sheets}

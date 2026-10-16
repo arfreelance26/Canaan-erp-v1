@@ -5,6 +5,7 @@ import { Plus, X, Handshake, History, Pencil, Trash2, Undo2 } from "lucide-react
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
 import { VendorCategoryDialog } from "@/components/vendors/VendorCategoryDialog";
+import { VendorRecordsDialog } from "@/components/vendors/VendorRecordsDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { vendorsApi, editApprovalsApi, type VendorEditEventRow } from "@/lib/api";
@@ -48,6 +49,7 @@ export default function VendorsPage() {
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [viewingVendor, setViewingVendor] = useState<Vendor | null>(null);
+  const [recordsVendor, setRecordsVendor] = useState<Vendor | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
@@ -227,7 +229,9 @@ export default function VendorsPage() {
         </div>
       </div>
 
-      <VendorTable vendors={filteredVendors} onView={setViewingVendor} onEdit={handleEdit} onDelete={handleDelete} />
+      <VendorTable vendors={filteredVendors} onView={setViewingVendor} onEdit={handleEdit} onDelete={handleDelete} onViewRecord={setRecordsVendor} />
+
+      <VendorRecordsDialog open={recordsVendor !== null} vendor={recordsVendor} onClose={() => setRecordsVendor(null)} />
 
       <VendorFormDialog
         open={dialogOpen}

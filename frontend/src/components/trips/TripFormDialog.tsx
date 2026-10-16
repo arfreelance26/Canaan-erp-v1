@@ -1,7 +1,7 @@
 "use client";
 
 import { X, Info, Sparkles, MapPin, Truck as TruckIcon, User, Check, CheckCircle2, AlertTriangle, Building2, Warehouse, Pencil, Trash2, Plus, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
@@ -35,6 +35,8 @@ import type { CfsYardEntry } from "@/types/cfs-yard";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { onRevalidated } from "@/lib/api-cache";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { cn } from "@/lib/utils";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
@@ -560,9 +562,25 @@ export function TripFormDialog({
   // rather than blindly using index 0, which used to apply whichever final
   // price happened to be created first to every route on this customer.
   const [finalCustomerPricingList, setFinalCustomerPricingList] = useState<FinalCustomerPricing[]>([]);
-  function getFinalPricingForRoute(destLabel: string | null | undefined): FinalCustomerPricing | null {
+  // Matched by the route's id (customerDestinationId), like customer pricing —
+  // two routes can share a name (e.g. DINDIGUL 20 FT vs 40 FT) and each has
+  // its own final price. The name is only a fallback: for legacy entries with
+  // no route link, or when no route is selected — and then only if exactly
+  // one entry has that name, so a shared name never picks the wrong price.
+  function getFinalPricingForRoute(
+    routeId: string | null | undefined,
+    destLabel: string | null | undefined,
+    list: FinalCustomerPricing[] = finalCustomerPricingList,
+  ): FinalCustomerPricing | null {
+    if (routeId) {
+      const byId = list.find((fp) => fp.customerDestinationId === routeId);
+      if (byId) return byId;
+    }
     if (!destLabel) return null;
-    return finalCustomerPricingList.find((fp) => fp.customerDestination === destLabel) ?? null;
+    const byLabel = list.filter(
+      (fp) => fp.customerDestination === destLabel && (!routeId || !fp.customerDestinationId)
+    );
+    return byLabel.length === 1 ? byLabel[0] : null;
   }
   const [shippingLines, setShippingLines] = useState<string[]>([]);
   const [cargoReferences, setCargoReferences] = useState<string[]>([]);
@@ -739,7 +757,7 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP" || prev.driverCompensationType !== "Normal") return prev;
       const branch = branches.find((b) => b.name === branchName);
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-      const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
+      const battaBase = getFinalPricingForRoute(activeRouteId, prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
       return { ...prev, driverAdvanceAmount: calcCompensation(battaBase, pct) };
     });
   }
@@ -942,15 +960,67 @@ export function TripFormDialog({
       };
     });
 
-  // Clicked route wins. Without a click (e.g. editing a saved trip), fall back to
-  // the first route whose saved values agree with the form.
-  const activeRouteId = selectedRouteId ?? availableRoutes.find((r) =>
+  // Clicked route wins. Then the route this trip was saved with (by id — a
+  // rename or a same-named route can't confuse it). Text matching is only for
+  // older trips saved before the link existed.
+  const savedRouteId =
+    form.customerDestinationId && form.destination && availableRoutes.some((r) => r.id === form.customerDestinationId)
+      ? form.customerDestinationId
+      : null;
+  const activeRouteId = selectedRouteId ?? savedRouteId ?? availableRoutes.find((r) =>
     (r.originAddress || r.originState) === form.origin &&
     (r.destLabel || r.destinationState) === form.destination &&
     (!r.cargoClassification || r.cargoClassification === form.cargoClassification) &&
     (!r.containerType || containerTypeToSpec(r.containerType) === form.containerSpecification) &&
     (!r.cargoWeight || r.cargoWeight === form.cargoWeight)
   )?.id ?? null;
+
+  // Keep this customer's routes / pricing / final pricing live while the form
+  // is open — an edit on Our Customers otherwise never reached a form that had
+  // already loaded them. Refetches on the customer_updated push, on the cache's
+  // background revalidation, and every 60s (production has no WebSockets). If
+  // the selected route's Accounts Hire Amount changed, Normal driver
+  // compensation is recalculated from the new amount.
+  const refreshPricingRef = useRef<() => void>(() => {});
+  useLayoutEffect(() => {
+    refreshPricingRef.current = () => {
+      const customerId = form.customerId;
+      if (!open || !customerId) return;
+      const routeId = activeRouteId;
+      const dest = form.destination;
+      const before = getFinalPricingForRoute(routeId, dest)?.accountsHireAmount ?? null;
+      customersApi.listDestinations(customerId).then(setCustomerDestinations).catch(() => {});
+      customersApi.listPricing(customerId).then(setCustomerPricing).catch(() => {});
+      customersApi.listFinalPricing(customerId).then((list) => {
+        setFinalCustomerPricingList(list);
+        const after = getFinalPricingForRoute(routeId, dest, list)?.accountsHireAmount ?? null;
+        if (after === before) return;
+        setForm((prev) => {
+          if (
+            prev.customerId !== customerId ||
+            prev.destination !== dest ||
+            prev.tripCategory === "RETURN TRIP" ||
+            prev.driverCompensationType !== "Normal"
+          ) return prev;
+          const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
+          const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
+          const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
+          return { ...prev, driverAdvanceAmount: calcCompensation(after ?? prev.transportHireAmount, pct) };
+        });
+      }).catch(() => {});
+    };
+  });
+  useWebSocketEvent("customer_updated", () => refreshPricingRef.current());
+  const hasCustomer = !!form.customerId;
+  useEffect(() => {
+    if (!open || !hasCustomer) return;
+    const unsubscribe = onRevalidated(() => refreshPricingRef.current());
+    const timer = window.setInterval(() => refreshPricingRef.current(), 60_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+    };
+  }, [open, hasCustomer]);
 
   function containerTypeToSpec(ct: string): Trip["containerSpecification"] | "" {
     const map: Record<string, Trip["containerSpecification"]> = {
@@ -970,6 +1040,7 @@ export function TripFormDialog({
     return !!route && routeFitsChoice(route, cargo, spec, form.cargoWeight);
   }
   const clearedRoute = {
+    customerDestinationId: null,
     origin: "",
     destination: "",
     transportHireAmount: "",
@@ -1014,6 +1085,7 @@ export function TripFormDialog({
     setForm((prev) => ({
       ...prev,
       customerId,
+      customerDestinationId: null,
       shipperConsignee: selectedCustomer?.name ?? prev.shipperConsignee,
       origin: "",
       destination: "",
@@ -1055,6 +1127,7 @@ export function TripFormDialog({
       setRouteListFilter({ cargo: "", spec: "" });
       setForm((prev) => ({
         ...prev,
+        customerDestinationId: null,
         origin: "",
         destination: "",
         transportHireAmount: "",
@@ -1071,7 +1144,7 @@ export function TripFormDialog({
     const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
     const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
     const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-    const hireBase = getFinalPricingForRoute(routeDestination)?.accountsHireAmount ?? route.hireAmount;
+    const hireBase = getFinalPricingForRoute(route.id, routeDestination)?.accountsHireAmount ?? route.hireAmount;
     // For EXPORT routes, origin must be TUTICORIN — the origin GlassSelect only
     // accepts TUTICORIN/CHENNAI, so we can't set an arbitrary originState here.
     // For all other types, prefer the stored address then fall back to state name.
@@ -1081,6 +1154,7 @@ export function TripFormDialog({
     const containerSpec = route.containerType ? containerTypeToSpec(route.containerType) : "";
     setForm((prev) => ({
       ...prev,
+      customerDestinationId: route.id,
       origin,
       destination,
       ...(route.hireAmount ? { transportHireAmount: route.hireAmount } : {}),
@@ -1148,7 +1222,7 @@ export function TripFormDialog({
       if (prev.tripCategory === "RETURN TRIP") return { ...prev, driverId: assignmentDriverId };
       const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-      const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
+      const battaBase = getFinalPricingForRoute(activeRouteId, prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
           ? calcCompensation(battaBase, pct)
@@ -1164,7 +1238,7 @@ export function TripFormDialog({
       const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
       const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
       // Batta percentage base: accounts hire amount if set, else fall back to the new hire amount
-      const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? value;
+      const battaBase = getFinalPricingForRoute(activeRouteId, prev.destination)?.accountsHireAmount ?? value;
       const driverAdvanceAmount =
         prev.driverCompensationType === "Normal"
           ? calcCompensation(battaBase, pct)
@@ -1183,7 +1257,7 @@ export function TripFormDialog({
         const assignment = assignableDrivers.find((a) => a.driver.driverId === vehicleAssignmentId);
         const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
         const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
-        const battaBase = getFinalPricingForRoute(prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
+        const battaBase = getFinalPricingForRoute(activeRouteId, prev.destination)?.accountsHireAmount ?? prev.transportHireAmount;
         driverAdvanceAmount = calcCompensation(battaBase, pct);
       } else if (val === "DEFAULT") {
         const cargoType = toDefaultBattaCargoType(prev.containerSpecification);
@@ -1323,6 +1397,13 @@ export function TripFormDialog({
       return;
     }
 
+    // Saved by the id of the route card in use, not its text. While the
+    // customer's routes haven't loaded yet, keep whatever link the trip had.
+    const customerDestinationId =
+      form.useCustomRoute || isShifting || isReturnTrip
+        ? null
+        : activeRouteId ?? (customerDestinations.length === 0 ? form.customerDestinationId ?? null : null);
+
     const tripPayload: Trip = initialData
       ? {
           id: initialData.id,
@@ -1331,6 +1412,7 @@ export function TripFormDialog({
           assignedDate: initialData.assignedDate,
           vehicleId: assigned.truck.truckId,
           ...form,
+          customerDestinationId,
         }
       : {
           id: crypto.randomUUID(),
@@ -1339,6 +1421,7 @@ export function TripFormDialog({
           assignedDate: todayIst(),
           vehicleId: assigned.truck.truckId,
           ...form,
+          customerDestinationId,
         };
 
     // Only ask for a reason if the branch was actually changed via the pills.
@@ -1363,7 +1446,7 @@ export function TripFormDialog({
       className="max-w-4xl"
       sidePanel={
         form.customerId && form.destination
-          ? <CustomerInsightsPanel customerId={form.customerId} route={form.destination} />
+          ? <CustomerInsightsPanel customerId={form.customerId} route={form.destination} routeId={activeRouteId} />
           : undefined
       }
     >
@@ -1463,7 +1546,10 @@ export function TripFormDialog({
                     setForm((prev) => ({
                       ...prev,
                       shipperConsignee: val,
-                      customerId: matched?.id ?? prev.customerId,
+                      // Linked by id only when the text is an actual customer;
+                      // otherwise unlinked — keeping the previous customer's id
+                      // used to save the trip under the wrong customer.
+                      customerId: matched?.id ?? "",
                     }));
                   }}
                   options={customers.map((c) => ({ value: c.name, label: c.name }))}
