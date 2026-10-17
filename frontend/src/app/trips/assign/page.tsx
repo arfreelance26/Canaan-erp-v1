@@ -136,6 +136,11 @@ export default function AssignTripsPage() {
     [assignments, drivers, truckById, activeDriverIds, activeVehicleIds]
   );
 
+  const unassignedTrucks = useMemo(() => {
+    const assigned = new Set(assignableDrivers.map((a) => a.truck.truckId));
+    return trucks.filter((t) => !assigned.has(t.truckId));
+  }, [trucks, assignableDrivers]);
+
   function handleAdd() {
     setEditingTrip(null);
     setDialogOpen(true);
@@ -299,6 +304,7 @@ export default function AssignTripsPage() {
         customers={customers}
         assignableDrivers={assignableDrivers}
         drivers={drivers}
+        unassignedTrucks={unassignedTrucks}
       />
 
       {/* Edit History — every Create/Edit/Sheet/Close/Verify/Delete/Restore

@@ -5580,6 +5580,60 @@ export const notesApi = {
     ),
 };
 
+export type Todo = {
+  id: number;
+  title: string;
+  done: boolean;
+  important: boolean;
+  /** YYYY-MM-DD (IST day), or null for no due date. */
+  dueDate: string | null;
+  doneAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+export type TodoUsage = { count: number; maxTodos: number };
+
+function toTodo(b: B): Todo {
+  return {
+    id: Number(b.id),
+    title: String(b.title ?? ""),
+    done: Boolean(b.done),
+    important: Boolean(b.important),
+    dueDate: (b.due_date as string | null) ?? null,
+    doneAt: (b.done_at as string | null) ?? null,
+    createdAt: (b.created_at as string | null) ?? null,
+    updatedAt: (b.updated_at as string | null) ?? null,
+  };
+}
+
+function toTodoUsage(b: B): TodoUsage {
+  return { count: Number(b.count ?? 0), maxTodos: Number(b.max_todos ?? 0) };
+}
+
+// Private per person (see routers/todos.py). rawReq, not the cached req():
+// a task list must never show a stale tick.
+export const todosApi = {
+  list: (): Promise<{ items: Todo[]; usage: TodoUsage }> =>
+    rawReq<B>("/todos").then((d) => ({ items: (d.items ?? []).map(toTodo), usage: toTodoUsage(d.usage ?? {}) })),
+  create: (payload: { title: string; dueDate?: string | null; important?: boolean }): Promise<Todo> =>
+    rawReq<B>("/todos", {
+      method: "POST",
+      body: JSON.stringify({ title: payload.title, due_date: payload.dueDate || null, important: !!payload.important }),
+    }).then(toTodo),
+  /** Only the fields given are changed; dueDate: null clears the due date. */
+  update: (id: number, patch: { title?: string; done?: boolean; important?: boolean; dueDate?: string | null }): Promise<Todo> => {
+    const body: Record<string, unknown> = {};
+    if (patch.title !== undefined) body.title = patch.title;
+    if (patch.done !== undefined) body.done = patch.done;
+    if (patch.important !== undefined) body.important = patch.important;
+    if (patch.dueDate !== undefined) body.due_date = patch.dueDate || null;
+    return rawReq<B>(`/todos/${id}`, { method: "PATCH", body: JSON.stringify(body) }).then(toTodo);
+  },
+  remove: (id: number): Promise<TodoUsage> => rawReq<B>(`/todos/${id}`, { method: "DELETE" }).then(toTodoUsage),
+  clearCompleted: (): Promise<TodoUsage> => rawReq<B>("/todos/completed", { method: "DELETE" }).then(toTodoUsage),
+};
+
 export const eventsApi = {
   create: (payload: {
     title: string;

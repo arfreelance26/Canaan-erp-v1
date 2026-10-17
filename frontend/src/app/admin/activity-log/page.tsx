@@ -83,6 +83,7 @@ const API_AREAS: Record<string, string> = {
   finance: "Finance", insights: "Insights", chat: "Canaan Chat", connect: "Canaan Chat", admin: "Admin",
   personal: "Personal", auth: "Login", files: "Documents", events: "Meetings", "room-summon": "Invites",
   notes: "Notes",
+  todos: "To-do",
 };
 
 function areaName(route: string): string {

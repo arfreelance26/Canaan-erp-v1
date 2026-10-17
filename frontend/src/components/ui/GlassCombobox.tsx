@@ -9,6 +9,9 @@ interface Option {
   value: string;
   label: string;
   disabled?: boolean;
+  /** Badge shown on the right. A disabled option without one shows "Active Trip". */
+  badge?: string;
+  badgeTone?: "amber" | "red";
 }
 
 interface GlassComboboxProps {
@@ -214,9 +217,14 @@ export function GlassCombobox({
                   }}
                 >
                   <span className="block truncate">{option.label}</span>
-                  {isOptDisabled && (
-                    <span className="ml-2 shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                      Active Trip
+                  {(option.badge || isOptDisabled) && (
+                    <span
+                      className={cn(
+                        "ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold",
+                        option.badgeTone === "red" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700",
+                      )}
+                    >
+                      {option.badge ?? "Active Trip"}
                     </span>
                   )}
                 </button>

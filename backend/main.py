@@ -1774,13 +1774,19 @@ async def realtime_broadcast(request: Request, call_next):
 # recorded as a normal page view by the browser tracker.
 @app.middleware("http")
 async def notes_request_size(request: Request, call_next):
-    """Refuse oversized Notes writes before the body is read — FastAPI would
+    """Refuse oversized Notes / To-do writes before the body is read — FastAPI would
     otherwise load the whole request into memory before validation rejects
     it, so one multi-GB request could exhaust the server's RAM. Chunked
     bodies (no Content-Length) are refused for the same reason; browsers
     always send a length for these JSON requests."""
-    if request.method in ("POST", "PATCH", "PUT") and request.url.path.startswith("/notes"):
-        from routers.notes import MAX_REQUEST_BYTES
+    path = request.url.path
+    if request.method in ("POST", "PATCH", "PUT") and path.startswith(("/notes", "/todos")):
+        if path.startswith("/todos"):
+            from routers.todos import MAX_REQUEST_BYTES
+            too_large = "This task is too large to save."
+        else:
+            from routers.notes import MAX_REQUEST_BYTES
+            too_large = "This note is too large to save."
         length = request.headers.get("content-length")
         if length is None:
             return JSONResponse(status_code=411, content={"detail": "Content-Length required."})
@@ -1789,7 +1795,7 @@ async def notes_request_size(request: Request, call_next):
         except ValueError:
             too_big = True
         if too_big:
-            return JSONResponse(status_code=413, content={"detail": "This note is too large to save."})
+            return JSONResponse(status_code=413, content={"detail": too_large})
     return await call_next(request)
 
 
@@ -1906,6 +1912,8 @@ from routers import events as _events_router
 app.include_router(_events_router.router, dependencies=AUTH)
 from routers import notes as _notes_router
 app.include_router(_notes_router.router, dependencies=AUTH)
+from routers import todos as _todos_router
+app.include_router(_todos_router.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

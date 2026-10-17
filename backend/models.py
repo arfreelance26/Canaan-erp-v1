@@ -2271,6 +2271,27 @@ class NoteWriteUsage(Base):
     blocked = Column(Integer, nullable=False, default=0, server_default="0")  # writes refused by a limit
 
 
+class Todo(Base):
+    """Topbar To-do — a private task list per staff member, like Notes:
+    every query in routers/todos.py is scoped to the caller, Admin included.
+    Kept until the owner deletes it (or clears completed tasks)."""
+    __tablename__ = "todos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(300), nullable=False)
+    done = Column(Boolean, nullable=False, default=False, server_default="0")
+    important = Column(Boolean, nullable=False, default=False, server_default="0")
+    due_date = Column(Date, nullable=True)                 # IST calendar day, optional
+    done_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_todo_owner_done", "staff_id", "done"),
+    )
+
+
 DEFAULT_BATTA_TRIP_TYPES = ("LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP")
 DEFAULT_BATTA_CARGO_TYPES = ("20FT CONTAINER", "40FT CONTAINER", "2X20 FEET CONTAINERS", "OPEN LOAD CARGO")
 

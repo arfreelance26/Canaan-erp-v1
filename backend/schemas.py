@@ -3182,6 +3182,67 @@ class NoteAdminUsageRow(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# To-do (Topbar task list — private per user)
+# ---------------------------------------------------------------------------
+
+TODO_TITLE_MAX = 300
+
+
+def _clean_todo_title(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return v
+    v = " ".join(v.split())
+    if not v:
+        raise ValueError("A task needs some text.")
+    return v
+
+
+class TodoCreate(BaseModel):
+    title: str = Field(max_length=TODO_TITLE_MAX)
+    due_date: Optional[date] = None
+    important: bool = False
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, v):
+        return _clean_todo_title(v)
+
+
+class TodoUpdate(BaseModel):
+    """Only the fields sent are changed. due_date: null clears the due date."""
+    title: Optional[str] = Field(default=None, max_length=TODO_TITLE_MAX)
+    done: Optional[bool] = None
+    important: Optional[bool] = None
+    due_date: Optional[date] = None
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, v):
+        return _clean_todo_title(v)
+
+
+class TodoOut(OrmBase):
+    id: int
+    title: str
+    done: bool
+    important: bool
+    due_date: Optional[date] = None
+    done_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class TodoUsageOut(BaseModel):
+    count: int
+    max_todos: int
+
+
+class TodoListOut(BaseModel):
+    items: list[TodoOut]
+    usage: TodoUsageOut
+
+
+# ---------------------------------------------------------------------------
 # Default Batta Management
 # ---------------------------------------------------------------------------
 

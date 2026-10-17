@@ -444,6 +444,9 @@ type TripFormDialogProps = {
   customers: Customer[];
   assignableDrivers: AssignableDriver[];
   drivers: Driver[];
+  /** Trucks with no driver assigned — listed under Assigned Vehicle so they're
+   *  visible, but can't be picked until a driver is assigned to them. */
+  unassignedTrucks?: Truck[];
 };
 
 const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assignedDate"> = {
@@ -519,6 +522,7 @@ export function TripFormDialog({
   customers,
   assignableDrivers,
   drivers,
+  unassignedTrucks = [],
 }: TripFormDialogProps) {
   const [form, setForm] = useState(emptyForm);
   // The route the user clicked, by its CustomerDestination id. Route cards are
@@ -2118,11 +2122,21 @@ export function TripFormDialog({
                 onChange={(val) => {
                   if (assignableDrivers.some((a) => a.driver.driverId === val)) handleVehicleChange(val);
                 }}
-                options={assignableDrivers.map(a => ({
-                  value: a.driver.driverId,
-                  label: `${a.truck.registrationNumber} — ${a.driver.name} (${a.truck.truckId})`,
-                  disabled: a.isActive,
-                }))}
+                options={[
+                  ...assignableDrivers.map(a => ({
+                    value: a.driver.driverId,
+                    label: `${a.truck.registrationNumber} — ${a.driver.name} (${a.truck.truckId})`,
+                    disabled: a.isActive,
+                  })),
+                  // Shown for visibility only; onChange above ignores them.
+                  ...unassignedTrucks.map(t => ({
+                    value: `no-driver:${t.truckId}`,
+                    label: `${t.registrationNumber} (${t.truckId})`,
+                    disabled: true,
+                    badge: "Driver Not Assigned",
+                    badgeTone: "red" as const,
+                  })),
+                ]}
                 placeholder={assignableDrivers.length === 0 ? "No vehicles available" : "Select a vehicle"}
               />
               {selectedAssignment && (

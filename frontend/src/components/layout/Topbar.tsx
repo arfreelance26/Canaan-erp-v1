@@ -15,6 +15,7 @@ import { AlertsButton } from "./AlertsButton";
 import { EventsButton } from "./EventsButton";
 import { GreetingPill } from "./GreetingPill";
 import { NotesButton } from "./NotesButton";
+import { TodoButton } from "./TodoButton";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -604,6 +605,9 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
 
         {/* Notes — private per-user notepad */}
         <NotesButton />
+
+        {/* To-do — private per-user task list */}
+        <TodoButton />
 
         {/* Calculator */}
         <CalculatorButton />
