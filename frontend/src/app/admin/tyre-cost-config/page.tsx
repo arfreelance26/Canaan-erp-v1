@@ -35,6 +35,8 @@ export default function TyreCostConfigPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<TyreLayoutTypeConfigEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  // Matches a layout name (shows all its tyre types) or a tyre type.
+  const [search, setSearch] = useState("");
 
   function openEditHistory() {
     setEditHistoryOpen(true);
@@ -115,6 +117,11 @@ export default function TyreCostConfigPage() {
   if (user && user.softwareDesignation !== "Admin") return null;
   if (loading) return <PageSkeleton hasButton={false} hasSearch={false} columns={1} />;
 
+  const q = search.trim().toLowerCase();
+  const rowsFor = (layout: string) =>
+    !q || layout.toLowerCase().includes(q) ? tyreRows : tyreRows.filter((r) => r.tyre_type.toLowerCase().includes(q));
+  const visibleLayouts = layouts.filter((l) => !q || l.toLowerCase().includes(q) || rowsFor(l).length > 0);
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
@@ -172,14 +179,23 @@ export default function TyreCostConfigPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search layouts or tyre types..." value={search} onChange={setSearch} />
+      </div>
+
       {/* Layout cards */}
-      {layouts.length === 0 ? (
+      {layouts.length > 0 && visibleLayouts.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+          No results match &ldquo;{search}&rdquo;.
+        </div>
+      ) : layouts.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
           No tyre layouts found. Add trucks with a tyre layout first.
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {layouts.map((layout) => {
+          {visibleLayouts.map((layout) => {
+            // The total always covers every tyre type, even when the search hides some rows.
             const totalCostPerKm = calcLayoutTotal(layout, quantities);
 
             return (
@@ -214,7 +230,7 @@ export default function TyreCostConfigPage() {
                 </div>
 
                 {/* Tyre types section */}
-                {tyreRows.length > 0 && (
+                {rowsFor(layout).length > 0 && (
                   <div className="px-5 py-4">
                     <div className="mb-3 flex items-center gap-6">
                       <p className="w-36 text-[10px] font-bold uppercase tracking-wider text-gray-400">Tyre Type</p>
@@ -222,7 +238,7 @@ export default function TyreCostConfigPage() {
                       <p className="w-48 text-[10px] font-bold uppercase tracking-wider text-gray-400">Cost Per KM</p>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {tyreRows.map((row) => {
+                      {rowsFor(layout).map((row) => {
                         const qtyStr = quantities[layout]?.[row.tyre_type] ?? "";
                         const qty = qtyStr !== "" ? Number(qtyStr) : null;
                         const costPerKm =

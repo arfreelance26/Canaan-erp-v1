@@ -50,6 +50,8 @@ export default function MaintenanceManagementPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<MaintenanceCategoryEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  // Matches a category name (shows all its repair types) or a repair type name.
+  const [search, setSearch] = useState("");
 
   function openEditHistory() {
     setEditHistoryOpen(true);
@@ -172,6 +174,14 @@ export default function MaintenanceManagementPage() {
 
   if (loading) return <PageSkeleton hasButton hasSearch={false} cards cardCount={3} />;
 
+  const q = search.trim().toLowerCase();
+  const visibleCategories = categories
+    .map((c) => {
+      if (!q || c.name.toLowerCase().includes(q)) return c;
+      return { ...c, repairs: c.repairs.filter((r) => r.name.toLowerCase().includes(q)) };
+    })
+    .filter((c) => !q || c.name.toLowerCase().includes(q) || c.repairs.length > 0);
+
   return (
     <div className="animate-stagger flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -206,13 +216,21 @@ export default function MaintenanceManagementPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search categories or repair types..." value={search} onChange={setSearch} />
+      </div>
+
       {categories.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
           No categories yet. Click &ldquo;Add Category&rdquo; to create one.
         </div>
+      ) : visibleCategories.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+          No results match &ldquo;{search}&rdquo;.
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {categories.map((category) => (
+          {visibleCategories.map((category) => (
             <div key={category.id} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -221,7 +239,7 @@ export default function MaintenanceManagementPage() {
                   </span>
                   <p className="truncate font-semibold text-gray-900">{category.name}</p>
                   <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                    {category.repairs.length}
+                    {categories.find((c) => c.id === category.id)?.repairs.length ?? category.repairs.length}
                   </span>
                 </div>
                 <div className="flex shrink-0 gap-1">

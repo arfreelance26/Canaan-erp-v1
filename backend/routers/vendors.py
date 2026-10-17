@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from database import get_db
 from security import get_current_user, TokenUser, require_roles
 import models, schemas
-from duplicate_checks import check_vendor_duplicates
 from websocket_manager import emit
 from routers.deletion_approvals import auto_reject_stale_requests
 
@@ -24,7 +23,6 @@ def create_vendor(
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    check_vendor_duplicates(db, payload)
     vendor = models.Vendor(**payload.model_dump())
     db.add(vendor)
     db.commit()
@@ -97,7 +95,6 @@ def update_vendor(
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    check_vendor_duplicates(db, payload, exclude_id=vendor_id)
     vendor = db.query(models.Vendor).with_for_update().filter(models.Vendor.id == vendor_id).first()
     if not vendor:
         raise HTTPException(404, "Vendor not found")

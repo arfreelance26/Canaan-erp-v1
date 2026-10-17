@@ -208,12 +208,14 @@ def save_state(payload: schemas.RunningCostStateIn, db: Session = Depends(get_db
 # ---------------------------------------------------------------------------
 
 def _truck_run_monthly_avg(db: Session, truck_business_id: str) -> float:
-    """Mirrors useTruckTripRuns + computeTruckRunStats: monthly average km
-    actually driven, from every trip's trip-sheet total_km for this truck."""
+    """Mirrors useTruckTripRuns + computeTruckRunStats (Truck Run Record):
+    km from trip sheets ÷ months since the truck's earliest trip. Like that
+    page it skips deleted trips, and counts every live trip's date for the
+    month span — including trips whose trip sheet isn't in yet."""
     rows = (
         db.query(models.Trip.assigned_date, models.TripSheet.total_km)
-        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
-        .filter(models.Trip.vehicle_id == truck_business_id)
+        .outerjoin(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .filter(models.Trip.vehicle_id == truck_business_id, models.Trip.deleted_at.is_(None))
         .all()
     )
     if not rows:
@@ -236,9 +238,12 @@ def _truck_run_monthly_avg_all(db: Session) -> dict[str, float]:
     (which replaced the Running Cost Calculator page's old per-truck-card
     useTruckTripRuns fetch — that fired a full, unfiltered tripsApi.list() call
     plus a getSheet() call per trip for every rendered truck card)."""
+    # Same rows as the Truck Run Record page: live trips only, with or
+    # without a trip sheet (a sheet-less trip still counts toward the span).
     rows = (
         db.query(models.Trip.vehicle_id, models.Trip.assigned_date, models.TripSheet.total_km)
-        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .outerjoin(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .filter(models.Trip.deleted_at.is_(None))
         .all()
     )
     by_truck: dict[str, list] = {}
@@ -262,8 +267,11 @@ def _truck_run_monthly_avg_all(db: Session) -> dict[str, float]:
 
 
 def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, float | None]:
-    from routers.maintenance import get_all_fuel_stats, get_all_adblue_consumption, get_maintenance_cost_per_km_all
-    from routers.trucks import get_compliance_per_km_all
+    from routers.maintenance import (
+        get_all_fuel_stats, get_all_adblue_consumption,
+        get_maintenance_cost_per_km_all, get_maintenance_cost_per_day_all,
+    )
+    from routers.trucks import get_compliance_per_km_all, get_compliance_per_day_all
 
     trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
     if not trucks:
@@ -272,6 +280,8 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
     mileage_map      = get_all_fuel_stats(db)
     adblue_map        = get_all_adblue_consumption(db)
     maint_map          = get_maintenance_cost_per_km_all(db)
+    maint_per_day_map  = get_maintenance_cost_per_day_all(db) if mode == "Advanced" else {}
+    compliance_per_day_map = get_compliance_per_day_all(db) if mode == "Advanced" else {}
     compliance_map      = get_compliance_per_km_all(db)
     monthly_avg_map     = _truck_run_monthly_avg_all(db) if mode == "Advanced" else {}
 
@@ -365,8 +375,12 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
             monthly_avg = monthly_avg_map.get(truck.truck_id, 0.0)
             emi_per_km = (emi_per_day_advanced / monthly_avg) if emi_per_day_advanced and monthly_avg > 0 else None
             tyre_per_km = advanced_tyre_by_truck.get(truck.id)
-            maintenance_per_km = (maint_basic / monthly_avg) if maint_basic and monthly_avg > 0 else None
-            compliance_per_km = (compliance_basic / monthly_avg) if compliance_basic and monthly_avg > 0 else None
+            # Mirrors Truck Maintenance → Full Status: Avg/Day ÷ Monthly Distance Average.
+            maint_per_day = maint_per_day_map.get(tid)
+            maintenance_per_km = (maint_per_day / monthly_avg) if maint_per_day and monthly_avg > 0 else None
+            # Mirrors Compliance & Renewals → Cost/km (Advanced): Per Day ÷ Monthly Distance Average.
+            compliance_per_day = compliance_per_day_map.get(tid)
+            compliance_per_km = (compliance_per_day / monthly_avg) if compliance_per_day and monthly_avg > 0 else None
 
         components = [emi_per_km, fuel_per_km, adblue_per_km, tyre_per_km, maintenance_per_km, compliance_per_km]
         result[truck.truck_id] = (

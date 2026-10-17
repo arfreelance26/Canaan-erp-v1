@@ -209,6 +209,10 @@ export default function TruckMaintenancePage() {
         truck={selectedTruck}
         records={records}
         onDelete={(id) => setRecords((prev) => prev.filter((r) => r.id !== id))}
+        onUpdate={(saved) => {
+          setRecords((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+          maintenanceApi.getStatus().then(setAllStatus).catch(() => {});
+        }}
       />
 
       <TruckStatusDialog

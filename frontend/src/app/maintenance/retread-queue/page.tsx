@@ -42,7 +42,8 @@ export default function RetreadQueuePage() {
   const [moveDoneBy, setMoveDoneBy] = useState("");
 
   useEffect(() => {
-    vendorsApi.list().then((vs) => setVendorNames(vs.map((v) => v.name).sort())).catch(() => {});
+    // Vendors may share a name, so list each name once (the pick is stored as text).
+    vendorsApi.list().then((vs) => setVendorNames(Array.from(new Set(vs.map((v) => v.name))).sort())).catch(() => {});
   }, []);
   const [moveError, setMoveError] = useState<string | null>(null);
 

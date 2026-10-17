@@ -17,11 +17,18 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 type MaintenanceRecordFormDialogProps = {
   open: boolean;
   onClose: () => void;
-  /** proofs: the Proof of Payment files to upload once the record is created. */
-  onSave: (record: MaintenanceRecord, proofs: File[]) => void;
+  /**
+   * proofs: the Proof of Payment files to upload once the record is created
+   * (always empty when editing). reason: only when requireReason is set.
+   */
+  onSave: (record: MaintenanceRecord, proofs: File[], reason?: string) => void;
   truck: Truck | null;
   /** True while the record is being saved and its proofs uploaded. */
   saving?: boolean;
+  /** Edit mode: the record to edit (its fields prefill the form). */
+  editRecord?: MaintenanceRecord | null;
+  /** Edit mode for non-Admins: the change goes to Edit Approvals, so a reason is required. */
+  requireReason?: boolean;
 };
 
 type PickedProof = { key: string; file: File; kind: "image" | "pdf"; url: string | null };
@@ -65,8 +72,12 @@ const emptyForm: Omit<MaintenanceRecord, "id" | "truckId"> = {
   cost: "",
 };
 
-export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, saving = false }: MaintenanceRecordFormDialogProps) {
+export function MaintenanceRecordFormDialog({
+  open, onClose, onSave, truck, saving = false, editRecord = null, requireReason = false,
+}: MaintenanceRecordFormDialogProps) {
+  const isEdit = editRecord !== null;
   const [form, setForm] = useState<Omit<MaintenanceRecord, "id" | "truckId">>(emptyForm);
+  const [reason, setReason] = useState("");
   // Maintenance Type and Repair Type both come from Admin > Maintenance
   // Management (categories and each category's repair types). Note: the
   // Overdue/Due Soon tracking on Truck Maintenance matches records against the
@@ -93,7 +104,9 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, savi
   }, [open]);
 
   const vendorOptions = vendors
-    .filter((v) => v.status !== "BLACKLISTED" && v.status !== "INACTIVE")
+    // When editing, keep the record's own vendor listed even if it has since
+    // been made inactive — otherwise the field would show up empty.
+    .filter((v) => (v.status !== "BLACKLISTED" && v.status !== "INACTIVE") || v.id === vendorId)
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((v) => ({ value: v.id, label: v.category ? `${v.name} — ${v.category}` : v.name }));
 
@@ -150,13 +163,35 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, savi
   }
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    clearProofs();
+    setReason("");
+    if (editRecord) {
+      setForm({
+        ...emptyForm,
+        date: editRecord.date,
+        maintenanceEndDate: editRecord.maintenanceEndDate ?? "",
+        odometer: String(editRecord.odometer ?? ""),
+        maintenanceType: editRecord.maintenanceType ?? "",
+        repairType: editRecord.repairType ?? "",
+        compliant: editRecord.compliant ?? "",
+        maintenanceLocation: editRecord.maintenanceLocation ?? "",
+        maintenanceBy: editRecord.maintenanceBy ?? "",
+        description: editRecord.description ?? "",
+        cost: String(editRecord.cost ?? ""),
+      });
+      // Older records have no toggle saved: a linked vendor means Vendor,
+      // a plain typed name means Individual.
+      const byType = editRecord.maintenanceByType
+        ?? (editRecord.vendorId ? "Vendor" : editRecord.maintenanceBy ? "Individual" : "Vendor");
+      setMaintenanceByType(byType);
+      setVendorId(byType === "Vendor" ? editRecord.vendorId ?? "" : "");
+    } else {
       setForm(emptyForm);
       setMaintenanceByType("Vendor");
       setVendorId("");
-      clearProofs();
     }
-  }, [open, truck?.id]);
+  }, [open, truck?.id, editRecord]);
 
   const imageCount = proofs.filter((p) => p.kind === "image").length;
   const pdfCount = proofs.filter((p) => p.kind === "pdf").length;
@@ -176,7 +211,8 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, savi
   // Merge over emptyForm rather than replacing outright — an older draft saved
   // before these fields existed would otherwise restore without them, flipping
   // their inputs from controlled to uncontrolled (undefined value).
-  useFormDraft(draftKey, open, form, (draft) => setForm({ ...emptyForm, ...draft }));
+  // Drafts are for new records only — an edit always starts from the saved record.
+  useFormDraft(draftKey, open && !isEdit, form, (draft) => setForm({ ...emptyForm, ...draft }));
 
   function update<K extends keyof Omit<MaintenanceRecord, "id" | "truckId">>(
     key: K,
@@ -193,26 +229,39 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, savi
     event.preventDefault();
     if (!truck) return;
     if (odometerTooHigh || saving) return;
-    clearFormDraft(draftKey);
+    if (requireReason && !reason.trim()) return;
+    if (!isEdit) clearFormDraft(draftKey);
     onSave(
       {
-        id: crypto.randomUUID(),
+        id: editRecord?.id ?? crypto.randomUUID(),
         truckId: truck.id,
+        version: editRecord?.version,
         ...form,
         maintenanceByType: form.maintenanceBy ? maintenanceByType : null,
         vendorId: maintenanceByType === "Vendor" && vendorId ? vendorId : null,
       },
-      proofs.map((p) => p.file),
+      isEdit ? [] : proofs.map((p) => p.file),
+      requireReason ? reason.trim() : undefined,
     );
   }
+
+  const title = isEdit ? "Edit Maintenance Record" : "Update Maintenance Record";
+  const submitLabel = saving
+    ? (isEdit ? (requireReason ? "Submitting…" : "Saving…") : proofs.length ? "Saving & uploading…" : "Saving…")
+    : isEdit ? (requireReason ? "Submit Edit Request" : "Save Changes") : "Add Record";
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={truck ? `Update Maintenance Record — ${truck.registrationNumber}` : "Update Maintenance Record"}
+      title={truck ? `${title} — ${truck.registrationNumber}` : title}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {isEdit && requireReason && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+            Your changes go to <span className="font-semibold">Edit Approvals</span> and are applied once an Admin approves them.
+          </div>
+        )}
         {currentOdometer !== null && currentOdometer > 0 && (
           <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-blue-600">Current Odometer</span>
@@ -379,7 +428,23 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, savi
         </Field>
 
         {/* Proof of Payment — up to 5 images and 3 PDFs (10 MB each). Not a
-            <Field>/<label>: a label would forward clicks to the remove buttons. */}
+            <Field>/<label>: a label would forward clicks to the remove buttons.
+            New records only — an existing record's files are managed from the
+            paperclip in its Maintenance Record list. */}
+        {isEdit ? (
+          requireReason && (
+            <Field label="Reason for edit" required>
+              <textarea
+                required
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className={inputClass}
+                rows={3}
+                placeholder="Explain why this record needs to be changed…"
+              />
+            </Field>
+          )
+        ) : (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium text-gray-700">Proof of Payment</span>
@@ -438,21 +503,22 @@ export function MaintenanceRecordFormDialog({ open, onClose, onSave, truck, savi
             </ul>
           )}
         </div>
+        )}
 
         <div className="mt-2 flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => { clearFormDraft(draftKey); onClose(); }}
+            onClick={() => { if (!isEdit) clearFormDraft(draftKey); onClose(); }}
             className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || (requireReason && !reason.trim())}
             className="btn-interactive rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? (proofs.length ? "Saving & uploading…" : "Saving…") : "Add Record"}
+            {submitLabel}
           </button>
         </div>
       </form>

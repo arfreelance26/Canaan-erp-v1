@@ -136,6 +136,7 @@ export default function TyreRangeConfigPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<TyreRangeConfigEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  const [search, setSearch] = useState("");
 
   function openEditHistory() {
     setEditHistoryOpen(true);
@@ -272,9 +273,21 @@ export default function TyreRangeConfigPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search tyre types..." value={search} onChange={setSearch} />
+      </div>
+
+      {search.trim() && !tyreTypes.some((t) => t.toLowerCase().includes(search.trim().toLowerCase())) && (
+        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+          No results match &ldquo;{search}&rdquo;.
+        </div>
+      )}
+
       {/* Rows */}
       <div className="flex flex-col gap-3">
         {tyreTypes.map((tyreType, idx) => {
+          // Skipped rather than filtered out first, so each type keeps its colour.
+          if (search.trim() && !tyreType.toLowerCase().includes(search.trim().toLowerCase())) return null;
           const colors = colorFor(idx);
           const isConfirming = confirmDelete === tyreType;
           return (

@@ -224,6 +224,28 @@ def approve_edit_request(
     req = db.get(models.EditApprovalRequest, request_id)
     if not req:
         raise HTTPException(404, "Edit approval request not found")
+    # A maintenance record edit is applied the moment it's approved. Done
+    # before the request is marked Approved so a change that's no longer valid
+    # (record deleted, odometer now too high…) leaves the request Pending.
+    applied_maintenance = False
+    if req.action == "Edit" and req.resource_type == "MaintenanceRecord":
+        if req.status != "Pending":
+            raise HTTPException(409, f"This request was already {req.status.lower()}.")
+        from routers.maintenance import apply_maintenance_record_update
+        record = (
+            db.query(models.MaintenanceRecord).with_for_update()
+            .filter(models.MaintenanceRecord.id == req.resource_id).first()
+        )
+        if not record:
+            raise HTTPException(409, "This maintenance record no longer exists — reject the request instead.")
+        try:
+            changes = schemas.MaintenanceRecordUpdate(**(req.proposed_changes or {}))
+        except Exception:
+            raise HTTPException(400, "The requested changes are not valid any more — reject the request instead.")
+        requester = db.get(models.Staff, req.staff_db_id)
+        requester_role = getattr(requester, "software_designation", None) or "Staff"
+        apply_maintenance_record_update(db, record, changes, req.staff_name, requester_role)
+        applied_maintenance = True
 
     req.status = "Approved"
     req.approved_at = datetime.now(timezone.utc)
@@ -277,11 +299,16 @@ def approve_edit_request(
                     row.mileage = (dist / float(row.litres)) if float(row.litres) > 0 and dist > 0 else 0
             emit("fuel_updated", {})
         req.expires_at = None
+    elif applied_maintenance:
+        req.expires_at = None
+        req.used_at = req.approved_at
     else:
         req.expires_at = req.approved_at + timedelta(minutes=480)
 
     db.commit()
     db.refresh(req)
+    if applied_maintenance:
+        emit("maintenance_updated", {})
     emit("edit_approval_updated", {
         "id": req.id,
         "staff_db_id": req.staff_db_id,

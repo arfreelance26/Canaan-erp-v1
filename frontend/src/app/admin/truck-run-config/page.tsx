@@ -253,6 +253,8 @@ export default function TruckRunConfigPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<TruckRunConfigEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  // Matches a truck (ID, registration, model, make) or a tyre layout name.
+  const [search, setSearch] = useState("");
 
   function openEditHistory() {
     setEditHistoryOpen(true);
@@ -285,6 +287,18 @@ export default function TruckRunConfigPage() {
 
   const groups  = groupByTyreLayout(trucks);
   const layouts = [...groups.keys()];
+
+  const q = search.trim().toLowerCase();
+  const visibleGroups: [string, Truck[]][] = [...groups.entries()]
+    .map(([layout, layoutTrucks]): [string, Truck[]] => [
+      layout,
+      !q || layout.toLowerCase().includes(q)
+        ? layoutTrucks
+        : layoutTrucks.filter((t) =>
+            [t.truckId, t.registrationNumber, t.modelName, t.manufacturer].some((v) => v?.toLowerCase().includes(q))
+          ),
+    ])
+    .filter(([, layoutTrucks]) => layoutTrucks.length > 0);
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -329,8 +343,18 @@ export default function TruckRunConfigPage() {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search trucks or tyre layouts..." value={search} onChange={setSearch} />
+      </div>
+
+      {trucks.length > 0 && visibleGroups.length === 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+          No results match &ldquo;{search}&rdquo;.
+        </div>
+      )}
+
       <div className="flex flex-col gap-8">
-        {[...groups.entries()].map(([layout, layoutTrucks]) => (
+        {visibleGroups.map(([layout, layoutTrucks]) => (
           <div key={layout}>
             <div className="mb-3 flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700">

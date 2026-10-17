@@ -436,8 +436,51 @@ def delete_maintenance_proof(record_id: int, proof_id: int, db: Session = Depend
     emit("maintenance_updated", {})
 
 
+# Fields an edit may never blank out — the record would be invalid without them.
+_REQUIRED_RECORD_FIELDS = ("date", "odometer", "maintenance_type")
+
+
+def apply_maintenance_record_update(
+    db: Session,
+    record: models.MaintenanceRecord,
+    payload: schemas.MaintenanceRecordUpdate,
+    actor_name: str,
+    actor_role: str,
+) -> None:
+    """Validate and apply an edit to a maintenance record, and log it. Shared
+    by the Admin's direct edit (PUT below) and by an Admin approving a
+    non-Admin's edit request (routers/edit_approvals.py). Doesn't commit."""
+    updates = payload.model_dump(exclude_unset=True, exclude={"client_version"})
+    for f in _REQUIRED_RECORD_FIELDS:
+        if f in updates and updates[f] in (None, ""):
+            raise HTTPException(400, f"{f.replace('_', ' ').capitalize()} can't be empty.")
+    if updates.get("odometer") is not None:
+        truck = db.get(models.Truck, record.truck_id)
+        if truck:
+            current_odo = int(truck.odometer or 0)
+            if current_odo > 0 and int(updates["odometer"]) > current_odo:
+                raise HTTPException(400, f"Odometer ({updates['odometer']} km) cannot exceed the truck's current odometer ({current_odo} km).")
+    if {"vendor_id", "maintenance_by_type"} & updates.keys():
+        updates = _apply_maintenance_by(db, updates)
+    for field, value in updates.items():
+        setattr(record, field, value)
+    record.entered_by_name = actor_name
+    record.version = (record.version or 1) + 1
+    db.add(models.MaintenanceRecordEditEvent(
+        truck_id=record.truck_id, record_id=record.id,
+        maintenance_type=record.maintenance_type, record_date=record.date,
+        event="Record Edited",
+        actor_name=actor_name, actor_role=actor_role,
+    ))
+
+
+# Admin only, like deleting — other roles raise an Edit Request instead
+# (POST /edit-approvals, resource_type "MaintenanceRecord"), which this same
+# logic applies once an Admin approves it.
 @router.put("/maintenance/records/{record_id}", response_model=schemas.MaintenanceRecordOut, tags=["Maintenance"])
 def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecordUpdate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    if current_user.role != "Admin" and current_user.id is not None:
+        raise HTTPException(403, "Only admins can edit maintenance records directly. Please raise an Edit Request.")
     record = db.query(models.MaintenanceRecord).with_for_update().filter(models.MaintenanceRecord.id == record_id).first()
     if not record:
         raise HTTPException(404, "Maintenance record not found")
@@ -447,25 +490,7 @@ def update_maintenance_record(record_id: int, payload: schemas.MaintenanceRecord
             "This maintenance record was modified by someone else while you were editing. "
             "Please refresh the page to get the latest data and try again."
         )
-    if payload.odometer is not None:
-        truck = db.get(models.Truck, record.truck_id)
-        if truck:
-            current_odo = int(truck.odometer or 0)
-            if current_odo > 0 and int(payload.odometer) > current_odo:
-                raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
-    updates = payload.model_dump(exclude_unset=True, exclude={"client_version"})
-    if {"vendor_id", "maintenance_by_type"} & updates.keys():
-        updates = _apply_maintenance_by(db, updates)
-    for field, value in updates.items():
-        setattr(record, field, value)
-    record.entered_by_name = current_user.name
-    record.version = (record.version or 1) + 1
-    db.add(models.MaintenanceRecordEditEvent(
-        truck_id=record.truck_id, record_id=record.id,
-        maintenance_type=record.maintenance_type, record_date=record.date,
-        event="Record Edited",
-        actor_name=current_user.name, actor_role=current_user.role,
-    ))
+    apply_maintenance_record_update(db, record, payload, current_user.name, current_user.role)
     db.commit()
     db.refresh(record)
     emit("maintenance_updated", {})

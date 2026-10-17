@@ -146,6 +146,8 @@ export default function EditApprovalsPage() {
         showSuccess(`Trip "${updated.resourceName}" has been deleted.`);
       } else if (updated.action === "Edit" && updated.resourceType === "FuelLog") {
         showSuccess("Fuel log updated — changes applied immediately.");
+      } else if (updated.action === "Edit" && updated.resourceType === "MaintenanceRecord") {
+        showSuccess("Maintenance record updated — changes applied immediately.");
       } else {
         showSuccess("Edit access approved — Staff has 8 hours to make changes.");
       }
@@ -584,11 +586,12 @@ export default function EditApprovalsPage() {
               </p>
             </div>
 
-            {viewing.proposedChanges && viewing.resourceType === "FuelLog" && (
+            {viewing.proposedChanges && (viewing.resourceType === "FuelLog" || viewing.resourceType === "MaintenanceRecord") && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Proposed Changes</p>
                 <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-                  {Object.entries(viewing.proposedChanges).map(([k, v]) => (
+                  {/* vendor_id is an internal link — maintenance_by already shows the vendor's name. */}
+                  {Object.entries(viewing.proposedChanges).filter(([k]) => k !== "vendor_id").map(([k, v]) => (
                     <div key={k} className="flex gap-1.5">
                       <span className="text-blue-400 capitalize min-w-[90px]">{k.replace(/_/g, " ")}:</span>
                       <span className="font-semibold text-blue-900">{String(v ?? "—")}</span>

@@ -206,6 +206,8 @@ export default function TripExpensesPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<TripExpenseRateEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  // Filters the expense rows by name (English or Tamil) or section title.
+  const [search, setSearch] = useState("");
 
   function openEditHistory() {
     setEditHistoryOpen(true);
@@ -270,6 +272,9 @@ export default function TripExpensesPage() {
 
   if (!ready) return null;
 
+  const q = search.trim().toLowerCase();
+  const hit = (...texts: (string | undefined)[]) => !q || texts.some((t) => t?.toLowerCase().includes(q));
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -302,6 +307,10 @@ export default function TripExpensesPage() {
 )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search expenses..." value={search} onChange={setSearch} />
+      </div>
+
       {loading ? (
         <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-gray-200 bg-white">
           <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
@@ -309,56 +318,87 @@ export default function TripExpensesPage() {
       ) : (
         <div className="space-y-4">
           {/* Section 1 */}
+          {(hit("Port & Operational Charges", "Port Pass Expense", "பாஸ்") || hit("Port & Operational Charges", "Weight Sheet Expense", "எடை") || hit("Port & Operational Charges", "Mamol Expense", "இறக்கு / ஏற்று மாமூல்") || hit("Port & Operational Charges", "Claimable Mamol Expense")) && (
           <Section icon={Anchor} title="Port & Operational Charges" accentCls="bg-blue-50 text-blue-700">
-            <ExpenseRow
+            {hit("Port & Operational Charges", "Port Pass Expense", "பாஸ்") && (
+              <ExpenseRow
               label="Port Pass Expense" sublabel="பாஸ்"
               value={form.portPassExpense} autoPopulate={form.portPassExpenseAuto}
               onChange={setVal("portPassExpense")} onAutoChange={setAuto("portPassExpenseAuto")} onBlur={persist}
             />
-            <ExpenseRow
+            )}
+            {hit("Port & Operational Charges", "Weight Sheet Expense", "எடை") && (
+              <ExpenseRow
               label="Weight Sheet Expense" sublabel="எடை"
               value={form.weightSheetExpense} autoPopulate={form.weightSheetExpenseAuto}
               onChange={setVal("weightSheetExpense")} onAutoChange={setAuto("weightSheetExpenseAuto")} onBlur={persist}
             />
-            <ExpenseRow
+            )}
+            {hit("Port & Operational Charges", "Mamol Expense", "இறக்கு / ஏற்று மாமூல்") && (
+              <ExpenseRow
               label="Mamol Expense" sublabel="இறக்கு / ஏற்று மாமூல்"
               value={form.mamolExpense} autoPopulate={form.mamolExpenseAuto}
               onChange={setVal("mamolExpense")} onAutoChange={setAuto("mamolExpenseAuto")} onBlur={persist}
             />
-            <ExpenseRow
+            )}
+            {hit("Port & Operational Charges", "Claimable Mamol Expense") && (
+              <ExpenseRow
               label="Claimable Mamol Expense"
               value={form.claimableMamolExpense} autoPopulate={form.claimableMamolExpenseAuto}
               onChange={setVal("claimableMamolExpense")} onAutoChange={setAuto("claimableMamolExpenseAuto")} onBlur={persist}
             />
+            )}
           </Section>
+          )}
 
           {/* Section 2 */}
+          {(hit("Government & Compliance", "Traffic / RTO / Police Expense")) && (
           <Section icon={ShieldCheck} title="Government & Compliance" accentCls="bg-amber-50 text-amber-700">
-            <ExpenseRow
+            {hit("Government & Compliance", "Traffic / RTO / Police Expense") && (
+              <ExpenseRow
               label="Traffic / RTO / Police Expense"
               value={form.trafficRtoExpense} autoPopulate={form.trafficRtoExpenseAuto}
               onChange={setVal("trafficRtoExpense")} onAutoChange={setAuto("trafficRtoExpenseAuto")} onBlur={persist}
             />
+            )}
           </Section>
+          )}
 
           {/* Section 3 */}
+          {(hit("Loading & Handling", "Lift On / Off", "லிப்டான்") || hit("Loading & Handling", "Crane Operator Expense") || hit("Loading & Handling", "Parking Expenses")) && (
           <Section icon={Forklift} title="Loading & Handling" accentCls="bg-emerald-50 text-emerald-700">
-            <ExpenseRow
+            {hit("Loading & Handling", "Lift On / Off", "லிப்டான்") && (
+              <ExpenseRow
               label="Lift On / Off" sublabel="லிப்டான்"
               value={form.liftOnOffExpense} autoPopulate={form.liftOnOffExpenseAuto}
               onChange={setVal("liftOnOffExpense")} onAutoChange={setAuto("liftOnOffExpenseAuto")} onBlur={persist}
             />
-            <ExpenseRow
+            )}
+            {hit("Loading & Handling", "Crane Operator Expense") && (
+              <ExpenseRow
               label="Crane Operator Expense"
               value={form.craneOperatorExpense} autoPopulate={form.craneOperatorExpenseAuto}
               onChange={setVal("craneOperatorExpense")} onAutoChange={setAuto("craneOperatorExpenseAuto")} onBlur={persist}
             />
-            <ExpenseRow
+            )}
+            {hit("Loading & Handling", "Parking Expenses") && (
+              <ExpenseRow
               label="Parking Expenses"
               value={form.parkingExpense} autoPopulate={form.parkingExpenseAuto}
               onChange={setVal("parkingExpense")} onAutoChange={setAuto("parkingExpenseAuto")} onBlur={persist}
             />
+            )}
           </Section>
+          )}
+          {q && !hit(
+            "Port & Operational Charges", "Port Pass Expense", "பாஸ்", "Weight Sheet Expense", "எடை", "Mamol Expense",
+            "இறக்கு / ஏற்று மாமூல்", "Claimable Mamol Expense", "Government & Compliance", "Traffic / RTO / Police Expense",
+            "Loading & Handling", "Lift On / Off", "லிப்டான்", "Crane Operator Expense", "Parking Expenses",
+          ) && (
+            <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
+              No results match &ldquo;{search}&rdquo;.
+            </div>
+          )}
         </div>
       )}
 

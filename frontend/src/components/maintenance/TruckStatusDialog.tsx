@@ -107,8 +107,10 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
     ? avgDailyCost / kmPerDay
     : null;
 
-  const costPerKmAdvanced = costPerKm !== null && runStats.monthlyAvg > 0
-    ? costPerKm / runStats.monthlyAvg
+  // Advanced = Avg/Day ÷ Monthly Distance Average (Truck Run Record) — it
+  // does not go through km/day, so it works even when km/day isn't configured.
+  const costPerKmAdvanced = avgDailyCost > 0 && runStats.monthlyAvg > 0
+    ? avgDailyCost / runStats.monthlyAvg
     : null;
 
   const overdueItems = effectiveStatus.items.filter((i) => i.status === "Overdue");
@@ -276,7 +278,7 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
                   : ""}
               </p>
               <p className="text-[10px] text-blue-400">
-                Cost/km (Advanced) = Cost/km (Basic) ÷ Monthly Distance Average
+                Cost/km (Advanced) = Avg/day ÷ Monthly Distance Average
                 {runStats.monthlyAvg > 0
                   ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
                   : " — no trip run history for this truck yet"}

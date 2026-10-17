@@ -399,6 +399,9 @@ def _run_schema_migrations():
         # gated to every non-Admin role — see resources/drivers & resources/fleet pages.
         "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type "
         "ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip','FuelLog','Driver','Truck') NOT NULL",
+        # Maintenance record edit requests (Truck Maintenance → Edit, non-Admins)
+        "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type "
+        "ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip','FuelLog','Driver','Truck','MaintenanceRecord') NOT NULL",
         # Driver Compensation Type gains DEFAULT (fetched from Default Batta
         # Management by branch/trip category/container type) and CUSTOM
         # (freely editable) alongside Normal — FIXED is retired below.

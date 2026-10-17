@@ -18,26 +18,27 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 const STAT_CELL_ACCENTS: Record<"emerald" | "indigo" | "muted", { icon: string; label: string; value: string; border: string; bg: string }> = {
+  // Calm, neutral cells — the Cost Breakdown keeps colour for status only.
   emerald: {
-    icon: "bg-emerald-100 text-emerald-600",
-    label: "text-gray-400",
-    value: "text-emerald-700",
-    border: "border-gray-200",
-    bg: "bg-gray-50",
+    icon: "bg-slate-100 text-slate-500",
+    label: "text-slate-400",
+    value: "text-slate-800",
+    border: "border-slate-200",
+    bg: "bg-white",
   },
   indigo: {
-    icon: "bg-indigo-100 text-indigo-600",
-    label: "text-gray-400",
-    value: "text-indigo-600",
-    border: "border-gray-200",
-    bg: "bg-gray-50",
+    icon: "bg-brand-navy/10 text-brand-navy",
+    label: "text-slate-400",
+    value: "text-brand-navy",
+    border: "border-slate-200",
+    bg: "bg-white",
   },
   muted: {
-    icon: "bg-gray-100 text-gray-300",
-    label: "text-gray-300",
-    value: "text-gray-300",
-    border: "border-dashed border-gray-200",
-    bg: "bg-gray-50/50",
+    icon: "bg-slate-50 text-slate-300",
+    label: "text-slate-300",
+    value: "text-slate-300",
+    border: "border-dashed border-slate-200",
+    bg: "bg-slate-50/60",
   },
 };
 
@@ -729,8 +730,9 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
   const totalPerMonth = computed.reduce((s, c) => s + (c.perMonth ?? 0), 0);
   const totalPerDay   = computed.reduce((s, c) => s + (c.perDay   ?? 0), 0);
   const totalPerKm    = kmPerDay && kmPerDay > 0 ? totalPerDay / kmPerDay : null;
-  const totalPerKmAdvanced = totalPerKm !== null && runStats.monthlyAvg > 0
-    ? totalPerKm / runStats.monthlyAvg
+  // Advanced = Per Day ÷ Monthly Distance Average (Truck Run Record) — no km/day involved.
+  const totalPerKmAdvanced = totalPerDay > 0 && runStats.monthlyAvg > 0
+    ? totalPerDay / runStats.monthlyAvg
     : null;
 
   const portal = createPortal(
@@ -741,20 +743,20 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
       <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[88vh]">
 
         {/* Header */}
-        <div className="flex items-center gap-4 border-b border-gray-100 px-6 py-5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+        <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 ring-1 ring-slate-200/70">
             <IndianRupee className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold text-gray-900">Cost Breakdown</h2>
-            <p className="text-xs text-gray-400">
+            <h2 className="text-base font-semibold text-slate-900">Cost Breakdown</h2>
+            <p className="text-xs text-slate-400">
               {truck.truckId} · {truck.registrationNumber}
             </p>
           </div>
           <button
             type="button"
             onClick={() => setShowCalcInfo(true)}
-            className="shrink-0 flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"
+            className="shrink-0 flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
           >
             <Info className="h-3.5 w-3.5" />
             How is it Calculated?
@@ -776,8 +778,8 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
         ) : (
           <>
             {/* Document cost cards */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/60 px-5 py-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {computed.map(({ doc, raw, expiryDate, daysLeft, perDay, perMonth, perKm }) => {
                   const { Icon } = doc;
                   const isExpired = daysLeft !== null && daysLeft <= 0;
@@ -786,27 +788,27 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                   return (
                     <div
                       key={doc.expKey as string}
-                      className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                      className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 transition-colors hover:border-slate-300"
                     >
                       {/* Icon + document name */}
                       <div className="flex items-center gap-3">
-                        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", doc.iconBg)}>
-                          <Icon className={cn("h-4 w-4", doc.iconText)} />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <p className={cn("text-xs font-bold uppercase tracking-wide", doc.accentText)}>{doc.label}</p>
+                        <p className="text-sm font-semibold text-slate-800">{doc.label}</p>
                       </div>
 
                       {/* Validity Date + Last Updated Expense — two labeled fields */}
-                      <div className="grid grid-cols-2 gap-3 rounded-xl bg-gray-50 px-3 py-2.5">
+                      <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Validity Date</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Validity Date</p>
                           {hasDate ? (
                             <>
-                              <p className="text-sm font-semibold tabular-nums text-gray-800">{formatDate(expiryDate)}</p>
+                              <p className="text-sm font-semibold tabular-nums text-slate-800">{formatDate(expiryDate)}</p>
                               {daysLeft !== null && (
                                 <p className={cn(
                                   "text-[10px] font-semibold",
-                                  isExpired ? "text-red-500" : daysLeft <= 30 ? "text-amber-500" : "text-green-600"
+                                  isExpired ? "text-rose-500" : daysLeft <= 30 ? "text-amber-600" : "text-slate-400"
                                 )}>
                                   {isExpired
                                     ? `${Math.abs(daysLeft)}d overdue`
@@ -815,12 +817,12 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                               )}
                             </>
                           ) : (
-                            <p className="text-[11px] italic text-gray-400">Not set</p>
+                            <p className="text-[11px] italic text-slate-400">Not set</p>
                           )}
                         </div>
                         <div className="flex flex-col gap-0.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Last Updated Expense</p>
-                          <p className={cn("text-sm font-bold tabular-nums", raw > 0 ? doc.accentText : "text-gray-300")}>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Last Updated Expense</p>
+                          <p className={cn("text-sm font-semibold tabular-nums", raw > 0 ? "text-slate-900" : "text-slate-300")}>
                             {raw > 0 ? fmtCost(raw) : "—"}
                           </p>
                         </div>
@@ -828,7 +830,7 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
 
                       {/* Per month / per day / per km — only shown when history anchor exists */}
                       {perDay !== null ? (
-                        <div className="grid grid-cols-3 divide-x divide-gray-100 pt-1">
+                        <div className="grid grid-cols-3 divide-x divide-slate-100 pt-1">
                           <div className="pr-3">
                             <p className="text-sm font-semibold tabular-nums text-gray-800">{fmtCost(perMonth ?? 0)}</p>
                             <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-400">per month</p>
@@ -845,7 +847,7 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                           </div>
                         </div>
                       ) : raw > 0 && isExpired ? (
-                        <p className="pt-1 text-[11px] italic text-red-400">
+                        <p className="pt-1 text-[11px] italic text-rose-400">
                           Document expired — renew to recalculate costs
                         </p>
                       ) : raw > 0 && !hasDate ? (
@@ -868,20 +870,18 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
             {/* Totals footer — visually distinct from the scroll area above via a
                 real border + lifted shadow, so it never reads as overlapping the
                 last row of cards. */}
-            <div className="shrink-0 border-t border-gray-200 bg-white px-5 py-5 shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.15)]">
+            <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-5">
               <div className="flex flex-col gap-3 sm:flex-row">
 
                 {/* Total Compliance Cost — primary card */}
-                <div className="relative flex min-h-[92px] flex-1 items-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-5 py-4 shadow-md shadow-emerald-900/10">
-                  {/* Decorative glow — purely visual, no layout impact */}
-                  <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20">
-                    <IndianRupee className="h-5 w-5 text-white" />
+                <div className="relative flex min-h-[92px] flex-1 items-center gap-4 overflow-hidden rounded-2xl bg-brand-navy px-5 py-4">
+                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+                    <IndianRupee className="h-5 w-5 text-white/90" />
                   </div>
                   <div className="relative min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-100">Total Compliance Cost</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">Total Compliance Cost</p>
                     <p className="mt-0.5 truncate text-[26px] font-semibold leading-tight tracking-tight tabular-nums text-white">
-                      {totalExpense > 0 ? fmtCost(totalExpense) : <span className="text-emerald-200 text-base font-semibold">No expenses recorded</span>}
+                      {totalExpense > 0 ? fmtCost(totalExpense) : <span className="text-base font-medium text-white/60">No expenses recorded</span>}
                     </p>
                   </div>
                 </div>
@@ -904,14 +904,14 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
               </div>
 
               {/* Formula footnote */}
-              <div className="mt-3 flex flex-col gap-1 rounded-xl bg-gray-50 px-3.5 py-2.5">
-                <p className="text-[10px] leading-relaxed text-gray-400">
-                  <span className="font-semibold text-gray-500">Per month</span> = 26 working days &nbsp;·&nbsp;
-                  <span className="font-semibold text-gray-500"> Per day</span> = amortized daily &nbsp;·&nbsp;
-                  <span className="font-semibold text-gray-500"> Cost/km (Basic)</span> = {totalPerKm !== null ? "total daily cost ÷ km/day" : "set km/day in Admin → Truck Run Config to unlock"}
+              <div className="mt-3 flex flex-col gap-1 rounded-xl bg-slate-50 px-3.5 py-2.5">
+                <p className="text-[10px] leading-relaxed text-slate-400">
+                  <span className="font-semibold text-slate-500">Per month</span> = 26 working days &nbsp;·&nbsp;
+                  <span className="font-semibold text-slate-500"> Per day</span> = amortized daily &nbsp;·&nbsp;
+                  <span className="font-semibold text-slate-500"> Cost/km (Basic)</span> = {totalPerKm !== null ? "total daily cost ÷ km/day" : "set km/day in Admin → Truck Run Config to unlock"}
                 </p>
-                <p className="text-[10px] leading-relaxed text-gray-400">
-                  <span className="font-semibold text-gray-500">Cost/km (Advanced)</span> = Cost/km (Basic) ÷ Monthly Distance Average
+                <p className="text-[10px] leading-relaxed text-slate-400">
+                  <span className="font-semibold text-slate-500">Cost/km (Advanced)</span> = Per day ÷ Monthly Distance Average
                   {runStats.monthlyAvg > 0
                     ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
                     : " — no trip run history for this truck yet"}

@@ -1088,6 +1088,29 @@ function toLeaveRequest(b: B): LeaveRequest {
   };
 }
 
+/**
+ * Every editable field of a maintenance record in the backend's shape. Blank
+ * optional fields are sent as null so an edit can clear them. Used for the
+ * Admin's direct edit and as an Edit Request's proposed changes, which the
+ * backend applies through the same validation once approved.
+ */
+export function maintenanceRecordChanges(record: MaintenanceRecord): Record<string, unknown> {
+  return {
+    date: record.date,
+    maintenance_end_date: record.maintenanceEndDate || null,
+    odometer: parseInt(record.odometer) || 0,
+    maintenance_type: record.maintenanceType,
+    repair_type: record.repairType || null,
+    compliant: record.compliant || null,
+    maintenance_location: record.maintenanceLocation || null,
+    maintenance_by: record.maintenanceBy || null,
+    maintenance_by_type: record.maintenanceByType || null,
+    vendor_id: record.maintenanceByType === "Vendor" && record.vendorId ? parseInt(record.vendorId) : null,
+    description: record.description || null,
+    cost: parseFloat(record.cost) || 0,
+  };
+}
+
 function toMaintenanceRecord(b: B): MaintenanceRecord {
   return {
     id: String(b.id),
@@ -1460,6 +1483,7 @@ export const trucksApi = {
       `/trucks/${truckId}/compliance-history`
     ),
   getCompliancePerKmAll: () => req<Record<string, number>>("/trucks/compliance-per-km/all"),
+  getCompliancePerDayAll: () => req<Record<string, number>>("/trucks/compliance-per-day/all"),
   // Every truck's Basic-mode Total Cost/Km (fuel+adblue+tyre+maintenance+
   // compliance+EMI), cheapest first — only includes trucks with complete
   // config data. Powers the Assign Trip dialog's "recommended truck" list.
@@ -2753,22 +2777,11 @@ export const maintenanceApi = {
   deleteProof: (recordId: string, proofId: string): Promise<void> =>
     rawReq<void>(`/maintenance/records/${recordId}/proofs/${proofId}`, { method: "DELETE" }),
 
-  updateRecord: (id: string, record: Partial<MaintenanceRecord>) =>
+  /** Admin only — other roles send the same body as an Edit Request (see maintenanceRecordChanges). */
+  updateRecord: (id: string, record: MaintenanceRecord) =>
     req<B>(`/maintenance/records/${id}`, {
       method: "PUT",
-      body: JSON.stringify({
-        date: record.date,
-        maintenance_end_date: record.maintenanceEndDate || undefined,
-        odometer: record.odometer ? parseInt(record.odometer) : undefined,
-        maintenance_type: record.maintenanceType,
-        repair_type: record.repairType || undefined,
-        compliant: record.compliant || undefined,
-        maintenance_location: record.maintenanceLocation || undefined,
-        maintenance_by: record.maintenanceBy || undefined,
-        description: record.description,
-        cost: record.cost ? parseFloat(record.cost) : undefined,
-        client_version: record.version,
-      }),
+      body: JSON.stringify({ ...maintenanceRecordChanges(record), client_version: record.version }),
     }).then(toMaintenanceRecord),
   deleteRecord: (id: string) => req<void>(`/maintenance/records/${id}`, { method: "DELETE" }),
   requestDeletion: (payload: {

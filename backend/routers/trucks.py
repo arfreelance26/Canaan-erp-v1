@@ -158,37 +158,21 @@ def save_base_tyre_cost(payload: schemas.TyreLayoutCostBulkSave, db: Session = D
 # Advanced Running Cost — compliance cost per km for all trucks
 # ---------------------------------------------------------------------------
 
-@router.get("/compliance-per-km/all", tags=["Trucks"])
-def get_compliance_per_km_all(db: Session = Depends(get_db)):
-    """
-    Per-truck compliance cost/km for Advanced mode in the Running Cost Calculator.
-    Mirrors Cost Breakdown dialog 'Per KM': totalPerDay / kmPerDay
-    where totalPerDay = sum of (expense / validityDays) per document,
-    and validityDays = days between the most-recent history entry and the expiry date.
-    Returns { "<truck_db_id>": per_km_float, ... } — only trucks with data and km/day set.
-    """
+def _compliance_per_day_all(db: Session) -> dict[int, float]:
+    """Per-truck total daily compliance cost — mirrors the Cost Breakdown
+    dialog's "Per Day" total: Σ (expense ÷ validity days) per document, where
+    validity days = most-recent history entry → expiry date. {truck.id: ₹/day}."""
     from datetime import date as _date, datetime
-
-    trucks = db.query(models.Truck).all()
-    if not trucks:
-        return {}
 
     # All compliance history, most-recent entry per (truck_id, document_type).
     # Store only the DATE portion — mirrors the frontend daysBetween() which strips
     # the time component with setHours(0,0,0,0) before computing the difference.
-    all_history = db.query(models.ComplianceUpdateHistory).all()
     history_map: dict[int, dict[str, _date]] = {}
-    for row in all_history:
+    for row in db.query(models.ComplianceUpdateHistory).all():
         issued_date = row.updated_at.date() if isinstance(row.updated_at, datetime) else row.updated_at
         prev = history_map.setdefault(row.truck_id, {}).get(row.document_type)
         if prev is None or issued_date > prev:
             history_map[row.truck_id][row.document_type] = issued_date
-
-    # km_per_day per tyre layout
-    run_configs = db.query(models.TruckRunConfig).all()
-    kpd_map: dict[str, float] = {
-        rc.tyre_layout: float(rc.km_per_day or 0) for rc in run_configs
-    }
 
     # (expense_field, expiry_date_field, history_doc_type)
     DOCS = [
@@ -201,11 +185,8 @@ def get_compliance_per_km_all(db: Session = Depends(get_db)):
         ("insurance_expenses",            "insurance_expiry_date",      "Insurance"),
     ]
 
-    result: dict[str, float] = {}
-    for truck in trucks:
-        kpd = kpd_map.get(truck.tyre_layout or "", 0)
-        if kpd <= 0:
-            continue
+    result: dict[int, float] = {}
+    for truck in db.query(models.Truck).all():
         truck_history = history_map.get(truck.id, {})
         total_per_day = 0.0
         for exp_field, date_field, doc_type in DOCS:
@@ -221,12 +202,38 @@ def get_compliance_per_km_all(db: Session = Depends(get_db)):
             if validity_days <= 0:
                 continue
             total_per_day += expense / validity_days
-        if total_per_day <= 0:
-            continue
-        per_km = total_per_day / kpd
-        if per_km > 0:
-            result[str(truck.id)] = per_km
+        if total_per_day > 0:
+            result[truck.id] = total_per_day
     return result
+
+
+@router.get("/compliance-per-km/all", tags=["Trucks"])
+def get_compliance_per_km_all(db: Session = Depends(get_db)):
+    """
+    Per-truck compliance Cost/km (Basic): Cost Breakdown dialog 'Per KM' =
+    total Per Day ÷ km/day for the truck's tyre layout.
+    Returns { "<truck_db_id>": per_km_float, ... } — only trucks with data and km/day set.
+    """
+    kpd_map: dict[str, float] = {
+        rc.tyre_layout: float(rc.km_per_day or 0) for rc in db.query(models.TruckRunConfig).all()
+    }
+    layout_by_id = {t.id: t.tyre_layout for t in db.query(models.Truck.id, models.Truck.tyre_layout)}
+    result: dict[str, float] = {}
+    for truck_id, per_day in _compliance_per_day_all(db).items():
+        kpd = kpd_map.get(layout_by_id.get(truck_id) or "", 0)
+        if kpd > 0:
+            result[str(truck_id)] = per_day / kpd
+    return result
+
+
+@router.get("/compliance-per-day/all", tags=["Trucks"])
+def get_compliance_per_day_all(db: Session = Depends(get_db)):
+    """
+    Per-truck total daily compliance cost (Cost Breakdown dialog 'Per Day'
+    total). Cost/km (Advanced) = this ÷ the truck's Monthly Distance Average.
+    Returns { "<truck_db_id>": per_day_float, ... } — only trucks with data.
+    """
+    return {str(k): v for k, v in _compliance_per_day_all(db).items()}
 
 
 # ---------------------------------------------------------------------------

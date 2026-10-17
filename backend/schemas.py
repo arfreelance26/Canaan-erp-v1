@@ -1645,7 +1645,7 @@ class HolidayOut(OrmBase):
 # ---------------------------------------------------------------------------
 
 EditApprovalAction = Literal["Edit", "Delete"]
-EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck", "MaintenanceRecord"]
 EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
 
 

@@ -49,13 +49,6 @@ def check_customer_destination_duplicates(db: Session, payload, customer_id: int
         if existing_route == payload_route:
             raise HTTPException(400, "This exact route (origin, destination, cargo, container & weight combination) already exists for this customer.")
 
-def check_vendor_duplicates(db: Session, payload, exclude_id=None):
-    if getattr(payload, "name", None): check_duplicate(db, models.Vendor, "name", payload.name, exclude_id)
-    if getattr(payload, "gstin", None): check_duplicate(db, models.Vendor, "gstin", payload.gstin, exclude_id)
-    if getattr(payload, "pan", None): check_duplicate(db, models.Vendor, "pan", payload.pan, exclude_id)
-    if getattr(payload, "email", None): check_duplicate(db, models.Vendor, "email", payload.email, exclude_id)
-    if getattr(payload, "contact_number", None): check_duplicate(db, models.Vendor, "contact_number", payload.contact_number, exclude_id)
-
 def check_truck_duplicates(db: Session, payload, exclude_id=None):
     if getattr(payload, "registration_number", None): check_duplicate(db, models.Truck, "registration_number", payload.registration_number, exclude_id)
 

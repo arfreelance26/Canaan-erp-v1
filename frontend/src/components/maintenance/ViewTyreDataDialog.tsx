@@ -43,6 +43,7 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
   }
 
   const total = installedTyres.reduce((sum, t) => sum + (getCostPerKm(t) ?? 0), 0);
+  const skippedCount = installedTyres.filter((t) => getCostPerKm(t) === null).length;
 
   const COLS = ["Brand", "Tyre Type", "Tyre Number", "Tyre Cost (₹)", "Expected Range", "Cost Per KM (Advanced)"];
 
@@ -110,6 +111,20 @@ export function ViewTyreDataDialog({ open, onClose, truck, rangeConfigMap }: Vie
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* How the total is worked out */}
+      <div className="mt-3 flex flex-col gap-1 rounded-xl bg-slate-50 px-3.5 py-2.5">
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          <span className="font-semibold text-slate-500">Cost Per KM (Advanced)</span> = Tyre Cost ÷ Expected Range
+          (the range set for that tyre type in Tyre Cost Configuration)
+        </p>
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          <span className="font-semibold text-slate-500">Total Tyre Cost Per KM (Advanced)</span> = sum of Cost Per KM
+          for every tyre currently installed on this truck
+          {skippedCount > 0 &&
+            ` — ${skippedCount} tyre${skippedCount === 1 ? "" : "s"} with no cost or no Expected Range ${skippedCount === 1 ? "is" : "are"} left out`}
+        </p>
       </div>
     </Dialog>
   );

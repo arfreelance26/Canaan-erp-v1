@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, X, AlertTriangle, Paperclip } from "lucide-react";
+import { Pencil, Trash2, X, AlertTriangle, Paperclip } from "lucide-react";
 import { MaintenanceProofsDialog } from "./MaintenanceProofsDialog";
+import { MaintenanceRecordFormDialog } from "./MaintenanceRecordFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -11,7 +12,7 @@ import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
-import { maintenanceApi } from "@/lib/api";
+import { editApprovalsApi, maintenanceApi, maintenanceRecordChanges } from "@/lib/api";
 import { showSuccess, showError } from "@/lib/swal";
 
 type MaintenanceRecordHistoryDialogProps = {
@@ -20,6 +21,8 @@ type MaintenanceRecordHistoryDialogProps = {
   truck: Truck | null;
   records: MaintenanceRecord[];
   onDelete?: (recordId: string) => void;
+  /** Called with the saved record after an Admin's direct edit. */
+  onUpdate?: (record: MaintenanceRecord) => void;
 };
 
 const DATA_COLUMNS = [
@@ -142,7 +145,7 @@ function DeletionReasonDialog({
 // Main dialog
 // ---------------------------------------------------------------------------
 
-export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, onDelete }: MaintenanceRecordHistoryDialogProps) {
+export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, onDelete, onUpdate }: MaintenanceRecordHistoryDialogProps) {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
 
@@ -153,6 +156,9 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reasonRecord, setReasonRecord] = useState<MaintenanceRecord | null>(null);
   const [proofsRecord, setProofsRecord] = useState<MaintenanceRecord | null>(null);
+  // Edit: Admins save directly; everyone else raises an Edit Request.
+  const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   // Counts updated in place after a proof is deleted here (records come from the parent).
   const [proofCounts, setProofCounts] = useState<Record<string, number>>({});
 
@@ -191,6 +197,33 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
       showError(err.message ?? "Failed to delete.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleSaveEdit(updated: MaintenanceRecord, _proofs: File[], reason?: string) {
+    if (!truck || !editingRecord || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      if (isAdmin) {
+        const saved = await maintenanceApi.updateRecord(editingRecord.id, updated);
+        onUpdate?.({ ...saved, proofCount: proofCounts[editingRecord.id] ?? editingRecord.proofCount });
+        showSuccess("Maintenance record updated.");
+      } else {
+        await editApprovalsApi.create({
+          resourceType: "MaintenanceRecord",
+          resourceId: parseInt(editingRecord.id),
+          resourceName: `Maintenance — ${truck.registrationNumber} · ${editingRecord.maintenanceType} · ${formatDate(editingRecord.date)}`,
+          action: "Edit",
+          reason: reason ?? "",
+          proposedChanges: maintenanceRecordChanges(updated),
+        });
+        showSuccess("Edit request submitted. The change is applied once an Admin approves it.");
+      }
+      setEditingRecord(null);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to save the changes.");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -328,7 +361,16 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                         <span className="italic text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-2 py-2.5 text-right">
+                    <td className="px-2 py-2.5">
+                      <div className="flex items-center justify-end gap-0.5">
+                      <button
+                        type="button"
+                        title={isAdmin ? "Edit" : "Request edit"}
+                        onClick={() => setEditingRecord(record)}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
                       <button
                         type="button"
                         title={isAdmin ? "Delete" : "Request deletion"}
@@ -338,6 +380,7 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -354,6 +397,16 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         canDelete={isAdmin}
         onClose={() => setProofsRecord(null)}
         onCountChange={(n) => proofsRecord && setProofCounts((prev) => ({ ...prev, [proofsRecord.id]: n }))}
+      />
+
+      <MaintenanceRecordFormDialog
+        open={editingRecord !== null}
+        onClose={() => setEditingRecord(null)}
+        onSave={handleSaveEdit}
+        truck={truck}
+        saving={savingEdit}
+        editRecord={editingRecord}
+        requireReason={!isAdmin}
       />
 
       {reasonRecord && (
