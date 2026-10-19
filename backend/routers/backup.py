@@ -30,6 +30,8 @@ ADMIN_ONLY = Depends(require_roles())  # Admin always passes in require_roles()
 # Every model in the order we want them to appear (dependency-safe for SQL restore)
 ALL_MODELS = [
     models.Branch,
+    models.BranchCleanerBattaFeeHistory,
+    models.BranchWorkshopBattaFeeHistory,
     models.Truck,
     models.Driver,
     models.Staff,
@@ -76,7 +78,6 @@ ALL_MODELS = [
     models.RunningCostConfig,
     models.RunningCostTyreEntry,
     models.RunningCostLayoutEntry,
-    models.RunningCostAdblueEntry,
     models.RunningCostTruckMetrics,
     models.RunningCostTruckCostPerKm,
 ]

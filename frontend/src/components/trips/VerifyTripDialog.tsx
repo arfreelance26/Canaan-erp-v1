@@ -7,6 +7,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { Customer } from "@/types/customer";
 import { n, calcTripExpenses } from "@/types/trip-sheet";
+import { haltPayFromClosure } from "@/lib/halt-pay";
 
 export type InvoiceHint = { label: string; value: number };
 export const INVOICE_HINTS_KEY = (tripId: string) => `erp_invoice_hints_${tripId}`;
@@ -99,12 +100,10 @@ export function VerifyTripDialog({
   // stale if the booking hire was edited after the sheet was saved, so only fall back
   // to it when the trip has no hire recorded.
   const hireAmount    = trip.transportHireAmount ? n(trip.transportHireAmount) : (sheet ? n(sheet.hireAmount) : 0);
-  const compHD        = closure ? Number(closure.companyHaltDays || 0) : 0;
-  const partHD        = closure ? Number(closure.partyHaltDays   || 0) : 0;
-  const totalHD       = compHD + partHD;
-  const totalHaltComp = closure ? Number(closure.driverHaltCompensation || 0) : 0;
-  const perDayRate    = totalHD > 0 ? totalHaltComp / totalHD : 0;
-  const haltPay       = compHD * perDayRate;
+  // Company halt pay only (a trip expense) — each part saved at its own rate.
+  const haltSaved     = haltPayFromClosure(closure);
+  const compHD        = haltSaved.companyDays;
+  const haltPay       = haltSaved.companyPay;
 
   const majorRepairsTotal = sheet
     ? (sheet.majorRepairs || []).reduce((sum, r) => sum + n(r.cost), 0)
@@ -215,7 +214,7 @@ export function VerifyTripDialog({
           <Row label="Hire Amount"         value={closure ? fmt(Number(closure.hireAmount)) : ""} />
           <Row label="Transport Amount"    value={closure?.transportAmount ? fmt(Number(closure.transportAmount)) : ""} />
           <Row label="Advance Amount"      value={closure ? fmt(Number(closure.advanceAmount)) : ""} />
-          <Row label="Payment Mode"        value={trip.paymentType ?? ""} />
+          <Row label="Payment Type"        value={trip.paymentType ?? ""} />
           <Row label="Company Halt Days"   value={closure?.companyHaltDays ?? ""} />
           <Row label="Party Halt Days"     value={closure?.partyHaltDays ?? ""} />
           <Row label="Halt Remarks"        value={closure?.haltRemarks ?? ""} />

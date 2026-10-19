@@ -320,8 +320,34 @@ def approve_deletion(
         truck = db.get(models.Truck, req.resource_id)
         if not truck:
             raise HTTPException(409, "This truck no longer exists — the request may be a stale duplicate. Reject it instead.")
-        if truck.deleted_at is None:
+        if truck.deleted_at is None and (req.log_details or {}).get("action") == "sell":
+            from routers.trucks import sell_truck_now
+            try:
+                sale = schemas.TruckSellIn(**(req.log_details or {}).get("sale", {}),
+                                           tyre_plan=(req.log_details or {}).get("tyre_plan"))
+            except Exception:
+                raise HTTPException(400, "This sell request's details aren't valid any more — reject it instead.")
+            requester = db.get(models.Staff, req.requested_by_staff_id)
+            sell_truck_now(db, truck, sale, req.requested_by_name,
+                           getattr(requester, "software_designation", None))
+            emit("truck_updated", {})
+        elif truck.deleted_at is None:
+            # The requester's tyre choices, applied now. Tyres removed since
+            # the request are simply skipped; tyres fitted since have no choice
+            # and stop the approval (reject it and raise a new request).
+            from routers.trucks import apply_truck_tyre_plan
+            raw_plan = (req.log_details or {}).get("tyre_plan")
+            try:
+                plan = schemas.TruckTyrePlan(**raw_plan) if raw_plan else None
+            except Exception:
+                raise HTTPException(400, "This request's tyre choices aren't valid any more — reject it instead.")
+            requester = db.get(models.Staff, req.requested_by_staff_id)
+            apply_truck_tyre_plan(db, truck, plan, req.requested_by_name,
+                                  getattr(requester, "software_designation", None), "deleted")
+            from routers.trucks import release_truck_drivers
+            release_truck_drivers(db, truck, req.requested_by_name, getattr(requester, "software_designation", None))
             truck.deleted_at = datetime.now(timezone.utc)
+            truck.disposal_type = "Deleted"
             db.add(models.TruckEditEvent(
                 truck_id=truck.id, event="Truck Deleted",
                 actor_name=current_user.name, actor_role=current_user.role,

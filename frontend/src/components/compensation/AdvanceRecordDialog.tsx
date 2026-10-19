@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Download } from "lucide-react";
+import { Download, BookOpen } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
@@ -16,7 +16,8 @@ type Props = {
   driver: CompensationPerson | null;
   trips: Trip[];
   trucks: Truck[];
-  onRecordPayment: (total: number) => Promise<void>;
+  /** Opens Driver Compensation's "How is this Calculated?" guide on this record's tab. */
+  onShowGuide?: () => void;
 };
 
 type FilterMode = "all" | "thisMonth" | "custom";
@@ -61,10 +62,9 @@ type Row = {
   hasClosure: boolean;
 };
 
-export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRecordPayment }: Props) {
+export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onShowGuide }: Props) {
   const [closures, setClosures] = useState<Map<string, TripClosureData>>(new Map());
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [customFrom, setCustomFrom] = useState("");
@@ -338,6 +338,16 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
       onClose={onClose}
       title={`Advance Record — ${driver?.name ?? ""}`}
       className="w-[95vw] max-w-[95vw] h-[90vh]"
+      headerRight={onShowGuide ? (
+        <button
+          type="button"
+          onClick={onShowGuide}
+          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          Full guide
+        </button>
+      ) : undefined}
     >
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -464,18 +474,6 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onRe
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Close
-            </button>
-            <button
-              type="button"
-              disabled={saving || grandTotal === 0}
-              onClick={async () => {
-                setSaving(true);
-                await onRecordPayment(grandTotal);
-                setSaving(false);
-              }}
-              className="rounded-lg bg-yellow-600 px-4 py-2 text-sm font-semibold text-white hover:bg-yellow-700 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Record Advance Payment"}
             </button>
           </div>
         </div>

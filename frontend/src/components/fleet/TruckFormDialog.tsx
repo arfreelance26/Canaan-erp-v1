@@ -99,10 +99,16 @@ export function TruckFormDialog({
 
   useEffect(() => {
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
+  }, []);
+
+  // Reloaded on every open — a manufacturer just added from Our Fleet →
+  // Manufacturers shows up straight away.
+  useEffect(() => {
+    if (!open) return;
     adblueApi.listManufacturers()
       .then((list) => setManufacturerOptions(list.map((m) => m.name)))
       .catch(() => setManufacturerOptions([]));
-  }, []);
+  }, [open]);
 
   useEffect(() => {
     if (open) {

@@ -1,6 +1,8 @@
 import re
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Body, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
@@ -243,8 +245,8 @@ def get_compliance_per_day_all(db: Session = Depends(get_db)):
 @router.get("/cost-per-km-ranking", tags=["Trucks"])
 def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     """
-    Ranks trucks by "Cost/Km (Efficiency)" — fuel/mileage + AdBlue + tyre +
-    maintenance per km — cheapest first. Powers the "recommended truck"
+    Ranks trucks by "Cost/Km (Efficiency)" — fuel/mileage + tyre +
+    maintenance per km (AdBlue isn't counted — Truck's Adblue History is a record only) — cheapest first. Powers the "recommended truck"
     suggestion in the Assign Trip dialog's customer insights panel.
 
     Deliberately EXCLUDES EMI and compliance from the ranking metric: those
@@ -258,11 +260,11 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     A truck is only included once fuel, maintenance AND tyre cost/km are all
     available — those being absent means missing config, not a genuine zero,
     and defaulting them to 0 would wrongly rank an under-configured truck as
-    "efficient". EMI, AdBlue and compliance legitimately can be zero (no
-    active loan / not an AdBlue truck / no compliance history yet), so those
+    "efficient". EMI and compliance legitimately can be zero (no
+    active loan / no compliance history yet), so those
     default to 0 and never block inclusion.
     """
-    from routers.maintenance import get_maintenance_cost_per_km_all, get_all_fuel_stats, get_all_adblue_consumption
+    from routers.maintenance import get_maintenance_cost_per_km_all, get_all_fuel_stats
 
     trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
     if not trucks:
@@ -276,19 +278,11 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     # Same "Lifetime Average" mileage (km/L) source used everywhere else in
     # the app (Running Cost Calculator, TruckStatusDialog, etc.) — IQR-filtered.
     mileage_map = get_all_fuel_stats(db)
-    # Same "Lifetime Average" AdBlue consumption (L/km) source as Truck's
-    # Adblue History and the Running Cost Calculator — IQR-filtered.
-    adblue_consumption_map = get_all_adblue_consumption(db)
 
     tyre_layout_costs = {
         c.tyre_layout: float(c.cost or 0)
         for c in db.query(models.TyreLayoutCostConfig).all()
         if c.cost and float(c.cost) > 0
-    }
-
-    manufacturer_price = {
-        m.name.strip().lower(): float(m.default_price_per_litre or 0)
-        for m in db.query(models.AdBlueManufacturer).all()
     }
 
     emi_totals: dict[str, float] = {}
@@ -312,14 +306,10 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
             continue
         fuel_per_km = cost_per_litre / mileage
 
-        adblue_l_per_km = adblue_consumption_map.get(str(truck.id), 0.0)
-        price = manufacturer_price.get((truck.manufacturer or "").strip().lower(), 0.0)
-        adblue_per_km = adblue_l_per_km * price
-
         compliance_km = compliance_map.get(str(truck.id), 0.0)
         emi_per_km = emi_totals.get(truck.registration_number.strip().upper(), 0.0)
 
-        efficiency = fuel_per_km + adblue_per_km + tyre_per_km + maint_per_km
+        efficiency = fuel_per_km + tyre_per_km + maint_per_km
         total = efficiency + compliance_km + emi_per_km
         results.append({
             "truck_db_id": str(truck.id),
@@ -330,7 +320,6 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
             "total_cost_per_km": round(total, 4),
             "breakdown": {
                 "fuel_per_km": round(fuel_per_km, 4),
-                "adblue_per_km": round(adblue_per_km, 4),
                 "tyre_per_km": round(tyre_per_km, 4),
                 "maintenance_per_km": round(maint_per_km, 4),
                 "compliance_per_km": round(compliance_km, 4),
@@ -342,6 +331,18 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     return results
 
 
+@router.get("/sold", response_model=list[schemas.TruckOut])
+def list_sold_trucks(db: Session = Depends(get_db)):
+    """Our Fleet → Sold Trucks: every truck removed with "Sell Truck", most
+    recent sale first. Registered before GET /{truck_id}."""
+    return (
+        db.query(models.Truck)
+        .filter(models.Truck.deleted_at.isnot(None), models.Truck.disposal_type == "Sold")
+        .order_by(models.Truck.sold_date.desc(), models.Truck.id.desc())
+        .all()
+    )
+
+
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])
 def list_deleted_truck_ids(db: Session = Depends(get_db)):
     """Admin only: ids of trucks currently soft-deleted. Lets the "Archive" page
@@ -349,7 +350,11 @@ def list_deleted_truck_ids(db: Session = Depends(get_db)):
     still-deleted truck from one that was since restored, same pattern as
     trips.py's list_deleted_trip_ids. Registered before GET /{truck_id} so
     "deleted-ids" isn't swallowed as a truck_id path param."""
-    rows = db.query(models.Truck.id).filter(models.Truck.deleted_at.isnot(None)).all()
+    # Sold trucks live under Our Fleet → Sold Trucks, not in the Archive.
+    rows = db.query(models.Truck.id).filter(
+        models.Truck.deleted_at.isnot(None),
+        or_(models.Truck.disposal_type.is_(None), models.Truck.disposal_type != "Sold"),
+    ).all()
     return [i for (i,) in rows]
 
 
@@ -596,8 +601,121 @@ def change_truck_branch(
     return truck
 
 
+def release_truck_drivers(db: Session, truck: models.Truck, actor_name: str, actor_role: Optional[str]) -> int:
+    """A sold or deleted truck can't keep a driver — otherwise the driver stays
+    tied to a truck nobody can see and can't be assigned anywhere else. Logged
+    in the driver's assignment history like a manual unassign. Doesn't commit."""
+    assignments = db.query(models.DriverAssignment).filter(models.DriverAssignment.vehicle_id == truck.truck_id).all()
+    for a in assignments:
+        driver = db.query(models.Driver).filter(models.Driver.driver_id == a.driver_id).first()
+        db.add(models.DriverAssignmentEditEvent(
+            driver_id=a.driver_id, driver_name=driver.name if driver else a.driver_id, vehicle_id=None,
+            event="Assignment Removed", actor_name=actor_name, actor_role=actor_role,
+        ))
+        db.delete(a)
+    if assignments:
+        emit("driver_updated", {})
+    return len(assignments)
+
+
+_TYRE_ACTION_LABEL = {
+    "sold": "sold with the truck",
+    "stock": "returned to stock",
+    "retread": "sent to Retread Queue",
+    "discard": "discarded",
+}
+
+
+def apply_truck_tyre_plan(
+    db: Session,
+    truck: models.Truck,
+    plan: Optional[schemas.TruckTyrePlan],
+    actor_name: str,
+    actor_role: Optional[str],
+    context: str,
+) -> dict:
+    """The tyre step of Sell / Delete Truck. Every tyre still fitted to the
+    truck must have a choice: its fitment is closed (date, odometer, who, why)
+    and the tyre goes to stock, the Retread Queue, Discarded Tyres, or leaves
+    with the truck. context is "deleted" or "sold" — used in the remarks.
+    Validates everything before changing anything; doesn't commit."""
+    open_fitments = (
+        db.query(models.TyreFitmentRecord)
+        .filter(models.TyreFitmentRecord.truck_id == truck.id,
+                models.TyreFitmentRecord.removed_odometer.is_(None))
+        .with_for_update()
+        .all()
+    )
+    if not open_fitments:
+        return {}
+    if plan is None:
+        raise HTTPException(400, f"This truck has {len(open_fitments)} tyre(s) fitted — choose what happens to each one.")
+    choices = {c.fitment_id: c.action for c in plan.tyres}
+    missing = [f for f in open_fitments if f.id not in choices]
+    if missing:
+        raise HTTPException(
+            400,
+            f"{len(missing)} fitted tyre(s) have no choice — every tyre needs one "
+            "(this happens if tyres were fitted after the choices were made).",
+        )
+    tyres = {
+        t.id: t for t in db.query(models.TyreInventory)
+        .filter(models.TyreInventory.id.in_([f.tyre_id for f in open_fitments]))
+        .with_for_update().all()
+    }
+    for f in open_fitments:
+        label = tyres[f.tyre_id].tyre_number if f.tyre_id in tyres else f.position
+        if plan.removed_odometer < (f.fitted_odometer or 0):
+            raise HTTPException(400, f"Odometer {plan.removed_odometer:,} km is below tyre {label}'s fitted odometer ({f.fitted_odometer:,} km).")
+        if f.fitted_date and plan.removed_date < f.fitted_date:
+            raise HTTPException(400, f"Removal date is before tyre {label} was fitted ({f.fitted_date}).")
+
+    now = datetime.now(timezone.utc)
+    truck_label = f"{truck.registration_number} ({truck.truck_id})"
+    counts: dict[str, int] = {}
+    for f in open_fitments:
+        action = choices[f.id]
+        f.removed_odometer = plan.removed_odometer
+        f.removed_date = plan.removed_date
+        f.removed_by_name = actor_name
+        f.removal_remark = f"Truck {context} — {_TYRE_ACTION_LABEL[action]}"
+        tyre = tyres.get(f.tyre_id)
+        if tyre is not None and tyre.deleted_at is None:
+            if action == "retread" and tyre.discarded_at is None:
+                tyre.retread_flagged_at = now
+                tyre.retread_flagged_by = actor_name
+                db.add(models.TyreMovementEvent(
+                    tyre_id=tyre.id, event="Flagged for Retreading",
+                    actor_name=actor_name, actor_role=actor_role,
+                    retread_count=tyre.retread_count or 0,
+                ))
+            elif action in ("discard", "sold"):
+                tyre.discarded_at = now
+                tyre.discarded_by = actor_name
+                tyre.retread_flagged_at = None
+                tyre.retread_flagged_by = None
+                if action == "sold":
+                    tyre.sold_with_truck_at = now
+                    tyre.discard_reason = f"Sold with truck {truck_label} (truck {context})"
+                else:
+                    tyre.discard_reason = f"Discarded when truck {truck_label} was {context}"
+                db.add(models.TyreMovementEvent(
+                    tyre_id=tyre.id, event="Sold with Truck" if action == "sold" else "Flagged as Discarded",
+                    actor_name=actor_name, actor_role=actor_role,
+                    retread_count=tyre.retread_count or 0,
+                ))
+        counts[action] = counts.get(action, 0) + 1
+    emit("tyre_updated", {})
+    return counts
+
+
 @router.delete("/{truck_id}", status_code=204, dependencies=[Depends(require_roles("Assistant Commercial Manager"))])
-def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+def delete_truck(
+    truck_id: int,
+    payload: Optional[schemas.TruckRemovalIn] = Body(None),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
     """Admin / Assistant Commercial Manager only: soft-delete a truck directly
     (hides it from "Our Fleet" and every assignment picker, keeps its
     fuel/adblue/maintenance logs, tyre fitments, compliance history, and
@@ -613,8 +731,13 @@ def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: Tok
         raise HTTPException(404, "Truck not found")
     if truck.deleted_at is not None:
         raise HTTPException(409, "Truck is already deleted")
+    # Tyres first — refuses the whole delete if any fitted tyre has no choice.
+    apply_truck_tyre_plan(db, truck, payload.tyre_plan if payload else None,
+                          current_user.name, current_user.role, "deleted")
+    release_truck_drivers(db, truck, current_user.name, current_user.role)
     now = datetime.now(timezone.utc)
     truck.deleted_at = now
+    truck.disposal_type = "Deleted"
     # Always log the audit row (even for the built-in "admin" login, whose
     # current_user.id is None) — see drivers.py's delete_driver for rationale.
     db.add(models.DeletionApprovalRequest(
@@ -636,6 +759,56 @@ def delete_truck(truck_id: int, db: Session = Depends(get_db), current_user: Tok
     emit("truck_updated", {})
 
 
+def sell_truck_now(
+    db: Session,
+    truck: models.Truck,
+    payload: schemas.TruckSellIn,
+    actor_name: str,
+    actor_role: Optional[str],
+) -> None:
+    """Mark a truck sold: its tyres follow the tyre choices (closed at the
+    sale date/odometer), it leaves the active fleet (deleted_at) and shows
+    under Our Fleet → Sold Trucks. Shared by the direct sale and an approved
+    sell request. Doesn't commit."""
+    if truck.deleted_at is not None:
+        raise HTTPException(409, "This truck is no longer in the active fleet.")
+    plan = payload.tyre_plan
+    if plan is not None:
+        # The sale date/odometer are what close the tyres.
+        plan = plan.model_copy(update={"removed_date": payload.sold_date, "removed_odometer": payload.sold_odometer})
+    apply_truck_tyre_plan(db, truck, plan, actor_name, actor_role, "sold")
+    release_truck_drivers(db, truck, actor_name, actor_role)
+    truck.deleted_at = datetime.now(timezone.utc)
+    truck.disposal_type = "Sold"
+    truck.sold_date = payload.sold_date
+    truck.sold_odometer = payload.sold_odometer
+    truck.sold_note = (payload.note or "").strip() or None
+    truck.sold_by_name = actor_name
+    db.add(models.TruckEditEvent(
+        truck_id=truck.id, event="Truck Sold",
+        actor_name=actor_name, actor_role=actor_role,
+    ))
+
+
+@router.post("/{truck_id}/sell", response_model=schemas.TruckOut, dependencies=[Depends(require_roles("Assistant Commercial Manager"))])
+def sell_truck(
+    truck_id: int,
+    payload: schemas.TruckSellIn,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Admin / Assistant Commercial Manager: sell a truck directly. Other roles
+    raise a request on Deletion Approvals (log_details.action = "sell")."""
+    truck = db.query(models.Truck).with_for_update().filter(models.Truck.id == truck_id).first()
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    sell_truck_now(db, truck, payload, current_user.name, current_user.role)
+    db.commit()
+    db.refresh(truck)
+    emit("truck_updated", {})
+    return truck
+
+
 @router.post("/{truck_id}/restore", response_model=schemas.TruckOut, dependencies=[Depends(require_roles())])
 def restore_truck(
     truck_id: int,
@@ -649,7 +822,10 @@ def restore_truck(
         raise HTTPException(404, "Truck not found")
     if truck.deleted_at is None:
         raise HTTPException(409, "Truck is not deleted")
+    if truck.disposal_type == "Sold":
+        raise HTTPException(409, "This truck was sold — it can't be restored from the Archive.")
     truck.deleted_at = None
+    truck.disposal_type = None
     db.add(models.TruckEditEvent(
         truck_id=truck.id, event="Truck Restored",
         actor_name=current_user.name, actor_role=current_user.role,
@@ -667,6 +843,8 @@ def permanently_delete_truck(truck_id: int, db: Session = Depends(get_db), curre
     truck = db.get(models.Truck, truck_id)
     if not truck:
         raise HTTPException(404, "Truck not found")
+    if truck.disposal_type == "Sold":
+        raise HTTPException(409, "A sold truck's records are kept — it can't be permanently deleted.")
     auto_reject_stale_requests(db, "Truck", truck_id, current_user.name)
     db.delete(truck)
     db.commit()

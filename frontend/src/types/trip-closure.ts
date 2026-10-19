@@ -1,4 +1,5 @@
-export type PaymentMode = "Cash" | "UPI" | "Bank Transfer" | "Cheque" | "NEFT / RTGS";
+import type { PaymentType } from "@/types/trip";
+
 export type BillTo = "CUSTOMER" | "CONSIGNEE" | "SELF/CGI";
 
 export type TripClosureData = {
@@ -30,14 +31,20 @@ export type TripClosureData = {
   advanceAmount: string;
   driverAdvance: string;
   additionalDriverAdvance: string;
-  paymentMode: PaymentMode | "";
   billTo: BillTo | "";
+  /** The trip's Payment Type, chosen at Close Trip and saved onto the trip
+   * (not a closure field). Left out = keep the trip's as it is. */
+  paymentType?: PaymentType | "";
 
   // 5. Halt Information (all editable)
   companyHaltDays: string;
   partyHaltDays: string;
   haltRemarks: string;
   driverHaltCompensation: string;
+  /** The two parts of driverHaltCompensation, each at its own branch rate.
+   * Empty on trips closed before the rates were split. */
+  companyHaltPay?: string;
+  partyHaltPay?: string;
 
   // Closure remarks (visible to admin in trip history)
   closureRemarks: string;

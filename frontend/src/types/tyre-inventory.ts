@@ -17,11 +17,13 @@ export type TyreInventoryItem = {
   discardedAt?: string | null;
   discardedBy?: string | null;
   discardReason?: string | null;
+  /** Set when the tyre left with a sold/deleted truck — it can't go back to inventory. */
+  soldWithTruckAt?: string | null;
 };
 
 export type TyreMovementEvent = {
   id: number;
-  event: "Flagged for Retreading" | "Moved to Inventory" | "Flagged as Discarded" | "Restored from Discard";
+  event: "Flagged for Retreading" | "Moved to Inventory" | "Flagged as Discarded" | "Restored from Discard" | "Sold with Truck";
   actorName: string;
   actorRole: string | null;
   retreadCost: string | null;

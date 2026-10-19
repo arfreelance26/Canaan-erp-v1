@@ -5,23 +5,18 @@ import { Dialog } from "@/components/ui/Dialog";
 import { GlassSelect } from "@/components/ui/GlassSelect";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import type { Trip } from "@/types/trip";
+import type { Trip, PaymentType } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Branch } from "@/types/branch";
-import type { TripClosureData, PaymentMode, BillTo } from "@/types/trip-closure";
-import { branchesApi } from "@/lib/api";
+import type { Customer } from "@/types/customer";
+import type { TripClosureData, BillTo } from "@/types/trip-closure";
+import { branchesApi, customersApi } from "@/lib/api";
+import { PAYMENT_TYPE_OPTIONS } from "@/lib/trip-data";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { computeHaltPay, haltRatesFor } from "@/lib/halt-pay";
 import { DecimalInput } from "@/components/ui/DecimalInput";
-
-const PAYMENT_MODE_OPTIONS: PaymentMode[] = [
-  "Cash",
-  "UPI",
-  "Bank Transfer",
-  "Cheque",
-  "NEFT / RTGS",
-];
 
 const readonlyClass =
   "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
@@ -55,8 +50,8 @@ function emptyForm(tripId: string): TripClosureData {
     advanceAmount: "",
     driverAdvance: "",
     additionalDriverAdvance: "",
-    paymentMode: "",
     billTo: "",
+    paymentType: "",
     // 5. Halt Information
     companyHaltDays: "",
     partyHaltDays: "",
@@ -79,11 +74,16 @@ type CloseTripDialogProps = {
 export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }: CloseTripDialogProps) {
   const [form, setForm] = useState<TripClosureData>(emptyForm(""));
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const wasOpenRef = useRef(false);
 
+  // Reloaded each time the dialog opens, so halt fees just changed in Branch
+  // Management are the ones used. Customers tell the Self/CGI account apart.
   useEffect(() => {
+    if (!open) return;
     branchesApi.list().then(setBranches).catch(() => setBranches([]));
-  }, []);
+    customersApi.list().then(setCustomers).catch(() => setCustomers([]));
+  }, [open]);
 
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current;
@@ -116,6 +116,8 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
       f.advanceAmount = trip.customerCashAdvance ?? "";
       f.driverAdvance = trip.driverAdvance ?? "";
       f.billTo = (trip.billTo as BillTo) ?? "";
+      // Trips created before Payment Type moved here already have one.
+      f.paymentType = trip.paymentType ?? "";
 
       setForm(f);
     }
@@ -128,20 +130,51 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  // Payment Type — chosen here (it used to be on the Trip Form). Not asked on a
+  // Shifting trip with no billing; always Credit for the Self/CGI customer or
+  // Bill To = SELF/CGI (the backend applies the same rule).
+  const billingApplies = !(trip?.tripCategory === "SHIFTING" && trip.isBillingApplicable === false);
+  const isSelfCustomer = (() => {
+    if (!trip || trip.useCustomCustomer) return false;
+    const c = customers.find((x) => x.id === trip.customerId);
+    const name = (c?.name ?? trip.shipperConsignee ?? "").trim().toLowerCase();
+    return name === "self" || name === "cgi";
+  })();
+  const paymentLockedToCredit = isSelfCustomer || form.billTo === "SELF/CGI";
+  const paymentTypeValue: PaymentType | "" = !billingApplies ? "" : paymentLockedToCredit ? "Credit" : (form.paymentType ?? "");
+  const paymentTypeMissing = billingApplies && !paymentTypeValue;
+
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (paymentTypeMissing) return;
     clearFormDraft(draftKey);
-    onSubmit({ ...form, driverHaltCompensation: String(haltCompensation) });
+    onSubmit({
+      ...form,
+      paymentType: paymentTypeValue,
+      driverHaltCompensation: String(halt.total),
+      companyHaltPay: String(halt.companyPay),
+      partyHaltPay: String(halt.partyPay),
+    });
   }
 
+  // Company and Customer halt days, each at the branch's fee for this trip's
+  // container type (20FT / 40FT / 2×20FT / Open Load — Branch Management).
   const truckBranch = branches.find((b) => b.name === truck?.branchRegisteredTo);
-  const totalHaltDays = Number(form.companyHaltDays || 0) + Number(form.partyHaltDays || 0);
-  const haltDayRate = truckBranch
-    ? (form.containerType === "40 FT CONTAINER"
-        ? Number(truckBranch.haltDayFee40ft || 0)
-        : Number(truckBranch.haltDayFee20ft || 0))
-    : 0;
-  const haltCompensation = totalHaltDays > 0 ? totalHaltDays * haltDayRate : 0;
+  const haltRates = haltRatesFor(truckBranch, form.containerType);
+  const halt = computeHaltPay(haltRates, Number(form.companyHaltDays || 0), Number(form.partyHaltDays || 0));
+  const totalHaltDays = halt.companyDays + halt.partyDays;
+  // Days entered but no fee to price them — say so instead of quietly paying ₹0.
+  const haltWarnings: string[] = [];
+  if (totalHaltDays > 0) {
+    if (!truckBranch) {
+      haltWarnings.push(`This truck's branch${truck?.branchRegisteredTo ? ` "${truck.branchRegisteredTo}"` : ""} wasn't found, so no halt fees could be applied.`);
+    } else {
+      if (halt.companyDays > 0 && !haltRates.companyRateSet)
+        haltWarnings.push(`No Company Halt Fee is set for ${haltRates.sizeLabel} in ${truckBranch.name}.`);
+      if (halt.partyDays > 0 && !haltRates.partyRateSet)
+        haltWarnings.push(`No Customer Halt Fee is set for ${haltRates.sizeLabel} in ${truckBranch.name}.`);
+    }
+  }
 
   if (!trip) return null;
 
@@ -250,7 +283,6 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
             <Field label="Customer Advance Amount (₹)">
               <input readOnly disabled value={form.advanceAmount} className={readonlyClass} />
             </Field>
-            {trip?.tripCategory !== "RETURN TRIP" && (
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
                 value={form.driverAdvance}
@@ -259,7 +291,6 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 className={readonlyClass}
               />
             </Field>
-            )}
             <Field label="Additional Driver Advance (₹)">
               <DecimalInput type="number"
                 min="0"
@@ -271,19 +302,37 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                 placeholder="e.g. 500"
               />
             </Field>
-            <Field label="Payment Mode">
-              <GlassSelect
-                value={form.paymentMode}
-                onChange={(val) => update("paymentMode", val as PaymentMode)}
-                options={[
-                  { value: "", label: "Select payment mode" },
-                  ...PAYMENT_MODE_OPTIONS.map((opt) => ({ value: opt, label: opt })),
-                ]}
-              />
-            </Field>
             <Field label="Bill To">
               <input readOnly disabled value={form.billTo} className={readonlyClass} />
             </Field>
+            {billingApplies && (
+              <Field label="Payment Type" required>
+                {paymentLockedToCredit ? (
+                  <>
+                    <input readOnly disabled value="Credit" className={readonlyClass} />
+                    <span className="mt-1 text-xs text-blue-600">
+                      {isSelfCustomer ? "Locked to Credit for Self customer" : "Locked to Credit — Bill To is SELF/CGI"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <GlassSelect
+                      value={paymentTypeValue}
+                      onChange={(val) => update("paymentType", val as PaymentType)}
+                      options={[
+                        { value: "", label: "Select payment type" },
+                        ...PAYMENT_TYPE_OPTIONS.map((opt) => ({ value: opt, label: opt })),
+                      ]}
+                    />
+                    {paymentTypeValue === "To Be Paid" && (
+                      <span className="mt-1 text-xs font-medium text-purple-600">
+                        This trip&apos;s invoice will be waived automatically when it&apos;s verified.
+                      </span>
+                    )}
+                  </>
+                )}
+              </Field>
+            )}
           </div>
         </section>
 
@@ -329,19 +378,31 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
                   />
                 </Field>
                 <div className="sm:col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex flex-col gap-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Halt Compensation Summary</p>
-                  <div className="flex items-center justify-between text-sm text-blue-800">
-                    <span>Total Halt Days</span>
-                    <span className="font-semibold">{totalHaltDays} day{totalHaltDays !== 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-blue-800">
-                    <span>Rate per Day ({form.containerType === "40 FT CONTAINER" ? "40FT" : "20FT"} · {truckBranch?.name ?? "Branch"})</span>
-                    <span className="font-semibold">₹{haltDayRate.toLocaleString("en-IN")}</span>
-                  </div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                    Halt Compensation Summary · {haltRates.sizeLabel} · {truckBranch?.name ?? "Branch"}
+                  </p>
+                  {halt.companyDays > 0 && (
+                    <div className="flex items-center justify-between text-sm text-blue-800">
+                      <span>Company Halt — {halt.companyDays} day{halt.companyDays !== 1 ? "s" : ""} × ₹{halt.companyRate.toLocaleString("en-IN")}</span>
+                      <span className="font-semibold">₹{halt.companyPay.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                  {halt.partyDays > 0 && (
+                    <div className="flex items-center justify-between text-sm text-blue-800">
+                      <span>Customer Halt — {halt.partyDays} day{halt.partyDays !== 1 ? "s" : ""} × ₹{halt.partyRate.toLocaleString("en-IN")} <span className="text-xs text-blue-500">(billed to customer)</span></span>
+                      <span className="font-semibold">₹{halt.partyPay.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center justify-between border-t border-blue-200 pt-1.5 text-sm font-bold text-blue-900">
                     <span>Driver Halt Compensation</span>
-                    <span>₹{haltCompensation.toLocaleString("en-IN")}</span>
+                    <span>₹{halt.total.toLocaleString("en-IN")}</span>
                   </div>
+                  {haltWarnings.length > 0 && (
+                    <div className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      {haltWarnings.map((w) => <p key={w}>⚠ {w}</p>)}
+                      <p className="mt-0.5 text-amber-700">Set it in Branch Management, then reopen this dialog.</p>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -372,7 +433,9 @@ export function CloseTripDialog({ open, trip, driver, truck, onClose, onSubmit }
           </button>
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            disabled={paymentTypeMissing}
+            title={paymentTypeMissing ? "Select a Payment Type first" : undefined}
+            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Close Trip
           </button>

@@ -103,6 +103,11 @@ class TruckUpdate(TruckBase):
 class TruckOut(TruckBase):
     id: int
     version: int = 1
+    disposal_type: Optional[str] = None
+    sold_date: Optional[date] = None
+    sold_odometer: Optional[int] = None
+    sold_note: Optional[str] = None
+    sold_by_name: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     # Present only while a "This Trip Only" branch change is in effect.
@@ -509,6 +514,8 @@ class TripBase(OrmBase):
     use_yard_cfs: bool = False
     use_custom_route: bool = False
     customer_destination_id: Optional[int] = None
+    use_custom_customer: bool = False
+    custom_customer_name: Optional[str] = None
     # Which dialog this update came from — only used to label the Trip Edit
     # History event correctly (both TripFormDialog and TripSheetDialog save
     # through this same endpoint); never applied to the Trip record itself.
@@ -840,18 +847,13 @@ class FuelLogEditEventListOut(BaseModel):
     created_at: datetime
 
 
-AdBlueEditEventType = Literal[
-    "Log Created", "Log Edited", "Log Deleted",
-    "Manufacturer Created", "Manufacturer Edited", "Manufacturer Deleted",
-]
+AdBlueEditEventType = Literal["Manufacturer Created", "Manufacturer Edited", "Manufacturer Deleted"]
 
 
 class AdBlueEditEventOut(BaseModel):
-    """One row in the page-wide "Edit History" log on the AdBlue page —
-    merges AdBlue Log and AdBlue Manufacturer edit events (both editable
-    from this same page) into one chronological, searchable list."""
+    """One row in the Edit History on Admin → Truck Manufacturers."""
     id: str
-    category: Literal["Log", "Manufacturer"]
+    category: Literal["Manufacturer"]
     label: str
     event: AdBlueEditEventType
     actor_name: str
@@ -1318,7 +1320,16 @@ class TripClosureCreate(OrmBase):
     party_halt_days: Optional[int] = 0
     halt_remarks: Optional[str] = None
     driver_halt_compensation: Optional[Decimal] = None
+    company_halt_pay: Optional[Decimal] = None
+    party_halt_pay: Optional[Decimal] = None
     closure_remarks: Optional[str] = None
+
+
+class TripCloseIn(TripClosureCreate):
+    """Close Trip / Booking Sheet save. payment_type isn't a closure column —
+    it's the trip's Payment Type, chosen at Close Trip (it used to be on the
+    Trip Form) and saved onto the trip. Omitted = leave the trip's as it is."""
+    payment_type: Optional[PaymentType] = None
 
 
 class TripClosureOut(TripClosureCreate):
@@ -1403,6 +1414,8 @@ class TripSheetOut(TripSheetCreate):
     id: int
     trip_id: int
     version: int = 1
+    # Read-only (models.TripSheet.party_halt_pay): customer-caused halt pay.
+    party_halt_pay: Optional[float] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -1935,28 +1948,28 @@ class FuelStats(OrmBase):
 
 
 # ---------------------------------------------------------------------------
-# AdBlue Logs
+# AdBlue Logs (Truck's Adblue History)
 # ---------------------------------------------------------------------------
 
 class AdBlueLogCreate(OrmBase):
     truck_id: int
     date: date
-    odometer: int
-    litres: Decimal
-    price_per_litre: Decimal
-    total_cost: Decimal
-    supplier: Optional[str] = None
+    odometer: int = Field(ge=0)
+    litres: Decimal = Field(gt=0)
+    price_per_litre: Decimal = Field(ge=0)
+    total_cost: Decimal = Field(ge=0)
+    supplier: Optional[str] = Field(default=None, max_length=200)
     remarks: Optional[str] = None
 
 
 class AdBlueLogUpdate(OrmBase):
     client_version: Optional[int] = None
     date: Optional[_DateType] = None
-    odometer: Optional[int] = None
-    litres: Optional[Decimal] = None
-    price_per_litre: Optional[Decimal] = None
-    total_cost: Optional[Decimal] = None
-    supplier: Optional[str] = None
+    odometer: Optional[int] = Field(default=None, ge=0)
+    litres: Optional[Decimal] = Field(default=None, gt=0)
+    price_per_litre: Optional[Decimal] = Field(default=None, ge=0)
+    total_cost: Optional[Decimal] = Field(default=None, ge=0)
+    supplier: Optional[str] = Field(default=None, max_length=200)
     remarks: Optional[str] = None
 
 
@@ -1974,6 +1987,20 @@ class AdBlueLogOut(OrmBase):
     version: int = 1
     created_at: Optional[datetime] = None
 
+
+class AdBlueLogEditEventOut(BaseModel):
+    """One row in the Edit History on Truck's Adblue History."""
+    id: str
+    label: str
+    event: Literal["Log Created", "Log Edited", "Log Deleted"]
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Truck Manufacturers (stored in the adblue_manufacturers table)
+# ---------------------------------------------------------------------------
 
 class AdBlueManufacturerCreate(OrmBase):
     name: str
@@ -2098,11 +2125,41 @@ class TyreInventoryOut(TyreInventoryBase):
     discarded_at: Optional[datetime] = None
     discarded_by: Optional[str] = None
     discard_reason: Optional[str] = None
+    sold_with_truck_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
 
 TyreDataOut.model_rebuild()
+
+
+# What happens to each tyre fitted on a truck that's being sold or deleted.
+TyreDisposalAction = Literal["sold", "stock", "retread", "discard"]
+
+
+class TyreDisposalChoice(BaseModel):
+    fitment_id: int
+    action: TyreDisposalAction
+
+
+class TruckTyrePlan(BaseModel):
+    """The tyre step of Sell / Delete Truck: one choice per fitted tyre (no
+    defaults), plus the date and odometer that close every fitment."""
+    removed_date: date
+    removed_odometer: int = Field(ge=0)
+    tyres: list[TyreDisposalChoice] = []
+
+
+class TruckRemovalIn(BaseModel):
+    tyre_plan: Optional[TruckTyrePlan] = None
+
+
+class TruckSellIn(BaseModel):
+    """Sell Truck: the sale date and odometer also close every fitted tyre."""
+    sold_date: date
+    sold_odometer: int = Field(ge=0)
+    note: Optional[str] = Field(default=None, max_length=2000)
+    tyre_plan: Optional[TruckTyrePlan] = None
 
 
 # ---------------------------------------------------------------------------
@@ -2345,9 +2402,6 @@ class RccTruckMetricsIn(BaseModel):
     emi_per_day: Optional[str] = ""
     emi_per_km: Optional[str] = ""
     mileage: Optional[str] = ""
-    adblue_consume_l_per_km: Optional[str] = ""
-    adblue_manufacturer_id: Optional[str] = ""
-    adblue_per_km: Optional[str] = ""
     tyre_type: Optional[str] = ""
     tyre_per_km: Optional[str] = ""
     maintenance_per_km: Optional[str] = ""
@@ -2357,7 +2411,6 @@ class RccModeDataIn(BaseModel):
     cost_per_litre: Optional[str] = ""
     tyre_entries: dict[str, RccTyreEntryIn] = {}
     run_entries: dict[str, RccLayoutEntryIn] = {}
-    adblue_prices: dict[str, str] = {}
     truck_metrics: dict[str, RccTruckMetricsIn] = {}
 
 class RunningCostStateIn(BaseModel):
@@ -2450,8 +2503,15 @@ class BranchBase(OrmBase):
     name: str
     halt_day_fee_20ft: Optional[Decimal] = None
     halt_day_fee_40ft: Optional[Decimal] = None
+    party_halt_fee_20ft: Optional[Decimal] = None
+    party_halt_fee_40ft: Optional[Decimal] = None
+    halt_day_fee_2x20: Optional[Decimal] = None
+    halt_day_fee_open_load: Optional[Decimal] = None
+    party_halt_fee_2x20: Optional[Decimal] = None
+    party_halt_fee_open_load: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
     cleaner_batta_fee: Optional[Decimal] = None
+    workshop_batta_fee: Optional[Decimal] = None
 
 
 class BranchCreate(BranchBase):
@@ -2463,8 +2523,15 @@ class BranchUpdate(OrmBase):
     name: Optional[str] = None
     halt_day_fee_20ft: Optional[Decimal] = None
     halt_day_fee_40ft: Optional[Decimal] = None
+    party_halt_fee_20ft: Optional[Decimal] = None
+    party_halt_fee_40ft: Optional[Decimal] = None
+    halt_day_fee_2x20: Optional[Decimal] = None
+    halt_day_fee_open_load: Optional[Decimal] = None
+    party_halt_fee_2x20: Optional[Decimal] = None
+    party_halt_fee_open_load: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
     cleaner_batta_fee: Optional[Decimal] = None
+    workshop_batta_fee: Optional[Decimal] = None
 
 
 class BranchOut(BranchBase):

@@ -18,7 +18,14 @@ type CompensationTableProps = {
   showAdvance: boolean;
   onPayAdvance: (person: CompensationPerson) => void;
   onPaySalary: (person: CompensationPerson) => void;
-  onViewHistory: (person: CompensationPerson) => void;
+  /** Opens the person's Transaction History (Staff Compensation only). */
+  onViewHistory?: (person: CompensationPerson) => void;
+  /** Driver Compensation only: opens the driver's Halt Pay Record. */
+  onHaltPay?: (person: CompensationPerson) => void;
+  /** Driver Compensation only: opens the driver's Cleaner Batta Record. */
+  onCleanerBatta?: (person: CompensationPerson) => void;
+  /** Driver Compensation only: opens the driver's Workshop Batta Record. */
+  onWorkshopBatta?: (person: CompensationPerson) => void;
   photoLabel: string;
   nameLabel: string;
   idLabel?: string;
@@ -30,6 +37,9 @@ export function CompensationTable({
   onPayAdvance,
   onPaySalary,
   onViewHistory,
+  onHaltPay,
+  onCleanerBatta,
+  onWorkshopBatta,
   photoLabel,
   nameLabel,
   idLabel,
@@ -99,7 +109,34 @@ export function CompensationTable({
                   >
                     Salary Record
                   </button>
-                  {isAdmin && (
+                  {onHaltPay && (
+                    <button
+                      type="button"
+                      onClick={() => onHaltPay(person)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                    >
+                      Halt Pay Record
+                    </button>
+                  )}
+                  {onCleanerBatta && (
+                    <button
+                      type="button"
+                      onClick={() => onCleanerBatta(person)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                    >
+                      Cleaner Batta Record
+                    </button>
+                  )}
+                  {onWorkshopBatta && (
+                    <button
+                      type="button"
+                      onClick={() => onWorkshopBatta(person)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                    >
+                      Workshop Batta Record
+                    </button>
+                  )}
+                  {isAdmin && onViewHistory && (
 <button
                     type="button"
                     onClick={() => onViewHistory(person)}

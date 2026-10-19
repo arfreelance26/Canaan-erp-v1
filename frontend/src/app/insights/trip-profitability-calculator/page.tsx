@@ -5,7 +5,7 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Segmented } from "@/components/ui/Segmented";
 import { useEffect, useState } from "react";
 import { IndianRupee, Truck as TruckIcon, X, ChevronDown, Fuel, PencilLine, BookOpen, HelpCircle, CheckCircle2, Calculator } from "lucide-react";
-import { trucksApi, branchesApi, financeApi, fuelLogsApi, adblueApi, adblueLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
+import { trucksApi, branchesApi, financeApi, fuelLogsApi, tyreApi, tyreRangeConfigApi, maintenanceApi } from "@/lib/api";
 import { isEmiCompleted } from "@/lib/emi-schedule";
 import { showError } from "@/lib/swal";
 import type { Branch } from "@/types/branch";
@@ -62,10 +62,8 @@ const FIELD_ROWS: FieldDef[][] = [
     { label: "Truck Mileage",        key: "truckMileage",      type: "fetched",    overridable: true },
     { label: "Mileage Cost Per KM",  key: "mileageCostPerKm",  type: "fetched",    overridable: true },
     { label: "Diesel Expenses",      key: "dieselExpenses",    type: "calculated" },
-    { label: "AdBlue Cost Per KM",   key: "adbluePerKm",       type: "fetched",    overridable: true },
   ],
   [
-    { label: "AdBlue Expenses",  key: "adblueExpenses", type: "calculated" },
     { label: "Tyre Cost Per KM", key: "tyrePerKm",      type: "fetched",    overridable: true },
     { label: "Tyre Expenses",    key: "tyreExpenses",   type: "calculated" },
   ],
@@ -325,7 +323,7 @@ const GUIDE_STEPS = [
   },
   {
     title: "Review Auto-Fetched Values",
-    body: "Each truck card auto-populates mileage (from fuel logs), EMI (from finance records), AdBlue cost, tyre cost, and maintenance cost from your fleet data. Teal fields are auto-fetched.",
+    body: "Each truck card auto-populates mileage (from fuel logs), EMI (from finance records), tyre cost, and maintenance cost (which includes AdBlue) from your fleet data. Teal fields are auto-fetched.",
   },
   {
     title: "Override When Needed",
@@ -427,14 +425,12 @@ const FORMULA_SECTIONS: FormulaSection[] = [
       { field: "Truck Mileage",       formula: "Average km/L from fuel log history — or enter manually" },
       { field: "Mileage Cost Per KM", formula: "Fuel Cost Per Litre ÷ Truck Mileage — or enter manually" },
       { field: "Diesel Expenses",     formula: "Mileage Cost Per KM × Total KM" },
-      { field: "AdBlue Cost Per KM",  formula: "AdBlue consumption ratio × AdBlue price per litre — or enter manually" },
     ],
   },
   {
-    title: "AdBlue & Tyres",
+    title: "Tyres",
     color: "bg-teal-50 text-teal-700 border-teal-200",
     rows: [
-      { field: "AdBlue Expenses",  formula: "AdBlue Cost Per KM × Total KM" },
       { field: "Tyre Cost Per KM", formula: "Sum of (Tyre Purchase Cost ÷ Expected Range km) for each currently fitted tyre — or enter manually" },
       { field: "Tyre Expenses",    formula: "Tyre Cost Per KM × Total KM" },
     ],
@@ -452,7 +448,7 @@ const FORMULA_SECTIONS: FormulaSection[] = [
     title: "Footer Totals",
     color: "bg-slate-100 text-slate-700 border-slate-300",
     rows: [
-      { field: "Total Expenses", formula: "Toll + Driver Batta + Cleaner Batta + EMI Expenses + Diesel Expenses + AdBlue Expenses + Tyre Expenses + Maint. Expenses" },
+      { field: "Total Expenses", formula: "Toll + Driver Batta + Cleaner Batta + EMI Expenses + Diesel Expenses + Tyre Expenses + Maint. Expenses" },
       { field: "Total Profit",   formula: "Hire Amount − Total Expenses  (shown only when result is positive)" },
       { field: "Total Loss",     formula: "Total Expenses − Hire Amount  (shown only when expenses exceed hire)" },
     ],
@@ -534,7 +530,6 @@ function TruckProfitCard({
   truckMileage,
   systemFuelCostPerLitre,
   fuelCostPerLitre,
-  adbluePerKm,
   tyrePerKm,
   maintPerDay,
   maintPerKm,
@@ -553,7 +548,6 @@ function TruckProfitCard({
   truckMileage:             string;
   systemFuelCostPerLitre:   number;
   fuelCostPerLitre:         string;
-  adbluePerKm:              string;
   tyrePerKm:                string;
   maintPerDay:              string;
   maintPerKm:               string;
@@ -561,12 +555,12 @@ function TruckProfitCard({
   accent:                   typeof CARD_ACCENTS[number];
 }) {
   const [overrides, setOverrides] = useState<{
-    manualMileage: string; manualCostPerKm: string; manualAdbluePerKm: string;
+    manualMileage: string; manualCostPerKm: string;
     manualTyrePerKm: string; manualEmiPerDay: string; manualEmiPerKm: string;
     manualMaintPerDay: string; manualMaintPerKm: string;
   }>(() => {
     const def = {
-      manualMileage: "", manualCostPerKm: "", manualAdbluePerKm: "",
+      manualMileage: "", manualCostPerKm: "",
       manualTyrePerKm: "", manualEmiPerDay: "", manualEmiPerKm: "",
       manualMaintPerDay: "", manualMaintPerKm: "",
     };
@@ -577,7 +571,7 @@ function TruckProfitCard({
   });
 
   const {
-    manualMileage, manualCostPerKm, manualAdbluePerKm, manualTyrePerKm,
+    manualMileage, manualCostPerKm, manualTyrePerKm,
     manualEmiPerDay, manualEmiPerKm, manualMaintPerDay, manualMaintPerKm,
   } = overrides;
 
@@ -592,7 +586,6 @@ function TruckProfitCard({
 
   const setManualMileage     = setManualField("manualMileage");
   const setManualCostPerKm   = setManualField("manualCostPerKm");
-  const setManualAdbluePerKm = setManualField("manualAdbluePerKm");
   const setManualTyrePerKm   = setManualField("manualTyrePerKm");
   const setManualEmiPerDay   = setManualField("manualEmiPerDay");
   const setManualEmiPerKm    = setManualField("manualEmiPerKm");
@@ -616,19 +609,8 @@ function TruckProfitCard({
     return systemFuelCostPerLitre > 0 && autoMileageValid ? systemFuelCostPerLitre / autoMileageNum : 0;
   })();
 
-  // Effective AdBlue cost per km — manual override takes priority over auto-fetched prop
-  const effectiveAdbluePerKmNum = (() => {
-    if (manualAdbluePerKm && parseFloat(manualAdbluePerKm) > 0) return parseFloat(manualAdbluePerKm);
-    const v = parseFloat(adbluePerKm);
-    return !isNaN(v) && v > 0 ? v : 0;
-  })();
-
   // Placeholder raw strings for the OverridableCells
   const autoMileageRaw   = autoMileageValid ? autoMileageNum.toFixed(2) : "";
-  const autoAdbluePerKmRaw = (() => {
-    const v = parseFloat(adbluePerKm);
-    return !isNaN(v) && v > 0 ? v.toFixed(4) : "";
-  })();
   const effectiveTyrePerKmNum = (() => {
     if (manualTyrePerKm && parseFloat(manualTyrePerKm) > 0) return parseFloat(manualTyrePerKm);
     const v = parseFloat(tyrePerKm);
@@ -725,11 +707,11 @@ function TruckProfitCard({
   const cleanerAmt   = (() => { const fee = parseFloat(cleanerBattaFeePerDay); return !isNaN(fee) && fee > 0 && !isNaN(days) && days > 0 ? fee * days : 0; })();
   const emiAmt       = effectiveEmiPerKmNum > 0 && kmN > 0 ? effectiveEmiPerKmNum * kmN : 0;
   const dieselAmt    = effectiveCostPerKmNum > 0 && kmN > 0 ? effectiveCostPerKmNum * kmN : 0;
-  const adblueAmt    = effectiveAdbluePerKmNum > 0 && kmN > 0 ? effectiveAdbluePerKmNum * kmN : 0;
   const tyreAmt      = effectiveTyrePerKmNum > 0 && kmN > 0 ? effectiveTyrePerKmNum * kmN : 0;
   const maintAmt     = effectiveMaintPerKmNum > 0 && kmN > 0 ? effectiveMaintPerKmNum * kmN : 0;
 
-  const totalExpenses = tollAmt + driverAmt + cleanerAmt + emiAmt + dieselAmt + adblueAmt + tyreAmt + maintAmt;
+  // AdBlue is logged as maintenance, so it's already in maintAmt.
+  const totalExpenses = tollAmt + driverAmt + cleanerAmt + emiAmt + dieselAmt + tyreAmt + maintAmt;
   const hasExpenses   = totalExpenses > 0;
   const hireValid     = !isNaN(hire) && hire > 0;
   const profitOrLoss  = hireValid && hasExpenses ? hire - totalExpenses : null;
@@ -777,12 +759,6 @@ function TruckProfitCard({
       const km = parseFloat(totalKm);
       if (effectiveCostPerKmNum > 0 && !isNaN(km) && km > 0)
         return `₹${(effectiveCostPerKmNum * km).toFixed(2)}`;
-      return null;
-    }
-    if (key === "adblueExpenses") {
-      const km = parseFloat(totalKm);
-      if (effectiveAdbluePerKmNum > 0 && !isNaN(km) && km > 0)
-        return `₹${(effectiveAdbluePerKmNum * km).toFixed(2)}`;
       return null;
     }
     if (key === "tyreExpenses") {
@@ -851,7 +827,6 @@ function TruckProfitCard({
                 <OverridableCell
                   autoRawValue={
                     field.key === "truckMileage"    ? autoMileageRaw :
-                    field.key === "adbluePerKm"     ? autoAdbluePerKmRaw :
                     field.key === "tyrePerKm"       ? autoTyrePerKmRaw :
                     field.key === "emiPerDay"       ? autoEmiPerDayRaw :
                     field.key === "emiPerKm"        ? autoEmiPerKmRaw :
@@ -861,7 +836,6 @@ function TruckProfitCard({
                   }
                   overrideValue={
                     field.key === "truckMileage"    ? manualMileage :
-                    field.key === "adbluePerKm"     ? manualAdbluePerKm :
                     field.key === "tyrePerKm"       ? manualTyrePerKm :
                     field.key === "emiPerDay"       ? manualEmiPerDay :
                     field.key === "emiPerKm"        ? manualEmiPerKm :
@@ -871,7 +845,6 @@ function TruckProfitCard({
                   }
                   onChange={
                     field.key === "truckMileage"    ? setManualMileage :
-                    field.key === "adbluePerKm"     ? setManualAdbluePerKm :
                     field.key === "tyrePerKm"       ? setManualTyrePerKm :
                     field.key === "emiPerDay"       ? setManualEmiPerDay :
                     field.key === "emiPerKm"        ? setManualEmiPerKm :
@@ -944,10 +917,6 @@ export default function TripProfitabilityCalculatorPage() {
   const [emiMap, setEmiMap] = useState<Record<string, { emiPerDay: string; emiPerKm: string }>>({});
   // truck_id → average mileage km/L
   const [mileageMap, setMileageMap] = useState<Record<string, number>>({});
-  // truck_id → lifetime average AdBlue consumption L/km, from Truck's Adblue History
-  const [adblueConsumptionMap, setAdblueConsumptionMap] = useState<Record<string, number>>({});
-  // manufacturer name → defaultPricePerLitre (for AdBlue cost computation)
-  const [adblueManufacturers, setAdblueManufacturers] = useState<AdBlueManufacturer[]>([]);
   // tyre data for per-truck cost computation
   const [tyreInventory, setTyreInventory]     = useState<TyreInventoryItem[]>([]);
   const [tyreFitments, setTyreFitments]       = useState<TyreFitmentRecord[]>([]);
@@ -1011,7 +980,6 @@ export default function TripProfitabilityCalculatorPage() {
     }
 
     branchesApi.list().then(setBranches).catch(() => reportFailure("Branches"));
-    adblueApi.listManufacturers().then(setAdblueManufacturers).catch(() => reportFailure("AdBlue Manufacturers"));
     tyreApi.listInventory().then(setTyreInventory).catch(() => reportFailure("Tyre Inventory"));
     tyreApi.listFitments(undefined, true).then(setTyreFitments).catch(() => reportFailure("Tyre Fitments"));
     tyreRangeConfigApi.list().then(setTyreRangeConfig).catch(() => reportFailure("Tyre Range Config"));
@@ -1020,7 +988,6 @@ export default function TripProfitabilityCalculatorPage() {
     trucksApi.getRunConfig().then(setRunConfigs).catch(() => reportFailure("Truck Run Config"));
 
     fuelLogsApi.getAllFuelStats().then(setMileageMap).catch(() => reportFailure("Fuel Mileage Stats"));
-    adblueLogsApi.getAllConsumptionStats().then(setAdblueConsumptionMap).catch(() => reportFailure("AdBlue Consumption Stats"));
     fuelLogsApi.getBaseConfig().then((cfg) => {
       if (cfg.cost_per_litre != null) {
         setSystemFuelCostPerLitre(Number(cfg.cost_per_litre));
@@ -1072,14 +1039,6 @@ export default function TripProfitabilityCalculatorPage() {
       localStorage.setItem("erp_trip_calc_page", JSON.stringify({ tripDetails, tollPrices, fuelCostPerLitre }));
     } catch {}
   }, [tripDetails, tollPrices, fuelCostPerLitre]);
-
-  // manufacturer name → AdBlue defaultPricePerLitre. Normalized (trim + lowercase)
-  // to match Running Cost Calculator's equivalent lookup — an unnormalized key
-  // silently drops AdBlue cost for any truck whose manufacturer name differs
-  // from AdBlueManufacturer.name only by casing/whitespace.
-  const adblueManufacturerPriceMap = Object.fromEntries(
-    adblueManufacturers.map((m) => [m.name.trim().toLowerCase(), m.defaultPricePerLitre ?? ""])
-  );
 
   // truckId (string) → total tyre cost per km — mirrors ViewTyreDataDialog logic
   const tyreCostPerKmMap: Record<string, number> = (() => {
@@ -1283,13 +1242,6 @@ export default function TripProfitabilityCalculatorPage() {
                 truckMileage={String(mileageMap[truck.id] ?? "0")}
                 systemFuelCostPerLitre={systemFuelCostPerLitre}
                 fuelCostPerLitre={fuelCostPerLitre}
-                adbluePerKm={(() => {
-                  const consumption = adblueConsumptionMap[truck.id] ?? 0;
-                  const price = parseFloat(adblueManufacturerPriceMap[(truck.manufacturer ?? "").trim().toLowerCase()] ?? "");
-                  return consumption > 0 && !isNaN(price) && price > 0
-                    ? String(consumption * price)
-                    : "0";
-                })()}
                 tyrePerKm={String(tyreCostPerKmMap[truck.id] ?? "0")}
                 maintPerDay={String(maintDailyMap[truck.id] ?? "0")}
                 maintPerKm={String(maintPerKmFetchedMap[truck.id] ?? "0")}

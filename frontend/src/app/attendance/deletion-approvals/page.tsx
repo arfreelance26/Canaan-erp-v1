@@ -13,6 +13,7 @@ import { formatDate, formatDateTime } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
+import { TYRE_ACTION_LABEL, type TyreAction } from "@/components/fleet/TruckTyreStepDialog";
 
 const EDIT_EVENT_ICON: Record<DeletionApprovalEditEventRow["event"], typeof CheckCircle> = {
   "Deletion Approved": CheckCircle,
@@ -86,6 +87,9 @@ function RequestCard({
   // Only a real fuel log gets the fuel styling — an unrecognised/blank type
   // used to fall through to it, making every broken request look like one.
   const isFuel = req.resourceType === "FuelLog";
+  // A truck request is either a sale ("Sell Truck") or a delete.
+  const isSale = isTruck && d?.action === "sell";
+  const sale = (isSale ? d?.sale : null) as { sold_date?: string; sold_odometer?: number; note?: string | null } | null;
 
   const badgeClass = isTrip
     ? "bg-purple-100 text-purple-600"
@@ -135,7 +139,14 @@ function RequestCard({
             <BadgeIcon className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">{req.resourceName}</p>
+            <p className="text-sm font-bold text-gray-900">
+              {req.resourceName}
+              {isTruck && (
+                <span className={`ml-2 rounded-full px-2 py-0.5 align-middle text-[10px] font-semibold ${isSale ? "bg-brand-navy/10 text-brand-navy" : "bg-rose-50 text-rose-600"}`}>
+                  {isSale ? "Sell" : "Delete"}
+                </span>
+              )}
+            </p>
             <p className="mt-0.5 text-[11px] text-gray-400">
               Requested {req.createdAt ? formatDate(req.createdAt.slice(0, 10)) : "—"}
             </p>
@@ -179,8 +190,50 @@ function RequestCard({
           )}
         </div>
 
+        {/* Right — a sell request's sale details */}
+        {isSale && sale && (
+          <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
+              <Layers className="h-3 w-3" /> Sale
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <LogDetailRow label="Sale Date" value={sale.sold_date ? formatDate(sale.sold_date) : null} />
+              <LogDetailRow label="Odometer" value={sale.sold_odometer != null ? `${Number(sale.sold_odometer).toLocaleString("en-IN")} km` : null} />
+              {!!sale.note && <LogDetailRow label="Note" value={sale.note} />}
+            </div>
+          </div>
+        )}
+
+        {/* Right — a truck request's tyre choices */}
+        {isTruck && Array.isArray(d?.tyre_rows) && (d.tyre_rows as unknown[]).length > 0 && (
+          <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
+              <Layers className="h-3 w-3" /> Tyres ({(d.tyre_rows as unknown[]).length})
+            </div>
+            <div className="flex max-h-56 flex-col gap-1.5 overflow-auto">
+              {(d.tyre_rows as { tyre_number: string; position: string; action: TyreAction }[]).map((r, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="min-w-0 truncate text-gray-700">
+                    <span className="font-mono">{r.tyre_number}</span>
+                    <span className="text-gray-400"> · {r.position}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-0.5 font-semibold text-gray-600 ring-1 ring-gray-200">
+                    {TYRE_ACTION_LABEL[r.action] ?? r.action}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {typeof (d.tyre_plan as { removed_odometer?: number } | undefined)?.removed_odometer === "number" && (
+              <p className="mt-3 text-[11px] text-gray-400">
+                Removed at {Number((d.tyre_plan as { removed_odometer: number }).removed_odometer).toLocaleString("en-IN")} km
+                {" "}on {formatDate(String((d.tyre_plan as { removed_date?: string }).removed_date ?? ""))}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Right — log snapshot */}
-        {d && (
+        {d && !isTruck && (
           <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">
               <Layers className="h-3 w-3" /> Log Details
@@ -227,7 +280,7 @@ function RequestCard({
             onClick={() => onApprove(req.id)}
             className="flex items-center gap-1.5 rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
           >
-            <CheckCircle className="h-4 w-4" /> Approve & Delete
+            <CheckCircle className="h-4 w-4" /> {isSale ? "Approve & Sell" : "Approve & Delete"}
           </button>
         </div>
       )}

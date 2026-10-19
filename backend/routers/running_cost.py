@@ -49,7 +49,6 @@ def _build_mode_response(mode: str, db: Session) -> dict:
     config     = db.query(models.RunningCostConfig).filter_by(mode=mode).first()
     tyre_rows  = db.query(models.RunningCostTyreEntry).filter_by(mode=mode).all()
     layout_rows = db.query(models.RunningCostLayoutEntry).filter_by(mode=mode).all()
-    adblue_rows = db.query(models.RunningCostAdblueEntry).filter_by(mode=mode).all()
     truck_rows  = db.query(models.RunningCostTruckMetrics).filter_by(mode=mode).all()
     return {
         "cost_per_litre": _fmt(config.cost_per_litre) if config else "",
@@ -61,19 +60,12 @@ def _build_mode_response(mode: str, db: Session) -> dict:
             r.tyre_layout: {"month": _fmt(r.km_per_month), "day": _fmt(r.km_per_day)}
             for r in layout_rows
         },
-        "adblue_prices": {
-            str(r.manufacturer_id): _fmt(r.price_per_litre)
-            for r in adblue_rows
-        },
         "truck_metrics": {
             str(r.truck_id): {
                 "emi_amount":              _fmt(r.emi_amount),
                 "emi_per_day":             _fmt(r.emi_per_day),
                 "emi_per_km":              _fmt(r.emi_per_km),
                 "mileage":                 _fmt(r.mileage),
-                "adblue_consume_l_per_km": _fmt(r.adblue_consume_l_per_km),
-                "adblue_manufacturer_id":    str(r.adblue_manufacturer_id) if r.adblue_manufacturer_id else "",
-                "adblue_per_km":             _fmt(r.adblue_per_km),
                 "tyre_type":                 r.tyre_type or "",
                 "tyre_per_km":               _fmt(r.tyre_per_km),
                 "maintenance_per_km":        _fmt(r.maintenance_per_km),
@@ -118,28 +110,12 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
                 km_per_day=_to_decimal(entry.day),
             ))
 
-    # AdBlue entries
-    for mid_str, price_str in data.adblue_prices.items():
-        try:
-            mid = int(mid_str)
-        except (ValueError, TypeError):
-            continue
-        row = db.query(models.RunningCostAdblueEntry).filter_by(mode=mode, manufacturer_id=mid).first()
-        if row:
-            row.price_per_litre = _to_decimal(price_str)
-        else:
-            db.add(models.RunningCostAdblueEntry(
-                mode=mode, manufacturer_id=mid,
-                price_per_litre=_to_decimal(price_str),
-            ))
-
     # Truck metrics
     for tid_str, m in data.truck_metrics.items():
         try:
             tid = int(tid_str)
         except (ValueError, TypeError):
             continue
-        adblue_mid = _to_int(m.adblue_manufacturer_id) if m.adblue_manufacturer_id else None
         row = db.query(models.RunningCostTruckMetrics).filter_by(mode=mode, truck_id=tid).first()
         if row is None and not db.query(models.Truck).filter_by(id=tid).first():
             continue  # truck deleted; skip to avoid FK violation
@@ -148,9 +124,6 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
             row.emi_per_day = _to_decimal(m.emi_per_day)
             row.emi_per_km  = _to_decimal(m.emi_per_km)
             row.mileage = _to_decimal(m.mileage)
-            row.adblue_consume_l_per_km = _to_decimal(m.adblue_consume_l_per_km)
-            row.adblue_manufacturer_id = adblue_mid
-            row.adblue_per_km = _to_decimal(m.adblue_per_km)
             row.tyre_type = m.tyre_type or None
             row.tyre_per_km = _to_decimal(m.tyre_per_km)
             row.maintenance_per_km = _to_decimal(m.maintenance_per_km)
@@ -162,9 +135,6 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
                 emi_per_day=_to_decimal(m.emi_per_day),
                 emi_per_km=_to_decimal(m.emi_per_km),
                 mileage=_to_decimal(m.mileage),
-                adblue_consume_l_per_km=_to_decimal(m.adblue_consume_l_per_km),
-                adblue_manufacturer_id=adblue_mid,
-                adblue_per_km=_to_decimal(m.adblue_per_km),
                 tyre_type=m.tyre_type or None,
                 tyre_per_km=_to_decimal(m.tyre_per_km),
                 maintenance_per_km=_to_decimal(m.maintenance_per_km),
@@ -268,7 +238,7 @@ def _truck_run_monthly_avg_all(db: Session) -> dict[str, float]:
 
 def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, float | None]:
     from routers.maintenance import (
-        get_all_fuel_stats, get_all_adblue_consumption,
+        get_all_fuel_stats,
         get_maintenance_cost_per_km_all, get_maintenance_cost_per_day_all,
     )
     from routers.trucks import get_compliance_per_km_all, get_compliance_per_day_all
@@ -278,17 +248,12 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
         return {}
 
     mileage_map      = get_all_fuel_stats(db)
-    adblue_map        = get_all_adblue_consumption(db)
     maint_map          = get_maintenance_cost_per_km_all(db)
     maint_per_day_map  = get_maintenance_cost_per_day_all(db) if mode == "Advanced" else {}
     compliance_per_day_map = get_compliance_per_day_all(db) if mode == "Advanced" else {}
     compliance_map      = get_compliance_per_km_all(db)
     monthly_avg_map     = _truck_run_monthly_avg_all(db) if mode == "Advanced" else {}
 
-    manufacturer_price = {
-        m.name.strip().lower(): float(m.default_price_per_litre or 0)
-        for m in db.query(models.AdBlueManufacturer).all()
-    }
 
     fuel_cfg = db.query(models.FuelBaseConfig).first()
     cost_per_litre = float(fuel_cfg.cost_per_litre) if fuel_cfg and fuel_cfg.cost_per_litre else 0.0
@@ -343,9 +308,6 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
         mileage = mileage_map.get(tid)
         fuel_per_km = (cost_per_litre / mileage) if mileage and mileage > 0 and cost_per_litre > 0 else None
 
-        adblue_l_per_km = adblue_map.get(tid) or 0.0
-        mfr_price = manufacturer_price.get((truck.manufacturer or "").strip().lower(), 0.0)
-        adblue_per_km = (adblue_l_per_km * mfr_price) if adblue_l_per_km > 0 and mfr_price > 0 else None
 
         reg = (truck.registration_number or "").strip().upper()
         emi = emi_by_reg.get(reg)
@@ -382,7 +344,8 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
             compliance_per_day = compliance_per_day_map.get(tid)
             compliance_per_km = (compliance_per_day / monthly_avg) if compliance_per_day and monthly_avg > 0 else None
 
-        components = [emi_per_km, fuel_per_km, adblue_per_km, tyre_per_km, maintenance_per_km, compliance_per_km]
+        # AdBlue isn't part of the calculator (Truck's Adblue History is a record only).
+        components = [emi_per_km, fuel_per_km, tyre_per_km, maintenance_per_km, compliance_per_km]
         result[truck.truck_id] = (
             round(sum(c or 0 for c in components), 6) if any(c is not None for c in components) else None
         )

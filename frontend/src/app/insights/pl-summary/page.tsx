@@ -251,7 +251,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
         <>
           <GuideSection title="How Manual mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
             <p>
-              Every cost input — diesel price/litre, mileage, tyre cost, EMI, AdBlue, maintenance and compliance cost per km — is
+              Every cost input — diesel price/litre, mileage, tyre cost, EMI, maintenance (including AdBlue) and compliance cost per km — is
               typed in by hand on the <b>Running Cost Calculator</b> page. One set of values is applied uniformly to whichever trucks
               you assign it to; nothing is auto-fetched.
             </p>
@@ -271,8 +271,7 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
           <GuideSection title="How Basic mode works" icon={<Fuel className="h-3.5 w-3.5" />}>
             <p>
               Blends auto-fetched defaults with a few editable fields: diesel price is pulled from Maintenance → Fuel History
-              (&ldquo;Set Base Litre Cost&rdquo;), tyre cost comes from Admin → Tyre Cost Configuration, and AdBlue defaults come from the
-              manufacturer&rsquo;s default price/consumption. EMI fields (amount, per-day, per-km) stay manually editable, falling back to a
+              (&ldquo;Set Base Litre Cost&rdquo;) and tyre cost comes from Admin → Tyre Cost Configuration. EMI fields (amount, per-day, per-km) stay manually editable, falling back to a
               fetched value only if left blank.
             </p>
           </GuideSection>
@@ -296,7 +295,6 @@ function HowCalculatedModal({ onClose }: { onClose: () => void }) {
               <li>Maintenance cost/km — Truck Maintenance → Full Status</li>
               <li>Compliance cost/km — Compliance &amp; Renewals → View Cost Breakdown</li>
               <li>EMI — fetched directly, no manual override</li>
-              <li>AdBlue cost/km — Truck&apos;s Adblue History page</li>
             </ul>
           </GuideSection>
           <GuideSection title="What that means here">
@@ -349,7 +347,7 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
         <div className="space-y-4">
           <GuideSection title="Getting started with Manual mode" icon={<MousePointerClick className="h-3.5 w-3.5" />}>
             <p>1. Go to <b>Running Cost Calculator</b> → switch to the Manual tab.</p>
-            <p>2. Type in diesel price/litre, mileage, tyre cost, EMI and AdBlue figures for a truck.</p>
+            <p>2. Type in diesel price/litre, mileage, tyre cost, EMI and maintenance figures for a truck.</p>
             <p>3. Come back here, select the <b>Manual</b> mode pill next to the tab bar — Truck Expenses / Final Profit fill in immediately.</p>
           </GuideSection>
           <p className="text-xs text-gray-500">Nothing here is fetched automatically, so revisit the Calculator whenever diesel prices or other costs change.</p>

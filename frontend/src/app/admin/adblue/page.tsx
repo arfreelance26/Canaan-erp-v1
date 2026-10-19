@@ -2,8 +2,8 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
-import { Droplets, Plus, Pencil, Trash2, Check, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen } from "lucide-react";
-import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer, type AdBlueEditEventRow } from "@/lib/api";
+import { Droplets, Plus, Pencil, Trash2, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen } from "lucide-react";
+import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer, type AdBlueLogEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import { showError, showSuccess } from "@/lib/swal";
@@ -18,24 +18,23 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
-const EDIT_EVENT_ICON: Record<AdBlueEditEventRow["event"], typeof Plus> = {
+const EDIT_EVENT_ICON: Record<AdBlueLogEditEventRow["event"], typeof Plus> = {
   "Log Created": Plus,
   "Log Edited": Pencil,
   "Log Deleted": Trash2,
-  "Manufacturer Created": Plus,
-  "Manufacturer Edited": Pencil,
-  "Manufacturer Deleted": Trash2,
 };
 
-const EDIT_EVENT_COLOR: Record<AdBlueEditEventRow["event"], string> = {
+const EDIT_EVENT_COLOR: Record<AdBlueLogEditEventRow["event"], string> = {
   "Log Created": "bg-blue-100 text-blue-700",
   "Log Edited": "bg-amber-100 text-amber-700",
   "Log Deleted": "bg-red-100 text-red-700",
-  "Manufacturer Created": "bg-blue-100 text-blue-700",
-  "Manufacturer Edited": "bg-amber-100 text-amber-700",
-  "Manufacturer Deleted": "bg-red-100 text-red-700",
 };
 
+/**
+ * Truck's Adblue History — a record of every AdBlue fill per truck. It feeds
+ * no calculator or cost figure. Trucks are grouped by manufacturer (managed
+ * on Our Fleet → Manufacturers); sold and deleted trucks aren't shown.
+ */
 export default function AdblueManagementPage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
@@ -47,34 +46,22 @@ export default function AdblueManagementPage() {
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
-  const [editHistoryEvents, setEditHistoryEvents] = useState<AdBlueEditEventRow[]>([]);
+  const [editHistoryEvents, setEditHistoryEvents] = useState<AdBlueLogEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
 
-  // Fetched fresh every time it's opened, covering both AdBlue Logs and
-  // AdBlue Manufacturers (both editable from this page) — merged into one
-  // chronological, searchable log.
+  // Fetched fresh every time it's opened.
   function openEditHistory() {
     setEditHistoryOpen(true);
     setEditHistoryLoading(true);
-    adblueApi.listEditEvents()
+    adblueLogsApi.listEditEvents()
       .then(setEditHistoryEvents)
       .catch(() => {})
       .finally(() => setEditHistoryLoading(false));
   }
 
-  // Dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  // Delete
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
   // Enter Log dialog
-  const [logTarget, setLogTarget] = useState<{ truck: Truck; pricePerLitre: string } | null>(null);
+  const [logTarget, setLogTarget] = useState<Truck | null>(null);
 
   // View History dialog
   const [historyTruck, setHistoryTruck] = useState<Truck | null>(null);
@@ -84,8 +71,8 @@ export default function AdblueManagementPage() {
       await adblueLogsApi.createLog(log);
       showSuccess("AdBlue log saved.");
       setLogTarget(null);
-    } catch {
-      showError("Could not save the AdBlue log. Please try again.");
+    } catch (e: unknown) {
+      showError(e instanceof Error && e.message ? e.message : "Could not save the AdBlue log. Please try again.");
     }
   }
 
@@ -96,59 +83,30 @@ export default function AdblueManagementPage() {
     ])
       .then(([mfrs, trks]) => { setManufacturers(mfrs); setTrucks(trks); })
       .catch(() => {})
-      .catch(() => {}).finally(() => setLoading(false));
+      .finally(() => setLoading(false));
   }, [reloadKey]);
 
   // The API cache answers instantly and refreshes in the background; show the fresher copy when it lands.
   useEffect(() => onRevalidated(() => setReloadKey((k) => k + 1)), []);
 
+  const q = searchQuery.trim().toLowerCase();
+  const matches = (t: Truck) =>
+    !q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q);
   const knownManufacturers = new Set(manufacturers.map((m) => m.name.trim().toLowerCase()));
-  const unassignedTrucks = trucks.filter((t) => !knownManufacturers.has((t.manufacturer ?? "").trim().toLowerCase()));
+  const otherTrucks = trucks.filter((t) => !knownManufacturers.has((t.manufacturer ?? "").trim().toLowerCase()) && matches(t));
 
-  function openDialog() {
-    setEditingId(null);
-    setName(""); setPrice(""); setDialogOpen(true);
-  }
-
-  function openEditDialog(m: AdBlueManufacturer) {
-    setEditingId(m.id);
-    setName(m.name);
-    setPrice(parseFloat(m.defaultPricePerLitre) > 0 ? m.defaultPricePerLitre : "");
-    setDialogOpen(true);
-  }
-
-  async function handleSaveManufacturer() {
-    if (!name.trim()) { showError("Manufacturer name is required."); return; }
-    setSaving(true);
-    try {
-      if (editingId) {
-        await adblueApi.updateManufacturer(editingId, name.trim(), price);
-      } else {
-        await adblueApi.createManufacturer(name.trim(), price);
-      }
-      const updated = await adblueApi.listManufacturers();
-      setManufacturers(updated);
-      setDialogOpen(false);
-      showSuccess(editingId ? "Manufacturer updated." : "Manufacturer added.");
-    } catch (e: any) {
-      showError(e.message || "Failed to save manufacturer.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    setDeletingId(id);
-    try {
-      await adblueApi.deleteManufacturer(id);
-      const updated = await adblueApi.listManufacturers();
-      setManufacturers(updated);
-    } catch (e: any) {
-      showError(e.message || "Failed to delete manufacturer.");
-    } finally {
-      setDeletingId(null);
-    }
-  }
+  const renderGrid = (list: Truck[]) => (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {list.map((truck) => (
+        <TruckCard
+          key={truck.id}
+          truck={truck}
+          onViewHistory={() => setHistoryTruck(truck)}
+          onEnterLog={() => setLogTarget(truck)}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -160,7 +118,7 @@ export default function AdblueManagementPage() {
           </span>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Truck&apos;s Adblue History</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Track AdBlue usage and stock across the fleet</p>
+            <p className="mt-0.5 text-sm text-gray-500">A record of every AdBlue fill across the fleet</p>
           </div>
         </div>
         {isAdmin && (
@@ -175,7 +133,7 @@ export default function AdblueManagementPage() {
 )}
       </div>
 
-      {/* Toolbar: search on the left, date range + View on the right */}
+      {/* Toolbar: search on the left, date range + download on the right */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trucks..." value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -191,36 +149,29 @@ export default function AdblueManagementPage() {
         </div>
       </div>
 
-      {/* Two-column layout */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-
-        {/* LEFT — Manufacturer fleet sections */}
-        <div className="flex min-w-0 flex-1 flex-col gap-8">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
-            </div>
-          ) : manufacturers.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-200 py-16 text-center">
-              <Droplets className="h-10 w-10 text-gray-200" />
-              <p className="text-sm font-medium text-gray-400">No manufacturers registered yet.</p>
-              <p className="text-xs text-gray-300">Add a manufacturer using the card on the right.</p>
-            </div>
-          ) : (
-            manufacturers.map((m) => {
-              const q = searchQuery.trim().toLowerCase();
+      {/* Trucks, grouped by manufacturer */}
+      <div className="flex min-w-0 flex-col gap-8">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-300" />
+          </div>
+        ) : trucks.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-gray-200 py-16 text-center">
+            <Droplets className="h-10 w-10 text-gray-200" />
+            <p className="text-sm font-medium text-gray-400">No trucks in the fleet yet.</p>
+          </div>
+        ) : !trucks.some(matches) ? (
+          <p className="py-10 text-center text-sm text-gray-400">No trucks match this search.</p>
+        ) : (
+          <>
+            {manufacturers.map((m) => {
               const mTrucks = trucks.filter(
-                (t) =>
-                  t.manufacturer.trim().toLowerCase() === m.name.trim().toLowerCase() &&
-                  (!q ||
-                    t.registrationNumber?.toLowerCase().includes(q) ||
-                    t.truckId?.toLowerCase().includes(q))
+                (t) => (t.manufacturer ?? "").trim().toLowerCase() === m.name.trim().toLowerCase() && matches(t),
               );
-              // While searching, hide manufacturers that have no matching truck.
-              if (q && mTrucks.length === 0) return null;
+              // Only manufacturers with trucks (matching the search) get a section.
+              if (mTrucks.length === 0) return null;
               return (
                 <section key={m.id}>
-                  {/* Section header */}
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/10">
                       <TruckIcon className="h-4 w-4 text-blue-600" />
@@ -231,202 +182,34 @@ export default function AdblueManagementPage() {
                         {mTrucks.length} {mTrucks.length === 1 ? "truck" : "trucks"}
                       </span>
                     </div>
-                    {parseFloat(m.defaultPricePerLitre) > 0 && (
-                      <span className="shrink-0 rounded-full bg-green-50 px-2.5 py-0.5 text-[11px] font-semibold text-green-700">
-                        ₹{parseFloat(m.defaultPricePerLitre).toFixed(2)} / L
-                      </span>
-                    )}
                   </div>
-
-                  {mTrucks.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-gray-200 py-8 text-center">
-                      <p className="text-xs text-gray-400">No trucks assigned to this manufacturer yet.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {mTrucks.map((truck) => (
-                        <TruckCard
-                          key={truck.id}
-                          truck={truck}
-                          onViewHistory={() => setHistoryTruck(truck)}
-                          onEnterLog={() => setLogTarget({ truck, pricePerLitre: m.defaultPricePerLitre })}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  {renderGrid(mTrucks)}
                 </section>
               );
-            })
-          )}
+            })}
 
-          {(() => {
-            const q = searchQuery.trim().toLowerCase();
-            const shown = unassignedTrucks.filter(
-              (t) => !q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q)
-            );
-            if (shown.length === 0) return null;
-            return (
+            {otherTrucks.length > 0 && (
               <section>
                 <div className="mb-4 flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
                     <TruckIcon className="h-4 w-4 text-amber-700" />
                   </div>
                   <div className="flex flex-1 items-baseline gap-2">
-                    <h2 className="text-base font-bold text-gray-900">Unassigned</h2>
+                    <h2 className="text-base font-bold text-gray-900">Other Trucks</h2>
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                      {shown.length} {shown.length === 1 ? "truck" : "trucks"}
+                      {otherTrucks.length} {otherTrucks.length === 1 ? "truck" : "trucks"}
                     </span>
                   </div>
                 </div>
                 <p className="mb-3 text-xs text-gray-500">
-                  These trucks&apos; manufacturer doesn&apos;t match a registered AdBlue manufacturer. Set the truck&apos;s manufacturer to one of them to manage its AdBlue.
+                  These trucks&apos; manufacturer isn&apos;t in the list on Our Fleet → Manufacturers.
                 </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {shown.map((truck) => (
-                    <TruckCard
-                      key={truck.id}
-                      truck={truck}
-                      onViewHistory={() => setHistoryTruck(truck)}
-                      onEnterLog={() => showError("Set this truck's manufacturer to a registered AdBlue manufacturer first.")}
-                    />
-                  ))}
-                </div>
+                {renderGrid(otherTrucks)}
               </section>
-            );
-          })()}
-        </div>
-
-        {/* RIGHT — Registered Manufacturers card */}
-        <div className="w-full lg:w-[340px] shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-          {/* Card header — title/badge and the Add button sit on their own rows
-              so they never crowd together at this panel's fixed narrow width. */}
-          <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-gray-800">Registered Manufacturers</h2>
-              {!loading && (
-                <span className="shrink-0 rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
-                  {manufacturers.length}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={openDialog}
-              className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-blue-700"
-            >
-              <Plus className="h-3 w-3" />
-              Add Manufacturer
-            </button>
-          </div>
-
-          {/* Manufacturer list */}
-          <div className="divide-y divide-gray-50">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
-              </div>
-            ) : manufacturers.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <Droplets className="h-7 w-7 text-gray-200" />
-                <p className="text-xs text-gray-400">No manufacturers registered yet.</p>
-              </div>
-            ) : (
-              manufacturers.map((m) => (
-                <div key={m.id} className="flex items-center gap-4 px-5 py-3.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-gray-800">{m.name}</p>
-                    <p className="mt-0.5 text-[11px] text-gray-400">
-                      {parseFloat(m.defaultPricePerLitre) > 0
-                        ? `₹${parseFloat(m.defaultPricePerLitre).toFixed(2)} / litre`
-                        : "No default price set"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEditDialog(m)}
-                      className="rounded-lg p-1.5 text-gray-300 transition hover:bg-blue-50 hover:text-blue-500"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(m.id)}
-                      disabled={deletingId === m.id}
-                      className="rounded-lg p-1.5 text-gray-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                    >
-                      {deletingId === m.id
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              ))
             )}
-          </div>
-        </div>
+          </>
+        )}
       </div>
-
-      {/* Add / Edit Manufacturer dialog */}
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        title={editingId ? "Edit Manufacturer" : "Add Manufacturer"}
-        className="max-w-sm"
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-              Manufacturer Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Yara, BASF, AdBlue India"
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
-              Default AdBlue Price (Per Litre)
-            </label>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">₹</span>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="0.00"
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-7 pr-12 text-sm text-gray-800 placeholder-gray-300 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-gray-400">/ L</span>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => setDialogOpen(false)}
-              className="flex-1 rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveManufacturer}
-              disabled={saving || !name.trim()}
-              className="flex flex-[2] items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              {saving ? "Saving…" : editingId ? "Save Changes" : "Save Manufacturer"}
-            </button>
-          </div>
-        </div>
-      </Dialog>
 
       {/* Enter AdBlue Log dialog */}
       {logTarget && (
@@ -434,8 +217,7 @@ export default function AdblueManagementPage() {
           open={!!logTarget}
           onClose={() => setLogTarget(null)}
           onSave={handleSaveAdBlueLog}
-          truck={logTarget.truck}
-          pricePerLitre={logTarget.pricePerLitre}
+          truck={logTarget}
         />
       )}
 
@@ -446,10 +228,9 @@ export default function AdblueManagementPage() {
         truck={historyTruck}
       />
 
-      {/* Edit History — every Create/Edit/Delete ever logged, across both
-          AdBlue Logs and AdBlue Manufacturers (both editable from this same
-          page), merged into one searchable log. A deleted log/manufacturer's
-          row still shows since it's logged as a snapshot, not a live join. */}
+      {/* Edit History — every Create/Edit/Delete of an AdBlue log, in one
+          searchable list. A deleted log's row still shows since it's logged
+          as a snapshot, not a live join. */}
       <Dialog
         open={editHistoryOpen}
         onClose={() => setEditHistoryOpen(false)}
@@ -457,7 +238,7 @@ export default function AdblueManagementPage() {
         className="sm:max-w-3xl"
       >
         <div className="flex flex-col gap-4">
-          <PillSearch placeholder="Search by label or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
+          <PillSearch placeholder="Search by truck or actor…" value={editHistorySearch} onChange={setEditHistorySearch} />
           {editHistoryLoading ? (
             <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
           ) : (() => {
@@ -475,7 +256,7 @@ export default function AdblueManagementPage() {
                 <table className="w-full min-w-[600px] text-left text-sm">
                   <thead className="sticky top-0 bg-gray-50">
                     <tr className="border-b border-gray-100">
-                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Item</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Log</th>
                       <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
                       <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
                       <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
@@ -486,10 +267,7 @@ export default function AdblueManagementPage() {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
-                          <td className="px-3 py-2">
-                            <p className="font-semibold text-gray-800">{ev.label}</p>
-                            <p className="text-[11px] text-gray-400">{ev.category}</p>
-                          </td>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{ev.label}</td>
                           <td className="px-3 py-2">
                             <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", EDIT_EVENT_COLOR[ev.event])}>
                               <Icon className="h-3 w-3" /> {ev.event}

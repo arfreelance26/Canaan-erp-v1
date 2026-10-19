@@ -68,6 +68,9 @@ export type TripSheetData = {
   totalHaltDays: string;
   haltRemarks: string;
   haltPay: string;
+  /** Read-only, from the trip closure: the customer-caused (party) halt pay —
+   * recoverable from the customer, so what an invoice's "Halt Pay" line bills. */
+  partyHaltPay?: string;
   // Port & Operational
   portPassExpense: string;
   weightSheetExpense: string;

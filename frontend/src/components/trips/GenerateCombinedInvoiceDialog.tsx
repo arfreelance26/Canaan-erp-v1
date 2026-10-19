@@ -30,7 +30,9 @@ const EXPENSE_TO_SHEET_FIELD: Partial<Record<string, keyof TripSheetData>> = {
   "Hire Amount":                   "hireAmount",
   "Lift On / Off":                 "liftOnOffExpense",
   "Weight Sheet Expense":          "weightSheetExpense",
-  "Halt Pay":                      "haltPay",
+  // Party (customer-caused) halt only — the company's own halt is our expense,
+  // not something to bill the customer for.
+  "Halt Pay":                      "partyHaltPay",
   "Port Pass Expense":             "portPassExpense",
   "Mamol Expense":                 "mamolExpense",
   "Claimable Mamol Expense":       "claimableMamolExpense",

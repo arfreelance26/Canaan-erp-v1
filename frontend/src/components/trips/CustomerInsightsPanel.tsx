@@ -293,7 +293,7 @@ export function CustomerInsightsPanel({ customerId, route, routeId }: Props) {
         )}
 
         {/* Cost Effective Trucks — ranked by operating-efficiency cost/km
-            (fuel + AdBlue + tyre + maintenance). EMI and compliance are
+            (fuel + tyre + maintenance, which includes AdBlue). EMI and compliance are
             financing/legal costs, not efficiency, so they're excluded from
             the ranking metric and shown only as part of the total below. */}
         {tab === "cost" && (

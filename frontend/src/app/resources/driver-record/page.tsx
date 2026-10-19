@@ -43,15 +43,17 @@ function salaryBreakdownForTrip(trip: Trip, sheet: TripSheetData | undefined): S
   const totalAdvance = parseFloat(sheet?.driverAdvanceAmount ?? "0") || 0;
   const outstandingAdvance = totalAdvance - totalExpenses;
   const regularPay = parseFloat(trip.driverAdvanceAmount || sheet?.driverPay || "0") || 0;
-  const netPayable = regularPay - outstandingAdvance;
+  // RETURN TRIP not marked batta-applicable: its batta isn't paid (it rode
+  // along with the outbound trip), but leftover advance is still deducted.
   const excluded = trip.tripCategory === "RETURN TRIP" && !trip.isBattaApplicable;
+  const netPayable = (excluded ? 0 : regularPay) - outstandingAdvance;
   return { regularPay, totalAdvance, totalExpenses, outstandingAdvance, netPayable, excluded };
 }
 
 function netPayableForTrip(trip: Trip, sheet: TripSheetData | undefined): number {
   if (!sheet) return 0;
   const b = salaryBreakdownForTrip(trip, sheet);
-  return b.excluded ? 0 : b.netPayable;
+  return b.netPayable;
 }
 
 function money(v: number): string {
@@ -241,7 +243,6 @@ export default function DriverRecordPage() {
     if (!t.scheduledDate) return false;
     if (dateFrom && t.scheduledDate < dateFrom) return false;
     if (dateTo && t.scheduledDate > dateTo) return false;
-    if (t.tripCategory === "RETURN TRIP" && !t.isBattaApplicable) return false;
     if (!t.hasSheet) return false;
     return true;
   }), [trips, dateFrom, dateTo]);
@@ -616,9 +617,9 @@ export default function DriverRecordPage() {
 
               {b.excluded && (
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs leading-relaxed text-amber-700">
-                  This is a RETURN TRIP not marked batta-applicable — its pay already rode along with the
-                  outbound trip&apos;s Salary, so it&apos;s excluded from this driver&apos;s totals and won&apos;t
-                  appear in the trip list above.
+                  This is a RETURN TRIP not marked batta-applicable — its batta already rode along with the
+                  outbound trip&apos;s Salary, so it isn&apos;t paid again here. Any advance left with the driver is
+                  still deducted, which is why Net Payable only reflects the outstanding advance.
                 </p>
               )}
             </div>

@@ -507,6 +507,8 @@ const emptyForm: Omit<Trip, "id" | "tripId" | "status" | "vehicleId" | "assigned
   invoiceRequired: true,
   useYardCfs: false,
   useCustomRoute: false,
+  useCustomCustomer: false,
+  customCustomerName: "",
   invoiceWaived: false,
   isCombinedInvoice: false,
   driverName: null,
@@ -850,7 +852,13 @@ export function TripFormDialog({
     return row?.amount ?? null;
   })();
   // "Self" customer: CGI is the shipper — billing, advances, and CHA are locked
+  // No customer route card in use (custom customer or custom route) means no
+  // customer pricing to fill the Hire Amount — so it's typed instead.
+  const hireIsManual = !!form.useCustomCustomer || !!form.useCustomRoute;
+
   const isSelf = (() => {
+    // A typed customer is never treated as the Self/CGI account.
+    if (form.useCustomCustomer) return false;
     const c = customers.find((c) => c.id === form.customerId);
     const name = (c?.name ?? form.shipperConsignee ?? "").trim().toLowerCase();
     return name === "self" || name === "cgi";
@@ -1119,6 +1127,27 @@ export function TripFormDialog({
         // with different container specs. Wait for user to pick a route below.
       }).catch(() => {});
     }
+  }
+
+  // Customer Information → "Use Custom Input". On: the customer is typed, so
+  // the trip isn't linked to an Our Customers record — and with no saved
+  // routes/pricing for it, the route switches to custom input too. Off: back
+  // to picking a customer (the typed name is dropped).
+  function handleCustomCustomerToggle() {
+    const on = !form.useCustomCustomer;
+    setSelectedRouteId(null);
+    setRouteListFilter({ cargo: "", spec: "" });
+    setCustomerDestinations([]);
+    setCustomerPricing([]);
+    setFinalCustomerPricingList([]);
+    setForm((prev) => ({
+      ...prev,
+      useCustomCustomer: on,
+      customCustomerName: "",
+      customerId: "",
+      customerDestinationId: null,
+      ...(on ? { useCustomRoute: true } : {}),
+    }));
   }
 
   function handleRouteSelect(route: RouteOption) {
@@ -1500,7 +1529,6 @@ export function TripFormDialog({
                     setForm((prev) => ({
                       ...prev,
                       tripCategory: val as Trip["tripCategory"],
-                      driverAdvance: "",
                       driverCompensationType: "CUSTOM",
                       isBattaApplicable: false,
                       isBillingApplicable: true,
@@ -1531,7 +1559,35 @@ export function TripFormDialog({
 
         {/* Customer Information */}
         <section className="flex flex-col gap-5">
-          <p className={sectionHeadingClass}>Customer Information</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className={sectionHeadingClass}>Customer Information</p>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+              Use Custom Input
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!form.useCustomCustomer}
+                onClick={handleCustomCustomerToggle}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                  form.useCustomCustomer ? "bg-blue-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    form.useCustomCustomer ? "translate-x-4" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </label>
+          </div>
+          {form.useCustomCustomer && (
+            <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+              <p className="text-sm text-blue-800">
+                Custom customer — not linked to Our Customers, so there are no saved routes or pricing. Enter the route and hire amount yourself.
+              </p>
+            </div>
+          )}
           {isSelf && (
             <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
@@ -1542,7 +1598,16 @@ export function TripFormDialog({
           )}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Customer Account" required>
-              {isReturnTrip ? (
+              {form.useCustomCustomer ? (
+                <input
+                  type="text"
+                  required
+                  value={form.customCustomerName ?? ""}
+                  onChange={(e) => update("customCustomerName", e.target.value)}
+                  className={inputClass}
+                  placeholder="Enter customer name"
+                />
+              ) : isReturnTrip ? (
                 <GlassCombobox
                   value={form.shipperConsignee}
                   onChange={(val) => {
@@ -2305,24 +2370,6 @@ export function TripFormDialog({
                   />
                 </Field>
 
-                <Field label="Payment Type" required={!locked}>
-                  <GlassSelect
-                    value={(isSelf || form.billTo === "SELF/CGI") ? "Credit" : form.paymentType}
-                    onChange={(val) => update("paymentType", val as Trip["paymentType"])}
-                    disabled={locked || form.billTo === "SELF/CGI"}
-                    options={[
-                      { value: "", label: "Select payment type" },
-                      ...PAYMENT_TYPE_OPTIONS.map(o => ({ value: o, label: o }))
-                    ]}
-                  />
-                  {isSelf && (
-                    <span className="mt-1 text-xs text-blue-600">Locked to Credit for Self customer</span>
-                  )}
-                  {!isSelf && form.billTo === "SELF/CGI" && (
-                    <span className="mt-1 text-xs text-orange-600 font-medium">Locked to Credit — Bill To is SELF/CGI</span>
-                  )}
-                </Field>
-
                 <Field label="Customer Cash Advance (₹)" required={!locked}>
                   <DecimalInput type="number"
                     min="0"
@@ -2424,7 +2471,6 @@ export function TripFormDialog({
               />
             </Field>
 
-            {!isReturnTrip && (
             <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
                 min="0"
@@ -2435,7 +2481,6 @@ export function TripFormDialog({
                 placeholder="Enter driver advance"
               />
             </Field>
-            )}
 
 
             <Field label="Driver Batta Amount (₹)" required>
@@ -2498,21 +2543,24 @@ export function TripFormDialog({
                 onChange={(e) => handleHireAmountChange(e.target.value)}
                 onWheel={(e) => e.currentTarget.blur()}
                 readOnly={
-                  (!isReturnTrip && !isOpenLoad && !isShifting) ||
+                  (!isReturnTrip && !isOpenLoad && !isShifting && !hireIsManual) ||
                   (isTonBased && !!(form.cargoWeight && form.ratePerTon))
                 }
                 className={`${inputClass} ${
-                  (!isReturnTrip && !isOpenLoad && !isShifting) || (isTonBased && form.cargoWeight && form.ratePerTon)
+                  (!isReturnTrip && !isOpenLoad && !isShifting && !hireIsManual) || (isTonBased && form.cargoWeight && form.ratePerTon)
                     ? "cursor-not-allowed bg-gray-50 text-gray-500"
                     : ""
                 }`}
                 placeholder="Enter hire amount"
               />
-              {!isReturnTrip && !isOpenLoad && !isShifting && (
+              {!isReturnTrip && !isOpenLoad && !isShifting && !hireIsManual && (
                 <span className="mt-1 flex items-center gap-1 text-xs text-gray-400">
                   <Info className="h-3 w-3" />
                   Hire amount is set from customer pricing and is locked. Only editable for Return, Shifting, and Open Load trips.
                 </span>
+              )}
+              {hireIsManual && !isReturnTrip && !isOpenLoad && !isShifting && (
+                <span className="mt-1 text-xs text-amber-600">Custom input — enter the hire amount manually</span>
               )}
               {isShifting && (
                 <span className="mt-1 text-xs text-amber-600">Shifting trips — enter hire amount manually</span>

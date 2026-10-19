@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Info, X, Download } from "lucide-react";
+import { Info, X, Download, BookOpen } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { tripsApi } from "@/lib/api";
@@ -16,7 +16,8 @@ type Props = {
   driver: CompensationPerson | null;
   trips: Trip[];
   trucks: Truck[];
-  onRecordPayment: (total: number) => Promise<void>;
+  /** Opens Driver Compensation's "How is this Calculated?" guide on this record's tab. */
+  onShowGuide?: () => void;
 };
 
 type FilterMode = "all" | "thisMonth" | "custom";
@@ -70,10 +71,9 @@ type Row = {
   excludedFromTotal: boolean;
 };
 
-export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRecordPayment }: Props) {
+export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onShowGuide }: Props) {
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [customFrom, setCustomFrom] = useState("");
@@ -125,8 +125,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
         // Custom) was used at assignment time, so it's more accurate than
         // recomputing a branch % here — no need to re-derive it independently.
         const regularPay = parseFloat(t.driverAdvanceAmount ?? sheet?.driverPay ?? "0") || 0;
-        const netPayable = regularPay - outstandingAdvance;
+        // RETURN TRIP not marked batta-applicable: batta isn't paid (it rode
+        // along with the outbound trip) — but leftover advance is still deducted.
         const excludedFromTotal = t.tripCategory === "RETURN TRIP" && !t.isBattaApplicable;
+        const netPayable = (excludedFromTotal ? 0 : regularPay) - outstandingAdvance;
 
         const containerNo =
           t.containerSpecification === "2 X 20 FEET CONTAINERS"
@@ -184,10 +186,9 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
   // "Is Batta Applicable" = Yes on that trip (still owed), it's included instead. Excluding
   // here is the single source of truth: PDF/Excel/summary/the "Record Salary Payment" button
   // all derive from this one total.
-  const totalNetPayable = rows.reduce(
-    (sum, r) => sum + (r.excludedFromTotal ? 0 : r.netPayable),
-    0
-  );
+  // Every row counts: on a batta-excluded return trip netPayable is already
+  // just the outstanding advance being deducted (its batta is left out above).
+  const totalNetPayable = rows.reduce((sum, r) => sum + r.netPayable, 0);
 
   function filterLabel(): string {
     if (filterMode === "all") return "All Trips";
@@ -406,6 +407,16 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
       onClose={onClose}
       title={`Salary Record — ${driver?.name ?? ""}`}
       className="w-[95vw] max-w-[95vw] h-[90vh]"
+      headerRight={onShowGuide ? (
+        <button
+          type="button"
+          onClick={onShowGuide}
+          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          Full guide
+        </button>
+      ) : undefined}
     >
       {/* Filter row */}
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
@@ -620,9 +631,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 shrink-0 rounded bg-purple-100 px-1.5 py-px text-[10px] font-bold text-purple-600">RETURN TRIP</span>
                       <p className="text-[11px] leading-relaxed text-slate-500">
-                        Exception: still fully calculated and shown in the table, but by default <span className="font-semibold text-slate-700">excluded from Total Net Payable</span> (marked with an asterisk *) —
-                        a return trip&apos;s batta is normally paid beforehand and rides along with the outbound trip&apos;s pay. If <span className="font-semibold text-slate-700">Is Batta Applicable</span> was set to Yes on
-                        that trip (batta still owed), it&apos;s included instead.
+                        Exception: by default its <span className="font-semibold text-slate-700">batta isn&apos;t paid</span> (marked with an asterisk *) —
+                        a return trip&apos;s batta is normally paid beforehand and rides along with the outbound trip&apos;s pay — but any advance left with the
+                        driver is still deducted. If <span className="font-semibold text-slate-700">Is Batta Applicable</span> was set to Yes on
+                        that trip (batta still owed), the batta is included too.
                       </p>
                     </div>
                   </div>
@@ -686,10 +698,10 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
                       {row.tripCategory}
                       {row.excludedFromTotal && (
                         <span
-                          title="Return trip — batta paid beforehand, rides along with the outbound trip's pay, not separately compensated"
+                          title="Return trip — batta paid beforehand with the outbound trip's pay; only leftover advance is deducted"
                           className="ml-1.5 inline-block rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-600"
                         >
-                          Excluded
+                          Batta Excluded
                         </span>
                       )}
                       {isReturnTrip && !row.excludedFromTotal && (
@@ -732,7 +744,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
                           <NetPayableCell v={row.netPayable} />
                           {row.excludedFromTotal && (
                             <span
-                              title="Shown for reference only — not included in Total Net Payable below"
+                              title="Batta not paid on this return trip — this is only the leftover advance being deducted"
                               className="text-gray-400"
                             >
                               *
@@ -761,7 +773,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
             {rows.some((r) => r.excludedFromTotal) && (
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-400" />
-                Net Payable marked * (RETURN TRIP, batta not applicable): calculated for reference, not included in Total Net Payable
+                Net Payable marked * (RETURN TRIP, batta not applicable): batta not paid — only leftover advance is deducted
               </span>
             )}
           </div>
@@ -786,18 +798,6 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onRec
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
             >
               Close
-            </button>
-            <button
-              type="button"
-              disabled={saving || totalNetPayable <= 0}
-              onClick={async () => {
-                setSaving(true);
-                await onRecordPayment(totalNetPayable);
-                setSaving(false);
-              }}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Record Salary Payment"}
             </button>
           </div>
         </div>

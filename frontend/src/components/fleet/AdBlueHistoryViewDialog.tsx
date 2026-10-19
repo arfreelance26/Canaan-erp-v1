@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { Droplets, MapPin, IndianRupee, Gauge, TrendingUp, ArrowRight, Trash2 } from "lucide-react";
+import { Droplets, MapPin, IndianRupee, Gauge, TrendingUp, ArrowRight, Trash2, type LucideIcon } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { AdBlueLog } from "@/types/adblue-log";
 import { adblueLogsApi } from "@/lib/api";
@@ -35,7 +35,7 @@ type AdBlueHistoryViewDialogProps = {
   truck: Truck | null;
 };
 
-function StatCard({ title, value, icon: Icon, subtitle }: { title: string; value: string; icon: any; subtitle?: string }) {
+function StatCard({ title, value, icon: Icon, subtitle }: { title: string; value: string; icon: LucideIcon; subtitle?: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2 text-sm font-medium text-gray-500">

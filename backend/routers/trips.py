@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, text, or_, inspect as sa_inspect
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from security import require_roles, get_current_user, TokenUser
 import models, schemas
@@ -44,6 +44,18 @@ def _mark_edit_approval_used(db: Session, resource_types: list[str], resource_id
     )
     if approval:
         approval.used_at = datetime.now(timezone.utc)
+
+
+def _check_custom_customer(trip: "models.Trip"):
+    """Customer Information → Use Custom Input: a typed customer is never also
+    linked to an Our Customers record (and vice versa)."""
+    if trip.use_custom_customer:
+        trip.customer_id = None
+        trip.custom_customer_name = (trip.custom_customer_name or "").strip() or None
+        if not trip.custom_customer_name:
+            raise HTTPException(400, "Enter the customer name, or turn off Use Custom Input.")
+    else:
+        trip.custom_customer_name = None
 
 
 def _check_route_link(db: Session, trip: "models.Trip"):
@@ -510,7 +522,13 @@ def get_trip_sheets_bulk(ids: str = Query(..., description="Comma-separated trip
     trip_ids = _parse_bulk_ids(ids)
     if not trip_ids:
         return []
-    return db.query(models.TripSheet).filter(models.TripSheet.trip_id.in_(trip_ids)).all()
+    # Closures loaded alongside, for each sheet's read-only party_halt_pay.
+    return (
+        db.query(models.TripSheet)
+        .options(selectinload(models.TripSheet.trip).selectinload(models.Trip.closure))
+        .filter(models.TripSheet.trip_id.in_(trip_ids))
+        .all()
+    )
 
 
 @router.get("/bulk/closures", response_model=list[schemas.TripClosureOut])
@@ -625,6 +643,7 @@ def create_trip(
         raise HTTPException(400, f"Booking reference {payload.booking_reference_no} already exists")
     _check_driver_truck_conflict(db, payload.driver_id, payload.vehicle_id)
     trip = models.Trip(**payload.model_dump(exclude={"edit_context"}))
+    _check_custom_customer(trip)
     _check_route_link(db, trip)
     db.add(trip)
     db.commit()
@@ -1153,6 +1172,7 @@ def update_trip(
         )
     for field, value in update_data.items():
         setattr(trip, field, value)
+    _check_custom_customer(trip)
     _check_route_link(db, trip)
     # Keep the trip sheet's mirrored copies in sync with the booking (see
     # TRIP_TO_SHEET_MIRROR). Prevents the hire-drift class of bug for ANY mirrored field.
@@ -1282,10 +1302,27 @@ def permanently_delete_trip(trip_id: int, db: Session = Depends(get_db), current
 # Trip Closure  — POST /trips/{id}/close
 # ---------------------------------------------------------------------------
 
+def _trip_billing_applies(trip: models.Trip) -> bool:
+    """False for a SHIFTING trip marked "Is Billing Applicable? = No" — it has
+    no Bill To / Payment Type at all."""
+    return not (trip.trip_category == "SHIFTING" and trip.is_billing_applicable is False)
+
+
+def _trip_payment_locked_to_credit(trip: models.Trip) -> bool:
+    """The Self/CGI customer, or Bill To = SELF/CGI, is always Credit — the same
+    rule the Trip Form used to apply to its Payment Type field."""
+    if trip.bill_to == "SELF/CGI":
+        return True
+    if trip.use_custom_customer:
+        return False
+    name = ((trip.customer.name if trip.customer else None) or trip.shipper_consignee or "").strip().lower()
+    return name in ("self", "cgi")
+
+
 @router.post("/{trip_id}/close", response_model=schemas.TripClosureOut, status_code=201)
 def close_trip(
     trip_id: int,
-    payload: schemas.TripClosureCreate,
+    payload: schemas.TripCloseIn,
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
@@ -1296,7 +1333,22 @@ def close_trip(
     if trip.status != "Completed":
         raise HTTPException(400, "Only Completed trips can be closed")
 
-    data = payload.model_dump(exclude={"client_version"})
+    # Payment Type — chosen at Close Trip, stored on the trip (Verify Trip's
+    # "To Be Paid" auto-waive, CAB, Trip History and exports all read it there).
+    if not _trip_billing_applies(trip):
+        trip.payment_type = None
+    elif _trip_payment_locked_to_credit(trip):
+        trip.payment_type = "Credit"
+    elif payload.payment_type:
+        trip.payment_type = payload.payment_type
+    elif not trip.payment_type and not trip.closure:
+        # Required when the trip is first closed. A later Booking Sheet save of
+        # an older trip closed without one isn't blocked.
+        raise HTTPException(400, "Select a Payment Type to close this trip.")
+
+    # payment_mode (Close Trip's old "Payment Mode") is retired — never written,
+    # so the few old values are kept as they were.
+    data = payload.model_dump(exclude={"client_version", "payment_type", "payment_mode"})
 
     if trip.closure:
         closure = trip.closure

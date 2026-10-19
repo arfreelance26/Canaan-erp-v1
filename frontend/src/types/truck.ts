@@ -39,4 +39,10 @@ export type Truck = {
   pollutionCertificateProofFileName: string | null;
   pollutionCertificateExpenses: string;
   version?: number;
+  /** How the truck left the fleet — only on Sold Trucks rows. */
+  disposalType?: "Sold" | "Deleted" | null;
+  soldDate?: string | null;
+  soldOdometer?: number | null;
+  soldNote?: string | null;
+  soldByName?: string | null;
 };

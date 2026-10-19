@@ -11,6 +11,7 @@ const EVENT_LABEL: Record<TyreMovementEvent["event"], string> = {
   "Moved to Inventory": "Moved back to inventory",
   "Flagged as Discarded": "Moved to discarded tyres",
   "Restored from Discard": "Restored from discarded tyres",
+  "Sold with Truck": "Left the business with its truck",
 };
 
 type Props = {

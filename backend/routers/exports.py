@@ -67,9 +67,51 @@ def _live_emi_figures(db: Session, records: list["models.EmiRecord"]):
 @router.get("/branches")
 def export_branches(db: Session = Depends(get_db)):
     rows = db.query(models.Branch).order_by(models.Branch.name).all()
-    headers = ["Branch Name", "Halt Day Fee (20ft)", "Halt Day Fee (40ft)", "Driver Halt Day %", "Cleaner Batta Fee"]
-    data = [[r.name, r.halt_day_fee_20ft, r.halt_day_fee_40ft, r.driver_halt_day_percentage, r.cleaner_batta_fee] for r in rows]
+    headers = ["Branch Name",
+               "Company Halt Fee (20ft)", "Company Halt Fee (40ft)", "Company Halt Fee (2x20)", "Company Halt Fee (Open Load)",
+               "Customer Halt Fee (20ft)", "Customer Halt Fee (40ft)", "Customer Halt Fee (2x20)", "Customer Halt Fee (Open Load)",
+               "Driver Halt Day %", "Cleaner Batta Fee", "On Workshop Batta Fee"]
+    data = [[r.name,
+             r.halt_day_fee_20ft, r.halt_day_fee_40ft, r.halt_day_fee_2x20, r.halt_day_fee_open_load,
+             r.party_halt_fee_20ft, r.party_halt_fee_40ft, r.party_halt_fee_2x20, r.party_halt_fee_open_load,
+             r.driver_halt_day_percentage, r.cleaner_batta_fee, r.workshop_batta_fee] for r in rows]
     return build_excel_response([("Branches", headers, data)], "branches.xlsx")
+
+
+@router.get("/adblue-logs")
+def export_adblue_logs(
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    """Truck's Adblue History → Download Excel. Active trucks only (sold and
+    deleted trucks' logs aren't shown anywhere)."""
+    try:
+        start = date.fromisoformat(from_date) if from_date else None
+        end = date.fromisoformat(to_date) if to_date else None
+    except ValueError:
+        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
+    q = (
+        db.query(models.AdBlueLog)
+        .join(models.Truck, models.Truck.id == models.AdBlueLog.truck_id)
+        .filter(models.Truck.deleted_at.is_(None))
+    )
+    if start:
+        q = q.filter(models.AdBlueLog.date >= start)
+    if end:
+        q = q.filter(models.AdBlueLog.date <= end)
+    records = q.order_by(models.AdBlueLog.date.desc(), models.AdBlueLog.id.desc()).all()
+    headers = [
+        "Truck ID", "Registration Number", "Manufacturer", "Date", "Odometer",
+        "Litres", "Price Per Litre", "Total Cost", "Filling Location", "Remarks", "Logged By",
+    ]
+    data = [
+        [r.truck.truck_id, r.truck.registration_number, r.truck.manufacturer, r.date.isoformat(), r.odometer,
+         r.litres, r.price_per_litre, r.total_cost, r.supplier or "", r.remarks or "", r.entered_by_name or ""]
+        for r in records
+    ]
+    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
+    return build_excel_response([("AdBlue Logs", headers, data)], f"adblue_logs{suffix}.xlsx")
 
 
 @router.get("/repair-types")
@@ -789,33 +831,3 @@ def export_customer_profitability(db: Session = Depends(get_db)):
         [("Customers", cust_headers, cust_rows), ("Routes", route_headers, route_rows)],
         "customer_profitability.xlsx",
     )
-
-
-@router.get("/adblue-logs")
-def export_adblue_logs(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
-    db: Session = Depends(get_db),
-):
-    try:
-        start = date.fromisoformat(from_date) if from_date else None
-        end = date.fromisoformat(to_date) if to_date else None
-    except ValueError:
-        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
-    q = db.query(models.AdBlueLog).join(models.Truck, models.Truck.id == models.AdBlueLog.truck_id)
-    if start:
-        q = q.filter(models.AdBlueLog.date >= start)
-    if end:
-        q = q.filter(models.AdBlueLog.date <= end)
-    records = q.order_by(models.AdBlueLog.date.desc(), models.AdBlueLog.id.desc()).all()
-    headers = [
-        "Truck ID", "Registration Number", "Manufacturer", "Date", "Odometer",
-        "Litres", "Price Per Litre", "Total Cost", "Supplier", "Remarks", "Logged By",
-    ]
-    data = [
-        [r.truck.truck_id, r.truck.registration_number, r.truck.manufacturer, r.date.isoformat(), r.odometer,
-         r.litres, r.price_per_litre, r.total_cost, r.supplier or "", r.remarks or "", r.entered_by_name or ""]
-        for r in records
-    ]
-    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
-    return build_excel_response([("AdBlue Logs", headers, data)], f"adblue_logs{suffix}.xlsx")

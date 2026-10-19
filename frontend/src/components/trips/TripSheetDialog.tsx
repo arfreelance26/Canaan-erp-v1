@@ -17,6 +17,7 @@ import { todayIst, formatDate } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { Trash2, PlusCircle } from "lucide-react";
+import { haltPayFromClosure } from "@/lib/halt-pay";
 
 const sh = "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 const subsh = "text-xs font-medium text-gray-400 uppercase tracking-wider mt-3 mb-1";
@@ -206,12 +207,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
     initKeyRef.current = key;
     setInvoiceRequired(trip.invoiceRequired ?? true);
 
-    const compHD  = closure ? Number(closure.companyHaltDays || 0) : 0;
-    const partHD  = closure ? Number(closure.partyHaltDays   || 0) : 0;
-    const totalHD = compHD + partHD;
-    const totalComp = closure ? Number(closure.driverHaltCompensation || 0) : 0;
-    // Only company-caused halt days go into trip expenses
-    const hp = totalHD > 0 ? (compHD / totalHD) * totalComp : 0;
+    // Only the company-caused halt pay goes into trip expenses
+    const hp = haltPayFromClosure(closure).companyPay;
 
     if (existingSheet) {
       setForm(recalcDerived({
@@ -315,13 +312,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   }
 
   // Halt values — read directly from stored closure (set when trip was closed)
-  const companyHaltDays = closure ? Number(closure.companyHaltDays || 0) : 0;
-  const partyHaltDays   = closure ? Number(closure.partyHaltDays   || 0) : 0;
+  // Each part at its own branch rate (saved at Close Trip — see lib/halt-pay).
+  const haltSaved       = haltPayFromClosure(closure);
+  const companyHaltDays = haltSaved.companyDays;
+  const partyHaltDays   = haltSaved.partyDays;
   const haltTotalDays   = companyHaltDays + partyHaltDays;
-  const totalHaltComp   = closure ? Number(closure.driverHaltCompensation || 0) : 0;
-  const perDayRate      = haltTotalDays > 0 ? totalHaltComp / haltTotalDays : 0;
-  const companyHaltPay  = companyHaltDays * perDayRate;
-  const partyHaltPay    = partyHaltDays   * perDayRate;
+  const companyHaltPay  = haltSaved.companyPay;
+  const partyHaltPay    = haltSaved.partyPay;
   // Only company-caused halt goes into trip expenses
   const haltPay     = companyHaltPay;
   const haltRemarks = closure?.haltRemarks ?? "";

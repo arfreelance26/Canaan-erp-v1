@@ -4,9 +4,9 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
-import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, adblueApi, adblueLogsApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type AdBlueManufacturer } from "@/lib/api";
+import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
-import { CircleDot, ChevronDown, Fuel, Droplets, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight, Eye, Loader2 } from "lucide-react";
+import { CircleDot, ChevronDown, Fuel, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight, Eye, Loader2 } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import { getFitmentForPosition } from "@/lib/tyre-fitment-data";
 import { getTyreLayout, getTyrePositions } from "@/lib/tyre-layouts";
@@ -17,13 +17,12 @@ import { showError } from "@/lib/swal";
 const MODES = ["Manual", "Basic", "Advanced"] as const;
 type Mode = (typeof MODES)[number];
 
-/** The same six per-km components TruckCostCard's footer breaks the total
+/** The same five per-km components TruckCostCard's footer breaks the total
  * into (see `costComponents` inside it), reported up to the page so the
  * "View" export can show a breakdown, not just the total. */
 type CostBreakdown = {
   emiPerKm: number | null;
   mileagePerKm: number | null;
-  adbluePerKm: number | null;
   tyrePerKm: number | null;
   maintenancePerKm: number | null;
   compliancePerKm: number | null;
@@ -36,13 +35,12 @@ type ModeData = {
   costPerLitre: string;
   tyreEntries: Record<string, TyreEntry>;
   runEntries: Record<string, { month: string; day: string }>;
-  adbluePrices: Record<string, string>;
   truckMetrics: Record<string, Record<string, string>>;
   tyreCostConfigQty: Record<string, Record<string, string>>; // layout → tyreType → quantity
 };
 
 function emptyModeData(): ModeData {
-  return { costPerLitre: "", tyreEntries: {}, runEntries: {}, adbluePrices: {}, truckMetrics: {}, tyreCostConfigQty: {} };
+  return { costPerLitre: "", tyreEntries: {}, runEntries: {}, truckMetrics: {}, tyreCostConfigQty: {} };
 }
 
 type SavedStore = { mode: string; Manual: Partial<ModeData>; Basic: Partial<ModeData>; Advanced: Partial<ModeData> };
@@ -55,7 +53,7 @@ function loadSaved(): SavedStore {
     if (!raw.Manual && (raw.costPerLitre !== undefined || raw.truckMetrics !== undefined)) {
       return {
         mode: raw.mode ?? "Manual",
-        Manual: { costPerLitre: raw.costPerLitre, tyreEntries: raw.tyreEntries, runEntries: raw.runEntries, adbluePrices: raw.adbluePrices, truckMetrics: raw.truckMetrics },
+        Manual: { costPerLitre: raw.costPerLitre, tyreEntries: raw.tyreEntries, runEntries: raw.runEntries, truckMetrics: raw.truckMetrics },
         Basic: {},
         Advanced: {},
       };
@@ -86,10 +84,6 @@ const TRUCK_METRICS = [
   { label: "Base Fuel Cost (₹/L)",     key: "baseFuelCost",       calculated: false },
   { label: "Mileage (L/KM)",           key: "mileage",            calculated: false },
   { label: "Mileage COST (Per/KM)",    key: "mileagePerKm",       calculated: true  },
-  { label: "AdBlue (L / km)",          key: "adblueConsumeLKm",   calculated: false },
-  { label: "AdBlue (L / 1000 km)",     key: "adblueConsumeL1000", calculated: false },
-  { label: "AdBlue Manufacturer",      key: "adblueManufacturer", calculated: false },
-  { label: "AdBlue Charges (Per/KM)",  key: "adbluePerKm",        calculated: false },
   { label: "Tyre Type",                key: "tyreType",           calculated: false },
   { label: "Tyre Charges (Per/KM)",    key: "tyrePerKm",          calculated: false },
   { label: "Maintenance Per KM",       key: "maintenancePerKm",      calculated: false },
@@ -107,12 +101,6 @@ type BasicEmi = {
   emiPerKm: string;    // sum of emiCostPerKm
 };
 
-type BasicAdblue = {
-  lPerKm: string;         // lifetime average from Truck's Adblue History logs (L/km)
-  manufacturerId: string; // AdBlue manufacturer ID whose name matches truck.manufacturer
-  costPerKm: string;      // lPerKm × manufacturer.defaultPricePerLitre
-};
-
 function TruckCostCard({
   truck,
   metrics,
@@ -123,11 +111,7 @@ function TruckCostCard({
   kmPerDay,
   tyreTypes,
   tyreEntries,
-  adblueManufacturers,
-  adbluePrices,
   basicEmi,
-  basicAdblue,
-  advancedAdblue,
   basicTyrePerKm,
   manualTyrePerKm,
   advancedTyrePerKm,
@@ -148,11 +132,7 @@ function TruckCostCard({
   kmPerDay: string;
   tyreTypes: string[];
   tyreEntries: Record<string, TyreEntry>;
-  adblueManufacturers: AdBlueManufacturer[];
-  adbluePrices: Record<string, string>;
   basicEmi?: BasicEmi | null;
-  basicAdblue?: BasicAdblue | null;
-  advancedAdblue?: BasicAdblue | null;
   basicTyrePerKm?: string;
   manualTyrePerKm?: string;
   advancedTyrePerKm?: string | null;
@@ -212,12 +192,6 @@ function TruckCostCard({
   const mileageVal            = parseFloat(metrics["mileage"]);
   const hasMileage            = !isNaN(mileageVal) && mileageVal > 0;
   const hasTyreType           = !!metrics["tyreType"];
-  const adblueManufacturerId  = isBasicMode
-    ? (basicAdblue?.manufacturerId ?? "")
-    : isAdvancedMode
-      ? (advancedAdblue?.manufacturerId ?? "")
-      : (metrics["adblueManufacturer"] ?? "");
-  const hasAdblueManufacturer = !!adblueManufacturerId;
 
   // EMI Per Day: Basic → fetched → emiAmount÷26; Manual → emiAmount÷26; Advanced → advEmiPerDay.
   const emiPerDay: number | null = (() => {
@@ -289,41 +263,6 @@ function TruckCostCard({
     return tyreChargesCalc;
   })();
 
-  // Pure auto-calculation (L/km × manufacturer price) — Basic is strictly fetched, no fallback;
-  // Manual falls back to a typed override.
-  const adblueChargesCalc = (() => {
-    // Advanced: strictly use the pre-computed costPerKm from the Truck's Adblue History page — no fallback
-    if (isAdvancedMode) {
-      const v = parseFloat(advancedAdblue?.costPerKm ?? "");
-      return !isNaN(v) && v > 0 ? v : null;
-    }
-    if (isBasicMode) {
-      const lkm = parseFloat(basicAdblue?.lPerKm ?? "");
-      if (!lkm || lkm <= 0) return null;
-      if (!adblueManufacturerId) return null;
-      const mfr = adblueManufacturers.find((m) => String(m.id) === adblueManufacturerId);
-      if (!mfr) return null;
-      const price = parseFloat(mfr.defaultPricePerLitre);
-      return price > 0 ? lkm * price : null;
-    }
-    // Manual mode
-    const manualLkm = parseFloat(metrics["adblueConsumeLKm"]);
-    const lkm = !isNaN(manualLkm) && manualLkm > 0 ? manualLkm : NaN;
-    if (!lkm || lkm <= 0 || isNaN(lkm)) return null;
-    const price = parseFloat(adbluePrices[adblueManufacturerId] ?? "");
-    if (!price || price <= 0) return null;
-    return lkm * price;
-  })();
-
-  // If user typed an override in Manual mode, use it; otherwise fall back to auto-calc/fetched.
-  const hasAdblueOverride = !isBasicMode && !isAdvancedMode && !!(metrics["adbluePerKm"]);
-  const adblueChargesPerKm = (() => {
-    if (hasAdblueOverride) {
-      const v = parseFloat(metrics["adbluePerKm"]);
-      return !isNaN(v) && v > 0 ? v : null;
-    }
-    return adblueChargesCalc;
-  })();
 
   const maintenanceVal = (() => {
     if (isAdvancedMode) {
@@ -383,7 +322,8 @@ function TruckCostCard({
     compliancePerKm: compliancePerKm,
   };
 
-  const costComponents = [emiPerKm, mileageCostPerKm, adblueChargesPerKm, tyreChargesPerKm, maintenanceVal, compliancePerKm];
+  // AdBlue is logged as maintenance, so it's already part of maintenanceVal.
+  const costComponents = [emiPerKm, mileageCostPerKm, tyreChargesPerKm, maintenanceVal, compliancePerKm];
   const hasAnyComponent = costComponents.some((v) => v !== null);
   const totalCostPerKm = hasAnyComponent
     ? costComponents.reduce<number>((sum, v) => sum + (v ?? 0), 0)
@@ -393,7 +333,6 @@ function TruckCostCard({
     onCostChange?.({
       emiPerKm,
       mileagePerKm: mileageCostPerKm,
-      adbluePerKm: adblueChargesPerKm,
       tyrePerKm: tyreChargesPerKm,
       maintenancePerKm: maintenanceVal,
       compliancePerKm,
@@ -401,13 +340,12 @@ function TruckCostCard({
     });
   }, [totalCostPerKm]);
 
-  // Same six components as the total, for the footer's share bar + legend.
+  // Same five components as the total, for the footer's share bar + legend.
   // Values under ₹1/km are tiny (maintenance, compliance) — keep 4 decimals so they don't read as ₹0.00.
   const fmtPart = (v: number) => (v >= 1 ? v.toFixed(2) : v.toFixed(4));
   const costParts = [
     { label: "EMI", value: emiPerKm, color: "#6366f1" },
     { label: "Mileage", value: mileageCostPerKm, color: "#f59e0b" },
-    { label: "AdBlue", value: adblueChargesPerKm, color: "#06b6d4" },
     { label: "Tyres", value: tyreChargesPerKm, color: "#3b82f6" },
     { label: "Maintenance", value: maintenanceVal, color: "#10b981" },
     { label: "Compliance", value: compliancePerKm, color: "#a855f7" },
@@ -585,107 +523,6 @@ function TruckCostCard({
                     ))}
                   </select>
                 )
-              ) : key === "adblueManufacturer" ? (
-                isAdvancedMode || isBasicMode ? (() => {
-                  const mfrId = isAdvancedMode ? advancedAdblue?.manufacturerId : basicAdblue?.manufacturerId;
-                  const mfr = mfrId
-                    ? adblueManufacturers.find((m) => String(m.id) === mfrId)
-                    : null;
-                  const display = mfr?.name ?? null;
-                  return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                      display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
-                    }`}>{display ?? "NIL"}</div>
-                  );
-                })() : (
-                <select
-                  value={metrics[key] ?? ""}
-                  onChange={(e) => onMetricChange(key, e.target.value)}
-                  className={`w-full rounded-lg border px-1 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition cursor-pointer ${
-                    metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 focus:border-blue-400 focus:ring-blue-100"
-                  }`}
-                >
-                  <option value="">—</option>
-                  {adblueManufacturers.map((m) => (
-                    <option key={m.id} value={String(m.id)}>{m.name}</option>
-                  ))}
-                </select>)
-              ) : key === "adblueConsumeLKm" ? (
-                isAdvancedMode || isBasicMode ? (() => {
-                  const val = parseFloat((isAdvancedMode ? advancedAdblue?.lPerKm : basicAdblue?.lPerKm) ?? "");
-                  const display = !isNaN(val) && val > 0 ? val.toFixed(5) : null;
-                  return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                      display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
-                    }`}>{display ?? "NIL"}</div>
-                  );
-                })() : (
-                <input
-                  type="number" min="0" step="any"
-                  placeholder="0"
-                  value={metrics[key] ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    onMetricChange("adblueConsumeLKm", v);
-                    onMetricChange("adblueConsumeL1000", v ? String(+(parseFloat(v) * 1000).toFixed(4)) : "");
-                  }}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
-                    metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-gray-300 focus:border-blue-400 focus:ring-blue-100"
-                  }`}
-                />)
-              ) : key === "adblueConsumeL1000" ? (
-                isAdvancedMode || isBasicMode ? (() => {
-                  const lkm = parseFloat((isAdvancedMode ? advancedAdblue?.lPerKm : basicAdblue?.lPerKm) ?? "");
-                  const display = !isNaN(lkm) && lkm > 0 ? (lkm * 1000).toFixed(3) : null;
-                  return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                      display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
-                    }`}>{display ?? "NIL"}</div>
-                  );
-                })() : (
-                <input
-                  type="number" min="0" step="any"
-                  placeholder="0"
-                  value={metrics[key] ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    onMetricChange("adblueConsumeL1000", v);
-                    onMetricChange("adblueConsumeLKm", v ? String(+(parseFloat(v) / 1000).toFixed(6)) : "");
-                  }}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
-                    metrics[key]
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-gray-300 focus:border-blue-400 focus:ring-blue-100"
-                  }`}
-                />)
-              ) : key === "adbluePerKm" ? (
-                isAdvancedMode || isBasicMode ? (() => {
-                  const display = adblueChargesCalc !== null ? adblueChargesCalc.toFixed(4) : null;
-                  return (
-                    <div className={`flex w-full items-center justify-center rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold tabular-nums ${
-                      display ? "border-teal-200 bg-teal-50 text-teal-600" : "border-gray-200 bg-gray-50 text-gray-400"
-                    }`}>{display ?? "NIL"}</div>
-                  );
-                })() : (
-                <input
-                  type="number" min="0" step="any"
-                  placeholder={adblueChargesCalc !== null ? adblueChargesCalc.toFixed(4) : "0"}
-                  value={metrics[key] ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    onMetricChange("adbluePerKm", v);
-                    if (!v) onMetricChange("adblueConsumeLKm", metrics["adblueConsumeLKm"] ?? "");
-                  }}
-                  className={`w-full rounded-lg border px-1.5 py-1.5 text-center text-xs font-bold shadow-sm outline-none focus:ring-2 transition tabular-nums ${
-                    hasAdblueOverride
-                      ? "border-amber-300 bg-amber-50 text-amber-700 placeholder:text-amber-300 focus:border-amber-400 focus:ring-amber-100"
-                      : "border-gray-200 bg-white text-gray-800 placeholder:text-blue-300 focus:border-blue-400 focus:ring-blue-100"
-                  }`}
-                />)
               ) : key === "tyrePerKm" ? (
                 isAdvancedMode || isBasicMode ? (() => {
                   const val = parseFloat((isAdvancedMode ? advancedTyrePerKm : basicTyrePerKm) ?? "");
@@ -892,15 +729,6 @@ const MANUAL_GUIDE_STEPS: GuideStep[] = [
     tip: "Trucks sharing the same tyre layout share the same run profile. You can also type Km/Day directly — it back-fills Month automatically.",
   },
   {
-    icon: Droplets,
-    color: "cyan",
-    panel: "AdBlue Details — Right Panel",
-    title: "Add AdBlue Prices",
-    description: "Open AdBlue Details and set the price per litre for each manufacturer. The per-truck AdBlue Charges column uses whichever brand you select on that truck.",
-    fields: ["AdBlue Price Per Litre (₹)  —  one row per brand"],
-    tip: "Different brands can carry different prices. Set them all here once — no need to revisit unless prices change.",
-  },
-  {
     icon: TruckIcon,
     color: "slate",
     panel: "Per-Truck Cards — Left Column",
@@ -910,7 +738,6 @@ const MANUAL_GUIDE_STEPS: GuideStep[] = [
       "EMI Amount  →  auto: EMI / Day  and  EMI / Km",
       "Mileage (L/km)  →  auto: Mileage Cost / km",
       "Select Tyre Type  →  auto: Tyre Charges / km",
-      "AdBlue (L/km) + Manufacturer  →  auto: AdBlue Charges / km",
       "Maintenance Per Km  (direct entry)",
       "Compliance Cost / Year  →  auto: Compliance / km",
     ],
@@ -922,8 +749,8 @@ const MANUAL_GUIDE_STEPS: GuideStep[] = [
     panel: "Footer — Each Truck Card",
     title: "Read the Total",
     description: "The blue footer at the bottom of every truck card shows Total Running Cost Per Km — the live sum of all filled components. It updates on every keystroke.",
-    fields: ["EMI/km  +  Mileage/km  +  AdBlue/km  +  Tyre/km  +  Maintenance/km  +  Compliance/km"],
-    tip: "The total is always a lower bound — partial data means a partial cost. Fill all six components for a complete picture.",
+    fields: ["EMI/km  +  Mileage/km  +  Tyre/km  +  Maintenance/km  +  Compliance/km"],
+    tip: "The total is always a lower bound — partial data means a partial cost. Fill all five components for a complete picture.",
     isTotal: true,
   },
 ];
@@ -964,20 +791,6 @@ const BASIC_GUIDE_STEPS: GuideStep[] = [
     tip: "Mileage accuracy improves with more fuel log entries. A truck with fewer than 3–4 fill-ups may show an unrepresentative average.",
   },
   {
-    icon: Droplets,
-    color: "cyan",
-    panel: "Truck's Adblue History",
-    title: "AdBlue auto-fetched from Adblue History + Manufacturer",
-    description: "AdBlue consumption (L/km) is fetched as the Lifetime Average from this truck's full Adblue log history, the same figure shown on Truck's Adblue History. The Manufacturer is matched by truck manufacturer name, and its default price per litre (set in Admin → AdBlue) is used for the charges calculation.",
-    fields: [
-      "AdBlue (L/km)  —  fetched as Lifetime Average from this truck's Adblue log history",
-      "AdBlue (L/1000 km)  —  auto: L/km × 1000",
-      "AdBlue Manufacturer  —  matched by truck manufacturer name",
-      "AdBlue Charges (Per/KM)  —  auto: L/km × manufacturer default price per litre",
-    ],
-    tip: "AdBlue accuracy improves with more logged entries — a truck with fewer than 3–4 logs may show an unrepresentative average. The truck's manufacturer in Resources → Fleet must also match the name in Admin → AdBlue (case-insensitive) for the price to be found.",
-  },
-  {
     icon: CheckCircle2,
     color: "teal",
     panel: "Admin → Tyre Cost Config",
@@ -1007,7 +820,7 @@ const BASIC_GUIDE_STEPS: GuideStep[] = [
     panel: "Footer — Each Truck Card",
     title: "Full Cost Picture — All 6 Components Fetched",
     description: "In Basic Mode every field is fetched automatically from its data source. The footer shows the live total — the sum of every filled component. Teal = data present. NIL = data source not yet configured (contributes ₹0 to the total). No manual entry or overrides exist in Basic Mode.",
-    fields: ["EMI/km(Basic)  +  Mileage/km  +  AdBlue/km  +  Tyre/km  +  Maintenance/km(Basic)  +  Compliance/km(Basic)"],
+    fields: ["EMI/km(Basic)  +  Mileage/km  +  Tyre/km  +  Maintenance/km(Basic)  +  Compliance/km(Basic)"],
     tip: "Teal = auto-fetched. NIL = data not configured yet (contributes ₹0 to the total). For a complete cost picture, ensure all six data sources are configured.",
     isTotal: true,
   },
@@ -1050,20 +863,6 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
     tip: "Mileage accuracy improves with more fuel log entries. A truck with fewer than 3–4 fill-ups may show an unrepresentative average.",
   },
   {
-    icon: Droplets,
-    color: "cyan",
-    panel: "Truck's Adblue History",
-    title: "AdBlue — Fully Fetched from Adblue History + Manufacturer",
-    description: "AdBlue consumption (L/km) is fetched as the Lifetime Average from this truck's full Adblue log history. The matched manufacturer and AdBlue Charges Per KM are then derived from that rate and the manufacturer's default price (Admin → AdBlue). All fields are read-only in Advanced Mode.",
-    fields: [
-      "AdBlue (L/km)  —  fetched as Lifetime Average from this truck's Adblue log history",
-      "AdBlue (L/1000 km)  —  auto: L/km × 1000",
-      "AdBlue Manufacturer  —  matched by truck manufacturer name",
-      "AdBlue Charges (Per/KM)  —  auto: L/km × manufacturer default price per litre",
-    ],
-    tip: "AdBlue accuracy improves with more logged entries. The truck's manufacturer in Resources → Fleet must also match the Admin → AdBlue profile name exactly (case-insensitive) — otherwise the price, and so AdBlue Charges, will show NIL.",
-  },
-  {
     icon: CircleDot,
     color: "teal",
     panel: "Maintenance → Tyre Management → View Tyre Data",
@@ -1103,7 +902,7 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
     panel: "Footer — Each Truck Card",
     title: "Total — All 6 Components Fetched",
     description: "In Advanced Mode every field is fetched automatically from its data source. The teal footer shows Total Running Cost Per Km — the live sum of all six components. Teal = data present. NIL = data source not yet configured (contributes ₹0 to the total). No manual entry or overrides exist in Advanced Mode.",
-    fields: ["EMI/km(Advanced)  +  Mileage/km  +  AdBlue/km  +  Tyre/km  +  Maintenance/km(Advanced)  +  Compliance/km(Advanced)"],
+    fields: ["EMI/km(Advanced)  +  Mileage/km  +  Tyre/km  +  Maintenance/km(Advanced)  +  Compliance/km(Advanced)"],
     tip: "NIL means the underlying data source has no record for this truck yet — not that the cost is zero. Configure each source to get a complete picture.",
     isTotal: true,
   },
@@ -1309,7 +1108,7 @@ function UsageGuideModal({ mode, onClose }: { mode: Mode; onClose: () => void })
                 <p className={`text-[10px] font-bold uppercase tracking-widest ${mode === "Basic" ? "text-teal-200" : "text-blue-200"}`}>Result</p>
                 <p className="mt-1 text-base font-extrabold text-white">Total Running Cost Per Km</p>
                 <p className={`mt-1 font-mono text-[11px] ${mode === "Basic" ? "text-teal-300" : "text-blue-300"}`}>
-                  {"= EMI + Mileage + AdBlue + Tyre + Maintenance + Compliance"}
+                  {"= EMI + Mileage + Tyre + Maintenance + Compliance"}
                 </p>
                 <div className="mt-4 flex items-center gap-2">
                   <span className="rounded-xl bg-white/20 px-4 py-2 text-xl font-extrabold tabular-nums text-white">₹ —.——</span>
@@ -1396,13 +1195,6 @@ const MANUAL_MODE_SECTIONS: Section[] = [
     ],
   },
   {
-    title: "AdBlue Details — Right Panel",
-    color: "cyan",
-    fields: [
-      { label: "AdBlue Price Per Litre (₹)", type: "manual", note: "Price per litre for each AdBlue manufacturer (e.g. Yara, BASF). Each brand can have a different price. The per-truck calculation uses the price of whichever brand is selected on that truck card." },
-    ],
-  },
-  {
     title: "EMI Fields — Per-Truck Card",
     color: "slate",
     fields: [
@@ -1417,16 +1209,6 @@ const MANUAL_MODE_SECTIONS: Section[] = [
     fields: [
       { label: "Mileage (L/KM)",        type: "manual",     note: "Fuel consumption rate for this truck — litres of diesel per km (e.g. 0.28 L/km means the truck covers ~3.6 km per litre)." },
       { label: "Mileage COST (Per/KM)", type: "calculated", formula: "Cost Per Litre ÷ Mileage (L/KM)", note: "Slides in once Mileage is entered. Updates automatically whenever Cost Per Litre (Fuel Details) is changed." },
-    ],
-  },
-  {
-    title: "AdBlue Fields — Per-Truck Card",
-    color: "cyan",
-    fields: [
-      { label: "AdBlue (L / km)",          type: "manual",     note: "AdBlue consumed per km by this truck (e.g. 0.015 L/km). Entering this auto-fills AdBlue (L / 1000 km) by multiplying ×1000." },
-      { label: "AdBlue (L / 1000 km)",     type: "manual",     note: "Same consumption rate expressed per 1000 km (e.g. 15 L/1000 km). Entering this auto-fills AdBlue (L / km) by dividing ÷1000. Both fields stay in sync — edit either one." },
-      { label: "AdBlue Manufacturer",      type: "manual",     note: "The AdBlue brand fitted on this truck (e.g. Yara, BASF). Selecting a brand unlocks the AdBlue Charges column and uses that brand's price from the right panel." },
-      { label: "AdBlue Charges (Per/KM)",  type: "calculated", formula: "AdBlue Consumption (L/km) × AdBlue Price Per Litre (selected manufacturer)", note: "Slides in once a manufacturer is selected. Requires AdBlue (L/km) and the selected brand's price to be non-zero." },
     ],
   },
   {
@@ -1459,7 +1241,7 @@ const MANUAL_MODE_SECTIONS: Section[] = [
       {
         label: "Total Running Cost Per Km",
         type: "calculated",
-        formula: "EMI Per Km + Mileage COST (Per/KM) + AdBlue Charges (Per/KM) + Tyre Charges (Per/KM) + Maintenance Per KM + Compliance Per KM",
+        formula: "EMI Per Km + Mileage COST (Per/KM) + Tyre Charges (Per/KM) + Maintenance Per KM + Compliance Per KM",
         note: "Shown as a highlighted footer on every truck card. Components that are blank or not yet computable contribute ₹0 — the total updates in real time as you fill in each field. Fill in all six components for a complete per-km cost picture.",
       },
     ],
@@ -1494,16 +1276,6 @@ const BASIC_MODE_SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Truck's Adblue History  (per truck, matched by manufacturer)",
-    color: "cyan",
-    fields: [
-      { label: "AdBlue (L / km)",         type: "fetched",     note: "Fetched as the Lifetime Average from this truck's complete Adblue log history: total litres used ÷ total km covered across all recorded logs — the same figure shown on Truck's Adblue History. Read-only in Basic Mode." },
-      { label: "AdBlue (L / 1000 km)",    type: "calculated",  formula: "AdBlue (L/km) × 1000", note: "Auto-derived from L/km." },
-      { label: "AdBlue Manufacturer",     type: "fetched",     note: "Auto-matched to the truck's manufacturer name from Admin → AdBlue. Read-only in Basic Mode." },
-      { label: "AdBlue Charges (Per/KM)", type: "calculated",  formula: "AdBlue (L/km) × Manufacturer default price per litre", note: "Computed from the fetched consumption rate and the manufacturer's default price per litre set in Admin → AdBlue." },
-    ],
-  },
-  {
     title: "Admin → Tyre Cost Config  (per layout)",
     color: "teal",
     fields: [
@@ -1532,7 +1304,7 @@ const BASIC_MODE_SECTIONS: Section[] = [
       {
         label: "Total Running Cost Per Km",
         type: "calculated",
-        formula: "EMI Per Km(Basic) + Mileage Cost Per KM + AdBlue Charges Per KM + Tyre Charges Per KM + Maintenance Per KM(Basic) + Compliance Per KM(Basic)",
+        formula: "EMI Per Km(Basic) + Mileage Cost Per KM + Tyre Charges Per KM + Maintenance Per KM(Basic) + Compliance Per KM(Basic)",
         note: "All six components are fetched automatically from their data sources. Teal = data present. NIL = data source not configured (contributes ₹0). No manual entry or overrides exist in Basic Mode. The total updates in real time.",
       },
     ],
@@ -1567,16 +1339,6 @@ const ADVANCED_MODE_SECTIONS: Section[] = [
     ],
   },
   {
-    title: "Truck's Adblue History  (per truck — matched by manufacturer, fully fetched)",
-    color: "cyan",
-    fields: [
-      { label: "AdBlue (L / km)",         type: "fetched",    note: "Fetched as the Lifetime Average from this truck's complete Adblue log history: total litres used ÷ total km covered across all recorded logs. Shows NIL if there are too few logs to compute an interval." },
-      { label: "AdBlue (L / 1000 km)",    type: "calculated", formula: "AdBlue (L/km) × 1000", note: "Auto-derived. Displayed for readability alongside the L/km figure." },
-      { label: "AdBlue Manufacturer",     type: "fetched",    note: "Auto-matched to the truck's manufacturer name from Admin → AdBlue. Read-only in Advanced Mode." },
-      { label: "AdBlue Charges (Per/KM)", type: "calculated", formula: "AdBlue (L/km) × manufacturer default price per litre", note: "Computed from the fetched consumption rate and the manufacturer's default price set in Admin → AdBlue." },
-    ],
-  },
-  {
     title: "Maintenance → Tyre Management → View Tyre Data",
     color: "teal",
     fields: [
@@ -1605,7 +1367,7 @@ const ADVANCED_MODE_SECTIONS: Section[] = [
       {
         label: "Total Running Cost Per Km",
         type: "calculated",
-        formula: "EMI Per Km(Advanced) + Mileage Cost Per KM + AdBlue Charges Per KM + Tyre Charges Per KM + Maintenance Per KM(Advanced) + Compliance Per KM(Advanced)",
+        formula: "EMI Per Km(Advanced) + Mileage Cost Per KM + Tyre Charges Per KM + Maintenance Per KM(Advanced) + Compliance Per KM(Advanced)",
         note: "All six components are fetched automatically from their data sources. Teal = data present. NIL = data source not configured (contributes ₹0). No manual entry or overrides exist in Advanced Mode.",
       },
     ],
@@ -1658,13 +1420,6 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
       output: "Mileage Cost / km",
       inputCls: "bg-amber-100 text-amber-700 border-amber-200",
       outputCls: "bg-amber-50 text-amber-700 border-amber-300",
-    },
-    {
-      inputs: ["AdBlue (L/km)", "AdBlue Price"],
-      formula: "L/km × Price / Litre",
-      output: "AdBlue Charges / km",
-      inputCls: "bg-cyan-100 text-cyan-700 border-cyan-200",
-      outputCls: "bg-cyan-50 text-cyan-700 border-cyan-300",
     },
     {
       inputs: ["Tyre Cost", "Range", "Layout"],
@@ -1770,7 +1525,7 @@ function CalcFlowVisualization({ replayKey }: { replayKey: number }) {
           <p className="text-[11px] font-bold uppercase tracking-widest text-blue-200">Result</p>
           <p className="mt-1 text-base font-extrabold text-white">Total Running Cost Per Km</p>
           <p className="mt-1 font-mono text-[11px] text-blue-300">
-            = EMI + Mileage + AdBlue + Tyre + Maintenance + Compliance
+            = EMI + Mileage + Tyre + Maintenance + Compliance
           </p>
         </div>
         <div className="shrink-0 rounded-xl bg-white/15 px-6 py-3 text-right">
@@ -1909,9 +1664,6 @@ export default function RunningCostCalculatorPage() {
   const [runCardOpen, setRunCardOpen] = useState(false);
   const [fuelCardOpen, setFuelCardOpen] = useState(false);
 
-  // AdBlue Details state
-  const [adblueManufacturers, setAdblueManufacturers] = useState<AdBlueManufacturer[]>([]);
-  const [adblueCardOpen, setAdblueCardOpen] = useState(false);
   const [tyreCostConfigCardOpen, setTyreCostConfigCardOpen] = useState(false);
 
   // Fleet trucks
@@ -1967,11 +1719,6 @@ export default function RunningCostCalculatorPage() {
   // Advanced mode: per-truck mileage (L/km) derived from Fuel History lifetime average (km/L → inverted).
   const [advancedMileageMap, setAdvancedMileageMap] = useState<Record<string, string>>({});
 
-  // Basic & Advanced mode: per-truck AdBlue consumption (L/km), the same
-  // outlier-filtered lifetime average shown on Truck's Adblue History — not
-  // the old manually-entered truck.adblueConsumption field (that entry point
-  // was removed; the field is a frozen snapshot from whenever it was last set).
-  const [adblueConsumptionMap, setAdblueConsumptionMap] = useState<Record<string, string>>({});
 
   // Advanced mode: per-truck total tyre cost per km from Tyre Management → View Tyre Data.
   // Sum of (tyre.cost / rangeConfig[tyreType]) for all currently installed tyres on the truck.
@@ -2070,7 +1817,6 @@ export default function RunningCostCalculatorPage() {
           "Registration No": t.registrationNumber,
           "Fuel /KM": round4(b?.mileagePerKm ?? null),
           "Tyre /KM": round4(b?.tyrePerKm ?? null),
-          "AdBlue /KM": round4(b?.adbluePerKm ?? null),
           "Maintenance /KM": round4(b?.maintenancePerKm ?? null),
           "Compliance /KM": round4(b?.compliancePerKm ?? null),
           "EMI/Finance /KM": round4(b?.emiPerKm ?? null),
@@ -2104,10 +1850,9 @@ export default function RunningCostCalculatorPage() {
     const localSaved = loadSaved();
 
     async function fetchAll() {
-      const [tyreResult, configResult, adblueResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, allAdblueConsumptionResult, monthlyAvgKmResult, maintenancePerDayResult, compliancePerDayResult] = await Promise.allSettled([
+      const [tyreResult, configResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, monthlyAvgKmResult, maintenancePerDayResult, compliancePerDayResult] = await Promise.allSettled([
         tyreRangeConfigApi.list(),
         trucksApi.getRunConfig(),
-        adblueApi.listManufacturers(),
         trucksApi.list(),
         runningCostApi.getState(),
         financeApi.listEmi(),
@@ -2119,7 +1864,6 @@ export default function RunningCostCalculatorPage() {
         maintenanceApi.getMaintenanceCostPerKm(),
         trucksApi.getCompliancePerKmAll(),
         tyreLayoutTypeConfigApi.list(),
-        adblueLogsApi.getAllConsumptionStats(),
         runningCostApi.getMonthlyAvgKmAll(),
         maintenanceApi.getMaintenanceCostPerDay(),
         trucksApi.getCompliancePerDayAll(),
@@ -2134,7 +1878,6 @@ export default function RunningCostCalculatorPage() {
         return !!(slot.costPerLitre) ||
           Object.values(slot.tyreEntries  ?? {}).some((e) => e.cost || e.range) ||
           Object.values(slot.runEntries   ?? {}).some((e) => e.month || e.day) ||
-          Object.values(slot.adbluePrices ?? {}).some((p) => p) ||
           Object.values(slot.truckMetrics ?? {}).some((m) => Object.values(m).some((v) => v));
       }
 
@@ -2210,18 +1953,6 @@ export default function RunningCostCalculatorPage() {
         setAdvancedMileageMap(mileageMap);
       }
 
-      // Basic & Advanced AdBlue: backend returns L/km keyed by truck ID (string),
-      // computed from Truck's Adblue History logs (see get_all_adblue_consumption).
-      if (allAdblueConsumptionResult.status === "fulfilled") {
-        const consumptionMap: Record<string, string> = {};
-        for (const [tid, lPerKm] of Object.entries(allAdblueConsumptionResult.value)) {
-          if (lPerKm > 0) consumptionMap[tid] = lPerKm.toFixed(6);
-        }
-        setAdblueConsumptionMap(consumptionMap);
-      }
-
-      const manufacturers: AdBlueManufacturer[] = adblueResult.status === "fulfilled" ? adblueResult.value : [];
-      if (manufacturers.length) setAdblueManufacturers(manufacturers);
 
       const truckList: Truck[] = truckResult.status === "fulfilled" ? truckResult.value : [];
       if (truckList.length) setTrucks(truckList);
@@ -2329,14 +2060,9 @@ export default function RunningCostCalculatorPage() {
           costPerLitre: saved.costPerLitre ?? "",
           tyreEntries: Object.fromEntries(types.map((t) => [t, saved.tyreEntries?.[t] ?? { cost: "", range: "" }])),
           runEntries: Object.fromEntries(layouts.map((l) => [l, saved.runEntries?.[l] ?? { month: "", day: "" }])),
-          adbluePrices: Object.fromEntries(manufacturers.map((m) => [String(m.id), saved.adbluePrices?.[String(m.id)] ?? ""])),
           truckMetrics: Object.fromEntries(truckList.map((t) => {
             const savedM = saved.truckMetrics?.[t.id] ?? {};
-            const lkm = savedM.adblueConsumeLKm ?? "";
-            const l1000 = lkm && !savedM.adblueConsumeL1000
-              ? String(+(parseFloat(lkm) * 1000).toFixed(4))
-              : (savedM.adblueConsumeL1000 ?? "");
-            return [t.id, { ...emptyMetrics, ...savedM, adblueConsumeL1000: l1000 }];
+            return [t.id, { ...emptyMetrics, ...savedM }];
           })),
           tyreCostConfigQty: saved.tyreCostConfigQty ?? {},
         };
@@ -2396,29 +2122,6 @@ export default function RunningCostCalculatorPage() {
     return (cost / range).toFixed(4);
   }
 
-  // Build per-truck AdBlue data for Basic and Advanced modes.
-  // Consumption (L/km) comes from the lifetime average computed from Truck's
-  // Adblue History logs (adblueConsumptionMap — see get_all_adblue_consumption),
-  // not the old manually-entered truck.adblueConsumption field.
-  // Manufacturer is still matched by truck.manufacturer name to get its default price.
-  const adblueByTruck = new Map<string, BasicAdblue>();
-  if (mode === "Basic" || mode === "Advanced") {
-    for (const truck of trucks) {
-      const mfr = adblueManufacturers.find(
-        (m) => m.name.trim().toLowerCase() === (truck.manufacturer ?? "").trim().toLowerCase()
-      );
-      const lPerKm = adblueConsumptionMap[truck.id] ?? "";
-      const manufacturerId = mfr ? String(mfr.id) : "";
-      const lPerKmNum = parseFloat(lPerKm);
-      const priceNum = mfr ? parseFloat(mfr.defaultPricePerLitre) : 0;
-      const costPerKm = lPerKmNum > 0 && priceNum > 0
-        ? (lPerKmNum * priceNum).toFixed(6)
-        : "";
-      if (lPerKm || manufacturerId) {
-        adblueByTruck.set(truck.id, { lPerKm, manufacturerId, costPerKm });
-      }
-    }
-  }
 
   // Build per-truck EMI aggregate for Basic mode.
   // A truck can have multiple loans — sum emiAmount, dailyFinanceCost, and emiCostPerKm.
@@ -2624,15 +2327,11 @@ export default function RunningCostCalculatorPage() {
                     : (modeData.runEntries[truck.tyreLayout]?.day ?? "")}
                   tyreTypes={tyreTypes}
                   tyreEntries={modeData.tyreEntries}
-                  adblueManufacturers={adblueManufacturers}
-                  adbluePrices={modeData.adbluePrices}
                   basicEmi={mode === "Basic" ? (emiByTruck.get(truck.registrationNumber) ?? null) : undefined}
                   advancedEmi={mode === "Advanced" ? (emiByTruck.get(truck.registrationNumber) ?? null) : undefined}
                   advancedMileage={mode === "Advanced" ? (advancedMileageMap[truck.id] ?? null) : undefined}
                   basicMileage={mode === "Basic" ? (advancedMileageMap[truck.id] ?? null) : undefined}
                   advMonthlyAvgKm={mode === "Advanced" ? monthlyAvgKmMap[truck.truckId] : undefined}
-                  basicAdblue={mode === "Basic" ? (adblueByTruck.get(truck.id) ?? null) : undefined}
-                  advancedAdblue={mode === "Advanced" ? (adblueByTruck.get(truck.id) ?? null) : undefined}
                   basicTyrePerKm={mode === "Basic" ? (basicTyreCostMap[truck.tyreLayout] ?? "") : undefined}
                   manualTyrePerKm={mode === "Manual" ? (() => {
                     const layout = truck.tyreLayout ?? "";
@@ -2974,56 +2673,6 @@ export default function RunningCostCalculatorPage() {
               </div>
             </div>}
 
-            {/* AdBlue Details card — Manual only */}
-            {mode === "Manual" && <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <button
-                type="button"
-                onClick={() => setAdblueCardOpen((o) => !o)}
-                className={`flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${adblueCardOpen ? "border-b border-gray-100" : ""}`}
-              >
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600">
-                  <Droplets className="h-4 w-4" />
-                </div>
-                <h2 className="flex-1 text-sm font-bold text-gray-800">AdBlue Details</h2>
-                <ChevronDown
-                  className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${adblueCardOpen ? "rotate-180" : "rotate-0"}`}
-                />
-              </button>
-
-              <div className={`flex flex-col divide-y divide-gray-100 overflow-hidden transition-all duration-300 ${adblueCardOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"}`}>
-                {adblueManufacturers.length === 0 && (
-                  <p className="px-4 py-6 text-center text-xs text-gray-400">
-                    No AdBlue manufacturers configured.
-                  </p>
-                )}
-                {adblueManufacturers.map((m) => (
-                  <div key={m.id} className="flex flex-col gap-3 px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <Droplets className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
-                        {m.name}
-                      </span>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                        AdBlue Price (Per Litre) (₹)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        placeholder="e.g. 35.0"
-                        value={modeData.adbluePrices[m.id] ?? ""}
-                        onChange={(e) =>
-                          setAllModeData((prev) => ({ ...prev, [mode]: { ...prev[mode], adbluePrices: { ...prev[mode].adbluePrices, [m.id]: e.target.value } } }))
-                        }
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>}
 
           </div>
         </div>

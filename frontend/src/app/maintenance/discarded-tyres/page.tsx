@@ -106,6 +106,11 @@ export default function DiscardedTyresPage() {
                   <td className="px-4 py-3 text-gray-600">{tyre.discardedAt ? formatDateTime(tyre.discardedAt) : "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{tyre.discardedBy ?? "—"}</td>
                   <td className="px-4 py-3 text-gray-600 max-w-xs truncate" title={tyre.discardReason ?? ""}>
+                    {tyre.soldWithTruckAt && (
+                      <span className="mr-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                        Sold with truck
+                      </span>
+                    )}
                     {tyre.discardReason ?? "—"}
                   </td>
                   <td className="px-4 py-3">
@@ -117,6 +122,7 @@ export default function DiscardedTyresPage() {
                       >
                         View Tyre Data
                       </button>
+                      {!tyre.soldWithTruckAt && (
                       <button
                         type="button"
                         disabled={actingId === tyre.id}
@@ -125,6 +131,7 @@ export default function DiscardedTyresPage() {
                       >
                         Move to Inventory
                       </button>
+                      )}
                     </div>
                   </td>
                 </tr>

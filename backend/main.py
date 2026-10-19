@@ -150,6 +150,22 @@ def _run_schema_migrations():
         # branches — halt day fees split into 20ft / 40ft rates
         "ALTER TABLE branches ADD COLUMN halt_day_fee_20ft DECIMAL(10,2) DEFAULT 0",
         "ALTER TABLE branches ADD COLUMN halt_day_fee_40ft DECIMAL(10,2) DEFAULT 0",
+        # Customer (party) halt fees — start as a copy of the existing (Company) fees.
+        "ALTER TABLE branches ADD COLUMN party_halt_fee_20ft DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN party_halt_fee_40ft DECIMAL(10,2) NULL",
+        "UPDATE branches SET party_halt_fee_20ft = halt_day_fee_20ft WHERE party_halt_fee_20ft IS NULL",
+        "UPDATE branches SET party_halt_fee_40ft = halt_day_fee_40ft WHERE party_halt_fee_40ft IS NULL",
+        # 2 X 20 and Open Load fees — start as the 20FT fees (what they used until now).
+        "ALTER TABLE branches ADD COLUMN halt_day_fee_2x20 DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN halt_day_fee_open_load DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN party_halt_fee_2x20 DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN party_halt_fee_open_load DECIMAL(10,2) NULL",
+        "UPDATE branches SET halt_day_fee_2x20 = halt_day_fee_20ft WHERE halt_day_fee_2x20 IS NULL",
+        "UPDATE branches SET halt_day_fee_open_load = halt_day_fee_20ft WHERE halt_day_fee_open_load IS NULL",
+        "UPDATE branches SET party_halt_fee_2x20 = party_halt_fee_20ft WHERE party_halt_fee_2x20 IS NULL",
+        "UPDATE branches SET party_halt_fee_open_load = party_halt_fee_20ft WHERE party_halt_fee_open_load IS NULL",
+        "ALTER TABLE trip_closures ADD COLUMN company_halt_pay DECIMAL(10,2) NULL",
+        "ALTER TABLE trip_closures ADD COLUMN party_halt_pay DECIMAL(10,2) NULL",
         # trip_sheets — container columns and major_repairs JSON
         "ALTER TABLE trip_sheets ADD COLUMN container_number_1 VARCHAR(100) NULL",
         "ALTER TABLE trip_sheets ADD COLUMN container_number_2 VARCHAR(100) NULL",
@@ -304,14 +320,14 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN invoice_waived TINYINT(1) NOT NULL DEFAULT 0",
         # tyre_inventory — repair_cost field removed from UI and schema
         "ALTER TABLE tyre_inventory DROP COLUMN repair_cost",
-        # trucks — adblue_consumption removed: AdBlue consumption is now derived
-        # live from Truck's Adblue History logs (see get_all_adblue_consumption)
-        # instead of this frozen, manually-entered snapshot.
+        # trucks — adblue_consumption removed (AdBlue is now logged as maintenance).
         "ALTER TABLE trucks DROP COLUMN adblue_consumption",
         # emi_records — cost per km derived from EMI amount and expected km
         "ALTER TABLE emi_records ADD COLUMN emi_cost_per_km DECIMAL(10,6) NOT NULL DEFAULT 0",
         # branches — cleaner batta daily fee
         "ALTER TABLE branches ADD COLUMN cleaner_batta_fee DECIMAL(10,2) DEFAULT 0",
+        # branches — On Workshop batta daily fee
+        "ALTER TABLE branches ADD COLUMN workshop_batta_fee DECIMAL(10,2) DEFAULT 0",
         # tyre_inventory — cost per km derived from cost / range_km
         "ALTER TABLE tyre_inventory ADD COLUMN cost_per_km DECIMAL(10,6) NULL",
         # trip_sheets — driver compensation type (Normal / FIXED), carried from trip assignment
@@ -966,11 +982,23 @@ def _run_staff_history_migrations():
             "ALTER TABLE tyre_inventory ADD COLUMN discarded_at DATETIME NULL",
             "ALTER TABLE tyre_inventory ADD COLUMN discarded_by VARCHAR(100) NULL",
             "ALTER TABLE tyre_inventory ADD COLUMN discard_reason TEXT NULL",
+            "ALTER TABLE tyre_inventory ADD COLUMN sold_with_truck_at DATETIME NULL",
+            "ALTER TABLE trucks ADD COLUMN disposal_type VARCHAR(10) NULL",
+            "ALTER TABLE trucks ADD COLUMN sold_date DATE NULL",
+            "ALTER TABLE trucks ADD COLUMN sold_odometer INT NULL",
+            "ALTER TABLE trucks ADD COLUMN sold_note TEXT NULL",
+            "ALTER TABLE trucks ADD COLUMN sold_by_name VARCHAR(100) NULL",
+            "ALTER TABLE truck_edit_events MODIFY COLUMN event ENUM('Truck Created','Truck Edited','Truck Deleted',"
+            "'Truck Restored','Truck Sold') NOT NULL",
+            "ALTER TABLE tyre_movement_events MODIFY COLUMN event ENUM('Flagged for Retreading','Moved to Inventory',"
+            "'Flagged as Discarded','Restored from Discard','Sold with Truck') NOT NULL",
             "ALTER TABLE staff_attendance ADD COLUMN auto_closed BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE staff_attendance ADD COLUMN closed_by VARCHAR(10) NULL",
             "ALTER TABLE trips ADD COLUMN use_yard_cfs BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE trips ADD COLUMN use_custom_route BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE trips ADD COLUMN customer_destination_id INT NULL",
+            "ALTER TABLE trips ADD COLUMN use_custom_customer BOOLEAN NOT NULL DEFAULT 0",
+            "ALTER TABLE trips ADD COLUMN custom_customer_name VARCHAR(200) NULL",
             "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type "
             "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory','CfsYardEntry') NOT NULL",
             "ALTER TABLE tyre_movement_events ADD COLUMN retread_done_by VARCHAR(200) NULL",
@@ -1481,6 +1509,96 @@ def _backfill_trip_route_links():
 
 
 _backfill_trip_route_links()
+
+
+def _release_drivers_of_removed_trucks():
+    """Trucks deleted before deleting/selling released their driver left that
+    driver assigned to a truck nobody can see — stuck, unassignable elsewhere.
+    Unassign them (logged in the driver's assignment history). A no-op once done."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(models.DriverAssignment)
+            .join(models.Truck, models.Truck.truck_id == models.DriverAssignment.vehicle_id)
+            .filter(models.Truck.deleted_at.isnot(None))
+            .all()
+        )
+        for a in rows:
+            driver = db.query(models.Driver).filter(models.Driver.driver_id == a.driver_id).first()
+            db.add(models.DriverAssignmentEditEvent(
+                driver_id=a.driver_id, driver_name=driver.name if driver else a.driver_id, vehicle_id=None,
+                event="Assignment Removed", actor_name="System (truck no longer in fleet)", actor_role=None,
+            ))
+            db.delete(a)
+        db.commit()
+        if rows:
+            print(f"[migration] released {len(rows)} driver(s) still assigned to deleted/sold trucks")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] driver release skipped: {e}")
+    finally:
+        db.close()
+
+
+_release_drivers_of_removed_trucks()
+
+
+def _drop_adblue_tables():
+    """AdBlue was taken out of the Running Cost Calculator, so its AdBlue
+    price table is dropped. Truck's Adblue History (adblue_logs and
+    adblue_log_edit_events) is a live page again and is never touched here.
+    A no-op once the table is gone."""
+    with engine.begin() as conn:
+        for table in ("running_cost_adblue_entries",):
+            try:
+                existed = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :t"
+                ), {"t": table}).scalar()
+                if existed:
+                    conn.execute(text(f"DROP TABLE `{table}`"))
+                    print(f"[migration] dropped {table} (AdBlue removed from the Running Cost Calculator)")
+            except Exception as e:
+                print(f"[migration] couldn't drop {table}: {e}")
+
+
+_drop_adblue_tables()
+
+
+def _seed_batta_fee_history():
+    """Give every branch a starting Cleaner Batta / Workshop Batta Fee history
+    entry (its fee now, effective from the beginning) so the Driver
+    Compensation records always find a fee for any past day. Only touches
+    branches with no history yet."""
+    from database import SessionLocal
+    from datetime import datetime as _dt
+    for model, attr, label in (
+        (models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", "Cleaner Batta"),
+        (models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", "Workshop Batta"),
+    ):
+        db = SessionLocal()
+        try:
+            have = {r[0] for r in db.query(model.branch_id).distinct()}
+            added = 0
+            for b in db.query(models.Branch).all():
+                if b.id in have:
+                    continue
+                db.add(model(
+                    branch_id=b.id, **{attr: getattr(b, attr) or 0},
+                    effective_from=_dt(2000, 1, 1), changed_by_name="System (starting fee)",
+                ))
+                added += 1
+            db.commit()
+            if added:
+                print(f"[migration] seeded {label} Fee history for {added} branch(es)")
+        except Exception as e:
+            db.rollback()
+            print(f"[migration] {label} fee history seed skipped: {e}")
+        finally:
+            db.close()
+
+
+_seed_batta_fee_history()
 
 def _normalize_shipping_lines():
     """Normalise historical shipping_line typos/variants to canonical names."""

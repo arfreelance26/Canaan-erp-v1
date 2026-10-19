@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Droplets, Save } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { AdBlueLog } from "@/types/adblue-log";
+import { adblueLogsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -13,9 +14,6 @@ type AdBlueLogFormDialogProps = {
   onClose: () => void;
   onSave: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) => void;
   truck: Truck;
-  /** The truck's manufacturer's default AdBlue price per litre — Cost Per
-   * Litre is auto-fetched from this, never entered by hand. */
-  pricePerLitre: string;
 };
 
 const inputClass =
@@ -32,56 +30,67 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-function emptyForm(pricePerLitre: string) {
+function emptyForm() {
   return {
     date: todayIst(),
     odometer: "",
     litres: "",
-    pricePerLitre,
+    pricePerLitre: "",
     totalCost: "",
     fillingLocation: "",
   };
 }
 
-export function AdBlueLogFormDialog({ open, onClose, onSave, truck, pricePerLitre }: AdBlueLogFormDialogProps) {
-  const priceNum = parseFloat(pricePerLitre);
-  const priceAvailable = !isNaN(priceNum) && priceNum > 0;
+function totalOf(litres: string, price: string): string {
+  const l = parseFloat(litres);
+  const p = parseFloat(price);
+  return !isNaN(l) && l > 0 && !isNaN(p) && p >= 0 ? (l * p).toFixed(2) : "";
+}
 
+export function AdBlueLogFormDialog({ open, onClose, onSave, truck }: AdBlueLogFormDialogProps) {
   // Lazy initializer — a fresh object per mount, with "today" computed at
   // open-time rather than once at module load.
-  const [form, setForm] = useState(() => emptyForm(pricePerLitre));
+  const [form, setForm] = useState(emptyForm);
 
   const draftKey = `erp_adblue_log_draft_${truck.id}`;
   useFormDraft(draftKey, open, form, setForm);
 
-  function update(field: "date" | "odometer" | "litres" | "fillingLocation", value: string) {
+  // Cost Per Litre starts at this truck's last logged price (still editable) —
+  // AdBlue prices change, so it's entered per fill rather than fixed.
+  useEffect(() => {
+    if (!open) return;
+    adblueLogsApi.listLogs(truck.id)
+      .then((logs) => {
+        const last = logs[0]?.pricePerLitre;
+        if (!last) return;
+        setForm((prev) => (prev.pricePerLitre ? prev : { ...prev, pricePerLitre: last, totalCost: totalOf(prev.litres, last) }));
+      })
+      .catch(() => {});
+  }, [open, truck.id]);
+
+  function update(field: "date" | "odometer" | "litres" | "pricePerLitre" | "fillingLocation", value: string) {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
-      if (field === "litres") {
-        const l = parseFloat(value);
-        next.totalCost = (!isNaN(l) && l > 0 && priceAvailable)
-          ? (l * priceNum).toFixed(2)
-          : "";
-      }
+      if (field === "litres" || field === "pricePerLitre") next.totalCost = totalOf(next.litres, next.pricePerLitre);
       return next;
     });
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!priceAvailable) return;
+    if (!form.totalCost) return;
     onSave({
       truckId: truck.id,
       date: form.date,
       odometer: form.odometer,
       litres: form.litres,
-      pricePerLitre,
+      pricePerLitre: form.pricePerLitre,
       totalCost: form.totalCost,
       fillingLocation: form.fillingLocation || null,
       remarks: null,
     });
     clearFormDraft(draftKey);
-    setForm(emptyForm(pricePerLitre));
+    setForm(emptyForm());
   }
 
   return (
@@ -127,17 +136,16 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, pricePerLitr
         </Field>
 
         <Field label="Cost Per Litre (₹)" required>
-          {priceAvailable ? (
-            <div className={`${inputClass} flex cursor-not-allowed items-center justify-between bg-blue-50 text-blue-800`}>
-              <span className="font-semibold">₹{priceNum.toFixed(2)}</span>
-              <span className="text-[11px] font-medium text-blue-400">Auto-fetched · {truck.manufacturer}</span>
-            </div>
-          ) : (
-            <div className={`${inputClass} bg-red-50 text-xs font-medium text-red-600`}>
-              No default price set for {truck.manufacturer || "this manufacturer"}. Set one in Registered
-              Manufacturers before logging.
-            </div>
-          )}
+          <DecimalInput
+            type="number"
+            required
+            step="0.01"
+            min="0"
+            value={form.pricePerLitre}
+            onChange={(e) => update("pricePerLitre", e.target.value)}
+            className={inputClass}
+            placeholder="e.g. 60.00"
+          />
         </Field>
 
         <Field label="Total Adblue Cost (₹)" required>
@@ -147,11 +155,11 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, pricePerLitr
             readOnly
             value={form.totalCost}
             className={`${inputClass} cursor-not-allowed bg-green-50 text-green-800`}
-            placeholder="Enter quantity to auto-calculate"
+            placeholder="Enter quantity and cost per litre"
           />
-          {form.litres && priceAvailable && (
+          {form.totalCost && (
             <p className="mt-1 text-xs text-green-700">
-              Auto-calculated: {form.litres} L × ₹{priceNum.toFixed(2)} = ₹{form.totalCost}
+              Auto-calculated: {form.litres} L × ₹{Number(form.pricePerLitre).toFixed(2)} = ₹{form.totalCost}
             </p>
           )}
         </Field>
@@ -176,8 +184,7 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, pricePerLitr
           </button>
           <button
             type="submit"
-            disabled={!priceAvailable}
-            title={priceAvailable ? undefined : "Set a default price for this manufacturer first"}
+            disabled={!form.totalCost}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />

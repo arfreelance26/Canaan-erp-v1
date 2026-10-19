@@ -16,10 +16,22 @@ class Branch(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), nullable=False, unique=True)
+    # Per-day halt pay to the driver. halt_day_fee_* = Company halt (company-
+    # caused days); party_halt_fee_* = Customer halt (customer-caused days —
+    # billed to the customer at the same amount).
     halt_day_fee_20ft = Column(Numeric(10, 2), default=0)
     halt_day_fee_40ft = Column(Numeric(10, 2), default=0)
+    party_halt_fee_20ft = Column(Numeric(10, 2), nullable=True)
+    party_halt_fee_40ft = Column(Numeric(10, 2), nullable=True)
+    # The other two container types (2 X 20 FEET CONTAINERS, OPEN LOAD CARGO).
+    halt_day_fee_2x20 = Column(Numeric(10, 2), nullable=True)
+    halt_day_fee_open_load = Column(Numeric(10, 2), nullable=True)
+    party_halt_fee_2x20 = Column(Numeric(10, 2), nullable=True)
+    party_halt_fee_open_load = Column(Numeric(10, 2), nullable=True)
     driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
     cleaner_batta_fee = Column(Numeric(10, 2), default=0)
+    # Per day the driver is marked "On Workshop" (Driver Compensation → Workshop Batta Record).
+    workshop_batta_fee = Column(Numeric(10, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -112,6 +124,14 @@ class Truck(Base):
     # branch history (all FK'd to trucks.id) keep resolving the truck instead
     # of being cascade-destroyed. See routers/trucks.py delete_truck.
     deleted_at = Column(DateTime, nullable=True)
+    # How the truck left the fleet: "Sold" (Our Fleet → Sold Trucks) or
+    # "Deleted" (Archive). Both also set deleted_at, so every "active trucks"
+    # filter keeps working; NULL on trucks deleted before this existed (= Deleted).
+    disposal_type = Column(String(10), nullable=True)
+    sold_date = Column(Date, nullable=True)
+    sold_odometer = Column(Integer, nullable=True)
+    sold_note = Column(Text, nullable=True)
+    sold_by_name = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -131,7 +151,7 @@ class TruckEditEvent(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
-    event = Column(Enum("Truck Created", "Truck Edited", "Truck Deleted", "Truck Restored"), nullable=False)
+    event = Column(Enum("Truck Created", "Truck Edited", "Truck Deleted", "Truck Restored", "Truck Sold"), nullable=False)
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -612,6 +632,11 @@ class Trip(Base):
     # Export restricted dropdowns) — for one-off routes with no customer route
     # configured. Noted here so TripFormDialog re-opens in the same mode.
     use_custom_route = Column(Boolean, default=False, nullable=False, server_default="0")
+    # Customer Information → "Use Custom Input": the customer is typed, not
+    # picked from Our Customers — customer_id stays NULL and the typed name is
+    # kept here. Noted so TripFormDialog re-opens in the same mode.
+    use_custom_customer = Column(Boolean, default=False, nullable=False, server_default="0")
+    custom_customer_name = Column(String(200), nullable=True)
     # The customer route (Our Customers → destination) this trip was booked on,
     # when picked from Available Routes. origin/destination above stay as a
     # text snapshot for documents; this id is what links the trip to the route
@@ -697,7 +722,11 @@ class TripClosure(Base):
     company_halt_days = Column(Integer, default=0)
     party_halt_days = Column(Integer, default=0)
     halt_remarks = Column(Text)
-    driver_halt_compensation = Column(Numeric(10, 2), default=0)
+    driver_halt_compensation = Column(Numeric(10, 2), default=0)   # total (company + party)
+    # Each part at its own branch rate. NULL on trips closed before the rates
+    # were split — those are split by days (equal rate) instead.
+    company_halt_pay = Column(Numeric(10, 2), nullable=True)
+    party_halt_pay = Column(Numeric(10, 2), nullable=True)
     closure_remarks = Column(Text)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -784,6 +813,24 @@ class TripSheet(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     trip = relationship("Trip", back_populates="sheet")
+
+    @property
+    def party_halt_pay(self):
+        """Read-only: the customer-caused (party) part of the trip's halt pay,
+        from its closure — party days × (halt compensation ÷ total halt days),
+        the same split the Trip Sheet makes. This is what an invoice's "Halt
+        Pay" line bills the customer; halt_pay above is the company's own part
+        (a trip expense, never billed)."""
+        closure = self.trip.closure if self.trip is not None else None
+        if closure is None:
+            return None
+        if closure.party_halt_pay is not None:
+            return round(float(closure.party_halt_pay), 2)
+        party = int(closure.party_halt_days or 0)
+        total = int(closure.company_halt_days or 0) + party
+        if party <= 0 or total <= 0:
+            return 0.0
+        return round(float(closure.driver_halt_compensation or 0) * party / total, 2)
 
 
 class TripInvoice(Base):
@@ -1126,6 +1173,8 @@ class FuelBaseConfig(Base):
 
 
 class AdBlueLog(Base):
+    """One AdBlue fill on Truck's Adblue History — a record only; it feeds no
+    calculator or cost figure."""
     __tablename__ = "adblue_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -1135,7 +1184,7 @@ class AdBlueLog(Base):
     litres = Column(Numeric(10, 2), nullable=False)
     price_per_litre = Column(Numeric(10, 2), nullable=False)
     total_cost = Column(Numeric(10, 2), nullable=False)
-    supplier = Column(String(200), nullable=True)
+    supplier = Column(String(200), nullable=True)  # shown as "Filling Location"
     remarks = Column(Text, nullable=True)
     entered_by_name = Column(String(100), nullable=True)
     version = Column(Integer, default=1, nullable=False)
@@ -1160,6 +1209,10 @@ class AdBlueLogEditEvent(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
+# Truck manufacturers (TATA, Ashok Leyland…) — the Manufacturer list on Our
+# Fleet's truck form, managed from Our Fleet → Manufacturers. The table keeps
+# its original "adblue" name from when it lived on the AdBlue page;
+# default_price_per_litre is no longer used.
 class AdBlueManufacturer(Base):
     __tablename__ = "adblue_manufacturers"
 
@@ -1215,6 +1268,11 @@ class TyreInventory(Base):
     discarded_at = Column(DateTime, nullable=True)
     discarded_by = Column(String(100), nullable=True)
     discard_reason = Column(Text, nullable=True)
+    # Set when the tyre left the business with a truck that was sold or
+    # deleted ("Sold with the truck" in the truck's tyre step). Such a tyre is
+    # also marked discarded (so it leaves stock everywhere) but can't be
+    # restored from Discarded Tyres — it's physically gone.
+    sold_with_truck_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -1285,6 +1343,7 @@ class TyreMovementEvent(Base):
     event = Column(Enum(
         "Flagged for Retreading", "Moved to Inventory",
         "Flagged as Discarded", "Restored from Discard",
+        "Sold with Truck",
     ), nullable=False)
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
@@ -1644,6 +1703,35 @@ class ComplianceUpdateHistory(Base):
     updated_by_name = Column(String(200), nullable=False, default="")
 
 
+class BranchCleanerBattaFeeHistory(Base):
+    """Every Cleaner Batta Fee a branch has had, and from when. Driver
+    Compensation → Cleaner Batta Record prices each day at the fee that
+    applied on that day, so a later change never reprices past days.
+    Branches existing before this table were seeded with their fee at the time
+    as effective from the start (their earlier history isn't known)."""
+    __tablename__ = "branch_cleaner_batta_fee_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+    cleaner_batta_fee = Column(Numeric(10, 2), nullable=False, default=0)
+    effective_from = Column(DateTime, nullable=False)
+    changed_by_name = Column(String(200), nullable=True)
+
+
+class BranchWorkshopBattaFeeHistory(Base):
+    """Every On Workshop Batta Fee a branch has had, and from when — same idea
+    as BranchCleanerBattaFeeHistory, for Driver Compensation → Workshop Batta
+    Record. Branches existing before this table were seeded with their fee at
+    the time as effective from the start."""
+    __tablename__ = "branch_workshop_batta_fee_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
+    workshop_batta_fee = Column(Numeric(10, 2), nullable=False, default=0)
+    effective_from = Column(DateTime, nullable=False)
+    changed_by_name = Column(String(200), nullable=True)
+
+
 class TruckBranchHistory(Base):
     """One row per branch reassignment — a plain note, not an approval workflow."""
     __tablename__ = "truck_branch_history"
@@ -1965,17 +2053,6 @@ class RunningCostLayoutEntry(Base):
     __table_args__ = (UniqueConstraint("mode", "tyre_layout", name="uq_rcc_layout_mode"),)
 
 
-class RunningCostAdblueEntry(Base):
-    """Per-mode, per-AdBlue-manufacturer price entered in the calculator."""
-    __tablename__ = "running_cost_adblue_entries"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    mode = Column(String(20), nullable=False, default="Manual")
-    manufacturer_id = Column(Integer, nullable=False)
-    price_per_litre = Column(Numeric(10, 4), nullable=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-    __table_args__ = (UniqueConstraint("mode", "manufacturer_id", name="uq_rcc_adblue_mode"),)
-
 
 class RunningCostTruckCostPerKm(Base):
     """Server-persisted cache of each truck's final computed Cost/Km per
@@ -1997,7 +2074,7 @@ class RunningCostTruckCostPerKm(Base):
 
 
 class RunningCostTruckMetrics(Base):
-    """Per-mode, per-truck calculator inputs (EMI, mileage, adblue consumption, tyre type, maintenance)."""
+    """Per-mode, per-truck calculator inputs (EMI, mileage, tyre type, maintenance)."""
     __tablename__ = "running_cost_truck_metrics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

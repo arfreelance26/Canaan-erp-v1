@@ -198,8 +198,9 @@ def driver_monthly_net_payable(
     """Total Net Payable per driver for one calendar month — the same rules as
     the Driver Compensation page's Salary Record, computed server-side so the
     Customer Insights panel doesn't have to fetch every trip sheet. Keyed by
-    the trip's completion date; return trips whose batta isn't applicable are
-    left out, and each trip's net is Regular Pay − (advance − driver expenses)."""
+    the trip's completion date; each trip's net is Regular Pay − (advance −
+    driver expenses), where a return trip whose batta isn't applicable has a
+    Regular Pay of 0 (only its leftover advance is deducted)."""
     from datetime import date as _date
     year, mon = (int(p) for p in month.split("-"))
     start = _date(year, mon, 1)
@@ -221,15 +222,163 @@ def driver_monthly_net_payable(
         .all()
     )
     for trip, sheet in rows:
+        # A RETURN TRIP not marked batta-applicable pays no batta (it was paid
+        # beforehand) — but any advance left in the driver's hand is still
+        # deducted, so it isn't forgotten.
         if trip.trip_category == "RETURN TRIP" and not trip.is_batta_applicable:
-            continue
-        regular_pay = float(
-            trip.driver_advance_amount if trip.driver_advance_amount is not None else (sheet.driver_pay or 0)
-        )
+            regular_pay = 0.0
+        else:
+            regular_pay = float(
+                trip.driver_advance_amount if trip.driver_advance_amount is not None else (sheet.driver_pay or 0)
+            )
         outstanding_advance = float(sheet.driver_advance_amount or 0) - float(sheet.driver_expenses_total or 0)
         totals[trip.driver_id] += regular_pay - outstanding_advance
 
     return {driver_id: round(total, 2) for driver_id, total in totals.items()}
+
+
+# Attendance statuses that earn a day of Cleaner Batta. "On Workshop" days
+# earn Workshop Batta instead (WORKSHOP_BATTA_STATUSES).
+CLEANER_BATTA_STATUSES = ("Present", "On Trip", "On Halt")
+# Attendance statuses that earn a day of Workshop Batta.
+WORKSHOP_BATTA_STATUSES = ("On Workshop",)
+
+
+def _daily_batta_rows(db: Session, driver_id: str, statuses, history_model, fee_attr: str, fee_label: str):
+    """One row per attendance day in `statuses`, each priced at the branch
+    fee `fee_attr` of the branch of the truck the driver had that day, at the
+    fee that applied that day:
+      truck  — the trip the driver was on that day; else the truck they were
+               assigned to that day (assignment history); else their current truck;
+      branch — that truck's branch that day (truck branch history);
+      fee    — that branch's fee that day (`history_model`)."""
+    from bisect import bisect_right
+
+    def day_of(dt):
+        return dt.date() if hasattr(dt, "date") and callable(dt.date) else dt
+
+    attendance = (
+        db.query(models.DriverAttendance)
+        .filter(models.DriverAttendance.driver_id == driver_id,
+                models.DriverAttendance.status.in_(statuses))
+        .order_by(models.DriverAttendance.date)
+        .all()
+    )
+    if not attendance:
+        return []
+
+    # Trips: the truck actually driven, scheduled date → completed date.
+    trip_spans = []
+    for trip, closure in (
+        db.query(models.Trip, models.TripClosure)
+        .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.Trip.id)
+        .filter(models.Trip.driver_id == driver_id, models.Trip.deleted_at.is_(None),
+                models.Trip.scheduled_date.isnot(None), models.Trip.vehicle_id.isnot(None))
+        .all()
+    ):
+        start = trip.scheduled_date
+        end = (closure.trip_completed_date if closure and closure.trip_completed_date else start)
+        if end < start:
+            end = start
+        trip_spans.append((start, end, trip.vehicle_id, trip.trip_id))
+    trip_spans.sort()
+
+    # Assignment history (as of the end of each day).
+    events = (
+        db.query(models.DriverAssignmentEditEvent)
+        .filter(models.DriverAssignmentEditEvent.driver_id == driver_id)
+        .order_by(models.DriverAssignmentEditEvent.created_at)
+        .all()
+    )
+    event_days = [day_of(e.created_at) for e in events]
+    current = db.query(models.DriverAssignment).filter(models.DriverAssignment.driver_id == driver_id).first()
+
+    trucks = {t.truck_id: t for t in db.query(models.Truck).all()}
+    branch_hist: dict[int, list] = {}
+    for h in db.query(models.TruckBranchHistory).order_by(models.TruckBranchHistory.changed_at).all():
+        branch_hist.setdefault(h.truck_id, []).append(h)
+    branches = {b.name: b for b in db.query(models.Branch).all()}
+    fee_hist: dict[int, list] = {}
+    for f in db.query(history_model).order_by(history_model.effective_from).all():
+        fee_hist.setdefault(f.branch_id, []).append(f)
+
+    def truck_on(d):
+        for start, end, vehicle, trip_code in reversed(trip_spans):
+            if start <= d <= end:
+                return vehicle, f"Trip {trip_code}"
+        i = bisect_right(event_days, d)
+        if i > 0:
+            e = events[i - 1]
+            return (e.vehicle_id, "Assigned truck") if e.event == "Driver Assigned" else (None, "No truck assigned")
+        return (current.vehicle_id if current else None), "Current truck"
+
+    def branch_on(truck, d):
+        hist = branch_hist.get(truck.id, [])
+        before = [h for h in hist if day_of(h.changed_at) <= d]
+        if before:
+            return before[-1].to_branch
+        if hist and hist[0].from_branch:
+            return hist[0].from_branch
+        return truck.branch_registered_to
+
+    def fee_on(branch, d):
+        hist = fee_hist.get(branch.id, [])
+        before = [f for f in hist if day_of(f.effective_from) <= d]
+        if before:
+            return float(getattr(before[-1], fee_attr) or 0)
+        return float(getattr(hist[0], fee_attr) or 0) if hist else float(getattr(branch, fee_attr) or 0)
+
+    rows = []
+    for a in attendance:
+        vehicle, source = truck_on(a.date)
+        truck = trucks.get(vehicle) if vehicle else None
+        branch_name = branch_on(truck, a.date) if truck else None
+        branch = branches.get(branch_name) if branch_name else None
+        rate = fee_on(branch, a.date) if branch else 0.0
+        note = None
+        if not truck:
+            note = "No truck for this day — no branch fee applied"
+        elif not branch:
+            note = f"Branch '{branch_name or '—'}' not found"
+        elif rate <= 0:
+            note = f"No {fee_label} set for {branch.name}"
+        rows.append({
+            "date": a.date.isoformat(),
+            "status": a.status,
+            "truck_id": truck.truck_id if truck else None,
+            "truck_registration": truck.registration_number if truck else None,
+            "truck_source": source,
+            "branch": branch.name if branch else branch_name,
+            "rate": round(rate, 2),
+            "amount": round(rate, 2),
+            "note": note,
+        })
+    rows.reverse()  # newest first
+    return rows
+
+
+@router.get("/compensation/cleaner-batta")
+def driver_cleaner_batta(
+    driver_id: str = Query(..., description="drivers.driver_id, e.g. CGI-D0001"),
+    db: Session = Depends(get_db),
+):
+    """Driver Compensation → Cleaner Batta Record: each Present / On Trip /
+    On Halt day at the branch's Cleaner Batta Fee (see _daily_batta_rows)."""
+    rows = _daily_batta_rows(db, driver_id, CLEANER_BATTA_STATUSES,
+                             models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", "Cleaner Batta Fee")
+    return {"statuses": list(CLEANER_BATTA_STATUSES), "rows": rows}
+
+
+@router.get("/compensation/workshop-batta")
+def driver_workshop_batta(
+    driver_id: str = Query(..., description="drivers.driver_id, e.g. CGI-D0001"),
+    db: Session = Depends(get_db),
+):
+    """Driver Compensation → Workshop Batta Record: each On Workshop day at the
+    branch's On Workshop Batta Fee (see _daily_batta_rows)."""
+    rows = _daily_batta_rows(db, driver_id, WORKSHOP_BATTA_STATUSES,
+                             models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", "On Workshop Batta Fee")
+    return {"statuses": list(WORKSHOP_BATTA_STATUSES), "rows": rows}
 
 
 @router.get("/compensation/edit-events", response_model=list[schemas.CompensationEditEventListOut])

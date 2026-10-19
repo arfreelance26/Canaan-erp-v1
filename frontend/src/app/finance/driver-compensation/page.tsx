@@ -5,17 +5,17 @@ import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
 import { AdvanceRecordDialog } from "@/components/compensation/AdvanceRecordDialog";
 import { SalaryRecordDialog } from "@/components/compensation/SalaryRecordDialog";
-import { Wallet, History, Plus, Trash2 } from "lucide-react";
-import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
+import { CompensationGuideDialog, type GuideTab } from "@/components/compensation/CompensationGuideDialog";
+import { HaltPayRecordDialog } from "@/components/compensation/HaltPayRecordDialog";
+import { BattaRecordDialog } from "@/components/compensation/BattaRecordDialog";
+import { Wallet, History, Plus, Trash2, Info } from "lucide-react";
 import { driversApi, tripsApi, financeApi, trucksApi, type CompensationEditEventRow } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
-import type { CompensationTransaction } from "@/types/compensation";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
-import { showSuccess, showError } from "@/lib/swal";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -34,18 +34,23 @@ const EDIT_EVENT_COLOR: Record<CompensationEditEventRow["event"], string> = {
 };
 
 export default function DriverCompensationPage() {
+  // "How is this Calculated?" guide — page button, or the record dialogs' "Full guide".
+  const [guideTab, setGuideTab] = useState<GuideTab | null>(null);
+  // Halt Pay Record — view-only list of every halt on the driver's closed trips.
+  const [haltTarget, setHaltTarget] = useState<CompensationPerson | null>(null);
+  // Cleaner / Workshop Batta Records — view-only, one row per attendance day that earns it.
+  const [cleanerTarget, setCleanerTarget] = useState<CompensationPerson | null>(null);
+  const [workshopTarget, setWorkshopTarget] = useState<CompensationPerson | null>(null);
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [trucks, setTrucks] = useState<Truck[]>([]);
-  const [transactions, setTransactions] = useState<CompensationTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [advanceRecordTarget, setAdvanceRecordTarget] = useState<CompensationPerson | null>(null);
   const [salaryRecordTarget, setSalaryRecordTarget] = useState<CompensationPerson | null>(null);
-  const [historyTarget, setHistoryTarget] = useState<CompensationPerson | null>(null);
   const [search, setSearch] = useState("");
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -68,11 +73,10 @@ export default function DriverCompensationPage() {
   }
 
   function loadData() {
-    return Promise.all([driversApi.list(), tripsApi.list(), trucksApi.list(), financeApi.listDriverCompensation()]).then(([d, t, tr, tx]) => {
+    return Promise.all([driversApi.list(), tripsApi.list(), trucksApi.list()]).then(([d, t, tr]) => {
       setDrivers(d);
       setTrips(t);
       setTrucks(tr);
-      setTransactions(tx);
     });
   }
 
@@ -103,32 +107,6 @@ export default function DriverCompensationPage() {
     setSalaryRecordTarget(person);
   }
 
-  async function handleRecordAdvancePayment(total: number) {
-    if (!advanceRecordTarget) return;
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const created = await financeApi.addDriverCompensation(advanceRecordTarget.id, "Advance", total, today, "");
-      setTransactions((prev) => [...prev, created]);
-      setAdvanceRecordTarget(null);
-      showSuccess("Advance payment recorded successfully.");
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to record advance payment.");
-    }
-  }
-
-  async function handleRecordSalaryPayment(total: number) {
-    if (!salaryRecordTarget) return;
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const created = await financeApi.addDriverCompensation(salaryRecordTarget.id, "Salary", total, today, "");
-      setTransactions((prev) => [...prev, created]);
-      setSalaryRecordTarget(null);
-      showSuccess("Salary payment recorded successfully.");
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to record salary payment.");
-    }
-  }
-
   const filteredPeople = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people;
@@ -149,6 +127,15 @@ export default function DriverCompensationPage() {
             <p className="mt-1 text-sm font-semibold text-indigo-600">Total Drivers: {people.length}{search.trim() && ` (showing ${filteredPeople.length})`}</p>
           </div>
         </div>
+        <div className="flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setGuideTab("overview")}
+          className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+        >
+          <Info className="h-4 w-4" />
+          How is this Calculated?
+        </button>
         {isAdmin && (
 <button
           type="button"
@@ -159,6 +146,7 @@ export default function DriverCompensationPage() {
           Edit History
         </button>
 )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -181,7 +169,9 @@ export default function DriverCompensationPage() {
         showAdvance
         onPayAdvance={handlePayAdvance}
         onPaySalary={handlePaySalary}
-        onViewHistory={setHistoryTarget}
+        onHaltPay={setHaltTarget}
+        onCleanerBatta={setCleanerTarget}
+        onWorkshopBatta={setWorkshopTarget}
         photoLabel="Driver Photo"
         nameLabel="Driver Name"
         idLabel="Driver ID"
@@ -193,7 +183,7 @@ export default function DriverCompensationPage() {
         driver={advanceRecordTarget}
         trips={trips}
         trucks={trucks}
-        onRecordPayment={handleRecordAdvancePayment}
+        onShowGuide={() => setGuideTab("advance")}
       />
 
       <SalaryRecordDialog
@@ -202,15 +192,38 @@ export default function DriverCompensationPage() {
         driver={salaryRecordTarget}
         trips={trips}
         trucks={trucks}
-        onRecordPayment={handleRecordSalaryPayment}
+        onShowGuide={() => setGuideTab("salary")}
       />
 
-      <TransactionHistoryDialog
-        open={historyTarget !== null}
-        onClose={() => setHistoryTarget(null)}
-        personName={historyTarget?.name ?? ""}
-        transactions={transactions.filter((tx) => tx.personId === historyTarget?.id)}
-        showTypeFilters
+      <HaltPayRecordDialog
+        open={haltTarget !== null}
+        onClose={() => setHaltTarget(null)}
+        driver={haltTarget}
+        trips={trips}
+        trucks={trucks}
+        onShowGuide={() => setGuideTab("halt")}
+      />
+
+      <BattaRecordDialog
+        kind="cleaner"
+        open={cleanerTarget !== null}
+        onClose={() => setCleanerTarget(null)}
+        driver={cleanerTarget}
+        onShowGuide={() => setGuideTab("cleaner")}
+      />
+
+      <BattaRecordDialog
+        kind="workshop"
+        open={workshopTarget !== null}
+        onClose={() => setWorkshopTarget(null)}
+        driver={workshopTarget}
+        onShowGuide={() => setGuideTab("workshop")}
+      />
+
+      <CompensationGuideDialog
+        open={guideTab !== null}
+        onClose={() => setGuideTab(null)}
+        initialTab={guideTab ?? "overview"}
       />
 
       {/* Edit History — every Add/Delete ever logged, across every driver's

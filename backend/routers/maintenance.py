@@ -1026,42 +1026,41 @@ def delete_fuel_log(log_id: int, db: Session = Depends(get_db), current_user: To
 
 
 # ---------------------------------------------------------------------------
-# AdBlue Logs
+# AdBlue Logs (Truck's Adblue History) — a record only. Sold and deleted
+# trucks' logs are kept but not shown; a deleted truck's come back with it
+# when it's restored from the Archive.
 # ---------------------------------------------------------------------------
 
-@router.get("/maintenance/adblue/edit-events", response_model=list[schemas.AdBlueEditEventOut], tags=["AdBlue"])
-def list_all_adblue_edit_events(db: Session = Depends(get_db)):
-    """Every Create/Edit/Delete event ever logged, across both AdBlue Logs
-    and AdBlue Manufacturers (both editable from the same AdBlue page) —
-    merged into one chronological, searchable page-wide "Edit History" log.
-    Most recent first.
-    """
-    log_events = db.query(models.AdBlueLogEditEvent).all()
-    mfr_events = db.query(models.AdBlueManufacturerEditEvent).all()
+def _active_truck_or_error(db: Session, truck_id: int) -> models.Truck:
+    truck = db.get(models.Truck, truck_id)
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    if truck.deleted_at is not None:
+        what = "sold" if truck.disposal_type == "Sold" else "deleted"
+        raise HTTPException(400, f"This truck has been {what} — its AdBlue history can't be changed.")
+    return truck
 
-    truck_ids = {e.truck_id for e in log_events}
+
+@router.get("/maintenance/adblue-logs/edit-events", response_model=list[schemas.AdBlueLogEditEventOut], tags=["AdBlue"])
+def list_adblue_log_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete of an AdBlue log, most recent first — the
+    page-wide Edit History on Truck's Adblue History. Registered before
+    /maintenance/adblue-logs/{log_id} routes."""
+    events = db.query(models.AdBlueLogEditEvent).order_by(models.AdBlueLogEditEvent.created_at.desc()).all()
+    truck_ids = {e.truck_id for e in events}
     trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()} if truck_ids else {}
-
     result = []
-    for e in log_events:
+    for e in events:
         truck = trucks_by_id.get(e.truck_id)
         reg = truck.registration_number if truck else "(deleted truck)"
         litres_str = f"{e.litres}L" if e.litres is not None else ""
         date_str = e.log_date.isoformat() if e.log_date else ""
-        label = " · ".join(p for p in [reg, date_str, litres_str] if p)
         result.append({
-            "id": f"log-{e.id}", "category": "Log", "label": label,
+            "id": f"log-{e.id}",
+            "label": " · ".join(p for p in [reg, date_str, litres_str] if p),
             "event": e.event, "actor_name": e.actor_name, "actor_role": e.actor_role,
             "created_at": e.created_at,
         })
-    for e in mfr_events:
-        result.append({
-            "id": f"mfr-{e.id}", "category": "Manufacturer", "label": e.name,
-            "event": e.event, "actor_name": e.actor_name, "actor_role": e.actor_role,
-            "created_at": e.created_at,
-        })
-
-    result.sort(key=lambda r: r["created_at"], reverse=True)
     return result
 
 
@@ -1070,45 +1069,14 @@ def list_adblue_logs(
     truck_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.AdBlueLog)
+    q = (
+        db.query(models.AdBlueLog)
+        .join(models.Truck, models.Truck.id == models.AdBlueLog.truck_id)
+        .filter(models.Truck.deleted_at.is_(None))
+    )
     if truck_id:
         q = q.filter(models.AdBlueLog.truck_id == truck_id)
-    return q.order_by(models.AdBlueLog.date.desc()).all()
-
-
-@router.get("/maintenance/adblue-consumption/all", tags=["AdBlue"])
-def get_all_adblue_consumption(db: Session = Depends(get_db)):
-    """Lifetime-average AdBlue consumption in L/km keyed by truck_id (as string),
-    for every truck with at least one usable odometer interval between logs.
-
-    Mirrors get_all_fuel_stats: intervals are built between consecutive logs
-    sorted by odometer, then outlier-filtered with the same MAD-based
-    _iqr_filter (it's purely statistical over a "mileage"-keyed rate — reused
-    here even though this rate is L/km rather than km/L).
-    """
-    logs = (
-        db.query(models.AdBlueLog)
-        .order_by(models.AdBlueLog.truck_id, models.AdBlueLog.odometer.asc())
-        .all()
-    )
-    raw: dict[int, list[dict]] = {}
-    prev: dict[int, models.AdBlueLog] = {}
-    for log in logs:
-        tid = log.truck_id
-        litres = float(log.litres or 0)
-        if tid in prev and litres > 0:
-            dist = max(float(log.odometer) - float(prev[tid].odometer), 0)
-            if dist > 0:
-                raw.setdefault(tid, []).append({"distance": dist, "litres": litres,
-                                                 "mileage": litres / dist})
-        prev[tid] = log
-    result = {}
-    for tid, intervals in raw.items():
-        filtered = _iqr_filter(intervals)
-        total_d = sum(r["distance"] for r in filtered)
-        total_l = sum(r["litres"]   for r in filtered)
-        result[str(tid)] = round(total_l / total_d, 6) if total_d > 0 else 0
-    return result
+    return q.order_by(models.AdBlueLog.date.desc(), models.AdBlueLog.id.desc()).all()
 
 
 @router.post("/maintenance/adblue-logs", response_model=schemas.AdBlueLogOut, status_code=201, tags=["AdBlue"])
@@ -1117,12 +1085,8 @@ def create_adblue_log(
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    if not db.get(models.Truck, payload.truck_id):
-        raise HTTPException(404, "Truck not found")
-    log = models.AdBlueLog(
-        **payload.model_dump(),
-        entered_by_name=current_user.name,
-    )
+    _active_truck_or_error(db, payload.truck_id)
+    log = models.AdBlueLog(**payload.model_dump(), entered_by_name=current_user.name)
     db.add(log)
     db.commit()
     db.refresh(log)
@@ -1145,6 +1109,7 @@ def update_adblue_log(
     log = db.query(models.AdBlueLog).with_for_update().filter(models.AdBlueLog.id == log_id).first()
     if not log:
         raise HTTPException(404, "AdBlue log not found")
+    _active_truck_or_error(db, log.truck_id)
     if payload.client_version is not None and log.version != payload.client_version:
         raise HTTPException(409, "This record was modified by someone else. Please refresh and try again.")
     for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
@@ -1166,6 +1131,7 @@ def delete_adblue_log(log_id: int, db: Session = Depends(get_db), current_user: 
     log = db.get(models.AdBlueLog, log_id)
     if not log:
         raise HTTPException(404, "AdBlue log not found")
+    _active_truck_or_error(db, log.truck_id)
     db.add(models.AdBlueLogEditEvent(
         truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
         event="Log Deleted", actor_name=current_user.name, actor_role=current_user.role,
@@ -1175,12 +1141,33 @@ def delete_adblue_log(log_id: int, db: Session = Depends(get_db), current_user: 
     emit("adblue_updated", {})
 
 
-@router.get("/maintenance/adblue-manufacturers", response_model=list[schemas.AdBlueManufacturerOut], tags=["AdBlue"])
+# ---------------------------------------------------------------------------
+# Truck Manufacturers (Our Fleet → Manufacturers; the Manufacturer list on
+# Our Fleet's truck form and the grouping on Truck's Adblue History). URLs
+# keep their original "adblue" names from when this list lived on the AdBlue page.
+# ---------------------------------------------------------------------------
+
+@router.get("/maintenance/adblue/edit-events", response_model=list[schemas.AdBlueEditEventOut], tags=["Truck Manufacturers"])
+def list_all_adblue_edit_events(db: Session = Depends(get_db)):
+    """Every Create/Edit/Delete of a truck manufacturer, most recent first —
+    the page-wide Edit History on Admin → Truck Manufacturers."""
+    events = db.query(models.AdBlueManufacturerEditEvent).order_by(models.AdBlueManufacturerEditEvent.created_at.desc()).all()
+    return [
+        {
+            "id": f"mfr-{e.id}", "category": "Manufacturer", "label": e.name,
+            "event": e.event, "actor_name": e.actor_name, "actor_role": e.actor_role,
+            "created_at": e.created_at,
+        }
+        for e in events
+    ]
+
+
+@router.get("/maintenance/adblue-manufacturers", response_model=list[schemas.AdBlueManufacturerOut], tags=["Truck Manufacturers"])
 def list_adblue_manufacturers(db: Session = Depends(get_db)):
     return db.query(models.AdBlueManufacturer).order_by(models.AdBlueManufacturer.name).all()
 
 
-@router.post("/maintenance/adblue-manufacturers", response_model=schemas.AdBlueManufacturerOut, status_code=201, tags=["AdBlue"])
+@router.post("/maintenance/adblue-manufacturers", response_model=schemas.AdBlueManufacturerOut, status_code=201, tags=["Truck Manufacturers"])
 def create_adblue_manufacturer(
     payload: schemas.AdBlueManufacturerCreate,
     db: Session = Depends(get_db),
@@ -1197,11 +1184,11 @@ def create_adblue_manufacturer(
         actor_name=current_user.name, actor_role=current_user.role,
     ))
     db.commit()
-    emit("adblue_updated", {})
+    emit("manufacturers_updated", {})
     return m
 
 
-@router.put("/maintenance/adblue-manufacturers/{manufacturer_id}", response_model=schemas.AdBlueManufacturerOut, tags=["AdBlue"])
+@router.put("/maintenance/adblue-manufacturers/{manufacturer_id}", response_model=schemas.AdBlueManufacturerOut, tags=["Truck Manufacturers"])
 def update_adblue_manufacturer(
     manufacturer_id: int,
     payload: schemas.AdBlueManufacturerUpdate,
@@ -1222,11 +1209,11 @@ def update_adblue_manufacturer(
     ))
     db.commit()
     db.refresh(m)
-    emit("adblue_updated", {})
+    emit("manufacturers_updated", {})
     return m
 
 
-@router.delete("/maintenance/adblue-manufacturers/{manufacturer_id}", status_code=204, tags=["AdBlue"])
+@router.delete("/maintenance/adblue-manufacturers/{manufacturer_id}", status_code=204, tags=["Truck Manufacturers"])
 def delete_adblue_manufacturer(
     manufacturer_id: int,
     db: Session = Depends(get_db),
@@ -1241,7 +1228,7 @@ def delete_adblue_manufacturer(
     ))
     db.delete(m)
     db.commit()
-    emit("adblue_updated", {})
+    emit("manufacturers_updated", {})
 
 
 # ---------------------------------------------------------------------------
@@ -1583,6 +1570,8 @@ def restore_tyre_from_discard(
         raise HTTPException(404, "Tyre not found")
     if tyre.discarded_at is None:
         raise HTTPException(409, "Tyre is not discarded")
+    if tyre.sold_with_truck_at is not None:
+        raise HTTPException(409, "This tyre was sold with a truck — it can't be moved back to inventory.")
     tyre.discarded_at = None
     tyre.discarded_by = None
     tyre.discard_reason = None

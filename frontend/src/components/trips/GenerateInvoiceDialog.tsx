@@ -143,7 +143,9 @@ const EXPENSE_TO_SHEET_FIELD: Partial<Record<string, keyof TripSheetData>> = {
   "Hire Amount":                   "hireAmount",
   "Lift On / Off":                 "liftOnOffExpense",
   "Weight Sheet Expense":          "weightSheetExpense",
-  "Halt Pay":                      "haltPay",
+  // Party (customer-caused) halt only — the company's own halt is our expense,
+  // not something to bill the customer for.
+  "Halt Pay":                      "partyHaltPay",
   "Port Pass Expense":             "portPassExpense",
   "Mamol Expense":                 "mamolExpense",
   "Claimable Mamol Expense":       "claimableMamolExpense",
@@ -188,7 +190,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
         ? trip.cargoReference ?? ""
         : trip.containerNumber ?? "";
 
-    const billToVal = customer?.name ?? trip.billTo ?? "";
+    const billToVal = customer?.name ?? trip.customCustomerName ?? trip.billTo ?? "";
     const isSelf = trip.billTo === "SELF/CGI";
     const isGta = customer?.isGta === "Yes";
     const invoiceType = isSelf ? "Transport Memo" : isGta ? "Bill of Supply" : "Tax Invoice";
@@ -380,7 +382,7 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const isBillOfSupplyLocked = !isSelf && (customer?.isGta === "Yes" || customer?.customerType === "Transports");
   const isRateEditable = trip?.cargoClassification === "OPEN LOAD" || trip?.tripCategory === "RETURN TRIP";
 
-  const originalBillTo = customer?.name ?? trip?.billTo ?? "";
+  const originalBillTo = customer?.name ?? trip?.customCustomerName ?? trip?.billTo ?? "";
   const originalGstNumber = customer?.gstin ?? "";
 
   function update<K extends keyof InvoiceFormData>(key: K, value: InvoiceFormData[K]) {

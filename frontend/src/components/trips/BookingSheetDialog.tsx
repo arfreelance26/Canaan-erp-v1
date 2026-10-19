@@ -11,7 +11,7 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { Branch } from "@/types/branch";
-import type { TripClosureData, PaymentMode, BillTo } from "@/types/trip-closure";
+import type { TripClosureData, BillTo } from "@/types/trip-closure";
 import {
   MOVEMENT_CATEGORY_OPTIONS,
   TRIP_CATEGORY_OPTIONS,
@@ -27,8 +27,8 @@ import { branchesApi, tripsApi, defaultBattaApi, type DefaultBattaRate } from "@
 import { cn } from "@/lib/utils";
 import { showError } from "@/lib/swal";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { computeHaltPay, haltPayFromClosure, haltRatesFor } from "@/lib/halt-pay";
 
-const PAYMENT_MODE_OPTIONS: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Cheque", "NEFT / RTGS"];
 const BILL_TO_OPTIONS: BillTo[] = ["CUSTOMER"];
 
 const roClass = "w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 cursor-not-allowed";
@@ -102,7 +102,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
         fromLocation: "", toLocation: "", tripCompletedDate: "",
         hireAmount: "", transportAmount: "", billingAmount: "",
         advanceAmount: "", driverAdvance: "", additionalDriverAdvance: "",
-        paymentMode: "", billTo: "",
+        billTo: "",
         companyHaltDays: "", partyHaltDays: "", haltRemarks: "", driverHaltCompensation: "",
         closureRemarks: "",
         closedAt: "",
@@ -161,11 +161,29 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
       }
       setSaving(false);
     }
-    onSubmit(form);
+    // Halt days edited here are re-priced at the branch's current rates;
+    // untouched, the amounts saved at Close Trip are kept as they were.
+    onSubmit(haltChanged
+      ? {
+          ...form,
+          driverHaltCompensation: String(halt.total),
+          companyHaltPay: String(halt.companyPay),
+          partyHaltPay: String(halt.partyPay),
+        }
+      : form);
   }
 
   const truckBranch = branches.find((b) => b.name === truck?.branchRegisteredTo);
-  const totalHaltDays = Number(form?.companyHaltDays || 0) + Number(form?.partyHaltDays || 0);
+  const companyDaysNow = Number(form?.companyHaltDays || 0);
+  const partyDaysNow = Number(form?.partyHaltDays || 0);
+  const totalHaltDays = companyDaysNow + partyDaysNow;
+  const haltRates = haltRatesFor(truckBranch, (tripForm ?? trip)?.containerSpecification ?? "");
+  const haltChanged = !closure
+    || companyDaysNow !== Number(closure.companyHaltDays || 0)
+    || partyDaysNow !== Number(closure.partyHaltDays || 0);
+  const halt = haltChanged
+    ? computeHaltPay(haltRates, companyDaysNow, partyDaysNow)
+    : haltPayFromClosure(closure);
 
   if (!trip || !form) return null;
 
@@ -175,12 +193,6 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
 
   // Resolve container number display based on spec
   const containerSpec = tf.containerSpecification ?? "";
-  const haltDayRate = truckBranch
-    ? (containerSpec === "40 FT CONTAINER"
-        ? Number(truckBranch.haltDayFee40ft || 0)
-        : Number(truckBranch.haltDayFee20ft || 0))
-    : 0;
-  const haltCompensation = totalHaltDays > 0 ? totalHaltDays * haltDayRate : 0;
   const containerDisplay =
     containerSpec === "2 X 20 FEET CONTAINERS"
       ? [tf.containerNumber1, tf.containerNumber2].filter(Boolean).join(" / ")
@@ -510,8 +522,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 />
               )}
             </Field>
-            {tf?.tripCategory !== "RETURN TRIP" && (
-            <Field label="Driver Advance (₹)">
+                        <Field label="Driver Advance (₹)">
               <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
                 value={tf.driverAdvance ?? ""}
@@ -523,7 +534,6 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 className={fc}
               />
             </Field>
-            )}
             <Field label="Driver Batta Amount (₹)">
               <DecimalInput type="number"
                 readOnly={readOnly} disabled={readOnly}
@@ -680,8 +690,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 placeholder="e.g. 5000"
               />
             </Field>
-            {trip?.tripCategory !== "RETURN TRIP" && (
-            <Field label="Driver Advance (₹)">
+                        <Field label="Driver Advance (₹)">
               <DecimalInput type="number" min="0" step="0.01"
                 value={form.driverAdvance}
                 readOnly={readOnly} disabled={readOnly}
@@ -694,7 +703,6 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 placeholder="e.g. 2000"
               />
             </Field>
-            )}
             <Field label="Additional Driver Advance (₹)">
               <DecimalInput type="number" min="0" step="0.01"
                 value={form.additionalDriverAdvance}
@@ -704,20 +712,6 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                 className={fc}
                 placeholder="e.g. 500"
               />
-            </Field>
-            <Field label="Payment Mode">
-              {readOnly ? (
-                <input readOnly disabled value={form.paymentMode} className={roClass} />
-              ) : (
-                <GlassSelect
-                  value={form.paymentMode}
-                  onChange={(val) => update("paymentMode", val as PaymentMode)}
-                  options={[
-                    { value: "", label: "Select payment mode" },
-                    ...PAYMENT_MODE_OPTIONS.map((o) => ({ value: o, label: o })),
-                  ]}
-                />
-              )}
             </Field>
             <Field label="Bill To (Closure)">
               {readOnly ? (
@@ -774,18 +768,24 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
                   />
                 </Field>
                 <div className="sm:col-span-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex flex-col gap-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Halt Compensation Summary</p>
-                  <div className="flex items-center justify-between text-sm text-blue-800">
-                    <span>Total Halt Days</span>
-                    <span className="font-semibold">{totalHaltDays} day{totalHaltDays !== 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-blue-800">
-                    <span>Rate per Day ({containerSpec === "40 FT CONTAINER" ? "40FT" : "20FT"} · {truckBranch?.name ?? "Branch"})</span>
-                    <span className="font-semibold">₹{haltDayRate.toLocaleString("en-IN")}</span>
-                  </div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+                    Halt Compensation Summary · {haltRates.sizeLabel} · {truckBranch?.name ?? "Branch"}
+                  </p>
+                  {halt.companyDays > 0 && (
+                    <div className="flex items-center justify-between text-sm text-blue-800">
+                      <span>Company Halt — {halt.companyDays} day{halt.companyDays !== 1 ? "s" : ""} × ₹{halt.companyRate.toLocaleString("en-IN")}</span>
+                      <span className="font-semibold">₹{halt.companyPay.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
+                  {halt.partyDays > 0 && (
+                    <div className="flex items-center justify-between text-sm text-blue-800">
+                      <span>Customer Halt — {halt.partyDays} day{halt.partyDays !== 1 ? "s" : ""} × ₹{halt.partyRate.toLocaleString("en-IN")} <span className="text-xs text-blue-500">(billed to customer)</span></span>
+                      <span className="font-semibold">₹{halt.partyPay.toLocaleString("en-IN")}</span>
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center justify-between border-t border-blue-200 pt-1.5 text-sm font-bold text-blue-900">
                     <span>Driver Halt Compensation</span>
-                    <span>₹{haltCompensation.toLocaleString("en-IN")}</span>
+                    <span>₹{halt.total.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               </>

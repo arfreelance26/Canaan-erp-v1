@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon, History, Pencil, Trash2, Undo2 } from "lucide-react";
+import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon, History, Pencil, Trash2, Undo2, HandCoins, Factory } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
 import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
+import { RemoveTruckDialog } from "@/components/fleet/RemoveTruckDialog";
+import { TruckManufacturersDialog } from "@/components/fleet/TruckManufacturersDialog";
+import { TruckTyreStepDialog, type TruckTyrePlan, type TyrePlanRow, type TruckStepDetails } from "@/components/fleet/TruckTyreStepDialog";
 import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type TruckEditEventRow } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
-import { confirmDelete, showSuccess, showError } from "@/lib/swal";
+import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
 import type { Branch } from "@/types/branch";
 import type { TruckFiles } from "@/components/fleet/TruckFormDialog";
@@ -23,7 +26,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -96,6 +99,19 @@ export default function FleetPage() {
   // DeletionApprovalRequest instead of an EditApprovalRequest, so it lands on the Admin's
   // "Deletion Approvals" page (and the Archive page's audit trail) instead of "Edit Approvals".
   const [deleteRequestTruck, setDeleteRequestTruck] = useState<Truck | null>(null);
+  // The trash button first asks: Sell Truck or Delete Truck.
+  const [removeTruck, setRemoveTruck] = useState<Truck | null>(null);
+  // Second step of Sell / Delete Truck: what happens to each fitted tyre
+  // (Sell also asks for the sale date, odometer and a note).
+  const [tyreStep, setTyreStep] = useState<{ truck: Truck; mode: "sell" | "delete" } | null>(null);
+  // Tyre choices carried into a non-Admin's delete request.
+  const [pendingTyrePlan, setPendingTyrePlan] = useState<{ plan: TruckTyrePlan; rows: TyrePlanRow[] } | null>(null);
+  // Active Trucks (the working fleet) vs Sold Trucks (removed with "Sell Truck").
+  // Deleted trucks go to the Archive instead.
+  const [fleetView, setFleetView] = useState<"active" | "sold">("active");
+  const [soldTrucks, setSoldTrucks] = useState<Truck[]>([]);
+  // The Manufacturer list used by the Add/Edit Truck form.
+  const [manufacturersOpen, setManufacturersOpen] = useState(false);
 
   const filteredTrucks = trucks.filter(t =>
     !searchQuery ||
@@ -103,9 +119,15 @@ export default function FleetPage() {
     t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.branchRegisteredTo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const filteredSoldTrucks = soldTrucks.filter((t) => {
+    const q = searchQuery.trim().toLowerCase();
+    return !q || [t.registrationNumber, t.truckId, t.modelName, t.manufacturer, t.soldNote]
+      .some((v) => v?.toLowerCase().includes(q));
+  });
 
   useEffect(() => {
         trucksApi.list().then(setTrucks).catch(() => {}).finally(() => setLoading(false));
+        trucksApi.listSold().then(setSoldTrucks).catch(() => {});
       }, [refreshKey]);
       useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
@@ -151,20 +173,76 @@ export default function FleetPage() {
     setDialogOpen(true);
   }
 
-  async function handleDelete(id: string) {
+  function handleDelete(id: string) {
+    const truck = trucks.find((t) => t.id === id);
+    if (truck) setRemoveTruck(truck);
+  }
+
+  // "Sell Truck" — sale details + the tyre step in one dialog.
+  function handleSellTruck(truck: Truck) {
+    setRemoveTruck(null);
+    setTyreStep({ truck, mode: "sell" });
+  }
+
+  // "Delete Truck" — the tyre step first (skipped when nothing is fitted).
+  function handleDeleteTruck(truck: Truck) {
+    setRemoveTruck(null);
+    setTyreStep({ truck, mode: "delete" });
+  }
+
+  async function handleTyreStepConfirm(plan: TruckTyrePlan | null, rows: TyrePlanRow[], details: TruckStepDetails) {
+    const step = tyreStep;
+    setTyreStep(null);
+    if (!step) return;
+    if (step.mode === "sell") {
+      await sellTruck(step.truck, plan, rows, details);
+      return;
+    }
+    const truck = step.truck;
+    const id = truck.id;
     if (isDeleteGated) {
-      const truck = trucks.find((t) => t.id === id);
-      if (truck) setDeleteRequestTruck(truck);
+      setPendingTyrePlan(plan ? { plan, rows } : null);
+      setDeleteRequestTruck(truck);
       return;
     }
     const result = await confirmDelete("truck");
     if (!result.isConfirmed) return;
     try {
-      await trucksApi.delete(id);
+      await trucksApi.delete(id, plan);
       setTrucks((prev) => prev.filter((t) => t.id !== id));
       showSuccess("Truck deleted successfully.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete truck.");
+    }
+  }
+
+  // Sell: Admins / Assistant Commercial Managers sell directly; other roles
+  // send a request (with the sale + tyre choices) to Deletion Approvals.
+  async function sellTruck(truck: Truck, plan: TruckTyrePlan | null, rows: TyrePlanRow[], details: TruckStepDetails) {
+    const label = `${truck.truckId} — ${truck.registrationNumber}`;
+    const sale = { sold_date: details.date, sold_odometer: details.odometer, note: details.note || null };
+    try {
+      if (isDeleteGated) {
+        await deletionApprovalsApi.create({
+          resourceType: "Truck",
+          resourceId: parseInt(truck.id),
+          resourceName: label,
+          reason: details.reason,
+          logDetails: { action: "sell", sale, tyre_plan: plan, tyre_rows: rows },
+        });
+        showSuccess("Sell request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
+        return;
+      }
+      const ok = await confirmAction("Sell this truck?", `${label} will move to Sold Trucks and leave the active fleet.`, "Yes, Sell");
+      if (!ok.isConfirmed) return;
+      const sold = await trucksApi.sell(truck.id, {
+        soldDate: details.date, soldOdometer: details.odometer, note: details.note, tyrePlan: plan,
+      });
+      setTrucks((prev) => prev.filter((t) => t.id !== truck.id));
+      setSoldTrucks((prev) => [sold, ...prev.filter((t) => t.id !== sold.id)]);
+      showSuccess("Truck sold — it's now under Sold Trucks.");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to sell the truck.");
     }
   }
 
@@ -176,7 +254,9 @@ export default function FleetPage() {
         resourceId: parseInt(deleteRequestTruck.id),
         resourceName: `${deleteRequestTruck.truckId} — ${deleteRequestTruck.registrationNumber}`,
         reason,
+        ...(pendingTyrePlan ? { logDetails: { tyre_plan: pendingTyrePlan.plan, tyre_rows: pendingTyrePlan.rows } } : {}),
       });
+      setPendingTyrePlan(null);
       showSuccess("Delete request sent to Admin — you'll see it approved or rejected on the Deletion Approvals page.");
       setDeleteRequestTruck(null);
     } catch (err: unknown) {
@@ -403,6 +483,14 @@ export default function FleetPage() {
 )}
           <button
             type="button"
+            onClick={() => setManufacturersOpen(true)}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <Factory className="h-4 w-4" />
+            Manufacturers
+          </button>
+          <button
+            type="button"
             onClick={handleAdd}
             className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
           >
@@ -423,21 +511,89 @@ export default function FleetPage() {
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search fleet..." value={searchQuery} onChange={setSearchQuery} />
+        <div role="radiogroup" aria-label="Fleet view" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+          {([["active", "Active Trucks"], ["sold", "Sold Trucks"]] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={fleetView === key}
+              onClick={() => setFleetView(key)}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-xs font-semibold transition-all duration-200",
+                fleetView === key
+                  ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
+                  : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+              )}
+            >
+              {label}
+              <span className={cn("ml-1.5 tabular-nums", fleetView === key ? "text-white/70" : "text-gray-400")}>
+                {key === "active" ? trucks.length : soldTrucks.length}
+              </span>
+            </button>
+          ))}
+        </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DownloadExcelButton path="/exports/trucks" filename="fleet.xlsx" />
         </div>
       </div>
 
       <div>
-        <TruckTable
-          trucks={filteredTrucks}
-          branches={branches}
-          onView={setViewingTruck}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onChangeBranch={handleChangeBranch}
-          onBranchHistory={handleBranchHistory}
-        />
+        {fleetView === "active" ? (
+          <TruckTable
+            trucks={filteredTrucks}
+            branches={branches}
+            onView={setViewingTruck}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onChangeBranch={handleChangeBranch}
+            onBranchHistory={handleBranchHistory}
+          />
+        ) : filteredSoldTrucks.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <HandCoins className="h-5 w-5 text-gray-400" />
+            </div>
+            <p className="text-sm font-semibold text-gray-700">
+              {soldTrucks.length === 0 ? "No sold trucks yet" : "No sold trucks match this search"}
+            </p>
+            {soldTrucks.length === 0 && (
+              <p className="mt-1 text-xs text-gray-400">
+                Trucks removed with &ldquo;Sell Truck&rdquo; are listed here with their sale details.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-auto rounded-2xl border border-gray-200 bg-white">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  {["Truck", "Model", "Tyre Layout", "Sold On", "Odometer at Sale", "Note", "Sold By"].map((h) => (
+                    <th key={h} className="px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredSoldTrucks.map((t) => (
+                  <tr key={t.id} className="hover:bg-gray-50/60">
+                    <td className="px-4 py-3">
+                      <span className="block font-semibold text-gray-900">{t.registrationNumber}</span>
+                      <span className="block text-xs text-gray-400">{t.truckId}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{[t.manufacturer, t.modelName].filter(Boolean).join(" ") || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.tyreLayout || "—"}</td>
+                    <td className="px-4 py-3 tabular-nums text-gray-700">{t.soldDate ? formatDate(t.soldDate) : "—"}</td>
+                    <td className="px-4 py-3 tabular-nums text-gray-700">
+                      {t.soldOdometer != null ? `${t.soldOdometer.toLocaleString("en-IN")} km` : "—"}
+                    </td>
+                    <td className="max-w-[240px] truncate px-4 py-3 text-gray-500" title={t.soldNote ?? ""}>{t.soldNote || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{t.soldByName || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <TruckFormDialog
@@ -459,6 +615,27 @@ export default function FleetPage() {
         />
       )}
 
+      <TruckManufacturersDialog
+        open={manufacturersOpen}
+        onClose={() => setManufacturersOpen(false)}
+        trucks={trucks}
+      />
+
+      <RemoveTruckDialog
+        truck={removeTruck}
+        onClose={() => setRemoveTruck(null)}
+        onSell={handleSellTruck}
+        onDelete={handleDeleteTruck}
+      />
+
+      <TruckTyreStepDialog
+        truck={tyreStep?.truck ?? null}
+        mode={tyreStep?.mode ?? "delete"}
+        requireReason={tyreStep?.mode === "sell" && isDeleteGated}
+        onClose={() => setTyreStep(null)}
+        onConfirm={handleTyreStepConfirm}
+      />
+
       {/* Delete request dialog — non-Admin, non-Assistant Commercial Manager roles submit
           this with a reason instead of deleting directly; it lands on the Admin's
           "Deletion Approvals" page for approval. */}
@@ -469,7 +646,7 @@ export default function FleetPage() {
           resourceName={`${deleteRequestTruck.truckId} — ${deleteRequestTruck.registrationNumber}`}
           action="Delete"
           onSubmit={handleDeleteRequestSubmit}
-          onClose={() => setDeleteRequestTruck(null)}
+          onClose={() => { setDeleteRequestTruck(null); setPendingTyrePlan(null); }}
         />
       )}
 

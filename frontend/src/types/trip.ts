@@ -151,6 +151,10 @@ export type Trip = {
    * Routes — the real link to the route; origin/destination are a text
    * snapshot. null for custom routes, return trips and unmatched old trips. */
   customerDestinationId?: string | null;
+  /** Customer Information → "Use Custom Input": the customer is typed
+   * (customCustomerName) instead of picked from Our Customers (customerId). */
+  useCustomCustomer?: boolean;
+  customCustomerName?: string | null;
   invoiceWaived: boolean;
   isCombinedInvoice: boolean;
   driverName: string | null;

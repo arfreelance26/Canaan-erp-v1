@@ -2,6 +2,7 @@
  * Centralized API client — all calls to the FastAPI backend go through here.
  * Transforms snake_case backend responses to the camelCase frontend types.
  */
+import type { AdBlueLog } from "@/types/adblue-log";
 import type { Truck } from "@/types/truck";
 import type { Driver } from "@/types/driver";
 import type { Staff } from "@/types/staff";
@@ -24,7 +25,6 @@ import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
 import type { FuelLog, FuelStats } from "@/types/fuel-log";
-import type { AdBlueLog } from "@/types/adblue-log";
 import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
 import type { VendorCategory } from "@/types/vendor-category";
@@ -386,6 +386,11 @@ function toTruck(b: B): Truck {
     pollutionCertificateProofFileName: b.pollution_certificate_proof_file_name ?? null,
     pollutionCertificateExpenses: String(b.pollution_certificate_expenses ?? ""),
     version: typeof b.version === "number" ? b.version : undefined,
+    disposalType: b.disposal_type ?? null,
+    soldDate: b.sold_date ?? null,
+    soldOdometer: b.sold_odometer ?? null,
+    soldNote: b.sold_note ?? null,
+    soldByName: b.sold_by_name ?? null,
   };
 }
 
@@ -737,6 +742,8 @@ function toTrip(b: B): Trip & { _dbId: number } {
     useYardCfs: b.use_yard_cfs ?? false,
     useCustomRoute: b.use_custom_route ?? false,
     customerDestinationId: b.customer_destination_id != null ? String(b.customer_destination_id) : null,
+    useCustomCustomer: b.use_custom_customer ?? false,
+    customCustomerName: b.custom_customer_name ?? null,
     invoiceWaived: b.invoice_waived ?? false,
     isCombinedInvoice: b.is_combined_invoice ?? false,
     driverName: b.driver_name ?? null,
@@ -821,6 +828,10 @@ function fromTrip(f: Trip) {
     ...(f.customerDestinationId !== undefined
       ? { customer_destination_id: f.customerDestinationId ? parseInt(f.customerDestinationId) : null }
       : {}),
+    // Same rule: only sent when known, so a partial payload can't switch it off.
+    ...(f.useCustomCustomer !== undefined
+      ? { use_custom_customer: f.useCustomCustomer, custom_customer_name: f.useCustomCustomer ? (f.customCustomerName || "").trim() || null : null }
+      : {}),
   };
 }
 
@@ -850,13 +861,14 @@ function toClosure(b: B): TripClosureData {
     advanceAmount: String(b.advance_amount ?? ""),
     driverAdvance: String(b.driver_advance ?? ""),
     additionalDriverAdvance: String(b.additional_driver_advance ?? ""),
-    paymentMode: b.payment_mode ?? "",
     billTo: b.bill_to ?? "",
     // 5. Halt Information
     companyHaltDays: String(b.company_halt_days ?? "0"),
     partyHaltDays: String(b.party_halt_days ?? "0"),
     haltRemarks: b.halt_remarks ?? "",
     driverHaltCompensation: String(b.driver_halt_compensation ?? "0"),
+    companyHaltPay: b.company_halt_pay != null ? String(b.company_halt_pay) : "",
+    partyHaltPay: b.party_halt_pay != null ? String(b.party_halt_pay) : "",
     closureRemarks: b.closure_remarks ?? "",
     // Meta
     closedAt: b.created_at ? String(b.created_at).split("T")[0] : "",
@@ -890,13 +902,16 @@ function fromClosure(f: TripClosureData) {
     advance_amount: n(f.advanceAmount),
     driver_advance: n(f.driverAdvance),
     additional_driver_advance: n(f.additionalDriverAdvance),
-    payment_mode: f.paymentMode || null,
     bill_to: f.billTo || null,
+    ...(f.paymentType ? { payment_type: f.paymentType } : {}),
     // 5. Halt Information
     company_halt_days: parseInt(f.companyHaltDays) || 0,
     party_halt_days: parseInt(f.partyHaltDays) || 0,
     halt_remarks: f.haltRemarks || null,
     driver_halt_compensation: n(f.driverHaltCompensation),
+    // Only sent when known — a closure saved without them keeps the stored parts.
+    ...(f.companyHaltPay !== undefined && f.companyHaltPay !== "" ? { company_halt_pay: n(f.companyHaltPay) } : {}),
+    ...(f.partyHaltPay !== undefined && f.partyHaltPay !== "" ? { party_halt_pay: n(f.partyHaltPay) } : {}),
     closure_remarks: f.closureRemarks || null,
     client_version: f.version,  // echo version back for optimistic locking
   };
@@ -939,6 +954,7 @@ function toSheet(b: B): TripSheetData {
     totalHaltDays: String(b.total_halt_days ?? ""),
     haltRemarks: b.halt_remarks ?? "",
     haltPay: String(b.halt_pay ?? ""),
+    partyHaltPay: b.party_halt_pay != null ? String(b.party_halt_pay) : "",
     portPassExpense: String(b.port_pass_expense ?? ""),
     weightSheetExpense: String(b.weight_sheet_expense ?? ""),
     mamolExpense: String(b.mamol_expense ?? ""),
@@ -1194,23 +1210,6 @@ function toFuelStats(b: B): FuelStats {
   };
 }
 
-function toAdBlueLog(b: B): AdBlueLog {
-  return {
-    id: String(b.id),
-    truckId: String(b.truck_id),
-    date: b.date ?? "",
-    odometer: String(b.odometer ?? ""),
-    litres: String(b.litres ?? ""),
-    pricePerLitre: String(b.price_per_litre ?? ""),
-    totalCost: String(b.total_cost ?? ""),
-    fillingLocation: b.supplier ?? null,
-    remarks: b.remarks ?? null,
-    enteredByName: b.entered_by_name ?? null,
-    createdAt: b.created_at ?? null,
-    version: typeof b.version === "number" ? b.version : undefined,
-  };
-}
-
 function toTyreInventory(b: B): TyreInventoryItem {
   return {
     id: String(b.id),
@@ -1232,6 +1231,7 @@ function toTyreInventory(b: B): TyreInventoryItem {
     discardedAt: b.discarded_at ?? null,
     discardedBy: b.discarded_by ?? null,
     discardReason: b.discard_reason ?? null,
+    soldWithTruckAt: b.sold_with_truck_at ?? null,
   };
 }
 
@@ -1408,9 +1408,27 @@ export const trucksApi = {
         ...(skipEditLog ? { skip_edit_log: true } : {}),
       }),
     }).then(toTruck),
-  delete: (dbId: string) => req<void>(`/trucks/${dbId}`, { method: "DELETE" }),
+  /** tyrePlan: what happens to each fitted tyre (required when any are fitted). */
+  delete: (dbId: string, tyrePlan?: Record<string, unknown> | null) =>
+    req<void>(`/trucks/${dbId}`, {
+      method: "DELETE",
+      ...(tyrePlan ? { body: JSON.stringify({ tyre_plan: tyrePlan }) } : {}),
+    }),
   restore: (dbId: string) => req<B>(`/trucks/${dbId}/restore`, { method: "POST" }).then(toTruck),
   removePermanent: (dbId: string) => req<void>(`/trucks/${dbId}/permanent`, { method: "DELETE" }),
+  /** Sell Truck (Admin / Assistant Commercial Manager). tyrePlan required when tyres are fitted. */
+  sell: (dbId: string, sale: { soldDate: string; soldOdometer: number; note: string; tyrePlan: Record<string, unknown> | null }) =>
+    req<B>(`/trucks/${dbId}/sell`, {
+      method: "POST",
+      body: JSON.stringify({
+        sold_date: sale.soldDate,
+        sold_odometer: sale.soldOdometer,
+        note: sale.note || null,
+        tyre_plan: sale.tyrePlan,
+      }),
+    }).then(toTruck),
+  /** Our Fleet → Sold Trucks. */
+  listSold: () => req<B[]>("/trucks/sold").then((d) => d.map(toTruck)),
   listDeletedIds: () => req<number[]>("/trucks/deleted-ids"),
   getNextId: () => req<{ truck_id: string }>("/trucks/next-id").then((d) => d.truck_id),
   // Page-wide "Edit History" log on Our Fleet — every Create/Edit/Delete/
@@ -1484,7 +1502,7 @@ export const trucksApi = {
     ),
   getCompliancePerKmAll: () => req<Record<string, number>>("/trucks/compliance-per-km/all"),
   getCompliancePerDayAll: () => req<Record<string, number>>("/trucks/compliance-per-day/all"),
-  // Every truck's Basic-mode Total Cost/Km (fuel+adblue+tyre+maintenance+
+  // Every truck's Basic-mode Total Cost/Km (fuel+tyre+maintenance+
   // compliance+EMI), cheapest first — only includes trucks with complete
   // config data. Powers the Assign Trip dialog's "recommended truck" list.
   getCostPerKmRanking: () => req<TruckCostPerKmRanking[]>("/trucks/cost-per-km-ranking"),
@@ -2895,42 +2913,6 @@ export const fuelLogsApi = {
     ),
 };
 
-export const adblueLogsApi = {
-  listLogs: (truckId?: string) =>
-    req<B[]>(`/maintenance/adblue-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toAdBlueLog)),
-  getAllConsumptionStats: () =>
-    req<Record<string, number>>("/maintenance/adblue-consumption/all"),
-  createLog: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) =>
-    req<B>("/maintenance/adblue-logs", {
-      method: "POST",
-      body: JSON.stringify({
-        truck_id: parseInt(log.truckId),
-        date: log.date,
-        odometer: parseInt(log.odometer),
-        litres: parseFloat(log.litres),
-        price_per_litre: parseFloat(log.pricePerLitre),
-        total_cost: parseFloat(log.totalCost),
-        supplier: log.fillingLocation || null,
-        remarks: log.remarks || null,
-      }),
-    }).then(toAdBlueLog),
-  updateLog: (id: string, log: Partial<AdBlueLog>) =>
-    req<B>(`/maintenance/adblue-logs/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        date: log.date,
-        odometer: log.odometer ? parseInt(log.odometer) : undefined,
-        litres: log.litres ? parseFloat(log.litres) : undefined,
-        price_per_litre: log.pricePerLitre ? parseFloat(log.pricePerLitre) : undefined,
-        total_cost: log.totalCost ? parseFloat(log.totalCost) : undefined,
-        supplier: log.fillingLocation,
-        remarks: log.remarks,
-        client_version: log.version,
-      }),
-    }).then(toAdBlueLog),
-  deleteLog: (id: string) => req<void>(`/maintenance/adblue-logs/${id}`, { method: "DELETE" }),
-};
-
 // ---------------------------------------------------------------------------
 // Deletion Approvals API
 // ---------------------------------------------------------------------------
@@ -3065,7 +3047,7 @@ export const deletionApprovalsApi = {
 };
 
 // ---------------------------------------------------------------------------
-// AdBlue API
+// Truck Manufacturers API (historical "adblue" names)
 // ---------------------------------------------------------------------------
 
 export type TripPnlSummaryData = {
@@ -3146,14 +3128,13 @@ export type TruckCostPerKmRanking = {
   truck_id: string;
   registration_number: string;
   manufacturer: string;
-  // Fuel + AdBlue + tyre + maintenance per km — what the ranking is sorted
+  // Fuel + tyre + maintenance per km — what the ranking is sorted
   // by. Excludes EMI/compliance (financing/legal costs, not efficiency).
   efficiency_cost_per_km: number;
   // efficiency_cost_per_km + compliance + EMI — shown for reference only.
   total_cost_per_km: number;
   breakdown: {
     fuel_per_km: number;
-    adblue_per_km: number;
     tyre_per_km: number;
     maintenance_per_km: number;
     compliance_per_km: number;
@@ -3161,6 +3142,8 @@ export type TruckCostPerKmRanking = {
   };
 };
 
+/** A truck manufacturer (Our Fleet → Manufacturers). The "AdBlue" names are
+ * historical — this list used to be managed on the AdBlue page. */
 export type AdBlueManufacturer = {
   id: string;
   name: string;
@@ -3179,16 +3162,12 @@ function toAdBlueManufacturer(b: B): AdBlueManufacturer {
   };
 }
 
-export type AdBlueEditEventType =
-  | "Log Created" | "Log Edited" | "Log Deleted"
-  | "Manufacturer Created" | "Manufacturer Edited" | "Manufacturer Deleted";
+export type AdBlueEditEventType = "Manufacturer Created" | "Manufacturer Edited" | "Manufacturer Deleted";
 
-// One row in the page-wide "Edit History" log on the AdBlue page — merges
-// AdBlue Log and AdBlue Manufacturer edit events (both editable from this
-// same page) into one chronological, searchable list.
+// One row in the Edit History on Our Fleet → Manufacturers.
 export type AdBlueEditEventRow = {
   id: string;
-  category: "Log" | "Manufacturer";
+  category: "Manufacturer";
   label: string;
   event: AdBlueEditEventType;
   actorName: string;
@@ -3201,7 +3180,7 @@ export const adblueApi = {
     req<B[]>(`/maintenance/adblue/edit-events`).then((rows) =>
       rows.map((r) => ({
         id: String(r.id),
-        category: r.category as "Log" | "Manufacturer",
+        category: "Manufacturer",
         label: String(r.label ?? ""),
         event: String(r.event) as AdBlueEditEventType,
         actorName: String(r.actor_name ?? ""),
@@ -3211,18 +3190,80 @@ export const adblueApi = {
     ),
   listManufacturers: () =>
     req<B[]>("/maintenance/adblue-manufacturers").then((d) => d.map(toAdBlueManufacturer)),
-  createManufacturer: (name: string, defaultPricePerLitre: string) =>
+  createManufacturer: (name: string) =>
     req<B>("/maintenance/adblue-manufacturers", {
       method: "POST",
-      body: JSON.stringify({ name, default_price_per_litre: parseFloat(defaultPricePerLitre) || 0 }),
+      body: JSON.stringify({ name }),
     }).then(toAdBlueManufacturer),
-  updateManufacturer: (id: string, name: string, defaultPricePerLitre: string) =>
+  updateManufacturer: (id: string, name: string) =>
     req<B>(`/maintenance/adblue-manufacturers/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ name, default_price_per_litre: parseFloat(defaultPricePerLitre) || 0 }),
+      body: JSON.stringify({ name }),
     }).then(toAdBlueManufacturer),
   deleteManufacturer: (id: string) =>
     req<void>(`/maintenance/adblue-manufacturers/${id}`, { method: "DELETE" }),
+};
+
+// ---------------------------------------------------------------------------
+// AdBlue Logs API (Truck's Adblue History — a record only)
+// ---------------------------------------------------------------------------
+
+function toAdBlueLog(b: B): AdBlueLog {
+  return {
+    id: String(b.id),
+    truckId: String(b.truck_id),
+    date: b.date ?? "",
+    odometer: String(b.odometer ?? ""),
+    litres: String(b.litres ?? ""),
+    pricePerLitre: String(b.price_per_litre ?? ""),
+    totalCost: String(b.total_cost ?? ""),
+    fillingLocation: b.supplier ?? null,
+    remarks: b.remarks ?? null,
+    enteredByName: b.entered_by_name ?? null,
+    createdAt: b.created_at ?? null,
+    version: typeof b.version === "number" ? b.version : undefined,
+  };
+}
+
+// One row in the Edit History on Truck's Adblue History.
+export type AdBlueLogEditEventRow = {
+  id: string;
+  label: string;
+  event: "Log Created" | "Log Edited" | "Log Deleted";
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
+export const adblueLogsApi = {
+  listLogs: (truckId?: string) =>
+    rawReq<B[]>(`/maintenance/adblue-logs${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toAdBlueLog)),
+  listEditEvents: (): Promise<AdBlueLogEditEventRow[]> =>
+    rawReq<B[]>("/maintenance/adblue-logs/edit-events").then((rows) =>
+      rows.map((r) => ({
+        id: String(r.id),
+        label: String(r.label ?? ""),
+        event: String(r.event) as AdBlueLogEditEventRow["event"],
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
+  createLog: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) =>
+    req<B>("/maintenance/adblue-logs", {
+      method: "POST",
+      body: JSON.stringify({
+        truck_id: parseInt(log.truckId),
+        date: log.date,
+        odometer: parseInt(log.odometer),
+        litres: parseFloat(log.litres),
+        price_per_litre: parseFloat(log.pricePerLitre),
+        total_cost: parseFloat(log.totalCost),
+        supplier: log.fillingLocation || null,
+        remarks: log.remarks || null,
+      }),
+    }).then(toAdBlueLog),
+  deleteLog: (id: string) => req<void>(`/maintenance/adblue-logs/${id}`, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------
@@ -3628,6 +3669,19 @@ export type CompensationEditEventRow = {
   createdAt: string;
 };
 
+/** One day of Cleaner / Workshop Batta (see backend finance._daily_batta_rows). */
+export type BattaRow = {
+  date: string;
+  status: string;
+  truck_id: string | null;
+  truck_registration: string | null;
+  truck_source: string;
+  branch: string | null;
+  rate: number;
+  amount: number;
+  note: string | null;
+};
+
 export const financeApi = {
   listEmi: () => req<B[]>("/finance/emi").then((d) => d.map(toEmiRecord)),
   listEmiEditEvents: (): Promise<EmiRecordEditEventRow[]> =>
@@ -3663,6 +3717,16 @@ export const financeApi = {
     const params = new URLSearchParams({ month, driver_ids: driverIds.join(",") });
     return req<Record<string, number>>(`/finance/compensation/drivers/monthly-net-payable?${params.toString()}`);
   },
+  /** Driver Compensation → Cleaner Batta Record: every attendance day that earns Cleaner Batta. */
+  getDriverCleanerBatta: (driverCode: string) =>
+    rawReq<{ statuses: string[]; rows: BattaRow[] }>(
+      `/finance/compensation/cleaner-batta?driver_id=${encodeURIComponent(driverCode)}`,
+    ),
+  /** Driver Compensation → Workshop Batta Record: every On Workshop day. */
+  getDriverWorkshopBatta: (driverCode: string) =>
+    rawReq<{ statuses: string[]; rows: BattaRow[] }>(
+      `/finance/compensation/workshop-batta?driver_id=${encodeURIComponent(driverCode)}`,
+    ),
   addDriverCompensation: (personId: string, type: string, amount: number, date: string, note?: string, tripNumber?: string) =>
     req<B>("/finance/compensation/drivers", {
       method: "POST",
@@ -3709,8 +3773,15 @@ function toBranch(b: B): Branch {
     name: b.name ?? "",
     haltDayFee20ft: String(b.halt_day_fee_20ft ?? "0"),
     haltDayFee40ft: String(b.halt_day_fee_40ft ?? "0"),
+    partyHaltFee20ft: String(b.party_halt_fee_20ft ?? b.halt_day_fee_20ft ?? "0"),
+    partyHaltFee40ft: String(b.party_halt_fee_40ft ?? b.halt_day_fee_40ft ?? "0"),
+    haltDayFee2x20: String(b.halt_day_fee_2x20 ?? b.halt_day_fee_20ft ?? "0"),
+    haltDayFeeOpenLoad: String(b.halt_day_fee_open_load ?? b.halt_day_fee_20ft ?? "0"),
+    partyHaltFee2x20: String(b.party_halt_fee_2x20 ?? b.party_halt_fee_20ft ?? b.halt_day_fee_20ft ?? "0"),
+    partyHaltFeeOpenLoad: String(b.party_halt_fee_open_load ?? b.party_halt_fee_20ft ?? b.halt_day_fee_20ft ?? "0"),
     driverHaltDayPercentage: String(b.driver_halt_day_percentage ?? "0"),
     cleanerBattaFee: String(b.cleaner_batta_fee ?? "0"),
+    workshopBattaFee: String(b.workshop_batta_fee ?? "0"),
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -3720,8 +3791,15 @@ function fromBranch(f: Branch) {
     name: f.name,
     halt_day_fee_20ft: f.haltDayFee20ft ? parseFloat(f.haltDayFee20ft) : 0,
     halt_day_fee_40ft: f.haltDayFee40ft ? parseFloat(f.haltDayFee40ft) : 0,
+    party_halt_fee_20ft: f.partyHaltFee20ft ? parseFloat(f.partyHaltFee20ft) : 0,
+    party_halt_fee_40ft: f.partyHaltFee40ft ? parseFloat(f.partyHaltFee40ft) : 0,
+    halt_day_fee_2x20: f.haltDayFee2x20 ? parseFloat(f.haltDayFee2x20) : 0,
+    halt_day_fee_open_load: f.haltDayFeeOpenLoad ? parseFloat(f.haltDayFeeOpenLoad) : 0,
+    party_halt_fee_2x20: f.partyHaltFee2x20 ? parseFloat(f.partyHaltFee2x20) : 0,
+    party_halt_fee_open_load: f.partyHaltFeeOpenLoad ? parseFloat(f.partyHaltFeeOpenLoad) : 0,
     driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
     cleaner_batta_fee: f.cleanerBattaFee ? parseFloat(f.cleanerBattaFee) : 0,
+    workshop_batta_fee: f.workshopBattaFee ? parseFloat(f.workshopBattaFee) : 0,
     client_version: f.version,
   };
 }
@@ -4588,16 +4666,11 @@ type RccModeData = {
   costPerLitre: string;
   tyreEntries: Record<string, { cost: string; range: string }>;
   runEntries: Record<string, { month: string; day: string }>;
-  adbluePrices: Record<string, string>;
   truckMetrics: Record<string, {
     emiAmount: string;
     emiPerDay: string;
     emiPerKm: string;
     mileage: string;
-    adblueConsumeLKm: string;
-    adblueConsumeL1000: string;
-    adblueManufacturer: string;
-    adbluePerKm: string;
     tyreType: string;
     tyrePerKm: string;
     maintenancePerKm: string;
@@ -4620,21 +4693,13 @@ function _parseModeData(d: Record<string, any>): RccModeData {
     runEntries: Object.fromEntries(
       Object.entries(d.run_entries ?? {}).map(([k, v]: [string, any]) => [k, { month: v.month ?? "", day: v.day ?? "" }])
     ),
-    adbluePrices: Object.fromEntries(
-      Object.entries(d.adblue_prices ?? {}).map(([k, v]: [string, any]) => [k, String(v ?? "")])
-    ),
     truckMetrics: Object.fromEntries(
       Object.entries(d.truck_metrics ?? {}).map(([k, v]: [string, any]) => {
-        const lkm = v.adblue_consume_l_per_km ?? "";
         return [k, {
           emiAmount: v.emi_amount ?? "",
           emiPerDay: v.emi_per_day ?? "",
           emiPerKm:  v.emi_per_km  ?? "",
           mileage: v.mileage ?? "",
-          adblueConsumeLKm: lkm,
-          adblueConsumeL1000: lkm ? String(+(parseFloat(lkm) * 1000).toFixed(4)) : "",
-          adblueManufacturer: v.adblue_manufacturer_id ? String(v.adblue_manufacturer_id) : "",
-          adbluePerKm: v.adblue_per_km ?? "",
           tyreType: v.tyre_type ?? "",
           tyrePerKm: v.tyre_per_km ?? "",
           maintenancePerKm: v.maintenance_per_km ?? "",
@@ -4654,16 +4719,12 @@ function _serializeModeData(d: RccModeData) {
     run_entries: Object.fromEntries(
       Object.entries(d.runEntries).map(([k, v]) => [k, { month: v.month, day: v.day }])
     ),
-    adblue_prices: d.adbluePrices,
     truck_metrics: Object.fromEntries(
       Object.entries(d.truckMetrics).map(([k, v]) => [k, {
         emi_amount:  v.emiAmount,
         emi_per_day: v.emiPerDay,
         emi_per_km:  v.emiPerKm,
         mileage: v.mileage,
-        adblue_consume_l_per_km: v.adblueConsumeLKm,
-        adblue_manufacturer_id: v.adblueManufacturer,
-        adblue_per_km: v.adbluePerKm,
         tyre_type: v.tyreType,
         tyre_per_km: v.tyrePerKm,
         maintenance_per_km: v.maintenancePerKm,
@@ -4674,7 +4735,7 @@ function _serializeModeData(d: RccModeData) {
 }
 
 const _emptyRccModeData = (): RccModeData => ({
-  costPerLitre: "", tyreEntries: {}, runEntries: {}, adbluePrices: {}, truckMetrics: {},
+  costPerLitre: "", tyreEntries: {}, runEntries: {}, truckMetrics: {},
 });
 // _emptyRccModeData is available for callers that need a typed empty state
 
