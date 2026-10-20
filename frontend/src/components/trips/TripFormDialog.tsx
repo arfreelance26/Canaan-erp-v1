@@ -1178,17 +1178,16 @@ export function TripFormDialog({
     const branch = branches.find((b) => b.name === (assignment ? getTruckBranch(assignment.truck) : ""));
     const pct = branch ? parseFloat(branch.driverHaltDayPercentage || "0") : null;
     const hireBase = getFinalPricingForRoute(route.id, routeDestination)?.accountsHireAmount ?? route.hireAmount;
-    // For EXPORT routes, origin must be TUTICORIN — the origin GlassSelect only
-    // accepts TUTICORIN/CHENNAI, so we can't set an arbitrary originState here.
-    // For all other types, prefer the stored address then fall back to state name.
+    // EXPORT routes keep the origin already on the form (typed, or picked from
+    // View All CFS / Yard), starting at TUTICORIN. For all other types, prefer
+    // the stored address then fall back to state name.
     const cargo = route.cargoClassification as Trip["cargoClassification"] | undefined;
-    const origin = cargo === "EXPORT" ? "TUTICORIN" : (route.originAddress || route.originState);
     const destination = route.destLabel || route.destinationState;
     const containerSpec = route.containerType ? containerTypeToSpec(route.containerType) : "";
     setForm((prev) => ({
       ...prev,
       customerDestinationId: route.id,
-      origin,
+      origin: cargo === "EXPORT" ? (prev.origin || "TUTICORIN") : routeOrigin,
       destination,
       ...(route.hireAmount ? { transportHireAmount: route.hireAmount } : {}),
       transportCommissionAmount: route.commissionAmount || "",
@@ -2021,29 +2020,19 @@ export function TripFormDialog({
             )}
 
             <Field label="Origin Location" required>
-              {isShifting ? (
+              {isShifting || isExport ? (
                 <>
-                  <GlassSelect
+                  <input
+                    type="text"
+                    required
                     value={form.origin}
-                    onChange={(val) => update("origin", val)}
-                    options={[
-                      { value: "TUTICORIN", label: "TUTICORIN" },
-                      { value: "CHENNAI", label: "CHENNAI" },
-                    ]}
+                    onChange={(e) => update("origin", e.target.value)}
+                    className={inputClass}
+                    placeholder={isExport ? "e.g. TUTICORIN" : "Enter origin location"}
                   />
-                  <span className="mt-1 text-xs text-amber-600">Shifting trips — origin restricted to Tuticorin or Chennai</span>
-                </>
-              ) : isExport ? (
-                <>
-                  <GlassSelect
-                    value={form.origin}
-                    onChange={(val) => update("origin", val)}
-                    options={[
-                      { value: "TUTICORIN", label: "TUTICORIN" },
-                      { value: "CHENNAI", label: "CHENNAI" },
-                    ]}
-                  />
-                  <span className="mt-1 text-xs text-blue-600">Export trips — origin restricted to Tuticorin or Chennai</span>
+                  <span className={`mt-1 text-xs ${isShifting ? "text-amber-600" : "text-blue-600"}`}>
+                    {isShifting ? "Shifting trips" : "Export trips"} — enter origin manually or pick one from View All CFS / Yard
+                  </span>
                 </>
               ) : form.useCustomRoute ? (
                 <>
