@@ -33,6 +33,7 @@ ALL_MODELS = [
     models.BranchCleanerBattaFeeHistory,
     models.BranchWorkshopBattaFeeHistory,
     models.Truck,
+    models.TruckOdometerCorrection,
     models.Driver,
     models.Staff,
     models.Customer,
@@ -46,10 +47,10 @@ ALL_MODELS = [
     models.RepairType,
     models.MaintenanceCategory,
     models.MaintenanceCategoryRepair,
-    models.MaintenanceType,
     models.TruckRunConfig,
     models.TyreLayoutCostConfig,
     models.ComplianceUpdateHistory,
+    models.TruckComplianceRecord,
     models.TyreRangeConfig,
     models.DriverAssignment,
     models.Trip,
@@ -62,6 +63,7 @@ ALL_MODELS = [
     models.StaffAttendance,
     models.LeaveRequest,
     models.MaintenanceRecord,
+    models.MaintenanceRequest,
     models.FuelLog,
     models.FuelBaseConfig,
     models.AdBlueManufacturer,
@@ -73,6 +75,7 @@ ALL_MODELS = [
     models.EditApprovalRequest,
     models.CompensationTransaction,
     models.Notification,
+    models.NotificationRead,
     models.AuditLog,
     models.TripRecheckEvent,
     models.RunningCostConfig,
@@ -111,7 +114,13 @@ BLOB_FILENAME_COL: dict[str, str] = {
     "national_permit_proof_blob":        "national_permit_proof_file_name",
     "local_permit_proof_blob":           "local_permit_proof_file_name",
     "pollution_certificate_blob":        "pollution_certificate_proof_file_name",
+    "front_view_blob":                       "front_view_file_name",
+    "rear_view_blob":                        "rear_view_file_name",
+    "left_view_blob":                        "left_view_file_name",
+    "right_view_blob":                       "right_view_file_name",
+    "file_blob":                         "file_name",  # truck_compliance_records (past documents)
     "data":                              "file_name",  # maintenance_proofs (Proof of Payment)
+    "proof_data":                        "proof_file_name",  # tyre_inventory (Proof of Payment/Invoice)
 }
 
 # Models that hold uploaded file blobs, with the folder name used inside the ZIP.
@@ -124,6 +133,9 @@ BLOB_MODELS = [
     # SQL/Excel dumps, which skip file bytes (and `data` is NOT NULL, so a
     # bytes-less INSERT couldn't be restored anyway).
     (models.MaintenanceProof, "maintenance_proofs"),
+    (models.TruckComplianceRecord, "truck_compliance_records"),
+    (models.TyreInventory, "tyre_inventory"),
+    (models.MaintenanceRequestProof, "maintenance_request_proofs"),
 ]
 
 

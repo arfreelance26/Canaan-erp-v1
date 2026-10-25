@@ -118,6 +118,17 @@ class Truck(Base):
     national_permit_proof_blob = Column(LargeBinary(length=26214400))
     local_permit_proof_blob = Column(LargeBinary(length=26214400))
     pollution_certificate_blob = Column(LargeBinary(length=26214400))
+    # Vehicle Images (Truck form → top section). photo_blob above is the
+    # "Vehicle Identity Image" shown on the Our Fleet card. The four views are
+    # deferred so the truck list never pulls their bytes.
+    front_view_file_name = Column(String(255))
+    rear_view_file_name = Column(String(255))
+    left_view_file_name = Column(String(255))
+    right_view_file_name = Column(String(255))
+    front_view_blob = deferred(Column(LargeBinary(length=26214400)))
+    rear_view_blob = deferred(Column(LargeBinary(length=26214400)))
+    left_view_blob = deferred(Column(LargeBinary(length=26214400)))
+    right_view_blob = deferred(Column(LargeBinary(length=26214400)))
     version = Column(Integer, default=1, nullable=False)
     # Soft delete — "Our Fleet" -> Delete sets this instead of removing the row,
     # so fuel/adblue/maintenance logs, tyre fitments, compliance history, and
@@ -1037,7 +1048,10 @@ class MaintenanceRecord(Base):
     maintenance_end_date = Column(Date, nullable=True)
     odometer = Column(Integer, nullable=False)
     maintenance_type = Column(String(200), nullable=False)
-    repair_type = Column(String(200), nullable=True)
+    # One or more of the category's repair types, ", "-separated (a single
+    # maintenance can cover several repairs). Names can't contain a comma —
+    # see routers/maintenance_categories.py.
+    repair_type = Column(String(1000), nullable=True)
     compliant = Column(Text, nullable=True)
     maintenance_location = Column(String(200), nullable=True)
     maintenance_by = Column(String(200), nullable=True)      # name snapshot (vendor or individual)
@@ -1046,6 +1060,8 @@ class MaintenanceRecord(Base):
     # maintenance_by keeps the name as it was when the record was saved.
     maintenance_by_type = Column(String(12), nullable=True)
     vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_number = Column(String(100), nullable=True)      # given by the vendor / individual
+    invoice_date = Column(Date, nullable=True)
     description = Column(Text)                               # Remarks
     cost = Column(Numeric(10, 2), default=0)
     entered_by_name = Column(String(100), nullable=True)
@@ -1053,6 +1069,10 @@ class MaintenanceRecord(Base):
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    # "Notify me when this is due again" — see maintenance_reminders.py.
+    remind_at_odometer = Column(Integer, nullable=True)
+    remind_soon_sent_at = Column(DateTime, nullable=True)
+    remind_due_sent_at = Column(DateTime, nullable=True)
 
     truck = relationship("Truck", back_populates="maintenance_records")
 
@@ -1077,6 +1097,53 @@ class MaintenanceProof(Base):
     __table_args__ = (Index("ix_maintenance_proof_record", "record_id"),)
 
 
+class MaintenanceRequest(Base):
+    """A new maintenance record waiting on Maintenance Approvals (Admin or
+    Accounts). Nothing reads these but that page and the truck's "Pending
+    approval" list — the real MaintenanceRecord (costs, P&L, vendor records,
+    reminders) is only created when the request is approved.
+
+    Two sources: the Update Maintenance Record form ("Web", payload is the
+    form) and a Trip Sheet's Major Repairs ("Trip Sheet", one request per
+    repair line; line_sig lets a re-save of the sheet tell unchanged lines
+    from new or edited ones — see routers/maintenance_requests.sync_trip_repairs)."""
+    __tablename__ = "maintenance_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False, index=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="SET NULL"), nullable=True, index=True)
+    source = Column(String(20), nullable=False, default="Web")      # "Web" | "Trip Sheet"
+    line_sig = Column(String(64), nullable=True)                    # trip-sheet repair line fingerprint
+    payload = Column(JSON, nullable=False)                          # MaintenanceRecordCreate fields
+    # Pending → Approved | Rejected; Cancelled when its trip-sheet line was
+    # removed or changed before anyone decided.
+    status = Column(String(12), nullable=False, default="Pending", index=True)
+    submitted_by_id = Column(Integer, nullable=True)                # staff id (None = staff-less admin login)
+    submitted_by_name = Column(String(100), nullable=False)
+    submitted_by_role = Column(String(50), nullable=True)
+    decided_by_name = Column(String(100), nullable=True)
+    decided_at = Column(DateTime, nullable=True)
+    reject_reason = Column(Text, nullable=True)
+    record_id = Column(Integer, ForeignKey("maintenance_records.id", ondelete="SET NULL"), nullable=True)
+    requester_seen_at = Column(DateTime, nullable=True)             # decision shown to the submitter
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class MaintenanceRequestProof(Base):
+    """Proof of Payment files attached to a pending request — moved onto the
+    record's MaintenanceProof rows when it's approved."""
+    __tablename__ = "maintenance_request_proofs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    request_id = Column(Integer, ForeignKey("maintenance_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String(8), nullable=False)          # "image" | "pdf"
+    file_name = Column(String(255), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    data = deferred(Column(LargeBinary(length=26214400), nullable=False))
+    uploaded_by_name = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class MaintenanceRecordEditEvent(Base):
     """Who created/edited/deleted a Maintenance Record and when — same
     pattern as the other *EditEvent tables, with one difference: a deleted
@@ -1096,31 +1163,6 @@ class MaintenanceRecordEditEvent(Base):
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-
-
-class AirFilterRecord(Base):
-    """Air filter remove & replace history — one row per change. "Running
-    odometer since change" and "service due in" are derived at read time from
-    the truck's live odometer against next_change_odometer, never stored, so
-    they can't drift stale."""
-    __tablename__ = "air_filter_records"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False, index=True)
-    date = Column(Date, nullable=False)
-    odometer_during_change = Column(Integer, nullable=False)
-    # Target odometer reading at which the next air filter change is due —
-    # user-entered (typically odometer_during_change + service interval), not
-    # a live truck read, so it stays fixed until the change actually happens.
-    next_change_odometer = Column(Integer, nullable=False, server_default="0")
-    remarks = Column(String(255), nullable=True)
-    entered_by = Column(Integer, ForeignKey("staff.id", ondelete="SET NULL"), nullable=True)
-    entered_by_name = Column(String(100), nullable=True)
-    version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-    truck = relationship("Truck")
 
 
 class FuelLog(Base):
@@ -1254,6 +1296,19 @@ class TyreInventory(Base):
     retread_cost = Column(Numeric(10, 2), default=0)
     retread_count = Column(Integer, default=0)
     condition = Column(String(50), nullable=True, default="New")
+    # Who supplied the tyre — same "Maintenance By" toggle as maintenance
+    # records: "Vendor" links vendor_id (name snapshot in maintenance_by),
+    # "Individual" is just a typed name.
+    maintenance_by = Column(String(200), nullable=True)
+    maintenance_by_type = Column(String(12), nullable=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_number = Column(String(100), nullable=True)   # given by the vendor / individual
+    invoice_date = Column(Date, nullable=True)
+    # "Proof of Payment/Invoice" — one PDF or image, 15 MB max (see
+    # routers/maintenance.py). The bytes are deferred so listings never load them.
+    proof_file_name = Column(String(255), nullable=True)
+    proof_size_bytes = Column(Integer, nullable=True)
+    proof_data = deferred(Column(LargeBinary(length=26214400), nullable=True))  # LONGBLOB
     version = Column(Integer, default=1, nullable=False)
     # Soft delete — "Tyre Inventory" -> Delete sets this instead of removing the row,
     # so it can be recovered from the "Tyre Archive" page. Same pattern as
@@ -1503,8 +1558,7 @@ class MaintenanceCategory(Base):
     """Categories shown on the "Maintenance Management" admin page, each
     grouping several repair types underneath it. Distinct from RepairType
     (the flat list used by the "Repairs Management" page / Trip Sheet's
-    "Major Repairs" quick-pick) and from MaintenanceType (interval-km based
-    alert config) — this is its own, separate grouping feature.
+    "Major Repairs" quick-pick) — this is its own, separate grouping feature.
     """
     __tablename__ = "maintenance_categories"
 
@@ -1556,37 +1610,11 @@ class MaintenanceCategoryEditEvent(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
-class MaintenanceType(Base):
-    __tablename__ = "maintenance_types"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(200), nullable=False, unique=True)
-    interval_km = Column(Integer, nullable=False, default=5000)
-    version = Column(Integer, default=1, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-
-class MaintenanceTypeEditEvent(Base):
-    """Who created/edited/deleted a Maintenance (Alert) Type and when.
-    MaintenanceType is hard-deleted, so type_id is a plain reference and
-    name is snapshotted at log time."""
-    __tablename__ = "maintenance_type_edit_events"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    type_id = Column(Integer, nullable=False)
-    name = Column(String(200), nullable=False)
-    event = Column(Enum("Type Created", "Type Edited", "Type Deleted"), nullable=False)
-    actor_name = Column(String(100), nullable=False)
-    actor_role = Column(String(50), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-
-
 class CfsYardEntry(Base):
     """A known Tuticorin CFS depot or container yard — the directory behind
     TripFormDialog's "View All CFS" / "View All Yard" (seeded once from the
     lists that used to be hardcoded in lib/lane-places.ts, now Admin-editable
-    like Maintenance Types). Deletion goes through the same soft-delete +
+    ). Deletion goes through the same soft-delete +
     Archive-page restore flow as Driver/Truck/Staff/Customer/Vendor — no DB-
     level unique constraint on (kind, name) since a deleted name must be
     re-usable (see main.py's migration dropping uq_cfs_yard_kind_name)."""
@@ -1693,6 +1721,35 @@ class TyreLayoutCostConfig(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class TruckComplianceRecord(Base):
+    """One document a truck has held — its first entry, then one row per
+    renewal — so renewing never erases the old date, cost or file (Our Fleet
+    → Compliance History). The truck's own compliance columns always mirror
+    the LATEST row per document.
+
+    The latest row's file lives on the truck (trucks.<doc>_blob, as before);
+    a row's own file_blob is filled when a renewal supersedes it, so the
+    current file is never stored twice."""
+    __tablename__ = "truck_compliance_records"
+
+    id                = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id          = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False, index=True)
+    doc_type          = Column(String(30), nullable=False)       # rc / fc / road_tax / insurance / national_permit / local_permit / pollution_cert
+    kind              = Column(String(20), nullable=False)       # "First entry" / "Renewal"
+    doc_number        = Column(String(50), nullable=True)
+    valid_from        = Column(Date, nullable=True)
+    valid_until       = Column(Date, nullable=True)
+    expense           = Column(Numeric(12, 2), nullable=True)
+    file_name         = Column(String(500), nullable=True)
+    file_blob         = deferred(Column(LargeBinary(length=26214400), nullable=True))
+    created_by_name   = Column(String(200), nullable=False, default="")
+    created_at        = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Set when a mistake on this row was corrected (never for a renewal).
+    corrected_by_name = Column(String(200), nullable=True)
+    corrected_at      = Column(DateTime, nullable=True)
+    correction_note   = Column(Text, nullable=True)
+
+
 class ComplianceUpdateHistory(Base):
     __tablename__ = "compliance_update_history"
 
@@ -1701,6 +1758,11 @@ class ComplianceUpdateHistory(Base):
     document_type   = Column(String(100), nullable=False)
     updated_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_by_name = Column(String(200), nullable=False, default="")
+    # NULL = a document was set / renewed (Running Cost's issue-date anchor).
+    # "Corrected" / "Renewal undone" are log-only entries for Compliance &
+    # Renewals → Edit History and are never used as an anchor.
+    action          = Column(String(30), nullable=True)
+    note            = Column(Text, nullable=True)
 
 
 class BranchCleanerBattaFeeHistory(Base):
@@ -1730,6 +1792,21 @@ class BranchWorkshopBattaFeeHistory(Base):
     workshop_batta_fee = Column(Numeric(10, 2), nullable=False, default=0)
     effective_from = Column(DateTime, nullable=False)
     changed_by_name = Column(String(200), nullable=True)
+
+
+class TruckOdometerCorrection(Base):
+    """Admin's "Correct Odometer" (Our Fleet) — the only way a truck's current
+    odometer is set by hand or goes down. One row per correction, kept forever."""
+    __tablename__ = "truck_odometer_corrections"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False, index=True)
+    old_odometer = Column(Integer, nullable=False)
+    new_odometer = Column(Integer, nullable=False)
+    reason = Column(Text, nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class TruckBranchHistory(Base):
@@ -1890,10 +1967,24 @@ class Notification(Base):
     target_roles = Column(String(200), nullable=False)     # comma-separated, e.g. "Admin,Fleet Manager"
     created_by = Column(String(100))                       # reporter's name
     created_by_role = Column(String(50))
+    # Legacy shared read flag — read state is per person now (NotificationRead);
+    # rows marked read before that stay read for everyone.
     is_read = Column(Boolean, default=False, nullable=False)
     # Python-side UTC default (not func.now()): the DB server clock may be in any
     # timezone, but the API serializer stamps naive datetimes as UTC — they must match.
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class NotificationRead(Base):
+    """One person has read one notification. reader_key is "staff:<id>", or
+    "admin:<name>" for the staff-less admin login."""
+    __tablename__ = "notification_reads"
+    __table_args__ = (UniqueConstraint("notification_id", "reader_key", name="uq_notification_reader"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    notification_id = Column(Integer, ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False)
+    reader_key = Column(String(120), nullable=False, index=True)
+    read_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -2024,6 +2115,10 @@ class RunningCostConfig(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     mode = Column(String(20), nullable=False, unique=True, default="Manual")
     cost_per_litre = Column(Numeric(10, 4), nullable=True)
+    # Tyre Cost Configuration quantities {tyre_layout: {tyre_type: "qty"}} —
+    # NULL until the calculator first saves them (they used to live only in
+    # the browser). Manual Cost/KM is worked out on the server once set.
+    tyre_cost_config_qty = Column(JSON, nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
@@ -2069,6 +2164,14 @@ class RunningCostTruckCostPerKm(Base):
     mode = Column(String(20), nullable=False)
     truck_business_id = Column(String(50), nullable=False)
     cost_per_km = Column(Numeric(12, 6), nullable=True)
+    # The five parts that add up to cost_per_km, saved by the calculator so
+    # Profitability's Trip Breakdown can show the split (Manual mode can't be
+    # re-derived server-side). Null on rows saved before they were stored.
+    emi_per_km = Column(Numeric(12, 6), nullable=True)
+    fuel_per_km = Column(Numeric(12, 6), nullable=True)
+    tyre_per_km = Column(Numeric(12, 6), nullable=True)
+    maintenance_per_km = Column(Numeric(12, 6), nullable=True)
+    compliance_per_km = Column(Numeric(12, 6), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     __table_args__ = (UniqueConstraint("mode", "truck_business_id", name="uq_rcc_costkm_mode_truck"),)
 
@@ -2082,9 +2185,6 @@ class RunningCostTruckMetrics(Base):
     truck_id = Column(Integer, ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
     emi_amount = Column(Numeric(12, 2), nullable=True)
     mileage = Column(Numeric(8, 4), nullable=True)
-    adblue_consume_l_per_km = Column(Numeric(10, 6), nullable=True)
-    adblue_manufacturer_id = Column(Integer, nullable=True)
-    adblue_per_km = Column(Numeric(10, 6), nullable=True)  # manual override; when set, L/km inputs are hidden
     tyre_type = Column(String(50), nullable=True)
     tyre_per_km = Column(Numeric(10, 6), nullable=True)  # manual override; when set, auto-calc from tyre type is ignored
     emi_per_day = Column(Numeric(10, 4), nullable=True)  # manual override; used in Basic mode

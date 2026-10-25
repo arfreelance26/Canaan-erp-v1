@@ -7,11 +7,16 @@ import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { sidebarSections, type NavSection } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { editApprovalsApi, deletionApprovalsApi, chatApi, paymentRequestsApi } from "@/lib/api";
+import { editApprovalsApi, deletionApprovalsApi, chatApi, paymentRequestsApi, maintenanceRequestsApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { useTheme } from "@/context/ThemeContext";
 import { useOpenShift } from "@/hooks/useOpenShift";
 import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
+import { useBirthday } from "@/context/BirthdayContext";
+import { useSeason } from "@/context/SeasonContext";
+import { useFounding } from "@/context/FoundingContext";
+import { LogoShine, YearsBadge } from "./FoundingDecor";
+import { PineGarland, Snowfall, Streamers } from "./SeasonDecor";
+import { Bunting, StringLights, BirthdayBadge, Balloons } from "./BirthdayDecor";
 
 // Allowed hrefs per software designation (Admin gets everything)
 const ROLE_HREFS: Record<string, string[] | "all"> = {
@@ -25,6 +30,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/trips/completed",
     "/trips/history",
     "/trips/pnl-mileage",
+    "/insights/trip-planner",
     "/resources/customers",
     "/resources/drivers",
     "/resources/fleet",
@@ -48,6 +54,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/trips/completed",
     "/trips/history",
     "/trips/pnl-mileage",
+    "/insights/trip-planner",
     "/resources/customers",
     "/resources/drivers",
     "/resources/fleet",
@@ -74,6 +81,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/attendance/mark",
     "/attendance/leave-requests",
     "/attendance/payment-requests",
+    "/attendance/maintenance-approvals",
     "/admin/sac-codes",
     "/personal/edit-delete-requests",
     "/personal/notifications",
@@ -87,7 +95,6 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/maintenance/retread-queue",
     "/maintenance/discarded-tyres",
     "/maintenance/trucks",
-    "/maintenance/air-filter-rr",
     "/maintenance/fuel-history",
     "/admin/adblue",
     "/admin/maintenance",
@@ -98,6 +105,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/personal/notifications",
   ],
   "Yard Supervisor": [
+    "/",
     "/connect/chat",
     "/trips/sheet-collection",
     "/attendance/mark",
@@ -107,6 +115,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/personal/notifications",
   ],
   "Trip Sheet Register": [
+    "/",
     "/connect/chat",
     "/trips/reconciliation",
     "/trips/flagged",
@@ -117,11 +126,12 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
     "/personal/edit-delete-requests",
     "/personal/notifications",
   ],
-  // Auditor gets a bare dashboard + chat + their own Driver Record.
+  // Auditor gets a bare dashboard + chat + their own Driver / Vehicle Record.
   Auditor: [
     "/",
     "/connect/chat",
     "/resources/driver-record",
+    "/resources/vehicle-record",
     "/personal/edit-delete-requests",
     "/personal/notifications",
   ],
@@ -186,7 +196,11 @@ const ATTENDANCE_LOCK_HREFS = ["/attendance/mark", "/connect/chat"];
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHoverChange, locked }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const { theme } = useTheme();
+  const birthday = useBirthday();
+  const season = useSeason();
+  const founding = useFounding();
+  // On the Dashboard a birthday outranks the Christmas decorations for the day.
+  const dashDecor = birthday.decorated ? "birthday" : founding.decorated ? "founding" : season.decorated ? "christmas" : null;
 
   // Logout is gated on closing an open self-checked-in shift first — see
   // CloseShiftBeforeLogoutDialog for why this isn't skippable.
@@ -199,9 +213,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
   const isAdmin = user?.softwareDesignation === "Admin";
   const isAccounts = user?.softwareDesignation === "Accounts";
   const isCommercialManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
-  const logoBg = theme === "dark"
-    ? { backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }
-    : {};
 
   // Edit Requests — visible to both Admin and Commercial Manager (both can review/approve
   // them, see routers/edit_approvals.py's require_roles("Admin", "Commercial Manager")).
@@ -227,6 +238,16 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
     if (!isAdmin) return;
     deletionApprovalsApi.list("Pending").then((r) => setPendingDeletionApprovals(r.length)).catch(() => {});
   };
+
+  // Maintenance Approvals — Admin and Accounts decide new maintenance records.
+  const canSeeMaintenanceApprovals = isAdmin || isAccounts;
+  const [pendingMaintenanceApprovals, setPendingMaintenanceApprovals] = useState(0);
+  const refreshPendingMaintenanceApprovals = useCallback(() => {
+    if (!canSeeMaintenanceApprovals) return;
+    maintenanceRequestsApi.list({ status: "Pending" }).then((r) => setPendingMaintenanceApprovals(r.length)).catch(() => {});
+  }, [canSeeMaintenanceApprovals]);
+  useEffect(() => { refreshPendingMaintenanceApprovals(); }, [refreshPendingMaintenanceApprovals]);
+  useWebSocketEvent("maintenance_request_updated", refreshPendingMaintenanceApprovals);
 
   useWebSocketEvent("edit_approval_created", refreshPendingEditApprovals);
   useWebSocketEvent("edit_approval_updated", refreshPendingEditApprovals);
@@ -309,6 +330,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
   const badgeFor = (href: string): number => {
     if (href === "/attendance/edit-approvals") return pendingEditApprovals;
     if (href === "/attendance/deletion-approvals") return pendingDeletionApprovals;
+    if (href === "/attendance/maintenance-approvals") return pendingMaintenanceApprovals;
     if (href === "/connect/chat") return chatUnread;
     if (href === "/attendance/payment-requests") return pendingPaymentRequests;
     return 0;
@@ -352,8 +374,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         collapsed ? "md:w-16" : "md:w-[310px]"
       )}
     >
+      {/* Christmas snow drifting down / birthday balloons rising up the sidebar
+          (Dashboard only) — negative z
+          inside the aside's stacking context: over its background, under the
+          logo, menu and profile card. */}
+      {dashDecor === "christmas" && <Snowfall count={collapsed ? 30 : 46} className="-z-10" glitter={season.day === "newyearday"} />}
+      {dashDecor === "birthday" && <Balloons count={collapsed ? 5 : 11} className="-z-10" />}
+
       {/* Header — logo + toggle */}
-      <div className="relative flex h-[88px] shrink-0 items-center justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-transparent">
+      <div className="relative flex h-[88px] shrink-0 items-center justify-center border-b border-gray-100 bg-gradient-to-b from-blue-50/50 to-transparent dark:border-white/[0.06] dark:from-transparent">
+        {dashDecor === "birthday" && <Bunting />}
+        {dashDecor === "christmas" && (season.day === "newyearday" ? <Streamers /> : <PineGarland />)}
         {/* Small icon — centered, in flow only when collapsed */}
         <button
           type="button"
@@ -361,11 +392,12 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
           aria-label="Expand sidebar"
           className={cn(
             "flex flex-col items-center gap-1.5 transition-all duration-300",
-            collapsed ? "opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-75 pointer-events-none absolute"
+            collapsed ? "relative opacity-100 scale-100 pointer-events-auto" : "opacity-0 scale-75 pointer-events-none absolute"
           )}
         >
-          <div style={logoBg} className="p-1.5">
-            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain" />
+          <div className="p-1.5">
+            <img src="/logo.png" alt="Canaan" width={36} height={36} className="object-contain dark:hidden" />
+            <img src="/logo-dark.png" alt="Canaan" width={36} height={36} className="hidden object-contain dark:block" />
           </div>
         </button>
 
@@ -374,8 +406,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
           "absolute inset-0 flex items-center justify-between px-4 transition-all duration-300",
           collapsed ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto"
         )}>
-          <div style={logoBg} className="px-3 py-1">
-            <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
+          <div className="relative flex items-center gap-3 px-3 py-1">
+            {/* Dark mode has its own logo (navy parts in off-white) — no white plate. */}
+            <span className="relative block dark:hidden">
+              <img src="/companylogo.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
+              {dashDecor === "founding" && <LogoShine src="/companylogo.png" />}
+            </span>
+            <span className="relative hidden dark:block">
+              <img src="/companylogo-dark.png" alt="Canaan Global" className="h-[72px] w-auto object-contain" />
+              {dashDecor === "founding" && <LogoShine src="/companylogo-dark.png" />}
+            </span>
+            {dashDecor === "founding" && <YearsBadge years={founding.years} />}
           </div>
           <button
             type="button"
@@ -387,6 +428,13 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
           </button>
         </div>
       </div>
+
+      {!collapsed && (
+        season.festive ? <StringLights variant="christmas" intense={season.day === "christmas"} />
+          : founding.festive ? <StringLights variant="brand" />
+          : birthday.festive ? <StringLights />
+          : null
+      )}
 
       {/* Expand chevron — only shown when collapsed. Conditionally rendered
           instead of height-animated: an animated h-0 forces a layout pass on
@@ -411,7 +459,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                 A small waypoint dot precedes the label — ties section headers
                 to the same "route" language as the nav rail below. */}
             {!collapsed && (
-              <p className="flex items-center gap-1.5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600/90">
+              <p className="flex items-center gap-1.5 px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-600/90 dark:text-gray-500">
                 <span className="h-1 w-1 shrink-0 rounded-full bg-blue-300" />
                 {section.title}
               </p>
@@ -437,7 +485,13 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                         Absolute + fixed height, so it costs nothing during
                         the width transition. */}
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-blue-600" />
+                      <span className={cn(
+                        "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full",
+                        dashDecor === "birthday" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
+                          : dashDecor === "christmas" ? "bg-gradient-to-b from-[#e53935] to-[#9b1c1c]"
+                          : dashDecor === "founding" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
+                          : "bg-blue-600 dark:bg-blue-400"
+                      )} />
                     )}
                     <Link
                       href={item.href}
@@ -457,7 +511,15 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                           solid blue on the active route, quiet everywhere else. */}
                       <span className={cn(
                         "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
-                        isActive ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30" : "text-gray-400"
+                        isActive
+                          ? dashDecor === "birthday"
+                            ? "text-white shadow-[0_2px_8px_-2px_rgba(154,116,20,0.55)] [background:linear-gradient(135deg,#f3d98b_-20%,#c9a227_45%,#9a7414_120%)]"
+                            : dashDecor === "christmas"
+                            ? "text-white ring-1 ring-[#e3b341] shadow-[0_2px_8px_-2px_rgba(155,28,28,0.55)] [background:linear-gradient(135deg,#e53935_-10%,#b71c1c_55%,#7f1010_120%)]"
+                            : dashDecor === "founding"
+                            ? "text-[#f3d98b] ring-1 ring-[#e3b341] shadow-[0_2px_8px_-2px_rgba(27,43,94,0.55)] [background:linear-gradient(135deg,#2b3f9f_-10%,#1b2b5e_55%,#0f1a38_120%)]"
+                            : "bg-blue-600 text-white shadow-sm shadow-blue-600/30 dark:bg-blue-300 dark:shadow-none"
+                          : "text-gray-400"
                       )}>
                         <Icon className="h-4 w-4" />
                       </span>
@@ -501,7 +563,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
 
       {/* User area */}
       <div className={cn(
-        "shrink-0 border-t border-gray-100 transition-all duration-300",
+        "shrink-0 border-t border-gray-100 transition-all duration-300 dark:border-white/[0.06]",
         collapsed ? "px-2 py-3" : "px-3 py-3"
       )}>
         <div
@@ -510,18 +572,21 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
             collapsed ? "justify-center p-1.5" : "gap-2.5 py-2 pl-2 pr-1.5"
           )}
         >
+          <span className="relative shrink-0">
           {user?.photoUrl ? (
             <img
               src={user.photoUrl}
               alt={user.name}
-              className="h-9 w-9 shrink-0 rounded-full object-cover shadow-inner ring-2 ring-white"
+              className="h-9 w-9 shrink-0 rounded-full object-cover shadow-inner ring-2 ring-white dark:ring-gray-300"
             />
           ) : (
-            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-[#1B2B5E] text-sm font-semibold text-white shadow-sm ring-2 ring-white">
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-[#1B2B5E] text-sm font-semibold text-white shadow-sm ring-2 ring-white dark:ring-gray-300">
               {getInitials(user?.name ?? "U")}
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-gray-100" />
             </div>
           )}
+          {birthday.decorated && birthday.mine && <BirthdayBadge />}
+          </span>
           {!collapsed && (
             <>
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

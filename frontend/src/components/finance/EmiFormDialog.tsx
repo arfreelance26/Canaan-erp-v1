@@ -11,7 +11,7 @@ import type { EmiRecord } from "@/types/finance";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { paidInstallments } from "@/lib/emi-schedule";
-import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
+import { useTruckRunStats } from "@/hooks/useTruckTripRuns";
 
 export const DRAFT_KEY = "erp_emi_form_draft";
 
@@ -146,13 +146,12 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
     ? (Number(dailyFinanceCost) / kmPerDay).toFixed(4)
     : "";
 
-  // EMI Cost per Km (Advanced) = Daily Finance Cost ÷ the truck's live
-  // monthly-average km/day (same computation EmiInsightsDialog already uses).
+  // EMI Cost per Km (Advanced) = the month's EMI ÷ the month's km
+  // (Daily Finance Cost × 26 ÷ the truck's Monthly Distance Average).
   // Display-only — there is no backing DB column, so this is never persisted.
-  const { rows: truckRuns } = useTruckTripRuns(selectedTruck ?? null, open);
-  const runStats = useMemo(() => computeTruckRunStats(truckRuns), [truckRuns]);
+  const { stats: runStats } = useTruckRunStats(selectedTruck ?? null, open);
   const emiCostPerKmAdvanced = dailyFinanceCost && runStats.monthlyAvg > 0
-    ? (Number(dailyFinanceCost) / runStats.monthlyAvg).toFixed(4)
+    ? ((Number(dailyFinanceCost) * 26) / runStats.monthlyAvg).toFixed(4)
     : "";
 
   // Keep all computed values in form state so they are persisted to the API
@@ -352,7 +351,7 @@ export function EmiFormDialog({ open, onClose, onSave, initialData }: EmiFormDia
                   ? "Select a truck first"
                   : runStats.monthlyAvg === 0
                   ? "No trip history for this truck yet"
-                  : "Daily Finance Cost ÷ live monthly avg km"
+                  : "Daily Finance Cost × 26 ÷ monthly avg km"
               }
             />
           </Field>

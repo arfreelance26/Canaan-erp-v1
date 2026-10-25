@@ -11,6 +11,15 @@ export type TyreInventoryItem = {
   retreadCost: string;
   retreadCount: string;
   condition: "New" | "Rethreaded";
+  /** Vendor name (snapshot) or the individual's typed name. */
+  maintenanceBy?: string;
+  maintenanceByType?: "Vendor" | "Individual" | null;
+  vendorId?: string | null;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  /** Proof of Payment/Invoice — set once a file is uploaded (one per tyre). */
+  proofFileName?: string | null;
+  proofSizeBytes?: number | null;
   version?: number;
   retreadFlaggedAt?: string | null;
   retreadFlaggedBy?: string | null;

@@ -1,71 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { AlertTriangle, Clock, CheckCircle2, HelpCircle, Gauge, IndianRupee, CalendarDays } from "lucide-react";
-import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
+import { Gauge, IndianRupee, CalendarDays } from "lucide-react";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import { trucksApi, maintenanceApi } from "@/lib/api";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
+import { useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
 import type { Truck } from "@/types/truck";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  status: TruckMaintenanceStatus | null;
   truckDbId?: string;
   records: MaintenanceRecord[];
   tyreLayout?: string;
   truck?: Truck | null;
 };
 
-function StatusBadge({ status }: { status: "Overdue" | "Due Soon" | "No Data" | "OK" }) {
-  if (status === "Overdue")
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700">
-        <AlertTriangle className="h-3 w-3" /> Overdue
-      </span>
-    );
-  if (status === "Due Soon")
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
-        <Clock className="h-3 w-3" /> Due Soon
-      </span>
-    );
-  if (status === "No Data")
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
-        <HelpCircle className="h-3 w-3" /> No Data
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-      <CheckCircle2 className="h-3 w-3" /> OK
-    </span>
-  );
-}
-
 function fmt(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function TruckStatusDialog({ open, onClose, status, truckDbId, records, tyreLayout, truck }: Props) {
+/**
+ * Truck Maintenance → a truck's "Full Status": its maintenance cost (last 12
+ * months, per month / per day / per km in Basic and Advanced). The old
+ * km-interval maintenance alerts were removed — they're being redesigned.
+ */
+export function TruckStatusDialog({ open, onClose, truckDbId, records, tyreLayout, truck }: Props) {
   const [kmPerDay, setKmPerDay] = useState<number | null>(null);
-  const [freshStatus, setFreshStatus] = useState<TruckMaintenanceStatus | null>(null);
 
   // Real, trip-history-based Monthly Distance Average for this truck — same
   // source and formula as the Truck Run Record page's "View Breakdown"
   // dialog — used for Cost / Km (Advanced) below.
-  const { rows: truckRuns } = useTruckTripRuns(truck ?? null, open);
-  const runStats = useMemo(() => computeTruckRunStats(truckRuns), [truckRuns]);
-
-  useEffect(() => {
-    if (!open) { setFreshStatus(null); return; }
-    if (truckDbId) {
-      maintenanceApi.getTruckStatus(truckDbId).then(setFreshStatus).catch(() => {});
-    }
-  }, [open, truckDbId]);
+  const { stats: runStats } = useTruckRunStats(truck ?? null, open);
 
   useEffect(() => {
     if (!open || !tyreLayout) return;
@@ -76,54 +44,43 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
     }).catch(() => {});
   }, [open, tyreLayout]);
 
-  useWebSocketEvent("maintenance_updated", () => {
+
+  // Maintenance cost from the server (the one formula shared with the
+  // calculator and Profitability): the last 12 months' bills spread over the
+  // months the truck has actually been on record (≤ 12), ÷ 26 working days.
+  const [costSummary, setCostSummary] = useState<{ total: number; months: number; monthly: number; daily: number; from: string | null; to: string } | null>(null);
+  const [costKey, setCostKey] = useState(0);
+  useEffect(() => {
     if (!open || !truckDbId) return;
-    maintenanceApi.getTruckStatus(truckDbId).then(setFreshStatus).catch(() => {});
-  });
+    maintenanceApi.getTruckCostSummary(truckDbId).then(setCostSummary).catch(() => setCostSummary(null));
+  }, [open, truckDbId, records, costKey]);
+  useWebSocketEvent("maintenance_updated", () => { if (open) setCostKey((k) => k + 1); });
+  const yearTotal      = costSummary?.total ?? 0;
+  const avgMonthlyCost = costSummary?.monthly ?? 0;
+  const avgDailyCost   = costSummary?.daily ?? 0;
+  const monthsCovered  = costSummary?.months ?? 0;
+  const periodFrom     = costSummary?.from ?? "—";
+  const periodTo       = costSummary?.to ?? "—";
 
-  const effectiveStatus = freshStatus ?? status;
-
-  const { yearTotal, avgMonthlyCost, avgDailyCost, periodFrom, periodTo } = useMemo(() => {
-    const today = new Date();
-    const oneYearAgo = new Date(today);
-    oneYearAgo.setFullYear(today.getFullYear() - 1);
-
-    const toIso = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const from = toIso(oneYearAgo);
-    const to   = toIso(today);
-
-    const yearRecords = records.filter((r) => r.date >= from && r.date <= to);
-    const total   = yearRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
-    const monthly = total / 12;
-    const daily   = monthly / 26;
-
-    return { yearTotal: total, avgMonthlyCost: monthly, avgDailyCost: daily, periodFrom: from, periodTo: to };
-  }, [records]);
-
-  if (!effectiveStatus) return null;
+  if (!truck) return null;
 
   const costPerKm = avgDailyCost > 0 && kmPerDay !== null
     ? avgDailyCost / kmPerDay
     : null;
 
-  // Advanced = Avg/Day ÷ Monthly Distance Average (Truck Run Record) — it
-  // does not go through km/day, so it works even when km/day isn't configured.
+  // Advanced = the month's cost ÷ the month's km (Avg/Day × 26 ÷ Monthly
+  // Distance Average) — no km/day involved, so it works without that setting.
   const costPerKmAdvanced = avgDailyCost > 0 && runStats.monthlyAvg > 0
-    ? avgDailyCost / runStats.monthlyAvg
+    ? (avgDailyCost * 26) / runStats.monthlyAvg
     : null;
 
-  const overdueItems = effectiveStatus.items.filter((i) => i.status === "Overdue");
-  const dueSoonItems = effectiveStatus.items.filter((i) => i.status === "Due Soon");
-  const noDataItems  = effectiveStatus.items.filter((i) => i.status === "No Data");
-  const okItems      = effectiveStatus.items.filter((i) => i.status === "OK");
-  const hasAlerts    = effectiveStatus.overdueCount > 0 || effectiveStatus.dueSoonCount > 0 || effectiveStatus.noDataCount > 0;
+  const odometer = parseFloat(truck.odometer || "0") || 0;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Maintenance Status — ${effectiveStatus.registrationNumber}`}
+      title={`Maintenance — ${truck.registrationNumber || truck.truckId}`}
       className="max-w-2xl"
     >
       {/* ── Top summary cards ── */}
@@ -137,45 +94,18 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Truck ID</p>
-              <p className="text-base font-bold leading-tight text-slate-800">{effectiveStatus.truckId}</p>
+              <p className="text-base font-bold leading-tight text-slate-800">{truck.truckId}</p>
             </div>
           </div>
 
           <div className="mx-4 border-t border-slate-200" />
 
-          {/* Row 1: Odometer + alert chips */}
-          <div className="flex items-center justify-between px-4 py-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Odometer</p>
-              <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700">
-                {effectiveStatus.odometer.toLocaleString("en-IN")} km
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-1">
-              {hasAlerts ? (
-                <>
-                  {effectiveStatus.overdueCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold text-red-700">
-                      <AlertTriangle className="h-3 w-3" /> {effectiveStatus.overdueCount} Overdue
-                    </span>
-                  )}
-                  {effectiveStatus.dueSoonCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                      <Clock className="h-3 w-3" /> {effectiveStatus.dueSoonCount} Due Soon
-                    </span>
-                  )}
-                  {effectiveStatus.noDataCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
-                      <HelpCircle className="h-3 w-3" /> {effectiveStatus.noDataCount} No Data
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" /> All Good
-                </span>
-              )}
-            </div>
+          {/* Row 1: Odometer */}
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Odometer</p>
+            <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-700">
+              {odometer.toLocaleString("en-IN")} km
+            </p>
           </div>
 
           {/* Row 2: Tyre Layout + Km/Day */}
@@ -217,7 +147,7 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
             {/* Row 1: 12-Mo Total | Avg/Month */}
             <div className="grid grid-cols-2 divide-x divide-blue-200 py-3">
               <div className="pr-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">12-Mo Total</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Total (last 12 mo)</p>
                 <p className="mt-1 text-sm font-bold tabular-nums text-slate-800">
                   {yearTotal > 0 ? fmt(yearTotal) : <span className="text-slate-400">—</span>}
                 </p>
@@ -267,7 +197,9 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
               {periodFrom} → {periodTo}
             </p>
             <div className="mt-2 flex flex-col gap-0.5 border-t border-blue-100 pt-2">
-              <p className="text-[10px] text-blue-400">Avg/month = 12-month total ÷ 12</p>
+              <p className="text-[10px] text-blue-400">
+                Avg/month = total ÷ months on record{monthsCovered > 0 ? ` (${monthsCovered.toFixed(1)} months, up to 12)` : " (up to 12)"}
+              </p>
               <p className="text-[10px] text-blue-400">Avg/day = Avg/month ÷ 26 working days</p>
               <p className="text-[10px] text-blue-400">
                 Cost/km (Basic) = Avg/day ÷ km/day
@@ -278,83 +210,16 @@ export function TruckStatusDialog({ open, onClose, status, truckDbId, records, t
                   : ""}
               </p>
               <p className="text-[10px] text-blue-400">
-                Cost/km (Advanced) = Avg/day ÷ Monthly Distance Average
+                Cost/km (Advanced) = Avg/day × 26 ÷ Monthly Distance Average
                 {runStats.monthlyAvg > 0
                   ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
                   : " — no trip run history for this truck yet"}
+                {missingSheetsNote(runStats) && <span className="block text-amber-600">{missingSheetsNote(runStats)}</span>}
               </p>
             </div>
           </div>
         </div>
       </div>
-
-      {/* ── Maintenance schedule table ── */}
-      {effectiveStatus.items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-400">
-          No maintenance types configured. Visit Admin › Maintenance Alert Management to add types.
-        </p>
-      ) : (
-        <>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-            Maintenance Schedule &nbsp;·&nbsp; {effectiveStatus.items.length} types
-          </p>
-          <div className="max-h-[38vh] overflow-y-auto rounded-xl border border-slate-200">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400">Type</th>
-                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Interval</th>
-                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Last Done</th>
-                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Km Since</th>
-                  <th className="px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-widest text-slate-400">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {[...overdueItems, ...dueSoonItems, ...noDataItems, ...okItems].map((item) => (
-                  <tr
-                    key={item.typeName}
-                    className={
-                      item.status === "Overdue"
-                        ? "border-l-2 border-l-red-400 bg-red-50/60"
-                        : item.status === "Due Soon"
-                        ? "border-l-2 border-l-amber-400 bg-amber-50/60"
-                        : item.status === "No Data"
-                        ? "border-l-2 border-l-gray-300 bg-gray-50/60"
-                        : "bg-white"
-                    }
-                  >
-                    <td className="px-3 py-2.5 font-medium text-slate-800">{item.typeName}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
-                      every {item.intervalKm.toLocaleString("en-IN")} km
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
-                      {item.lastOdometer !== null
-                        ? `${item.lastOdometer.toLocaleString("en-IN")} km`
-                        : <span className="italic text-slate-400">Never</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
-                      {item.status === "No Data" ? (
-                        <span className="italic text-slate-400">—</span>
-                      ) : (
-                        <span className={
-                          item.status === "Overdue"  ? "font-semibold text-red-600" :
-                          item.status === "Due Soon" ? "font-semibold text-amber-600" :
-                          "text-slate-500"
-                        }>
-                          {item.kmSinceLast.toLocaleString("en-IN")} km
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <StatusBadge status={item.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
 
       <div className="mt-4 flex justify-end border-t border-slate-100 pt-4">
         <button

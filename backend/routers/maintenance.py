@@ -13,6 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+import maintenance_reminders
 from websocket_manager import emit
 from routers.deletion_approvals import auto_reject_stale_requests
 from security import get_current_user, TokenUser, require_roles
@@ -20,7 +21,6 @@ from security import get_current_user, TokenUser, require_roles
 router = APIRouter(tags=["Maintenance"])
 
 EXPIRING_SOON_DAYS = 30
-UPCOMING_WINDOW_KM = 1000
 
 
 def _iqr_filter(intervals: list[dict]) -> list[dict]:
@@ -57,50 +57,6 @@ def _iqr_filter(intervals: list[dict]) -> list[dict]:
         r for r in intervals
         if (0.6745 * abs(r["mileage"] - median) / mad) <= threshold
     ]
-
-
-def _compute_maint_status(truck_odo: int, last_odo_map: dict, maint_types: list) -> dict:
-    """Return overdue_count, due_soon_count, no_data_count, items for a single truck.
-
-    A type with no maintenance record at all gets "No Data", not "Overdue" —
-    there being nothing logged yet isn't evidence the service is overdue, and
-    counting it as such silently turned "we have no history for this" into a
-    red alert for every truck/type combination no one ever entered a record
-    for (the dominant source of the dashboard's old inflated overdue count)."""
-    items = []
-    overdue_count = 0
-    due_soon_count = 0
-    no_data_count = 0
-    for mt in maint_types:
-        type_lower = mt.name.lower()
-        last_odo = last_odo_map.get(type_lower)
-        km_since_last = truck_odo - last_odo if last_odo is not None else truck_odo
-        if last_odo is None:
-            status = "No Data"
-            no_data_count += 1
-        elif km_since_last >= mt.interval_km:
-            status = "Overdue"
-            overdue_count += 1
-        elif km_since_last >= mt.interval_km - UPCOMING_WINDOW_KM:
-            status = "Due Soon"
-            due_soon_count += 1
-        else:
-            status = "OK"
-        items.append({
-            "type_name": mt.name,
-            "interval_km": mt.interval_km,
-            "last_odometer": last_odo,
-            "km_since_last": km_since_last,
-            "next_due_odometer": (last_odo + mt.interval_km) if last_odo is not None else mt.interval_km,
-            "status": status,
-        })
-    # Sort: Overdue first, then Due Soon, then No Data, then OK, then alphabetical
-    priority = {"Overdue": 0, "Due Soon": 1, "No Data": 2, "OK": 3}
-    items.sort(key=lambda x: (priority[x["status"]], x["type_name"]))
-    return {
-        "overdue_count": overdue_count, "due_soon_count": due_soon_count,
-        "no_data_count": no_data_count, "items": items,
-    }
 
 
 def _compliance_status(expiry_date) -> str:
@@ -215,60 +171,6 @@ def list_emi_records_readonly(db: Session = Depends(get_db)):
     return db.query(models.EmiRecord).order_by(models.EmiRecord.emi_name).all()
 
 
-@router.get("/maintenance/air-filter-records", response_model=list[schemas.AirFilterRecordOut], tags=["Maintenance"])
-def list_air_filter_records(truck_id: int | None = None, db: Session = Depends(get_db)):
-    q = db.query(models.AirFilterRecord)
-    if truck_id:
-        q = q.filter(models.AirFilterRecord.truck_id == truck_id)
-    return q.order_by(models.AirFilterRecord.date.desc()).all()
-
-
-@router.get("/maintenance/air-filter-records/edit-events", response_model=list[schemas.AirFilterRecordEditEventListOut], tags=["Maintenance"])
-def list_air_filter_record_edit_events(db: Session = Depends(get_db)):
-    """Every Air Filter log ever added, across every truck — the page-wide
-    "Edit History" log on Air Filter R&R. Derived straight from
-    AirFilterRecord (create-only, no edit/delete endpoints exist), so no
-    dedicated event table is needed. Most recent first. Registered before
-    POST on the same base path has no path-param collision risk, but kept
-    consistent with the rest of the codebase regardless."""
-    rows = (
-        db.query(models.AirFilterRecord)
-        .order_by(models.AirFilterRecord.created_at.desc(), models.AirFilterRecord.id.desc())
-        .all()
-    )
-    if not rows:
-        return []
-    truck_ids = {r.truck_id for r in rows}
-    trucks_by_id = {t.id: t for t in db.query(models.Truck).filter(models.Truck.id.in_(truck_ids)).all()}
-    result = []
-    for r in rows:
-        truck = trucks_by_id.get(r.truck_id)
-        result.append({
-            "id": r.id,
-            "truck_id": r.truck_id,
-            "registration_number": truck.registration_number if truck else "(deleted)",
-            "date": r.date,
-            "odometer_during_change": r.odometer_during_change,
-            "actor_name": r.entered_by_name or "Unknown",
-            "created_at": r.created_at,
-        })
-    return result
-
-
-@router.post("/maintenance/air-filter-records", response_model=schemas.AirFilterRecordOut, status_code=201, tags=["Maintenance"])
-def create_air_filter_record(payload: schemas.AirFilterRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
-    if not db.get(models.Truck, payload.truck_id):
-        raise HTTPException(404, "Truck not found")
-    if payload.next_change_odometer <= payload.odometer_during_change:
-        raise HTTPException(400, "Odometer value for next change must be greater than the odometer reading during change.")
-    record = models.AirFilterRecord(**payload.model_dump(), entered_by=current_user.id, entered_by_name=current_user.name)
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-    emit("air_filter_updated", {})
-    return record
-
-
 def _apply_maintenance_by(db: Session, data: dict) -> dict:
     """Maintenance By → Vendor links the record to a real vendor (Our Vendors →
     View Record lists by vendor_id) and snapshots that vendor's current name;
@@ -286,27 +188,40 @@ def _apply_maintenance_by(db: Session, data: dict) -> dict:
     return data
 
 
-@router.post("/maintenance/records", response_model=schemas.MaintenanceRecordOut, status_code=201, tags=["Maintenance"])
-def create_maintenance_record(payload: schemas.MaintenanceRecordCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+def check_new_record(db: Session, payload: schemas.MaintenanceRecordCreate, check_odometer: bool = True) -> models.Truck:
+    """The checks a new maintenance record must pass — run when it's
+    submitted for approval and again when it's approved (the truck or vendor
+    may have changed in between)."""
     truck = db.get(models.Truck, payload.truck_id)
-    if not truck:
+    if not truck or truck.deleted_at is not None:
         raise HTTPException(404, "Truck not found")
     current_odo = int(truck.odometer or 0)
-    if current_odo > 0 and int(payload.odometer) > current_odo:
+    if check_odometer and current_odo > 0 and int(payload.odometer) > current_odo:
         raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
+    _apply_maintenance_by(db, payload.model_dump())
+    return truck
+
+
+def create_record(
+    db: Session, payload: schemas.MaintenanceRecordCreate, *, entered_by_name: str, actor_role: str | None,
+    source: str | None, trip_id: int | None = None, check_odometer: bool = True,
+) -> models.MaintenanceRecord:
+    """Adds the real record (and its "Record Created" log). There's no direct
+    endpoint for this any more — every new record goes through Maintenance
+    Approvals (routers/maintenance_requests.py). Doesn't commit."""
+    truck = check_new_record(db, payload, check_odometer)
     data = _apply_maintenance_by(db, payload.model_dump())
-    record = models.MaintenanceRecord(**data, entered_by_name=current_user.name, source="Web")
+    remind_at = data.pop("remind_at_odometer", None)
+    record = models.MaintenanceRecord(**data, trip_id=trip_id, entered_by_name=entered_by_name, source=source)
+    maintenance_reminders.set_reminder(record, truck, remind_at)
     db.add(record)
-    db.commit()
-    db.refresh(record)
+    db.flush()
     db.add(models.MaintenanceRecordEditEvent(
         truck_id=record.truck_id, record_id=record.id,
         maintenance_type=record.maintenance_type, record_date=record.date,
         event="Record Created",
-        actor_name=current_user.name, actor_role=current_user.role,
+        actor_name=entered_by_name, actor_role=actor_role,
     ))
-    db.commit()
-    emit("maintenance_updated", {})
     return record
 
 
@@ -462,8 +377,12 @@ def apply_maintenance_record_update(
                 raise HTTPException(400, f"Odometer ({updates['odometer']} km) cannot exceed the truck's current odometer ({current_odo} km).")
     if {"vendor_id", "maintenance_by_type"} & updates.keys():
         updates = _apply_maintenance_by(db, updates)
+    has_reminder = "remind_at_odometer" in updates
+    remind_at = updates.pop("remind_at_odometer", None)
     for field, value in updates.items():
         setattr(record, field, value)
+    if has_reminder:
+        maintenance_reminders.set_reminder(record, db.get(models.Truck, record.truck_id), remind_at)
     record.entered_by_name = actor_name
     record.version = (record.version or 1) + 1
     db.add(models.MaintenanceRecordEditEvent(
@@ -542,167 +461,92 @@ def get_compliance(db: Session = Depends(get_db)):
     return result
 
 
-# ---------------------------------------------------------------------------
-# Maintenance Status (DB-driven — uses maintenance_types table)
-# ---------------------------------------------------------------------------
+def maintenance_cost_summary_all(db: Session) -> dict[int, dict]:
+    """Per-truck maintenance cost over the last 12 months — the ONE place it's
+    worked out (Truck Maintenance → Full Status, the calculator, Profitability).
 
-@router.get("/maintenance/status", tags=["Maintenance"])
-def get_maintenance_status(db: Session = Depends(get_db)):
-    """Fleet-wide maintenance status for all trucks, driven by DB maintenance types."""
-    # Unlike the normal trucks listing, this query had no deleted_at filter —
-    # a soft-deleted (removed from "Our Fleet") truck kept contributing to the
-    # fleet-wide overdue count indefinitely.
-    trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
-    maint_types = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
-    if not maint_types:
-        return []
+    The total is spread over the months the truck has actually been on record
+    (from when it was added — or its first maintenance bill, if earlier — up
+    to today), capped at 12, minimum 1. Dividing by 12 regardless made a truck
+    with 3 months of history look about 4 times cheaper to maintain.
+        monthly = total ÷ months covered;  per day = monthly ÷ 26 working days
+    {truck.id: {total, months, monthly, daily, from, to}}."""
+    from cost_units import DAYS_PER_MONTH, WORKING_DAYS_PER_MONTH
 
-    # Latest odometer per (truck_id, normalized type name) across all trucks
+    today = date.today()
+    try:
+        one_year_ago = today.replace(year=today.year - 1)
+    except ValueError:
+        one_year_ago = today.replace(year=today.year - 1, day=28)
+
     rows = (
         db.query(
             models.MaintenanceRecord.truck_id,
-            func.lower(models.MaintenanceRecord.maintenance_type).label("type_lower"),
-            func.max(models.MaintenanceRecord.odometer).label("last_odometer"),
+            func.sum(models.MaintenanceRecord.cost).label("total"),
+            func.min(models.MaintenanceRecord.date).label("first"),
         )
-        .group_by(models.MaintenanceRecord.truck_id, func.lower(models.MaintenanceRecord.maintenance_type))
+        .filter(models.MaintenanceRecord.date >= one_year_ago, models.MaintenanceRecord.date <= today)
+        .group_by(models.MaintenanceRecord.truck_id)
         .all()
     )
-    # {truck_db_id: {type_lower: last_odometer}}
-    fleet_map: dict[int, dict[str, int]] = {}
-    for row in rows:
-        fleet_map.setdefault(row.truck_id, {})[row.type_lower] = int(row.last_odometer)
-
-    result = []
-    for truck in trucks:
-        truck_odo = int(truck.odometer or 0)
-        computed = _compute_maint_status(truck_odo, fleet_map.get(truck.id, {}), maint_types)
-        result.append({
-            "truck_db_id": truck.id,
-            "truck_id": truck.truck_id,
-            "registration_number": truck.registration_number,
-            "odometer": truck_odo,
-            **computed,
-        })
-    return result
+    added = {
+        t.id: (t.created_at.date() if isinstance(t.created_at, datetime) else t.created_at)
+        for t in db.query(models.Truck.id, models.Truck.created_at)
+    }
+    out: dict[int, dict] = {}
+    for truck_id, total, first in rows:
+        total = float(total or 0)
+        if total <= 0:
+            continue
+        on_record = min(d for d in (added.get(truck_id), first) if d)
+        start = max(one_year_ago, on_record)
+        months = min(12.0, max(1.0, ((today - start).days + 1) / DAYS_PER_MONTH))
+        monthly = total / months
+        out[truck_id] = {
+            "total": round(total, 2),
+            "months": round(months, 4),
+            "monthly": monthly,
+            "daily": monthly / WORKING_DAYS_PER_MONTH,
+            "from": start.isoformat(),
+            "to": today.isoformat(),
+        }
+    return out
 
 
 @router.get("/maintenance/cost-per-day/all", tags=["Maintenance"])
 def get_maintenance_cost_per_day_all(db: Session = Depends(get_db)):
     """
-    Per-truck average daily maintenance cost for the past 12 months.
-    Mirrors TruckStatusDialog 'Avg / Day': (12-month total) / 12 / 26.
+    Per-truck average maintenance cost per working day — see
+    maintenance_cost_summary_all (Full Status 'Avg / Day').
     Returns { "<truck_db_id>": avg_daily_cost_float, ... } — only trucks with data.
     """
-    from datetime import date as _date
-
-    today = _date.today()
-    try:
-        one_year_ago = today.replace(year=today.year - 1)
-    except ValueError:
-        one_year_ago = today.replace(year=today.year - 1, day=28)
-
-    cost_rows = (
-        db.query(
-            models.MaintenanceRecord.truck_id,
-            func.sum(models.MaintenanceRecord.cost).label("year_total"),
-        )
-        .filter(models.MaintenanceRecord.date >= one_year_ago)
-        .filter(models.MaintenanceRecord.date <= today)
-        .group_by(models.MaintenanceRecord.truck_id)
-        .all()
-    )
-    return {
-        str(row.truck_id): float(row.year_total) / 12 / 26
-        for row in cost_rows
-        if float(row.year_total or 0) > 0
-    }
+    return {str(tid): v["daily"] for tid, v in maintenance_cost_summary_all(db).items()}
 
 
 @router.get("/maintenance/cost-per-km/all", tags=["Maintenance"])
 def get_maintenance_cost_per_km_all(db: Session = Depends(get_db)):
     """
-    Per-truck maintenance cost/km for Advanced mode in the Running Cost Calculator.
-    Mirrors TruckStatusDialog 'Cost / Km': (12-month total) / 12 / 26 / km_per_day.
-    Returns { "<truck_db_id>": cost_per_km_float, ... } — only trucks with data and km_per_day set.
+    Per-truck maintenance cost/km (Basic): Full Status 'Cost / Km' =
+    Avg / Day ÷ km/day for the truck's tyre layout (Admin → Truck Run Config).
+    Returns { "<truck_db_id>": cost_per_km_float, ... } — only trucks with data and km/day set.
     """
-    from datetime import date as _date
-
-    today = _date.today()
-    try:
-        one_year_ago = today.replace(year=today.year - 1)
-    except ValueError:
-        one_year_ago = today.replace(year=today.year - 1, day=28)
-
-    # Sum maintenance costs per truck for the past 12 months
-    cost_rows = (
-        db.query(
-            models.MaintenanceRecord.truck_id,
-            func.sum(models.MaintenanceRecord.cost).label("year_total"),
-        )
-        .filter(models.MaintenanceRecord.date >= one_year_ago)
-        .filter(models.MaintenanceRecord.date <= today)
-        .group_by(models.MaintenanceRecord.truck_id)
-        .all()
-    )
-    if not cost_rows:
+    summary = maintenance_cost_summary_all(db)
+    if not summary:
         return {}
-
-    year_total_map: dict[int, float] = {
-        row.truck_id: float(row.year_total or 0) for row in cost_rows if float(row.year_total or 0) > 0
-    }
-    if not year_total_map:
-        return {}
-
-    trucks = db.query(models.Truck).filter(models.Truck.id.in_(list(year_total_map.keys()))).all()
-    tyre_layouts = {t.tyre_layout for t in trucks if t.tyre_layout}
-    run_configs = (
-        db.query(models.TruckRunConfig)
-        .filter(models.TruckRunConfig.tyre_layout.in_(tyre_layouts))
-        .all()
-    )
-    kpd_map: dict[str, float] = {
-        rc.tyre_layout: float(rc.km_per_day or 0) for rc in run_configs
-    }
-
+    kpd_map = {c.tyre_layout: float(c.km_per_day or 0) for c in db.query(models.TruckRunConfig).all()}
     result: dict[str, float] = {}
-    for truck in trucks:
-        year_total = year_total_map.get(truck.id, 0)
+    for truck in db.query(models.Truck).filter(models.Truck.id.in_(list(summary))).all():
         kpd = kpd_map.get(truck.tyre_layout or "", 0)
-        if year_total <= 0 or kpd <= 0:
-            continue
-        cost_per_km = year_total / 12 / 26 / kpd
-        if cost_per_km > 0:
-            result[str(truck.id)] = cost_per_km
+        if kpd > 0:
+            result[str(truck.id)] = summary[truck.id]["daily"] / kpd
     return result
 
 
-@router.get("/maintenance/trucks/{truck_db_id}/status", tags=["Maintenance"])
-def get_truck_maintenance_status(truck_db_id: int, db: Session = Depends(get_db)):
-    """Detailed per-type maintenance status for a single truck."""
-    truck = db.get(models.Truck, truck_db_id)
-    if not truck:
-        raise HTTPException(404, "Truck not found")
-    maint_types = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
-
-    rows = (
-        db.query(
-            func.lower(models.MaintenanceRecord.maintenance_type).label("type_lower"),
-            func.max(models.MaintenanceRecord.odometer).label("last_odometer"),
-        )
-        .filter(models.MaintenanceRecord.truck_id == truck_db_id)
-        .group_by(func.lower(models.MaintenanceRecord.maintenance_type))
-        .all()
-    )
-    last_odo_map = {row.type_lower: int(row.last_odometer) for row in rows}
-    truck_odo = int(truck.odometer or 0)
-
-    computed = _compute_maint_status(truck_odo, last_odo_map, maint_types)
-    return {
-        "truck_db_id": truck.id,
-        "truck_id": truck.truck_id,
-        "registration_number": truck.registration_number,
-        "odometer": truck_odo,
-        **computed,
+@router.get("/maintenance/trucks/{truck_db_id}/cost-summary", tags=["Maintenance"])
+def get_truck_maintenance_cost_summary(truck_db_id: int, db: Session = Depends(get_db)):
+    """One truck's maintenance cost summary (Full Status) — zeros when no bills."""
+    return maintenance_cost_summary_all(db).get(truck_db_id) or {
+        "total": 0.0, "months": 0.0, "monthly": 0.0, "daily": 0.0, "from": None, "to": date.today().isoformat(),
     }
 
 
@@ -1175,6 +1019,8 @@ def create_adblue_manufacturer(
 ):
     if db.query(models.AdBlueManufacturer).filter_by(name=payload.name).first():
         raise HTTPException(400, f"Manufacturer '{payload.name}' already exists.")
+    if payload.default_price_per_litre is not None and payload.default_price_per_litre < 0:
+        raise HTTPException(400, "AdBlue cost per litre can't be negative.")
     m = models.AdBlueManufacturer(**payload.model_dump())
     db.add(m)
     db.commit()
@@ -1201,6 +1047,8 @@ def update_adblue_manufacturer(
     if payload.name and payload.name != m.name:
         if db.query(models.AdBlueManufacturer).filter_by(name=payload.name).first():
             raise HTTPException(400, f"Manufacturer '{payload.name}' already exists.")
+    if payload.default_price_per_litre is not None and payload.default_price_per_litre < 0:
+        raise HTTPException(400, "AdBlue cost per litre can't be negative.")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(m, field, value)
     db.add(models.AdBlueManufacturerEditEvent(
@@ -1361,7 +1209,7 @@ def create_tyre(
 ):
     if db.query(models.TyreInventory).filter(models.TyreInventory.tyre_number == payload.tyre_number).first():
         raise HTTPException(400, f"Tyre number {payload.tyre_number} already exists")
-    tyre = models.TyreInventory(**payload.model_dump())
+    tyre = models.TyreInventory(**_apply_maintenance_by(db, payload.model_dump()))
     tyre.condition = condition_for_retread_count(tyre.retread_count)
     db.add(tyre)
     db.commit()
@@ -1391,7 +1239,14 @@ def update_tyre(
             "This tyre record was modified by someone else while you were editing. "
             "Please refresh the page to get the latest data and try again."
         )
-    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
+    updates = payload.model_dump(exclude_unset=True, exclude={"client_version"})
+    # Other screens (Retread Queue etc.) send the whole tyre back — only
+    # re-check the vendor when the pick actually changed, so a vendor deleted
+    # since doesn't block them.
+    if (updates.get("vendor_id", tyre.vendor_id) != tyre.vendor_id
+            or updates.get("maintenance_by_type", tyre.maintenance_by_type) != tyre.maintenance_by_type):
+        updates = _apply_maintenance_by(db, updates)
+    for field, value in updates.items():
         setattr(tyre, field, value)
     tyre.condition = condition_for_retread_count(tyre.retread_count)
     tyre.version = (tyre.version or 1) + 1
@@ -1402,6 +1257,110 @@ def update_tyre(
     db.commit()
     db.refresh(tyre)
     emit("tyre_updated", {})
+    return tyre
+
+
+# -- Proof of Payment/Invoice (one file per tyre) ------------------------------
+#
+# A PDF or any image a phone/scanner produces, 15 MB max. Type is checked by
+# the file's real bytes, never its name. SVG is refused on purpose: it can
+# carry scripts. Downloads go through the Authorization header (fetched as a
+# blob), same as maintenance proofs.
+
+TYRE_PROOF_MAX_BYTES = 15 * 1024 * 1024
+
+
+def _tyre_proof_mime(data: bytes) -> str | None:
+    if data[:4] in (b"II*\x00", b"MM\x00*"):
+        return "image/tiff"
+    if data[4:8] == b"ftyp":
+        brand = data[8:12]
+        if brand in (b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis"):
+            return "image/heic"
+        if brand in (b"mif1", b"msf1"):
+            return "image/heif"
+        if brand in (b"avif", b"avis"):
+            return "image/avif"
+    if data[:4] == b"\x00\x00\x01\x00":
+        return "image/x-icon"
+    return _proof_mime(data)          # JPG, PNG, WEBP, GIF, BMP, PDF
+
+
+def _tyre_for_proof(db: Session, tyre_id: int) -> models.TyreInventory:
+    tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
+    if not tyre:
+        raise HTTPException(404, "Tyre not found")
+    return tyre
+
+
+@router.post("/tyre-inventory/{tyre_id}/proof", response_model=schemas.TyreInventoryOut, tags=["Tyre"])
+async def upload_tyre_proof(
+    tyre_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Adds or replaces the tyre's Proof of Payment/Invoice."""
+    data = await file.read(TYRE_PROOF_MAX_BYTES + 1)
+    if len(data) > TYRE_PROOF_MAX_BYTES:
+        raise HTTPException(413, "File too large. The proof can be at most 15 MB.")
+    if not data:
+        raise HTTPException(400, "The file is empty.")
+    mime = _tyre_proof_mime(data)
+    if not mime or not (mime == "application/pdf" or mime.startswith("image/")):
+        raise HTTPException(415, "Only PDF files and images can be uploaded as Proof of Payment/Invoice.")
+    tyre = _tyre_for_proof(db, tyre_id)
+    tyre.proof_data = data
+    tyre.proof_size_bytes = len(data)
+    tyre.proof_file_name = (file.filename or "proof").replace("\\", "/").split("/")[-1][:255]
+    tyre.version = (tyre.version or 1) + 1
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre.id, event="Tyre Edited",
+        actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
+    db.refresh(tyre)
+    emit("tyre_updated", {})
+    return tyre
+
+
+@router.get("/tyre-inventory/{tyre_id}/proof", tags=["Tyre"])
+def download_tyre_proof(tyre_id: int, db: Session = Depends(get_db)):
+    tyre = db.get(models.TyreInventory, tyre_id)
+    if not tyre or not tyre.proof_file_name or tyre.proof_data is None:
+        raise HTTPException(404, "No proof uploaded for this tyre")
+    data = tyre.proof_data
+    safe_name = tyre.proof_file_name.replace('"', "")
+    return Response(
+        content=data,
+        media_type=_tyre_proof_mime(data) or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_name}"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+    )
+
+
+@router.delete("/tyre-inventory/{tyre_id}/proof", response_model=schemas.TyreInventoryOut, tags=["Tyre"])
+def delete_tyre_proof(
+    tyre_id: int,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    tyre = _tyre_for_proof(db, tyre_id)
+    if tyre.proof_file_name:
+        tyre.proof_data = None
+        tyre.proof_size_bytes = None
+        tyre.proof_file_name = None
+        tyre.version = (tyre.version or 1) + 1
+        db.add(models.TyreInventoryEditEvent(
+            tyre_id=tyre.id, event="Tyre Edited",
+            actor_name=current_user.name, actor_role=current_user.role,
+        ))
+        db.commit()
+        db.refresh(tyre)
+        emit("tyre_updated", {})
     return tyre
 
 

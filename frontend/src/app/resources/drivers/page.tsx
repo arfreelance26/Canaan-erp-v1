@@ -16,6 +16,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
+import { FileViewer } from "@/components/ui/FileViewer";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
@@ -68,6 +69,7 @@ export default function DriversPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingDriver, setViewingDriver] = useState<Driver | null>(null);
+  const [viewingFile, setViewingFile] = useState<{ url: string; title: string } | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<DriverEditEventRow[]>([]);
@@ -407,6 +409,13 @@ export default function DriversPage() {
         />
       )}
 
+      <FileViewer
+        open={!!viewingFile}
+        onClose={() => setViewingFile(null)}
+        url={viewingFile?.url ?? ""}
+        title={viewingFile?.title ?? ""}
+      />
+
       {viewingDriver && (() => {
         const d = viewingDriver;
         const fmtD = (v: string) => v ? new Date(v + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
@@ -472,22 +481,22 @@ export default function DriversPage() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
                     <div className="flex flex-wrap gap-3">
                       {d.photoUrl && (
-                        <a href={fileUrl("drivers", d.id, "photo")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingFile({ url: fileUrl("drivers", d.id, "photo"), title: `${d.name} — Photo` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
-                        </a>
+                        </button>
                       )}
                       {d.aadhaarFileName && (
-                        <a href={fileUrl("drivers", d.id, "aadhaar")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingFile({ url: fileUrl("drivers", d.id, "aadhaar"), title: `${d.name} — Aadhaar` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Aadhaar
-                        </a>
+                        </button>
                       )}
                       {d.licenseFileName && (
-                        <a href={fileUrl("drivers", d.id, "license")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingFile({ url: fileUrl("drivers", d.id, "license"), title: `${d.name} — License` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> License
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>

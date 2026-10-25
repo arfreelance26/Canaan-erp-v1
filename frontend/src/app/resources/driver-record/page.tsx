@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IdCard, FileText, ClipboardList, Calculator, Route, Wallet, ChevronDown, Flag, CheckCircle2 } from "lucide-react";
+import { IdCard, FileText, ClipboardList, Calculator, Route, Wallet, ChevronDown } from "lucide-react";
 import { driversApi, tripsApi, trucksApi, customersApi } from "@/lib/api";
 import type { Driver } from "@/types/driver";
 import type { Trip } from "@/types/trip";
@@ -19,8 +19,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { formatDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
+import { TripAuditActions, TripAuditBadge } from "@/components/audit/TripAuditActions";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { showSuccess, showError, confirmAction } from "@/lib/swal";
 
 type SalaryBreakdown = {
   regularPay: number;
@@ -154,54 +154,15 @@ export default function DriverRecordPage() {
   const [bookingTrip, setBookingTrip] = useState<Trip | null>(null);
   const [sheetTrip, setSheetTrip] = useState<Trip | null>(null);
   const [breakdownTrip, setBreakdownTrip] = useState<Trip | null>(null);
-  const [flagTrip, setFlagTrip] = useState<Trip | null>(null);
-  const [flagReason, setFlagReason] = useState("");
-  const [flagSubmitting, setFlagSubmitting] = useState(false);
-  const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
-  async function submitFlag(e: React.FormEvent) {
-    e.preventDefault();
-    if (!flagTrip || !flagReason.trim()) return;
-    setFlagSubmitting(true);
-    try {
-      const updated = await tripsApi.flagForRecheck(flagTrip.id, flagReason.trim());
-      // Patch locally for instant feedback — the "trip_updated" WS event this
-      // page already listens to will also refetch, but that shouldn't be the
-      // only thing making the button reflect the new state.
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      showSuccess(`${flagTrip.tripId} moved to Audit Flagged Trips.`, "Flagged for rechecking");
-      setFlagTrip(null);
-      setFlagReason("");
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to flag this trip.");
-    } finally {
-      setFlagSubmitting(false);
-    }
-  }
-
-  async function handleVerify(trip: Trip) {
-    const result = await confirmAction(
-      `Mark ${trip.tripId} as verified?`,
-      trip.flaggedForRecheck ? "This closes out its recheck — it will come off Audit Flagged Trips." : undefined,
-      "Yes, verify"
-    );
-    if (!result.isConfirmed) return;
-    setVerifyingId(trip.id);
-    try {
-      const updated = await tripsApi.verifyRecheck(trip.id);
-      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      showSuccess(`${trip.tripId} marked as verified.`);
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to verify this trip.");
-    } finally {
-      setVerifyingId(null);
-    }
-  }
+  // Flag / Verify (TripAuditActions) hand the updated trip back — patch it in
+  // for instant feedback; the "trip_updated" WS event also refetches.
+  const patchTrip = (updated: Trip) => setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
 
   function toggleExpanded(driverId: string) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      next.has(driverId) ? next.delete(driverId) : next.add(driverId);
+      if (next.has(driverId)) next.delete(driverId); else next.add(driverId);
       return next;
     });
   }
@@ -325,7 +286,7 @@ export default function DriverRecordPage() {
           <IdCard className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Driver Record</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Driver Based Record</h1>
           <p className="mt-0.5 text-sm text-gray-500">Read-only record of every driver</p>
         </div>
       </div>
@@ -440,22 +401,11 @@ export default function DriverRecordPage() {
                             {driverTrips.map((trip) => {
                               const sheet = sheets.get(trip.id);
                               const hasSalary = trip.hasSheet && sheet;
-                              // "Under Review": flagged and not yet returned — both
-                              // decision buttons are blocked until someone corrects
-                              // the data and clicks Return for Review on Flagged Trips.
-                              const blocked = trip.flaggedForRecheck && !trip.recheckReturned;
-                              // Terminal "closed, verified" state — stays true (and the
-                              // row stays visibly marked) until the trip is flagged again.
-                              const closed = trip.auditVerified;
                               return (
                                 <tr key={trip.id}>
                                   <td className="px-3 py-2 font-medium text-gray-800">
                                     {trip.tripId}
-                                    {closed && (
-                                      <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700">
-                                        <CheckCircle2 className="h-2.5 w-2.5" /> Verified
-                                      </span>
-                                    )}
+                                    <TripAuditBadge trip={trip} />
                                   </td>
                                   <td className="px-3 py-2 text-gray-600">{formatDate(trip.scheduledDate)}</td>
                                   <td className="px-3 py-2 text-gray-600">
@@ -498,31 +448,8 @@ export default function DriverRecordPage() {
                                           Salary Breakdown
                                         </button>
                                       </div>
-                                      {/* Auditor decision buttons — visually separated from the
-                                          read-only document buttons on the left with a divider,
-                                          and pushed to the right edge via justify-between above. */}
-                                      <div className="flex flex-wrap items-center gap-1.5 border-l border-gray-200 pl-3">
-                                        <button
-                                          type="button"
-                                          onClick={() => { setFlagTrip(trip); setFlagReason(""); }}
-                                          disabled={blocked || closed}
-                                          title={blocked ? "Under review — return for review before re-flagging" : closed ? "Already verified by Audit" : undefined}
-                                          className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                        >
-                                          <Flag className="h-3.5 w-3.5" />
-                                          {blocked ? "Flagged" : "Flag For Rechecking"}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleVerify(trip)}
-                                          disabled={blocked || closed || verifyingId === trip.id}
-                                          title={blocked ? "Under review — return for review before verifying" : closed ? "Already verified by Audit" : undefined}
-                                          className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                        >
-                                          <CheckCircle2 className="h-3.5 w-3.5" />
-                                          {closed ? "Verified" : verifyingId === trip.id ? "Verifying..." : "Mark as Verified"}
-                                        </button>
-                                      </div>
+                                      {/* Auditor decision buttons — shared with Vehicle Record. */}
+                                      <TripAuditActions trip={trip} onUpdated={patchTrip} />
                                     </div>
                                   </td>
                                 </tr>
@@ -627,51 +554,6 @@ export default function DriverRecordPage() {
         })()}
       </Dialog>
 
-      {/* Flag For Rechecking — reason is required; submitting moves the trip
-          onto the Flagged Trips page (filtered by flaggedForRecheck there). */}
-      <Dialog
-        open={flagTrip !== null}
-        onClose={() => { if (!flagSubmitting) { setFlagTrip(null); setFlagReason(""); } }}
-        title={flagTrip ? `Flag ${flagTrip.tripId} For Rechecking` : "Flag For Rechecking"}
-        className="sm:max-w-md"
-      >
-        <form onSubmit={submitFlag} className="flex flex-col gap-4">
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            This trip will be moved to <span className="font-semibold">Audit Flagged Trips</span> for review.
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[13px] font-medium text-gray-700">
-              Reason <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={flagReason}
-              onChange={(e) => setFlagReason(e.target.value)}
-              placeholder="Describe what needs to be rechecked on this trip..."
-              rows={4}
-              required
-              autoFocus
-              className="w-full resize-none rounded-lg border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-red-400 focus:bg-white focus:ring-4 focus:ring-red-500/10"
-            />
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => { setFlagTrip(null); setFlagReason(""); }}
-              disabled={flagSubmitting}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={flagSubmitting || !flagReason.trim()}
-              className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {flagSubmitting ? "Flagging..." : "Flag Trip"}
-            </button>
-          </div>
-        </form>
-      </Dialog>
     </div>
   );
 }

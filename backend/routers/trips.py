@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
 from security import require_roles, get_current_user, TokenUser
 import models, schemas
+import maintenance_reminders
+import odometer
 from duplicate_checks import check_trip_duplicates
 from excel_utils import build_excel_response
 from websocket_manager import emit
@@ -242,21 +244,41 @@ def list_trips(
     return [_enrich(t, driver_names, truck_regs, combined_trip_ids) for t in trips]
 
 
-@router.get("/customer-profitability", response_model=list[schemas.CustomerProfitabilityOut], tags=["Trips"])
-def get_customer_profitability(db: Session = Depends(get_db)):
+CPA_MODES = ("Basic", "Advanced", "Manual")
+
+
+@router.get("/customer-profitability", response_model=list[schemas.CustomerProfitabilityOut], tags=["Trips"], dependencies=[Depends(require_roles())])  # profit figures — Admin only
+def get_customer_profitability(
+    date_from: Optional[date_type] = Query(None, description="Trips completed on/after this date"),
+    date_to: Optional[date_type] = Query(None, description="Trips completed on/before this date"),
+    db: Session = Depends(get_db),
+):
     """
-    Per-customer profitability aggregated from completed trips that have a trip sheet.
-    Revenue = trip_sheet.hire_amount − trip.transport_commission_amount (matches the
-    "Hire Amount (excluding Commission Amount)" field on the trip assignment form),
-    Expense = trip_sheet.total_expense.
-    Returns customers ranked by total net profit, with route breakdown and last 20 trips each.
+    Per-customer profitability from completed trips that have a trip sheet.
+    Revenue = trip_sheet.hire_amount − trip.transport_commission_amount (as on
+    Profitability), Expense = trip_sheet.total_expense, so
+        Trip Profit  = Revenue − Expense                      (total_profit)
+        Gross Profit = Trip Profit − km × diesel ₹/km          (− diesel[mode])
+        Final Profit = Trip Profit − km × Cost/KM              (− truck_cost[mode])
+    with diesel ₹/km and Cost/KM per mode exactly as Profitability uses them.
+    Customers typed in by name on a trip are included under that name
+    (is_custom). Optional date range on the trip's completed date.
+    Returns customers ranked by Trip Profit (the page re-ranks by the level
+    picked), with route breakdown and the last 20 trips each.
     """
     from collections import defaultdict
+    from routers.running_cost import get_cost_per_km, get_mileage_cost_per_km
 
-    rows = (
+    cpk = get_cost_per_km(db)               # {mode: {truck_id: ₹/km incl. diesel}}
+    diesel_pk = get_mileage_cost_per_km(db)  # {mode: {truck_id: diesel ₹/km}}
+
+    q = (
         db.query(
             models.Trip.customer_id,
             models.Customer.name.label("customer_name"),
+            models.Customer.deleted_at.label("customer_deleted_at"),
+            models.Trip.use_custom_customer,
+            models.Trip.custom_customer_name,
             models.TripSheet.hire_amount,
             models.Trip.transport_commission_amount,
             models.TripSheet.total_expense,
@@ -264,21 +286,23 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             models.TripSheet.from_location,
             models.TripSheet.to_location,
             models.TripSheet.trip_completed_date,
+            models.TripSheet.vehicle_id.label("sheet_vehicle_id"),
+            models.Trip.vehicle_id,
             models.Trip.trip_id,
             models.Trip.flagged_for_recheck,
             models.Trip.flagged_remark,
             models.Trip.customer_destination_id,
         )
         .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
-        .join(models.Customer, models.Customer.id == models.Trip.customer_id)
-        .filter(
-            models.Trip.status == "Completed",
-            models.Trip.deleted_at.is_(None),
-            models.Customer.deleted_at.is_(None),
-        )
-        .order_by(models.TripSheet.trip_completed_date.desc())
-        .all()
+        .outerjoin(models.Customer, models.Customer.id == models.Trip.customer_id)
+        .filter(models.Trip.status == "Completed", models.Trip.deleted_at.is_(None))
     )
+    if date_from:
+        q = q.filter(models.TripSheet.trip_completed_date >= date_from)
+    if date_to:
+        q = q.filter(models.TripSheet.trip_completed_date <= date_to)
+    rows = [r for r in q.order_by(models.TripSheet.trip_completed_date.desc()).all()
+            if r.customer_deleted_at is None]  # an archived customer's trips stay out, as before
 
     customer_map: dict = {}
     customer_trips: dict = defaultdict(list)
@@ -298,6 +322,21 @@ def get_customer_profitability(db: Session = Depends(get_db)):
                 dest.container_type,
             )
 
+    def new_costs():
+        return {"diesel": {m: 0.0 for m in CPA_MODES}, "diesel_missing": {m: 0 for m in CPA_MODES},
+                "truck_cost": {m: 0.0 for m in CPA_MODES}, "cost_missing": {m: 0 for m in CPA_MODES}}
+
+    def add_costs(target: dict, diesel: dict, cost: dict, km: float):
+        for m in CPA_MODES:
+            if diesel[m] is not None:
+                target["diesel"][m] += diesel[m]
+            elif km > 0:
+                target["diesel_missing"][m] += 1
+            if cost[m] is not None:
+                target["truck_cost"][m] += cost[m]
+            elif km > 0:
+                target["cost_missing"][m] += 1
+
     # A trip an Auditor has flagged for rechecking (Booking Sheet / Trip Sheet
     # data suspected incorrect) is left out of every revenue/expense/km total
     # below — same exclusion already applied on the Profitability page — but
@@ -305,22 +344,33 @@ def get_customer_profitability(db: Session = Depends(get_db)):
     # looks like it silently vanished. Nothing here is stored, so a resolved
     # trip flows straight back into every total on the next fetch.
     for row in rows:
-        cid = str(row.customer_id)
+        custom_name = (row.custom_customer_name or "").strip()
+        if (row.use_custom_customer or row.customer_id is None) and custom_name:
+            cid, name, is_custom = f"custom:{custom_name.upper()}", custom_name, True
+        elif row.customer_id is not None:
+            cid, name, is_custom = str(row.customer_id), row.customer_name or "—", False
+        else:  # e.g. a return trip with no customer on it
+            cid, name, is_custom = "none", "No customer recorded", True
         is_flagged = bool(row.flagged_for_recheck)
         hire = float(row.hire_amount or 0) - float(row.transport_commission_amount or 0)
         expense = float(row.total_expense or 0)
         km = float(row.total_km or 0)
+        truck_id = (row.sheet_vehicle_id or row.vehicle_id or "").strip()
+        diesel = {m: (km * diesel_pk[m][truck_id] if km > 0 and truck_id in diesel_pk[m] else (0.0 if km <= 0 else None)) for m in CPA_MODES}
+        cost = {m: (km * cpk[m][truck_id] if km > 0 and cpk[m].get(truck_id) is not None else (0.0 if km <= 0 else None)) for m in CPA_MODES}
 
         if cid not in customer_map:
             customer_map[cid] = {
                 "customer_id": cid,
-                "customer_name": row.customer_name or "—",
+                "customer_name": name,
+                "is_custom": is_custom,
                 "trip_count": 0,
                 "flagged_trip_count": 0,
                 "total_revenue": 0.0,
                 "total_expense": 0.0,
                 "total_km": 0.0,
-                "routes": defaultdict(lambda: {"trip_count": 0, "counted_trip_count": 0, "revenue": 0.0, "expense": 0.0, "km": 0.0}),
+                **new_costs(),
+                "routes": defaultdict(lambda: {"trip_count": 0, "counted_trip_count": 0, "revenue": 0.0, "expense": 0.0, "km": 0.0, **new_costs()}),
             }
 
         d = customer_map[cid]
@@ -345,6 +395,8 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             r["revenue"] += hire
             r["expense"] += expense
             r["km"] += km
+            add_costs(d, diesel, cost, km)
+            add_costs(r, diesel, cost, km)
 
         if len(customer_trips[cid]) < 20:
             trip_profit = hire - expense
@@ -360,7 +412,17 @@ def get_customer_profitability(db: Session = Depends(get_db)):
                 "flagged_for_recheck": is_flagged,
                 "flagged_remark": row.flagged_remark if is_flagged else None,
                 "excluded_from_totals": is_flagged,
+                "diesel": {m: (round(v, 2) if v is not None else None) for m, v in diesel.items()},
+                "truck_cost": {m: (round(v, 2) if v is not None else None) for m, v in cost.items()},
             })
+
+    def rounded(costs: dict) -> dict:
+        return {
+            "diesel": {m: round(v, 2) for m, v in costs["diesel"].items()},
+            "diesel_missing": dict(costs["diesel_missing"]),
+            "truck_cost": {m: round(v, 2) for m, v in costs["truck_cost"].items()},
+            "cost_missing": dict(costs["cost_missing"]),
+        }
 
     result = []
     for cid, d in customer_map.items():
@@ -385,17 +447,20 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             routes.append({
                 "route": route_name,
                 "trip_count": r["trip_count"],
+                "counted_trip_count": r["counted_trip_count"],
                 "revenue": round(r["revenue"], 2),
                 "expense": round(r["expense"], 2),
                 "profit": round(r_profit, 2),
                 "margin_pct": r_margin,
                 "avg_km": round(r["km"] / r["counted_trip_count"] if r["counted_trip_count"] > 0 else 0, 2),
+                **rounded(r),
             })
         routes.sort(key=lambda x: x["profit"], reverse=True)
 
         result.append({
             "customer_id": cid,
             "customer_name": d["customer_name"],
+            "is_custom": d["is_custom"],
             "trip_count": d["trip_count"],
             "flagged_trip_count": d["flagged_trip_count"],
             "total_revenue": round(revenue, 2),
@@ -403,6 +468,7 @@ def get_customer_profitability(db: Session = Depends(get_db)):
             "total_profit": round(profit, 2),
             "profit_margin_pct": margin,
             "total_km": round(d["total_km"], 2),
+            **rounded(d),
             "routes": routes,
             "recent_trips": customer_trips[cid],
         })
@@ -551,7 +617,7 @@ def get_trip_invoices_bulk(ids: str = Query(..., description="Comma-separated tr
     return db.query(models.TripInvoice).filter(models.TripInvoice.trip_id.in_(trip_ids)).all()
 
 
-@router.get("/customer-profitability/top-trips", tags=["Trips"])
+@router.get("/customer-profitability/top-trips", tags=["Trips"], dependencies=[Depends(require_roles())])  # profit figures — Admin only
 def get_customer_top_profitable_trips(
     customer_id: int = Query(...),
     route: Optional[str] = Query(None, description="Trip.destination label — trips on this route are listed first; other routes fill any remaining slots"),
@@ -628,6 +694,286 @@ def get_customer_top_profitable_trips(
     # the panel still has a useful top list. Each row says which it is.
     results.sort(key=lambda t: (not t["on_route"], -t["profit"]))
     return results[:limit]
+
+
+def _lane_key(origin: Optional[str], destination: Optional[str]) -> tuple[str, str]:
+    """A route as a road, independent of customer: normalised origin → destination."""
+    return ((origin or "").strip().upper(), (destination or "").strip().upper())
+
+
+def profit_level(profit: Optional[float], margin_pct: Optional[float]) -> Optional[str]:
+    """Customer Insights shows a colour, not the money (only Admin sees ₹).
+    Profits are green, shaded by margin; ₹0 is blue; losses by how much:
+
+        top     margin ≥ 40%          small_loss  loss < ₹500
+        strong  25% ≤ margin < 40%    mid_loss    ₹500 ≤ loss ≤ ₹2,500
+        good    10% ≤ margin < 25%    big_loss    loss > ₹2,500
+        thin    margin < 10%          zero        ₹0 (to the rupee)
+    """
+    if profit is None:
+        return None
+    if round(profit) == 0:
+        return "zero"
+    if profit > 0:
+        m = margin_pct if margin_pct is not None else 0
+        return "top" if m >= 40 else "strong" if m >= 25 else "good" if m >= 10 else "thin"
+    loss = -profit
+    return "small_loss" if loss < 500 else "mid_loss" if loss <= 2500 else "big_loss"
+
+
+# Money that only Admin may see in Customer Insights — everyone else gets the
+# levels above (and the order, which is still by real profit).
+_INSIGHT_TRIP_MONEY = ("revenue", "trip_expense", "cost_per_km", "truck_cost", "final_profit", "margin_pct")
+_INSIGHT_RANK_MONEY = ("total_profit", "avg_profit", "avg_margin_pct")
+_INSIGHT_COST_MONEY = ("cost_per_km", "est_cost", "est_profit")
+
+
+@router.get("/route-insights", tags=["Trips"])
+def get_route_insights(
+    customer_id: int = Query(...),
+    route_id: Optional[int] = Query(None, description="The customer route (customer_destinations.id) picked"),
+    route: Optional[str] = Query(None, description="The route's destination label (Trip.destination) — for older trips not linked by id"),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Customer Insights (Assign Trip form + Insights → Trip Planner) for one
+    customer route. Every profit here is FINAL PROFIT in the Running Cost
+    Calculator's Advanced mode, the same as Profitability's last column:
+
+        Final Profit = Hire (less commission) − Trip Expenses − KM × Cost/KM
+
+    Trips are split so nothing is mixed silently:
+      this_route       — this customer's trips on this route (shown first)
+      other_customers  — other customers' trips on the same road (origin →
+                         destination), for when this customer has little or no history
+      other_routes     — this customer's trips on its other routes (Trips tab only)
+    Trucks / drivers are ranked by average Final Profit over ALL their trips in
+    each group (not just the top few). cost_trucks ranks the fleet by Cost/KM
+    with an estimate for this route and each truck's availability.
+    """
+    from routers.running_cost import _compute_basic_advanced_cost_per_km
+
+    # Advanced Cost/KM per truck — only where its diesel part is known. A
+    # Cost/KM with no diesel (no fuel logs yet) is far too low, and would make
+    # that truck look like the cheapest / most profitable.
+    parts = _compute_basic_advanced_cost_per_km(db, "Advanced", with_parts=True, include_removed=True)
+    cpk = {tid: d["total"] for tid, d in parts.items() if d.get("total") is not None and d.get("fuel") is not None}
+    dest = db.get(models.CustomerDestination, route_id) if route_id else None
+    if dest and dest.customer_id != customer_id:
+        dest = None
+    route_label = route or ((dest.destination_name or dest.destination_address or "") or dest.destination_state if dest else "")
+    route_origin = ((dest.origin_address or dest.origin_state) if dest else "") or ""
+
+    trucks = {t.truck_id: t for t in db.query(models.Truck).all()}
+    drivers = {d.driver_id: d for d in db.query(models.Driver).all()}
+    customers = {c.id: c.name for c in db.query(models.Customer.id, models.Customer.name).all()}
+
+    rows_q = (
+        db.query(models.Trip)
+        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+        .filter(
+            models.Trip.status == "Completed",
+            models.Trip.deleted_at.is_(None),
+            # A disputed figure has no business being recommended.
+            models.Trip.flagged_for_recheck.is_(False),
+        )
+    )
+
+    # The road this route runs on — from the route itself, else from this
+    # customer's past trips on it.
+    def on_this_route(trip) -> bool:
+        if route_id is not None and trip.customer_destination_id is not None:
+            return trip.customer_destination_id == route_id
+        return bool(route_label) and trip.destination == route_label
+
+    customer_trips = rows_q.filter(models.Trip.customer_id == customer_id).all()
+    lane = _lane_key(route_origin, route_label) if route_origin else None
+    if lane is None:
+        mine = [t for t in customer_trips if on_this_route(t)]
+        if mine:
+            lane = _lane_key(mine[0].origin, mine[0].destination)
+
+    def row(trip) -> dict:
+        sheet = trip.sheet
+        truck = trucks.get(trip.vehicle_id)
+        driver = drivers.get(trip.driver_id)
+        revenue = float(sheet.hire_amount or 0) - float(trip.transport_commission_amount or 0)
+        expense = float(sheet.total_expense or 0)
+        km = float(sheet.total_km or 0)
+        rate = cpk.get(trip.vehicle_id)
+        truck_cost = km * rate if rate is not None and km > 0 else None
+        final = revenue - expense - truck_cost if truck_cost is not None else None
+        return {
+            "trip_id": trip.id,
+            "trip_id_str": trip.trip_id,
+            "date": sheet.trip_completed_date.isoformat() if sheet.trip_completed_date else None,
+            "customer_name": (trip.custom_customer_name if trip.use_custom_customer else customers.get(trip.customer_id)) or "",
+            "origin": trip.origin or "",
+            "destination": trip.destination or "",
+            "container": trip.container_specification or "",
+            "driver_id": trip.driver_id,
+            "driver_name": driver.name if driver else (trip.driver_id or "—"),
+            "driver_left": bool(driver is None or driver.deleted_at is not None),
+            "vehicle_id": trip.vehicle_id,
+            "truck_registration": truck.registration_number if truck else (trip.vehicle_id or "—"),
+            "truck_removed": (truck.disposal_type or "Deleted") if truck and truck.deleted_at is not None else None,
+            "revenue": round(revenue, 2),
+            "trip_expense": round(expense, 2),
+            "km": round(km, 2),
+            "cost_per_km": round(rate, 4) if rate is not None else None,
+            "truck_cost": round(truck_cost, 2) if truck_cost is not None else None,
+            "final_profit": round(final, 2) if final is not None else None,
+            "margin_pct": round(final / revenue * 100, 1) if final is not None and revenue > 0 else None,
+            "profit_level": profit_level(final, final / revenue * 100 if final is not None and revenue > 0 else None),
+        }
+
+    by_profit = lambda r: (r["final_profit"] is None, -(r["final_profit"] or 0))
+    this_route = sorted((row(t) for t in customer_trips if t.sheet and on_this_route(t)), key=by_profit)
+    other_routes = sorted((row(t) for t in customer_trips if t.sheet and not on_this_route(t)), key=by_profit)
+    other_customers = []
+    if lane and lane[0] and lane[1]:
+        other_customers = sorted(
+            (row(t) for t in rows_q.filter(models.Trip.customer_id != customer_id).all()
+             if t.sheet and _lane_key(t.origin, t.destination) == lane),
+            key=by_profit,
+        )
+
+    def ranked(rows: list[dict], key: str) -> list[dict]:
+        """Average Final Profit per trip over every trip in `rows` (with a
+        profit), grouped by truck or driver. Removed trucks / drivers who left
+        aren't recommended."""
+        groups: dict[str, list[dict]] = {}
+        for r in rows:
+            if r["final_profit"] is None:
+                continue
+            if key == "truck" and r["truck_removed"]:
+                continue
+            if key == "driver" and r["driver_left"]:
+                continue
+            gid = r["vehicle_id"] if key == "truck" else r["driver_id"]
+            if gid:
+                groups.setdefault(gid, []).append(r)
+        out = []
+        for gid, rs in groups.items():
+            total = sum(r["final_profit"] for r in rs)
+            margins = [r["margin_pct"] for r in rs if r["margin_pct"] is not None]
+            avg_margin = sum(margins) / len(margins) if margins else None
+            out.append({
+                "id": gid,
+                "name": rs[0]["truck_registration"] if key == "truck" else rs[0]["driver_name"],
+                "trip_count": len(rs),
+                "total_profit": round(total, 2),
+                "avg_profit": round(total / len(rs), 2),
+                "avg_margin_pct": round(sum(margins) / len(margins), 1) if margins else None,
+                "loss_trips": sum(1 for r in rs if r["final_profit"] < 0),
+                "profit_trips": sum(1 for r in rs if r["final_profit"] > 0),
+                "profit_level": profit_level(total / len(rs), avg_margin),
+            })
+        return sorted(out, key=lambda x: -x["avg_profit"])
+
+    # Estimates for planning this route.
+    lane_rows = this_route + other_customers
+    km_hist = [r["km"] for r in lane_rows if r["km"] > 0]
+    if dest and dest.approx_distance_km and float(dest.approx_distance_km) > 0:
+        est_km, km_source = float(dest.approx_distance_km), "Route's approx distance"
+    elif km_hist:
+        est_km, km_source = sum(km_hist) / len(km_hist), f"Average of {len(km_hist)} past trip(s) on this route"
+    else:
+        est_km, km_source = None, None
+    pricing = None
+    if route_id:
+        pricing = db.query(models.CustomerPricing).filter_by(customer_id=customer_id, customer_destination_id=route_id).first()
+    if pricing is None and route_label:
+        pricing = db.query(models.CustomerPricing).filter_by(customer_id=customer_id, customer_destination=route_label).first()
+    if pricing and pricing.rate:
+        est_hire = float(pricing.rate or 0) - float(pricing.commission_amount or 0)
+        hire_source = "Customer pricing for this route (less commission)"
+    elif this_route:
+        est_hire = sum(r["revenue"] for r in this_route) / len(this_route)
+        hire_source = f"Average hire of {len(this_route)} past trip(s)"
+    else:
+        est_hire, hire_source = None, None
+    exp_rows = this_route or other_customers
+    if exp_rows:
+        est_expense = sum(r["trip_expense"] for r in exp_rows) / len(exp_rows)
+        expense_source = f"Average trip expenses of {len(exp_rows)} past trip(s){'' if this_route else ' (other customers)'}"
+    else:
+        est_expense, expense_source = None, None
+
+    busy = {
+        t.vehicle_id for t in db.query(models.Trip.vehicle_id).filter(
+            models.Trip.deleted_at.is_(None),
+            models.Trip.status.notin_(("Completed", "Cancelled")),
+            models.Trip.vehicle_id.isnot(None),
+        )
+    }
+    assigned = {a.vehicle_id: a.driver_id for a in db.query(models.DriverAssignment).all()}
+    cost_trucks = []
+    for t in trucks.values():
+        if t.deleted_at is not None:
+            continue
+        rate = cpk.get(t.truck_id)
+        if rate is None:
+            continue
+        status = "On a trip" if t.truck_id in busy else ("Available" if t.truck_id in assigned else "No driver")
+        est_cost = est_km * rate if est_km else None
+        est_profit = (est_hire - (est_expense or 0) - est_cost) if est_hire is not None and est_cost is not None else None
+        d = drivers.get(assigned.get(t.truck_id))
+        cost_trucks.append({
+            "truck_id": t.truck_id,
+            "registration_number": t.registration_number,
+            "manufacturer": t.manufacturer or "",
+            "cost_per_km": round(rate, 4),
+            "est_cost": round(est_cost, 2) if est_cost is not None else None,
+            "est_profit": round(est_profit, 2) if est_profit is not None else None,
+            "profit_level": profit_level(
+                est_profit, est_profit / est_hire * 100 if est_profit is not None and est_hire else None),
+            "status": status,
+            "driver_name": d.name if d else None,
+        })
+    cost_trucks.sort(key=lambda x: x["cost_per_km"])
+    # Cheapest / middle / costliest third of the fleet to run — shown instead
+    # of ₹/km to everyone but Admin.
+    for i, c in enumerate(cost_trucks):
+        c["cost_band"] = ("low", "mid", "high")[min(2, i * 3 // len(cost_trucks))]
+    without_cost = sum(1 for t in trucks.values() if t.deleted_at is None and cpk.get(t.truck_id) is None)
+
+    trucks_rank = {"this_route": ranked(this_route, "truck"), "other_customers": ranked(other_customers, "truck")}
+    drivers_rank = {"this_route": ranked(this_route, "driver"), "other_customers": ranked(other_customers, "driver")}
+    show_money = current_user.role == "Admin"
+    if not show_money:
+        for group in (this_route, other_customers, other_routes):
+            for r in group:
+                for k in _INSIGHT_TRIP_MONEY:
+                    r.pop(k, None)
+        for group in (*trucks_rank.values(), *drivers_rank.values()):
+            for r in group:
+                for k in _INSIGHT_RANK_MONEY:
+                    r.pop(k, None)
+        for c in cost_trucks:
+            for k in _INSIGHT_COST_MONEY:
+                c.pop(k, None)
+
+    return {
+        "mode": "Advanced",
+        "show_money": show_money,
+        "route": {
+            "label": route_label,
+            "origin": lane[0] if lane else route_origin,
+            "destination": lane[1] if lane else route_label,
+            "est_km": round(est_km, 1) if est_km else None,
+            "km_source": km_source,
+            "est_hire": round(est_hire, 2) if est_hire is not None else None,
+            "hire_source": hire_source,
+            "est_expense": round(est_expense, 2) if est_expense is not None else None,
+            "expense_source": expense_source,
+        },
+        "trips": {"this_route": this_route, "other_customers": other_customers, "other_routes": other_routes},
+        "trucks": trucks_rank,
+        "drivers": drivers_rank,
+        "cost_trucks": cost_trucks,
+        "trucks_without_cost": without_cost,
+    }
 
 
 @router.post("", response_model=schemas.TripOut, status_code=201)
@@ -1158,6 +1504,13 @@ def update_trip(
         raise HTTPException(404, "Trip not found")
     update_data = payload.model_dump(exclude_unset=True)
     edit_context = update_data.pop("edit_context", None)
+    # The Auditor's recheck state changes ONLY through Flag / Return for
+    # Review / Verify (the /recheck-* endpoints below). A booking / trip-sheet
+    # edit carries the client's copy of it — possibly from before the Auditor
+    # acted — and writing that back re-flagged verified trips (locking both
+    # audit buttons) or silently cleared live flags.
+    for audit_field in ("flagged_for_recheck", "flagged_remark", "recheck_returned", "audit_verified"):
+        update_data.pop(audit_field, None)
     effective_driver = update_data.get("driver_id", trip.driver_id)
     effective_vehicle = update_data.get("vehicle_id", trip.vehicle_id)
     # Only check conflict when driver or vehicle is actually changing
@@ -1172,6 +1525,13 @@ def update_trip(
         )
     for field, value in update_data.items():
         setattr(trip, field, value)
+    # The sheet's End KM was applied to the old truck's odometer — the truck
+    # that actually did the trip must get it too. (The old truck keeps its
+    # reading; Admin corrects it from Our Fleet if it was wrong.)
+    if vehicle_changing and effective_vehicle and trip.sheet is not None and trip.sheet.end_km:
+        new_truck = db.query(models.Truck).filter(models.Truck.truck_id == effective_vehicle).first()
+        if new_truck:
+            odometer.advance(db, new_truck, trip.sheet.end_km)
     _check_custom_customer(trip)
     _check_route_link(db, trip)
     # Keep the trip sheet's mirrored copies in sync with the booking (see
@@ -1418,6 +1778,35 @@ def get_closure(trip_id: int, db: Session = Depends(get_db)):
 # Trip Sheet  — POST /trips/{id}/sheet
 # ---------------------------------------------------------------------------
 
+# The trip sheet's expense lines the driver paid out of pocket.
+_DRIVER_EXPENSE_LINES = (
+    "port_pass_expense", "weight_sheet_expense", "mamol_expense", "claimable_mamol_expense",
+    "traffic_rto_expense", "lift_on_off_expense", "crane_operator_expense", "parking_expense", "other_expenses",
+)
+
+
+def derive_sheet_totals(data: dict) -> dict:
+    """Works out a trip sheet's totals from its lines — the browser's sums are
+    never trusted (every profit figure in the app starts from these):
+
+      Total KM              End KM − Start KM (when both are set and End > Start)
+      Driver Expenses       the 9 out-of-pocket lines above
+      Driver Balance        Driver Expenses − Driver Advance
+      Trip Expenses (total) Driver Pay + Driver Expenses + Toll + Halt Pay
+    Same rules the trip sheet form shows; they reproduce every stored sheet."""
+    def D(key):
+        return Decimal(str(data.get(key) or 0))
+    start, end = D("start_km"), D("end_km")
+    data["total_km"] = end - start if start > 0 and end > start else None
+    driver = sum((D(k) for k in _DRIVER_EXPENSE_LINES), Decimal(0))
+    data["driver_expenses_total"] = driver
+    data["driver_balance"] = driver - D("driver_advance_amount")
+    trip_total = D("driver_pay") + driver + D("toll_charges") + D("halt_pay")
+    data["trip_expenses_total"] = trip_total
+    data["total_expense"] = trip_total
+    return data
+
+
 @router.post("/{trip_id}/sheet", response_model=schemas.TripSheetOut, status_code=201)
 def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
     # SELECT FOR UPDATE — serialises concurrent requests on this trip row
@@ -1427,7 +1816,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     if not trip.closure:
         raise HTTPException(400, "Trip must be closed before adding a trip sheet")
 
-    data = payload.model_dump(exclude={"client_version"})
+    data = derive_sheet_totals(payload.model_dump(exclude={"client_version"}))
     is_new = not trip.sheet
 
     if trip.sheet:
@@ -1467,7 +1856,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
             event_type="km_variance",
             title=f"KM Variance — {trip.trip_id}",
             message=json.dumps({
-                "actualKm": str(payload.total_km or ""),
+                "actualKm": str(data["total_km"] or ""),
                 "approxKm": str(trip.approx_km or ""),
                 "kmRemark": payload.km_variance_remark,
             }),
@@ -1482,7 +1871,7 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
             "trip_db_id": trip_id,
             "trip_id_str": trip.trip_id,
             "booking_ref": trip.booking_reference_no or "",
-            "actual_km": str(payload.total_km or ""),
+            "actual_km": str(data["total_km"] or ""),
             "approx_km": str(trip.approx_km or ""),
             "km_remark": payload.km_variance_remark,
         })
@@ -1493,11 +1882,8 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     print(f"[TripSheet] vehicle_id='{vehicle_id}' truck={'found id='+str(truck.id) if truck else 'NOT FOUND'}", flush=True)
 
     # Always update the truck's current odometer to end_km if it advances it
-    if truck and payload.end_km:
-        end_km_val = int(payload.end_km)
-        if end_km_val > int(truck.odometer or 0):
-            truck.odometer = end_km_val
-            db.commit()
+    if truck and payload.end_km and odometer.advance(db, truck, payload.end_km):
+        db.commit()
 
     # Auto-sync diesel entries to FuelLog
     entries = payload.diesel_entries or []
@@ -1574,17 +1960,16 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     elif not entries:
         print(f"[TripSheet] FuelLog sync skipped: no diesel entries with litres > 0", flush=True)
 
-    # Sync maintenance records from major repairs (runs on every save, not just first)
+    # Major repairs → Maintenance Approvals (runs on every save, not just
+    # first). Each line becomes a request for Admin/Accounts; unchanged lines
+    # keep their request/record, so re-saving never duplicates or wipes them.
     if truck:
+        from routers.maintenance_requests import sync_trip_repairs
         record_date = payload.trip_sheet_date or date_type.today()
         default_odometer = int(payload.end_km or 0)
         trip_ref = f"Trip Sheet — {trip.trip_id}"
 
-        # Delete existing trip-linked maintenance records then recreate
-        db.query(models.MaintenanceRecord).filter(
-            models.MaintenanceRecord.trip_id == trip_id
-        ).delete()
-
+        lines: list[dict] = []
         for repair in (payload.major_repairs or []):
             name = (repair.get("name") or "").strip()
             if not name:
@@ -1596,16 +1981,14 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
                 r_date = record_date
             r_odometer = int(repair.get("odometer") or default_odometer)
             r_description = (repair.get("description") or "").strip() or trip_ref
-            db.add(models.MaintenanceRecord(
-                truck_id=truck.id,
-                trip_id=trip_id,
-                date=r_date,
-                odometer=r_odometer,
-                maintenance_type=name,
-                description=r_description,
-                cost=cost,
-            ))
+            lines.append({
+                "maintenance_type": name, "date": r_date.isoformat(), "odometer": r_odometer,
+                "cost": cost, "description": r_description,
+            })
+        sync_trip_repairs(db, trip, truck, lines, current_user)
         db.commit()
+        emit("maintenance_request_updated", {})
+        emit("maintenance_updated", {})
 
     return sheet
 

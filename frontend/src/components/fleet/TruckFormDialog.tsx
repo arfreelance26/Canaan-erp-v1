@@ -17,6 +17,8 @@ import { TyreLayoutDiagram } from "@/components/fleet/TyreLayoutDiagram";
 import type { Truck } from "@/types/truck";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { ComplianceDocsReadOnly } from "@/components/fleet/ComplianceDocsReadOnly";
+import { VehicleImagesSection, VEHICLE_IMAGES, type VehicleImageField } from "@/components/fleet/VehicleImages";
 
 export const DRAFT_KEY = "erp_truck_form_draft";
 
@@ -24,7 +26,14 @@ const sectionHeadingClass =
   "text-xs font-semibold uppercase tracking-wider text-blue-900 bg-blue-50 px-3 py-2 rounded-lg";
 
 export type TruckFiles = {
+  /** Vehicle Identity Image (shown on the Our Fleet card). */
   photo?: File | null;
+  front_view?: File | null;
+  rear_view?: File | null;
+  left_view?: File | null;
+  right_view?: File | null;
+  /** Saved Vehicle Images the user removed — cleared after the truck is saved. */
+  removeImages?: VehicleImageField[];
   rc?: File | null;
   fc?: File | null;
   road_tax?: File | null;
@@ -82,6 +91,10 @@ const emptyForm: Omit<Truck, "id" | "truckId"> = {
   pollutionCertificateNumber: "",
   pollutionCertificateProofFileName: null,
   pollutionCertificateExpenses: "",
+  frontViewFileName: null,
+  rearViewFileName: null,
+  leftViewFileName: null,
+  rightViewFileName: null,
 };
 
 export function TruckFormDialog({
@@ -149,10 +162,18 @@ export function TruckFormDialog({
       showError("Still fetching the next Truck ID — please wait a moment and try again.");
       return;
     }
+    // An image name with neither a new file nor a saved image behind it (e.g.
+    // restored from a draft) would point at nothing — drop it.
+    const imageNames = Object.fromEntries(
+      VEHICLE_IMAGES.map(({ field, nameKey }) => [
+        nameKey,
+        files[field] || (initialData?.[nameKey] && form[nameKey]) ? form[nameKey] : null,
+      ]),
+    );
     setSubmitting(true);
     try {
       await onSave(
-        { id: initialData?.id ?? crypto.randomUUID(), truckId: truckIdForSave, ...form },
+        { id: initialData?.id ?? crypto.randomUUID(), truckId: truckIdForSave, ...form, ...imageNames },
         files,
       );
     } finally {
@@ -165,6 +186,39 @@ export function TruckFormDialog({
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Truck" : "Add Truck"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div className="rounded-lg border border-gray-200 p-4">
+          <p className={`${sectionHeadingClass} mb-4`}>Vehicle Images</p>
+          <VehicleImagesSection
+            truck={initialData}
+            names={{
+              truckPhotosFileName: form.truckPhotosFileName,
+              frontViewFileName: form.frontViewFileName,
+              rearViewFileName: form.rearViewFileName,
+              leftViewFileName: form.leftViewFileName,
+              rightViewFileName: form.rightViewFileName,
+            }}
+            files={files}
+            onPick={(field, nameKey, file) => {
+              setFiles((prev) => ({
+                ...prev,
+                [field]: file,
+                removeImages: prev.removeImages?.filter((f) => f !== field),
+              }));
+              update(nameKey, file.name);
+            }}
+            onRemove={(field, nameKey) => {
+              setFiles((prev) => ({
+                ...prev,
+                [field]: null,
+                removeImages: initialData?.[nameKey]
+                  ? [...(prev.removeImages ?? []).filter((f) => f !== field), field]
+                  : prev.removeImages,
+              }));
+              update(nameKey, null);
+            }}
+          />
+        </div>
+
         <Field label="Truck ID">
           <input
             type="text"
@@ -204,6 +258,9 @@ export function TruckFormDialog({
               options={manufacturerOptions.map((m) => ({ value: m, label: m }))}
               strictSelect
             />
+            <p className="mt-1 text-xs text-gray-400">
+              Not in the list? Add it in Truck&apos;s AdBlue History → Manufacturers.
+            </p>
           </Field>
 
           <Field label="Model Name">
@@ -284,6 +341,13 @@ export function TruckFormDialog({
           )}
         </div>
 
+        {/* Documents are entered here only when the truck is added. After that
+            they're renewed / corrected on Compliance & Renewals, which keeps
+            each one's history (Our Fleet → Compliance History). */}
+        {initialData ? (
+          <ComplianceDocsReadOnly truck={initialData} />
+        ) : (
+          <>
         <div className="rounded-lg border border-gray-200 p-4">
           <p className={sectionHeadingClass}>RC Details</p>
           <Field label="RC Validity Date">
@@ -293,8 +357,9 @@ export function TruckFormDialog({
             />
           </Field>
 
-          <Field label="Expenses For RC" className="mt-4">
+          <Field label="Expenses For RC" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.rcExpenses}
@@ -321,7 +386,6 @@ export function TruckFormDialog({
               fileName={form.rcDocumentUrl}
               fileObj={files.rc}
               entity="trucks"
-              entityId={initialData?.id}
               field="rc"
             />
           </Field>
@@ -353,13 +417,13 @@ export function TruckFormDialog({
               fileName={form.fcDocumentFileName}
               fileObj={files.fc}
               entity="trucks"
-              entityId={initialData?.id}
               field="fc"
             />
           </Field>
 
-          <Field label="Expenses For FC" className="mt-4">
+          <Field label="Expenses For FC" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.fcExpenses}
@@ -407,13 +471,13 @@ export function TruckFormDialog({
               fileName={form.roadTaxDocumentFileName}
               fileObj={files.road_tax}
               entity="trucks"
-              entityId={initialData?.id}
               field="road_tax"
             />
           </Field>
 
-          <Field label="Expenses For Road Tax" className="mt-4">
+          <Field label="Expenses For Road Tax" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.roadTaxExpenses}
@@ -450,13 +514,13 @@ export function TruckFormDialog({
               fileName={form.insuranceDocumentProofFileName}
               fileObj={files.insurance_proof}
               entity="trucks"
-              entityId={initialData?.id}
               field="insurance"
             />
           </Field>
 
-          <Field label="Expenses for Insurance" className="mt-4">
+          <Field label="Expenses for Insurance" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.insuranceExpenses}
@@ -504,13 +568,13 @@ export function TruckFormDialog({
               fileName={form.nationalPermitProofFileName}
               fileObj={files.national_permit}
               entity="trucks"
-              entityId={initialData?.id}
               field="national_permit"
             />
           </Field>
 
-          <Field label="Expenses For National Permit" className="mt-4">
+          <Field label="Expenses For National Permit" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.nationalPermitExpenses}
@@ -558,13 +622,13 @@ export function TruckFormDialog({
               fileName={form.localPermitProofFileName}
               fileObj={files.local_permit}
               entity="trucks"
-              entityId={initialData?.id}
               field="local_permit"
             />
           </Field>
 
-          <Field label="Expenses For Local Permit" className="mt-4">
+          <Field label="Expenses For Local Permit" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.localPermitExpenses}
@@ -612,13 +676,13 @@ export function TruckFormDialog({
               fileName={form.pollutionCertificateProofFileName}
               fileObj={files.pollution_cert}
               entity="trucks"
-              entityId={initialData?.id}
               field="pollution_cert"
             />
           </Field>
 
-          <Field label="Expenses For Pollution Certificate" className="mt-4">
+          <Field label="Expenses For Pollution Certificate" required className="mt-4">
             <DecimalInput type="number"
+              required
               min="0"
               step="0.01"
               value={form.pollutionCertificateExpenses}
@@ -628,6 +692,9 @@ export function TruckFormDialog({
             />
           </Field>
         </div>
+
+          </>
+        )}
 
         <div className="mt-2 flex justify-end gap-3">
           <button

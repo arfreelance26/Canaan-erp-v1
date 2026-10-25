@@ -582,16 +582,16 @@ html.dark ::-webkit-scrollbar-track {
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: #2d3660;
   border-radius: 5px;
 }
 
 html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: #3d4a80;
 }
 
 html.dark * {
-  scrollbar-color: #4b5563 transparent;
+  scrollbar-color: #2d3660 transparent;
 }
 
 @keyframes truck-success {
@@ -1285,6 +1285,7 @@ html.dark .lane-map {
   --fc-ok-fill: #e6ebfb;   --fc-ok-stroke: #b6c3ee;   --fc-ok-text: #3a4a88;
   --fc-soon-fill: #fdebc0; --fc-soon-stroke: #f2b73a; --fc-soon-text: #8a5a00;
   --fc-bad-fill: #fcd0d4;  --fc-bad-stroke: #ee5a6a;  --fc-bad-text: #9b1c2b;
+  --fc-miss-fill: #fce7f3; --fc-miss-stroke: #ec4899; --fc-miss-text: #9d174d;
   --fc-road: #0ea5d8;
   --fc-maint: #f59e0b;
 }
@@ -1292,6 +1293,7 @@ html.dark .fleet-const {
   --fc-ok-fill: #16204a;   --fc-ok-stroke: #2b3c80;   --fc-ok-text: #9db4ff;
   --fc-soon-fill: #3a2907; --fc-soon-stroke: #b7791f; --fc-soon-text: #fbbf24;
   --fc-bad-fill: #4a1219;  --fc-bad-stroke: #d13a4a;  --fc-bad-text: #ff8d98;
+  --fc-miss-fill: #4a1236; --fc-miss-stroke: #f472b6; --fc-miss-text: #f9a8d4;
   --fc-road: #38d0ff;
   --fc-maint: #fbbf24;
 }
@@ -1299,6 +1301,9 @@ html.dark .fleet-const {
 .fc-ok   { fill: var(--fc-ok-fill);   stroke: var(--fc-ok-stroke); }
 .fc-soon { fill: var(--fc-soon-fill); stroke: var(--fc-soon-stroke); }
 .fc-bad  { fill: var(--fc-bad-fill);  stroke: var(--fc-bad-stroke); }
+/* Missing documents: pink, with a dashed edge so it never reads as red (expired). */
+.fc-miss { fill: var(--fc-miss-fill); stroke: var(--fc-miss-stroke); }
+.fc-miss.fc-hex { stroke-dasharray: 5 3.5; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--fc-miss-stroke) 50%, transparent)); }
 .fc-soon.fc-hex { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--fc-soon-stroke) 45%, transparent)); }
 .fc-bad.fc-hex  { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--fc-bad-stroke) 60%, transparent)); }
 .fc-node:hover .fc-hex, .fc-hex.fc-on { transform: scale(1.12); }
@@ -1306,6 +1311,7 @@ html.dark .fleet-const {
 .fc-ok-t   { fill: var(--fc-ok-text); }
 .fc-soon-t { fill: var(--fc-soon-text); }
 .fc-bad-t  { fill: var(--fc-bad-text); }
+.fc-miss-t { fill: var(--fc-miss-text); }
 .fc-ring {
   fill: none; stroke: var(--fc-road); stroke-width: 2; pointer-events: none;
   transform-box: fill-box; transform-origin: center; animation: fc-pulse 2.2s ease-out infinite;
@@ -1318,6 +1324,7 @@ html.dark .fleet-const {
 .fc-key.fc-ok   { background: var(--fc-ok-fill);   border-color: var(--fc-ok-stroke); }
 .fc-key.fc-soon { background: var(--fc-soon-fill); border-color: var(--fc-soon-stroke); }
 .fc-key.fc-bad  { background: var(--fc-bad-fill);  border-color: var(--fc-bad-stroke); }
+.fc-key.fc-miss { background: var(--fc-miss-fill); border-color: var(--fc-miss-stroke); border-style: dashed; }
 .fc-key-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; }
 i.fc-key-dot.fc-road-dot { background: var(--fc-road); }
 .fc-key-dash { display: inline-block; width: 11px; height: 11px; border-radius: 3px; border: 1.5px dashed var(--fc-road); }
@@ -1376,4 +1383,169 @@ i.fc-key-dot.fc-maint-dot { background: var(--fc-maint); }
 .animate-notes-in { animation: notes-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .animate-notes-in { animation: none; }
+}
+
+/* Dashboard date badge — plays once per session when the software is opened
+   (app/page.tsx). Card slides in, month strip drops, the day flips like a
+   desk-calendar page, text follows, then one soft gold shimmer. */
+@keyframes date-card-in {
+  from { opacity: 0; transform: translateX(18px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes date-month-drop {
+  from { opacity: 0; transform: translateY(-100%); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes date-day-flip {
+  0%   { opacity: 0; transform: perspective(240px) rotateX(-95deg); }
+  60%  { opacity: 1; transform: perspective(240px) rotateX(14deg); }
+  80%  { transform: perspective(240px) rotateX(-6deg); }
+  100% { opacity: 1; transform: perspective(240px) rotateX(0); }
+}
+@keyframes date-text-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes date-shimmer {
+  from { transform: translateX(-120%) skewX(-20deg); }
+  to   { transform: translateX(260%) skewX(-20deg); }
+}
+.date-intro-card    { animation: date-card-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.date-intro-month   { animation: date-month-drop 360ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both; }
+.date-intro-day     { transform-origin: 50% 0%; animation: date-day-flip 620ms cubic-bezier(0.34, 1.4, 0.64, 1) 380ms both; }
+.date-intro-text    { animation: date-text-in 320ms ease-out 640ms both; }
+.date-intro-shimmer {
+  position: absolute; inset: 0; width: 40%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.28), transparent);
+  animation: date-shimmer 900ms ease-in-out 950ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .date-intro-card, .date-intro-month, .date-intro-day, .date-intro-text { animation: none; }
+  .date-intro-shimmer { display: none; }
+}
+
+/* Dashboard date badge — the day counts up 1 → today, each number a quick
+   page flip, ending on a bouncier flip (DayFlip in app/page.tsx). */
+@keyframes date-day-tick {
+  from { opacity: 0.35; transform: perspective(240px) rotateX(-80deg); }
+  to   { opacity: 1;    transform: perspective(240px) rotateX(0); }
+}
+.date-day-tick { display: inline-block; transform-origin: 50% 0%; animation: date-day-tick 130ms ease-out both; }
+.date-day-land { display: inline-block; transform-origin: 50% 0%; animation: date-day-flip 560ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .date-day-tick, .date-day-land { animation: none; }
+}
+
+/* ── Staff birthday decorations (components/layout/BirthdayDecor.tsx) ───────── */
+/* A gust passing through: each flag lifts, settles, then rests — staggered by
+   page x so the wave travels left to right across the whole garland. */
+@keyframes bday-wave {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  12% { transform: rotate(9deg); }
+  24% { transform: rotate(-6deg); }
+  36% { transform: rotate(3deg); }
+  46% { transform: rotate(-1deg); }
+}
+@keyframes bday-glow {
+  0%, 100% { opacity: .35; }
+  50%      { opacity: 1; }
+}
+@keyframes bday-shine {
+  0%   { background-position: 200% 50%; }
+  100% { background-position: -200% 50%; }
+}
+@keyframes bday-card-shine {
+  0%   { left: -15%; }
+  100% { left: 115%; }
+}
+.bday-flag { transform-box: fill-box; transform-origin: 50% 0; animation: bday-wave 6s ease-in-out infinite; }
+.bday-glow { animation: bday-glow 3.6s ease-in-out infinite; }
+/* String lights: a gust lifts each loop (wire scales toward its pins, bulbs
+   ride up by their depth), swings the bulbs, then everything settles. */
+@keyframes bday-wire {
+  0%, 55%, 100% { transform: scaleY(1); }
+  12% { transform: scaleY(.72); }
+  24% { transform: scaleY(1.07); }
+  36% { transform: scaleY(.97); }
+}
+@keyframes bday-bulb-lift {
+  0%, 55%, 100% { transform: translateY(0); }
+  12% { transform: translateY(calc(var(--lift) * -0.28)); }
+  24% { transform: translateY(calc(var(--lift) * 0.07)); }
+  36% { transform: translateY(calc(var(--lift) * -0.03)); }
+}
+@keyframes bday-swing {
+  0%, 55%, 100% { transform: rotate(var(--tilt)); }
+  12% { transform: rotate(calc(var(--tilt) + 11deg)); }
+  24% { transform: rotate(calc(var(--tilt) - 8deg)); }
+  36% { transform: rotate(calc(var(--tilt) + 4deg)); }
+  46% { transform: rotate(calc(var(--tilt) - 1.5deg)); }
+}
+@keyframes bday-flicker {
+  0%, 100% { opacity: 1; }
+  12% { opacity: .15; } 22% { opacity: .9; } 34% { opacity: .25; } 48% { opacity: 1; }
+}
+@keyframes bday-pool {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(.9); }
+}
+.bday-wire { transform-box: view-box; animation: bday-wire 6s ease-in-out infinite; }
+.bday-bulb-lift { animation: bday-bulb-lift 6s ease-in-out infinite; }
+.bday-swing { transform-box: view-box; transform: rotate(var(--tilt)); animation: bday-swing 6s ease-in-out infinite; }
+.bday-flicker { animation: bday-flicker .7s steps(1, end) 1; }
+.bday-pool { transform-box: fill-box; transform-origin: center; animation: bday-pool 7s ease-in-out infinite; }
+.bday-gold-text {
+  background: linear-gradient(100deg, #f7e3a1 0%, #d9b24a 30%, #fff1c4 50%, #c9a227 70%, #f3d98b 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: bday-shine 6s linear infinite;
+}
+.bday-card-shine { animation: bday-card-shine 2.2s ease-out 0.3s 1 both; }
+/* Christmas Day: the lights twinkle faster and brighter. */
+@keyframes bday-glow-strong {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+.bday-lights-intense .bday-glow { animation: bday-glow-strong 1.4s ease-in-out infinite; }
+/* Christmas Day: Santa's sleigh crosses the topbar once. */
+@keyframes santa-flight {
+  from { left: -170px; }
+  to   { left: calc(100% + 20px); }
+}
+@keyframes santa-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-4px) rotate(1deg); }
+}
+@keyframes santa-trail {
+  0%, 100% { opacity: .3; }
+  50%      { opacity: 1; }
+}
+.santa-flight { animation: santa-flight 10s linear 0.6s 1 both; }
+.santa-bob { animation: santa-bob 1.3s ease-in-out infinite; }
+.santa-trail { animation: santa-trail .5s ease-in-out infinite; }
+/* Founding Day (components/layout/FoundingDecor.tsx) */
+@keyframes founding-sweep {
+  0%   { left: -12%; opacity: 0; }
+  8%   { opacity: 1; }
+  45%  { left: 105%; opacity: 1; }
+  46%, 100% { left: 105%; opacity: 0; }
+}
+@keyframes founding-shine {
+  0%, 55%, 100% { background-position: 160% 0; }
+  30% { background-position: -60% 0; }
+}
+.founding-sweep { animation: founding-sweep 9s ease-in-out infinite; }
+.founding-shine {
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.85) 50%, transparent 62%);
+  background-size: 250% 100%;
+  animation: founding-shine 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bday-flag, .bday-glow, .bday-gold-text, .bday-card-shine,
+  .bday-wire, .bday-bulb-lift, .bday-swing, .bday-flicker, .bday-pool,
+  .bday-lights-intense .bday-glow, .santa-flight, .santa-bob, .santa-trail,
+  .founding-sweep, .founding-shine { animation: none; }
+  .founding-sweep { display: none; }
 }

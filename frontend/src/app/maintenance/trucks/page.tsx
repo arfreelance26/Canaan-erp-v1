@@ -1,16 +1,15 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { TruckMaintenanceTable } from "@/components/maintenance/TruckMaintenanceTable";
 import { MaintenanceRecordFormDialog } from "@/components/maintenance/MaintenanceRecordFormDialog";
 import { MaintenanceRecordHistoryDialog } from "@/components/maintenance/MaintenanceRecordHistoryDialog";
 import { TruckStatusDialog } from "@/components/maintenance/TruckStatusDialog";
-import { trucksApi, maintenanceApi, type MaintenanceRecordEditEventRow } from "@/lib/api";
+import { trucksApi, maintenanceApi, maintenanceRequestsApi, type MaintenanceRecordEditEventRow } from "@/lib/api";
 import { Wrench, History, Plus, Pencil, Trash2 } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
-import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
@@ -39,7 +38,6 @@ export default function TruckMaintenancePage() {
   const isAdmin = authUser?.softwareDesignation === "Admin";
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
-  const [allStatus, setAllStatus] = useState<TruckMaintenanceStatus[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
@@ -48,6 +46,11 @@ export default function TruckMaintenancePage() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // ?search=<registration> — a maintenance alert in the bell opens its truck.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("search");
+    if (q) setSearchQuery(q);
+  }, []);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -70,11 +73,10 @@ export default function TruckMaintenancePage() {
   }
 
   useEffect(() => {
-    Promise.all([trucksApi.list(), maintenanceApi.listRecords(), maintenanceApi.getStatus()])
-      .then(([t, r, s]) => {
+    Promise.all([trucksApi.list(), maintenanceApi.listRecords()])
+      .then(([t, r]) => {
         setTrucks(t);
         setRecords(r);
-        setAllStatus(s);
       })
       .catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
@@ -83,10 +85,6 @@ export default function TruckMaintenancePage() {
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
 
-  const statusByTruckDbId = useMemo(
-    () => new Map(allStatus.map((s) => [s.truckDbId, s])),
-    [allStatus]
-  );
 
   function handleUpdateRecord(truck: Truck) {
     setSelectedTruck(truck);
@@ -108,33 +106,30 @@ export default function TruckMaintenancePage() {
     if (!truck || savingRecord) return;
     setSavingRecord(true);
     try {
-      const created = await maintenanceApi.createRecord(record, truck.id);
-      // Proof of Payment needs the new record's id, so it uploads afterwards.
+      // Every new record goes to Maintenance Approvals first — it reaches the
+      // truck's record (and costs) only once Admin or Accounts approves it.
+      const request = await maintenanceRequestsApi.submit(record, truck.id);
+      // Proof of Payment needs the request's id, so it uploads afterwards.
       // One at a time keeps a slow connection from timing out several at once.
       const failed: string[] = [];
-      let uploaded = 0;
       for (const file of proofs) {
         try {
-          await maintenanceApi.uploadProof(created.id, file);
-          uploaded += 1;
+          await maintenanceRequestsApi.uploadProof(request.id, file);
         } catch (err: unknown) {
           failed.push(`${file.name}: ${err instanceof Error ? err.message : "upload failed"}`);
         }
       }
-      setRecords((prev) => [...prev, { ...created, proofCount: uploaded }]);
       setUpdateDialogOpen(false);
-      // Refresh status after a new record is saved
-      maintenanceApi.getStatus().then(setAllStatus).catch(() => {});
       if (failed.length) {
         showError(
-          `The record was saved, but ${failed.length} proof file(s) didn't upload:\n${failed.join("\n")}`,
+          `The record was sent for approval, but ${failed.length} proof file(s) didn't upload:\n${failed.join("\n")}`,
           "Some files weren't uploaded",
         );
       } else {
-        showSuccess("Maintenance record saved successfully.");
+        showSuccess("Sent for approval. It's added to the truck's record once Admin or Accounts approves it.", "Submitted");
       }
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to save maintenance record.");
+      showError(err instanceof Error ? err.message : "Failed to submit the maintenance record.");
     } finally {
       setSavingRecord(false);
     }
@@ -211,14 +206,12 @@ export default function TruckMaintenancePage() {
         onDelete={(id) => setRecords((prev) => prev.filter((r) => r.id !== id))}
         onUpdate={(saved) => {
           setRecords((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
-          maintenanceApi.getStatus().then(setAllStatus).catch(() => {});
         }}
       />
 
       <TruckStatusDialog
         open={statusDialogOpen}
         onClose={() => setStatusDialogOpen(false)}
-        status={selectedTruck ? statusByTruckDbId.get(selectedTruck.id) ?? null : null}
         truckDbId={selectedTruck?.id}
         records={selectedTruck ? records.filter((r) => r.truckId === selectedTruck.id) : []}
         tyreLayout={selectedTruck?.tyreLayout}

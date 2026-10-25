@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Factory, Plus, Pencil, Trash2, Loader2, History } from "lucide-react";
+import { Factory, Plus, Pencil, Trash2, Loader2, History, Droplets, IndianRupee } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { adblueApi, type AdBlueManufacturer, type AdBlueEditEventRow } from "@/lib/api";
 import { confirmDelete, showError, showSuccess } from "@/lib/swal";
@@ -26,16 +26,24 @@ const EDIT_EVENT_COLOR: Record<AdBlueEditEventRow["event"], string> = {
 type Props = {
   open: boolean;
   onClose: () => void;
-  /** Our Fleet's active trucks — for the "N trucks" count on each manufacturer. */
+  /** Active trucks — for the "N trucks" count on each manufacturer. */
   trucks: Truck[];
+  /** After a manufacturer is added / edited / deleted. */
+  onChanged?: () => void;
 };
 
+/** "Not set" for an empty / zero rate. */
+export function manufacturerRate(m: Pick<AdBlueManufacturer, "defaultPricePerLitre"> | null | undefined): number | null {
+  const n = parseFloat(m?.defaultPricePerLitre ?? "");
+  return Number.isNaN(n) || n <= 0 ? null : n;
+}
+
 /**
- * Our Fleet → Manufacturers: the list behind the Manufacturer dropdown on the
- * Add/Edit Truck form. (It used to live on the removed "Truck's Adblue
- * History" page.)
+ * Truck's Adblue History → Manufacturers: the list behind the Manufacturer
+ * dropdown on the Add/Edit Truck form, and each manufacturer's AdBlue cost
+ * per litre — the starting price when an AdBlue fill is logged for its trucks.
  */
-export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
+export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: Props) {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
 
@@ -46,6 +54,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdBlueManufacturer | null>(null);
   const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -80,23 +89,28 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
   function openAdd() {
     setEditing(null);
     setName("");
+    setPrice("");
     setDialogOpen(true);
   }
 
   function openEdit(m: AdBlueManufacturer) {
     setEditing(m);
     setName(m.name);
+    setPrice(manufacturerRate(m) != null ? String(manufacturerRate(m)) : "");
     setDialogOpen(true);
   }
 
   async function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) { showError("Manufacturer name is required."); return; }
+    const rate = price.trim() === "" ? null : Number(price);
+    if (rate != null && (Number.isNaN(rate) || rate < 0)) { showError("Enter a valid cost per litre."); return; }
     setSaving(true);
     try {
-      if (editing) await adblueApi.updateManufacturer(editing.id, trimmed);
-      else await adblueApi.createManufacturer(trimmed);
+      if (editing) await adblueApi.updateManufacturer(editing.id, trimmed, rate);
+      else await adblueApi.createManufacturer(trimmed, rate);
       setManufacturers(await adblueApi.listManufacturers());
+      onChanged?.();
       setDialogOpen(false);
       showSuccess(editing ? "Manufacturer updated." : "Manufacturer added.");
     } catch (err: unknown) {
@@ -113,6 +127,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
     try {
       await adblueApi.deleteManufacturer(m.id);
       setManufacturers((prev) => prev.filter((x) => x.id !== m.id));
+      onChanged?.();
       showSuccess("Manufacturer deleted.");
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to delete manufacturer.");
@@ -132,9 +147,12 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
 
   return (
     <>
-    <Dialog open={open} onClose={onClose} title="Truck Manufacturers" className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title="Manufacturers" className="max-w-3xl">
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-gray-500">The Manufacturer list used when adding or editing a truck.</p>
+      <p className="text-sm text-gray-500">
+        The Manufacturer list used when adding or editing a truck, and each one&apos;s AdBlue cost per litre —
+        the price an AdBlue fill starts with for its trucks.
+      </p>
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search manufacturers..." value={search} onChange={setSearch} />
         <div className="ml-auto flex items-center gap-2">
@@ -171,6 +189,7 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
         <div className="grid max-h-[55vh] grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
           {visible.map((m) => {
             const count = truckCount.get(m.name.trim().toLowerCase()) ?? 0;
+            const rate = manufacturerRate(m);
             return (
               <div key={m.id} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
@@ -180,6 +199,16 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
                   <p className="truncate text-sm font-semibold text-slate-900">{m.name}</p>
                   <p className="text-xs text-slate-400">{count} truck{count === 1 ? "" : "s"}</p>
                 </div>
+                <span
+                  title="AdBlue cost per litre"
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                    rate != null ? "bg-blue-50 text-blue-700 ring-1 ring-blue-100" : "bg-slate-100 text-slate-400",
+                  )}
+                >
+                  <Droplets className="h-3 w-3" />
+                  {rate != null ? `₹${rate.toFixed(2)} / L` : "Rate not set"}
+                </span>
                 <div className="flex shrink-0 gap-1">
                   <button
                     type="button"
@@ -223,6 +252,27 @@ export function TruckManufacturersDialog({ open, onClose, trucks }: Props) {
               placeholder="e.g. TATA"
               className="h-10 rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-gray-700">AdBlue Cost per Litre (₹)</span>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                <IndianRupee className="h-4 w-4" />
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="e.g. 92.00"
+                className="h-10 w-full rounded-xl border border-slate-200 pl-8 pr-3 text-sm text-slate-800 outline-none [appearance:textfield] focus:border-blue-400 focus:ring-2 focus:ring-blue-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+            </div>
+            <span className="text-xs text-slate-400">
+              Optional. Pre-fills Cost Per Litre when an AdBlue fill is logged for this manufacturer&apos;s trucks.
+              Changing it never changes fills already saved.
+            </span>
           </label>
           {editing && (
             <p className="text-xs text-slate-400">

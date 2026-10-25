@@ -3,7 +3,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { ComplianceTable } from "@/components/fleet/ComplianceTable";
-import { UpdateDocumentDialog } from "@/components/fleet/UpdateDocumentDialog";
 import { getComplianceStatus } from "@/lib/compliance";
 import { ShieldCheck, History, FileClock } from "lucide-react";
 import { trucksApi, type ComplianceEditEventRow } from "@/lib/api";
@@ -30,7 +29,6 @@ export default function CompliancePage() {
   const docReminders = reminders.filter((r) => r.kind !== "license" && r.kind !== "recurring");
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updateOpen, setUpdateOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
@@ -107,13 +105,6 @@ export default function CompliancePage() {
             Edit History
           </button>
 )}
-          <button
-            type="button"
-            onClick={() => setUpdateOpen(true)}
-            className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
-          >
-            Update Document
-          </button>
         </div>
       </div>
 
@@ -149,16 +140,8 @@ export default function CompliancePage() {
         </div>
       </div>
 
-      <ComplianceTable trucks={filteredTrucks} />
+      <ComplianceTable trucks={filteredTrucks} onChanged={() => setRefreshKey((k) => k + 1)} />
 
-      <UpdateDocumentDialog
-        open={updateOpen}
-        onClose={() => setUpdateOpen(false)}
-        trucks={trucks}
-        onUpdated={(updated) =>
-          setTrucks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
-        }
-      />
 
       {/* Edit History — every compliance document update ever logged, across
           every truck (not just the ones currently on this page), in one
@@ -179,6 +162,7 @@ export default function CompliancePage() {
               ev.truckIdStr.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
               ev.registrationNumber.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
               ev.documentType.toLowerCase().includes(editHistorySearch.toLowerCase()) ||
+              (ev.action ?? "").toLowerCase().includes(editHistorySearch.toLowerCase()) ||
               ev.actorName.toLowerCase().includes(editHistorySearch.toLowerCase())
             );
             return filtered.length === 0 ? (
@@ -204,9 +188,17 @@ export default function CompliancePage() {
                           <p className="text-[11px] text-gray-400">{ev.truckIdStr}</p>
                         </td>
                         <td className="px-3 py-2">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                            <FileClock className="h-3 w-3" /> {ev.documentType}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                              <FileClock className="h-3 w-3" /> {ev.documentType}
+                            </span>
+                            {ev.action && (
+                              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${ev.action === "Renewal undone" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                                {ev.action}
+                              </span>
+                            )}
+                          </div>
+                          {ev.note && <p className="mt-1 max-w-md whitespace-pre-line text-[11px] text-gray-500">{ev.note}</p>}
                         </td>
                         <td className="px-3 py-2 text-gray-600">{ev.actorName}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>

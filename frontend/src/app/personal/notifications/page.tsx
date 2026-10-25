@@ -8,10 +8,11 @@ import {
   AlertTriangle,
   User,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useNotifications } from "@/context/NotificationContext";
-import { editApprovalsApi, deletionApprovalsApi, attendanceApi } from "@/lib/api";
+import { useNotifications, maintenanceAlertHref } from "@/context/NotificationContext";
+import { editApprovalsApi, deletionApprovalsApi, attendanceApi, maintenanceRequestsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -27,7 +28,7 @@ import { cn } from "@/lib/utils";
 type Category =
   | "Edit Requests" | "Deletion Requests" | "Leave Requests"
   | "Trip Sheet Alerts" | "KM Variance Alerts" | "Compliance Alerts"
-  | "Renewals & Payments" | "Your Request Updates";
+  | "Renewals & Payments" | "Your Request Updates" | "Maintenance Alerts" | "Maintenance Approvals";
 
 type NotifItem = {
   key: string;
@@ -38,6 +39,8 @@ type NotifItem = {
   detail?: string;
   time: string;      // ISO-ish, for sorting + relative display
   href: string;
+  /** Runs before navigating — e.g. marks a maintenance alert read for this person. */
+  onOpen?: () => void;
 };
 
 function timeAgo(raw: string): string {
@@ -53,6 +56,7 @@ function timeAgo(raw: string): string {
 const TONE_CLASSES: Record<string, { chip: string; icon: string; hover: string; text: string }> = {
   purple: { chip: "bg-purple-100", icon: "text-purple-600", hover: "hover:bg-purple-50/60", text: "text-purple-700" },
   red: { chip: "bg-red-100", icon: "text-red-600", hover: "hover:bg-red-50/60", text: "text-red-700" },
+  rose: { chip: "bg-rose-100", icon: "text-rose-600", hover: "hover:bg-rose-50/60", text: "text-rose-700" },
   orange: { chip: "bg-orange-100", icon: "text-orange-600", hover: "hover:bg-orange-50/60", text: "text-orange-700" },
   amber: { chip: "bg-amber-100", icon: "text-amber-600", hover: "hover:bg-amber-50/60", text: "text-amber-700" },
   blue: { chip: "bg-blue-100", icon: "text-blue-600", hover: "hover:bg-blue-50/60", text: "text-blue-700" },
@@ -63,7 +67,7 @@ const TONE_CLASSES: Record<string, { chip: string; icon: string; hover: string; 
 export default function NotificationsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reminders, complianceAlertCount } = useNotifications();
 
   const isAdmin = user?.softwareDesignation === "Admin";
   const isFleetManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
@@ -74,6 +78,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [editRequests, setEditRequests] = useState<NotifItem[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<NotifItem[]>([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState<NotifItem[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<NotifItem[]>([]);
   const [myUpdates, setMyUpdates] = useState<NotifItem[]>([]);
   const [search, setSearch] = useState("");
@@ -136,9 +141,28 @@ export default function NotificationsPage() {
       );
     }
 
+    if (isAdmin || isFinanceManager) {
+      loaders.push(
+        maintenanceRequestsApi.list({ status: "Pending" }).then((rows) => {
+          setMaintenanceRequests(
+            rows.map((r) => ({
+              key: `maint-req-${r.id}`,
+              category: "Maintenance Approvals",
+              icon: Wrench,
+              tone: "blue",
+              title: `${r.submittedByName} added ${r.maintenanceType} — ${r.registrationNumber || r.truckIdStr}`,
+              detail: `₹${r.cost.toLocaleString("en-IN")}${r.source === "Trip Sheet" ? ` · from trip sheet ${r.tripIdStr ?? ""}` : ""} · waiting for approval`,
+              time: r.createdAt,
+              href: "/attendance/maintenance-approvals",
+            }))
+          );
+        }).catch(() => {})
+      );
+    }
+
     if (user?.id != null) {
       loaders.push(
-        Promise.allSettled([editApprovalsApi.getMine(), deletionApprovalsApi.listMine()]).then(([e, d]) => {
+        Promise.allSettled([editApprovalsApi.getMine(), deletionApprovalsApi.listMine(), maintenanceRequestsApi.listMine()]).then(([e, d, m]) => {
           const fromEdit: NotifItem[] = e.status === "fulfilled"
             ? e.value.filter((r) => r.status !== "Pending" && !r.requesterSeenAt).map((r) => ({
                 key: `my-edit-${r.id}`,
@@ -163,13 +187,25 @@ export default function NotificationsPage() {
                 href: "/personal/edit-delete-requests",
               }))
             : [];
-          setMyUpdates([...fromEdit, ...fromDeletion]);
+          const fromMaintenance: NotifItem[] = m.status === "fulfilled"
+            ? m.value.filter((r) => (r.status === "Approved" || r.status === "Rejected") && !r.requesterSeenAt).map((r) => ({
+                key: `my-maint-${r.id}`,
+                category: "Your Request Updates",
+                icon: Wrench,
+                tone: r.status === "Approved" ? "green" : "red",
+                title: r.status === "Approved" ? "Your maintenance record was approved" : "Your maintenance record was rejected",
+                detail: `${r.registrationNumber || r.truckIdStr} · ${r.maintenanceType}${r.status === "Rejected" && r.rejectReason ? ` — ${r.rejectReason}` : ""}`,
+                time: r.decidedAt ?? "",
+                href: "/maintenance/trucks",
+              }))
+            : [];
+          setMyUpdates([...fromEdit, ...fromDeletion, ...fromMaintenance]);
         })
       );
     }
 
     Promise.allSettled(loaders).finally(() => setLoading(false));
-  }, [canSeeEditApprovals, isAdmin, user?.id]);
+  }, [canSeeEditApprovals, isAdmin, isFinanceManager, user?.id]);
 
   const allItems = useMemo<NotifItem[]>(() => {
     const sheetItems: NotifItem[] = sheetAlerts.map((a, i) => ({
@@ -215,9 +251,21 @@ export default function NotificationsPage() {
       href: r.href,
     }));
 
-    return [...editRequests, ...deletionRequests, ...leaveRequests, ...sheetItems, ...kmItems, ...complianceItems, ...reminderItems, ...myUpdates]
+    const maintenanceItems: NotifItem[] = maintenanceAlerts.map((a) => ({
+      key: `maint-${a.serverId}`,
+      category: "Maintenance Alerts",
+      icon: Wrench,
+      tone: a.kind === "due" ? "rose" : "amber",
+      title: `${a.maintenanceType} ${a.kind === "due" ? "is due" : "due soon"} — ${a.registration}`,
+      detail: `Reminder at ${a.remindAt.toLocaleString("en-IN")} km · odometer ${a.odometer.toLocaleString("en-IN")} km when alerted`,
+      time: a.alertedAt,
+      href: maintenanceAlertHref(user?.softwareDesignation, a.registration),
+      onOpen: () => dismissMaintenanceAlert(a.serverId),
+    }));
+
+    return [...editRequests, ...deletionRequests, ...maintenanceRequests, ...leaveRequests, ...maintenanceItems, ...sheetItems, ...kmItems, ...complianceItems, ...reminderItems, ...myUpdates]
       .sort((a, b) => (b.time || "").localeCompare(a.time || ""));
-  }, [editRequests, deletionRequests, leaveRequests, sheetAlerts, kmVarianceAlerts, complianceAlertCount, reminders, myUpdates, isAdmin, remindersLabel]);
+  }, [editRequests, deletionRequests, maintenanceRequests, leaveRequests, maintenanceAlerts, dismissMaintenanceAlert, sheetAlerts, kmVarianceAlerts, complianceAlertCount, reminders, myUpdates, isAdmin, remindersLabel, user?.softwareDesignation]);
 
   const categories = useMemo<Category[]>(
     () => [...new Set(allItems.map((i) => i.category))],
@@ -283,7 +331,7 @@ export default function NotificationsPage() {
                 <li key={item.key}>
                   <button
                     type="button"
-                    onClick={() => router.push(item.href)}
+                    onClick={() => { item.onOpen?.(); router.push(item.href); }}
                     className={cn("flex w-full items-start gap-3 px-5 py-3.5 text-left transition-colors", t.hover)}
                   >
                     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", t.chip)}>

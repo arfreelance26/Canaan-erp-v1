@@ -57,7 +57,7 @@ from jose import jwt, JWTError
 import models  # noqa: F401 — ensure all models are registered before create_all
 from websocket_manager import manager as ws_manager, set_event_loop, ensure_event_loop
 
-from routers import trucks, drivers, staff, customers, vendors, vendor_categories, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, maintenance_types, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories, usage_analytics
+from routers import trucks, drivers, staff, customers, vendors, vendor_categories, trips, attendance, maintenance, finance, dashboard, files, auth, branches, repair_types, sac_codes, pl_summary, exports, edit_approvals, notifications, trip_expense_rates, backup, settings, running_cost, tyre_range_config, deletion_approvals, tyre_layout_type_config, chat, payment_requests, default_batta, maintenance_categories, usage_analytics
 
 Base.metadata.create_all(bind=engine)
 
@@ -328,6 +328,12 @@ def _run_schema_migrations():
         "ALTER TABLE branches ADD COLUMN cleaner_batta_fee DECIMAL(10,2) DEFAULT 0",
         # branches — On Workshop batta daily fee
         "ALTER TABLE branches ADD COLUMN workshop_batta_fee DECIMAL(10,2) DEFAULT 0",
+        # running_cost_truck_cost_per_km — the five parts of each saved Cost/Km
+        "ALTER TABLE running_cost_truck_cost_per_km ADD COLUMN emi_per_km DECIMAL(12,6) NULL",
+        "ALTER TABLE running_cost_truck_cost_per_km ADD COLUMN fuel_per_km DECIMAL(12,6) NULL",
+        "ALTER TABLE running_cost_truck_cost_per_km ADD COLUMN tyre_per_km DECIMAL(12,6) NULL",
+        "ALTER TABLE running_cost_truck_cost_per_km ADD COLUMN maintenance_per_km DECIMAL(12,6) NULL",
+        "ALTER TABLE running_cost_truck_cost_per_km ADD COLUMN compliance_per_km DECIMAL(12,6) NULL",
         # tyre_inventory — cost per km derived from cost / range_km
         "ALTER TABLE tyre_inventory ADD COLUMN cost_per_km DECIMAL(10,6) NULL",
         # trip_sheets — driver compensation type (Normal / FIXED), carried from trip assignment
@@ -361,9 +367,6 @@ def _run_schema_migrations():
         "ALTER TABLE leave_requests MODIFY COLUMN category "
         "ENUM('Driver','Commercial Manager','Assistant Commercial Manager','Accounts','Maintenance','Trip Sheet Register','Yard Supervisor','Auditor') "
         "NOT NULL",
-        # Air Filter R&R — odometer reading snapshot at log-entry time (distinct
-        # from trucks.odometer, which a log may be entered well after the fact).
-        "ALTER TABLE air_filter_records ADD COLUMN current_odometer INT NOT NULL DEFAULT 0",
         # Truck Maintenance — Update Record dialog: date -> start/end date pair,
         # plus compliance/location/performed-by fields. `date` itself is kept as
         # "Maintenance Start Date" (still the field every date-range query filters
@@ -431,6 +434,20 @@ def _run_schema_migrations():
         # which cascade-destroyed fuel/adblue/maintenance logs, tyre fitments,
         # compliance history, and branch history. Now it only sets this flag.
         "ALTER TABLE trucks ADD COLUMN deleted_at DATETIME NULL",
+        # Truck form → Vehicle Images (identity image reuses photo_blob).
+        "ALTER TABLE trucks ADD COLUMN front_view_file_name VARCHAR(255) NULL",
+        "ALTER TABLE trucks ADD COLUMN front_view_blob LONGBLOB NULL",
+        "ALTER TABLE trucks ADD COLUMN rear_view_file_name VARCHAR(255) NULL",
+        "ALTER TABLE trucks ADD COLUMN rear_view_blob LONGBLOB NULL",
+        "ALTER TABLE trucks ADD COLUMN left_view_file_name VARCHAR(255) NULL",
+        "ALTER TABLE trucks ADD COLUMN left_view_blob LONGBLOB NULL",
+        "ALTER TABLE trucks ADD COLUMN right_view_file_name VARCHAR(255) NULL",
+        "ALTER TABLE trucks ADD COLUMN right_view_blob LONGBLOB NULL",
+        # Compliance & Renewals → Edit History: corrections / undone renewals.
+        "ALTER TABLE compliance_update_history ADD COLUMN action VARCHAR(30) NULL",
+        # Running Cost Calculator → Manual tyre quantities, now kept on the server.
+        "ALTER TABLE running_cost_config ADD COLUMN tyre_cost_config_qty JSON NULL",
+        "ALTER TABLE compliance_update_history ADD COLUMN note TEXT NULL",
         "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck') NOT NULL",
         # Staff soft-delete — "Our Staff" -> Delete used to hard-delete the row.
         # Now it only sets this flag, so attendance, payment/compensation history,
@@ -462,13 +479,6 @@ def _run_schema_migrations():
         # edit under this approval, distinguishing "approved but unused" from
         # "approved and acted on" (Trip Reconciliation Completed/Pending split).
         "ALTER TABLE edit_approval_requests ADD COLUMN used_at DATETIME NULL",
-        # air_filter_records — "Current Odometer" (a manually-entered snapshot
-        # that went stale) is replaced by "Odometer Value for Next Change" (the
-        # target reading at which the next air filter change is due). Running
-        # distance/due-in are now computed live against the truck's current
-        # odometer instead of a stored snapshot.
-        "ALTER TABLE air_filter_records ADD COLUMN next_change_odometer INT NOT NULL DEFAULT 0",
-        "ALTER TABLE air_filter_records DROP COLUMN current_odometer",
         # final_customer_pricing — the route this final price applies to, so a
         # customer can't end up with several conflicting final amounts for the
         # same route (a unique index enforces one row per customer+route below).
@@ -562,6 +572,25 @@ def _run_schema_migrations():
         "CREATE INDEX ix_maintenance_records_vendor_id ON maintenance_records (vendor_id)",
         # Activity Log — per-employee timeline/drill-down filters by user_name.
         "CREATE INDEX ix_activity_name_time ON activity_events (user_name, created_at)",
+        # Maintenance reminders ("Notify me when this is due again").
+        "ALTER TABLE maintenance_records ADD COLUMN remind_at_odometer INT NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN remind_soon_sent_at DATETIME NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN remind_due_sent_at DATETIME NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN invoice_number VARCHAR(100) NULL",
+        "ALTER TABLE maintenance_records ADD COLUMN invoice_date DATE NULL",
+        # Repair Type can hold several repairs now ("Clutch Plate, Brake Pads").
+        "ALTER TABLE maintenance_records MODIFY COLUMN repair_type VARCHAR(1000) NULL",
+        # Tyre Inventory — Maintenance By (Vendor / Individual) and Invoice Number.
+        "ALTER TABLE tyre_inventory ADD COLUMN maintenance_by VARCHAR(200) NULL",
+        "ALTER TABLE tyre_inventory ADD COLUMN maintenance_by_type VARCHAR(12) NULL",
+        "ALTER TABLE tyre_inventory ADD COLUMN vendor_id INT NULL",
+        "ALTER TABLE tyre_inventory ADD CONSTRAINT fk_tyre_inventory_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (id) ON DELETE SET NULL",
+        "CREATE INDEX ix_tyre_inventory_vendor_id ON tyre_inventory (vendor_id)",
+        "ALTER TABLE tyre_inventory ADD COLUMN invoice_number VARCHAR(100) NULL",
+        "ALTER TABLE tyre_inventory ADD COLUMN invoice_date DATE NULL",
+        "ALTER TABLE tyre_inventory ADD COLUMN proof_file_name VARCHAR(255) NULL",
+        "ALTER TABLE tyre_inventory ADD COLUMN proof_size_bytes INT NULL",
+        "ALTER TABLE tyre_inventory ADD COLUMN proof_data LONGBLOB NULL",
     ]
     # Role rename detection must happen BEFORE the enum is expanded: if the column
     # definition already contains 'Yard Staff', the previous intermediate rename
@@ -1546,7 +1575,7 @@ _release_drivers_of_removed_trucks()
 
 def _drop_adblue_tables():
     """AdBlue was taken out of the Running Cost Calculator, so its AdBlue
-    price table is dropped. Truck's Adblue History (adblue_logs and
+    price table and per-truck AdBlue columns are dropped. Truck's Adblue History (adblue_logs and
     adblue_log_edit_events) is a live page again and is never touched here.
     A no-op once the table is gone."""
     with engine.begin() as conn:
@@ -1560,6 +1589,19 @@ def _drop_adblue_tables():
                     print(f"[migration] dropped {table} (AdBlue removed from the Running Cost Calculator)")
             except Exception as e:
                 print(f"[migration] couldn't drop {table}: {e}")
+        # The calculator's old per-truck AdBlue inputs — unused since AdBlue
+        # left the calculator; dropped so nothing can hook them up again.
+        for column in ("adblue_consume_l_per_km", "adblue_manufacturer_id", "adblue_per_km"):
+            try:
+                existed = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
+                    "AND table_name = 'running_cost_truck_metrics' AND column_name = :c"
+                ), {"c": column}).scalar()
+                if existed:
+                    conn.execute(text(f"ALTER TABLE running_cost_truck_metrics DROP COLUMN `{column}`"))
+                    print(f"[migration] dropped running_cost_truck_metrics.{column}")
+            except Exception as e:
+                print(f"[migration] couldn't drop running_cost_truck_metrics.{column}: {e}")
 
 
 _drop_adblue_tables()
@@ -1599,6 +1641,161 @@ def _seed_batta_fee_history():
 
 
 _seed_batta_fee_history()
+
+
+def _seed_compliance_records():
+    """Truck compliance history: give every truck (removed ones too) a "First
+    entry" record for each document it already has, dated by that document's
+    first ComplianceUpdateHistory entry. Only adds what's missing — safe on
+    every restart. Files stay on the truck (the latest record's file lives there)."""
+    from database import SessionLocal
+    from routers.compliance_records import seed_first_entries
+    db = SessionLocal()
+    try:
+        first_logged: dict[int, dict] = {}
+        for h in (db.query(models.ComplianceUpdateHistory)
+                  .filter(models.ComplianceUpdateHistory.action.is_(None))
+                  .order_by(models.ComplianceUpdateHistory.updated_at)):
+            first_logged.setdefault(h.truck_id, {}).setdefault(h.document_type, h.updated_at)
+        added = 0
+        for truck in db.query(models.Truck).all():
+            added += seed_first_entries(db, truck, "System (existing data)", first_logged.get(truck.id))
+        db.commit()
+        if added:
+            print(f"[migration] seeded {added} truck compliance record(s)")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] compliance records seed skipped: {e}")
+    finally:
+        db.close()
+
+
+_seed_compliance_records()
+
+
+def _repair_emi_daily_finance_cost():
+    """EMI Tracking: Daily Finance Cost is EMI ÷ 26 working days (and EMI Cost
+    per Km (Basic) = that ÷ the layout's km/day), as the EMI form works it out.
+    Older records were saved with an outdated formula (EMI ÷ tenure ÷ 26) and
+    came out ~50× too small. Re-derives both for any record that's off — a
+    no-op once they match, so it's safe on every restart."""
+    from database import SessionLocal
+    from cost_units import WORKING_DAYS_PER_MONTH
+    db = SessionLocal()
+    try:
+        trucks = {(t.registration_number or "").strip().upper(): t for t in db.query(models.Truck)}
+        kpd = {c.tyre_layout: float(c.km_per_day or 0) for c in db.query(models.TruckRunConfig)}
+        fixed = 0
+        for rec in db.query(models.EmiRecord).all():
+            emi = float(rec.emi_amount or 0)
+            daily = round(emi / WORKING_DAYS_PER_MONTH, 4) if emi > 0 else 0.0
+            truck = trucks.get((rec.truck_registration or "").strip().upper())
+            k = kpd.get(truck.tyre_layout or "", 0) if truck else 0
+            per_km = round(daily / k, 6) if daily and k > 0 else float(rec.emi_cost_per_km or 0)
+            if abs(float(rec.daily_finance_cost or 0) - daily) > 0.005 or abs(float(rec.emi_cost_per_km or 0) - per_km) > 1e-6:
+                rec.daily_finance_cost = daily
+                rec.emi_cost_per_km = per_km
+                fixed += 1
+        db.commit()
+        if fixed:
+            print(f"[migration] corrected Daily Finance Cost on {fixed} EMI record(s)")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] EMI daily finance cost repair skipped: {e}")
+    finally:
+        db.close()
+
+
+_repair_emi_daily_finance_cost()
+
+
+def _repair_trip_recheck_state():
+    """Auditor recheck state (flagged / returned / verified) must match the
+    trip's latest recheck event. Trip edits used to write a stale copy of the
+    flag back (fixed in update_trip), leaving some trips e.g. both Verified and
+    Flagged — with Flag / Verify both locked. Re-derives the state from the
+    history for trips that HAVE a history and don't match it; trips with no
+    recheck events are left untouched. A no-op once consistent."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        events: dict[int, list] = {}
+        for ev in db.query(models.TripRecheckEvent).order_by(models.TripRecheckEvent.created_at, models.TripRecheckEvent.id):
+            events.setdefault(ev.trip_id, []).append(ev)
+        fixed = []
+        for trip in db.query(models.Trip).filter(models.Trip.id.in_(list(events))) if events else []:
+            history = events[trip.id]
+            last = history[-1].event
+            last_flag = next((e for e in reversed(history) if e.event == "Flagged"), None)
+            if last == "Verified":
+                want = (False, False, True, None)
+            elif last == "Returned for Review":
+                want = (True, True, False, (last_flag.remark if last_flag else trip.flagged_remark))
+            else:  # Flagged
+                want = (True, False, False, history[-1].remark)
+            have = (bool(trip.flagged_for_recheck), bool(trip.recheck_returned), bool(trip.audit_verified), trip.flagged_remark)
+            if have[:3] != want[:3]:
+                trip.flagged_for_recheck, trip.recheck_returned, trip.audit_verified, trip.flagged_remark = want
+                fixed.append(trip.trip_id)
+        db.commit()
+        if fixed:
+            print(f"[migration] restored the audit state of {len(fixed)} trip(s) from their recheck history: {', '.join(fixed[:20])}")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] trip recheck state repair skipped: {e}")
+    finally:
+        db.close()
+
+
+_repair_trip_recheck_state()
+
+
+def _check_maintenance_reminders():
+    """Raise any maintenance reminder a truck's odometer reached while the
+    server was down."""
+    from database import SessionLocal
+    import maintenance_reminders
+    db = SessionLocal()
+    try:
+        sent = maintenance_reminders.check_all(db)
+        db.commit()
+        if sent:
+            print(f"[startup] raised {sent} maintenance reminder alert(s)")
+    except Exception as e:
+        db.rollback()
+        print(f"[startup] maintenance reminder check skipped: {e}")
+    finally:
+        db.close()
+
+
+_check_maintenance_reminders()
+
+
+def _seed_odometer_from_purchase():
+    """Trucks still at 0 km with a purchase odometer start from that reading
+    (new trucks now do on creation). Only touches trucks with no reading."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        fixed = []
+        for t in db.query(models.Truck).filter(
+            (models.Truck.odometer.is_(None)) | (models.Truck.odometer == 0),
+            models.Truck.odometer_during_purchase > 0,
+        ):
+            t.odometer = int(t.odometer_during_purchase)
+            t.version = (t.version or 1) + 1
+            fixed.append(t.registration_number or t.truck_id)
+        db.commit()
+        if fixed:
+            print(f"[migration] set {len(fixed)} truck odometer(s) from their purchase reading: {', '.join(fixed)}")
+    except Exception as e:
+        db.rollback()
+        print(f"[migration] odometer purchase seed skipped: {e}")
+    finally:
+        db.close()
+
+
+_seed_odometer_from_purchase()
 
 def _normalize_shipping_lines():
     """Normalise historical shipping_line typos/variants to canonical names."""
@@ -1988,6 +2185,9 @@ FINANCE = [Depends(require_roles("Accounts"))]
 
 app.include_router(auth.router)                              # public: /auth/login
 app.include_router(files.router)                             # GET public (img tags), POST guarded inside
+from routers import compliance_records as _compliance_records
+app.include_router(_compliance_records.router, dependencies=AUTH)
+app.include_router(_compliance_records.file_router)         # GET file: public route (img/fetch with ?token), auth done inside
 app.include_router(trucks.router, dependencies=AUTH)
 app.include_router(drivers.router, dependencies=AUTH)
 app.include_router(staff.router, dependencies=AUTH)
@@ -2004,6 +2204,7 @@ app.include_router(branches.router, dependencies=AUTH)
 app.include_router(repair_types.router, dependencies=AUTH)
 app.include_router(sac_codes.router, dependencies=AUTH)
 app.include_router(pl_summary.router, dependencies=FINANCE)
+app.include_router(pl_summary.breakdown_router, dependencies=[Depends(require_roles("Accounts", "Auditor"))])
 app.include_router(exports.router, dependencies=AUTH)
 app.include_router(edit_approvals.router, dependencies=AUTH)
 app.include_router(notifications.router, dependencies=AUTH)
@@ -2011,7 +2212,6 @@ app.include_router(trip_expense_rates.router, dependencies=AUTH)
 app.include_router(backup.router, dependencies=AUTH)
 app.include_router(settings.router, dependencies=AUTH)
 app.include_router(running_cost.router, dependencies=AUTH)
-app.include_router(maintenance_types.router, dependencies=AUTH)
 from routers import cfs_yard
 app.include_router(cfs_yard.router, dependencies=AUTH)
 app.include_router(tyre_range_config.router, dependencies=AUTH)
@@ -2033,6 +2233,10 @@ from routers import events as _events_router
 app.include_router(_events_router.router, dependencies=AUTH)
 from routers import notes as _notes_router
 app.include_router(_notes_router.router, dependencies=AUTH)
+from routers import celebrations as _celebrations_router
+app.include_router(_celebrations_router.router, dependencies=AUTH)
+from routers import maintenance_requests as _maintenance_requests_router
+app.include_router(_maintenance_requests_router.router, dependencies=AUTH)
 from routers import todos as _todos_router
 app.include_router(_todos_router.router, dependencies=AUTH)
 

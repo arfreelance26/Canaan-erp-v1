@@ -2,12 +2,15 @@
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
+import { cacheInvalidate } from "@/lib/api-cache";
 
 type EventHandler = (payload: Record<string, unknown>) => void;
 type Unsubscribe = () => void;
 
 type WSContextType = {
   subscribe: (eventType: string, handler: EventHandler) => Unsubscribe;
+  /** True while the live connection is open (read at call time, no re-render). */
+  isConnected: () => boolean;
 };
 
 const WebSocketContext = createContext<WSContextType | null>(null);
@@ -22,6 +25,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tokenRef     = useRef<string | undefined>(undefined);
   const failCountRef = useRef(0);
+
+  function isConnected(): boolean {
+    return wsRef.current?.readyState === WebSocket.OPEN;
+  }
 
   function subscribe(eventType: string, handler: EventHandler): Unsubscribe {
     if (!handlersRef.current.has(eventType)) {
@@ -52,6 +59,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (e) => {
         try {
           const { type, payload } = JSON.parse(e.data) as { type: string; payload: Record<string, unknown> };
+          // The server announces every change (by anyone). Drop this browser's
+          // cached copy of that resource — and the cost figures built from it —
+          // before any page reloads, so nobody is shown pre-change data.
+          if (type === "data_changed" && typeof payload?.resource === "string" && payload.resource) {
+            cacheInvalidate(`/${payload.resource}`);
+          }
           handlersRef.current.get(type)?.forEach((h) => h(payload));
         } catch {}
       };
@@ -81,7 +94,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [user?.token]);
 
   return (
-    <WebSocketContext.Provider value={{ subscribe }}>
+    <WebSocketContext.Provider value={{ subscribe, isConnected }}>
       {children}
     </WebSocketContext.Provider>
   );

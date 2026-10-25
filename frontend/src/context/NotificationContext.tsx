@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useLayoutE
 import { notificationsApi, remindersApi, type Reminder } from "@/lib/api";
 import { subscribeRealtime } from "@/lib/realtime";
 import { useAuth } from "./AuthContext";
+import { showToast } from "@/lib/swal";
 
 export type SheetAlertNotif = {
   serverId?: number;          // present when persisted in the DB
@@ -25,9 +26,32 @@ export type KmVarianceNotif = {
   alertedAt: string;
 };
 
+/** "Notify me when this is due again" on a maintenance record (backend/maintenance_reminders.py). */
+export type MaintenanceAlertNotif = {
+  serverId: number;
+  kind: "due" | "soon";
+  title: string;
+  registration: string;
+  maintenanceType: string;
+  remindAt: number;
+  odometer: number;
+  alertedAt: string;
+};
+
+export const MAINTENANCE_ALERT_TYPES = ["maintenance_due", "maintenance_due_soon"];
+
+/** Where clicking a maintenance alert goes — Commercial Managers can't open Truck Maintenance. */
+export function maintenanceAlertHref(role: string | undefined, registration: string): string {
+  return role === "Admin" || role === "Maintenance"
+    ? `/maintenance/trucks?search=${encodeURIComponent(registration)}`
+    : "/resources/fleet";
+}
+
 type NotificationCtx = {
   sheetAlerts: SheetAlertNotif[];
   kmVarianceAlerts: KmVarianceNotif[];
+  maintenanceAlerts: MaintenanceAlertNotif[];
+  dismissMaintenanceAlert: (serverId: number) => void;
   reminders: Reminder[];
   complianceAlertCount: number;
   setComplianceAlertCount: (n: number) => void;
@@ -47,6 +71,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [sheetAlerts, setSheetAlerts] = useState<SheetAlertNotif[]>([]);
   const [kmVarianceAlerts, setKmVarianceAlerts] = useState<KmVarianceNotif[]>([]);
+  const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertNotif[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [complianceAlertCount, setComplianceAlertCount] = useState(0);
   const alertsRef = useRef(sheetAlerts);
@@ -60,7 +85,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     isAdmin ||
     user?.softwareDesignation === "Commercial Manager" ||
     user?.softwareDesignation === "Assistant Commercial Manager" ||
-    user?.softwareDesignation === "Accounts";
+    user?.softwareDesignation === "Accounts" ||
+    user?.softwareDesignation === "Maintenance";
 
   // The provider is mounted once in the root layout and stays mounted across
   // a logout→login cycle (logout is a client-side route replace, not a page
@@ -73,6 +99,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (canReceive) return;
     setSheetAlerts([]);
     setKmVarianceAlerts([]);
+    setMaintenanceAlerts([]);
     setReminders([]);
     setComplianceAlertCount(0);
   }, [canReceive]);
@@ -82,6 +109,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!canReceive) return;
     let cancelled = false;
+    // Maintenance alerts already seen by this tab — only newer ones pop a toast.
+    let seenMaintenance: Set<number> | null = null;
 
     const load = () => {
       notificationsApi
@@ -93,7 +122,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const kmRows    = rows.filter((r) => r.eventType === "km_variance");
           // trip_assigned / trip_closed are shown in the CurrentTripsCard — exclude from sheet alerts
           const TRIP_EVENT_TYPES = new Set(["trip_assigned", "trip_closed"]);
-          const sheetRows = rows.filter((r) => r.eventType !== "km_variance" && !TRIP_EVENT_TYPES.has(r.eventType));
+          const maintRows = rows.filter((r) => MAINTENANCE_ALERT_TYPES.includes(r.eventType));
+          const sheetRows = rows.filter((r) =>
+            r.eventType !== "km_variance" && !TRIP_EVENT_TYPES.has(r.eventType) && !MAINTENANCE_ALERT_TYPES.includes(r.eventType));
+
+          const maint: MaintenanceAlertNotif[] = maintRows.map((r) => {
+            let m: { registration?: string; maintenance_type?: string; remind_at?: number; odometer?: number } = {};
+            try { m = JSON.parse(r.message || "{}"); } catch {}
+            return {
+              serverId: r.id,
+              kind: r.eventType === "maintenance_due" ? "due" : "soon",
+              title: r.title,
+              registration: m.registration ?? "",
+              maintenanceType: m.maintenance_type ?? "",
+              remindAt: Number(m.remind_at ?? 0),
+              odometer: Number(m.odometer ?? 0),
+              alertedAt: r.createdAt,
+            };
+          });
+          if (seenMaintenance) {
+            for (const a of maint) {
+              if (!seenMaintenance.has(a.serverId)) {
+                showToast(a.title, a.kind === "due" ? "warning" : "info", a.kind === "due" ? "Maintenance due" : "Maintenance due soon");
+              }
+            }
+          }
+          seenMaintenance = new Set(maint.map((a) => a.serverId));
+          setMaintenanceAlerts(maint);
 
           setSheetAlerts((prev) => {
             const fromServer = sheetRows.map((r) => ({
@@ -190,7 +245,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const clearSheetAlerts = useCallback(() => {
     if (alertsRef.current.some((a) => a.serverId !== undefined)) {
-      notificationsApi.markAllRead().catch(() => {});
+      // Maintenance alerts stay until they're opened themselves.
+      notificationsApi.markAllRead(MAINTENANCE_ALERT_TYPES).catch(() => {});
     }
     setSheetAlerts([]);
   }, []);
@@ -212,9 +268,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setKmVarianceAlerts((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const dismissMaintenanceAlert = useCallback((serverId: number) => {
+    notificationsApi.markRead(serverId).catch(() => {});
+    setMaintenanceAlerts((prev) => prev.filter((a) => a.serverId !== serverId));
+  }, []);
+
   return (
     <NotificationContext.Provider
-      value={{ sheetAlerts, kmVarianceAlerts, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
+      value={{ sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
     >
       {children}
     </NotificationContext.Provider>

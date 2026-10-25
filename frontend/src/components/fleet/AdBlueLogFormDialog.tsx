@@ -3,7 +3,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Droplets, Save } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { AdBlueLog } from "@/types/adblue-log";
-import { adblueLogsApi } from "@/lib/api";
+import { adblueLogsApi, type AdBlueManufacturer } from "@/lib/api";
+import { manufacturerRate } from "@/components/fleet/TruckManufacturersDialog";
 import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
@@ -14,6 +15,8 @@ type AdBlueLogFormDialogProps = {
   onClose: () => void;
   onSave: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) => void;
   truck: Truck;
+  /** The truck's manufacturer — its AdBlue rate pre-fills Cost Per Litre. */
+  manufacturer?: AdBlueManufacturer | null;
 };
 
 const inputClass =
@@ -47,7 +50,7 @@ function totalOf(litres: string, price: string): string {
   return !isNaN(l) && l > 0 && !isNaN(p) && p >= 0 ? (l * p).toFixed(2) : "";
 }
 
-export function AdBlueLogFormDialog({ open, onClose, onSave, truck }: AdBlueLogFormDialogProps) {
+export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer }: AdBlueLogFormDialogProps) {
   // Lazy initializer — a fresh object per mount, with "today" computed at
   // open-time rather than once at module load.
   const [form, setForm] = useState(emptyForm);
@@ -55,20 +58,35 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck }: AdBlueLogF
   const draftKey = `erp_adblue_log_draft_${truck.id}`;
   useFormDraft(draftKey, open, form, setForm);
 
-  // Cost Per Litre starts at this truck's last logged price (still editable) —
-  // AdBlue prices change, so it's entered per fill rather than fixed.
+  // Where the pre-filled Cost Per Litre came from (shown under the field).
+  const [priceSource, setPriceSource] = useState<string | null>(null);
+  const rate = manufacturerRate(manufacturer);
+
+  // Cost Per Litre starts at the manufacturer's AdBlue rate, else this truck's
+  // last logged price — still editable, since a fill can cost more or less.
   useEffect(() => {
     if (!open) return;
+    setPriceSource(null);
+    const prefill = (price: string, source: string) =>
+      setForm((prev) => {
+        if (prev.pricePerLitre) return prev;  // a draft / typed price wins
+        setPriceSource(source);
+        return { ...prev, pricePerLitre: price, totalCost: totalOf(prev.litres, price) };
+      });
+    if (rate != null) {
+      prefill(rate.toFixed(2), `From ${manufacturer?.name}'s AdBlue rate`);
+      return;
+    }
     adblueLogsApi.listLogs(truck.id)
       .then((logs) => {
         const last = logs[0]?.pricePerLitre;
-        if (!last) return;
-        setForm((prev) => (prev.pricePerLitre ? prev : { ...prev, pricePerLitre: last, totalCost: totalOf(prev.litres, last) }));
+        if (last) prefill(last, "From this truck's last fill");
       })
       .catch(() => {});
-  }, [open, truck.id]);
+  }, [open, truck.id, rate, manufacturer?.name]);
 
   function update(field: "date" | "odometer" | "litres" | "pricePerLitre" | "fillingLocation", value: string) {
+    if (field === "pricePerLitre") setPriceSource(null);
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       if (field === "litres" || field === "pricePerLitre") next.totalCost = totalOf(next.litres, next.pricePerLitre);
@@ -146,6 +164,7 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck }: AdBlueLogF
             className={inputClass}
             placeholder="e.g. 60.00"
           />
+          {priceSource && <p className="mt-1 text-xs text-blue-600">{priceSource} — change it if this fill cost differently.</p>}
         </Field>
 
         <Field label="Total Adblue Cost (₹)" required>

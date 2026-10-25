@@ -121,7 +121,7 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
               <table className="w-full min-w-[800px] whitespace-nowrap text-left text-xs">
                 <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
                   <tr>
-                    {["Start Date", "Truck", "Maintenance Type", "Repair Type", "Location", "Remarks", "Cost", "Proof of Payment"].map((h) => (
+                    {["Start Date", "Truck", "Maintenance Type", "Repair Type", "Invoice No.", "Invoice Date", "Location", "Remarks", "Cost", "Proof of Payment"].map((h) => (
                       <th key={h} className="px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{h}</th>
                     ))}
                   </tr>
@@ -136,6 +136,8 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                       </td>
                       <td className="px-4 py-2.5 font-medium text-slate-800">{r.maintenanceType}</td>
                       <td className="px-4 py-2.5 text-slate-500">{r.repairType || <span className="italic text-slate-400">—</span>}</td>
+                      <td className="px-4 py-2.5 text-slate-500">{r.invoiceNumber || <span className="italic text-slate-400">—</span>}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-slate-600">{r.invoiceDate ? formatDate(r.invoiceDate) : <span className="italic text-slate-400">—</span>}</td>
                       <td className="px-4 py-2.5 text-slate-500">{r.maintenanceLocation || <span className="italic text-slate-400">—</span>}</td>
                       <td className="max-w-[220px] truncate px-4 py-2.5 text-slate-500" title={r.description}>
                         {r.description || <span className="italic text-slate-400">—</span>}

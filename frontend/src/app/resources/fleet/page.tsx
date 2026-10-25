@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon, History, Pencil, Trash2, Undo2, HandCoins, Factory } from "lucide-react";
+import { Plus, X, Download, FileText, Loader2, Truck as TruckLucideIcon, History, Pencil, Trash2, Undo2, HandCoins } from "lucide-react";
 import { TruckTable } from "@/components/fleet/TruckTable";
+import { VEHICLE_IMAGES, bustTruckImages, truckImageUrl } from "@/components/fleet/VehicleImages";
+import { FileViewer } from "@/components/ui/FileViewer";
+import { ComplianceHistoryDialog } from "@/components/fleet/ComplianceHistoryDialog";
+import { OdometerCorrectionDialog } from "@/components/fleet/OdometerCorrectionDialog";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
 import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
 import { RemoveTruckDialog } from "@/components/fleet/RemoveTruckDialog";
-import { TruckManufacturersDialog } from "@/components/fleet/TruckManufacturersDialog";
 import { TruckTyreStepDialog, type TruckTyrePlan, type TyrePlanRow, type TruckStepDetails } from "@/components/fleet/TruckTyreStepDialog";
-import { trucksApi, branchesApi, uploadFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type TruckEditEventRow } from "@/lib/api";
+import { trucksApi, branchesApi, uploadFile, deleteFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type TruckEditEventRow } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
 import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Truck } from "@/types/truck";
@@ -71,6 +74,9 @@ export default function FleetPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [viewingTruck, setViewingTruck] = useState<Truck | null>(null);
+  const [complianceHistoryTruck, setComplianceHistoryTruck] = useState<Truck | null>(null);
+  const [odometerTruck, setOdometerTruck] = useState<Truck | null>(null);
+  const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<TruckEditEventRow[]>([]);
@@ -111,7 +117,6 @@ export default function FleetPage() {
   const [fleetView, setFleetView] = useState<"active" | "sold">("active");
   const [soldTrucks, setSoldTrucks] = useState<Truck[]>([]);
   // The Manufacturer list used by the Add/Edit Truck form.
-  const [manufacturersOpen, setManufacturersOpen] = useState(false);
 
   const filteredTrucks = trucks.filter(t =>
     !searchQuery ||
@@ -344,12 +349,21 @@ export default function FleetPage() {
         [files.national_permit, "national_permit"],
         [files.local_permit,    "local_permit"],
         [files.pollution_cert,  "pollution_cert"],
+        [files.front_view,      "front_view"],
+        [files.rear_view,       "rear_view"],
+        [files.left_view,       "left_view"],
+        [files.right_view,      "right_view"],
       ];
-      await Promise.all(
-        uploadMap
+      await Promise.all([
+        ...uploadMap
           .filter(([f]) => !!f)
-          .map(([f, field]) => uploadFile("trucks", saved.id, field, f!))
-      );
+          .map(([f, field]) => uploadFile("trucks", saved.id, field, f!)),
+        ...(files.removeImages ?? []).map((field) => deleteFile("trucks", saved.id, field)),
+      ]);
+      if (VEHICLE_IMAGES.some(({ field }) => files[field]) || files.removeImages?.length) {
+        bustTruckImages(saved.id);
+        setTrucks((prev) => prev.map((t) => (t.id === saved.id ? { ...t } : t)));
+      }
       setDialogOpen(false);
       showSuccess(editingTruck ? "Truck updated successfully." : "Truck added successfully.");
     } catch (err: unknown) {
@@ -483,14 +497,6 @@ export default function FleetPage() {
 )}
           <button
             type="button"
-            onClick={() => setManufacturersOpen(true)}
-            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
-          >
-            <Factory className="h-4 w-4" />
-            Manufacturers
-          </button>
-          <button
-            type="button"
             onClick={handleAdd}
             className="flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md"
           >
@@ -548,6 +554,8 @@ export default function FleetPage() {
             onDelete={handleDelete}
             onChangeBranch={handleChangeBranch}
             onBranchHistory={handleBranchHistory}
+            onComplianceHistory={setComplianceHistoryTruck}
+            onCorrectOdometer={setOdometerTruck}
           />
         ) : filteredSoldTrucks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-14 text-center">
@@ -615,12 +623,6 @@ export default function FleetPage() {
         />
       )}
 
-      <TruckManufacturersDialog
-        open={manufacturersOpen}
-        onClose={() => setManufacturersOpen(false)}
-        trucks={trucks}
-      />
-
       <RemoveTruckDialog
         truck={removeTruck}
         onClose={() => setRemoveTruck(null)}
@@ -663,6 +665,24 @@ export default function FleetPage() {
         open={!!branchHistoryTruck}
         truck={branchHistoryTruck}
         onClose={() => setBranchHistoryTruck(null)}
+      />
+
+      <ComplianceHistoryDialog truck={complianceHistoryTruck} onClose={() => setComplianceHistoryTruck(null)} />
+
+      <OdometerCorrectionDialog
+        truck={odometerTruck}
+        onClose={() => setOdometerTruck(null)}
+        onSaved={(saved) => {
+          setTrucks((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
+          cacheInvalidate("/trucks");
+        }}
+      />
+
+      <FileViewer
+        open={!!viewingImage}
+        onClose={() => setViewingImage(null)}
+        url={viewingImage?.url ?? ""}
+        title={viewingImage?.title ?? ""}
       />
 
       {viewingTruck && (() => {
@@ -727,58 +747,80 @@ export default function FleetPage() {
                   </div>
                 </div>
 
+                {/* Vehicle Images — open in the in-app viewer, not a new tab */}
+                {VEHICLE_IMAGES.some(({ nameKey }) => t[nameKey]) && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Vehicle Images</p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {VEHICLE_IMAGES.filter(({ nameKey }) => t[nameKey]).map(({ field, label }) => (
+                        <button
+                          key={field}
+                          type="button"
+                          onClick={() => setViewingImage({ url: truckImageUrl(t, field), title: `${t.registrationNumber || t.truckId} — ${label}` })}
+                          className="group overflow-hidden rounded-xl border border-gray-200 bg-gray-50 text-left transition hover:border-blue-300 hover:shadow-md"
+                        >
+                          <div className="h-24 w-full overflow-hidden bg-gray-100">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={truckImageUrl(t, field)}
+                              alt={label}
+                              onError={(e) => { e.currentTarget.style.visibility = "hidden"; }}
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                          </div>
+                          <p className="truncate px-2.5 py-1.5 text-[11px] font-medium text-gray-700">{label}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Uploaded documents — only shown if the file was actually uploaded */}
-                {(t.truckPhotosFileName || t.rcDocumentUrl || t.fcDocumentFileName || t.roadTaxDocumentFileName || t.insuranceDocumentProofFileName || t.nationalPermitProofFileName || t.localPermitProofFileName || t.pollutionCertificateProofFileName) && (
+                {(t.rcDocumentUrl || t.fcDocumentFileName || t.roadTaxDocumentFileName || t.insuranceDocumentProofFileName || t.nationalPermitProofFileName || t.localPermitProofFileName || t.pollutionCertificateProofFileName) && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
                     <div className="flex flex-wrap gap-3">
-                      {t.truckPhotosFileName && (
-                        <a href={fileUrl("trucks", t.id, "photo")} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
-                          <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
-                        </a>
-                      )}
                       {t.rcDocumentUrl && (
-                        <a href={fileUrl("trucks", t.id, "rc")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "rc"), title: `${t.registrationNumber || t.truckId} — RC` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> RC
-                        </a>
+                        </button>
                       )}
                       {t.fcDocumentFileName && (
-                        <a href={fileUrl("trucks", t.id, "fc")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "fc"), title: `${t.registrationNumber || t.truckId} — FC` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> FC
-                        </a>
+                        </button>
                       )}
                       {t.roadTaxDocumentFileName && (
-                        <a href={fileUrl("trucks", t.id, "road_tax")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "road_tax"), title: `${t.registrationNumber || t.truckId} — Road Tax` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Road Tax
-                        </a>
+                        </button>
                       )}
                       {t.insuranceDocumentProofFileName && (
-                        <a href={fileUrl("trucks", t.id, "insurance")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "insurance"), title: `${t.registrationNumber || t.truckId} — Insurance` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Insurance
-                        </a>
+                        </button>
                       )}
                       {t.nationalPermitProofFileName && (
-                        <a href={fileUrl("trucks", t.id, "national_permit")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "national_permit"), title: `${t.registrationNumber || t.truckId} — National Permit` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> National Permit
-                        </a>
+                        </button>
                       )}
                       {t.localPermitProofFileName && (
-                        <a href={fileUrl("trucks", t.id, "local_permit")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "local_permit"), title: `${t.registrationNumber || t.truckId} — Local Permit` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> Local Permit
-                        </a>
+                        </button>
                       )}
                       {t.pollutionCertificateProofFileName && (
-                        <a href={fileUrl("trucks", t.id, "pollution_cert")} target="_blank" rel="noopener noreferrer"
+                        <button type="button" onClick={() => setViewingImage({ url: fileUrl("trucks", t.id, "pollution_cert"), title: `${t.registrationNumber || t.truckId} — PUC Certificate` })}
                           className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
                           <FileText className="h-3.5 w-3.5 shrink-0" /> PUC Certificate
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>

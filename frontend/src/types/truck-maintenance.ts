@@ -19,6 +19,12 @@ export type MaintenanceRecord = {
   /** Maintenance By toggle; for "Vendor", vendorId links the record to Our Vendors. */
   maintenanceByType?: "Vendor" | "Individual" | null;
   vendorId?: string | null;
+  /** Invoice number given by the vendor / individual. */
+  invoiceNumber?: string;
+  /** YYYY-MM-DD, "" when not given. */
+  invoiceDate?: string;
+  /** "Notify me when this is due again" — the odometer to alert at ("" = no reminder). */
+  remindAtOdometer?: string;
   /** Only on Our Vendors → View Record rows. */
   truckCode?: string | null;
   truckRegistration?: string | null;
@@ -39,21 +45,3 @@ export const PROOF_MAX_IMAGES = 5;
 export const PROOF_MAX_PDFS = 3;
 export const PROOF_MAX_BYTES = 10 * 1024 * 1024;
 
-export type AirFilterRecord = {
-  id: string;
-  truckId: string;
-  date: string;
-  odometerDuringChange: string;
-  nextChangeOdometer: string;
-  remarks: string;
-  enteredByName?: string | null;
-  version?: number;
-};
-
-export type MaintenanceStatusItem = {
-  truckId: string;
-  item: string;
-  remainingKm: number;
-  category: string;
-  status: "ok" | "attention";
-};

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { BarChart3, Gauge, CalendarDays, Route } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
-import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
+import { useTruckTripRuns, useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
@@ -29,9 +29,10 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Gauge; label: str
 }
 
 export function TruckBreakdownDialog({ open, onClose, truck }: TruckBreakdownDialogProps) {
-  const { rows, loading } = useTruckTripRuns(truck, open);
-
-  const stats = useMemo(() => computeTruckRunStats(rows), [rows]);
+  const { rows, loading: rowsLoading } = useTruckTripRuns(truck, open);
+  // The summary figures come from the server (one formula for the whole app).
+  const { stats, loading: statsLoading } = useTruckRunStats(truck, open);
+  const loading = rowsLoading || statsLoading;
 
   if (!truck) return null;
 
@@ -65,8 +66,15 @@ export function TruckBreakdownDialog({ open, onClose, truck }: TruckBreakdownDia
             <StatTile icon={Route} label="Shortest Trip" value={stats.tripsWithDistance > 0 ? fmtKm(stats.shortest) : "—"} />
           </div>
           <p className="text-xs text-gray-400">
-            Based on {stats.tripsWithDistance} trip{stats.tripsWithDistance !== 1 ? "s" : ""} with a logged distance, over {stats.months} month{stats.months !== 1 ? "s" : ""} of tracked activity.
+            Based on {stats.tripsWithDistance} trip{stats.tripsWithDistance !== 1 ? "s" : ""} with a trip sheet, over{" "}
+            {stats.days} day{stats.days !== 1 ? "s" : ""} ({stats.months.toFixed(1)} months, from the first such trip to the latest trip entered in the system;
+            minimum one month). Cancelled trips and trips without a sheet aren&apos;t counted.
           </p>
+          {stats.missingSheets > 0 && (
+            <p className="-mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 ring-1 ring-amber-100">
+              {missingSheetsNote(stats)}.
+            </p>
+          )}
 
           {/* Per-trip breakdown */}
           <div className="overflow-x-auto rounded-xl border border-gray-200">

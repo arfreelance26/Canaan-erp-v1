@@ -122,14 +122,6 @@ def export_repair_types(db: Session = Depends(get_db)):
     return build_excel_response([("Repair Types", headers, data)], "repair_types.xlsx")
 
 
-@router.get("/maintenance-types")
-def export_maintenance_types(db: Session = Depends(get_db)):
-    rows = db.query(models.MaintenanceType).order_by(models.MaintenanceType.interval_km, models.MaintenanceType.name).all()
-    headers = ["Maintenance Type", "KM Interval"]
-    data = [[r.name, r.interval_km] for r in rows]
-    return build_excel_response([("Maintenance Types", headers, data)], "maintenance_types.xlsx")
-
-
 @router.get("/sac-codes")
 def export_sac_codes(db: Session = Depends(get_db)):
     rows = db.query(models.SacCode).order_by(models.SacCode.code).all()
@@ -611,11 +603,11 @@ def export_maintenance_records(
         .all()
     ) if records else {}
     headers = ["Truck ID", "Registration Number", "Start Date", "End Date", "Maintenance Type", "Repair Type",
-               "Compliant", "Location", "Maintenance By", "Remarks", "Odometer", "User Modified", "Source",
+               "Compliant", "Location", "Maintenance By", "Invoice Number", "Invoice Date", "Remarks", "Odometer", "User Modified", "Source",
                "Cost", "Proof of Payment Files"]
     data = [
         [r.truck.truck_id, r.truck.registration_number, r.date, r.maintenance_end_date, r.maintenance_type,
-         r.repair_type, r.compliant, r.maintenance_location, r.maintenance_by, r.description, r.odometer,
+         r.repair_type, r.compliant, r.maintenance_location, r.maintenance_by, r.invoice_number, r.invoice_date, r.description, r.odometer,
          r.entered_by_name, r.source, r.cost, int(proof_counts.get(r.id, 0))]
         for r in records
     ]
@@ -751,80 +743,47 @@ def export_truck_run_records(
     )
 
 
-@router.get("/air-filter-records")
-def export_air_filter_records(
-    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive, on the change date)"),
-    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive, on the change date)"),
+@router.get("/customer-profitability")
+def export_customer_profitability(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    cost_mode: str = "Advanced",
     db: Session = Depends(get_db),
 ):
-    """Air Filter R&R page: one row per air filter change. "Due In (KM)" is derived
-    from the truck's live odometer and only shown on each truck's latest change
-    (negative = overdue), matching the page's alerts."""
-    try:
-        start = date.fromisoformat(from_date) if from_date else None
-        end = date.fromisoformat(to_date) if to_date else None
-    except ValueError:
-        raise HTTPException(400, "Dates must be YYYY-MM-DD.")
-    latest_by_truck = {}
-    for tid, d in (
-        db.query(models.AirFilterRecord.truck_id, func.max(models.AirFilterRecord.date))
-        .group_by(models.AirFilterRecord.truck_id)
-        .all()
-    ):
-        latest_by_truck[tid] = d
-    q = db.query(models.AirFilterRecord).join(models.Truck, models.Truck.id == models.AirFilterRecord.truck_id)
-    if start:
-        q = q.filter(models.AirFilterRecord.date >= start)
-    if end:
-        q = q.filter(models.AirFilterRecord.date <= end)
-    records = q.order_by(models.AirFilterRecord.date.desc(), models.AirFilterRecord.id.desc()).all()
-    headers = [
-        "Truck ID", "Registration Number", "Manufacturer", "Model", "Change Date",
-        "Odometer During Change", "Next Change Odometer", "Current Odometer", "Due In (KM)",
-        "Remarks", "Logged By",
-    ]
-    seen = set()
-    data = []
-    for r in records:
-        first_for_truck = r.truck_id not in seen
-        seen.add(r.truck_id)
-        # Latest change per truck across ALL history, so a date filter can't make an
-        # older change look "current".
-        is_latest = first_for_truck and latest_by_truck.get(r.truck_id) == r.date
-        current = float(r.truck.odometer or 0)
-        data.append([
-            r.truck.truck_id, r.truck.registration_number, r.truck.manufacturer, r.truck.model_name,
-            r.date.isoformat(), r.odometer_during_change, r.next_change_odometer,
-            current if is_latest else "", (r.next_change_odometer - current) if is_latest else "",
-            r.remarks or "", r.entered_by_name or "",
-        ])
-    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
-    return build_excel_response([("Air Filter R&R", headers, data)], f"air_filter_records{suffix}.xlsx")
-
-
-@router.get("/customer-profitability")
-def export_customer_profitability(db: Session = Depends(get_db)):
     """Customer Profitability Analytics page: one row per customer plus a route-level
-    breakdown. Built from the very same aggregation the page uses (completed trips with
-    a trip sheet; revenue = hire - commission), so the file always matches the screen."""
-    from routers.trips import get_customer_profitability
+    breakdown, for the page's date range. Built from the very same aggregation the page
+    uses, with all three profit levels — Trip Profit, Gross Profit (after diesel) and
+    Final Profit (after Cost/KM) in the page's Cost/KM mode — so the file always matches
+    the screen."""
+    from datetime import date as _date
+    from routers.trips import get_customer_profitability, CPA_MODES
 
-    customers = get_customer_profitability(db)
-    cust_headers = [
-        "Rank", "Customer", "Trips", "Revenue", "Expenses", "Net Profit",
-        "Margin (%)", "Total KM", "Routes",
-    ]
+    mode = cost_mode if cost_mode in CPA_MODES else "Advanced"
+    customers = get_customer_profitability(
+        date_from=_date.fromisoformat(from_date) if from_date else None,
+        date_to=_date.fromisoformat(to_date) if to_date else None,
+        db=db,
+    )
+
+    def levels(x: dict) -> list:
+        rev, trip = x["revenue" if "revenue" in x else "total_revenue"], x["profit" if "profit" in x else "total_profit"]
+        gross, final = trip - x["diesel"][mode], trip - x["truck_cost"][mode]
+        pct = lambda v: round(v / rev * 100, 2) if rev > 0 else 0.0
+        incomplete = x["cost_missing"][mode] or x["diesel_missing"][mode]
+        return [round(trip, 2), pct(trip), round(gross, 2), pct(gross), round(final, 2), pct(final),
+                f"{incomplete} trip(s) without a Cost/KM" if incomplete else ""]
+
+    lvl_headers = ["Trip Profit", "Trip Margin (%)", "Gross Profit", "Gross Margin (%)",
+                   f"Final Profit ({mode})", "Final Margin (%)", "Incomplete"]
+    cust_headers = ["Rank", "Customer", "Trips", "Revenue", "Expenses", *lvl_headers, "Total KM", "Routes"]
     cust_rows = [
-        [i, c["customer_name"], c["trip_count"], c["total_revenue"], c["total_expense"],
-         c["total_profit"], c["profit_margin_pct"], c["total_km"], len(c["routes"])]
+        [i, c["customer_name"] + (" (custom)" if c["is_custom"] else ""), c["trip_count"], c["total_revenue"],
+         c["total_expense"], *levels(c), c["total_km"], len(c["routes"])]
         for i, c in enumerate(customers, start=1)
     ]
-    route_headers = [
-        "Customer", "Route", "Trips", "Revenue", "Expenses", "Profit", "Margin (%)", "Avg KM",
-    ]
+    route_headers = ["Customer", "Route", "Trips", "Revenue", "Expenses", *lvl_headers, "Avg KM"]
     route_rows = [
-        [c["customer_name"], r["route"], r["trip_count"], r["revenue"], r["expense"],
-         r["profit"], r["margin_pct"], r["avg_km"]]
+        [c["customer_name"], r["route"], r["trip_count"], r["revenue"], r["expense"], *levels(r), r["avg_km"]]
         for c in customers for r in c["routes"]
     ]
     return build_excel_response(

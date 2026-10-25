@@ -62,6 +62,17 @@ export function useAttendanceGate() {
     if ((payload as { resource?: string }).resource === "attendance") refreshMarked();
   });
 
+  // …but don't rely on the socket alone: if it's down (weak network, laptop
+  // woke from sleep) the person would stay locked after marking until a
+  // reload. While still unmarked, re-check every 10s and whenever the tab
+  // regains focus.
+  useEffect(() => {
+    if (marked !== false) return;
+    const id = window.setInterval(refreshMarked, 10_000);
+    window.addEventListener("focus", refreshMarked);
+    return () => { window.clearInterval(id); window.removeEventListener("focus", refreshMarked); };
+  }, [marked, refreshMarked]);
+
   const isAdmin = user?.softwareDesignation === "Admin";
   const locked = Boolean(user) && mandatory && !isAdmin && isWorkingDay === true && marked === false;
 

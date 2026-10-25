@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Pencil, Trash2, X, AlertTriangle, Paperclip } from "lucide-react";
+import { Pencil, Trash2, X, AlertTriangle, Paperclip, Clock } from "lucide-react";
 import { MaintenanceProofsDialog } from "./MaintenanceProofsDialog";
 import { MaintenanceRecordFormDialog } from "./MaintenanceRecordFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
@@ -12,7 +12,9 @@ import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
-import { editApprovalsApi, maintenanceApi, maintenanceRecordChanges } from "@/lib/api";
+import { editApprovalsApi, maintenanceApi, maintenanceRecordChanges, maintenanceRequestsApi } from "@/lib/api";
+import type { MaintenanceRequest } from "@/types/maintenance-request";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError } from "@/lib/swal";
 
 type MaintenanceRecordHistoryDialogProps = {
@@ -27,7 +29,7 @@ type MaintenanceRecordHistoryDialogProps = {
 
 const DATA_COLUMNS = [
   "Start Date", "End Date", "Maintenance Type", "Compliant", "Location", "Maintenance By",
-  "Remarks", "Odometer (km)", "User Modified", "Source", "Cost", "Proof of Payment", "",
+  "Invoice No.", "Invoice Date", "Remarks", "Odometer (km)", "User Modified", "Source", "Cost", "Proof of Payment", "",
 ];
 
 // ---------------------------------------------------------------------------
@@ -166,6 +168,21 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
     if (open) { setFromDate(""); setToDate(""); }
   }, [open]);
 
+  // Submitted but not yet approved — shown above the records so nobody thinks
+  // an entry was lost and enters it twice. Not counted in the total.
+  const [pending, setPending] = useState<MaintenanceRequest[]>([]);
+  const [pendingProofs, setPendingProofs] = useState<MaintenanceRequest | null>(null);
+  const truckDbId = truck?.id;
+  const loadPending = useCallback(() => {
+    if (!open || !truckDbId) return;
+    maintenanceRequestsApi.list({ status: "Pending", truckId: truckDbId }).then(setPending).catch(() => {});
+  }, [open, truckDbId]);
+  useEffect(() => {
+    setPending([]);
+    loadPending();
+  }, [loadPending]);
+  useWebSocketEvent("maintenance_request_updated", loadPending);
+
   const truckRecords = useMemo(() => {
     if (!truck) return [];
     return records
@@ -241,6 +258,8 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         compliant: record.compliant,
         maintenance_location: record.maintenanceLocation,
         maintenance_by: record.maintenanceBy,
+        invoice_number: record.invoiceNumber || null,
+        invoice_date: record.invoiceDate || null,
         description: record.description,
         odometer: record.odometer,
         cost: record.cost,
@@ -288,6 +307,38 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
           </div>
         </div>
 
+        {pending.length > 0 && (
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-amber-700">
+              <Clock className="h-3 w-3" /> Pending approval ({pending.length}) · not counted yet
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {pending.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-white/80 px-3 py-2 text-xs ring-1 ring-amber-100">
+                  <span className="tabular-nums text-slate-600">{formatDate(r.date)}</span>
+                  <span className="font-medium text-slate-800">{r.maintenanceType}{r.repairType ? ` · ${r.repairType}` : ""}</span>
+                  <span className="tabular-nums font-semibold text-slate-700">
+                    ₹{r.cost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-slate-500">
+                    by {r.submittedByName}{r.source === "Trip Sheet" ? ` · Trip Sheet${r.tripIdStr ? ` ${r.tripIdStr}` : ""}` : ""}
+                  </span>
+                  {r.proofCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPendingProofs(r)}
+                      className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                      <Paperclip className="h-3 w-3" /> {r.proofCount}
+                    </button>
+                  )}
+                  <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">Awaiting Admin / Accounts</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* ── Table ── */}
         {filteredRecords.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-400">
@@ -331,6 +382,12 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                     </td>
                     <td className="px-4 py-2.5 text-slate-500">
                       {record.maintenanceBy || <span className="italic text-slate-400">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-500">
+                      {record.invoiceNumber || <span className="italic text-slate-400">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 tabular-nums text-slate-600">
+                      {record.invoiceDate ? formatDate(record.invoiceDate) : <span className="italic text-slate-400">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-slate-500">
                       {record.description || <span className="italic text-slate-400">—</span>}
@@ -397,6 +454,15 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
         canDelete={isAdmin}
         onClose={() => setProofsRecord(null)}
         onCountChange={(n) => proofsRecord && setProofCounts((prev) => ({ ...prev, [proofsRecord.id]: n }))}
+      />
+
+      <MaintenanceProofsDialog
+        open={pendingProofs !== null}
+        recordId={pendingProofs?.id ?? null}
+        source="request"
+        subtitle={pendingProofs ? `${pendingProofs.maintenanceType} · ${formatDate(pendingProofs.date)} · pending approval` : undefined}
+        canDelete={false}
+        onClose={() => setPendingProofs(null)}
       />
 
       <MaintenanceRecordFormDialog

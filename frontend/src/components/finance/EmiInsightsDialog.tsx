@@ -8,7 +8,7 @@ import type { Truck } from "@/types/truck";
 import type { EmiRecord } from "@/types/finance";
 import { paidInstallments } from "@/lib/emi-schedule";
 import { formatDate } from "@/lib/format-date";
-import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
+import { useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
 
 const RUN_CONFIG_KEY = "erp_truck_run_config";
 
@@ -56,8 +56,7 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
   // Real, trip-history-based Monthly Distance Average for this truck — same
   // source and formula as the "View Breakdown" dialog on the Truck Run
   // Record page — used for EMI Cost Per KM (Advanced) below.
-  const { rows: truckRuns } = useTruckTripRuns(selectedTruck, open);
-  const runStats = useMemo(() => computeTruckRunStats(truckRuns), [truckRuns]);
+  const { stats: runStats } = useTruckRunStats(selectedTruck, open);
 
   const insights = useMemo(() => {
     if (!record) return null;
@@ -75,11 +74,11 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
       : 0;
     const emiCostPerKm = dailyFinanceCost > 0 && kmPerDay > 0 ? dailyFinanceCost / kmPerDay : 0;
 
-    // EMI Cost Per KM (Advanced) = Daily Finance Cost ÷ Monthly Distance
-    // Average for this truck (from the Truck Run Record page's real trip
-    // history), instead of Basic's admin-configured Km/Day figure.
+    // EMI Cost Per KM (Advanced) = the month's EMI ÷ the month's km
+    // (Daily Finance Cost × 26 ÷ Monthly Distance Average from Truck Run
+    // Record), instead of Basic's admin-configured Km/Day figure.
     const emiCostPerKmAdvanced = dailyFinanceCost > 0 && runStats.monthlyAvg > 0
-      ? dailyFinanceCost / runStats.monthlyAvg
+      ? (dailyFinanceCost * 26) / runStats.monthlyAvg
       : 0;
 
     return { tenure, emiAmt, amountPaid, remainingEmiAmount, totalEmiPayable, dailyFinanceCost, emiCostPerKm, kmPerDay, emiCostPerKmAdvanced };
@@ -151,7 +150,10 @@ export function EmiInsightsDialog({ open, onClose, record }: EmiInsightsDialogPr
                   ? "No truck assigned to this EMI"
                   : runStats.monthlyAvg === 0
                   ? "No trip run history for this truck yet"
-                  : "Daily Finance Cost ÷ Monthly Avg. Distance"}
+                  : "Daily Finance Cost × 26 ÷ Monthly Avg. Distance"}
+                {record.truckRegistration && missingSheetsNote(runStats) && (
+                  <span className="block text-amber-600">{missingSheetsNote(runStats)}</span>
+                )}
               </p>
             </div>
           </div>

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from database import get_db
 from security import get_current_user, TokenUser
@@ -7,19 +8,55 @@ import models, schemas
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
+def _reader_key(user: TokenUser) -> str:
+    return f"staff:{user.id}" if user.id is not None else f"admin:{user.name}"
+
+
+def _unread_filter(db: Session, user: TokenUser):
+    """Not read by THIS person. Rows read under the old shared flag stay read."""
+    read_ids = db.query(models.NotificationRead.notification_id).filter(
+        models.NotificationRead.reader_key == _reader_key(user)
+    )
+    return (models.Notification.is_read.is_(False)) & (~models.Notification.id.in_(read_ids))
+
+
+def _out(n: models.Notification, unread: bool) -> schemas.NotificationOut:
+    out = schemas.NotificationOut.model_validate(n)
+    out.is_read = not unread
+    return out
+
+
 @router.get("", response_model=list[schemas.NotificationOut])
 def list_notifications(
     unread_only: bool = True,
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    """Notifications targeted at the current user's role (newest first, max 50)."""
+    """Notifications targeted at the current user's role (newest first, max 50).
+    Read state is per person — one person opening an alert doesn't clear it
+    for the others in that role."""
     q = db.query(models.Notification).filter(
         models.Notification.target_roles.contains(current_user.role)
     )
+    unread = _unread_filter(db, current_user)
     if unread_only:
-        q = q.filter(models.Notification.is_read.is_(False))
-    return q.order_by(models.Notification.created_at.desc()).limit(50).all()
+        rows = q.filter(unread).order_by(models.Notification.created_at.desc()).limit(50).all()
+        return [_out(n, True) for n in rows]
+    rows = q.order_by(models.Notification.created_at.desc()).limit(50).all()
+    unread_ids = {nid for (nid,) in db.query(models.Notification.id).filter(
+        models.Notification.id.in_([n.id for n in rows]), unread)} if rows else set()
+    return [_out(n, n.id in unread_ids) for n in rows]
+
+
+def _mark(db: Session, user: TokenUser, ids: list[int]) -> None:
+    key = _reader_key(user)
+    have = {nid for (nid,) in db.query(models.NotificationRead.notification_id).filter(
+        models.NotificationRead.reader_key == key,
+        models.NotificationRead.notification_id.in_(ids),
+    )} if ids else set()
+    for nid in ids:
+        if nid not in have:
+            db.add(models.NotificationRead(notification_id=nid, reader_key=key))
 
 
 @router.post("/{notification_id}/read", response_model=schemas.NotificationOut)
@@ -31,22 +68,35 @@ def mark_read(
     notif = db.query(models.Notification).filter(models.Notification.id == notification_id).first()
     if not notif:
         raise HTTPException(404, "Notification not found")
-    notif.is_read = True
-    db.commit()
-    db.refresh(notif)
-    return notif
+    _mark(db, current_user, [notif.id])
+    try:
+        db.commit()
+    except IntegrityError:   # the same person marked it twice at once
+        db.rollback()
+    return _out(notif, False)
 
 
 @router.post("/read-all")
 def mark_all_read(
+    exclude: str = "",
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
-    db.query(models.Notification).filter(
+    """Mark every unread notification read for this person. `exclude` is a
+    comma-separated list of event types to leave unread (e.g. the bell's
+    "clear trip sheet alerts" mustn't clear maintenance alerts)."""
+    q = db.query(models.Notification.id).filter(
         models.Notification.target_roles.contains(current_user.role),
-        models.Notification.is_read.is_(False),
-    ).update({"is_read": True}, synchronize_session=False)
-    db.commit()
+        _unread_filter(db, current_user),
+    )
+    skip = [t.strip() for t in exclude.split(",") if t.strip()]
+    if skip:
+        q = q.filter(~models.Notification.event_type.in_(skip))
+    _mark(db, current_user, [nid for (nid,) in q])
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
     return {"ok": True}
 
 

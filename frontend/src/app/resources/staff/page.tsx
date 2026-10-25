@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, FileText, Loader2, Plus, X, Smartphone, Laptop, Users, History, Pencil, Trash2, Undo2 } from "lucide-react";
+import { Plus, Users, History, Pencil, Trash2, Undo2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import { StaffDetailDialog } from "@/components/staff/StaffDetailDialog";
 
 const EDIT_EVENT_ICON: Record<StaffEditEventRow["event"], typeof Plus> = {
   "Staff Created": Plus,
@@ -310,134 +311,14 @@ export default function StaffPage() {
         initialData={editingStaff}
       />
 
-      {viewingStaff && (() => {
-        const m = viewingStaff;
-        const fmtD = (v: string) => v ? new Date(v + "T00:00:00").toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-") : "—";
-        const fmtDateTime = (v: string) => {
-          const d = new Date(v.endsWith("Z") || v.includes("+") ? v : v + "Z");
-          return isNaN(d.getTime()) ? "—" : d.toLocaleString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" }).replace(/\//g, "-");
-        };
-        const Field = ({ label, value }: { label: string; value: string }) => (
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</span>
-            <span className="text-sm font-medium text-gray-800">{value || "—"}</span>
-          </div>
-        );
-        return (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingStaff(null); }}>
-            <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0">
-                <div>
-                  <p className="font-semibold text-gray-900">{m.staffId} — {m.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{m.department} · {m.designation}</p>
-                </div>
-                <button type="button" onClick={() => setViewingStaff(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">General Information</p>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <Field label="Staff ID" value={m.staffId} />
-                    <Field label="Name" value={m.name} />
-                    <Field label="Department" value={m.department} />
-                    <Field label="Designation" value={m.designation} />
-                    <Field label="Software Designation" value={m.softwareDesignation} />
-                    <Field label="Contact Number" value={m.contactNumber} />
-                    <Field label="Email" value={m.email} />
-                    <Field label="Date of Birth" value={fmtD(m.dateOfBirth)} />
-                    <Field label="Date of Joining" value={fmtD(m.dateOfJoining)} />
-                    <Field label="Address" value={m.address} />
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Identity Documents</p>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <Field label="Aadhaar Number" value={m.aadharNumber ?? ""} />
-                  </div>
-                </div>
-
-                {(m.photoUrl || m.identityImageUrl || m.aadharFileName) && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Uploaded Documents</p>
-                    <div className="flex flex-wrap gap-3">
-                      {m.photoUrl && (
-                        <a href={fileUrl("staff", m.id, "photo")} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
-                          <FileText className="h-3.5 w-3.5 shrink-0" /> Photo
-                        </a>
-                      )}
-                      {m.identityImageUrl && (
-                        <a href={fileUrl("staff", m.id, "identity")} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
-                          <FileText className="h-3.5 w-3.5 shrink-0" /> Identity Image
-                        </a>
-                      )}
-                      {m.aadharFileName && (
-                        <a href={fileUrl("staff", m.id, "aadhar")} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
-                          <FileText className="h-3.5 w-3.5 shrink-0" /> Aadhaar
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Registered Devices — device-lock bindings, with per-device reset */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-3">Registered Devices</p>
-                  {(m.devices ?? []).length === 0 ? (
-                    <p className="text-sm text-gray-400">No devices bound. The next login will bind a device.</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {(m.devices ?? []).map((d) => (
-                        <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2.5">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                              {d.kind === "mobile" ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-800">{d.label || "Device"}</p>
-                              <p className="text-xs text-gray-400">
-                                {d.boundAt ? `Bound ${fmtDateTime(d.boundAt)}` : "Bound earlier"}
-                              </p>
-                            </div>
-                          </div>
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => handleResetOneDevice(m.id, d.id, d.label || "this device")}
-                              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100"
-                            >
-                              <Smartphone className="h-3.5 w-3.5" />
-                              Reset
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t px-5 py-3 flex items-center justify-end shrink-0">
-                <button
-                  type="button"
-                  onClick={async () => { await handleDownloadPDF(m); setViewingStaff(null); }}
-                  disabled={downloading}
-                  className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  {downloading ? "Generating..." : "Download PDF"}
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      <StaffDetailDialog
+        staff={viewingStaff}
+        onClose={() => setViewingStaff(null)}
+        isAdmin={isAdmin}
+        downloading={downloading}
+        onDownloadPdf={(m) => handleDownloadPDF(m)}
+        onResetDevice={handleResetOneDevice}
+      />
 
       {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
           every staff member (not just the ones currently on this page), in

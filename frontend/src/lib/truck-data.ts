@@ -57,6 +57,10 @@ export const initialTrucks: Truck[] = [
     pollutionCertificateNumber: "TN09BR0012345",
     pollutionCertificateProofFileName: "cgi_t001_puc.pdf",
     pollutionCertificateExpenses: "500",
+    frontViewFileName: null,
+    rearViewFileName: null,
+    leftViewFileName: null,
+    rightViewFileName: null,
     fuelCapacity: "300",
   },
 ];

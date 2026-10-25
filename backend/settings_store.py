@@ -161,3 +161,66 @@ def verify_chat_owner_view_password(db: Session, password: str) -> bool:
 
 def set_chat_owner_view_password(db: Session, new_password: str) -> None:
     _set(db, CHAT_OWNER_VIEW_PASSWORD_HASH_KEY, _owner_view_pwd_ctx.hash(new_password))
+
+
+FESTIVE_SEASON_KEY = "festive_season_enabled"
+
+
+def festive_season_enabled(db: Session) -> bool:
+    """December festive decorations (Christmas + New Year). On unless an Admin
+    turned it off."""
+    v = _get(db, FESTIVE_SEASON_KEY)
+    return True if v is None else v.strip().lower() in _TRUE
+
+
+def set_festive_season_enabled(db: Session, enabled: bool) -> None:
+    _set(db, FESTIVE_SEASON_KEY, "true" if enabled else "false")
+
+
+FOUNDING_DAY_KEY = "founding_day_enabled"
+
+
+def founding_day_enabled(db: Session) -> bool:
+    """5 January Founding Day celebration. On unless an Admin turned it off."""
+    v = _get(db, FOUNDING_DAY_KEY)
+    return True if v is None else v.strip().lower() in _TRUE
+
+
+def set_founding_day_enabled(db: Session, enabled: bool) -> None:
+    _set(db, FOUNDING_DAY_KEY, "true" if enabled else "false")
+
+
+BIRTHDAYS_KEY = "birthdays_enabled"
+
+
+def birthdays_enabled(db: Session) -> bool:
+    """Staff birthday celebration. On unless an Admin turned it off."""
+    v = _get(db, BIRTHDAYS_KEY)
+    return True if v is None else v.strip().lower() in _TRUE
+
+
+def set_birthdays_enabled(db: Session, enabled: bool) -> None:
+    _set(db, BIRTHDAYS_KEY, "true" if enabled else "false")
+
+
+# Greeting-card text, editable on Celebrations Management — one row per
+# message (app_settings.value is VARCHAR(255)); a blank/missing row falls back
+# to the default.
+CELEBRATION_MESSAGE_MAX = 250
+DEFAULT_CELEBRATION_MESSAGES = {
+    "birthday": "Wishing you a wonderful year ahead — thank you for everything you bring to the team.",
+    "christmas": "Wishing you and your family joy, peace and a wonderful Christmas.",
+    "newyear": "Thank you for a great year — here's to an even better one together.",
+    "founding": "Thank you for being part of the journey.",
+    "signature": "— Team Canaan Global",
+}
+
+
+def celebration_messages(db: Session) -> dict:
+    return {k: ((_get(db, f"celebration_msg_{k}") or "").strip() or v) for k, v in DEFAULT_CELEBRATION_MESSAGES.items()}
+
+
+def set_celebration_messages(db: Session, messages: dict) -> None:
+    for k in DEFAULT_CELEBRATION_MESSAGES:
+        if k in messages:
+            _set(db, f"celebration_msg_{k}", str(messages.get(k) or "").strip()[:CELEBRATION_MESSAGE_MAX])

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Boxes, History, Pencil, Trash2, Undo2 } from "lucide-react";
 import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTable";
-import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY } from "@/components/tyre-inventory/TyreInventoryFormDialog";
+import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY, type TyreProofChange } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
 import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
@@ -159,23 +159,29 @@ export default function TyreInventoryPage() {
     }
   }
 
-  async function handleSave(tyre: TyreInventoryItem) {
+  async function handleSave(tyre: TyreInventoryItem, proof: TyreProofChange) {
+    let saved: TyreInventoryItem;
+    const exists = tyres.some((existing) => existing.id === tyre.id);
     try {
-      const exists = tyres.some((existing) => existing.id === tyre.id);
-      if (exists) {
-        const updated = await tyreApi.updateTyre(tyre.id, tyre);
-        setTyres((prev) => prev.map((existing) => (existing.id === tyre.id ? updated : existing)));
-        showSuccess("Tyre updated successfully.");
-      } else {
-        const created = await tyreApi.createTyre(tyre);
-        setTyres((prev) => [...prev, created]);
-        clearFormDraft(TYRE_DRAFT_KEY);
-        showSuccess("Tyre added successfully.");
-      }
-      setDialogOpen(false);
+      saved = exists ? await tyreApi.updateTyre(tyre.id, tyre) : await tyreApi.createTyre(tyre);
     } catch (err: unknown) {
       showError(err instanceof Error ? err.message : "Failed to save tyre.");
+      return;
     }
+    if (!exists) clearFormDraft(TYRE_DRAFT_KEY);
+    // The tyre is saved either way; a failed upload is reported on its own so
+    // the user can retry it from Edit without re-entering everything.
+    let proofFailed = "";
+    try {
+      if (proof.file) saved = await tyreApi.uploadProof(saved.id, proof.file);
+      else if (proof.remove) saved = await tyreApi.deleteProof(saved.id);
+    } catch (err: unknown) {
+      proofFailed = err instanceof Error ? err.message : "Upload failed.";
+    }
+    setTyres((prev) => (exists ? prev.map((t) => (t.id === saved.id ? saved : t)) : [...prev, saved]));
+    setDialogOpen(false);
+    if (proofFailed) showError(`Tyre ${exists ? "updated" : "added"}, but the Proof of Payment/Invoice wasn't saved: ${proofFailed}`);
+    else showSuccess(exists ? "Tyre updated successfully." : "Tyre added successfully.");
   }
 
   function handleViewHistory(tyre: TyreInventoryItem) {

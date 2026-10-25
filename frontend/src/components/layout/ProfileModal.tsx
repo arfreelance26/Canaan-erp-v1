@@ -10,6 +10,7 @@ import {
   GitBranch,
   CalendarClock,
   Info,
+  ZoomIn,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { staffApi, attendanceApi, fileUrl } from "@/lib/api";
@@ -84,6 +85,9 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   const [profile, setProfile] = useState<StaffDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<StaffSelfSummary | null>(null);
+  // Profile photo opened full size (click the avatar).
+  const [photoOpen, setPhotoOpen] = useState(false);
+  useEffect(() => { if (!open) setPhotoOpen(false); }, [open]);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -159,11 +163,14 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      // Escape closes the full-size photo first, then the profile.
+      if (photoOpen) setPhotoOpen(false);
+      else onClose();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+  }, [open, onClose, photoOpen]);
 
   if (!open) return null;
 
@@ -202,6 +209,30 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      {photoOpen && photoSrc && (
+        <div
+          className="fixed inset-0 z-[210] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          onClick={() => setPhotoOpen(false)}
+          role="dialog"
+          aria-label={`${displayName} — profile photo`}
+        >
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(false)}
+            aria-label="Close photo"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {/* Original size; only scaled down if it's bigger than the screen. */}
+          <img
+            src={photoSrc}
+            alt={displayName}
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain shadow-2xl"
+          />
+        </div>
+      )}
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
@@ -230,11 +261,22 @@ export function ProfileModal({ open, onClose }: ProfileModalProps) {
         <div className="relative flex flex-col items-center px-6 pb-1">
           <div className="relative -mt-12">
             {photoSrc ? (
-              <img
-                src={photoSrc}
-                alt={displayName}
-                className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-[0_8px_24px_rgba(0,0,0,0.2)] dark:border-[#1a2035]"
-              />
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                title="View photo"
+                aria-label="View profile photo full size"
+                className="group relative block cursor-zoom-in rounded-full"
+              >
+                <img
+                  src={photoSrc}
+                  alt={displayName}
+                  className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-[0_8px_24px_rgba(0,0,0,0.2)] transition group-hover:brightness-90 dark:border-[#1a2035]"
+                />
+                <span className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-full bg-black/0 text-white opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
+                  <ZoomIn className="h-5 w-5" />
+                </span>
+              </button>
             ) : (
               <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-blue-600 to-indigo-700 text-2xl font-bold text-white shadow-[0_8px_24px_rgba(0,0,0,0.2)] dark:border-[#1a2035]">
                 {initials}

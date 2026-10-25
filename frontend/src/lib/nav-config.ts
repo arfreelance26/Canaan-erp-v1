@@ -1,4 +1,5 @@
 import {
+  PartyPopper,
   LayoutDashboard,
   ClipboardCheck,
   ClipboardList,
@@ -34,7 +35,6 @@ import {
   Droplets,
   Lock,
   Coins,
-  Settings2,
   Gauge,
   PieChart,
   Map,
@@ -45,7 +45,6 @@ import {
   IndianRupee,
   Trash2,
   RefreshCw,
-  Filter,
   Archive,
   Activity,
   Flag,
@@ -90,6 +89,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Profitability", href: "/insights/pl-summary", icon: TrendingUp },
       { label: "Running Cost Calculator", href: "/insights/running-cost-calculator", icon: Calculator },
       { label: "Trip Profitability Calculator", href: "/insights/trip-profitability-calculator", icon: PieChart },
+      { label: "Trip Planner", href: "/insights/trip-planner", icon: Route },
       { label: "Fleet Summary", href: "/insights/fleet-summary", icon: Map },
       { label: "Trip Summary", href: "/trips/pnl-mileage", icon: BarChart2 },
       { label: "Truck Maintenance Record", href: "/maintenance/truck-records", icon: Wrench },
@@ -117,6 +117,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Leave Approvals", href: "/attendance/leave-approvals", icon: CalendarCheck },
       { label: "Edit Approvals", href: "/attendance/edit-approvals", icon: ShieldAlert },
       { label: "Deletion Approvals", href: "/attendance/deletion-approvals", icon: ShieldX },
+      { label: "Maintenance Approvals", href: "/attendance/maintenance-approvals", icon: Wrench },
       { label: "Attendance Report", href: "/attendance/report", icon: BarChart3 },
     ],
   },
@@ -151,7 +152,8 @@ export const sidebarSections: NavSection[] = [
   {
     title: "Auditor Pages",
     items: [
-      { label: "Driver Record", href: "/resources/driver-record", icon: IdCard },
+      { label: "Driver Based Record", href: "/resources/driver-record", icon: IdCard },
+      { label: "Vehicle Based Record", href: "/resources/vehicle-record", icon: Truck },
     ],
   },
   {
@@ -174,12 +176,6 @@ export const sidebarSections: NavSection[] = [
     ],
   },
   {
-    title: "Records",
-    items: [
-      { label: "Air Filter R&R", href: "/maintenance/air-filter-rr", icon: Filter },
-    ],
-  },
-  {
     title: "Finance Hub",
     items: [
       { label: "Driver Compensation", href: "/finance/driver-compensation", icon: Wallet },
@@ -194,13 +190,13 @@ export const sidebarSections: NavSection[] = [
       { label: "Branch Management", href: "/admin/branches", icon: GitBranch },
       { label: "Trip Expenses", href: "/admin/trip-expenses", icon: Receipt },
       { label: "Repairs Management", href: "/admin/repairs", icon: Wrench },
-      { label: "Maintenance Alert Management", href: "/admin/maintenance-management", icon: Settings2 },
       { label: "Maintenance Management", href: "/admin/maintenance", icon: Wrench },
       { label: "Truck Run Configuration", href: "/admin/truck-run-config", icon: Gauge },
       { label: "Tyre Cost Configuration", href: "/admin/tyre-cost-config", icon: DollarSign },
       { label: "Tyre Range Configuration", href: "/admin/tyre-range-config", icon: CircleDot },
       { label: "SAC Code Management", href: "/admin/sac-codes", icon: Tag },
       { label: "Default Batta Management", href: "/admin/default-batta", icon: Coins },
+      { label: "Celebrations Management", href: "/admin/celebrations", icon: PartyPopper },
     ],
   },
 ];

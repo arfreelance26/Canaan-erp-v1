@@ -8,6 +8,9 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { WebSocketProvider } from "@/context/WebSocketContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { BirthdayProvider } from "@/context/BirthdayContext";
+import { SeasonProvider } from "@/context/SeasonContext";
+import { FoundingProvider } from "@/context/FoundingContext";
 import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 import { ChatProvider } from "@/context/ChatContext";
@@ -65,6 +68,9 @@ export default function RootLayout({
         <AuthProvider>
           <WebSocketProvider>
             <NotificationProvider>
+              <BirthdayProvider>
+              <SeasonProvider>
+              <FoundingProvider>
               <TripWorkflowProvider>
                 <TyreInventoryProvider>
                   <ChatProvider>
@@ -72,6 +78,9 @@ export default function RootLayout({
                   </ChatProvider>
                 </TyreInventoryProvider>
               </TripWorkflowProvider>
+              </FoundingProvider>
+              </SeasonProvider>
+              </BirthdayProvider>
             </NotificationProvider>
           </WebSocketProvider>
         </AuthProvider>

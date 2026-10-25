@@ -38,6 +38,11 @@ export type Truck = {
   pollutionCertificateNumber: string;
   pollutionCertificateProofFileName: string | null;
   pollutionCertificateExpenses: string;
+  /** Vehicle Images — truckPhotosFileName is the Vehicle Identity Image. */
+  frontViewFileName: string | null;
+  rearViewFileName: string | null;
+  leftViewFileName: string | null;
+  rightViewFileName: string | null;
   version?: number;
   /** How the truck left the fleet — only on Sold Trucks rows. */
   disposalType?: "Sold" | "Deleted" | null;

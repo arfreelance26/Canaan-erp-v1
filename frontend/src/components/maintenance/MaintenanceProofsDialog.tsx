@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, FileText, ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { Eye, FileText, ImageIcon, Loader2, Trash2 } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
-import { maintenanceApi } from "@/lib/api";
+import { FileViewer } from "@/components/ui/FileViewer";
+import { maintenanceApi, maintenanceRequestsApi } from "@/lib/api";
 import { confirmDelete, showError } from "@/lib/swal";
 import type { MaintenanceProof } from "@/types/truck-maintenance";
 import { proofTypeLabel } from "./MaintenanceRecordFormDialog";
@@ -14,6 +15,8 @@ type Props = {
   /** Which record this is — shown as a line under the title, e.g. "SUSPENSION WORK · 11-10-2026". */
   subtitle?: string;
   canDelete: boolean;
+  /** "request": recordId is a pending Maintenance Approvals request (read-only files). */
+  source?: "record" | "request";
   onClose: () => void;
   /** Called with the new count after a file is deleted. */
   onCountChange?: (count: number) => void;
@@ -23,16 +26,29 @@ function fileSize(bytes: number): string {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// A pending request's files have the same shape; they just live under the request.
+function listProofsFor(source: "record" | "request", id: string): Promise<MaintenanceProof[]> {
+  return source === "request"
+    ? maintenanceRequestsApi.listProofs(id).then((l) => l.map((p) => ({ ...p, recordId: p.requestId })))
+    : maintenanceApi.listProofs(id);
+}
+
+function fetchProofFor(source: "record" | "request", id: string, proofId: string): Promise<Blob> {
+  return source === "request" ? maintenanceRequestsApi.fetchProofBlob(id, proofId) : maintenanceApi.fetchProofBlob(id, proofId);
+}
+
 /**
  * Proof of Payment files on one maintenance record. Files are fetched with the
  * normal auth header and shown/opened as blob URLs, so no token ever goes into
  * a link that could be copied or end up in browser history.
  */
-export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, onClose, onCountChange }: Props) {
+export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, source = "record", onClose, onCountChange }: Props) {
+
   const [proofs, setProofs] = useState<MaintenanceProof[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<MaintenanceProof | null>(null);
   const urls = useRef<string[]>([]);
 
   useEffect(() => {
@@ -41,14 +57,13 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, o
     setLoading(true);
     setProofs([]);
     setThumbs({});
-    maintenanceApi
-      .listProofs(recordId)
+    listProofsFor(source, recordId)
       .then(async (list) => {
         if (cancelled) return;
         setProofs(list);
         for (const p of list.filter((x) => x.kind === "image")) {
           try {
-            const blob = await maintenanceApi.fetchProofBlob(recordId, p.id);
+            const blob = await fetchProofFor(source, recordId, p.id);
             if (cancelled) return;
             const url = URL.createObjectURL(blob);
             urls.current.push(url);
@@ -65,26 +80,12 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, o
       urls.current.forEach((u) => URL.revokeObjectURL(u));
       urls.current = [];
     };
-  }, [open, recordId]);
+  }, [open, recordId, source]);
 
-  async function openProof(p: MaintenanceProof) {
+  // Opens in the in-app viewer (fetched with the auth header, never a new tab).
+  function openProof(p: MaintenanceProof) {
     if (!recordId) return;
-    // Open the tab synchronously (inside the click) so pop-up blockers allow it,
-    // then point it at the file once it has downloaded.
-    const tab = window.open("", "_blank");
-    setBusyId(p.id);
-    try {
-      const blob = await maintenanceApi.fetchProofBlob(recordId, p.id);
-      const url = URL.createObjectURL(blob);
-      urls.current.push(url);
-      if (tab) tab.location.href = url;
-      else window.location.assign(url);
-    } catch (err) {
-      tab?.close();
-      showError(err instanceof Error ? err.message : "Could not open the file.");
-    } finally {
-      setBusyId(null);
-    }
+    setViewing(p);
   }
 
   async function deleteProof(p: MaintenanceProof) {
@@ -145,7 +146,7 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, o
                     <div key={p.id} className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white transition-shadow hover:shadow-md">
                       <button
                         type="button"
-                        onClick={() => void openProof(p)}
+                        onClick={() => openProof(p)}
                         title={`Open ${p.fileName}`}
                         className="block w-full text-left"
                       >
@@ -163,7 +164,7 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, o
                               <Loader2 className="h-5 w-5 animate-spin text-white" />
                             ) : (
                               <span className="flex items-center gap-1 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-gray-800 shadow">
-                                <ExternalLink className="h-3.5 w-3.5" /> Open
+                                <Eye className="h-3.5 w-3.5" /> Open
                               </span>
                             )}
                           </span>
@@ -207,11 +208,11 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, o
                       </span>
                       <button
                         type="button"
-                        onClick={() => void openProof(p)}
+                        onClick={() => openProof(p)}
                         disabled={busyId === p.id}
                         className="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
                       >
-                        {busyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+                        {busyId === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
                         Open
                       </button>
                       {canDelete && (
@@ -237,6 +238,14 @@ export function MaintenanceProofsDialog({ open, recordId, subtitle, canDelete, o
           </>
         )}
       </div>
+      <FileViewer
+        open={!!viewing}
+        onClose={() => setViewing(null)}
+        title={viewing?.fileName ?? ""}
+        filename={viewing?.fileName}
+        url={viewing && recordId ? `${source}-proof:${recordId}:${viewing.id}` : ""}
+        load={viewing && recordId ? () => fetchProofFor(source, recordId, viewing.id) : undefined}
+      />
     </Dialog>
   );
 }

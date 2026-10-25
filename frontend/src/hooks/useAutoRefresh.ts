@@ -88,7 +88,7 @@ export function useAutoRefresh(callback: () => void, intervalMs: number = 5000) 
  * contenteditable/combobox), meaning the user is mid-entry and a background
  * refresh must be deferred so their input isn't lost.
  */
-function isUserEditing(): boolean {
+export function isUserEditing(): boolean {
   if (typeof document === "undefined") return false;
   const el = document.activeElement as HTMLElement | null;
   if (!el) return false;

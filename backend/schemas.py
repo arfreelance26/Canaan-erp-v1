@@ -75,6 +75,10 @@ class TruckBase(OrmBase):
     pollution_certificate_number: Optional[str] = None
     pollution_certificate_proof_file_name: Optional[str] = None
     pollution_certificate_expenses: Optional[Decimal] = None
+    front_view_file_name: Optional[str] = None
+    rear_view_file_name: Optional[str] = None
+    left_view_file_name: Optional[str] = None
+    right_view_file_name: Optional[str] = None
 
 
 class TruckCreate(TruckBase):
@@ -907,6 +911,8 @@ class ComplianceEditEventOut(BaseModel):
     document_type: str
     actor_name: str
     created_at: datetime
+    action: Optional[str] = None   # None = set / renewed; "Corrected"; "Renewal undone"
+    note: Optional[str] = None
 
 
 BranchEditEventType = Literal["Branch Created", "Branch Edited", "Branch Deleted"]
@@ -937,19 +943,6 @@ class RepairTypeEditEventListOut(BaseModel):
     created_at: datetime
 
 
-MaintenanceTypeEditEventType = Literal["Type Created", "Type Edited", "Type Deleted"]
-
-
-class MaintenanceTypeEditEventListOut(BaseModel):
-    """One row in the page-wide "Edit History" log on Maintenance Alert
-    Management."""
-    id: int
-    type_id: int
-    name: str
-    event: MaintenanceTypeEditEventType
-    actor_name: str
-    actor_role: Optional[str] = None
-    created_at: datetime
 
 
 MaintenanceCategoryEditEventType = Literal[
@@ -1780,9 +1773,12 @@ class MaintenanceRecordCreate(OrmBase):
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
     maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    invoice_number: Optional[str] = None          # given by the vendor / individual
+    invoice_date: Optional[_DateType] = None
     vendor_id: Optional[int] = None
     description: Optional[str] = None             # Remarks
     cost: Optional[Decimal] = None
+    remind_at_odometer: Optional[int] = None      # "Notify me when this is due again"
 
 
 class MaintenanceRecordUpdate(OrmBase):
@@ -1796,9 +1792,12 @@ class MaintenanceRecordUpdate(OrmBase):
     maintenance_location: Optional[str] = None
     maintenance_by: Optional[str] = None
     maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    invoice_number: Optional[str] = None          # given by the vendor / individual
+    invoice_date: Optional[_DateType] = None
     vendor_id: Optional[int] = None
     description: Optional[str] = None
     cost: Optional[Decimal] = None
+    remind_at_odometer: Optional[int] = None      # sent as null to turn the reminder off
 
 
 class MaintenanceRecordOut(OrmBase):
@@ -1821,6 +1820,11 @@ class MaintenanceRecordOut(OrmBase):
     updated_at: Optional[datetime] = None
     maintenance_by_type: Optional[str] = None
     vendor_id: Optional[int] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[_DateType] = None
+    remind_at_odometer: Optional[int] = None
+    remind_soon_sent_at: Optional[datetime] = None
+    remind_due_sent_at: Optional[datetime] = None
     # Number of Proof of Payment files attached (filled in by the list route).
     proof_count: int = 0
 
@@ -1841,41 +1845,48 @@ class MaintenanceProofOut(OrmBase):
     created_at: Optional[datetime] = None
 
 
-class AirFilterRecordCreate(OrmBase):
-    truck_id: int
-    date: date
-    odometer_during_change: int
-    next_change_odometer: int
-    remarks: Optional[str] = None
-
-
-class AirFilterRecordOut(OrmBase):
+class MaintenanceRequestProofOut(OrmBase):
     id: int
-    truck_id: int
-    date: date
-    odometer_during_change: int
-    next_change_odometer: int
-    remarks: Optional[str] = None
-    entered_by_name: Optional[str] = None
-    version: int = 1
+    request_id: int
+    kind: str
+    file_name: str
+    size_bytes: int
+    uploaded_by_name: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
-AirFilterRecordEditEventType = Literal["Air Filter Log Added"]
-
-
-class AirFilterRecordEditEventListOut(BaseModel):
-    """One row in the page-wide "Edit History" log on Air Filter R&R —
-    derived directly from AirFilterRecord itself (every row already carries
-    entered_by_name/created_at), no dedicated event table needed, same
-    technique as Tyre Management's fitment-derived log."""
+class MaintenanceRequestOut(OrmBase):
+    """A new maintenance record waiting on (or decided in) Maintenance Approvals."""
     id: int
     truck_id: int
-    registration_number: str
-    date: date
-    odometer_during_change: int
-    actor_name: str
-    created_at: datetime
+    truck_id_str: Optional[str] = None            # CGI-T0005
+    registration_number: Optional[str] = None
+    trip_id: Optional[int] = None
+    trip_id_str: Optional[str] = None             # TRP-1282, for trip-sheet repairs
+    source: str
+    payload: dict
+    status: str
+    submitted_by_name: str
+    submitted_by_role: Optional[str] = None
+    decided_by_name: Optional[str] = None
+    decided_at: Optional[datetime] = None
+    reject_reason: Optional[str] = None
+    record_id: Optional[int] = None
+    requester_seen_at: Optional[datetime] = None
+    proof_count: int = 0
+    created_at: Optional[datetime] = None
+
+
+class MaintenanceRejectIn(BaseModel):
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def _reason_required(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("A reason is required to reject a request")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -2036,6 +2047,11 @@ class TyreInventoryBase(OrmBase):
     retread_cost: Optional[Decimal] = None
     retread_count: Optional[int] = 0
     condition: Optional[str] = "New"
+    maintenance_by: Optional[str] = None
+    maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    vendor_id: Optional[int] = None
+    invoice_number: Optional[str] = None          # given by the vendor / individual
+    invoice_date: Optional[date] = None
 
 
 class TyreInventoryCreate(TyreInventoryBase):
@@ -2054,6 +2070,11 @@ class TyreInventoryUpdate(OrmBase):
     retread_cost: Optional[Decimal] = None
     retread_count: Optional[int] = None
     condition: Optional[str] = None
+    maintenance_by: Optional[str] = None
+    maintenance_by_type: Optional[Literal["Vendor", "Individual"]] = None
+    vendor_id: Optional[int] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[date] = None
 
 
 class TyreDiscardIn(OrmBase):
@@ -2126,6 +2147,9 @@ class TyreInventoryOut(TyreInventoryBase):
     discarded_by: Optional[str] = None
     discard_reason: Optional[str] = None
     sold_with_truck_at: Optional[datetime] = None
+    # Proof of Payment/Invoice — name and size only; the file has its own endpoint.
+    proof_file_name: Optional[str] = None
+    proof_size_bytes: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -2337,6 +2361,29 @@ class ComplianceUpdateHistoryOut(BaseModel):
 # Truck Branch History
 # ---------------------------------------------------------------------------
 
+class OdometerCorrectionIn(BaseModel):
+    odometer: int = Field(..., ge=0)
+    reason: str = Field(..., min_length=1, max_length=1000)
+
+
+class OdometerCorrectionOut(OrmBase):
+    id: int
+    truck_id: int
+    old_odometer: int
+    new_odometer: int
+    reason: str
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+class OdometerInfoOut(BaseModel):
+    odometer: int
+    max_trip_sheet_end_km: Optional[int] = None
+    max_maintenance_odometer: Optional[int] = None
+    corrections: list[OdometerCorrectionOut] = []
+
+
 class TruckBranchHistoryOut(BaseModel):
     id:               int
     truck_id:         int
@@ -2412,6 +2459,8 @@ class RccModeDataIn(BaseModel):
     tyre_entries: dict[str, RccTyreEntryIn] = {}
     run_entries: dict[str, RccLayoutEntryIn] = {}
     truck_metrics: dict[str, RccTruckMetricsIn] = {}
+    # {tyre_layout: {tyre_type: quantity}} — None = not sent (leave as is).
+    tyre_cost_config_qty: Optional[dict[str, dict[str, str]]] = None
 
 class RunningCostStateIn(BaseModel):
     Manual: RccModeDataIn = RccModeDataIn()
@@ -2424,6 +2473,9 @@ class RccCostPerKmBulkIn(BaseModel):
     # truck business ID (e.g. "CGI-T0001") -> final computed cost/km, or null
     # if that truck currently has no computable value in this mode.
     values: dict[str, Optional[float]] = {}
+    # truck business ID -> the parts that add up to it:
+    # {"emi", "fuel", "tyre", "maintenance", "compliance"} (each ₹/km or null).
+    parts: dict[str, dict[str, Optional[float]]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -2674,29 +2726,6 @@ class MaintenanceCategoryOut(OrmBase):
 
 
 # ---------------------------------------------------------------------------
-# Maintenance Types
-# ---------------------------------------------------------------------------
-
-class MaintenanceTypeCreate(OrmBase):
-    name: str
-    interval_km: int
-
-
-class MaintenanceTypeUpdate(OrmBase):
-    client_version: Optional[int] = None
-    name: Optional[str] = None
-    interval_km: Optional[int] = None
-
-
-class MaintenanceTypeOut(OrmBase):
-    id: int
-    name: str
-    interval_km: int
-    version: int = 1
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-
-
 CfsYardKind = Literal["CFS", "YARD"]
 
 
@@ -2761,6 +2790,15 @@ class CustomerProfitabilityRouteOut(BaseModel):
     profit: float
     margin_pct: float
     avg_km: float
+    counted_trip_count: int = 0
+    # Per Cost/KM mode ("Basic" / "Advanced" / "Manual"), the same figures
+    # Profitability uses: diesel = km × diesel ₹/km; truck_cost = km × Cost/KM
+    # (diesel included). *_missing = trips with km but no figure in that mode
+    # (counted as ₹0, shown as incomplete).
+    diesel: dict[str, float] = {}
+    diesel_missing: dict[str, int] = {}
+    truck_cost: dict[str, float] = {}
+    cost_missing: dict[str, int] = {}
 
     class Config:
         from_attributes = True
@@ -2780,6 +2818,9 @@ class CustomerProfitabilityTripOut(BaseModel):
     flagged_for_recheck: bool = False
     flagged_remark: Optional[str] = None
     excluded_from_totals: bool = False
+    # Per Cost/KM mode; None = no figure for this trip's truck in that mode.
+    diesel: dict[str, Optional[float]] = {}
+    truck_cost: dict[str, Optional[float]] = {}
 
     class Config:
         from_attributes = True
@@ -2795,6 +2836,16 @@ class CustomerProfitabilityOut(BaseModel):
     total_profit: float
     profit_margin_pct: float
     total_km: float
+    # A customer typed in by name on the trip (not picked from Our Customers).
+    is_custom: bool = False
+    # Per Cost/KM mode ("Basic" / "Advanced" / "Manual"), the same figures
+    # Profitability uses: diesel = km × diesel ₹/km; truck_cost = km × Cost/KM
+    # (diesel included). *_missing = trips with km but no figure in that mode
+    # (counted as ₹0, shown as incomplete).
+    diesel: dict[str, float] = {}
+    diesel_missing: dict[str, int] = {}
+    truck_cost: dict[str, float] = {}
+    cost_missing: dict[str, int] = {}
     routes: list[CustomerProfitabilityRouteOut]
     recent_trips: list[CustomerProfitabilityTripOut]
 

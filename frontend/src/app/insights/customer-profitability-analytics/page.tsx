@@ -2,15 +2,19 @@
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Segmented } from "@/components/ui/Segmented";
+import { DateRangePill } from "@/components/ui/DateRangePill";
 import {
   Users, TrendingUp, IndianRupee, Trophy,
   ChevronDown, ChevronUp, BarChart2, AlertCircle,
 } from "lucide-react";
-import { tripsApi, type CustomerProfitabilityData } from "@/lib/api";
+import { tripsApi, type CustomerProfitabilityData, type CostMode } from "@/lib/api";
 import { showError } from "@/lib/swal";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { cn } from "@/lib/utils";
+import { COST_INPUT_RESOURCES, onRevalidated } from "@/lib/api-cache";
+import { usePollWhenOffline } from "@/hooks/usePollWhenOffline";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,6 +23,93 @@ import { cn } from "@/lib/utils";
 type RouteBreakdown = CustomerProfitabilityData["routes"][number];
 type RecentTrip     = CustomerProfitabilityData["recent_trips"][number];
 type Mode = "basic" | "intermediate" | "advanced";
+
+// ---------------------------------------------------------------------------
+// Profit level (Trip / Gross / Final) and Cost/KM mode — the same three
+// levels as the Profitability page, worked out from the same Cost/KM.
+// ---------------------------------------------------------------------------
+
+type ProfitLevel = "trip" | "gross" | "final";
+
+const LEVELS: Record<ProfitLevel, { label: string; short: string; hint: string }> = {
+  trip:  { label: "Trip Profit",  short: "Trip",  hint: "Hire (after commission) − the trip sheet's expenses. Did the trip cover its own on-the-road costs?" },
+  gross: { label: "Gross Profit", short: "Gross", hint: "Trip Profit − diesel (km × the truck's diesel cost per km). Does the price cover fuel?" },
+  final: { label: "Final Profit", short: "Final", hint: "Trip Profit − km × the truck's full Cost/KM (diesel, EMI, tyres, maintenance, documents). Does this customer really make money?" },
+};
+
+/** A customer as the page shows it: total_profit / margins / routes / trips at
+ *  the chosen level, plus all three levels and how many trips lack a figure. */
+type ViewCustomer = CustomerProfitabilityData & {
+  levels: { trip: number; gross: number; final: number };
+  incomplete: number;
+};
+
+const pctOf = (profit: number, revenue: number) => (revenue > 0 ? (profit / revenue) * 100 : 0);
+
+function toView(data: CustomerProfitabilityData[], level: ProfitLevel, mode: CostMode): ViewCustomer[] {
+  const deduct = (x: { diesel: Record<CostMode, number | null>; truck_cost: Record<CostMode, number | null> }) =>
+    level === "gross" ? x.diesel[mode] : level === "final" ? x.truck_cost[mode] : 0;
+  const missingOf = (x: { diesel_missing: Record<CostMode, number>; cost_missing: Record<CostMode, number> }) =>
+    level === "gross" ? x.diesel_missing[mode] : level === "final" ? x.cost_missing[mode] : 0;
+  return data
+    .map((c) => {
+      const trip = c.total_profit;
+      const levels = { trip, gross: trip - c.diesel[mode], final: trip - c.truck_cost[mode] };
+      const profit = levels[level];
+      return {
+        ...c,
+        levels,
+        incomplete: missingOf(c),
+        total_profit: profit,
+        profit_margin_pct: pctOf(profit, c.total_revenue),
+        routes: c.routes
+          .map((r) => {
+            const rp = r.profit - (deduct(r) ?? 0);
+            return { ...r, profit: rp, margin_pct: pctOf(rp, r.revenue), incomplete: missingOf(r) };
+          })
+          .sort((a, b) => b.profit - a.profit),
+        recent_trips: c.recent_trips.map((t) => {
+          const cost = deduct(t);
+          const tp = t.profit - (cost ?? 0);
+          return { ...t, profit: tp, margin_pct: pctOf(tp, t.revenue), incomplete: cost == null && t.km > 0 };
+        }),
+      };
+    })
+    .sort((a, b) => b.total_profit - a.total_profit);
+}
+
+/** Middle value — the average of the two middle ones for an even count. */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+/** "⚠ 3" — trips counted at ₹0 cost because their truck has no figure. */
+function IncompleteMark({ n, mode }: { n: number; mode: CostMode }) {
+  if (!n) return null;
+  return (
+    <span
+      title={`${n} trip${n === 1 ? "" : "s"} on a truck with no diesel / Cost/KM figure in ${mode} mode — counted as ₹0 cost, so this profit is overstated.`}
+      className="ml-1 inline-flex cursor-help items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-px text-[9px] font-bold text-amber-700 align-middle"
+    >
+      <AlertCircle className="h-2.5 w-2.5" /> {n}
+    </span>
+  );
+}
+
+function CustomTag({ c }: { c: CustomerProfitabilityData }) {
+  if (!c.is_custom) return null;
+  return (
+    <span
+      title={c.customer_id === "none" ? "Trips with no customer recorded (e.g. return trips)" : "Customer typed in by name on the trip — not in Our Customers"}
+      className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-gray-500 align-middle"
+    >
+      {c.customer_id === "none" ? "no customer" : "custom"}
+    </span>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -234,7 +325,7 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-gray-500">{rank}</span>;
 }
 
-function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search: string }) {
+function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search: string; level: ProfitLevel; mode: CostMode }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const filtered = search.trim()
@@ -243,12 +334,15 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
 
   const totalRevenue = data.reduce((s, d) => s + d.total_revenue, 0);
   const totalProfit  = data.reduce((s, d) => s + d.total_profit, 0);
-  const avgMargin    = data.length > 0 ? data.reduce((s, d) => s + d.profit_margin_pct, 0) / data.length : 0;
+  // Overall margin = total profit ÷ total revenue (a one-trip customer doesn't
+  // count as much as a fifty-trip one).
+  const avgMargin    = pctOf(totalProfit, totalRevenue);
+  const incomplete   = data.reduce((s, d) => s + d.incomplete, 0);
 
   function toggle(id: string) {
     setExpanded(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
@@ -260,8 +354,8 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
         {[
           { label: "Total Customers",   value: String(data.length),          accent: "text-blue-500",   icon: <Users className="h-4 w-4" />       },
           { label: "Total Revenue",     value: fmtINR(totalRevenue, true),   accent: "text-indigo-400", icon: <IndianRupee className="h-4 w-4" /> },
-          { label: "Total Profit",      value: fmtINR(totalProfit, true),    accent: totalProfit >= 0 ? "text-emerald-500" : "text-red-400", icon: <TrendingUp className="h-4 w-4" />, profitVal: true, n: totalProfit },
-          { label: "Avg Profit Margin", value: `${avgMargin.toFixed(1)}%`,   accent: "text-amber-500",  icon: <BarChart2 className="h-4 w-4" />   },
+          { label: `Total ${LEVELS[level].label}`, value: fmtINR(totalProfit, true), accent: totalProfit >= 0 ? "text-emerald-500" : "text-red-400", icon: <TrendingUp className="h-4 w-4" />, profitVal: true, n: totalProfit },
+          { label: "Overall Margin",    value: `${avgMargin.toFixed(1)}%`,   accent: "text-amber-500",  icon: <BarChart2 className="h-4 w-4" />   },
         ].map(({ label, value, accent, icon, profitVal, n }) => (
           <div key={label} className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
             <div className="flex items-center gap-2 mb-1">
@@ -272,6 +366,12 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
           </div>
         ))}
       </div>
+      {incomplete > 0 && (
+        <p className="-mt-2 flex items-center gap-1.5 text-[11px] text-amber-700">
+          <AlertCircle className="h-3.5 w-3.5" />
+          {incomplete} trip{incomplete === 1 ? "" : "s"} on trucks with no {level === "gross" ? "diesel" : "Cost/KM"} figure in {mode} mode are counted at ₹0 — those customers&apos; {LEVELS[level].label} is overstated (marked ⚠).
+        </p>
+      )}
 
       {/* Leaderboard table */}
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -287,7 +387,7 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
           <table className="w-full text-left min-w-[720px]">
             <thead className="sticky top-0 z-10 bg-gray-50">
               <tr className="border-b border-gray-100 bg-gray-50/60">
-                {["#", "Customer", "Trips", "Revenue", "Expenses", "Net Profit", "Margin", ""].map((h, i) => (
+                {["#", "Customer", "Trips", "Revenue", "Expenses", LEVELS[level].label, "Margin", ""].map((h, i) => (
                   <th key={i} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 2 && i <= 6 ? "text-right" : ""} ${i === 7 ? "w-8" : ""} ${i === 0 ? "w-12" : ""}`}>
                     {h}
                   </th>
@@ -312,7 +412,7 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
                     >
                       <td className="px-4 py-3"><RankBadge rank={data.indexOf(c) + 1} /></td>
                       <td className="px-4 py-3">
-                        <p className="text-sm font-bold text-gray-900">{c.customer_name}</p>
+                        <p className="text-sm font-bold text-gray-900">{c.customer_name}<CustomTag c={c} /></p>
                         <p className="text-[10px] text-gray-400">{c.total_km.toFixed(0)} km · {c.routes.length} route{c.routes.length !== 1 ? "s" : ""}</p>
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">
@@ -330,6 +430,7 @@ function BasicView({ data, search }: { data: CustomerProfitabilityData[]; search
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-700 tabular-nums">{fmtINR(c.total_expense)}</td>
                       <td className={`px-4 py-3 text-right text-sm font-semibold tabular-nums ${profitColor(c.total_profit)}`}>
                         {c.total_profit >= 0 ? "+" : ""}{fmtINR(c.total_profit)}
+                        <IncompleteMark n={c.incomplete} mode={mode} />
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium tabular-nums ${marginBg(c.profit_margin_pct)}`}>
@@ -387,7 +488,7 @@ const QUADRANT_META: Record<Quadrant, { label: string; color: string; fill: stri
   underperformers: { label: "Underperformers", color: "#dc2626", fill: "#fef2f2", text: "#b91c1c", desc: "Low revenue and low margin. Candidates for renegotiation, repricing, or deprioritising." },
 };
 
-function quadrant(c: CustomerProfitabilityData, medRev: number, medMgn: number): Quadrant {
+function quadrant(c: ViewCustomer, medRev: number, medMgn: number): Quadrant {
   const hiRev = c.total_revenue >= medRev;
   const hiMgn = c.profit_margin_pct >= medMgn;
   if ( hiRev &&  hiMgn) return "stars";
@@ -397,7 +498,7 @@ function quadrant(c: CustomerProfitabilityData, medRev: number, medMgn: number):
 }
 
 
-function IntermediateView({ data, search }: { data: CustomerProfitabilityData[]; search: string }) {
+function IntermediateView({ data, search, level, mode }: { data: ViewCustomer[]; search: string; level: ProfitLevel; mode: CostMode }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const q = search.trim().toLowerCase();
 
@@ -406,9 +507,8 @@ function IntermediateView({ data, search }: { data: CustomerProfitabilityData[];
   const revenues = data.map(d => d.total_revenue);
   const margins  = data.map(d => d.profit_margin_pct);
 
-  const sorted = (arr: number[]) => [...arr].sort((a, b) => a - b);
-  const medRev = sorted(revenues)[Math.floor(revenues.length / 2)];
-  const medMgn = sorted(margins)[Math.floor(margins.length / 2)];
+  const medRev = median(revenues);
+  const medMgn = median(margins);
 
   // Quadrant order for the 2×2 board: top-left=gems, top-right=stars, bottom-left=underperformers, bottom-right=workhorses
   const BOARD_ORDER: Quadrant[] = ["gems", "stars", "underperformers", "workhorses"];
@@ -420,7 +520,7 @@ function IntermediateView({ data, search }: { data: CustomerProfitabilityData[];
         .filter(c => quadrant(c, medRev, medMgn) === q)
         .sort((a, b) => b.total_revenue - a.total_revenue),
     ])
-  ) as Record<Quadrant, CustomerProfitabilityData[]>;
+  ) as Record<Quadrant, ViewCustomer[]>;
 
   return (
     <div className="flex flex-col gap-4">
@@ -468,7 +568,7 @@ function IntermediateView({ data, search }: { data: CustomerProfitabilityData[];
                     <p className="text-sm font-semibold text-gray-900 tabular-nums">{fmtINR(rev, true)}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">Net Profit</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">{LEVELS[level].label}</p>
                     <p className={`text-sm font-semibold tabular-nums ${profitColor(profit)}`}>
                       {profit >= 0 ? "+" : ""}{fmtINR(profit, true)}
                     </p>
@@ -494,7 +594,7 @@ function IntermediateView({ data, search }: { data: CustomerProfitabilityData[];
                         className="w-full text-left rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 hover:bg-gray-100 transition-colors"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{c.customer_name}</span>
+                          <span className="flex-1 text-xs font-semibold text-gray-800 truncate">{c.customer_name}<CustomTag c={c} /><IncompleteMark n={c.incomplete} mode={mode} /></span>
                           <span
                             className="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums"
                             style={{ borderColor: m.color + "50", color: m.color, background: m.color + "1f" }}
@@ -540,7 +640,7 @@ function IntermediateView({ data, search }: { data: CustomerProfitabilityData[];
 // Advanced View — Customer Scorecard
 // ---------------------------------------------------------------------------
 
-function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; search: string }) {
+function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; search: string; level: ProfitLevel; mode: CostMode }) {
   const [selectedId, setSelectedId] = useState(data[0]?.customer_id ?? "");
 
   const list     = data.filter(d => d.customer_name.toLowerCase().includes(search.toLowerCase()));
@@ -597,7 +697,7 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
         <div className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">{selected.customer_name}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{selected.customer_name}<CustomTag c={selected} /></h2>
               <p className="text-xs text-gray-400 mt-0.5">
                 {selected.trip_count} completed trips · {selected.total_km.toFixed(0)} km total
               </p>
@@ -611,7 +711,7 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
             {[
               { label: "Total Revenue",  value: fmtINR(selected.total_revenue),          profitVal: false, n: 0 },
               { label: "Total Expenses", value: fmtINR(selected.total_expense),          profitVal: false, n: 0 },
-              { label: "Net Profit",     value: fmtINR(selected.total_profit),           profitVal: true,  n: selected.total_profit },
+              { label: LEVELS[level].label, value: fmtINR(selected.total_profit),        profitVal: true,  n: selected.total_profit },
               { label: "Best Route",     value: bestRoute?.route  ?? "—",                profitVal: false, n: 0, small: true },
               { label: "Worst Route",    value: worstRoute?.route ?? "—",               profitVal: false, n: 0, small: true },
               { label: "Total Distance", value: `${selected.total_km.toFixed(0)} km`,   profitVal: false, n: 0 },
@@ -624,6 +724,32 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
           </div>
         </div>
 
+        {/* All three profit levels, whichever is selected above */}
+        <div className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Profit step by step <span className="font-medium normal-case tracking-normal">· Cost/KM: {mode} mode</span>
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {(["trip", "gross", "final"] as ProfitLevel[]).map((lv, i) => {
+              const v = selected.levels[lv];
+              const active = lv === level;
+              return (
+                <div key={lv} title={LEVELS[lv].hint}
+                  className={cn("rounded-lg border px-3 py-2.5", active ? "border-blue-300 bg-blue-50/60 ring-1 ring-blue-200" : "border-gray-100 bg-gray-50")}>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+                    {i > 0 && <span className="text-gray-300">→ </span>}{LEVELS[lv].label}
+                  </p>
+                  <p className={cn("text-base font-semibold tabular-nums", profitColor(v))}>{v >= 0 ? "+" : ""}{fmtINR(v)}</p>
+                  <p className="text-[10px] tabular-nums text-gray-400">{pctOf(v, selected.total_revenue).toFixed(1)}% margin</p>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-gray-400">
+            Gross = Trip − diesel ({fmtINR(selected.diesel[mode])}) · Final = Trip − km × Cost/KM ({fmtINR(selected.truck_cost[mode])})
+          </p>
+        </div>
+
         {/* Route breakdown table */}
         <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
           <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-2">
@@ -634,7 +760,7 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
             <table className="w-full text-left min-w-[600px]">
               <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr className="border-b border-gray-50 bg-gray-50/40">
-                  {["Route", "Trips", "Revenue", "Expenses", "Profit", "Margin", "Avg KM"].map((h, i) => (
+                  {["Route", "Trips", "Revenue", "Expenses", LEVELS[level].label, "Margin", "Avg KM"].map((h, i) => (
                     <th key={h} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 1 ? "text-right" : ""}`}>{h}</th>
                   ))}
                 </tr>
@@ -648,6 +774,7 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
                     <td className="px-4 py-2.5 text-right text-xs font-semibold text-gray-700 tabular-nums">{fmtINR(r.expense)}</td>
                     <td className={`px-4 py-2.5 text-right text-xs font-semibold tabular-nums ${profitColor(r.profit)}`}>
                       {r.profit >= 0 ? "+" : ""}{fmtINR(r.profit)}
+                      <IncompleteMark n={(r as { incomplete?: number }).incomplete ?? 0} mode={mode} />
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums ${marginBg(r.margin_pct)}`}>
@@ -673,7 +800,7 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
               <table className="w-full text-left min-w-[560px]">
                 <thead className="sticky top-0 z-10 bg-gray-50">
                   <tr className="border-b border-gray-50 bg-gray-50/40">
-                    {["Trip ID", "Date", "Route", "Revenue", "Profit", "Margin"].map((h, i) => (
+                    {["Trip ID", "Date", "Route", "Revenue", LEVELS[level].label, "Margin"].map((h, i) => (
                       <th key={h} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 ${i >= 3 ? "text-right" : ""}`}>{h}</th>
                     ))}
                   </tr>
@@ -701,6 +828,7 @@ function AdvancedView({ data, search }: { data: CustomerProfitabilityData[]; sea
                         <>
                           <td className={`px-4 py-2 text-right text-xs font-semibold tabular-nums ${profitColor(t.profit)}`}>
                             {t.profit >= 0 ? "+" : ""}{fmtINR(t.profit)}
+                            <IncompleteMark n={(t as { incomplete?: boolean }).incomplete ? 1 : 0} mode={mode} />
                           </td>
                           <td className="px-4 py-2 text-right">
                             <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-medium tabular-nums ${marginBg(t.margin_pct)}`}>
@@ -739,6 +867,26 @@ export default function CustomerProfitabilityPage() {
   const [activePanel, setActivePanel] = useState<"calc" | "guide" | null>(null);
 
   const [search, setSearch] = useState("");
+  // Profit level + Cost/KM mode, remembered for this browser (Gross by
+  // default). Read after mount so the first render matches the server's.
+  const [level, setLevel] = useState<ProfitLevel>("gross");
+  const [costMode, setCostMode] = useState<CostMode>("Advanced");
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const l = localStorage.getItem("cpa_profit_level");
+      const m = localStorage.getItem("cpa_cost_mode");
+      if (l === "trip" || l === "gross" || l === "final") setLevel(l);
+      if (m === "Basic" || m === "Advanced" || m === "Manual") setCostMode(m);
+    } catch { /* private mode */ }
+    setPrefsLoaded(true);
+  }, []);
+  useEffect(() => {
+    if (!prefsLoaded) return;
+    try { localStorage.setItem("cpa_profit_level", level); localStorage.setItem("cpa_cost_mode", costMode); } catch { /* private mode */ }
+  }, [level, costMode, prefsLoaded]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   function handleModeChange(m: Mode) {
     if (m === mode) return;
@@ -749,18 +897,28 @@ export default function CustomerProfitabilityPage() {
 
   const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
-    tripsApi.getCustomerProfitability()
+    tripsApi.getCustomerProfitability(dateFrom || undefined, dateTo || undefined)
       .then(setData)
       .catch(() => {
         showError("Couldn't load customer profitability data — showing last known results, not necessarily current.");
       })
       .finally(() => setLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey, dateFrom, dateTo]);
+  const view = useMemo(() => toView(data, level, costMode), [data, level, costMode]);
   // Closing a trip, editing a trip sheet, or archiving a customer elsewhere
   // previously left this leaderboard/matrix/scorecard stale until a manual reload.
   useWebSocketEvent("trip_closed", () => setRefreshKey((k) => k + 1));
   useWebSocketEvent("trip_updated", () => setRefreshKey((k) => k + 1));
   useWebSocketEvent("customer_updated", () => setRefreshKey((k) => k + 1));
+  // Cost/KM inputs (fuel, EMI, tyres, maintenance, documents, the calculator).
+  useWebSocketEvent("data_changed", (payload) => {
+    const r = String((payload as { resource?: unknown })?.resource ?? "");
+    if (COST_INPUT_RESOURCES.has(r) || r === "running-cost") setRefreshKey((k) => k + 1);
+  });
+  // A background cache refresh found newer figures → show them; and a backup
+  // refresh while the live connection is down.
+  useEffect(() => onRevalidated(() => setRefreshKey((k) => k + 1)), []);
+  usePollWhenOffline(() => setRefreshKey((k) => k + 1));
 
   if (loading) {
     return (
@@ -801,7 +959,7 @@ export default function CustomerProfitabilityPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">Customer Profitability Analytics</h1>
               <p className="mt-0.5 text-sm text-gray-500">
-                Revenue, expenses, and profit margins across your customer base — based on completed trips.
+                Revenue and profit — at the trip, after diesel, or after the truck&apos;s full running cost — across your customers&apos; completed trips.
               </p>
             </div>
           </div>
@@ -823,28 +981,72 @@ export default function CustomerProfitabilityPage() {
           </div>
         </div>
 
+        {/* Profit level + Cost/KM mode + date range */}
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Profit</span>
+          <div title={LEVELS[level].hint}>
+            <Segmented<ProfitLevel>
+              label="Profit level"
+              size="md"
+              value={level}
+              onChange={setLevel}
+              options={(Object.keys(LEVELS) as ProfitLevel[]).map((k) => ({ value: k, label: LEVELS[k].label }))}
+            />
+          </div>
+          {level !== "trip" && (
+            <>
+              <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Cost/KM</span>
+              <Segmented<CostMode>
+                label="Cost/KM mode"
+                size="md"
+                value={costMode}
+                onChange={setCostMode}
+                options={[{ value: "Basic", label: "Basic" }, { value: "Advanced", label: "Advanced" }, { value: "Manual", label: "Manual" }]}
+              />
+            </>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+            {(dateFrom || dateTo) && (
+              <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }}
+                className="text-xs font-semibold text-blue-600 hover:underline">All time</button>
+            )}
+          </div>
+          <p className="basis-full text-[11px] text-gray-400">{LEVELS[level].hint}</p>
+        </div>
+
         {/* Toolbar: search on the left, analysis mode + View on the right */}
         <div className="flex flex-wrap items-center gap-3">
           <PillSearch placeholder="Search customers…" value={search} onChange={setSearch} />
           <div className="ml-auto flex flex-wrap items-center gap-3">
             <ModeSlider mode={mode} onChange={handleModeChange} />
-            <DownloadExcelButton path="/exports/customer-profitability" filename="customer_profitability.xlsx" />
+            <DownloadExcelButton
+              path="/exports/customer-profitability"
+              filename="customer_profitability.xlsx"
+              params={{
+                cost_mode: costMode,
+                ...(dateFrom ? { from_date: dateFrom } : {}),
+                ...(dateTo ? { to_date: dateTo } : {}),
+              }}
+            />
           </div>
         </div>
 
         {/* Content */}
         {data.length === 0 ? (
           <div className="flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-24 text-sm text-gray-400">
-            No completed trips with trip sheets found. Complete and sheet some trips to see analytics here.
+            {dateFrom || dateTo
+              ? "No completed trips with trip sheets in this date range."
+              : "No completed trips with trip sheets found. Complete and sheet some trips to see analytics here."}
           </div>
         ) : (
           <div key={transitionKey} className="mode-content-enter">
             {mode === "basic" ? (
-              <BasicView data={data} search={search} />
+              <BasicView data={view} search={search} level={level} mode={costMode} />
             ) : mode === "intermediate" ? (
-              <IntermediateView data={data} search={search} />
+              <IntermediateView data={view} search={search} level={level} mode={costMode} />
             ) : (
-              <AdvancedView data={data} search={search} />
+              <AdvancedView data={view} search={search} level={level} mode={costMode} />
             )}
           </div>
         )}

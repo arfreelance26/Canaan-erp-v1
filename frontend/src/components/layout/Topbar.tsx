@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu } from "lucide-react";
+import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu, Wrench } from "lucide-react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -17,11 +17,17 @@ import { GreetingPill } from "./GreetingPill";
 import { NotesButton } from "./NotesButton";
 import { TodoButton } from "./TodoButton";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
-import { attendanceApi, editApprovalsApi, deletionApprovalsApi } from "@/lib/api";
+import { attendanceApi, editApprovalsApi, deletionApprovalsApi, maintenanceRequestsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate } from "@/lib/format-date";
-import { useNotifications } from "@/context/NotificationContext";
+import { useNotifications, maintenanceAlertHref } from "@/context/NotificationContext";
+import { useBirthday } from "@/context/BirthdayContext";
+import { useSeason } from "@/context/SeasonContext";
+import { useFounding } from "@/context/FoundingContext";
+import { GoldWave, EstMark, FitMark } from "./FoundingDecor";
+import { PineGarland, Snowfall, Streamers, NewYearMark, SantaOnDashboard } from "./SeasonDecor";
+import { Bunting, BirthdayBadge, Balloons } from "./BirthdayDecor";
 import { useOpenShift } from "@/hooks/useOpenShift";
 import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
 // import { useChat } from "@/context/ChatContext"; // Next phase
@@ -154,7 +160,7 @@ type EditRequestNotif = {
 // next time they open the bell.
 type MyDecidedRequest = {
   key: string;                      // `${kind}-${id}`, unique across both kinds
-  kind: "edit" | "deletion";
+  kind: "edit" | "deletion" | "maintenance";
   id: string | number;
   resourceName: string;
   resourceType: string;
@@ -162,6 +168,18 @@ type MyDecidedRequest = {
   status: "Approved" | "Rejected";
   approvedAt: string | null;
   expiresAt?: string | null;        // edit-approve only — the 8h edit window
+  rejectReason?: string | null;     // maintenance only
+};
+
+// A new maintenance record waiting in Maintenance Approvals (Admin / Accounts).
+type MaintenanceRequestNotif = {
+  id: string;
+  submittedByName: string;
+  registration: string;
+  maintenanceType: string;
+  cost: number;
+  source: "Web" | "Trip Sheet";
+  createdAt: string;
 };
 
 type DeletionRequestNotif = {
@@ -194,10 +212,14 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const isFleetManager   = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
   const isFinanceManager = user?.softwareDesignation === "Accounts";
   const isStaff          = user?.softwareDesignation === "Trip Sheet Register";
+  const isMaintenance    = user?.softwareDesignation === "Maintenance";
+  const birthday         = useBirthday();
+  const season           = useSeason();
+  const founding         = useFounding();
 
   // Compliance Alerts and Renewals & Payments no longer come through here —
   // see the comment where their bell sections used to render, further down.
-  const { sheetAlerts, kmVarianceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert, dismissMaintenanceAlert } = useNotifications();
   // const { isOpen: isChatOpen, toggle: toggleChat } = useChat(); // Next phase
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
@@ -207,11 +229,13 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);       // Admin
   const [deletionRequestNotifs, setDeletionRequestNotifs] = useState<DeletionRequestNotif[]>([]); // Admin
   const [myDecidedRequests, setMyDecidedRequests] = useState<MyDecidedRequest[]>([]);       // everyone
+  const [maintRequestNotifs, setMaintRequestNotifs] = useState<MaintenanceRequestNotif[]>([]); // Admin + Accounts
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
   const shownEditReqIds     = useRef(new Set<number>());
   const shownDeletionReqIds = useRef(new Set<number>());
+  const shownMaintReqIds    = useRef<Set<string> | null>(null);
   const editReqFirstLoad     = useRef(true);
   const deletionReqFirstLoad = useRef(true);
 
@@ -278,6 +302,34 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
     }).catch(() => {});
   }, [isAdmin]);
 
+  // New maintenance records waiting on Admin / Accounts — every one stays in
+  // the bell until it's decided (not age-limited); a toast for each new one.
+  const canApproveMaintenance = isAdmin || isFinanceManager;
+  const loadMaintRequests = useCallback(() => {
+    if (!canApproveMaintenance) return;
+    maintenanceRequestsApi.list({ status: "Pending" }).then((reqs) => {
+      const updated: MaintenanceRequestNotif[] = reqs.map((r) => ({
+        id: r.id, submittedByName: r.submittedByName, registration: r.registrationNumber || r.truckIdStr,
+        maintenanceType: r.maintenanceType, cost: r.cost, source: r.source, createdAt: r.createdAt,
+      }));
+      if (shownMaintReqIds.current) {
+        for (const r of updated) {
+          if (!shownMaintReqIds.current.has(r.id)) {
+            showToast(`${r.submittedByName}: ${r.maintenanceType} on ${r.registration}`, "info", "Maintenance record to approve");
+          }
+        }
+      }
+      shownMaintReqIds.current = new Set(updated.map((r) => r.id));
+      setMaintRequestNotifs(updated);
+    }).catch(() => {});
+  }, [canApproveMaintenance]);
+
+  useEffect(() => {
+    loadMaintRequests();
+    const id = setInterval(loadMaintRequests, 20000);
+    return () => clearInterval(id);
+  }, [loadMaintRequests]);
+
   // Decided (Approved/Rejected) edit/deletion requests THIS user raised that
   // they haven't been shown yet — persisted server-side (requesterSeenAt),
   // so unlike a live-only toast this survives being offline when the
@@ -285,7 +337,18 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   // Admin-only loaders above this always runs.
   const loadMyDecidedRequests = useCallback(() => {
     if (user?.id == null) return;
-    Promise.allSettled([editApprovalsApi.getMine(), deletionApprovalsApi.listMine()]).then(([e, d]) => {
+    Promise.allSettled([editApprovalsApi.getMine(), deletionApprovalsApi.listMine(), maintenanceRequestsApi.listMine()]).then(([e, d, m]) => {
+      const fromMaintenance: MyDecidedRequest[] = m.status === "fulfilled"
+        ? m.value
+            .filter((r) => (r.status === "Approved" || r.status === "Rejected") && !r.requesterSeenAt)
+            .map((r) => ({
+              key: `maintenance-${r.id}`, kind: "maintenance" as const, id: r.id,
+              resourceName: `${r.registrationNumber || r.truckIdStr} · ${r.maintenanceType}`,
+              resourceType: "MaintenanceRecord",
+              status: r.status as "Approved" | "Rejected", approvedAt: r.decidedAt,
+              rejectReason: r.rejectReason,
+            }))
+        : [];
       const fromEdit: MyDecidedRequest[] = e.status === "fulfilled"
         ? e.value
             .filter((r) => r.status !== "Pending" && !r.requesterSeenAt)
@@ -306,7 +369,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
             }))
         : [];
       setMyDecidedRequests(
-        [...fromEdit, ...fromDeletion].sort((a, b) => (b.approvedAt ?? "").localeCompare(a.approvedAt ?? ""))
+        [...fromEdit, ...fromDeletion, ...fromMaintenance].sort((a, b) => (b.approvedAt ?? "").localeCompare(a.approvedAt ?? ""))
       );
     });
   }, [user?.id]);
@@ -316,13 +379,14 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
     const id = setInterval(loadMyDecidedRequests, 20000);
     return () => clearInterval(id);
   }, [loadMyDecidedRequests]);
+  useWebSocketEvent("maintenance_request_updated", () => { loadMaintRequests(); loadMyDecidedRequests(); });
 
   // Mark seen once the bell is actually opened — clears the badge server-side
   // so it doesn't come back on the next poll/reload, but the list stays
   // visible for this viewing (cleared locally only when the dropdown closes).
   useEffect(() => {
     if (!isNotifOpen || myDecidedRequests.length === 0) return;
-    Promise.allSettled([editApprovalsApi.markMineSeen(), deletionApprovalsApi.markMineSeen()]).catch(() => {});
+    Promise.allSettled([editApprovalsApi.markMineSeen(), deletionApprovalsApi.markMineSeen(), maintenanceRequestsApi.markMineSeen()]).catch(() => {});
   }, [isNotifOpen]);
 
   useEffect(() => {
@@ -526,10 +590,34 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const recentSheetAlerts = sheetAlerts.filter((a) => isRecent(a.alertedAt));
   const recentKmVarianceAlerts = kmVarianceAlerts.filter((a) => isRecent(a.alertedAt));
   const recentMyDecidedRequests = myDecidedRequests.filter((n) => isRecent(n.approvedAt));
+  // Maintenance alerts aren't age-limited: each person's stays in the bell
+  // until they open it (read state is per person), however old it is.
 
   return (
     <>
     <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-white/50 bg-white/60 backdrop-blur-xl px-3 sm:px-6 shadow-sm">
+      {birthday.decorated ? (
+        <>
+          {/* behind the pill / buttons, like the December snow */}
+          <Balloons count={9} className="-z-10" />
+          <Bunting className="z-[1]" />
+        </>
+      ) : founding.decorated ? (
+        <GoldWave />
+      ) : season.decorated ? (
+        <>
+          {/* Negative z inside the header's stacking context: painted over the
+              header background but under the pill, buttons and profile. */}
+          <Snowfall className="-z-10" glitter={season.day === "newyearday"} />
+          {season.day === "newyearday" ? (
+            <Streamers className="-z-10" />
+          ) : (
+            <PineGarland className="-z-10" />
+          )}
+          {season.day === "christmas" && <SantaOnDashboard uid={String(user?.id ?? user?.name ?? "")} className="-z-10" />}
+        </>
+      ) : null}
+
       {/* Hamburger — mobile only */}
       <button
         type="button"
@@ -583,7 +671,16 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
         })}
       </GreetingPill>
 
+      {/* Founding Day / New Year mark — in the free space between the
+          breadcrumb and the buttons (hidden when it wouldn't fit). */}
+      {!birthday.decorated && founding.decorated ? (
+        <FitMark><EstMark years={founding.years} /></FitMark>
+      ) : !birthday.decorated && season.decorated && season.day === "newyearday" ? (
+        <FitMark><NewYearMark year={season.newYear} /></FitMark>
+      ) : null}
+
       <div className="flex items-center gap-4">
+
         {/* {backendOnline === false && (
           <span className="hidden items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 ring-1 ring-red-200 sm:flex">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
@@ -647,6 +744,8 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
             const totalBadge =
               recentSheetAlerts.length +
               recentKmVarianceAlerts.length +
+              maintenanceAlerts.length +
+              maintRequestNotifs.length +
               (isAdmin ? recentLeaveRequests.length + recentDeletionRequestNotifs.length : 0) +
               ((isAdmin || isFleetManager) ? recentEditRequestNotifs.length : 0) +
               recentMyDecidedRequests.length;
@@ -679,6 +778,8 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   const count =
                     recentSheetAlerts.length +
                     recentKmVarianceAlerts.length +
+                    maintenanceAlerts.length +
+                    maintRequestNotifs.length +
                     (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
                     recentMyDecidedRequests.length;
                   return count > 0 ? (
@@ -690,7 +791,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && recentMyDecidedRequests.length === 0 ? (
+              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <Bell className="h-8 w-8 text-gray-200" />
                   <p className="text-sm font-medium text-gray-500">No notifications yet</p>
@@ -765,6 +866,51 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     );
                   })()}
 
+                  {/* ── Maintenance Approvals (Admin + Accounts) — new records waiting. ── */}
+                  {maintRequestNotifs.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-blue-600">
+                        Maintenance Approvals
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {maintRequestNotifs.slice(0, NOTIF_ROW_CAP).map((n) => (
+                          <li key={`maint-req-${n.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => { setIsNotifOpen(false); router.push("/attendance/maintenance-approvals"); }}
+                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-blue-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                                <Wrench className="h-3.5 w-3.5 text-blue-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">
+                                  {n.submittedByName} added <span className="text-blue-700">{n.maintenanceType}</span>
+                                </p>
+                                <p className="truncate text-[11px] text-gray-600">
+                                  <span className="font-semibold">{n.registration}</span> · ₹{n.cost.toLocaleString("en-IN")}
+                                  {n.source === "Trip Sheet" ? " · from a trip sheet" : ""}
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-gray-400">{timeAgo(n.createdAt)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="border-t border-gray-100 px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => { setIsNotifOpen(false); router.push("/attendance/maintenance-approvals"); }}
+                          className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-800"
+                        >
+                          {maintRequestNotifs.length > NOTIF_ROW_CAP
+                            ? `+${maintRequestNotifs.length - NOTIF_ROW_CAP} more — view all in Maintenance Approvals →`
+                            : "Review in Maintenance Approvals →"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Deletion Requests (Admin only) — grouped + capped, same
                       reasoning as Edit Requests above. ── */}
                   {isAdmin && recentDeletionRequestNotifs.length > 0 && (() => {
@@ -820,6 +966,70 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                           {hiddenCount > 0 ? `+${hiddenCount} more — view all in Deletion Approvals →` : "View all in Deletion Approvals →"}
                         </button>
                       </div>
+                    </div>
+                    );
+                  })()}
+
+                  {/* ── Maintenance Alerts (Admin, Commercial Managers, Maintenance) —
+                      "Notify me when this is due again" on a maintenance record. ── */}
+                  {maintenanceAlerts.length > 0 && (() => {
+                    const shown = maintenanceAlerts.slice(0, NOTIF_ROW_CAP);
+                    const hiddenCount = maintenanceAlerts.length - shown.length;
+                    return (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-rose-600">
+                        Maintenance Alerts
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {shown.map((alert) => {
+                          const due = alert.kind === "due";
+                          return (
+                          <li key={`maint-${alert.serverId}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dismissMaintenanceAlert(alert.serverId);
+                                setIsNotifOpen(false);
+                                router.push(maintenanceAlertHref(user?.softwareDesignation, alert.registration));
+                              }}
+                              className={cn("flex w-full items-start gap-3 px-4 py-3 text-left transition-colors", due ? "hover:bg-rose-50/60" : "hover:bg-amber-50/60")}
+                            >
+                              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", due ? "bg-rose-100" : "bg-amber-100")}>
+                                <Wrench className={cn("h-3.5 w-3.5", due ? "text-rose-600" : "text-amber-600")} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">
+                                  {alert.maintenanceType} {due ? "is due" : "due soon"}
+                                </p>
+                                <p className="text-[11px] text-gray-600">
+                                  Truck: <span className="font-semibold">{alert.registration}</span>
+                                </p>
+                                <p className="text-[11px] text-gray-500">
+                                  Reminder at <span className="font-semibold">{alert.remindAt.toLocaleString("en-IN")} km</span>
+                                  <span className="ml-1 text-gray-400">· now {alert.odometer.toLocaleString("en-IN")} km</span>
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                                {timeAgo(alert.alertedAt)}
+                                <br />
+                                {fmtIST(alert.alertedAt)}
+                              </span>
+                            </button>
+                          </li>
+                          );
+                        })}
+                      </ul>
+                      {hiddenCount > 0 && (
+                        <div className="border-t border-gray-100 px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => { setIsNotifOpen(false); router.push("/personal/notifications"); }}
+                            className="text-xs font-medium text-rose-600 hover:text-rose-800 transition-colors"
+                          >
+                            +{hiddenCount} more maintenance alert{hiddenCount === 1 ? "" : "s"} →
+                          </button>
+                        </div>
+                      )}
                     </div>
                     );
                   })()}
@@ -1015,6 +1225,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                         {recentMyDecidedRequests.slice(0, NOTIF_ROW_CAP).map((notif) => {
                           const approved = notif.status === "Approved";
                           const isEdit = notif.kind === "edit";
+                          const isMaint = notif.kind === "maintenance";
                           return (
                           <li key={notif.key}>
                             <button
@@ -1036,7 +1247,11 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-[12px] font-semibold text-gray-900">
-                                  {isEdit
+                                  {isMaint
+                                    ? (approved
+                                        ? "Your maintenance record was approved"
+                                        : "Your maintenance record was rejected")
+                                    : isEdit
                                     ? (approved
                                         ? "Your edit access has been approved by the Admin"
                                         : "Your edit request was rejected by the Admin")
@@ -1045,14 +1260,18 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                                         : "Your deletion request was rejected by the Admin")}
                                 </p>
                                 <p className="text-[11px] text-gray-600">
-                                  {isEdit ? `${notif.action} access for: ` : "Delete: "}
+                                  {isMaint ? "" : isEdit ? `${notif.action} access for: ` : "Delete: "}
                                   <span className="font-semibold">{notif.resourceName}</span>
                                 </p>
                                 <p className={cn(
                                   "text-[11px] font-medium",
                                   approved ? "text-green-700" : "text-red-700"
                                 )}>
-                                  {approved
+                                  {isMaint
+                                    ? (approved
+                                        ? "It's now on the truck's record."
+                                        : `Reason: ${notif.rejectReason ?? "—"} — submit a corrected record.`)
+                                    : approved
                                     ? (isEdit ? "Please make your changes within 8 hours." : "The record has been deleted.")
                                     : "Contact the Admin if you have questions."}
                                 </p>
@@ -1080,8 +1299,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {/* Empty state */}
                   {recentSheetAlerts.length === 0 &&
                    recentKmVarianceAlerts.length === 0 &&
+                   maintenanceAlerts.length === 0 &&
                    recentMyDecidedRequests.length === 0 &&
-                   (isStaff || isFinanceManager || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (
+                   maintRequestNotifs.length === 0 &&
+                   (isStaff || isFinanceManager || isMaintenance || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Bell className="h-8 w-8 text-gray-200" />
                       <p className="text-sm font-medium text-gray-500">No notifications</p>
@@ -1112,6 +1333,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                 {getInitials(user?.name ?? "U")}
               </div>
             )}
+            {birthday.decorated && birthday.mine && <BirthdayBadge className="left-5 right-auto -top-1" />}
             <span className="text-[14px] font-semibold tracking-[-0.01em] text-gray-900">{user?.name ?? "—"}</span>
             <ChevronDown className={cn("h-4 w-4 text-gray-900 transition-transform duration-200", isProfileOpen ? "rotate-180" : "")} />
           </button>
@@ -1142,6 +1364,22 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                 >
                   Profile
                 </button>
+                {(birthday.festive || season.festive || founding.festive) && (
+                  <button
+                    className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-gray-700 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-white/80 hover:text-gray-900 hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] border border-transparent hover:border-white/50 after:absolute after:-inset-2"
+                    onClick={() => { setIsProfileOpen(false); birthday.hideForToday(); season.hideForToday(); founding.hideForToday(); }}
+                  >
+                    Hide decorations today
+                  </button>
+                )}
+                {season.festive && (
+                  <button
+                    className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-gray-700 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-white/80 hover:text-gray-900 hover:shadow-[0_4px_15px_rgba(0,0,0,0.05)] border border-transparent hover:border-white/50 after:absolute after:-inset-2"
+                    onClick={() => { setIsProfileOpen(false); season.hideForSeason(); }}
+                  >
+                    Hide for the season
+                  </button>
+                )}
                 <button
                   className="relative block w-full rounded-xl px-4 py-2.5 text-left text-[15px] font-medium text-red-600 transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-red-50/80 hover:shadow-[0_4px_15px_rgba(239,68,68,0.1)] border border-transparent hover:border-red-100/50 after:absolute after:-inset-2"
                   onClick={handleLogoutClick}

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
+from cost_units import DAYS_PER_MONTH, WORKING_DAYS_PER_MONTH, per_km_advanced
 import models, schemas
 
 router = APIRouter(prefix="/running-cost", tags=["Running Cost Calculator"])
@@ -52,6 +53,7 @@ def _build_mode_response(mode: str, db: Session) -> dict:
     truck_rows  = db.query(models.RunningCostTruckMetrics).filter_by(mode=mode).all()
     return {
         "cost_per_litre": _fmt(config.cost_per_litre) if config else "",
+        "tyre_cost_config_qty": (config.tyre_cost_config_qty or {}) if config else {},
         "tyre_entries": {
             r.tyre_type: {"cost": _fmt(r.cost_per_tyre), "range": _fmt(r.expected_range_km)}
             for r in tyre_rows
@@ -83,6 +85,11 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
         config = models.RunningCostConfig(mode=mode)
         db.add(config)
     config.cost_per_litre = _to_decimal(data.cost_per_litre)
+    if data.tyre_cost_config_qty is not None:
+        config.tyre_cost_config_qty = {
+            layout: {t: str(q) for t, q in types.items() if str(q).strip() != ""}
+            for layout, types in data.tyre_cost_config_qty.items()
+        }
 
     # Tyre entries
     for tyre_type, entry in data.tyre_entries.items():
@@ -146,6 +153,113 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
 # GET /running-cost/state  — returns all three modes' data in one response
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Manual Cost/Km on the server — a faithful port of TruckCostCard's Manual
+# formula (running-cost-calculator/page.tsx), from the Manual inputs the
+# calculator saves. Profitability etc. no longer depend on someone opening the
+# calculator for a new truck / layout change to show up.
+# ---------------------------------------------------------------------------
+
+def _pos(v) -> float | None:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f > 0 else None
+
+
+def _tyre_count(layout: str) -> int:
+    """'10+1' → 11, same as the calculator's parseTyreCount."""
+    total = 0
+    for part in (layout or "").split("+"):
+        try:
+            total += int(part.strip())
+        except ValueError:
+            pass
+    return total
+
+
+def _manual_cost_live(db: Session, include_removed: bool = True) -> dict[str, dict] | None:
+    """{truck_business_id: {"total", "emi", "fuel", "tyre", "maintenance",
+    "compliance"}} for Manual — or None while the Tyre Cost Configuration
+    quantities have never been saved to the server (then the calculator's own
+    saved figures are used instead)."""
+    cfg = db.query(models.RunningCostConfig).filter_by(mode="Manual").first()
+    if cfg is None or cfg.tyre_cost_config_qty is None:
+        return None
+    qty_cfg: dict = cfg.tyre_cost_config_qty or {}
+
+    # Diesel price: Fuel History's base price, else the one typed in Manual —
+    # exactly what the calculator loads into Manual's Cost Per Litre.
+    price = _fuel_base_price(db) or (float(cfg.cost_per_litre) if cfg.cost_per_litre else 0.0)
+    tyre_types = [r.tyre_type for r in db.query(models.TyreRangeConfig).all()]
+    tyre_entries = {r.tyre_type: r for r in db.query(models.RunningCostTyreEntry).filter_by(mode="Manual").all()}
+    km_per_day = {r.tyre_layout: _pos(r.km_per_day) for r in db.query(models.RunningCostLayoutEntry).filter_by(mode="Manual").all()}
+    metrics = {m.truck_id: m for m in db.query(models.RunningCostTruckMetrics).filter_by(mode="Manual").all()}
+
+    def per_tyre(tyre_type: str) -> float | None:
+        e = tyre_entries.get(tyre_type)
+        cost, rng = (_pos(e.cost_per_tyre), _pos(e.expected_range_km)) if e else (None, None)
+        return cost / rng if cost and rng else None
+
+    trucks_q = db.query(models.Truck)
+    if not include_removed:
+        trucks_q = trucks_q.filter(models.Truck.deleted_at.is_(None))
+    out: dict[str, dict] = {}
+    for truck in trucks_q.all():
+        m = metrics.get(truck.id)
+        layout = truck.tyre_layout or ""
+        kpd = km_per_day.get(layout)
+
+        emi_amount = _pos(m.emi_amount) if m else None
+        emi = (emi_amount / 26) / kpd if emi_amount and kpd else None
+
+        mileage = _pos(m.mileage) if m else None
+        fuel = price / mileage if mileage and price > 0 else None
+
+        tyre = _pos(m.tyre_per_km) if m else None        # typed override
+        if tyre is None:                                  # Tyre Cost Configuration (qty × cost ÷ range)
+            layout_qty = qty_cfg.get(layout) or {}
+            total = 0.0
+            for t in tyre_types:
+                q = _pos(layout_qty.get(t))
+                c = per_tyre(t)
+                if q and c:
+                    total += c * q
+            tyre = total if total > 0 else None
+        if tyre is None and m and m.tyre_type:            # the truck's tyre type × its tyre count
+            c, n = per_tyre(m.tyre_type), _tyre_count(layout)
+            tyre = c * n if c and n > 0 else None
+
+        maintenance = _pos(m.maintenance_per_km) if m else None
+        per_year = _pos(m.compliance_cost_per_year) if m else None
+        compliance = per_year / 12 / 26 / kpd if per_year and kpd else None
+
+        parts = {"emi": emi, "fuel": fuel, "tyre": tyre, "maintenance": maintenance, "compliance": compliance}
+        known = [v for v in parts.values() if v is not None]
+        out[truck.truck_id] = {
+            "total": round(sum(known), 6) if known else None,
+            **{k: (round(v, 6) if v is not None else None) for k, v in parts.items()},
+        }
+    return out
+
+
+def manual_cost_parts(db: Session) -> tuple[dict[str, dict], bool]:
+    """Manual Cost/KM per truck_business_id with its five parts, and whether it
+    was worked out live on the server (True) or taken from the figures the
+    calculator last saved (False — before its tyre quantities were saved)."""
+    live = _manual_cost_live(db)
+    if live is not None:
+        return live, True
+    saved: dict[str, dict] = {}
+    for row in db.query(models.RunningCostTruckCostPerKm).filter_by(mode="Manual").all():
+        saved[row.truck_business_id] = {
+            "total": float(row.cost_per_km) if row.cost_per_km is not None else None,
+            **{k: (float(getattr(row, f"{k}_per_km")) if getattr(row, f"{k}_per_km") is not None else None) for k in COST_PARTS},
+        }
+    return saved, False
+
+
 @router.get("/state")
 def get_state(db: Session = Depends(get_db)):
     return {mode: _build_mode_response(mode, db) for mode in CALC_MODES}
@@ -177,86 +291,124 @@ def save_state(payload: schemas.RunningCostStateIn, db: Session = Depends(get_db
 # for a loan whose schedule has drifted from its recorded dates.
 # ---------------------------------------------------------------------------
 
-def _truck_run_monthly_avg(db: Session, truck_business_id: str) -> float:
-    """Mirrors useTruckTripRuns + computeTruckRunStats (Truck Run Record):
-    km from trip sheets ÷ months since the truck's earliest trip. Like that
-    page it skips deleted trips, and counts every live trip's date for the
-    month span — including trips whose trip sheet isn't in yet."""
-    rows = (
-        db.query(models.Trip.assigned_date, models.TripSheet.total_km)
-        .outerjoin(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
-        .filter(models.Trip.vehicle_id == truck_business_id, models.Trip.deleted_at.is_(None))
-        .all()
-    )
-    if not rows:
-        return 0.0
-    total_distance = sum(float(km) for _, km in rows if km and float(km) > 0)
-    dates = [d for d, _ in rows if d]
-    if dates:
-        earliest = min(dates)
-        today = _date.today()
-        months = max(1, (today.year - earliest.year) * 12 + (today.month - earliest.month) + 1)
-    else:
-        months = 1
-    return total_distance / months if months > 0 else 0.0
 
 
-def _truck_run_monthly_avg_all(db: Session) -> dict[str, float]:
-    """Batched version of _truck_run_monthly_avg — one query for every truck's
-    trip+sheet rows instead of one query per truck. Used by both the fleet-wide
-    Advanced-mode cost-per-km computation and the /monthly-avg-km-all endpoint
-    (which replaced the Running Cost Calculator page's old per-truck-card
-    useTruckTripRuns fetch — that fired a full, unfiltered tripsApi.list() call
-    plus a getSheet() call per trip for every rendered truck card)."""
-    # Same rows as the Truck Run Record page: live trips only, with or
-    # without a trip sheet (a sheet-less trip still counts toward the span).
+def truck_run_stats_all(db: Session) -> dict[str, dict]:
+    """Truck Run Record's distance stats for every truck, keyed by trucks.truck_id
+    — the ONE place the Monthly Distance Average is worked out (the calculator,
+    Profitability, Cost Breakdown, EMI Insights and Full Status all use it).
+
+    For accuracy:
+      * only trips with a trip sheet (km > 0) count — a trip whose sheet isn't
+        in yet has no known km, so it can't pull the average down;
+      * cancelled and deleted trips are ignored;
+      * the span runs by DAYS from the first counted trip to the LATEST
+        counted trip anywhere in the fleet (not today) — if trip sheets are
+        being entered late, every truck would otherwise look idle for those
+        weeks; a truck that really sat idle while others ran still shows it.
+        The current month isn't counted as a whole month; 1-month minimum so
+        a brand-new truck's first trips aren't blown up into a huge rate.
+    missing_sheets = completed trips still without a sheet (shown as a warning).
+    """
     rows = (
-        db.query(models.Trip.vehicle_id, models.Trip.assigned_date, models.TripSheet.total_km)
+        db.query(models.Trip.vehicle_id, models.Trip.assigned_date, models.Trip.status, models.TripSheet.total_km)
         .outerjoin(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
-        .filter(models.Trip.deleted_at.is_(None))
+        .filter(models.Trip.deleted_at.is_(None), models.Trip.status != "Cancelled")
         .all()
     )
-    by_truck: dict[str, list] = {}
-    for vehicle_id, assigned_date, total_km in rows:
+    counted_dates = [a for v, a, s, km in rows if v and a and float(km or 0) > 0]
+    data_until = min(max(counted_dates), _date.today()) if counted_dates else _date.today()
+    per_truck: dict[str, dict] = {}
+    for vehicle_id, assigned, status, total_km in rows:
         if not vehicle_id:
             continue
-        by_truck.setdefault(vehicle_id, []).append((assigned_date, total_km))
+        t = per_truck.setdefault(vehicle_id, {"km": [], "dates": [], "missing": 0})
+        km = float(total_km or 0)
+        if km > 0:
+            t["km"].append(km)
+            if assigned:
+                t["dates"].append(assigned)
+        elif status == "Completed":
+            t["missing"] += 1
 
-    today = _date.today()
-    result: dict[str, float] = {}
-    for vehicle_id, truck_rows in by_truck.items():
-        total_distance = sum(float(km) for _, km in truck_rows if km and float(km) > 0)
-        dates = [d for d, _ in truck_rows if d]
-        if dates:
-            earliest = min(dates)
-            months = max(1, (today.year - earliest.year) * 12 + (today.month - earliest.month) + 1)
-        else:
-            months = 1
-        result[vehicle_id] = total_distance / months if months > 0 else 0.0
+    result: dict[str, dict] = {}
+    for vehicle_id, t in per_truck.items():
+        total = sum(t["km"])
+        first = min(t["dates"]) if t["dates"] else None
+        days = (data_until - first).days + 1 if first else 0
+        months = max(days, DAYS_PER_MONTH) / DAYS_PER_MONTH if first else 0.0
+        monthly = total / months if months > 0 else 0.0
+        result[vehicle_id] = {
+            "total_distance": round(total, 2),
+            "trips_with_distance": len(t["km"]),
+            "missing_sheets": t["missing"],
+            "first_trip_date": first.isoformat() if first else None,
+            "data_until": data_until.isoformat(),
+            "days": days,
+            "months": round(months, 4),
+            "monthly_avg": round(monthly, 4),
+            "daily_avg": round(monthly / 26, 4),  # same 26 working days as the rest of the app
+            "avg_per_trip": round(total / len(t["km"]), 2) if t["km"] else 0.0,
+            "longest": max(t["km"]) if t["km"] else 0.0,
+            "shortest": min(t["km"]) if t["km"] else 0.0,
+        }
     return result
 
 
-def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, float | None]:
+def _truck_run_monthly_avg_all(db: Session) -> dict[str, float]:
+    """{truck_business_id: Monthly Distance Average} — see truck_run_stats_all."""
+    return {vid: st["monthly_avg"] for vid, st in truck_run_stats_all(db).items()}
+
+
+def _fuel_base_price(db: Session) -> float:
+    """Diesel price per litre from Maintenance → Fuel History's base config."""
+    fuel_cfg = db.query(models.FuelBaseConfig).first()
+    return float(fuel_cfg.cost_per_litre) if fuel_cfg and fuel_cfg.cost_per_litre else 0.0
+
+
+def _auto_fuel_per_km_all(db: Session) -> dict[str, float]:
+    """Basic/Advanced "Mileage" cost per km, keyed by trucks.id (as string):
+    Fuel History diesel price ÷ the truck's lifetime-average mileage (km/L)."""
+    from routers.maintenance import get_all_fuel_stats
+    cost_per_litre = _fuel_base_price(db)
+    if cost_per_litre <= 0:
+        return {}
+    return {
+        tid: cost_per_litre / mileage
+        for tid, mileage in get_all_fuel_stats(db).items()
+        if mileage and mileage > 0
+    }
+
+
+COST_PARTS = ("emi", "fuel", "tyre", "maintenance", "compliance")
+
+
+def _compute_basic_advanced_cost_per_km(db: Session, mode: str, with_parts: bool = False, include_removed: bool = False) -> dict:
+    """{truck_business_id: cost/km} for Basic or Advanced. with_parts=True
+    returns {truck_business_id: {"total": .., "emi": .., "fuel": .., "tyre": ..,
+    "maintenance": .., "compliance": ..}} instead — the same numbers, split.
+    include_removed adds sold/deleted trucks (Profitability still shows their
+    past trips)."""
     from routers.maintenance import (
         get_all_fuel_stats,
         get_maintenance_cost_per_km_all, get_maintenance_cost_per_day_all,
     )
     from routers.trucks import get_compliance_per_km_all, get_compliance_per_day_all
 
-    trucks = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None)).all()
+    trucks_q = db.query(models.Truck)
+    if not include_removed:
+        trucks_q = trucks_q.filter(models.Truck.deleted_at.is_(None))
+    trucks = trucks_q.all()
     if not trucks:
         return {}
 
-    mileage_map      = get_all_fuel_stats(db)
+    fuel_per_km_map  = _auto_fuel_per_km_all(db)
     maint_map          = get_maintenance_cost_per_km_all(db)
     maint_per_day_map  = get_maintenance_cost_per_day_all(db) if mode == "Advanced" else {}
     compliance_per_day_map = get_compliance_per_day_all(db) if mode == "Advanced" else {}
     compliance_map      = get_compliance_per_km_all(db)
     monthly_avg_map     = _truck_run_monthly_avg_all(db) if mode == "Advanced" else {}
 
-
-    fuel_cfg = db.query(models.FuelBaseConfig).first()
-    cost_per_litre = float(fuel_cfg.cost_per_litre) if fuel_cfg and fuel_cfg.cost_per_litre else 0.0
 
     # Active EMI per truck registration — sums multiple loans.
     emi_by_reg: dict[str, dict[str, float]] = {}
@@ -268,7 +420,9 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
         reg = rec.truck_registration.strip().upper()
         e = emi_by_reg.setdefault(reg, {"amount": 0.0, "per_day": 0.0})
         e["amount"] += float(rec.emi_amount or 0)
-        e["per_day"] += float(rec.daily_finance_cost or 0)
+        # Always EMI ÷ 26 working days — the stored daily_finance_cost of
+        # older records was worked out with an outdated formula.
+        e["per_day"] += float(rec.emi_amount or 0) / WORKING_DAYS_PER_MONTH
 
     run_config_by_layout = {
         c.tyre_layout: float(c.km_per_day) for c in db.query(models.TruckRunConfig).all() if c.km_per_day
@@ -305,24 +459,14 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
     result: dict[str, float | None] = {}
     for truck in trucks:
         tid = str(truck.id)
-        mileage = mileage_map.get(tid)
-        fuel_per_km = (cost_per_litre / mileage) if mileage and mileage > 0 and cost_per_litre > 0 else None
+        fuel_per_km = fuel_per_km_map.get(tid)
 
 
         reg = (truck.registration_number or "").strip().upper()
         emi = emi_by_reg.get(reg)
-        # Basic allows an amount÷26 fallback when daily_finance_cost isn't stored
-        # (matches this page's own Basic-mode UI text: "fetched (or auto: EMI
-        # Amount ÷ 26 if not stored)"). Advanced is strictly fetched — no
-        # fallback — matching its own UI promise ("no arithmetic substitution...
-        # shows NIL"). Sharing one emi_per_day between both modes previously
-        # made Advanced silently include a fabricated number here that the
-        # calculator's own Advanced tab correctly shows as NIL.
-        emi_per_day_basic = None
-        emi_per_day_advanced = None
-        if emi:
-            emi_per_day_advanced = emi["per_day"] if emi["per_day"] > 0 else None
-            emi_per_day_basic = emi["per_day"] if emi["per_day"] > 0 else (emi["amount"] / 26 if emi["amount"] > 0 else None)
+        # EMI per working day = EMI ÷ 26 (summed over the truck's active loans).
+        emi_per_day = emi["per_day"] if emi and emi["per_day"] > 0 else None
+        emi_per_day_basic = emi_per_day_advanced = emi_per_day
 
         maint_basic = maint_map.get(tid)
         compliance_basic = compliance_map.get(tid)
@@ -335,20 +479,23 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str) -> dict[str, flo
             compliance_per_km = compliance_basic if compliance_basic else None
         else:  # Advanced
             monthly_avg = monthly_avg_map.get(truck.truck_id, 0.0)
-            emi_per_km = (emi_per_day_advanced / monthly_avg) if emi_per_day_advanced and monthly_avg > 0 else None
+            emi_per_km = per_km_advanced(emi_per_day_advanced, monthly_avg)
             tyre_per_km = advanced_tyre_by_truck.get(truck.id)
-            # Mirrors Truck Maintenance → Full Status: Avg/Day ÷ Monthly Distance Average.
+            # Advanced = the month's cost ÷ the month's km (Avg/Day × 26 ÷ Monthly Distance Average).
             maint_per_day = maint_per_day_map.get(tid)
-            maintenance_per_km = (maint_per_day / monthly_avg) if maint_per_day and monthly_avg > 0 else None
-            # Mirrors Compliance & Renewals → Cost/km (Advanced): Per Day ÷ Monthly Distance Average.
+            maintenance_per_km = per_km_advanced(maint_per_day, monthly_avg)
             compliance_per_day = compliance_per_day_map.get(tid)
-            compliance_per_km = (compliance_per_day / monthly_avg) if compliance_per_day and monthly_avg > 0 else None
+            compliance_per_km = per_km_advanced(compliance_per_day, monthly_avg)
 
         # AdBlue isn't part of the calculator (Truck's Adblue History is a record only).
         components = [emi_per_km, fuel_per_km, tyre_per_km, maintenance_per_km, compliance_per_km]
-        result[truck.truck_id] = (
-            round(sum(c or 0 for c in components), 6) if any(c is not None for c in components) else None
-        )
+        total = round(sum(c or 0 for c in components), 6) if any(c is not None for c in components) else None
+        if with_parts:
+            result[truck.truck_id] = {"total": total, **{
+                k: (round(v, 6) if v is not None else None) for k, v in zip(COST_PARTS, components)
+            }}
+        else:
+            result[truck.truck_id] = total
 
     return result
 
@@ -369,18 +516,173 @@ def get_monthly_avg_km_all(db: Session = Depends(get_db)):
     return _truck_run_monthly_avg_all(db)
 
 
+@router.get("/run-stats-all")
+def get_run_stats_all(db: Session = Depends(get_db)):
+    """{truck_business_id: Truck Run Record stats} — see truck_run_stats_all."""
+    return truck_run_stats_all(db)
+
+
+@router.get("/run-stats/{truck_business_id}")
+def get_run_stats(truck_business_id: str, db: Session = Depends(get_db)):
+    """One truck's Truck Run Record stats (zeros when it has no counted trips)."""
+    return truck_run_stats_all(db).get(truck_business_id) or {
+        "total_distance": 0.0, "trips_with_distance": 0, "missing_sheets": 0, "first_trip_date": None,
+        "days": 0, "months": 0.0, "monthly_avg": 0.0, "daily_avg": 0.0, "avg_per_trip": 0.0,
+        "longest": 0.0, "shortest": 0.0,
+    }
+
+
 @router.get("/cost-per-km")
 def get_cost_per_km(db: Session = Depends(get_db)):
     """Returns {mode: {truck_business_id: cost_per_km}} for every truck."""
-    manual_rows = db.query(models.RunningCostTruckCostPerKm).filter_by(mode="Manual").all()
+    manual, _ = manual_cost_parts(db)
     return {
-        "Manual": {
-            r.truck_business_id: (float(r.cost_per_km) if r.cost_per_km is not None else None)
-            for r in manual_rows
-        },
-        "Basic": _compute_basic_advanced_cost_per_km(db, "Basic"),
-        "Advanced": _compute_basic_advanced_cost_per_km(db, "Advanced"),
+        "Manual": {bid: d["total"] for bid, d in manual.items()},
+        "Basic": _compute_basic_advanced_cost_per_km(db, "Basic", include_removed=True),
+        "Advanced": _compute_basic_advanced_cost_per_km(db, "Advanced", include_removed=True),
     }
+
+
+def truck_cost_detail(db: Session, truck: models.Truck) -> dict:
+    """Everything behind one truck's Cost/KM in each mode, for Profitability's
+    Trip Breakdown: total, the five parts, and the diesel price + mileage the
+    diesel part was worked out from. Totals match get_cost_per_km exactly."""
+    from routers.maintenance import get_all_fuel_stats
+    fuel_price = _fuel_base_price(db)
+    auto_mileage = get_all_fuel_stats(db).get(str(truck.id))
+    out: dict[str, dict] = {}
+
+    for mode in ("Basic", "Advanced"):
+        d = _compute_basic_advanced_cost_per_km(db, mode, with_parts=True, include_removed=True).get(truck.truck_id) or {}
+        out[mode] = {
+            "total": d.get("total"),
+            "parts": {k: d.get(k) for k in COST_PARTS},
+            "parts_known": True,
+            "diesel_price": fuel_price or None,
+            "mileage": round(auto_mileage, 4) if auto_mileage else None,
+            "mileage_source": "Lifetime average from this truck's fuel logs (Maintenance → Fuel History)",
+            "price_source": "Base diesel price in Maintenance → Fuel History",
+        }
+
+    manual_all, manual_live = manual_cost_parts(db)
+    manual_row = manual_all.get(truck.truck_id) or {}
+    metrics = db.query(models.RunningCostTruckMetrics).filter_by(mode="Manual", truck_id=truck.id).first()
+    manual_price = fuel_price
+    if manual_price <= 0:
+        cfg = db.query(models.RunningCostConfig).filter_by(mode="Manual").first()
+        manual_price = float(cfg.cost_per_litre) if cfg and cfg.cost_per_litre else 0.0
+    manual_mileage = float(metrics.mileage) if metrics and metrics.mileage else None
+    parts = {k: manual_row.get(k) for k in COST_PARTS}
+    parts_known = manual_live or any(v is not None for v in parts.values())
+    if parts["fuel"] is None and manual_price > 0 and manual_mileage:
+        parts["fuel"] = round(manual_price / manual_mileage, 6)
+    out["Manual"] = {
+        "total": manual_row.get("total"),
+        "parts": parts,
+        # Always True once Manual is worked out on the server; before that,
+        # False until the calculator's Manual tab is opened and saved again.
+        "parts_known": parts_known,
+        "diesel_price": manual_price or None,
+        "mileage": manual_mileage,
+        "mileage_source": "Mileage typed for this truck in Running Cost Calculator → Manual",
+        "price_source": "Diesel price used by Running Cost Calculator → Manual",
+    }
+    return out
+
+
+@router.get("/cost-breakdown-all")
+def get_cost_breakdown_all(db: Session = Depends(get_db)):
+    """{"Basic"|"Advanced": {truck_business_id: {total, emi, fuel, tyre,
+    maintenance, compliance}}} for active trucks — the Running Cost
+    Calculator shows exactly these (one formula, the same numbers
+    Profitability uses) instead of working them out again in the browser."""
+    return {
+        mode: _compute_basic_advanced_cost_per_km(db, mode, with_parts=True)
+        for mode in ("Basic", "Advanced")
+    }
+
+
+@router.get("/cost-parts-per-km")
+def get_cost_parts_per_km(db: Session = Depends(get_db)):
+    """{mode: {truck_business_id: {"fuel": ₹/km, "tyre": ₹/km}}} — the
+    calculator's "Mileage" and "Tyre Charges" lines for every truck. Truck
+    Profitability charges Diesel = km × fuel and Tyres = km × tyre. Manual uses
+    the split the calculator saved (diesel falls back to price ÷ typed mileage)."""
+    out: dict[str, dict] = {}
+    for mode in ("Basic", "Advanced"):
+        parts = _compute_basic_advanced_cost_per_km(db, mode, with_parts=True, include_removed=True)
+        out[mode] = {tid: {"fuel": d.get("fuel"), "tyre": d.get("tyre")} for tid, d in parts.items()}
+    manual_all, _ = manual_cost_parts(db)
+    manual: dict[str, dict] = {bid: {"fuel": d.get("fuel"), "tyre": d.get("tyre")} for bid, d in manual_all.items()}
+    for tid, fuel in get_mileage_cost_per_km(db)["Manual"].items():
+        manual.setdefault(tid, {"fuel": None, "tyre": None})
+        if manual[tid]["fuel"] is None:
+            manual[tid]["fuel"] = fuel
+    out["Manual"] = manual
+    return out
+
+
+@router.get("/cost-parts-all")
+def get_cost_parts_all(db: Session = Depends(get_db)):
+    """{mode: {truck_business_id: {total, fuel, emi, tyre, maintenance,
+    compliance, parts_known}}} for every truck incl. sold/deleted — the
+    per-km rates behind each Cost/KM, so Profitability's Excel can show
+    Truck Expenses as EMI / Tyres / Maintenance / Documents (each km × its
+    rate) instead of one lump. `total` is exactly get_cost_per_km's figure;
+    the parts add up to it. `fuel` is the diesel ₹/km Profitability uses
+    (get_mileage_cost_per_km). Manual parts can be unknown (parts_known False)
+    until the calculator's Manual tab has been saved."""
+    mileage = get_mileage_cost_per_km(db)
+    out: dict[str, dict] = {}
+    for mode in ("Basic", "Advanced"):
+        parts = _compute_basic_advanced_cost_per_km(db, mode, with_parts=True, include_removed=True)
+        out[mode] = {
+            tid: {**{k: d.get(k) for k in ("total", *COST_PARTS)}, "fuel": mileage[mode].get(tid, d.get("fuel")),
+                  "parts_known": True}
+            for tid, d in parts.items()
+        }
+    manual_all, live = manual_cost_parts(db)
+    out["Manual"] = {}
+    for tid, d in manual_all.items():
+        parts = {k: d.get(k) for k in COST_PARTS}
+        out["Manual"][tid] = {
+            "total": d.get("total"), **parts,
+            "fuel": mileage["Manual"].get(tid, parts["fuel"]),
+            "parts_known": live or any(v is not None for v in parts.values()),
+        }
+    return out
+
+
+@router.get("/mileage-cost-per-km")
+def get_mileage_cost_per_km(db: Session = Depends(get_db)):
+    """Returns {mode: {truck_business_id: diesel cost per km}} — the "Mileage"
+    line of each truck in the Running Cost Calculator (diesel price ÷ km/L).
+    Used by Profitability's Gross Profit (Hire − Trip Expenses − trip km × this).
+    Manual: the calculator's diesel price (Fuel History's, else the one typed)
+    ÷ the mileage typed for the truck. Basic/Advanced: Fuel History's price ÷
+    the truck's lifetime-average mileage — the same figure inside their Cost/KM."""
+    trucks = db.query(models.Truck).all()  # incl. sold/deleted — Profitability shows their past trips
+    business_id = {str(t.id): t.truck_id for t in trucks}
+
+    auto = _auto_fuel_per_km_all(db)
+    auto_by_business = {business_id[tid]: round(v, 6) for tid, v in auto.items() if tid in business_id}
+
+    manual_price = _fuel_base_price(db)
+    if manual_price <= 0:
+        cfg = db.query(models.RunningCostConfig).filter_by(mode="Manual").first()
+        manual_price = float(cfg.cost_per_litre) if cfg and cfg.cost_per_litre else 0.0
+    manual: dict[str, float] = {}
+    for bid, d in manual_cost_parts(db)[0].items():
+        if d.get("fuel") is not None and d["fuel"] > 0:
+            manual[bid] = round(d["fuel"], 6)
+    if manual_price > 0:
+        for m in db.query(models.RunningCostTruckMetrics).filter_by(mode="Manual").all():
+            tid = str(m.truck_id)
+            mileage = float(m.mileage or 0)
+            if tid in business_id and mileage > 0:
+                manual.setdefault(business_id[tid], round(manual_price / mileage, 6))
+
+    return {"Manual": manual, "Basic": auto_by_business, "Advanced": dict(auto_by_business)}
 
 
 @router.put("/cost-per-km", status_code=204)
@@ -397,10 +699,25 @@ def set_cost_per_km(payload: schemas.RccCostPerKmBulkIn, db: Session = Depends(g
             .filter_by(mode=payload.mode, truck_business_id=truck_business_id)
             .first()
         )
-        if row:
-            row.cost_per_km = cost
-        else:
-            db.add(models.RunningCostTruckCostPerKm(
-                mode=payload.mode, truck_business_id=truck_business_id, cost_per_km=cost,
-            ))
+        if not row:
+            row = models.RunningCostTruckCostPerKm(mode=payload.mode, truck_business_id=truck_business_id)
+            db.add(row)
+        row.cost_per_km = cost
+        parts = payload.parts.get(truck_business_id)
+        if parts is not None:
+            for key in COST_PARTS:
+                setattr(row, f"{key}_per_km", parts.get(key))
     db.commit()
+
+
+@router.get("/explain/{truck_business_id}")
+def explain_cost_per_km(truck_business_id: str, mode: str = "Advanced", db: Session = Depends(get_db)):
+    """One truck's Cost/KM in one mode, part by part, with the numbers and
+    the pages behind each part — the calculator's "How is this calculated?"."""
+    from routers.cost_explain import explain_truck
+    if mode not in CALC_MODES:
+        raise HTTPException(400, f"Unknown mode: {mode}")
+    truck = db.query(models.Truck).filter(models.Truck.truck_id == truck_business_id).first()
+    if truck is None:
+        raise HTTPException(404, "Truck not found")
+    return explain_truck(db, truck, mode)

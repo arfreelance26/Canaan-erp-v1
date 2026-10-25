@@ -2,14 +2,17 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from database import get_db
 import models, schemas
+import maintenance_reminders
+import odometer
 from duplicate_checks import check_truck_duplicates
 from websocket_manager import emit
 from security import get_current_user, TokenUser, require_roles
 from routers.deletion_approvals import auto_reject_stale_requests
+from routers.compliance_records import COMPLIANCE_TRUCK_FIELDS, seed_first_entries
 
 # Compliance date fields → human-readable label
 _COMPLIANCE_FIELDS: dict[str, str] = {
@@ -42,6 +45,10 @@ def create_truck(
     if db.query(models.Truck).filter(models.Truck.registration_number == payload.registration_number).first():
         raise HTTPException(400, f"Registration number {payload.registration_number} already exists")
     truck = models.Truck(**payload.model_dump())
+    # A new truck's current odometer starts at its purchase reading — not 0
+    # until its first trip sheet.
+    if not truck.odometer and truck.odometer_during_purchase:
+        truck.odometer = int(truck.odometer_during_purchase)
     db.add(truck)
     db.commit()
     db.refresh(truck)
@@ -57,6 +64,8 @@ def create_truck(
                 updated_at=now,
                 updated_by_name=current_user.name or "Unknown",
             ))
+    # Each document the truck arrives with becomes its first Compliance History entry.
+    seed_first_entries(db, truck, current_user.name or "Unknown")
     db.add(models.TruckEditEvent(
         truck_id=truck.id, event="Truck Created",
         actor_name=current_user.name, actor_role=current_user.role,
@@ -161,52 +170,90 @@ def save_base_tyre_cost(payload: schemas.TyreLayoutCostBulkSave, db: Session = D
 # ---------------------------------------------------------------------------
 
 def _compliance_per_day_all(db: Session) -> dict[int, float]:
-    """Per-truck total daily compliance cost — mirrors the Cost Breakdown
-    dialog's "Per Day" total: Σ (expense ÷ validity days) per document, where
-    validity days = most-recent history entry → expiry date. {truck.id: ₹/day}."""
+    """Per-truck total compliance cost per WORKING day — mirrors the Cost
+    Breakdown dialog's "Per Day" total: Σ (expense ÷ validity days) per
+    document, restated per working day (× 30.44 ÷ 26) like every other per-day
+    cost in the app. Validity days = most-recent history entry → expiry date.
+    {truck.id: ₹/working day}."""
+    from cost_units import per_working_day_from_calendar
+
+    result: dict[int, float] = {}
+    for truck_id, docs in compliance_docs_all(db).items():
+        total_per_day = sum(d["per_calendar_day"] for d in docs if d["per_calendar_day"])
+        if total_per_day > 0:
+            result[truck_id] = per_working_day_from_calendar(total_per_day)
+    return result
+
+
+# (expense_field, expiry_date_field, history_doc_type)
+COMPLIANCE_COST_DOCS = [
+    ("rc_expenses",                   "rc_validity_date",           "RC"),
+    ("fc_expenses",                   "fc_expiry_date",             "FC (Fitness Certificate)"),
+    ("road_tax_expenses",             "road_tax_date",              "Road Tax"),
+    ("national_permit_expenses",      "national_permit_date",       "National Permit"),
+    ("local_permit_expenses",         "local_permit_date",          "Local Permit"),
+    ("pollution_certificate_expenses","pollution_certificate_date", "Pollution Certificate"),
+    ("insurance_expenses",            "insurance_expiry_date",      "Insurance"),
+]
+
+
+def compliance_docs_all(db: Session) -> dict[int, list[dict]]:
+    """Every truck's 7 documents with what each costs per calendar day
+    (expense ÷ validity days; None when it can't be worked out, with why) —
+    behind _compliance_per_day_all and the calculator's "How is this
+    calculated?" window. Validity days = the document's most recent
+    set/renewed date (ComplianceUpdateHistory) → its expiry date."""
     from datetime import date as _date, datetime
 
     # All compliance history, most-recent entry per (truck_id, document_type).
     # Store only the DATE portion — mirrors the frontend daysBetween() which strips
     # the time component with setHours(0,0,0,0) before computing the difference.
     history_map: dict[int, dict[str, _date]] = {}
-    for row in db.query(models.ComplianceUpdateHistory).all():
+    for row in db.query(models.ComplianceUpdateHistory).filter(models.ComplianceUpdateHistory.action.is_(None)):
         issued_date = row.updated_at.date() if isinstance(row.updated_at, datetime) else row.updated_at
         prev = history_map.setdefault(row.truck_id, {}).get(row.document_type)
         if prev is None or issued_date > prev:
             history_map[row.truck_id][row.document_type] = issued_date
-
-    # (expense_field, expiry_date_field, history_doc_type)
-    DOCS = [
-        ("rc_expenses",                   "rc_validity_date",           "RC"),
-        ("fc_expenses",                   "fc_expiry_date",             "FC (Fitness Certificate)"),
-        ("road_tax_expenses",             "road_tax_date",              "Road Tax"),
-        ("national_permit_expenses",      "national_permit_date",       "National Permit"),
-        ("local_permit_expenses",         "local_permit_date",          "Local Permit"),
-        ("pollution_certificate_expenses","pollution_certificate_date", "Pollution Certificate"),
-        ("insurance_expenses",            "insurance_expiry_date",      "Insurance"),
-    ]
-
-    result: dict[int, float] = {}
+    # A "Valid from" typed in on the current version beats the day it was
+    # entered — same start-date rule as the P&L (see compliance_cost.py).
+    from compliance_cost import HISTORY_LABEL
+    latest_ids = (
+        db.query(func.max(models.TruckComplianceRecord.id))
+        .group_by(models.TruckComplianceRecord.truck_id, models.TruckComplianceRecord.doc_type)
+    )
+    for tid, doc, valid_from in db.query(
+        models.TruckComplianceRecord.truck_id, models.TruckComplianceRecord.doc_type, models.TruckComplianceRecord.valid_from,
+    ).filter(models.TruckComplianceRecord.id.in_(latest_ids), models.TruckComplianceRecord.valid_from.isnot(None)):
+        if doc in HISTORY_LABEL:
+            history_map.setdefault(tid, {})[HISTORY_LABEL[doc]] = valid_from
+    docs_spec = COMPLIANCE_COST_DOCS
+    out: dict[int, list[dict]] = {}
     for truck in db.query(models.Truck).all():
         truck_history = history_map.get(truck.id, {})
-        total_per_day = 0.0
-        for exp_field, date_field, doc_type in DOCS:
+        rows = []
+        for exp_field, date_field, doc_type in docs_spec:
             expense = float(getattr(truck, exp_field) or 0)
             expiry  = getattr(truck, date_field)
-            if expense <= 0 or not expiry:
-                continue
             issued_date = truck_history.get(doc_type)
-            if not issued_date:
-                continue
-            # Both sides are pure dates — matches frontend daysBetween() exactly
-            validity_days = (expiry - issued_date).days
-            if validity_days <= 0:
-                continue
-            total_per_day += expense / validity_days
-        if total_per_day > 0:
-            result[truck.id] = total_per_day
-    return result
+            row = {"label": doc_type, "expense": expense, "issued": issued_date, "expiry": expiry,
+                   "validity_days": None, "per_calendar_day": None, "skipped": None}
+            if expense <= 0:
+                row["skipped"] = "no cost entered"
+            elif not expiry:
+                row["skipped"] = "no expiry date"
+            elif not issued_date:
+                row["skipped"] = "no date it was last set or renewed"
+            else:
+                # Both sides are pure dates — matches frontend daysBetween() exactly
+                validity_days = (expiry - issued_date).days
+                if validity_days <= 0:
+                    row["skipped"] = "expiry is not after the date it was set"
+                else:
+                    row["validity_days"] = validity_days
+                    row["per_calendar_day"] = expense / validity_days
+            rows.append(row)
+        out[truck.id] = rows
+    return out
 
 
 @router.get("/compliance-per-km/all", tags=["Trucks"])
@@ -343,6 +390,19 @@ def list_sold_trucks(db: Session = Depends(get_db)):
     )
 
 
+@router.get("/removed", response_model=list[schemas.TruckOut])
+def list_removed_trucks(db: Session = Depends(get_db)):
+    """Every truck no longer in the fleet — sold or deleted (disposal_type
+    tells which) — for Auditor Pages → Vehicle Record, so their past trips can
+    still be audited. Registered before GET /{truck_id}."""
+    return (
+        db.query(models.Truck)
+        .filter(models.Truck.deleted_at.isnot(None))
+        .order_by(models.Truck.truck_id)
+        .all()
+    )
+
+
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])
 def list_deleted_truck_ids(db: Session = Depends(get_db)):
     """Admin only: ids of trucks currently soft-deleted. Lets the "Archive" page
@@ -419,6 +479,8 @@ def list_all_compliance_history(db: Session = Depends(get_db)):
             "document_type": e.document_type,
             "actor_name": e.updated_by_name,
             "created_at": e.updated_at,
+            "action": e.action,
+            "note": e.note,
         })
     return result
 
@@ -439,10 +501,59 @@ def get_truck(truck_id: int, db: Session = Depends(get_db)):
 def get_compliance_history(truck_id: int, db: Session = Depends(get_db)):
     return (
         db.query(models.ComplianceUpdateHistory)
-        .filter(models.ComplianceUpdateHistory.truck_id == truck_id)
+        .filter(models.ComplianceUpdateHistory.truck_id == truck_id,
+                models.ComplianceUpdateHistory.action.is_(None))  # set / renewed only — the cost anchor
         .order_by(models.ComplianceUpdateHistory.updated_at.desc())
         .all()
     )
+
+
+@router.get("/{truck_id}/odometer", response_model=schemas.OdometerInfoOut)
+def get_odometer_info(truck_id: int, db: Session = Depends(get_db)):
+    """Current odometer, the highest readings recorded elsewhere, and the
+    correction history — for the Correct Odometer window."""
+    truck = db.get(models.Truck, truck_id)
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    corrections = (
+        db.query(models.TruckOdometerCorrection)
+        .filter(models.TruckOdometerCorrection.truck_id == truck_id)
+        .order_by(models.TruckOdometerCorrection.created_at.desc())
+        .all()
+    )
+    return {"odometer": int(truck.odometer or 0), **odometer.readings(db, truck), "corrections": corrections}
+
+
+@router.post("/{truck_id}/odometer-correction", response_model=schemas.TruckOut, dependencies=[Depends(require_roles())])
+def correct_odometer(
+    truck_id: int,
+    payload: schemas.OdometerCorrectionIn,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Admin sets the truck's current odometer — up or down — with a reason.
+    The only way it goes down (e.g. undoing a typo'd trip sheet End KM)."""
+    truck = db.query(models.Truck).with_for_update().filter(models.Truck.id == truck_id).first()
+    if not truck:
+        raise HTTPException(404, "Truck not found")
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(400, "Please give a reason for this correction.")
+    old = int(truck.odometer or 0)
+    if payload.odometer == old:
+        raise HTTPException(400, f"The odometer is already {old:,} km.")
+    truck.odometer = payload.odometer
+    truck.version = (truck.version or 1) + 1
+    db.add(models.TruckOdometerCorrection(
+        truck_id=truck.id, old_odometer=old, new_odometer=payload.odometer, reason=reason,
+        actor_name=current_user.name or "Unknown", actor_role=current_user.role,
+    ))
+    if payload.odometer > old:
+        maintenance_reminders.check_truck(db, truck)
+    db.commit()
+    db.refresh(truck)
+    emit("truck_updated", {"id": truck.id})
+    return truck
 
 
 @router.get("/{truck_id}/branch-history", response_model=list[schemas.TruckBranchHistoryOut])
@@ -475,6 +586,14 @@ def update_truck(
 
     # Snapshot compliance dates + branch before applying changes
     payload_dict = payload.model_dump(exclude_unset=True, exclude={"client_version", "branch_change_note", "skip_edit_log"})
+    # The current odometer moves only through trip sheets (odometer.advance) and
+    # Admin's Correct Odometer — an Edit Truck save carries the form's copy of
+    # it, possibly older than the truck's, and used to write that back.
+    payload_dict.pop("odometer", None)
+    # Documents (dates, costs, numbers, files) change only through Compliance &
+    # Renewals → Renew / Correct, which keep their history — never via Edit Truck.
+    for f in COMPLIANCE_TRUCK_FIELDS:
+        payload_dict.pop(f, None)
     old_dates = {f: str(getattr(truck, f) or "") for f in _COMPLIANCE_FIELDS}
     old_branch = truck.branch_registered_to
 

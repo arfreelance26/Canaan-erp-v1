@@ -4,7 +4,12 @@ import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
-import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi } from "@/lib/api";
+import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, type ServerCostParts, type TruckRunStats } from "@/lib/api";
+import { formatDate } from "@/lib/format-date";
+import { CostExplainDialog } from "@/components/insights/CostExplainDialog";
+import { onRevalidated, COST_INPUT_RESOURCES } from "@/lib/api-cache";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { usePollWhenOffline } from "@/hooks/usePollWhenOffline";
 import type { EmiRecord } from "@/types/finance";
 import { CircleDot, ChevronDown, Fuel, Gauge, Truck as TruckIcon, Info, X, Plus, BookOpen, CheckCircle2, ArrowRight, Eye, Loader2 } from "lucide-react";
 import type { Truck } from "@/types/truck";
@@ -91,6 +96,77 @@ const TRUCK_METRICS = [
   { label: "Compliance Per KM",        key: "compliancePerKm",       calculated: true  },
 ] as const;
 
+/** A band under each card's header: the truck's actual distance from Truck
+ *  Run Record (same figures as that page) as three small stat tiles, and in
+ *  Basic mode how it compares with the km/day set in Admin → Truck Run
+ *  Configuration. */
+/** One stat tile in DistanceBand. */
+function DistanceTile({ label, children, sub }: { label: string; children: React.ReactNode; sub?: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 px-4 py-2.5">
+      <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">{label}</span>
+      <span className="truncate text-sm font-bold tabular-nums text-gray-800">{children}</span>
+      {sub && <span className="truncate text-[10px] text-gray-400">{sub}</span>}
+    </div>
+  );
+}
+
+function DistanceBand({ stats, configuredKmPerDay }: { stats?: TruckRunStats; configuredKmPerDay?: string }) {
+  const km = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  const missing = stats?.missingSheets ?? 0;
+  const missingBadge = missing > 0 && (
+    <span
+      title={`${missing} completed trip${missing === 1 ? "" : "s"} without a trip sheet — not counted in these averages until the sheet is entered.`}
+      className="inline-flex cursor-help items-center gap-1 rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200"
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+      {missing} sheet{missing === 1 ? "" : "s"} missing
+    </span>
+  );
+
+  if (!stats || stats.tripsWithDistance === 0) {
+    return (
+      <div className="flex items-center justify-between gap-2 border-b border-gray-100 bg-white px-5 py-2.5">
+        <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <Gauge className="h-3.5 w-3.5" /> No trip history yet
+        </span>
+        {missingBadge}
+      </div>
+    );
+  }
+
+  const configured = parseFloat(configuredKmPerDay ?? "");
+  const gap = configured > 0 && stats.dailyAvg > 0 ? (configured - stats.dailyAvg) / stats.dailyAvg : null;
+  const howWorkedOut =
+    `From Truck Run Record: ${km(stats.totalDistance)} km from ${stats.tripsWithDistance} trip sheet${stats.tripsWithDistance === 1 ? "" : "s"} ` +
+    `÷ ${stats.months.toFixed(1)} months (${formatDate(stats.firstTripDate)} → ${formatDate(stats.dataUntil)}). Daily = Monthly ÷ 26 working days.`;
+
+  return (
+    <div title={howWorkedOut} className="grid cursor-help grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 bg-white">
+      <DistanceTile label="Monthly Distance" sub="avg per month">
+        {km(stats.monthlyAvg)} <span className="text-[11px] font-medium text-gray-400">km</span>
+      </DistanceTile>
+      <DistanceTile
+        label="Daily Distance"
+        sub={gap == null ? "avg per working day" : (
+          <span className={Math.abs(gap) > 0.25 ? "font-semibold text-amber-600" : ""}>
+            Configured {km(configured)} km/day
+          </span>
+        )}
+      >
+        {km(stats.dailyAvg)} <span className="text-[11px] font-medium text-gray-400">km</span>
+      </DistanceTile>
+      <div className="flex min-w-0 flex-col gap-0.5 px-4 py-2.5">
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">Based on</span>
+        <span className="truncate text-sm font-bold tabular-nums text-gray-800">
+          {stats.tripsWithDistance} <span className="text-[11px] font-medium text-gray-400">trip{stats.tripsWithDistance === 1 ? "" : "s"}</span>
+        </span>
+        {missingBadge || <span className="truncate text-[10px] text-gray-400">since {formatDate(stats.firstTripDate)}</span>}
+      </div>
+    </div>
+  );
+}
+
 function parseTyreCount(layout: string): number {
   return layout.split("+").reduce((sum, p) => sum + (parseInt(p.trim()) || 0), 0);
 }
@@ -122,6 +198,8 @@ function TruckCostCard({
   advancedMileage,
   basicMileage,
   advMonthlyAvgKm,
+  runStats,
+  serverParts,
   mode,
   onCostChange,
 }: {
@@ -137,10 +215,10 @@ function TruckCostCard({
   manualTyrePerKm?: string;
   advancedTyrePerKm?: string | null;
   basicMaintenancePerKm?: string;
-  /** Maintenance Avg/Day (12-month total ÷ 12 ÷ 26) — Advanced divides it by the Monthly Distance Average. */
+  /** Maintenance Avg/Day (last 12 months' total ÷ months on record ÷ 26) — Advanced: × 26 ÷ the Monthly Distance Average. */
   advancedMaintenancePerDay?: string | null;
   advancedComplianceCost?: string | null;
-  /** Compliance Per Day (Σ expense ÷ validity days) — Advanced divides it by the Monthly Distance Average. */
+  /** Compliance Per Day (Σ expense ÷ validity days, per working day) — Advanced: × 26 ÷ the Monthly Distance Average. */
   advancedCompliancePerDay?: string | null;
   basicCompliance?: { totalCost: string; perKm: string };
   advancedEmi?: BasicEmi | null;
@@ -149,17 +227,24 @@ function TruckCostCard({
   // Truck's monthly average km (fetched once for the whole fleet by the parent
   // page) — feeds every "(Advanced)" per-km field: EMI, Maintenance, Compliance.
   advMonthlyAvgKm?: number;
+  /** This truck's Truck Run Record stats (all modes) — shown in the card header. */
+  runStats?: TruckRunStats;
+  /** Basic / Advanced: the server's per-km parts for this truck (the same
+   *  figures Profitability uses). Undefined in Manual, which is worked out
+   *  live from what's typed. */
+  serverParts?: ServerCostParts | null;
   mode: string;
   onCostChange?: (breakdown: CostBreakdown) => void;
 }) {
   const isAdvancedMode = mode === "Advanced";
   const isBasicMode    = mode === "Basic";
+  const [explainOpen, setExplainOpen] = useState(false);
 
   // ── Advanced mode EMI (read-only, strictly fetched — no fallback formulas) ──
   // EMI Amount   → emiAmount         from Finance → EMI Tracking
   // EMI Per Day  → dailyFinanceCost  from Finance → EMI Tracking
   // EMI Per Km(Advanced) → mirrors "EMI Cost Per KM (Advanced)" in EMI Tracking:
-  //   Daily Finance Cost ÷ Monthly Distance Average (from Truck Run Record).
+  //   Daily Finance Cost × 26 ÷ Monthly Distance Average (from Truck Run Record).
   // If a value is absent in the DB, the field shows "NIL" — no arithmetic substitution.
   const advEmiAmount: number | null = (() => {
     const v = parseFloat(advancedEmi?.emiAmount ?? "");
@@ -209,13 +294,17 @@ function TruckCostCard({
   // live recompute (Daily Finance Cost ÷ current Admin → Truck Run Config
   // km/day) rather than the possibly-stale emiCostPerKm value stored on the
   // record at the time it was last saved.
-  const emiPerKm: number | null = (() => {
+  // Basic / Advanced show the server's per-km figures (one formula app-wide)
+  // — NIL until they've loaded, never a browser-side estimate. The lines
+  // below are only used in Manual.
+  const fromServer = isBasicMode || isAdvancedMode;
+  const emiPerKm: number | null = fromServer ? (serverParts?.emi ?? null) : (() => {
     if (isAdvancedMode) return advEmiPerKm;
     if (!emiPerDay) return null;
     const kpd = parseFloat(kmPerDay);
     return kpd > 0 ? emiPerDay / kpd : null;
   })();
-  const mileageCostPerKm = (() => {
+  const mileageCostPerKm = fromServer ? (serverParts?.fuel ?? null) : (() => {
     const m = isAdvancedMode
       ? parseFloat(advancedMileage ?? "")
       : isBasicMode
@@ -242,7 +331,7 @@ function TruckCostCard({
 
   // Manual overrides only ever apply in Manual mode — Basic and Advanced are fetch-only.
   const hasTyreOverride = !isBasicMode && !isAdvancedMode && !!(metrics["tyrePerKm"]);
-  const tyreChargesPerKm = (() => {
+  const tyreChargesPerKm = fromServer ? (serverParts?.tyre ?? null) : (() => {
     if (isAdvancedMode) {
       // Advanced: strictly use total tyre cost per km from Tyre Management → View Tyre Data
       const v = parseFloat(advancedTyrePerKm ?? "");
@@ -264,7 +353,7 @@ function TruckCostCard({
   })();
 
 
-  const maintenanceVal = (() => {
+  const maintenanceVal = fromServer ? (serverParts?.maintenance ?? null) : (() => {
     if (isAdvancedMode) {
       // Advanced: mirrors "Cost / Km (Advanced)" in Truck Maintenance → Full Status:
       // Avg/Day (fetched from backend) ÷ Monthly Distance Average (Truck Run Record) — no fallback.
@@ -296,7 +385,7 @@ function TruckCostCard({
     return !isNaN(manual) && manual > 0 ? manual : NaN;
   })();
   const hasCompliance = !isNaN(complianceCostPerYear) && complianceCostPerYear > 0;
-  const compliancePerKm = (() => {
+  const compliancePerKm = fromServer ? (serverParts?.compliance ?? null) : (() => {
     if (isAdvancedMode) {
       // Mirrors "Cost/km (Advanced)" in Compliance & Renewals → View Cost Breakdown:
       // Per Day (fetched from backend) ÷ Monthly Distance Average (Truck Run Record) — no fallback.
@@ -322,7 +411,7 @@ function TruckCostCard({
     compliancePerKm: compliancePerKm,
   };
 
-  // AdBlue is logged as maintenance, so it's already part of maintenanceVal.
+  // AdBlue isn't part of the calculator (Truck's Adblue History is a record only).
   const costComponents = [emiPerKm, mileageCostPerKm, tyreChargesPerKm, maintenanceVal, compliancePerKm];
   const hasAnyComponent = costComponents.some((v) => v !== null);
   const totalCostPerKm = hasAnyComponent
@@ -338,7 +427,8 @@ function TruckCostCard({
       compliancePerKm,
       totalPerKm: totalCostPerKm,
     });
-  }, [totalCostPerKm]);
+    // Every part, not just the total — Profitability's Trip Breakdown shows the split.
+  }, [emiPerKm, mileageCostPerKm, tyreChargesPerKm, maintenanceVal, compliancePerKm, totalCostPerKm]);
 
   // Same five components as the total, for the footer's share bar + legend.
   // Values under ₹1/km are tiny (maintenance, compliance) — keep 4 decimals so they don't read as ₹0.00.
@@ -372,6 +462,9 @@ function TruckCostCard({
           </div>
         </div>
       </div>
+
+      {/* Actual distance (Truck Run Record) — drives Advanced's per-km figures */}
+      <DistanceBand stats={runStats} configuredKmPerDay={isBasicMode ? kmPerDay : undefined} />
 
       {/* Metrics grid — 4 columns, wraps across rows */}
       <div className="grid grid-cols-4 border-t border-l border-gray-100 bg-gray-50">
@@ -679,7 +772,15 @@ function TruckCostCard({
           ) : (
             <p className="mt-0.5 text-2xl font-bold text-gray-300">—</p>
           )}
+          <button
+            type="button"
+            onClick={() => setExplainOpen(true)}
+            className="mt-2 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 transition hover:bg-blue-100"
+          >
+            <Info className="h-3 w-3" /> How is this calculated?
+          </button>
         </div>
+        <CostExplainDialog open={explainOpen} onClose={() => setExplainOpen(false)} truckId={truck.truckId} mode={mode} />
       </div>
     </div>
   );
@@ -773,8 +874,8 @@ const BASIC_GUIDE_STEPS: GuideStep[] = [
     description: "Basic Mode pulls EMI Amount, EMI Per Day, and EMI Per Km directly from Finance → EMI Tracking, matched to each truck by registration number. All three fields are read-only (teal) — there is no manual override in Basic Mode. Update the source record in Finance → EMI Tracking to change the value.",
     fields: [
       "EMI Amount  —  fetched from the active EMI record for this truck",
-      "EMI Per Day  —  fetched (or auto: EMI Amount ÷ 26 if not stored)",
-      "EMI Per Km(Basic)  —  fetched (or auto: EMI Per Day ÷ km/day if not stored)",
+      "EMI Per Day  —  EMI Amount ÷ 26 working days",
+      "EMI Per Km(Basic)  —  EMI Per Day ÷ km/day",
     ],
     tip: "If a truck has no EMI record in Finance → EMI Tracking, all three fields show NIL. Add the record there first, then reload the calculator.",
   },
@@ -806,11 +907,11 @@ const BASIC_GUIDE_STEPS: GuideStep[] = [
     color: "slate",
     panel: "Truck Maintenance + Compliance & Renewals",
     title: "Maintenance & Compliance auto-fetched",
-    description: "Maintenance Per KM(Basic) mirrors \"Cost / Km (Basic)\" in Truck Maintenance → Full Status: the backend sums this truck's maintenance costs over the past 12 months, then converts to a per-km rate using km/day from Truck Run Config. Compliance Cost/Year and Compliance Per KM(Basic) mirror \"Total Compliance Cost\" and \"Cost/km (Basic)\" in Compliance & Renewals → View Cost Breakdown for this specific truck.",
+    description: "Maintenance Per KM(Basic) mirrors \"Cost / Km (Basic)\" in Truck Maintenance → Full Status: the backend spreads this truck's maintenance costs from the last 12 months over the months it has been on record (up to 12), then converts to a per-km rate using km/day from Truck Run Config. Compliance Cost/Year and Compliance Per KM(Basic) mirror \"Total Compliance Cost\" and \"Cost/km (Basic)\" in Compliance & Renewals → View Cost Breakdown for this specific truck.",
     fields: [
-      "Maintenance Per KM(Basic)  —  fetched as: 12-month maintenance total ÷ 12 ÷ 26 ÷ km/day",
+      "Maintenance Per KM(Basic)  —  last 12 months' maintenance ÷ months on record (≤ 12) ÷ 26 ÷ km/day",
       "Compliance Cost / Year  —  sum of RC + FC + Road Tax + National Permit + Local Permit + Pollution Cert + Insurance (this truck)",
-      "Compliance Per KM(Basic)  —  fetched as: Σ (expense ÷ validity days) per document ÷ km/day",
+      "Compliance Per KM(Basic)  —  Per Day (Σ expense ÷ validity days, per working day) ÷ km/day",
     ],
     tip: "Compliance Per KM(Basic) requires each document to have an expiry date and at least one history entry (set when the document was registered through the app). Documents missing either will not contribute to the per-km figure.",
   },
@@ -832,8 +933,8 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
     color: "emerald",
     panel: "Truck Run Record  (prerequisite)",
     title: "Check the Monthly Distance Average",
-    description: "Advanced Mode's EMI, Maintenance and Compliance per-km figures divide each one's daily cost by the truck's Monthly Distance Average from Truck Run Record — the km from its trip sheets ÷ the months since its first trip. A truck with no trip history shows NIL for those three.",
-    fields: ["Monthly Distance Average  =  total trip-sheet km ÷ months since the truck's first trip"],
+    description: "Advanced Mode's EMI, Maintenance and Compliance per-km figures are each one's monthly cost (Per Day × 26) ÷ the truck's Monthly Distance Average from Truck Run Record — the km from its trip sheets ÷ the months from its first such trip to the latest trip entered. A truck with no trip history shows NIL for those three.",
+    fields: ["Monthly Distance Average  =  total trip-sheet km ÷ months from the truck's first trip to the latest trip entered"],
     tip: "Unlike Basic Mode, Advanced Mode doesn't use km/day from Admin → Truck Run Config — the figures follow how far each truck actually ran.",
   },
   {
@@ -841,11 +942,11 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
     color: "blue",
     panel: "Finance → EMI Tracking",
     title: "EMI — Fully Fetched per Truck",
-    description: "Advanced Mode reads EMI Amount, EMI Per Day, and EMI Per Km directly from Finance → EMI Tracking, matched by registration number. All three fields are read-only (teal). There is no manual override in Advanced Mode — update the source record in Finance → EMI Tracking to change the value.",
+    description: "Advanced Mode takes EMI Amount from Finance → EMI Tracking, matched by registration number (several active loans are added together). EMI Per Day = EMI Amount ÷ 26 working days, and EMI Per Km = EMI Per Day × 26 ÷ the Monthly Distance Average — the month's EMI over the month's km. All three fields are read-only (teal); change the EMI record in Finance → EMI Tracking to change them.",
     fields: [
       "EMI Amount  —  fetched from the active EMI record",
-      "EMI Per Day  —  fetched from the EMI record",
-      "EMI Per Km(Advanced)  —  fetched from the EMI record",
+      "EMI Per Day  —  EMI Amount ÷ 26 working days",
+      "EMI Per Km(Advanced)  —  EMI Per Day × 26 ÷ Monthly Distance Average",
     ],
     tip: "If a truck has no EMI record, all three fields show NIL. Add the record in Finance → EMI Tracking, then reload the calculator.",
   },
@@ -877,10 +978,10 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
     icon: Info,
     color: "slate",
     panel: "Truck Maintenance → Full Status dialog",
-    title: "Maintenance Per KM(Advanced) — Avg/Day ÷ Monthly Distance",
-    description: "Maintenance Per KM(Advanced) mirrors \"Cost / Km (Advanced)\" in the Full Status dialog in Truck Maintenance: the backend sums this truck's maintenance costs over the past 12 months and turns them into Avg/Day (÷ 12 ÷ 26), which is then divided by the truck's Monthly Distance Average from Truck Run Record.",
+    title: "Maintenance Per KM(Advanced) — Monthly Cost ÷ Monthly Distance",
+    description: "Maintenance Per KM(Advanced) mirrors \"Cost / Km (Advanced)\" in the Full Status dialog in Truck Maintenance: the backend spreads this truck's maintenance costs from the last 12 months over the months it has been on record (up to 12) and turns them into Avg/Day (÷ 26); Per KM = Avg/Day × 26 ÷ the truck's Monthly Distance Average from Truck Run Record.",
     fields: [
-      "Maintenance Per KM(Advanced)  —  Avg/Day (12-month maintenance total ÷ 12 ÷ 26) ÷ Monthly Distance Average",
+      "Maintenance Per KM(Advanced)  —  Avg/Day (last 12 months' total ÷ months on record ÷ 26) × 26 ÷ Monthly Distance Average",
     ],
     tip: "A truck with no maintenance records in the past 12 months will show NIL. The rate updates automatically as new records are added in Truck Maintenance.",
   },
@@ -889,10 +990,10 @@ const ADVANCED_GUIDE_STEPS: GuideStep[] = [
     color: "violet",
     panel: "Compliance & Renewals → View Cost Breakdown",
     title: "Compliance — Fetched from Cost Breakdown",
-    description: "Both compliance fields are fetched from the View Cost Breakdown dialog in Compliance & Renewals. Compliance Cost/Year is the total of all 7 stored document expenses. Compliance Per KM(Advanced) mirrors the dialog's \"Cost/km (Advanced)\": each document's expense is amortized over its validity period (issue date → expiry date) and summed into a Per Day cost, which is divided by the truck's Monthly Distance Average from Truck Run Record.",
+    description: "Both compliance fields are fetched from the View Cost Breakdown dialog in Compliance & Renewals. Compliance Cost/Year is the total of all 7 stored document expenses. Compliance Per KM(Advanced) mirrors the dialog's \"Cost/km (Advanced)\": each document's expense is amortized over its validity period (issue date → expiry date) and summed into a cost per working day; Per KM = Per Day × 26 ÷ the truck's Monthly Distance Average from Truck Run Record.",
     fields: [
       "Compliance Cost / Year  —  fetched as: RC + FC + Road Tax + National Permit + Local Permit + Pollution Cert + Insurance",
-      "Compliance Per KM(Advanced)  —  Per Day (Σ expense ÷ validity days) ÷ Monthly Distance Average",
+      "Compliance Per KM(Advanced)  —  Per Day (Σ expense ÷ validity days, per working day) × 26 ÷ Monthly Distance Average",
     ],
     tip: "Compliance Per KM(Advanced) requires each document to have an expiry date and at least one history entry (set when the document was registered through the app). Documents missing either will not contribute to the per-km figure.",
   },
@@ -1741,6 +1842,9 @@ export default function RunningCostCalculatorPage() {
   // once via /running-cost/monthly-avg-km-all instead of each truck card
   // independently calling useTruckTripRuns (see TruckCostCard's advMonthlyAvgKm prop).
   const [monthlyAvgKmMap, setMonthlyAvgKmMap] = useState<Record<string, number>>({});
+  const [runStatsMap, setRunStatsMap] = useState<Record<string, TruckRunStats>>({});
+  // The server's Basic / Advanced per-km parts per truck ID (see TruckCostCard).
+  const [serverBreakdown, setServerBreakdown] = useState<Record<"Basic" | "Advanced", Record<string, ServerCostParts>> | null>(null);
 
   // Per-mode isolated data — Manual / Basic / Advanced never share values
   const [allModeData, setAllModeData] = useState<Record<Mode, ModeData>>({
@@ -1776,6 +1880,8 @@ export default function RunningCostCalculatorPage() {
   // here — there's nothing to derive if it was never entered. P&L Summary's
   // Truck Profitability tab ("Total Truck Expenses") reads this live.
   const costPerKmMapRef = useRef<Record<string, number | null>>({});
+  // The five parts behind each total, saved alongside it (Trip Breakdown).
+  const costPartsMapRef = useRef<Record<string, { emi: number | null; fuel: number | null; tyre: number | null; maintenance: number | null; compliance: number | null }>>({});
   const costPerKmSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Every truck card's latest breakdown, keyed by fleet truckId — read (not
   // subscribed to) by the "View" export so reporting six numbers per card on
@@ -1788,9 +1894,19 @@ export default function RunningCostCalculatorPage() {
     };
     if (truckMode !== "Manual") return;
     costPerKmMapRef.current = { ...costPerKmMapRef.current, [truck.truckId]: breakdown.totalPerKm };
+    costPartsMapRef.current = {
+      ...costPartsMapRef.current,
+      [truck.truckId]: {
+        emi: breakdown.emiPerKm,
+        fuel: breakdown.mileagePerKm,
+        tyre: breakdown.tyrePerKm,
+        maintenance: breakdown.maintenancePerKm,
+        compliance: breakdown.compliancePerKm,
+      },
+    };
     if (costPerKmSaveTimerRef.current) clearTimeout(costPerKmSaveTimerRef.current);
     costPerKmSaveTimerRef.current = setTimeout(() => {
-      runningCostApi.saveCostPerKm("Manual", costPerKmMapRef.current).catch(() => {});
+      runningCostApi.saveCostPerKm("Manual", costPerKmMapRef.current, costPartsMapRef.current).catch(() => {});
     }, 800);
   }
 
@@ -1849,8 +1965,11 @@ export default function RunningCostCalculatorPage() {
     // (which fires with empty state on mount) cannot overwrite it first.
     const localSaved = loadSaved();
 
-    async function fetchAll() {
-      const [tyreResult, configResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, monthlyAvgKmResult, maintenancePerDayResult, compliancePerDayResult] = await Promise.allSettled([
+    // initial = first load (restores saved inputs); later calls (live refresh)
+    // only refresh the fetched data and add new trucks / layouts / tyre types,
+    // never touching what's been typed.
+    async function fetchAll(initial: boolean) {
+      const [tyreResult, configResult, truckResult, backendResult, emiResult, fuelBaseResult, , allFuelStatsResult, tyreInventoryResult, tyreFitmentsResult, allMaintenanceResult, compliancePerKmResult, layoutTypeConfigResult, monthlyAvgKmResult, serverBreakdownResult, maintenancePerDayResult, compliancePerDayResult] = await Promise.allSettled([
         tyreRangeConfigApi.list(),
         trucksApi.getRunConfig(),
         trucksApi.list(),
@@ -1864,7 +1983,8 @@ export default function RunningCostCalculatorPage() {
         maintenanceApi.getMaintenanceCostPerKm(),
         trucksApi.getCompliancePerKmAll(),
         tyreLayoutTypeConfigApi.list(),
-        runningCostApi.getMonthlyAvgKmAll(),
+        runningCostApi.getRunStatsAll(),
+        runningCostApi.getCostBreakdownAll(),
         maintenanceApi.getMaintenanceCostPerDay(),
         trucksApi.getCompliancePerDayAll(),
       ]);
@@ -1878,7 +1998,8 @@ export default function RunningCostCalculatorPage() {
         return !!(slot.costPerLitre) ||
           Object.values(slot.tyreEntries  ?? {}).some((e) => e.cost || e.range) ||
           Object.values(slot.runEntries   ?? {}).some((e) => e.month || e.day) ||
-          Object.values(slot.truckMetrics ?? {}).some((m) => Object.values(m).some((v) => v));
+          Object.values(slot.truckMetrics ?? {}).some((m) => Object.values(m).some((v) => v)) ||
+          Object.values(slot.tyreCostConfigQty ?? {}).some((q) => Object.values(q).some((v) => v));
       }
 
       function pickSaved(local: Partial<ModeData>, remote: Partial<ModeData> | undefined): Partial<ModeData> {
@@ -1891,7 +2012,7 @@ export default function RunningCostCalculatorPage() {
       const basicSaved  = pickSaved(localSaved.Basic  ?? {}, backendData?.Basic);
       const advSaved    = pickSaved(localSaved.Advanced ?? {}, backendData?.Advanced);
 
-      if (localSaved.mode && (MODES as readonly string[]).includes(localSaved.mode)) {
+      if (initial && localSaved.mode && (MODES as readonly string[]).includes(localSaved.mode)) {
         setMode(localSaved.mode as Mode);
       }
 
@@ -2049,7 +2170,12 @@ export default function RunningCostCalculatorPage() {
 
       // Advanced mode: monthly average km per truck (fleet ID keyed) — feeds
       // EMI/Maintenance/Compliance per-km via TruckCostCard's advMonthlyAvgKm prop.
-      if (monthlyAvgKmResult.status === "fulfilled") setMonthlyAvgKmMap(monthlyAvgKmResult.value);
+      if (serverBreakdownResult.status === "fulfilled") setServerBreakdown(serverBreakdownResult.value);
+      if (monthlyAvgKmResult.status === "fulfilled") {
+        const stats = monthlyAvgKmResult.value;
+        setMonthlyAvgKmMap(Object.fromEntries(Object.entries(stats).map(([k, v]) => [k, v.monthlyAvg])));
+        setRunStatsMap(stats);
+      }
 
       // Build isolated ModeData for a given saved slot
       function buildModeData(saved: Partial<ModeData>): ModeData {
@@ -2070,22 +2196,55 @@ export default function RunningCostCalculatorPage() {
 
       if (emiResult.status === "fulfilled") setEmiRecords(emiResult.value);
 
-      initializedRef.current = true;
-      const manualData = buildModeData(manualSaved);
-      if (fuelBaseResult.status === "fulfilled" && fuelBaseResult.value.cost_per_litre != null) {
-        manualData.costPerLitre = String(fuelBaseResult.value.cost_per_litre);
+      const fuelBase = fuelBaseResult.status === "fulfilled" && fuelBaseResult.value.cost_per_litre != null
+        ? String(fuelBaseResult.value.cost_per_litre)
+        : null;
+      if (initial) {
+        initializedRef.current = true;
+        const manualData = buildModeData(manualSaved);
+        if (fuelBase != null) manualData.costPerLitre = fuelBase;
+        setAllModeData({
+          Manual:   manualData,
+          Basic:    buildModeData(basicSaved),
+          Advanced: buildModeData(advSaved),
+        });
+      } else {
+        // Keep every typed value; just add rows for new trucks / layouts /
+        // tyre types (and follow Fuel History's diesel price). Unchanged →
+        // same object, so nothing re-saves and no refresh loop starts.
+        setAllModeData((prev) => {
+          const next = {
+            Manual:   buildModeData(prev.Manual),
+            Basic:    buildModeData(prev.Basic),
+            Advanced: buildModeData(prev.Advanced),
+          };
+          if (fuelBase != null) next.Manual.costPerLitre = fuelBase;
+          return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+        });
       }
-      setAllModeData({
-        Manual:   manualData,
-        Basic:    buildModeData(basicSaved),
-        Advanced: buildModeData(advSaved),
-      });
 
       setTrucksLoading(false);
     }
 
-    fetchAll();
+    reloadRef.current = () => { void fetchAll(false); };
+    fetchAll(true);
   }, []);
+
+  // Live refresh: reload when anything feeding the calculator changes —
+  // here or on another user's screen (the server announces every change) —
+  // and when a cached figure is refreshed in the background. Its own saves
+  // ("running-cost") are left out so a save can't trigger a reload loop.
+  const reloadRef = useRef<(() => void) | null>(null);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleReload = () => {
+    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    reloadTimerRef.current = setTimeout(() => reloadRef.current?.(), 600);
+  };
+  useWebSocketEvent("data_changed", (payload) => {
+    if (COST_INPUT_RESOURCES.has(String((payload as { resource?: unknown })?.resource ?? ""))) scheduleReload();
+  });
+  useEffect(() => onRevalidated(() => scheduleReload()), []);
+  usePollWhenOffline(() => scheduleReload());
 
   // Persist per-mode data to localStorage immediately; debounce backend save (all modes).
   // Guard via ref (not state) so dep array size stays constant: skip until fetchAll sets the flag.
@@ -2332,6 +2491,8 @@ export default function RunningCostCalculatorPage() {
                   advancedMileage={mode === "Advanced" ? (advancedMileageMap[truck.id] ?? null) : undefined}
                   basicMileage={mode === "Basic" ? (advancedMileageMap[truck.id] ?? null) : undefined}
                   advMonthlyAvgKm={mode === "Advanced" ? monthlyAvgKmMap[truck.truckId] : undefined}
+                  runStats={runStatsMap[truck.truckId]}
+                  serverParts={mode === "Basic" || mode === "Advanced" ? (serverBreakdown?.[mode]?.[truck.truckId] ?? null) : undefined}
                   basicTyrePerKm={mode === "Basic" ? (basicTyreCostMap[truck.tyreLayout] ?? "") : undefined}
                   manualTyrePerKm={mode === "Manual" ? (() => {
                     const layout = truck.tyreLayout ?? "";

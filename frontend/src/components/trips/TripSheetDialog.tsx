@@ -10,9 +10,9 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
-import { repairTypesApi, fuelLogsApi, tripsApi, trucksApi, tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
+import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
 import type { FuelLog } from "@/types/fuel-log";
-import { showError, MySwal } from "@/lib/swal";
+import { showError, MySwal, confirmAction } from "@/lib/swal";
 import { todayIst, formatDate } from "@/lib/format-date";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
@@ -127,6 +127,29 @@ type Props = {
   onClose: () => void;
   onSubmit: (data: TripSheetData) => void;
 };
+
+// Start KM this far above the truck's current odometer (on a new sheet), or a
+// single trip this long, is almost certainly a typo (an extra digit).
+const START_KM_JUMP_WARN = 20000;
+const TRIP_KM_WARN = 5000;
+
+function kmWarningParts(odometer: string | undefined, startKm: string, endKm: string, isExisting: boolean): [string | undefined, string | undefined] {
+  const odo = Number(odometer || 0);
+  const start = Number(startKm || 0);
+  const end = Number(endKm || 0);
+  const fmt = (v: number) => v.toLocaleString("en-IN");
+  const startWarn = !isExisting && odo > 0 && start - odo > START_KM_JUMP_WARN
+    ? `This is ${fmt(start - odo)} km above the truck's current odometer (${fmt(odo)} km). Is it correct?`
+    : undefined;
+  const endWarn = start > 0 && end - start > TRIP_KM_WARN
+    ? `That makes this one trip ${fmt(end - start)} km. Is End km correct?`
+    : undefined;
+  return [startWarn, endWarn];
+}
+
+function kmWarnings(odometer: string | undefined, startKm: string, endKm: string, isExisting: boolean): string[] {
+  return kmWarningParts(odometer, startKm, endKm, isExisting).filter((w): w is string => !!w);
+}
 
 export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, autoEditable, onRequestAutoEdit, drivers, trucks, onClose, onSubmit }: Props) {
   const [form, setForm] = useState<TripSheetData>(emptySheet(""));
@@ -325,6 +348,15 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    // An extra digit in Start/End KM would push the truck's odometer up by
+    // lakhs of km (it only ever moves up on its own) — make the user confirm.
+    if (!readOnly) {
+      const warnings = kmWarnings(trucks.find((t) => t.truckId === form.vehicleId)?.odometer, form.startKm, form.endKm, !!existingSheet);
+      if (warnings.length > 0) {
+        const res = await confirmAction("Check the KM readings", `${warnings.join(" ")} Save anyway?`, "Save anyway");
+        if (!res.isConfirmed) return;
+      }
+    }
     if (trip) {
       setSaving(true);
       try {
@@ -355,12 +387,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         setSaving(false);
         return;
       }
-      // Update truck's current odometer from End Km if it's higher
-      const endKmVal = n(form.endKm);
-      const truckToUpdate = trucks.find((t) => t.truckId === form.vehicleId);
-      if (endKmVal > 0 && truckToUpdate && endKmVal > Number(truckToUpdate.odometer)) {
-        trucksApi.update(truckToUpdate.id, { ...truckToUpdate, odometer: String(endKmVal) }, undefined, true).catch(() => {});
-      }
+      // The truck's current odometer moves to End KM on the server when the
+      // sheet itself is saved (backend odometer.advance) — nothing to send here.
       setSaving(false);
     }
     // ±10% KM variance check (compare totalKm to trip.approxKm)
@@ -452,6 +480,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   // sheet, the truck's odometer was already advanced to this sheet's end km on save,
   // so comparing its start km against the odometer would always false-positive.
   const startKmTooLow  = !ro && !existingSheet && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
+  const [startKmWarning, endKmWarning] = ro ? [undefined, undefined] : kmWarningParts(currentTruck?.odometer, form.startKm, form.endKm, !!existingSheet);
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-4xl">
@@ -611,12 +640,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                 Below current odometer ({Number(currentTruck!.odometer).toLocaleString()} km). Please Check the Value.
               </p>
             )}
+            {startKmWarning && <p className="mt-1 text-xs text-amber-600">{startKmWarning}</p>}
           </Field>
           <Field label="End km *">
             <DecimalInput type="number" min="0" className={fc} value={form.endKm} readOnly={ro} disabled={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
             {n(form.endKm) > 0 && n(form.startKm) > 0 && n(form.endKm) <= n(form.startKm) && (
               <p className="mt-1 text-xs text-red-500">End Km must be greater than Start Km.</p>
             )}
+            {endKmWarning && <p className="mt-1 text-xs text-amber-600">{endKmWarning}</p>}
           </Field>
           <Field label="Total km *">
             <DecimalInput type="number" className={`${fc} bg-gray-50`} value={form.totalKm} readOnly placeholder="Auto-calculated" />
@@ -972,6 +1003,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             </div>
             <p className="text-xs text-orange-600 leading-relaxed">
               Note: These maintenance charges will be recorded for this truck but will not be included in the cost of this trip.
+              Each repair goes to Maintenance Approvals first and is added to the truck&apos;s record once Admin or Accounts approves it.
             </p>
           </div>
         )}

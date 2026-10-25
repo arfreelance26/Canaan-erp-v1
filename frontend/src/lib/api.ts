@@ -2,6 +2,7 @@
  * Centralized API client — all calls to the FastAPI backend go through here.
  * Transforms snake_case backend responses to the camelCase frontend types.
  */
+import { previewQuery } from "@/lib/celebration-preview";
 import type { AdBlueLog } from "@/types/adblue-log";
 import type { Truck } from "@/types/truck";
 import type { Driver } from "@/types/driver";
@@ -19,7 +20,8 @@ import type { TripSheetData } from "@/types/trip-sheet";
 import type { DriverAttendanceRecord, StaffAttendanceRecord, AttendanceSummaryRow, DriverAttendanceRemark, StaffSelfSummary } from "@/types/attendance";
 import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
-import type { MaintenanceRecord, AirFilterRecord, MaintenanceProof } from "@/types/truck-maintenance";
+import type { MaintenanceRecord, MaintenanceProof } from "@/types/truck-maintenance";
+import type { MaintenanceRequest, MaintenanceRequestProof } from "@/types/maintenance-request";
 import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
@@ -29,10 +31,8 @@ import type { Branch } from "@/types/branch";
 import type { RepairType } from "@/types/repair-type";
 import type { VendorCategory } from "@/types/vendor-category";
 import type { SacCode } from "@/types/sac-code";
-import type { MaintenanceTypeItem } from "@/types/maintenance-type";
 import type { CfsYardEntry } from "@/types/cfs-yard";
 import type { MaintenanceCategory, MaintenanceCategoryRepair } from "@/types/maintenance-category";
-import type { TruckMaintenanceStatus, MaintenanceStatusItem } from "@/types/maintenance-status";
 import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail, ChatPresence, ChatOwnerConversation, ChatOwnerHistoryEntry } from "@/types/chat";
 import type { PaymentRequest } from "@/types/payment-request";
 
@@ -319,6 +319,142 @@ export async function deleteFile(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Truck compliance history — every document a truck has held (Our Fleet →
+// Compliance History); renewed / corrected on Compliance & Renewals.
+// ---------------------------------------------------------------------------
+
+export type ComplianceDocType =
+  "rc" | "fc" | "road_tax" | "insurance" | "national_permit" | "local_permit" | "pollution_cert";
+
+export type ComplianceRecord = {
+  id: number;
+  docType: ComplianceDocType;
+  docLabel: string;
+  kind: "First entry" | "Renewal";
+  isCurrent: boolean;
+  docNumber: string | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  expense: number | null;
+  fileName: string | null;
+  hasFile: boolean;
+  createdByName: string;
+  createdAt: string;
+  correctedByName: string | null;
+  correctedAt: string | null;
+  correctionNote: string | null;
+};
+
+export type ComplianceLogEntry = {
+  id: number;
+  docType: ComplianceDocType | null;
+  documentType: string;
+  /** null = document added / renewed / updated; "Corrected"; "Renewal undone". */
+  action: string | null;
+  note: string | null;
+  actorName: string;
+  createdAt: string;
+};
+
+export type ComplianceDocInput = {
+  validUntil: string;
+  validFrom?: string;
+  expense?: string;
+  docNumber?: string;
+  note?: string;
+  file?: File | null;
+  /** Correct only: remove the current file without a replacement. */
+  removeFile?: boolean;
+};
+
+function complianceForm(input: ComplianceDocInput): FormData {
+  const form = new FormData();
+  form.append("valid_until", input.validUntil);
+  if (input.validFrom) form.append("valid_from", input.validFrom);
+  if (input.expense) form.append("expense", input.expense);
+  if (input.docNumber) form.append("doc_number", input.docNumber);
+  if (input.note) form.append("note", input.note);
+  if (input.file) form.append("file", input.file);
+  if (input.removeFile) form.append("remove_file", "true");
+  return form;
+}
+
+async function postComplianceForm(path: string, form: FormData): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { method: "POST", headers: authHeaders(), body: form });
+  } catch {
+    throw new Error("Cannot reach the server. Make sure the backend is running.");
+  }
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new Error("Session expired. Please log in again.");
+  }
+  if (!res.ok) throw new Error(await extractDetail(res, `Couldn't save: HTTP ${res.status}`));
+  cacheInvalidate("/trucks");
+  cacheInvalidate("/compliance-records");
+}
+
+export const complianceRecordsApi = {
+  listForTruck: (truckId: string) =>
+    req<B[]>(`/compliance-records/truck/${truckId}`).then((rows) =>
+      rows.map((r): ComplianceRecord => ({
+        id: r.id,
+        docType: r.doc_type,
+        docLabel: r.doc_label,
+        kind: r.kind,
+        isCurrent: !!r.is_current,
+        docNumber: r.doc_number ?? null,
+        validFrom: r.valid_from ?? null,
+        validUntil: r.valid_until ?? null,
+        expense: r.expense ?? null,
+        fileName: r.file_name ?? null,
+        hasFile: !!r.has_file,
+        createdByName: r.created_by_name ?? "",
+        createdAt: r.created_at,
+        correctedByName: r.corrected_by_name ?? null,
+        correctedAt: r.corrected_at ?? null,
+        correctionNote: r.correction_note ?? null,
+      })),
+    ),
+  renew: (truckId: string, doc: ComplianceDocType, input: ComplianceDocInput) =>
+    postComplianceForm(`/compliance-records/truck/${truckId}/${doc}/renew`, complianceForm(input)),
+  correct: (truckId: string, doc: ComplianceDocType, input: ComplianceDocInput) =>
+    postComplianceForm(`/compliance-records/truck/${truckId}/${doc}/correct`, complianceForm(input)),
+  /** Everything that happened to a truck's documents, newest first. */
+  getLog: (truckId: string) =>
+    req<B[]>(`/compliance-records/truck/${truckId}/log`).then((rows) =>
+      rows.map((r): ComplianceLogEntry => ({
+        id: r.id,
+        docType: r.doc_type ?? null,
+        documentType: r.document_type ?? "",
+        action: r.action ?? null,
+        note: r.note ?? null,
+        actorName: r.actor_name ?? "",
+        createdAt: r.created_at,
+      })),
+    ),
+  /** Admin only — delete the latest renewal and make the previous document current again. */
+  undoRenewal: (truckId: string, doc: ComplianceDocType, reason: string) => {
+    const form = new FormData();
+    form.append("reason", reason);
+    return postComplianceForm(`/compliance-records/truck/${truckId}/${doc}/undo-renewal`, form);
+  },
+  /** A past or current document's file (token in the URL, like fileUrl). */
+  fileUrl: (recordId: number) => {
+    const base = `${BASE}/compliance-records/${recordId}/file`;
+    if (typeof window === "undefined") return base;
+    try {
+      const stored = localStorage.getItem("canaan_erp_user");
+      const token = stored ? (JSON.parse(stored) as { token?: string }).token : undefined;
+      return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+    } catch {
+      return base;
+    }
+  },
+};
+
 // Parse a FastAPI error body ({"detail": "..."}) into a clean message, falling
 // back to raw text or a provided default so popups never show raw JSON.
 async function extractDetail(res: Response, fallback: string): Promise<string> {
@@ -343,6 +479,13 @@ async function extractDetail(res: Response, fallback: string): Promise<string> {
 
  
 type B = Record<string, any>;
+
+export type OdometerInfo = {
+  odometer: number;
+  maxTripSheetEndKm: number | null;
+  maxMaintenanceOdometer: number | null;
+  corrections: { id: number; oldOdometer: number; newOdometer: number; reason: string; actorName: string; createdAt: string }[];
+};
 
 function toTruck(b: B): Truck {
   return {
@@ -385,6 +528,10 @@ function toTruck(b: B): Truck {
     pollutionCertificateNumber: b.pollution_certificate_number ?? "",
     pollutionCertificateProofFileName: b.pollution_certificate_proof_file_name ?? null,
     pollutionCertificateExpenses: String(b.pollution_certificate_expenses ?? ""),
+    frontViewFileName: b.front_view_file_name ?? null,
+    rearViewFileName: b.rear_view_file_name ?? null,
+    leftViewFileName: b.left_view_file_name ?? null,
+    rightViewFileName: b.right_view_file_name ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
     disposalType: b.disposal_type ?? null,
     soldDate: b.sold_date ?? null,
@@ -434,6 +581,10 @@ function fromTruck(f: Truck) {
     pollution_certificate_number: f.pollutionCertificateNumber || null,
     pollution_certificate_proof_file_name: f.pollutionCertificateProofFileName ?? null,
     pollution_certificate_expenses: f.pollutionCertificateExpenses ? parseFloat(f.pollutionCertificateExpenses) : null,
+    front_view_file_name: f.frontViewFileName ?? null,
+    rear_view_file_name: f.rearViewFileName ?? null,
+    left_view_file_name: f.leftViewFileName ?? null,
+    right_view_file_name: f.rightViewFileName ?? null,
     client_version: f.version,
   };
 }
@@ -812,8 +963,9 @@ function fromTrip(f: Trip) {
     lift_on_amount: f.liftOnAmount ? parseFloat(f.liftOnAmount) : null,
     lift_on_remarks: f.liftOnRemarks || null,
     cha_name: f.chaName || null,
-    flagged_for_recheck: f.flaggedForRecheck ?? false,
-    flagged_remark: f.flaggedRemark || null,
+    // flagged_for_recheck / flagged_remark aren't sent — the Auditor's
+    // recheck state only changes through tripsApi.flagForRecheck /
+    // returnForReview / verifyRecheck (the server ignores it on an edit).
     advance_verified: f.advanceVerified ?? null,
     advance_verification_remark: f.advanceVerificationRemark || null,
     advance_corrected_amount: f.advanceCorrectedAmount ? parseFloat(f.advanceCorrectedAmount) : null,
@@ -1122,8 +1274,11 @@ export function maintenanceRecordChanges(record: MaintenanceRecord): Record<stri
     maintenance_by: record.maintenanceBy || null,
     maintenance_by_type: record.maintenanceByType || null,
     vendor_id: record.maintenanceByType === "Vendor" && record.vendorId ? parseInt(record.vendorId) : null,
+    invoice_number: record.invoiceNumber?.trim() || null,
+    invoice_date: record.invoiceDate || null,
     description: record.description || null,
     cost: parseFloat(record.cost) || 0,
+    remind_at_odometer: parseInt(record.remindAtOdometer ?? "") || null,
   };
 }
 
@@ -1147,6 +1302,9 @@ function toMaintenanceRecord(b: B): MaintenanceRecord {
     proofCount: Number(b.proof_count ?? 0),
     maintenanceByType: b.maintenance_by_type === "Vendor" || b.maintenance_by_type === "Individual" ? b.maintenance_by_type : null,
     vendorId: b.vendor_id != null ? String(b.vendor_id) : null,
+    invoiceNumber: b.invoice_number ?? "",
+    invoiceDate: b.invoice_date ?? "",
+    remindAtOdometer: b.remind_at_odometer != null ? String(b.remind_at_odometer) : "",
     truckCode: b.truck_code ?? null,
     truckRegistration: b.truck_registration ?? null,
   };
@@ -1161,19 +1319,6 @@ function toMaintenanceProof(b: B): MaintenanceProof {
     sizeBytes: Number(b.size_bytes ?? 0),
     uploadedByName: b.uploaded_by_name ?? null,
     createdAt: b.created_at ?? null,
-  };
-}
-
-function toAirFilterRecord(b: B): AirFilterRecord {
-  return {
-    id: String(b.id),
-    truckId: String(b.truck_id),
-    date: b.date ?? "",
-    odometerDuringChange: String(b.odometer_during_change ?? ""),
-    nextChangeOdometer: String(b.next_change_odometer ?? ""),
-    remarks: b.remarks ?? "",
-    enteredByName: b.entered_by_name ?? null,
-    version: typeof b.version === "number" ? b.version : undefined,
   };
 }
 
@@ -1225,6 +1370,13 @@ function toTyreInventory(b: B): TyreInventoryItem {
     retreadCount: String(b.retread_count ?? ""),
     // Condition follows the retread count (0 = New, 1+ = Rethreaded).
     condition: ((Number(b.retread_count) || 0) > 0 ? "Rethreaded" : "New") as "New" | "Rethreaded",
+    maintenanceBy: b.maintenance_by ?? "",
+    maintenanceByType: b.maintenance_by_type === "Vendor" || b.maintenance_by_type === "Individual" ? b.maintenance_by_type : null,
+    vendorId: b.vendor_id != null ? String(b.vendor_id) : null,
+    invoiceNumber: b.invoice_number ?? "",
+    invoiceDate: b.invoice_date ?? "",
+    proofFileName: b.proof_file_name ?? null,
+    proofSizeBytes: b.proof_size_bytes != null ? Number(b.proof_size_bytes) : null,
     version: typeof b.version === "number" ? b.version : undefined,
     retreadFlaggedAt: b.retread_flagged_at ?? null,
     retreadFlaggedBy: b.retread_flagged_by ?? null,
@@ -1248,6 +1400,11 @@ function fromTyreInventory(f: TyreInventoryItem) {
     retread_cost: parseFloat(f.retreadCost) || 0,
     retread_count: parseInt(f.retreadCount) || 0,
     condition: (parseInt(f.retreadCount) || 0) > 0 ? "Rethreaded" : "New",
+    maintenance_by: f.maintenanceBy?.trim() || null,
+    maintenance_by_type: f.maintenanceBy?.trim() ? f.maintenanceByType || null : null,
+    vendor_id: f.maintenanceByType === "Vendor" && f.vendorId ? parseInt(f.vendorId) : null,
+    invoice_number: f.invoiceNumber?.trim() || null,
+    invoice_date: f.invoiceDate || null,
     client_version: f.version,
   };
 }
@@ -1367,6 +1524,9 @@ export type ComplianceEditEventRow = {
   documentType: string;
   actorName: string;
   createdAt: string;
+  /** null = document set / renewed; "Corrected"; "Renewal undone". */
+  action: string | null;
+  note: string | null;
 };
 
 // One row in the page-wide "Edit History" log on Our Fleet — every Create/
@@ -1429,6 +1589,8 @@ export const trucksApi = {
     }).then(toTruck),
   /** Our Fleet → Sold Trucks. */
   listSold: () => req<B[]>("/trucks/sold").then((d) => d.map(toTruck)),
+  /** Sold + deleted trucks (disposalType tells which) — Vehicle Record. */
+  listRemoved: () => req<B[]>("/trucks/removed").then((d) => d.map(toTruck)),
   listDeletedIds: () => req<number[]>("/trucks/deleted-ids"),
   getNextId: () => req<{ truck_id: string }>("/trucks/next-id").then((d) => d.truck_id),
   // Page-wide "Edit History" log on Our Fleet — every Create/Edit/Delete/
@@ -1450,6 +1612,26 @@ export const trucksApi = {
     req<{ id: number; truck_id: number; from_branch: string | null; to_branch: string; note: string; changed_by_name: string; changed_at: string }[]>(
       `/trucks/${dbId}/branch-history`
     ),
+  // Our Fleet → Admin's Correct Odometer.
+  getOdometerInfo: (dbId: string): Promise<OdometerInfo> =>
+    req<B>(`/trucks/${dbId}/odometer`).then((r) => ({
+      odometer: Number(r.odometer ?? 0),
+      maxTripSheetEndKm: r.max_trip_sheet_end_km != null ? Number(r.max_trip_sheet_end_km) : null,
+      maxMaintenanceOdometer: r.max_maintenance_odometer != null ? Number(r.max_maintenance_odometer) : null,
+      corrections: ((r.corrections ?? []) as B[]).map((c) => ({
+        id: Number(c.id),
+        oldOdometer: Number(c.old_odometer ?? 0),
+        newOdometer: Number(c.new_odometer ?? 0),
+        reason: String(c.reason ?? ""),
+        actorName: String(c.actor_name ?? ""),
+        createdAt: String(c.created_at ?? ""),
+      })),
+    })),
+  correctOdometer: (dbId: string, odometer: number, reason: string) =>
+    req<B>(`/trucks/${dbId}/odometer-correction`, {
+      method: "POST",
+      body: JSON.stringify({ odometer, reason }),
+    }).then(toTruck),
   // Page-wide "Edit History" log on Compliance & Renewals — every compliance
   // document update ever logged, across every truck.
   listComplianceEditEvents: (): Promise<ComplianceEditEventRow[]> =>
@@ -1462,6 +1644,8 @@ export const trucksApi = {
         documentType: String(r.document_type ?? ""),
         actorName: String(r.actor_name ?? ""),
         createdAt: String(r.created_at ?? ""),
+        action: r.action ?? null,
+        note: r.note ?? null,
       }))
     ),
   // "This Trip Only" branch reassignment from the Assign Trip flow — note is
@@ -2289,7 +2473,13 @@ export const tripsApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     }),
-  getCustomerProfitability: () => req<CustomerProfitabilityData[]>("/trips/customer-profitability"),
+  getCustomerProfitability: (dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    const qs = params.toString();
+    return req<CustomerProfitabilityData[]>(`/trips/customer-profitability${qs ? `?${qs}` : ""}`);
+  },
   // Most profitable completed trips for one customer (+ optional route), with
   // the driver/truck that achieved each — powers the Assign Trip dialog's
   // customer insights panel.
@@ -2298,6 +2488,13 @@ export const tripsApi = {
     if (route) params.set("route", route);
     if (routeId) params.set("route_id", routeId);
     return req<CustomerTopProfitableTrip[]>(`/trips/customer-profitability/top-trips?${params.toString()}`);
+  },
+  /** Customer Insights for one customer route — Final Profit (Advanced mode). */
+  getRouteInsights: (customerId: string, routeId?: string | null, route?: string) => {
+    const params = new URLSearchParams({ customer_id: customerId });
+    if (routeId) params.set("route_id", routeId);
+    if (route) params.set("route", route);
+    return rawReq<RouteInsights>(`/trips/route-insights?${params.toString()}`);
   },
 };
 
@@ -2625,32 +2822,6 @@ export const attendanceApi = {
 // Maintenance API
 // ---------------------------------------------------------------------------
 
-type MaintStatusBackend = {
-  truck_db_id: number; truck_id: string; registration_number: string; odometer: number;
-  overdue_count: number; due_soon_count: number; no_data_count?: number;
-  items: Array<{ type_name: string; interval_km: number; last_odometer: number | null; km_since_last: number; next_due_odometer: number; status: "Overdue" | "Due Soon" | "No Data" | "OK" }>;
-};
-
-function toMaintStatus(b: MaintStatusBackend): TruckMaintenanceStatus {
-  return {
-    truckDbId: String(b.truck_db_id),
-    truckId: b.truck_id,
-    registrationNumber: b.registration_number,
-    odometer: b.odometer,
-    overdueCount: b.overdue_count,
-    dueSoonCount: b.due_soon_count,
-    noDataCount: b.no_data_count ?? 0,
-    items: b.items.map((i): MaintenanceStatusItem => ({
-      typeName: i.type_name,
-      intervalKm: i.interval_km,
-      lastOdometer: i.last_odometer,
-      kmSinceLast: i.km_since_last,
-      nextDueOdometer: i.next_due_odometer,
-      status: i.status,
-    })),
-  };
-}
-
 export type MaintenanceRecordEditEventType = "Record Created" | "Record Edited" | "Record Deleted";
 
 // One row in the page-wide "Edit History" log on Truck Maintenance — every
@@ -2669,18 +2840,6 @@ export type MaintenanceRecordEditEventRow = {
   event: MaintenanceRecordEditEventType;
   actorName: string;
   actorRole: string | null;
-  createdAt: string;
-};
-
-// One row in the page-wide "Edit History" log on Air Filter R&R — every log
-// ever added, across every truck, derived directly from AirFilterRecord.
-export type AirFilterRecordEditEventRow = {
-  id: number;
-  truckDbId: string;
-  registrationNumber: string;
-  date: string;
-  odometerDuringChange: number;
-  actorName: string;
   createdAt: string;
 };
 
@@ -2708,52 +2867,6 @@ export const maintenanceApi = {
   // Read-only EMI listing — routers/finance.py's /finance/emi requires Accounts/Admin;
   // this is the same data via a login-only endpoint, for roles like Auditor.
   listEmiRecordsReadOnly: () => req<B[]>("/maintenance/emi-records").then((d) => d.map(toEmiRecord)),
-  listAirFilterRecords: (truckId?: string) =>
-    req<B[]>(`/maintenance/air-filter-records${truckId ? `?truck_id=${truckId}` : ""}`).then((d) => d.map(toAirFilterRecord)),
-  createAirFilterRecord: (record: { truckId: string; date: string; odometerDuringChange: string; nextChangeOdometer: string; remarks: string }) =>
-    req<B>("/maintenance/air-filter-records", {
-      method: "POST",
-      body: JSON.stringify({
-        truck_id: parseInt(record.truckId),
-        date: record.date,
-        odometer_during_change: parseInt(record.odometerDuringChange),
-        next_change_odometer: parseInt(record.nextChangeOdometer),
-        remarks: record.remarks.trim() || null,
-      }),
-    }).then(toAirFilterRecord),
-  // Page-wide "Edit History" log on Air Filter R&R — derived directly from
-  // AirFilterRecord (create-only), no dedicated event table.
-  listAirFilterRecordEditEvents: (): Promise<AirFilterRecordEditEventRow[]> =>
-    req<Record<string, unknown>[]>(`/maintenance/air-filter-records/edit-events`).then((rows) =>
-      rows.map((r) => ({
-        id: Number(r.id),
-        truckDbId: String(r.truck_id ?? ""),
-        registrationNumber: String(r.registration_number ?? ""),
-        date: String(r.date ?? ""),
-        odometerDuringChange: Number(r.odometer_during_change ?? 0),
-        actorName: String(r.actor_name ?? ""),
-        createdAt: String(r.created_at ?? ""),
-      }))
-    ),
-  createRecord: (record: MaintenanceRecord, truckDbId: string) =>
-    req<B>("/maintenance/records", {
-      method: "POST",
-      body: JSON.stringify({
-        truck_id: parseInt(truckDbId),
-        date: record.date,
-        maintenance_end_date: record.maintenanceEndDate || null,
-        odometer: parseInt(record.odometer) || 0,
-        maintenance_type: record.maintenanceType,
-        repair_type: record.repairType || null,
-        compliant: record.compliant || null,
-        maintenance_location: record.maintenanceLocation || null,
-        maintenance_by: record.maintenanceBy || null,
-        maintenance_by_type: record.maintenanceByType || null,
-        vendor_id: record.maintenanceByType === "Vendor" && record.vendorId ? parseInt(record.vendorId) : null,
-        description: record.description || null,
-        cost: parseFloat(record.cost) || 0,
-      }),
-    }).then(toMaintenanceRecord),
   // -- Proof of Payment files on a record (5 JPGs + 3 PDFs max) --------------
   listProofs: (recordId: string): Promise<MaintenanceProof[]> =>
     rawReq<B[]>(`/maintenance/records/${recordId}/proofs`).then((d) => d.map(toMaintenanceProof)),
@@ -2813,10 +2926,13 @@ export const maintenanceApi = {
       body: JSON.stringify({ ...payload, resource_type: "MaintenanceRecord" }),
     }),
   getCompliance: () => req<B[]>("/maintenance/compliance"),
-  getStatus: () => req<MaintStatusBackend[]>("/maintenance/status").then((d) => d.map(toMaintStatus)),
-  getTruckStatus: (truckDbId: string) =>
-    req<MaintStatusBackend>(`/maintenance/trucks/${truckDbId}/status`).then(toMaintStatus),
   getMaintenanceCostPerDay: () => req<Record<string, number>>("/maintenance/cost-per-day/all"),
+  /** One truck's maintenance cost over the months it's been on record (≤ 12)
+   *  — the server's single figure behind Full Status and the calculator. */
+  getTruckCostSummary: (truckDbId: string) =>
+    req<{ total: number; months: number; monthly: number; daily: number; from: string | null; to: string }>(
+      `/maintenance/trucks/${truckDbId}/cost-summary`,
+    ),
   getMaintenanceCostPerKm: () => req<Record<string, number>>("/maintenance/cost-per-km/all"),
 };
 
@@ -2980,6 +3096,116 @@ export type DeletionApprovalEditEventRow = {
   createdAt: string;
 };
 
+function toMaintenanceRequest(b: B): MaintenanceRequest {
+  const p = (b.payload ?? {}) as B;
+  return {
+    id: String(b.id),
+    truckId: String(b.truck_id),
+    truckIdStr: b.truck_id_str ?? "",
+    registrationNumber: b.registration_number ?? "",
+    tripId: b.trip_id != null ? String(b.trip_id) : null,
+    tripIdStr: b.trip_id_str ?? null,
+    source: b.source === "Trip Sheet" ? "Trip Sheet" : "Web",
+    status: b.status,
+    date: p.date ?? "",
+    maintenanceEndDate: p.maintenance_end_date ?? "",
+    odometer: Number(p.odometer ?? 0),
+    maintenanceType: p.maintenance_type ?? "",
+    repairType: p.repair_type ?? "",
+    compliant: p.compliant ?? "",
+    maintenanceLocation: p.maintenance_location ?? "",
+    maintenanceBy: p.maintenance_by ?? "",
+    maintenanceByType: p.maintenance_by_type === "Vendor" || p.maintenance_by_type === "Individual" ? p.maintenance_by_type : null,
+    invoiceNumber: p.invoice_number ?? "",
+    invoiceDate: p.invoice_date ?? "",
+    description: p.description ?? "",
+    cost: Number(p.cost ?? 0),
+    remindAtOdometer: p.remind_at_odometer != null ? Number(p.remind_at_odometer) : null,
+    submittedByName: b.submitted_by_name ?? "",
+    submittedByRole: b.submitted_by_role ?? null,
+    decidedByName: b.decided_by_name ?? null,
+    decidedAt: b.decided_at ?? null,
+    rejectReason: b.reject_reason ?? null,
+    recordId: b.record_id != null ? String(b.record_id) : null,
+    requesterSeenAt: b.requester_seen_at ?? null,
+    proofCount: Number(b.proof_count ?? 0),
+    createdAt: b.created_at ?? "",
+  };
+}
+
+/** Maintenance Approvals — every new maintenance record waits here for Admin
+ *  or Accounts. Uncached (rawReq): a pending list must never show stale. */
+export const maintenanceRequestsApi = {
+  submit: (record: MaintenanceRecord, truckDbId: string): Promise<MaintenanceRequest> =>
+    rawReq<B>("/maintenance-requests", {
+      method: "POST",
+      body: JSON.stringify({ truck_id: parseInt(truckDbId), ...maintenanceRecordChanges(record) }),
+    }).then(toMaintenanceRequest),
+  list: (opts: { status?: string; truckId?: string } = {}): Promise<MaintenanceRequest[]> => {
+    const params = new URLSearchParams();
+    if (opts.status) params.set("status", opts.status);
+    if (opts.truckId) params.set("truck_id", opts.truckId);
+    const qs = params.toString();
+    return rawReq<B[]>(`/maintenance-requests${qs ? `?${qs}` : ""}`).then((d) => d.map(toMaintenanceRequest));
+  },
+  /** The logged-in user's own requests (any status but Cancelled). */
+  listMine: (): Promise<MaintenanceRequest[]> =>
+    rawReq<B[]>("/maintenance-requests/mine").then((d) => d.map(toMaintenanceRequest)),
+  markMineSeen: (): Promise<void> => rawReq<void>("/maintenance-requests/mine/mark-seen", { method: "POST" }),
+  approve: (id: string): Promise<MaintenanceRequest> =>
+    rawReq<B>(`/maintenance-requests/${id}/approve`, { method: "PUT" }).then((b) => {
+      // The new record feeds the truck's records, running cost and P&L.
+      cacheInvalidate("/maintenance");
+      return toMaintenanceRequest(b);
+    }),
+  reject: (id: string, reason: string): Promise<MaintenanceRequest> =>
+    rawReq<B>(`/maintenance-requests/${id}/reject`, { method: "PUT", body: JSON.stringify({ reason }) }).then(toMaintenanceRequest),
+  uploadProof: async (requestId: string, file: File): Promise<MaintenanceRequestProof> => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/maintenance-requests/${requestId}/proofs`, { method: "POST", headers: authHeaders(), body: form });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Upload failed: HTTP ${res.status}`));
+    return toMaintenanceRequestProof(await res.json());
+  },
+  listProofs: (requestId: string): Promise<MaintenanceRequestProof[]> =>
+    rawReq<B[]>(`/maintenance-requests/${requestId}/proofs`).then((d) => d.map(toMaintenanceRequestProof)),
+  fetchProofBlob: async (requestId: string, proofId: string): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/maintenance-requests/${requestId}/proofs/${proofId}`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the file: HTTP ${res.status}`));
+    return res.blob();
+  },
+};
+
+function toMaintenanceRequestProof(b: B): MaintenanceRequestProof {
+  return {
+    id: String(b.id),
+    requestId: String(b.request_id),
+    kind: b.kind === "pdf" ? "pdf" : "image",
+    fileName: b.file_name ?? "",
+    sizeBytes: Number(b.size_bytes ?? 0),
+    uploadedByName: b.uploaded_by_name ?? null,
+    createdAt: b.created_at ?? null,
+  };
+}
+
 export const deletionApprovalsApi = {
   create: (payload: {
     resourceType: string;
@@ -3070,9 +3296,20 @@ export type TripPnlSummaryData = {
   }[];
 };
 
+export type CostMode = "Basic" | "Advanced" | "Manual";
+
 export type CustomerProfitabilityData = {
   customer_id: string;
   customer_name: string;
+  /** Typed in by name on the trip, or no customer recorded (e.g. a return trip). */
+  is_custom: boolean;
+  /** Per Cost/KM mode: diesel = km × diesel ₹/km, truck_cost = km × Cost/KM (diesel
+   *  included); *_missing = trips with km but no figure in that mode (counted as ₹0). */
+  diesel: Record<CostMode, number>;
+  diesel_missing: Record<CostMode, number>;
+  truck_cost: Record<CostMode, number>;
+  cost_missing: Record<CostMode, number>;
+
   trip_count: number;
   flagged_trip_count: number;
   total_revenue: number;
@@ -3088,6 +3325,13 @@ export type CustomerProfitabilityData = {
     profit: number;
     margin_pct: number;
     avg_km: number;
+    counted_trip_count: number;
+    /** Per Cost/KM mode: diesel = km × diesel ₹/km, truck_cost = km × Cost/KM (diesel
+     *  included); *_missing = trips with km but no figure in that mode (counted as ₹0). */
+    diesel: Record<CostMode, number>;
+    diesel_missing: Record<CostMode, number>;
+    truck_cost: Record<CostMode, number>;
+    cost_missing: Record<CostMode, number>;
   }[];
   recent_trips: {
     trip_id: string;
@@ -3103,7 +3347,85 @@ export type CustomerProfitabilityData = {
     flagged_for_recheck: boolean;
     flagged_remark: string | null;
     excluded_from_totals: boolean;
+    /** Per Cost/KM mode; null = no figure for this trip's truck in that mode. */
+    diesel: Record<CostMode, number | null>;
+    truck_cost: Record<CostMode, number | null>;
   }[];
+};
+
+/** One past trip in Customer Insights. final_profit is null without cost data. */
+/** Customer Insights' colour for a profit — see backend profit_level. */
+export type ProfitLevel = "top" | "strong" | "good" | "thin" | "zero" | "small_loss" | "mid_loss" | "big_loss";
+
+/** Money fields are only sent to Admin (RouteInsights.show_money); everyone
+ *  else gets profit_level and the ranking order. */
+export type RouteInsightTrip = {
+  trip_id: number;
+  trip_id_str: string;
+  date: string | null;
+  customer_name: string;
+  origin: string;
+  destination: string;
+  container: string;
+  driver_id: string | null;
+  driver_name: string;
+  driver_left: boolean;
+  vehicle_id: string | null;
+  truck_registration: string;
+  truck_removed: string | null;
+  km: number;
+  profit_level: ProfitLevel | null;
+  revenue?: number;
+  trip_expense?: number;
+  cost_per_km?: number | null;
+  truck_cost?: number | null;
+  final_profit?: number | null;
+  margin_pct?: number | null;
+};
+
+/** A truck or driver ranked by average Final Profit per trip. */
+export type RouteInsightRank = {
+  id: string;
+  name: string;
+  trip_count: number;
+  loss_trips: number;
+  profit_trips: number;
+  profit_level: ProfitLevel | null;
+  total_profit?: number;
+  avg_profit?: number;
+  avg_margin_pct?: number | null;
+};
+
+export type RouteInsightCostTruck = {
+  truck_id: string;
+  registration_number: string;
+  manufacturer: string;
+  /** Cheapest / middle / costliest third of the fleet to run. */
+  cost_band: "low" | "mid" | "high";
+  profit_level: ProfitLevel | null;
+  cost_per_km?: number;
+  est_cost?: number | null;
+  est_profit?: number | null;
+  status: "Available" | "On a trip" | "No driver";
+  driver_name: string | null;
+};
+
+/** GET /trips/route-insights — see backend get_route_insights. */
+export type RouteInsights = {
+  mode: string;
+  /** True for Admin only — the ₹ figures are in the response. */
+  show_money: boolean;
+  route: {
+    label: string; origin: string; destination: string;
+    est_km: number | null; km_source: string | null;
+    est_hire: number | null; hire_source: string | null;
+    est_expense: number | null; expense_source: string | null;
+  };
+  trips: { this_route: RouteInsightTrip[]; other_customers: RouteInsightTrip[]; other_routes: RouteInsightTrip[] };
+  trucks: { this_route: RouteInsightRank[]; other_customers: RouteInsightRank[] };
+  drivers: { this_route: RouteInsightRank[]; other_customers: RouteInsightRank[] };
+  cost_trucks: RouteInsightCostTruck[];
+  trucks_without_cost: number;
 };
 
 export type CustomerTopProfitableTrip = {
@@ -3142,7 +3464,7 @@ export type TruckCostPerKmRanking = {
   };
 };
 
-/** A truck manufacturer (Our Fleet → Manufacturers). The "AdBlue" names are
+/** A truck manufacturer (Truck's AdBlue History → Manufacturers). The "AdBlue" names are
  * historical — this list used to be managed on the AdBlue page. */
 export type AdBlueManufacturer = {
   id: string;
@@ -3164,7 +3486,7 @@ function toAdBlueManufacturer(b: B): AdBlueManufacturer {
 
 export type AdBlueEditEventType = "Manufacturer Created" | "Manufacturer Edited" | "Manufacturer Deleted";
 
-// One row in the Edit History on Our Fleet → Manufacturers.
+// One row in the Edit History on Truck's AdBlue History → Manufacturers.
 export type AdBlueEditEventRow = {
   id: string;
   category: "Manufacturer";
@@ -3190,15 +3512,16 @@ export const adblueApi = {
     ),
   listManufacturers: () =>
     req<B[]>("/maintenance/adblue-manufacturers").then((d) => d.map(toAdBlueManufacturer)),
-  createManufacturer: (name: string) =>
+  /** pricePerLitre: the manufacturer's AdBlue cost per litre (null = not set). */
+  createManufacturer: (name: string, pricePerLitre: number | null) =>
     req<B>("/maintenance/adblue-manufacturers", {
       method: "POST",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, default_price_per_litre: pricePerLitre }),
     }).then(toAdBlueManufacturer),
-  updateManufacturer: (id: string, name: string) =>
+  updateManufacturer: (id: string, name: string, pricePerLitre: number | null) =>
     req<B>(`/maintenance/adblue-manufacturers/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, default_price_per_litre: pricePerLitre }),
     }).then(toAdBlueManufacturer),
   deleteManufacturer: (id: string) =>
     req<void>(`/maintenance/adblue-manufacturers/${id}`, { method: "DELETE" }),
@@ -3583,6 +3906,40 @@ export const tyreApi = {
     req<B>(`/tyre-inventory/${dbId}`, { method: "PUT", body: JSON.stringify(fromTyreInventory(tyre)) }).then(toTyreInventory),
   deleteTyre: (dbId: string) => req<void>(`/tyre-inventory/${dbId}`, { method: "DELETE" }),
   restore: (dbId: string) => req<B>(`/tyre-inventory/${dbId}/restore`, { method: "POST" }).then(toTyreInventory),
+  // -- Proof of Payment/Invoice (one PDF or image per tyre, 15 MB) -----------
+  uploadProof: async (dbId: string, file: File): Promise<TyreInventoryItem> => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/tyre-inventory/${dbId}/proof`, { method: "POST", headers: authHeaders(), body: form });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Upload failed: HTTP ${res.status}`));
+    return toTyreInventory(await res.json());
+  },
+  /** Fetched with the auth header (never a token in the URL), returned as a blob. */
+  fetchProofBlob: async (dbId: string): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/tyre-inventory/${dbId}/proof`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the file: HTTP ${res.status}`));
+    return res.blob();
+  },
+  deleteProof: (dbId: string) =>
+    rawReq<B>(`/tyre-inventory/${dbId}/proof`, { method: "DELETE" }).then(toTyreInventory),
   removePermanent: (dbId: string) => req<void>(`/tyre-inventory/${dbId}/permanent`, { method: "DELETE" }),
   listDeletedIds: () => req<number[]>("/tyre-inventory/deleted-ids"),
   getTyreHistory: (dbId: string) => req<B[]>(`/tyre-inventory/${dbId}/history`).then((d) => d.map(toTyreFitment)),
@@ -3946,56 +4303,8 @@ export const maintenanceCategoriesApi = {
     req<void>(`/maintenance-categories/${categoryId}/repairs/${repairId}`, { method: "DELETE" }),
 };
 
-// ---------------------------------------------------------------------------
-// Maintenance Types API
-// ---------------------------------------------------------------------------
-
-type MTypeBackend = { id: number; name: string; interval_km: number; version?: number };
-function toMaintenanceType(b: MTypeBackend): MaintenanceTypeItem {
-  return { id: String(b.id), name: b.name, intervalKm: b.interval_km, version: b.version };
-}
-
-export type MaintenanceTypeEditEventType = "Type Created" | "Type Edited" | "Type Deleted";
-
-export type MaintenanceTypeEditEventRow = {
-  id: number;
-  typeId: number;
-  name: string;
-  event: MaintenanceTypeEditEventType;
-  actorName: string;
-  actorRole: string | null;
-  createdAt: string;
-};
-
-export const maintenanceTypesApi = {
-  list: () => req<MTypeBackend[]>("/maintenance-types").then((d) => d.map(toMaintenanceType)),
-  listEditEvents: (): Promise<MaintenanceTypeEditEventRow[]> =>
-    req<B[]>(`/maintenance-types/edit-events`).then((rows) =>
-      rows.map((r) => ({
-        id: Number(r.id),
-        typeId: Number(r.type_id),
-        name: String(r.name ?? ""),
-        event: String(r.event) as MaintenanceTypeEditEventType,
-        actorName: String(r.actor_name ?? ""),
-        actorRole: (r.actor_role as string | null) ?? null,
-        createdAt: String(r.created_at ?? ""),
-      }))
-    ),
-  create: (name: string, intervalKm: number) =>
-    req<MTypeBackend>("/maintenance-types", {
-      method: "POST",
-      body: JSON.stringify({ name, interval_km: intervalKm }),
-    }).then(toMaintenanceType),
-  update: (id: string, name: string, intervalKm: number, version?: number) =>
-    req<MTypeBackend>(`/maintenance-types/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ name, interval_km: intervalKm, client_version: version }),
-    }).then(toMaintenanceType),
-  delete: (id: string) => req<void>(`/maintenance-types/${id}`, { method: "DELETE" }),
-};
-
 // The CFS/yard directory behind TripFormDialog's "View All CFS" / "View All
-// Yard" — Admin-editable, same pattern as Maintenance Types above.
+// Yard" — Admin-editable.
 function toCfsYardEntry(b: B): CfsYardEntry {
   return { id: String(b.id), kind: b.kind as CfsYardEntry["kind"], name: String(b.name ?? ""), version: Number(b.version ?? 1) };
 }
@@ -4265,6 +4574,10 @@ export const dashboardApi = {
 // ---------------------------------------------------------------------------
 
 export type TruckPLTripRow = {
+  /** trips.id — opens this row's Trip Breakdown. */
+  tripId: number | null;
+  /** The trip's code, e.g. TRP-1490 ("" for a sheet with no trip). */
+  tripCode: string;
   tripSheetDate: string;
   tripSheetNo: string;
   bookingReferenceNo: string;
@@ -4272,6 +4585,11 @@ export type TruckPLTripRow = {
   toLocation: string;
   hireAmount: number;
   totalExpense: number;
+  /** Hire − Trip Expenses, worked out by the server (only on /pl-summary/computed). */
+  tripProfit?: number;
+  /** Each trip-sheet line behind totalExpense (driver_pay, toll_charges, …) —
+   *  see backend pl_summary.TRIP_EXPENSE_LINES. They add up to totalExpense. */
+  expenseLines: Record<string, number>;
   totalKm: number;
   // Joined from trips + customers — used for profitability filter pills
   customerName: string;
@@ -4295,6 +4613,8 @@ export type TruckPLMaintenanceRow = {
 export type TruckPLEntry = {
   truckId: string;
   registrationNumber: string;
+  /** "Sold" / "Deleted" — a truck no longer in the fleet, shown for its past trips. */
+  disposal: string | null;
   tripCount: number;
   flaggedTripCount: number;
   totalHireAmount: number;
@@ -4329,14 +4649,79 @@ export type TruckPLEntry = {
   maintenanceRows: TruckPLMaintenanceRow[];
 };
 
-export const plSummaryApi = {
-  get: (startDate: string, endDate: string, truckId?: string): Promise<TruckPLEntry[]> => {
-    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-    if (truckId) params.set("truck_id", truckId);
-    return req<B[]>(`/pl-summary?${params}`).then((data) =>
-      data.map((b) => ({
+/** One mode's Cost/KM for a truck, split into its parts (₹/km). */
+export type TripBreakdownCost = {
+  total: number | null;
+  parts: { emi: number | null; fuel: number | null; tyre: number | null; maintenance: number | null; compliance: number | null };
+  /** False in Manual until the calculator saves the split. */
+  partsKnown: boolean;
+  dieselPrice: number | null;
+  mileage: number | null;
+  mileageSource: string;
+  priceSource: string;
+};
+
+/** Everything behind one Trip Profitability row (GET /pl-summary/trip-breakdown/{id}). */
+export type TripBreakdown = {
+  tripId: number;
+  tripCode: string;
+  tripSheetNo: string;
+  truckId: string;
+  registrationNumber: string;
+  customerName: string;
+  fromLocation: string;
+  toLocation: string;
+  hire: { gross: number; commission: number; net: number };
+  expenses: { total: number; items: { label: string; amount: number }[] };
+  km: { start: number; end: number; total: number };
+  flaggedForRecheck: boolean;
+  flaggedRemark: string | null;
+  cost: Record<"Manual" | "Basic" | "Advanced", TripBreakdownCost> | null;
+};
+
+function toBreakdownCost(c: B): TripBreakdownCost {
+  const num = (v: unknown) => (v == null ? null : Number(v));
+  const p = (c.parts ?? {}) as B;
+  return {
+    total: num(c.total),
+    parts: { emi: num(p.emi), fuel: num(p.fuel), tyre: num(p.tyre), maintenance: num(p.maintenance), compliance: num(p.compliance) },
+    partsKnown: Boolean(c.parts_known),
+    dieselPrice: num(c.diesel_price),
+    mileage: num(c.mileage),
+    mileageSource: String(c.mileage_source ?? ""),
+    priceSource: String(c.price_source ?? ""),
+  };
+}
+
+function toPlTripRow(t: B): TruckPLTripRow {
+  return {
+          tripId:                 typeof t.trip_id === "number" ? t.trip_id : null,
+          tripCode:               String(t.trip_code ?? ""),
+          tripSheetDate:          String(t.trip_sheet_date ?? ""),
+          tripSheetNo:            String(t.trip_sheet_no ?? ""),
+          bookingReferenceNo:     String(t.booking_reference_no ?? ""),
+          fromLocation:           String(t.from_location ?? ""),
+          toLocation:             String(t.to_location ?? ""),
+          hireAmount:             Number(t.hire_amount ?? 0),
+          totalExpense:           Number(t.total_expense ?? 0),
+          tripProfit:             t.trip_profit != null ? Number(t.trip_profit) : undefined,
+          expenseLines:           Object.fromEntries(Object.entries((t.expense_lines as B) ?? {}).map(([k, v]) => [k, Number(v ?? 0)])),
+          totalKm:                Number(t.total_km ?? 0),
+          customerName:           String(t.customer_name ?? ""),
+          tripCategory:           String(t.trip_category ?? ""),
+          cargoClassification:    String(t.cargo_classification ?? ""),
+          containerSpecification: String(t.container_specification ?? ""),
+          flaggedForRecheck:      Boolean(t.flagged_for_recheck ?? false),
+          flaggedRemark:          (t.flagged_remark as string | null) ?? null,
+          excludedFromTotals:     Boolean(t.excluded_from_totals ?? false),
+        };
+}
+
+function toTruckPLEntry(b: B): TruckPLEntry {
+  return {
         truckId: String(b.truck_id ?? ""),
         registrationNumber: String(b.registration_number ?? ""),
+        disposal: (b.disposal as string | null) ?? null,
         tripCount: Number(b.trip_count ?? 0),
         flaggedTripCount: Number(b.flagged_trip_count ?? 0),
         totalHireAmount: Number(b.total_hire_amount ?? 0),
@@ -4367,31 +4752,159 @@ export const plSummaryApi = {
         totalKm: Number(b.total_km ?? 0),
         revenuePerKm: Number(b.revenue_per_km ?? 0),
         maintenanceCount: Number(b.maintenance_count ?? 0),
-        tripRows: ((b.trip_rows as B[]) ?? []).map((t) => ({
-          tripSheetDate:          String(t.trip_sheet_date ?? ""),
-          tripSheetNo:            String(t.trip_sheet_no ?? ""),
-          bookingReferenceNo:     String(t.booking_reference_no ?? ""),
-          fromLocation:           String(t.from_location ?? ""),
-          toLocation:             String(t.to_location ?? ""),
-          hireAmount:             Number(t.hire_amount ?? 0),
-          totalExpense:           Number(t.total_expense ?? 0),
-          totalKm:                Number(t.total_km ?? 0),
-          customerName:           String(t.customer_name ?? ""),
-          tripCategory:           String(t.trip_category ?? ""),
-          cargoClassification:    String(t.cargo_classification ?? ""),
-          containerSpecification: String(t.container_specification ?? ""),
-          flaggedForRecheck:      Boolean(t.flagged_for_recheck ?? false),
-          flaggedRemark:          (t.flagged_remark as string | null) ?? null,
-          excludedFromTotals:     Boolean(t.excluded_from_totals ?? false),
-        })),
+        tripRows: ((b.trip_rows as B[]) ?? []).map(toPlTripRow),
         maintenanceRows: ((b.maintenance_rows as B[]) ?? []).map((m) => ({
           date: String(m.date ?? ""),
           maintenanceType: String(m.maintenance_type ?? ""),
           description: String(m.description ?? ""),
           cost: Number(m.cost ?? 0),
         })),
-      }))
-    );
+      };
+}
+
+const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+/** One trip's money, worked out by the server (backend pl_compute.trip_money). */
+export type PlTripMoney = {
+  tripProfit: number;
+  dieselRate: number | null;
+  diesel: number | null;
+  gross: number | null;
+  costPerKm: number | null;
+  truckExpenses: number | null;
+  /** True when there's no diesel figure, so Truck Expenses is all of Cost/KM. */
+  truckExpensesIncludeDiesel: boolean;
+  finalProfit: number | null;
+};
+
+/** One truck's money for the period (backend pl_compute.truck_money). */
+export type PlTruckMoney = {
+  tripProfit: number;
+  dieselRate: number | null;
+  diesel: number | null;
+  gross: number | null;
+  tyreRate: number | null;
+  tyres: number | null;
+  running: number;
+  fixed: number;
+  net: number;
+  incomplete: string[];
+};
+
+export type PlComputedTrip = TruckPLTripRow & { truckId: string; registrationNumber: string; disposal: string | null; money: PlTripMoney };
+export type PlComputedTruck = TruckPLEntry & { money: PlTruckMoney };
+
+/** GET /pl-summary/computed — the Profitability page's finished numbers. */
+export type PlComputed = {
+  mode: string;
+  trips: PlComputedTrip[];
+  tripTotals: {
+    trips: number; counted: number; flagged: number;
+    hire: number; tripExpenses: number; tripProfit: number;
+    grossTrips: number; diesel: number; gross: number; truckExpenses: number;
+    finalTrips: number; final: number | null;
+    profitable: number; nonProfitable: number; profitablePct: number | null; nonProfitablePct: number | null;
+    unjudged: number;
+  };
+  allTripCount: number;
+  trucks: PlComputedTruck[];
+  truckTotals: {
+    trucks: number; idle: number; incomplete: number; profitable: number; nonProfitable: number;
+    trips: number; km: number; hire: number; tripExpenses: number; tripProfit: number;
+    diesel: number; gross: number; running: number; fixed: number; net: number;
+  };
+  allTruckCount: number;
+};
+
+function toPlComputed(b: B): PlComputed {
+  const tt = b.trip_totals as B;
+  const kt = b.truck_totals as B;
+  return {
+    mode: String(b.mode),
+    trips: ((b.trips as B[]) ?? []).map((t) => {
+      const m = t.money as B;
+      return {
+        ...toPlTripRow(t),
+        truckId: String(t.truck_id ?? ""),
+        registrationNumber: String(t.registration_number ?? ""),
+        disposal: (t.disposal as string | null) ?? null,
+        money: {
+          tripProfit: Number(m.trip_profit ?? 0), dieselRate: num(m.diesel_rate), diesel: num(m.diesel),
+          gross: num(m.gross), costPerKm: num(m.cost_per_km), truckExpenses: num(m.truck_expenses),
+          truckExpensesIncludeDiesel: Boolean(m.truck_expenses_include_diesel), finalProfit: num(m.final_profit),
+        },
+      };
+    }),
+    tripTotals: {
+      trips: Number(tt.trips), counted: Number(tt.counted), flagged: Number(tt.flagged),
+      hire: Number(tt.hire), tripExpenses: Number(tt.trip_expenses), tripProfit: Number(tt.trip_profit),
+      grossTrips: Number(tt.gross_trips), diesel: Number(tt.diesel), gross: Number(tt.gross),
+      truckExpenses: Number(tt.truck_expenses), finalTrips: Number(tt.final_trips), final: num(tt.final),
+      profitable: Number(tt.profitable), nonProfitable: Number(tt.non_profitable),
+      profitablePct: num(tt.profitable_pct), nonProfitablePct: num(tt.non_profitable_pct), unjudged: Number(tt.unjudged),
+    },
+    allTripCount: Number(b.all_trip_count ?? 0),
+    trucks: ((b.trucks as B[]) ?? []).map((e) => {
+      const m = e.money as B;
+      return {
+        ...toTruckPLEntry(e),
+        money: {
+          tripProfit: Number(m.trip_profit ?? 0), dieselRate: num(m.diesel_rate), diesel: num(m.diesel),
+          gross: num(m.gross), tyreRate: num(m.tyre_rate), tyres: num(m.tyres),
+          running: Number(m.running ?? 0), fixed: Number(m.fixed ?? 0), net: Number(m.net ?? 0),
+          incomplete: ((m.incomplete as string[]) ?? []).map(String),
+        },
+      };
+    }),
+    truckTotals: {
+      trucks: Number(kt.trucks), idle: Number(kt.idle), incomplete: Number(kt.incomplete),
+      profitable: Number(kt.profitable), nonProfitable: Number(kt.non_profitable),
+      trips: Number(kt.trips), km: Number(kt.km), hire: Number(kt.hire), tripExpenses: Number(kt.trip_expenses),
+      tripProfit: Number(kt.trip_profit), diesel: Number(kt.diesel), gross: Number(kt.gross),
+      running: Number(kt.running), fixed: Number(kt.fixed), net: Number(kt.net),
+    },
+    allTruckCount: Number(b.all_truck_count ?? 0),
+  };
+}
+
+export const plSummaryApi = {
+  /** The page's numbers, finished on the server for this period + mode (+ search). */
+  getComputed: (startDate: string, endDate: string, mode: string, search = ""): Promise<PlComputed> => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate, mode, search });
+    return rawReq<B>(`/pl-summary/computed?${params}`).then(toPlComputed);
+  },
+  /** The Excel report's sheets as the preview shows them (formulas worked out). */
+  getExportPreview: (query: string): Promise<{ filename: string; sheets: { name: string; rows: string[][] }[] }> =>
+    rawReq<{ filename: string; sheets: { name: string; rows: string[][] }[] }>(`/pl-summary/export-preview?${query}`),
+  /** Earliest trip sheet date on record (or null). */
+  getFirstTripDate: (): Promise<string | null> =>
+    req<{ first_trip_date: string | null }>("/pl-summary/first-trip-date").then((r) => r.first_trip_date),
+  getTripBreakdown: (tripId: number): Promise<TripBreakdown> =>
+    rawReq<B>(`/pl-summary/trip-breakdown/${tripId}`).then((b) => ({
+      tripId: Number(b.trip_id),
+      tripCode: String(b.trip_code ?? ""),
+      tripSheetNo: String(b.trip_sheet_no ?? ""),
+      truckId: String(b.truck_id ?? ""),
+      registrationNumber: String(b.registration_number ?? ""),
+      customerName: String(b.customer_name ?? ""),
+      fromLocation: String(b.from_location ?? ""),
+      toLocation: String(b.to_location ?? ""),
+      hire: { gross: Number(b.hire?.gross ?? 0), commission: Number(b.hire?.commission ?? 0), net: Number(b.hire?.net ?? 0) },
+      expenses: {
+        total: Number(b.expenses?.total ?? 0),
+        items: ((b.expenses?.items as B[]) ?? []).map((i) => ({ label: String(i.label ?? ""), amount: Number(i.amount ?? 0) })),
+      },
+      km: { start: Number(b.km?.start ?? 0), end: Number(b.km?.end ?? 0), total: Number(b.km?.total ?? 0) },
+      flaggedForRecheck: Boolean(b.flagged_for_recheck),
+      flaggedRemark: (b.flagged_remark as string | null) ?? null,
+      cost: b.cost
+        ? { Manual: toBreakdownCost(b.cost.Manual), Basic: toBreakdownCost(b.cost.Basic), Advanced: toBreakdownCost(b.cost.Advanced) }
+        : null,
+    })),
+  get: (startDate: string, endDate: string, truckId?: string): Promise<TruckPLEntry[]> => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    if (truckId) params.set("truck_id", truckId);
+    return req<B[]>(`/pl-summary?${params}`).then((data) => data.map(toTruckPLEntry));
   },
 };
 
@@ -4523,7 +5036,12 @@ export const notificationsApi = {
       }) as ServerNotification)
     ),
   markRead: (id: number) => req<B>(`/notifications/${id}/read`, { method: "POST" }),
-  markAllRead: () => req<{ ok: boolean }>("/notifications/read-all", { method: "POST" }),
+  /** exclude: event types to leave unread. */
+  markAllRead: (exclude: string[] = []) =>
+    req<{ ok: boolean }>(
+      `/notifications/read-all${exclude.length ? `?exclude=${encodeURIComponent(exclude.join(","))}` : ""}`,
+      { method: "POST" },
+    ),
 };
 
 export type Reminder = {
@@ -4535,6 +5053,112 @@ export type Reminder = {
   dueDate: string;
   daysLeft: number;
   href: string;
+};
+
+// ---------------------------------------------------------------------------
+// Celebrations — staff birthdays, the December season, Founding Day.
+// Uncached on purpose (rawReq): the persisted GET cache would keep showing
+// yesterday's answer, or one from before a date of birth was corrected.
+// previewQuery() adds Admin's Celebrations Management preview, if any.
+// ---------------------------------------------------------------------------
+
+export type BirthdayToday = {
+  celebrating: boolean; mine: boolean; name: string | null; date: string;
+  message: string; signature: string;
+};
+export const birthdayApi = {
+  today: () =>
+    rawReq<B>(`/celebrations/birthday${previewQuery()}`).then((r) => ({
+      celebrating: !!r.celebrating,
+      mine: !!r.mine,
+      name: r.name ?? null,
+      date: String(r.date ?? ""),
+      message: String(r.message ?? ""),
+      signature: String(r.signature ?? ""),
+    }) as BirthdayToday),
+};
+
+export type FestiveSeason = {
+  enabled: boolean;
+  active: boolean;
+  greeting: "christmas" | "newyear" | null;
+  newYear: number;
+  seasonKey: string;
+  date: string;
+  messages: { christmas: string; newyear: string; signature: string };
+};
+export const seasonApi = {
+  get: () =>
+    rawReq<B>(`/celebrations/season${previewQuery()}`).then((r) => ({
+      enabled: !!r.enabled,
+      active: !!r.active,
+      greeting: r.greeting === "christmas" || r.greeting === "newyear" ? r.greeting : null,
+      newYear: Number(r.new_year ?? 0),
+      seasonKey: String(r.season_key ?? ""),
+      date: String(r.date ?? ""),
+      messages: {
+        christmas: String(r.messages?.christmas ?? ""),
+        newyear: String(r.messages?.newyear ?? ""),
+        signature: String(r.messages?.signature ?? ""),
+      },
+    }) as FestiveSeason),
+};
+
+export type FoundingDay = {
+  enabled: boolean;
+  active: boolean;
+  years: number;
+  ordinal: string;
+  milestone: boolean;
+  date: string;
+  stats: { tripsCompleted: number; trucks: number; customers: number } | null;
+  message: string;
+  signature: string;
+};
+export const foundingApi = {
+  get: () =>
+    rawReq<B>(`/celebrations/founding${previewQuery()}`).then((r) => ({
+      enabled: !!r.enabled,
+      active: !!r.active,
+      years: Number(r.years ?? 0),
+      ordinal: String(r.ordinal ?? ""),
+      milestone: !!r.milestone,
+      date: String(r.date ?? ""),
+      stats: r.stats
+        ? { tripsCompleted: Number(r.stats.trips_completed ?? 0), trucks: Number(r.stats.trucks ?? 0), customers: Number(r.stats.customers ?? 0) }
+        : null,
+      message: String(r.message ?? ""),
+      signature: String(r.signature ?? ""),
+    }) as FoundingDay),
+};
+
+export type CelebrationKey = "birthdays" | "season" | "founding";
+export type CelebrationMessages = { birthday: string; christmas: string; newyear: string; founding: string; signature: string };
+export type CelebrationsOverview = {
+  today: string;
+  switches: Record<CelebrationKey, boolean>;
+  messages: CelebrationMessages;
+  defaults: CelebrationMessages;
+  maxMessage: number;
+  upcoming: { date: string; days: number; kind: "birthday" | "season" | "founding"; title: string; detail: string }[];
+  history: { event: string; actor: string | null; detail: string | null; at: string | null }[];
+};
+/** Celebrations Management (Admin). */
+export const celebrationsApi = {
+  overview: () =>
+    rawReq<B>("/celebrations").then((r) => ({
+      today: String(r.today ?? ""),
+      switches: r.switches,
+      messages: r.messages,
+      defaults: r.defaults,
+      maxMessage: Number(r.max_message ?? 250),
+      upcoming: r.upcoming ?? [],
+      history: r.history ?? [],
+    }) as CelebrationsOverview),
+  setSwitch: (key: CelebrationKey, enabled: boolean) =>
+    rawReq<{ key: string; enabled: boolean }>("/celebrations/switch", { method: "PUT", body: JSON.stringify({ key, enabled }) }),
+  setMessages: (messages: Partial<CelebrationMessages>) =>
+    rawReq<CelebrationMessages>("/celebrations/messages", { method: "PUT", body: JSON.stringify(messages) }),
 };
 
 export const remindersApi = {
@@ -4664,6 +5288,8 @@ export const securityApi = {
 
 type RccModeData = {
   costPerLitre: string;
+  /** Tyre Cost Configuration quantities: layout → tyre type → quantity. */
+  tyreCostConfigQty?: Record<string, Record<string, string>>;
   tyreEntries: Record<string, { cost: string; range: string }>;
   runEntries: Record<string, { month: string; day: string }>;
   truckMetrics: Record<string, {
@@ -4687,6 +5313,7 @@ export type RccState = {
 function _parseModeData(d: Record<string, any>): RccModeData {
   return {
     costPerLitre: d.cost_per_litre ?? "",
+    tyreCostConfigQty: d.tyre_cost_config_qty ?? {},
     tyreEntries: Object.fromEntries(
       Object.entries(d.tyre_entries ?? {}).map(([k, v]: [string, any]) => [k, { cost: v.cost ?? "", range: v.range ?? "" }])
     ),
@@ -4713,6 +5340,8 @@ function _parseModeData(d: Record<string, any>): RccModeData {
 function _serializeModeData(d: RccModeData) {
   return {
     cost_per_litre: d.costPerLitre,
+    // Saved on the server so Manual Cost/KM can be worked out there.
+    tyre_cost_config_qty: d.tyreCostConfigQty ?? {},
     tyre_entries: Object.fromEntries(
       Object.entries(d.tyreEntries).map(([k, v]) => [k, { cost: v.cost, range: v.range }])
     ),
@@ -4739,6 +5368,81 @@ const _emptyRccModeData = (): RccModeData => ({
 });
 // _emptyRccModeData is available for callers that need a typed empty state
 
+/** "How is this calculated?" for one truck in one mode (Running Cost Calculator). */
+export type CostExplanation = {
+  truckId: string;
+  registrationNumber: string;
+  tyreLayout: string;
+  mode: string;
+  total: number | null;
+  note: string | null;
+  distance: { monthlyAvg: number; dailyAvg: number; trips: number; missingSheets: number; configuredKmPerDay: number | null };
+  parts: {
+    key: string;
+    label: string;
+    value: number | null;
+    formula: string | null;
+    missing: string | null;
+    inputs: { label: string; value: string; detail: string | null; source: string | null; href: string | null }[];
+    /** The rows behind this part (fitted tyres, documents, loans…), if any. */
+    table: ExplainTable | null;
+  }[];
+};
+
+export type ExplainTable = {
+  title: string | null;
+  columns: string[];
+  rows: string[][];
+  footer: string[] | null;
+  /** Column indexes to right-align (numbers). */
+  numeric: number[];
+};
+
+/** One truck's Cost/KM and its five parts (₹/km; null = no data). */
+export type ServerCostParts = {
+  total: number | null;
+  emi: number | null;
+  fuel: number | null;
+  tyre: number | null;
+  maintenance: number | null;
+  compliance: number | null;
+};
+
+/** A truck's distance stats (Truck Run Record) — see backend truck_run_stats_all. */
+export type TruckRunStats = {
+  totalDistance: number;
+  tripsWithDistance: number;
+  /** Completed trips still without a trip sheet — not counted in the average. */
+  missingSheets: number;
+  firstTripDate: string | null;
+  /** The span ends here: the latest trip entered in the whole system. */
+  dataUntil: string | null;
+  days: number;
+  months: number;
+  monthlyAvg: number;
+  dailyAvg: number;
+  avgPerTrip: number;
+  longest: number;
+  shortest: number;
+};
+
+function toRunStats(b: B): TruckRunStats {
+  return {
+    totalDistance: Number(b.total_distance ?? 0),
+    tripsWithDistance: Number(b.trips_with_distance ?? 0),
+    missingSheets: Number(b.missing_sheets ?? 0),
+    firstTripDate: b.first_trip_date ?? null,
+    dataUntil: b.data_until ?? null,
+    days: Number(b.days ?? 0),
+    months: Number(b.months ?? 0),
+    monthlyAvg: Number(b.monthly_avg ?? 0),
+    dailyAvg: Number(b.daily_avg ?? 0),
+    avgPerTrip: Number(b.avg_per_trip ?? 0),
+    longest: Number(b.longest ?? 0),
+    shortest: Number(b.shortest ?? 0),
+  };
+}
+
 export const runningCostApi = {
   getState: (): Promise<RccState> =>
     req<Record<string, any>>("/running-cost/state").then((d) => ({
@@ -4763,15 +5467,63 @@ export const runningCostApi = {
   // two pages, which broke across browsers/devices and mismatched modes.
   getCostPerKm: (): Promise<Record<string, Record<string, number | null>>> =>
     req<Record<string, Record<string, number | null>>>("/running-cost/cost-per-km"),
+  /** {mode: {truck fleet ID: diesel cost per km}} — the calculator's "Mileage"
+   * line (diesel price ÷ km/L). Profitability's Gross Profit uses it. */
+  /** {mode: {truck fleet ID: {fuel, tyre}}} — the calculator's "Mileage" and
+   * "Tyre Charges" per km. Truck Profitability's Diesel and Tyres use them. */
+  getCostPartsPerKm: (): Promise<Record<string, Record<string, { fuel: number | null; tyre: number | null }>>> =>
+    req<Record<string, Record<string, { fuel: number | null; tyre: number | null }>>>("/running-cost/cost-parts-per-km"),
+  getMileageCostPerKm: (): Promise<Record<string, Record<string, number>>> =>
+    req<Record<string, Record<string, number>>>("/running-cost/mileage-cost-per-km"),
   // Every truck's monthly average km (from trip history), fetched once for the
   // whole fleet — replaces each Advanced-mode truck card independently calling
   // useTruckTripRuns (a full trips list + a per-trip sheet fetch, per card).
-  getMonthlyAvgKmAll: (): Promise<Record<string, number>> =>
-    req<Record<string, number>>("/running-cost/monthly-avg-km-all"),
-  saveCostPerKm: (mode: string, values: Record<string, number | null>): Promise<void> =>
+  /** Truck Run Record stats per truck (keyed by truck ID) — the server is the
+   *  only place the Monthly Distance Average is worked out. */
+  /** The server's Basic and Advanced Cost/KM, split into its five parts, per
+   *  truck ID — what the calculator shows for those two modes. */
+  explain: (truckBusinessId: string, mode: string): Promise<CostExplanation> =>
+    req<B>(`/running-cost/explain/${encodeURIComponent(truckBusinessId)}?mode=${encodeURIComponent(mode)}`).then((d) => ({
+      truckId: d.truck_id,
+      registrationNumber: d.registration_number ?? "",
+      tyreLayout: d.tyre_layout ?? "",
+      mode: d.mode,
+      total: d.total ?? null,
+      note: d.note ?? null,
+      distance: {
+        monthlyAvg: Number(d.distance?.monthly_avg ?? 0),
+        dailyAvg: Number(d.distance?.daily_avg ?? 0),
+        trips: Number(d.distance?.trips ?? 0),
+        missingSheets: Number(d.distance?.missing_sheets ?? 0),
+        configuredKmPerDay: d.distance?.configured_km_per_day ?? null,
+      },
+      parts: (d.parts ?? []).map((p: B) => ({
+        key: p.key, label: p.label, value: p.value ?? null, formula: p.formula ?? null, missing: p.missing ?? null,
+        table: p.table ? {
+          title: p.table.title ?? null, columns: p.table.columns ?? [], rows: p.table.rows ?? [],
+          footer: p.table.footer ?? null, numeric: p.table.numeric ?? [],
+        } : null,
+        inputs: (p.inputs ?? []).map((i: B) => ({
+          label: i.label, value: i.value, detail: i.detail ?? null, source: i.source ?? null, href: i.href ?? null,
+        })),
+      })),
+    })),
+  getCostBreakdownAll: (): Promise<Record<"Basic" | "Advanced", Record<string, ServerCostParts>>> =>
+    req<Record<"Basic" | "Advanced", Record<string, ServerCostParts>>>("/running-cost/cost-breakdown-all"),
+  getRunStatsAll: (): Promise<Record<string, TruckRunStats>> =>
+    req<Record<string, B>>("/running-cost/run-stats-all").then((m) =>
+      Object.fromEntries(Object.entries(m).map(([k, v]) => [k, toRunStats(v)])),
+    ),
+  getRunStats: (truckBusinessId: string): Promise<TruckRunStats> =>
+    req<B>(`/running-cost/run-stats/${encodeURIComponent(truckBusinessId)}`).then(toRunStats),
+  saveCostPerKm: (
+    mode: string,
+    values: Record<string, number | null>,
+    parts?: Record<string, { emi: number | null; fuel: number | null; tyre: number | null; maintenance: number | null; compliance: number | null }>,
+  ): Promise<void> =>
     req<void>("/running-cost/cost-per-km", {
       method: "PUT",
-      body: JSON.stringify({ mode, values }),
+      body: JSON.stringify({ mode, values, ...(parts ? { parts } : {}) }),
     }),
 };
 

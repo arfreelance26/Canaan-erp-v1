@@ -14,7 +14,6 @@ import {
   TrendingDown,
   Calendar,
   Gauge,
-  Filter,
   Search,
   X,
   Check,
@@ -25,15 +24,13 @@ import { showError } from "@/lib/swal";
 import { CurrentTripsCard } from "./CurrentTripsCard";
 import { FleetStatusPanel } from "./FleetStatusPanel";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { getMaintenanceStatus } from "@/lib/truck-maintenance-data";
-import { getAirFilterAlerts } from "@/lib/air-filter-alerts";
 import { formatDate } from "@/lib/format-date";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck as TruckType } from "@/types/truck";
-import type { MaintenanceRecord, MaintenanceStatusItem, AirFilterRecord } from "@/types/truck-maintenance";
+import type { MaintenanceRecord } from "@/types/truck-maintenance";
 
 
 const QUICK_LINKS = [
@@ -112,7 +109,6 @@ export function TyreManagerDashboard() {
   const [fitments, setFitments]     = useState<TyreFitmentRecord[]>([]);
   const [trucks, setTrucks]         = useState<TruckType[]>([]);
   const [records, setRecords]       = useState<MaintenanceRecord[]>([]);
-  const [airFilterRecords, setAirFilterRecords] = useState<AirFilterRecord[]>([]);
   const [loading, setLoading]       = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [healthFilter, setHealthFilter] = useState<Health | null>(null);
@@ -128,16 +124,14 @@ export function TyreManagerDashboard() {
       tyreApi.listFitments(undefined, true),
       trucksApi.list(),
       maintenanceApi.listRecords(),
-      maintenanceApi.listAirFilterRecords(),
     ])
-      .then(([inv, avail, fits, trks, recs, afRecs]) => {
+      .then(([inv, avail, fits, trks, recs]) => {
         const failed: string[] = [];
         if (inv.status === "fulfilled") setInventory(inv.value); else failed.push("Tyre Inventory");
         if (avail.status === "fulfilled") setAvailable(avail.value); else failed.push("Available Inventory");
         if (fits.status === "fulfilled") setFitments(fits.value); else failed.push("Tyre Fitments");
         if (trks.status === "fulfilled") setTrucks(trks.value); else failed.push("Trucks");
         if (recs.status === "fulfilled") setRecords(recs.value); else failed.push("Maintenance Records");
-        if (afRecs.status === "fulfilled") setAirFilterRecords(afRecs.value); else failed.push("Air Filter Records");
         if (failed.length > 0) {
           showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
         }
@@ -148,7 +142,6 @@ export function TyreManagerDashboard() {
   useWebSocketEvent("tyre_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("maintenance_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey(k => k + 1));
-  useWebSocketEvent("air_filter_updated", () => setRefreshKey(k => k + 1));
 
   const truckByDbId  = useMemo(() => new Map(trucks.map((t) => [t.id, t])),  [trucks]);
   const tyreByDbId   = useMemo(() => new Map(inventory.map((t) => [t.id, t])), [inventory]);
@@ -159,16 +152,6 @@ export function TyreManagerDashboard() {
   const newCount       = inventory.filter((t) => t.condition === "New").length;
   const retreadCount   = inventory.filter((t) => t.condition === "Rethreaded").length;
 
-  const allAlerts = useMemo<MaintenanceStatusItem[]>(() => {
-    return trucks.flatMap((t) => getMaintenanceStatus(t, records)).filter((s) => s.status === "attention");
-  }, [trucks, records]);
-
-  // Air filter change alerts — latest log's next-change target vs. each
-  // truck's live Current Odometer (updated after every trip).
-  const airFilterAlerts = useMemo(
-    () => getAirFilterAlerts(trucks, airFilterRecords),
-    [trucks, airFilterRecords]
-  );
 
   const topBrands = useMemo(() => {
     const map = new Map<string, number>();
@@ -279,20 +262,6 @@ export function TyreManagerDashboard() {
             tone: "good",
             caption: "Ready to fit",
           },
-          allAlerts.length > 0
-            ? {
-                key: "maint-overdue", kind: "alert",
-                label: "Maint. overdue", icon: Wrench,
-                value: loading ? "—" : String(allAlerts.length), active: true,
-                caption: "Needs attention",
-              }
-            : {
-                key: "maint-overdue", kind: "count",
-                label: "Maint. overdue", icon: Wrench,
-                value: loading ? "—" : String(allAlerts.length),
-                tone: "good",
-                caption: "All clear",
-              },
         ]}
       />
 
@@ -534,51 +503,8 @@ export function TyreManagerDashboard() {
         </div>
       </div>
 
-      {/* Maintenance Overdue + Recent Service */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-
-        {/* Maintenance overdue */}
-        <Panel
-          tone="red"
-          icon={AlertTriangle}
-          title="Maintenance Overdue"
-          subtitle={loading ? "Loading…" : allAlerts.length === 0 ? "Nothing overdue" : `${allAlerts.length} ${allAlerts.length === 1 ? "item" : "items"} past due`}
-          right={
-            <Link href="/maintenance/trucks" className={HEADER_LINK}>
-              Open <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
-            </Link>
-          }
-        >
-          {loading ? (
-            <div className="space-y-3">{[1,2,3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
-          ) : allAlerts.length === 0 ? (
-            <AllClear title="All maintenance up to date" text="No overdue items across the fleet." />
-          ) : (
-            <ul className="custom-scrollbar flex max-h-[300px] flex-col gap-1.5 overflow-y-auto pr-1">
-              {allAlerts.map((a, i) => {
-                const truck = truckByDbId.get(a.truckId);
-                const km = Math.abs(a.remainingKm);
-                return (
-                  <li key={i} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-red-200">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                      <AlertTriangle className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-gray-900">{a.item}</p>
-                      <p className="truncate text-[11px] text-gray-500">
-                        {truck ? `${truck.truckId} · ${truck.registrationNumber}` : a.truckId}
-                        <span className="ml-2 font-semibold text-red-600">
-                          {km > 0 ? `${km.toLocaleString("en-IN")} km overdue` : "Overdue"}
-                        </span>
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-red-50 px-2.5 py-0.5 text-[10px] font-semibold text-red-700">{a.category}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Panel>
+      {/* Recent Service */}
+      <div className="grid grid-cols-1 gap-4">
 
         {/* Recent maintenance */}
         <Panel
@@ -633,50 +559,6 @@ export function TyreManagerDashboard() {
           )}
         </Panel>
       </div>
-
-      {/* Air Filter Change Alerts */}
-      <Panel
-        tone={airFilterAlerts.length > 0 ? "amber" : "emerald"}
-        icon={Filter}
-        title="Air Filter Change Alerts"
-        subtitle={loading ? "Loading…" : airFilterAlerts.length === 0 ? "Every filter is within its interval" : `${airFilterAlerts.length} ${airFilterAlerts.length === 1 ? "truck" : "trucks"} due or overdue`}
-        right={
-          <Link href="/maintenance/air-filter-rr" className={HEADER_LINK}>
-            Air filter R&amp;R <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
-          </Link>
-        }
-      >
-        {loading ? (
-          <div className="space-y-3">{[1,2,3].map((i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
-        ) : airFilterAlerts.length === 0 ? (
-          <AllClear title="All air filters up to date" text="No trucks due or overdue for a change." />
-        ) : (
-          <ul className="custom-scrollbar grid max-h-[300px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 md:grid-cols-2">
-            {airFilterAlerts.map((a) => {
-              const overdue = a.status === "overdue";
-              return (
-                <li key={a.truck.id} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors hover:border-amber-200">
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${overdue ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"}`}>
-                    <AlertTriangle className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-gray-900">{a.truck.truckId} · {a.truck.registrationNumber}</p>
-                    <p className="truncate text-[11px] tabular-nums text-gray-500">
-                      {a.currentOdometer.toLocaleString("en-IN")} km now · change at {a.nextChangeOdometer.toLocaleString("en-IN")} km
-                    </p>
-                  </div>
-                  <span className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${overdue ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-                    <i className="h-1 w-1 rounded-full bg-current" />
-                    {overdue
-                      ? `Overdue ${Math.abs(a.dueInKm).toLocaleString("en-IN")} km`
-                      : `Due in ${a.dueInKm.toLocaleString("en-IN")} km`}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Panel>
 
     </div>
   );

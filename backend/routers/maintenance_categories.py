@@ -100,6 +100,13 @@ def delete_category(
     db.commit()
 
 
+def _check_repair_name(name: str) -> None:
+    """A maintenance record lists its repairs as "A, B, C", so a repair's own
+    name can't contain a comma — it would split into two."""
+    if "," in (name or ""):
+        raise HTTPException(400, "A repair type name can't contain a comma (,).")
+
+
 @router.post("/{category_id}/repairs", response_model=schemas.MaintenanceCategoryRepairOut, status_code=201, dependencies=[Depends(require_roles("Maintenance"))])
 def create_repair(
     category_id: int,
@@ -110,6 +117,7 @@ def create_repair(
     category = db.get(models.MaintenanceCategory, category_id)
     if not category:
         raise HTTPException(404, "Category not found")
+    _check_repair_name(payload.name)
     if db.query(models.MaintenanceCategoryRepair).filter(
         models.MaintenanceCategoryRepair.category_id == category_id,
         models.MaintenanceCategoryRepair.name == payload.name,
@@ -149,6 +157,7 @@ def update_repair(
             "Please refresh the page to get the latest data and try again."
         )
     if payload.name is not None and payload.name != record.name:
+        _check_repair_name(payload.name)
         if db.query(models.MaintenanceCategoryRepair).filter(
             models.MaintenanceCategoryRepair.category_id == category_id,
             models.MaintenanceCategoryRepair.name == payload.name,

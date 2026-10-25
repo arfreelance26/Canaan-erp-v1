@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
-import { Droplets, Plus, Pencil, Trash2, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen } from "lucide-react";
+import { Droplets, Plus, Pencil, Trash2, Loader2, Truck as TruckIcon, Gauge, MapPin, History, NotebookPen, Factory } from "lucide-react";
 import { adblueApi, adblueLogsApi, trucksApi, type AdBlueManufacturer, type AdBlueLogEditEventRow } from "@/lib/api";
 import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
@@ -10,6 +10,7 @@ import { showError, showSuccess } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
 import { AdBlueHistoryViewDialog } from "@/components/fleet/AdBlueHistoryViewDialog";
+import { TruckManufacturersDialog, manufacturerRate } from "@/components/fleet/TruckManufacturersDialog";
 import type { AdBlueLog } from "@/types/adblue-log";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { onRevalidated } from "@/lib/api-cache";
@@ -32,8 +33,9 @@ const EDIT_EVENT_COLOR: Record<AdBlueLogEditEventRow["event"], string> = {
 
 /**
  * Truck's Adblue History — a record of every AdBlue fill per truck. It feeds
- * no calculator or cost figure. Trucks are grouped by manufacturer (managed
- * on Our Fleet → Manufacturers); sold and deleted trucks aren't shown.
+ * no calculator or cost figure. Trucks are grouped by manufacturer, managed
+ * here under Manufacturers along with each one's AdBlue cost per litre (the
+ * price a new fill starts with); sold and deleted trucks aren't shown.
  */
 export default function AdblueManagementPage() {
   const { user: authUser } = useAuth();
@@ -49,6 +51,7 @@ export default function AdblueManagementPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<AdBlueLogEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  const [manufacturersOpen, setManufacturersOpen] = useState(false);
 
   // Fetched fresh every time it's opened.
   function openEditHistory() {
@@ -121,6 +124,7 @@ export default function AdblueManagementPage() {
             <p className="mt-0.5 text-sm text-gray-500">A record of every AdBlue fill across the fleet</p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
         {isAdmin && (
 <button
           type="button"
@@ -131,6 +135,15 @@ export default function AdblueManagementPage() {
           Edit History
         </button>
 )}
+          <button
+            type="button"
+            onClick={() => setManufacturersOpen(true)}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <Factory className="h-4 w-4" />
+            Manufacturers
+          </button>
+        </div>
       </div>
 
       {/* Toolbar: search on the left, date range + download on the right */}
@@ -170,6 +183,7 @@ export default function AdblueManagementPage() {
               );
               // Only manufacturers with trucks (matching the search) get a section.
               if (mTrucks.length === 0) return null;
+              const rate = manufacturerRate(m);
               return (
                 <section key={m.id}>
                   <div className="mb-4 flex items-center gap-3">
@@ -180,6 +194,16 @@ export default function AdblueManagementPage() {
                       <h2 className="text-base font-bold text-gray-900">{m.name}</h2>
                       <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
                         {mTrucks.length} {mTrucks.length === 1 ? "truck" : "trucks"}
+                      </span>
+                      <span
+                        title="AdBlue cost per litre — set in Manufacturers"
+                        className={cn(
+                          "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold",
+                          rate != null ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100" : "bg-gray-100 text-gray-400",
+                        )}
+                      >
+                        <Droplets className="h-3 w-3" />
+                        {rate != null ? `₹${rate.toFixed(2)} / L` : "Rate not set"}
                       </span>
                     </div>
                   </div>
@@ -202,7 +226,7 @@ export default function AdblueManagementPage() {
                   </div>
                 </div>
                 <p className="mb-3 text-xs text-gray-500">
-                  These trucks&apos; manufacturer isn&apos;t in the list on Our Fleet → Manufacturers.
+                  These trucks&apos; manufacturer isn&apos;t in the Manufacturers list, so they have no AdBlue rate.
                 </p>
                 {renderGrid(otherTrucks)}
               </section>
@@ -218,8 +242,18 @@ export default function AdblueManagementPage() {
           onClose={() => setLogTarget(null)}
           onSave={handleSaveAdBlueLog}
           truck={logTarget}
+          manufacturer={manufacturers.find(
+            (m) => m.name.trim().toLowerCase() === (logTarget.manufacturer ?? "").trim().toLowerCase(),
+          ) ?? null}
         />
       )}
+
+      <TruckManufacturersDialog
+        open={manufacturersOpen}
+        onClose={() => setManufacturersOpen(false)}
+        trucks={trucks}
+        onChanged={() => setReloadKey((k) => k + 1)}
+      />
 
       {/* View AdBlue History dialog */}
       <AdBlueHistoryViewDialog

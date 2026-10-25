@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { tripsApi } from "@/lib/api";
+import { runningCostApi, tripsApi, type TruckRunStats } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 
@@ -41,29 +41,35 @@ export function useTruckTripRuns(truck: Truck | null, active: boolean) {
   return { rows, loading };
 }
 
-/** Number of calendar months from the earliest trip to today, inclusive, min 1. */
-function monthsSpanned(rows: TruckTripRun[]): number {
-  const dates = rows.map((r) => r.trip.assignedDate).filter(Boolean).map((d) => new Date(d));
-  if (dates.length === 0) return 1;
-  const earliest = new Date(Math.min(...dates.map((d) => d.getTime())));
-  const today = new Date();
-  const months = (today.getFullYear() - earliest.getFullYear()) * 12 + (today.getMonth() - earliest.getMonth()) + 1;
-  return Math.max(1, months);
-}
+export const EMPTY_RUN_STATS: TruckRunStats = {
+  totalDistance: 0, tripsWithDistance: 0, missingSheets: 0, firstTripDate: null, dataUntil: null, days: 0,
+  months: 0, monthlyAvg: 0, dailyAvg: 0, avgPerTrip: 0, longest: 0, shortest: 0,
+};
 
 /**
- * Distance stats for a truck's trip runs — single source of truth shared by
- * the "View Breakdown" dialog on the Truck Run Record page and the EMI
- * Insights dialog's "EMI Cost Per KM (Advanced)" calculation.
+ * A truck's distance stats (Monthly Distance Average etc.) from the server —
+ * the single source shared by Truck Run Record, Cost Breakdown, EMI and
+ * Truck Maintenance → Full Status, the calculator and Profitability.
  */
-export function computeTruckRunStats(rows: TruckTripRun[]) {
-  const withDistance = rows.filter((r) => Number(r.totalKm) > 0);
-  const totalDistance = withDistance.reduce((sum, r) => sum + Number(r.totalKm), 0);
-  const months = monthsSpanned(rows);
-  const monthlyAvg = totalDistance / months;
-  const dailyAvg = monthlyAvg / 26;
-  const avgPerTrip = withDistance.length > 0 ? totalDistance / withDistance.length : 0;
-  const longest = withDistance.reduce((max, r) => Math.max(max, Number(r.totalKm)), 0);
-  const shortest = withDistance.length > 0 ? withDistance.reduce((min, r) => Math.min(min, Number(r.totalKm)), Infinity) : 0;
-  return { totalDistance, months, monthlyAvg, dailyAvg, avgPerTrip, longest, shortest, tripsWithDistance: withDistance.length };
+export function useTruckRunStats(truck: Truck | null, active: boolean) {
+  const [stats, setStats] = useState<TruckRunStats>(EMPTY_RUN_STATS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!active || !truck) return;
+    setLoading(true);
+    runningCostApi
+      .getRunStats(truck.truckId)
+      .then(setStats)
+      .catch(() => setStats(EMPTY_RUN_STATS))
+      .finally(() => setLoading(false));
+  }, [active, truck]);
+
+  return { stats, loading };
+}
+
+/** "⚠ 3 trips missing trip sheets" — or "" when none. */
+export function missingSheetsNote(stats: Pick<TruckRunStats, "missingSheets">): string {
+  const n = stats.missingSheets;
+  return n > 0 ? `⚠ ${n} completed trip${n === 1 ? "" : "s"} missing a trip sheet — not counted until entered` : "";
 }

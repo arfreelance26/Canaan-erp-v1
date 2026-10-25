@@ -10,6 +10,9 @@ import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
 import { AuditorDashboard } from "@/components/dashboard/AuditorDashboard";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
+import { BirthdayCard } from "@/components/dashboard/BirthdayCard";
+import { SeasonCard } from "@/components/dashboard/SeasonCard";
+import { FoundingCard } from "@/components/dashboard/FoundingCard";
 import { SheetTrackingCard } from "@/components/dashboard/SheetTrackingCard";
 import Link from "next/link";
 import {
@@ -56,7 +59,6 @@ import {
   downloadExcel,
   type AuditVerifiedTrip,
 } from "@/lib/api";
-import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { getComplianceStatus } from "@/lib/compliance";
 import type { Truck as TruckType } from "@/types/truck";
 import type { Driver } from "@/types/driver";
@@ -114,7 +116,65 @@ const COMPLIANCE_DOCS: Array<{ key: string; label: string; field: keyof TruckTyp
   { key: "pollution", label: "Pollution",    field: "pollutionCertificateDate" },
 ];
 
+/**
+ * The header date badge's day number. When `play` is set it counts up from 1
+ * to `day` in about 1.2 s — fast at first, slowing over the last few numbers —
+ * each number a quick page flip, landing on today with a small bounce. A
+ * fresh mount replays it (the badge is re-keyed on click).
+ */
+function DayFlip({ day, play }: { day: number; play: boolean }) {
+  const [shown, setShown] = useState(play ? 1 : day);
+  const [landed, setLanded] = useState(!play);
+  useEffect(() => {
+    if (!play) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || day <= 1) {
+      setShown(day);
+      setLanded(true);
+      return;
+    }
+    // Start from 1 (play can switch on after the first render, once the page
+    // has decided to animate — the number mustn't show today first).
+    setShown(1);
+    setLanded(false);
+    const START = 380;   // after the card slides in and the month strip drops
+    const TOTAL = 1200;  // the whole count, whatever the date
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (let k = 1; k <= day; k++) {
+      // Gaps grow toward the end: (progress)^2.4 races, then slows into today.
+      const at = START + TOTAL * Math.pow((k - 1) / (day - 1), 2.4);
+      timers.push(setTimeout(() => {
+        setShown(k);
+        if (k === day) setLanded(true);
+      }, at));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [day, play]);
+
+  return (
+    <span key={shown} className={play ? (landed ? "date-day-land" : "date-day-tick") : undefined}>
+      {shown}
+    </span>
+  );
+}
+
+/** Whether the header date badge animates on this page load (see DashboardPage). */
+let dateIntroDecision: boolean | null = null;
+
 export default function DashboardPage() {
+  // The birthday person's greeting (and the Christmas / New Year one) sits
+  // above whichever dashboard their role gets.
+  return (
+    <>
+      <BirthdayCard />
+      <SeasonCard />
+      <FoundingCard />
+      <RoleDashboard />
+    </>
+  );
+}
+
+function RoleDashboard() {
   const { user } = useAuth();
 
   if (user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager") {
@@ -153,7 +213,6 @@ function AdminDashboard() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [pendingEditApprovals, setPendingEditApprovals] = useState<EditApprovalRequest[]>([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState<MaintenanceRecord[]>([]);
-  const [maintenanceStatus, setMaintenanceStatus] = useState<TruckMaintenanceStatus[]>([]);
   const [tyreInventory, setTyreInventory] = useState<TyreInventoryItem[]>([]);
   const [emiRecords, setEmiRecords] = useState<EmiRecord[]>([]);
   const [recurringPayments, setRecurringPayments] = useState<RecurringPayment[]>([]);
@@ -167,6 +226,29 @@ function AdminDashboard() {
   const [sheetEnteredDate, setSheetEnteredDate] = useState("");
   const [backupLoading, setBackupLoading] = useState<"excel" | "sql" | "files" | null>(null);
   const [backupMenuOpen, setBackupMenuOpen] = useState(false);
+  // Header date badge: animate in the first time the dashboard opens in this
+  // browser session (when the software is opened), then stay still; clicking
+  // it replays the animation. Decided after mount — "pending" keeps it hidden
+  // for that first frame so it never flashes before animating.
+  const [dateIntro, setDateIntro] = useState<"pending" | "play" | "still">("pending");
+  const [dateIntroRun, setDateIntroRun] = useState(0);
+  useEffect(() => {
+    // Decide once per page load (React may run this effect twice in
+    // development — both runs must get the same answer).
+    if (dateIntroDecision === null) {
+      try {
+        dateIntroDecision = sessionStorage.getItem("dash_date_intro") !== "1";
+        sessionStorage.setItem("dash_date_intro", "1");
+      } catch {
+        dateIntroDecision = true;
+      }
+    }
+    setDateIntro(dateIntroDecision ? "play" : "still");
+    // Coming back to the dashboard later in this session shows it still.
+    const done = setTimeout(() => { dateIntroDecision = false; }, 2000);
+    return () => clearTimeout(done);
+  }, []);
+  const replayDateIntro = () => { setDateIntro("play"); setDateIntroRun((n) => n + 1); };
   const backupMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!backupMenuOpen) return;
@@ -266,11 +348,10 @@ function AdminDashboard() {
       tyreApi.listInventory(),
       financeApi.listEmi(),
       financeApi.listRecurring(),
-      maintenanceApi.getStatus(),
       tripsApi.listAuditVerified(),
     ])
       .then((results) => {
-        const [t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, ms, av] = results;
+        const [t, d, s, c, v, tr, da, sa, lr, mr, ti, emi, rp, av] = results;
         const failed: string[] = [];
         if (t.status === "fulfilled") setTrucks(t.value); else failed.push("Trucks");
         if (d.status === "fulfilled") setDrivers(d.value); else failed.push("Drivers");
@@ -285,7 +366,6 @@ function AdminDashboard() {
         if (ti.status === "fulfilled") setTyreInventory(ti.value); else failed.push("Tyre Inventory");
         if (emi.status === "fulfilled") setEmiRecords(emi.value); else failed.push("EMI Records");
         if (rp.status === "fulfilled") setRecurringPayments(rp.value); else failed.push("Recurring Payments");
-        if (ms.status === "fulfilled") setMaintenanceStatus(ms.value); else failed.push("Maintenance Status");
         if (av.status === "fulfilled") setAuditVerifiedTrips(av.value); else failed.push("Audit Verified Trips");
         if (failed.length > 0) {
           showError(`Couldn't refresh ${failed.join(", ")} — showing last known data.`);
@@ -405,12 +485,6 @@ function AdminDashboard() {
     [activeRecurringPayments]
   );
 
-  // ── Maintenance overdue (from DB-driven types) ────────────────────────────
-  const maintenanceOverdueCount = useMemo(
-    () => maintenanceStatus.reduce((sum, t) => sum + t.overdueCount, 0),
-    [maintenanceStatus]
-  );
-
   // ── Derived totals ────────────────────────────────────────────────────────
   const presentToday = driverAttendanceToday.Present + staffAttendanceToday.Present;
   const totalWorkforce = drivers.length + staffList.length;
@@ -483,10 +557,16 @@ function AdminDashboard() {
     );
   }
 
-  const dayLabel = new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric", }).replace(/\//g, "-");
+  // Today in IST, split up for the header's date badge.
+  const istPart = (opts: Intl.DateTimeFormatOptions) =>
+    new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", ...opts });
+  const today_ = {
+    weekday: istPart({ weekday: "long" }),
+    day: istPart({ day: "numeric" }),
+    month: istPart({ month: "short" }),
+    monthLong: istPart({ month: "long" }),
+    year: istPart({ year: "numeric" }),
+  };
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
@@ -511,11 +591,7 @@ function AdminDashboard() {
             </span>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-400">
-                Fleet command centre
-                <span className="text-gray-300">·</span>
-                <span className="font-medium text-gray-500">{dayLabel}</span>
-              </p>
+              <p className="mt-0.5 text-sm text-gray-400">Fleet command centre</p>
             </div>
           </div>
           <div className="relative" ref={backupMenuRef}>
@@ -557,6 +633,31 @@ function AdminDashboard() {
               </div>
             )}
           </div>
+        </div>
+        {/* Today — a small calendar-page badge */}
+        <div
+          className={cn(
+            "relative flex shrink-0 cursor-pointer select-none self-start items-center gap-2.5 overflow-hidden rounded-2xl border border-gray-200/80 bg-white py-1.5 pl-1.5 pr-4 shadow-sm dark:border-gray-300/30 dark:bg-gray-200",
+            dateIntro === "pending" && "opacity-0",
+            dateIntro === "play" && "date-intro-card",
+          )}
+          key={dateIntroRun}
+          onClick={replayDateIntro}
+          title={`${today_.weekday}, ${today_.day} ${today_.monthLong} ${today_.year}`}
+        >
+          <span className="flex w-10 flex-col overflow-hidden rounded-lg border border-[#1b2b5e]/15 text-center shadow-sm dark:border-white/10 dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.6)]">
+            <span className={cn("bg-gradient-to-br from-[#1b2b5e] to-[#2d4590] py-0.5 text-[9px] font-bold uppercase tracking-widest text-[#fcd34d] dark:from-[#2b3f9f] dark:to-[#4a63c9] dark:text-[#fde68a]", dateIntro === "play" && "date-intro-month")}>
+              {today_.month}
+            </span>
+            <span className="bg-white py-0.5 text-base font-bold leading-tight tabular-nums text-[#1b2b5e] dark:text-white">
+              <DayFlip day={Number(today_.day)} play={dateIntro === "play"} />
+            </span>
+          </span>
+          <span className={cn("flex flex-col leading-tight", dateIntro === "play" && "date-intro-text")}>
+            <span className="text-sm font-semibold text-gray-800">{today_.weekday}</span>
+            <span className="text-[11px] font-medium text-gray-400">{today_.monthLong} {today_.year}</span>
+          </span>
+          {dateIntro === "play" && <span aria-hidden className="date-intro-shimmer" />}
         </div>
       </div>
 
@@ -1097,7 +1198,7 @@ function AdminDashboard() {
       {/* Row 1: Lane Map + Fleet Constellation */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <LaneMapCard trips={trips} />
-        <FleetConstellationCard trucks={trucks} trips={trips} maintenanceStatus={maintenanceStatus} />
+        <FleetConstellationCard trucks={trucks} trips={trips} />
       </div>
 
       {/* Row 2: Trip Trend (full width) */}

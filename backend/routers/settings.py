@@ -150,3 +150,4 @@ def update_attendance_mandatory(
         actor_role=user.role, detail=f"mandatory={payload.mandatory}",
     )
     return AttendanceMandatory(mandatory=settings_store.attendance_marking_mandatory(db))
+

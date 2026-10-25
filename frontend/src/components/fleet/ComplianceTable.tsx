@@ -1,18 +1,23 @@
 "use client";
 
-import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { getComplianceStatus, type ComplianceField } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
-import { fileUrl, trucksApi } from "@/lib/api";
+import { trucksApi, complianceRecordsApi } from "@/lib/api";
+
+// Calendar days in an average month (365.25 ÷ 12) — see backend cost_units.py.
+const DAYS_PER_MONTH = 365.25 / 12;
+import { RenewDocumentsDialog } from "@/components/fleet/RenewDocumentsDialog";
+import { TruckComplianceView } from "@/components/fleet/TruckComplianceView";
+import { UpdationHistoryDialog } from "@/components/fleet/UpdationHistoryDialog";
 import type { Truck } from "@/types/truck";
-import { useTruckTripRuns, computeTruckRunStats } from "@/hooks/useTruckTripRuns";
+import { useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
 import {
-  X, Truck as TruckIcon, ExternalLink, FileX2, History,
+  X, History,
   IdCard, ClipboardCheck, Receipt, Globe, MapPin, Wind, ShieldCheck,
-  User, Calendar, FileText, Loader2, IndianRupee, Info,
+  Loader2, IndianRupee, Info,
   CalendarDays, Clock3, Gauge, Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -79,122 +84,10 @@ type HistoryRow = {
 // Types
 // ---------------------------------------------------------------------------
 
-type ComplianceTableProps = { trucks: Truck[] };
-
-type DocDef = {
-  key:       ComplianceField;
-  label:     string;
-  date:      (t: Truck) => string;
-  docUrl:    (t: Truck) => string | null;
-  Icon:      LucideIcon;
-  iconBg:    string;
-  iconText:  string;
-};
-
-// ---------------------------------------------------------------------------
-// Document definitions — maps each doc to its truck fields and styling
-// ---------------------------------------------------------------------------
-
-const DOCS: DocDef[] = [
-  {
-    key:      "rc",
-    label:    "RC",
-    date:     (t) => t.rcValidityDate,
-    docUrl:   (t) => t.rcDocumentUrl || null,
-    Icon:     IdCard,
-    iconBg:   "bg-blue-100",
-    iconText: "text-blue-700",
-  },
-  {
-    key:      "fc",
-    label:    "FC (Fitness Certificate)",
-    date:     (t) => t.fcExpiryDate,
-    docUrl:   (t) => t.fcDocumentFileName ? fileUrl("trucks", t.id, "fc_document_file_name") : null,
-    Icon:     ClipboardCheck,
-    iconBg:   "bg-violet-100",
-    iconText: "text-violet-700",
-  },
-  {
-    key:      "roadTax",
-    label:    "Road Tax",
-    date:     (t) => t.roadTaxDate,
-    docUrl:   (t) => t.roadTaxDocumentFileName ? fileUrl("trucks", t.id, "road_tax_document_file_name") : null,
-    Icon:     Receipt,
-    iconBg:   "bg-orange-100",
-    iconText: "text-orange-700",
-  },
-  {
-    key:      "nationalPermit",
-    label:    "National Permit",
-    date:     (t) => t.nationalPermitDate,
-    docUrl:   (t) => t.nationalPermitProofFileName ? fileUrl("trucks", t.id, "national_permit_proof_file_name") : null,
-    Icon:     Globe,
-    iconBg:   "bg-teal-100",
-    iconText: "text-teal-700",
-  },
-  {
-    key:      "localPermit",
-    label:    "Local Permit",
-    date:     (t) => t.localPermitDate,
-    docUrl:   (t) => t.localPermitProofFileName ? fileUrl("trucks", t.id, "local_permit_proof_file_name") : null,
-    Icon:     MapPin,
-    iconBg:   "bg-cyan-100",
-    iconText: "text-cyan-700",
-  },
-  {
-    key:      "pollution",
-    label:    "Pollution Certificate",
-    date:     (t) => t.pollutionCertificateDate,
-    docUrl:   (t) => t.pollutionCertificateProofFileName ? fileUrl("trucks", t.id, "pollution_certificate_proof_file_name") : null,
-    Icon:     Wind,
-    iconBg:   "bg-emerald-100",
-    iconText: "text-emerald-700",
-  },
-  {
-    key:      "insurance",
-    label:    "Insurance",
-    date:     (t) => t.insuranceExpiryDate,
-    docUrl:   (t) => t.insuranceDocumentProofFileName ? fileUrl("trucks", t.id, "insurance_document_proof_file_name") : null,
-    Icon:     ShieldCheck,
-    iconBg:   "bg-indigo-100",
-    iconText: "text-indigo-700",
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getDays(date: string): number | null {
-  if (!date) return null;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const exp   = new Date(date); exp.setHours(0, 0, 0, 0);
-  return Math.round((exp.getTime() - today.getTime()) / 86_400_000);
-}
-
-function daysLabel(days: number | null): string {
-  if (days === null)  return "No date set";
-  if (days === 0)     return "Expires today";
-  if (days > 0)       return `${days} day${days !== 1 ? "s" : ""} remaining`;
-  return `${Math.abs(days)} day${Math.abs(days) !== 1 ? "s" : ""} overdue`;
-}
-
-const STATUS_BORDER: Record<string, string> = {
-  Valid:           "border-l-green-400",
-  "Expiring Soon": "border-l-amber-400",
-  Expired:         "border-l-red-400",
-};
-
-const STATUS_PILL: Record<string, string> = {
-  Valid:           "bg-green-50  text-green-700  ring-green-200",
-  "Expiring Soon": "bg-amber-50  text-amber-700  ring-amber-200",
-  Expired:         "bg-red-50    text-red-600    ring-red-200",
-};
-
-const STATUS_DAYS: Record<string, string> = {
-  Valid:           "text-green-600",
-  "Expiring Soon": "text-amber-600",
-  Expired:         "text-red-500",
+type ComplianceTableProps = {
+  trucks: Truck[];
+  /** After a document is renewed / corrected / undone — the page reloads trucks. */
+  onChanged: () => void;
 };
 
 const TABLE_STATUS: Record<string, string> = {
@@ -220,261 +113,6 @@ function ComplianceCell({ date, field = "default" }: { date: string; field?: Com
 }
 
 // ---------------------------------------------------------------------------
-// Dialog
-// ---------------------------------------------------------------------------
-
-function TruckComplianceDialog({ truck, onClose }: { truck: Truck; onClose: () => void }) {
-  const counts = { Valid: 0, "Expiring Soon": 0, Expired: 0 };
-  for (const doc of DOCS) counts[getComplianceStatus(doc.date(truck), doc.key)]++;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[92vh]">
-
-        {/* ── Header ── */}
-        <div className="relative flex items-start gap-4 border-b border-gray-100 px-6 py-5">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
-            <TruckIcon className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1 pt-0.5">
-            <h2 className="text-lg font-bold leading-tight text-gray-900">
-              {truck.registrationNumber || truck.truckId}
-            </h2>
-            <p className="mt-0.5 text-sm text-gray-500">
-              {[truck.truckId, truck.manufacturer, truck.modelName].filter(Boolean).join(" · ")}
-              {truck.tyreLayout ? ` · ${truck.tyreLayout}` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-2 shrink-0 rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* ── Status summary strip ── */}
-        <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50">
-          {(["Valid", "Expiring Soon", "Expired"] as const).map((s) => (
-            <div key={s} className="flex flex-col items-center py-3">
-              <span className={cn(
-                "text-2xl font-bold tabular-nums",
-                s === "Valid" ? "text-green-600" : s === "Expiring Soon" ? "text-amber-500" : "text-red-500"
-              )}>
-                {counts[s]}
-              </span>
-              <span className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-gray-400">{s}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* ── Document cards ── */}
-        <div className="flex-1 overflow-y-auto px-5 py-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {DOCS.map((doc) => {
-              const date   = doc.date(truck);
-              const status = getComplianceStatus(date, doc.key);
-              const days   = getDays(date);
-              const url    = doc.docUrl(truck);
-              const { Icon } = doc;
-
-              return (
-                <div
-                  key={doc.key}
-                  className={cn(
-                    "group flex flex-col gap-3 rounded-2xl border border-l-4 border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md",
-                    STATUS_BORDER[status]
-                  )}
-                >
-                  {/* Top row: icon + label + status pill */}
-                  <div className="flex items-center gap-3">
-                    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", doc.iconBg)}>
-                      <Icon className={cn("h-4 w-4", doc.iconText)} />
-                    </div>
-                    <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      {doc.label}
-                    </span>
-                    <span className={cn(
-                      "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1",
-                      STATUS_PILL[status]
-                    )}>
-                      {status}
-                    </span>
-                  </div>
-
-                  {/* Expiry date */}
-                  <div>
-                    <p className="text-lg font-semibold tabular-nums text-gray-900">
-                      {date ? formatDate(date) : "—"}
-                    </p>
-                    <p className={cn("mt-0.5 text-xs font-medium", days === null ? "text-gray-400" : STATUS_DAYS[status])}>
-                      {daysLabel(days)}
-                    </p>
-                  </div>
-
-                  {/* Document link */}
-                  <div className="mt-auto">
-                    {url ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-colors"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View Document
-                      </a>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-400">
-                        <FileX2 className="h-3 w-3" />
-                        No document uploaded
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Updation History Dialog
-// ---------------------------------------------------------------------------
-
-function UpdateHistoryDialog({ truck, onClose }: { truck: Truck; onClose: () => void }) {
-  const [rows, setRows]       = useState<HistoryRow[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(false);
-
-  // Fetch on first render
-  useState(() => {
-    trucksApi.getComplianceHistory(truck.id)
-      .then((data) => { setRows(data); setLoading(false); })
-      .catch(() => { setError(true); setLoading(false); });
-  });
-
-  function formatDateTime(iso: string) {
-    try {
-      // Backend returns UTC without a 'Z' suffix — append it so JS parses as UTC,
-      // then toLocaleString converts correctly to the local timezone (IST).
-      const utc = iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z";
-      const d = new Date(utc);
-      return d.toLocaleString("en-IN", {
-        day: "2-digit", month: "short", year: "numeric",
-        hour: "2-digit", minute: "2-digit", hour12: true,
-      });
-    } catch { return iso; }
-  }
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl max-h-[88vh]">
-
-        {/* Header */}
-        <div className="flex items-center gap-4 border-b border-gray-100 px-6 py-5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
-            <History className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-base font-bold text-gray-900">Updation History</h2>
-            <p className="text-xs text-gray-400">
-              {truck.truckId} · {truck.registrationNumber}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="text-sm">Loading history…</span>
-            </div>
-          ) : error ? (
-            <div className="py-16 text-center text-sm text-red-400">
-              Failed to load history. Please try again.
-            </div>
-          ) : rows && rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-gray-400">
-              <History className="h-8 w-8 opacity-30" />
-              <p className="text-sm font-medium">No updates recorded yet</p>
-              <p className="text-xs">Document updates will appear here after the first change</p>
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50">
-                <tr>
-                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    <span className="flex items-center gap-1.5"><FileText className="h-3 w-3" />Document</span>
-                  </th>
-                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    <span className="flex items-center gap-1.5"><Calendar className="h-3 w-3" />Date of Updation</span>
-                  </th>
-                  <th className="px-5 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                    <span className="flex items-center gap-1.5"><User className="h-3 w-3" />User</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {rows!.map((row, i) => (
-                  <tr key={row.id} className={cn("transition-colors hover:bg-gray-50", i % 2 === 0 ? "bg-white" : "bg-gray-50/50")}>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-2 rounded-lg bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
-                        <FileText className="h-3 w-3" />
-                        {row.document_type}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-sm text-gray-700">
-                      {formatDateTime(row.updated_at)}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
-                          {row.updated_by_name.charAt(0).toUpperCase()}
-                        </span>
-                        {row.updated_by_name}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Footer count */}
-        {rows && rows.length > 0 && (
-          <div className="border-t border-gray-100 bg-gray-50 px-6 py-3 text-right text-xs text-gray-400">
-            {rows.length} update{rows.length !== 1 ? "s" : ""} recorded
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-
-// ---------------------------------------------------------------------------
 // Cost Breakdown Dialog
 // ---------------------------------------------------------------------------
 
@@ -498,6 +136,12 @@ const COST_DOCS: CostDocDef[] = [
   { label: "Pollution Certificate", expKey: "pollutionCertificateExpenses", dateKey: "pollutionCertificateDate", historyDocType: "Pollution Certificate",   Icon: Wind,           iconBg: "bg-emerald-100", iconText: "text-emerald-700", accentText: "text-emerald-700" },
   { label: "Insurance",             expKey: "insuranceExpenses",            dateKey: "insuranceExpiryDate",      historyDocType: "Insurance",               Icon: ShieldCheck,    iconBg: "bg-indigo-100",  iconText: "text-indigo-700",  accentText: "text-indigo-700"  },
 ];
+
+// Cost Breakdown's history label → the compliance record's doc key.
+const RECORD_DOC: Record<string, string> = {
+  "RC": "rc", "FC (Fitness Certificate)": "fc", "Road Tax": "road_tax", "National Permit": "national_permit",
+  "Local Permit": "local_permit", "Pollution Certificate": "pollution_cert", "Insurance": "insurance",
+};
 
 function fmtCost(n: number): string {
   if (n <= 0) return "—";
@@ -597,21 +241,21 @@ function CalcInfoDialog({ kmPerDay, onClose }: { kmPerDay: number | null; onClos
           <CalcSection title="Validity Period — the divisor" color="violet">
             <FormulaRow
               label="Total Validity Period"
-              formula="Expiry Date − Date of Last Update"
-              desc="The full duration (in days) for which the expense was paid. The 'Date of Last Update' comes from the document update history — a timestamped record is written every time a truck is registered or a document is updated. This prevents inflated costs mid-period (dividing by remaining days instead of the full period would make the same document appear more expensive the longer you wait)."
+              formula="Expiry Date − Start Date"
+              desc="The full duration (in days) for which the expense was paid. The start is the 'Valid from' date entered when the document was renewed; if none was entered, it's the day the document was added or renewed in the app (from the document update history). The P&L and Running Cost use this same start. This prevents inflated costs mid-period (dividing by remaining days instead of the full period would make the same document appear more expensive the longer you wait)."
             />
           </CalcSection>
 
           <CalcSection title="Per-Document Costs" color="emerald">
             <FormulaRow
               label="Per Day"
-              formula="Expense ÷ Validity Period (days)"
-              desc="The true amortized daily cost for this document. Represents what each calendar day 'costs' across the full validity window you paid for."
+              formula="Expense ÷ Validity Period (days) × 30.44 ÷ 26"
+              desc="The document's cost per working day: its expense spread over the validity window you paid for, counted in 26 working days a month — the same working days EMI and maintenance use."
             />
             <FormulaRow
               label="Per Month"
               formula="Per Day × 26"
-              desc="Estimated monthly cost using 26 working days per month. Not divided by the number of remaining days — it is always derived from Per Day."
+              desc="The document's cost per month (26 working days). Not divided by the number of remaining days — it is always derived from Per Day."
             />
             <FormulaRow
               label="Per KM"
@@ -664,6 +308,8 @@ function CalcInfoDialog({ kmPerDay, onClose }: { kmPerDay: number | null; onClos
 
 function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => void }) {
   const [history,      setHistory]      = useState<HistoryRow[] | null>(null);
+  // The current version's "Valid from" per document, when one was entered on a renewal.
+  const [validFrom,    setValidFrom]    = useState<Record<string, string>>({});
   const [kmPerDay,     setKmPerDay]     = useState<number | null>(null);
   const [loadingHx,    setLoadingHx]    = useState(true);
   const [showCalcInfo, setShowCalcInfo] = useState(false);
@@ -671,16 +317,19 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
   // Real, trip-history-based Monthly Distance Average for this truck — same
   // source and formula as the Truck Run Record page's "View Breakdown"
   // dialog — used for Cost Per KM (Advanced) below.
-  const { rows: truckRuns } = useTruckTripRuns(truck, true);
-  const runStats = computeTruckRunStats(truckRuns);
+  const { stats: runStats } = useTruckRunStats(truck, true);
 
   useEffect(() => {
     Promise.all([
       trucksApi.getComplianceHistory(truck.id),
       trucksApi.getRunConfig(),
+      complianceRecordsApi.listForTruck(truck.id).catch(() => []),
     ])
-      .then(([hx, runRows]) => {
+      .then(([hx, runRows, records]) => {
         setHistory(hx);
+        const from: Record<string, string> = {};
+        for (const r of records) if (r.isCurrent && r.validFrom) from[r.docType] = r.validFrom;
+        setValidFrom(from);
         const row = (runRows as { tyre_layout: string; km_per_day: string | null }[])
           .find((r) => r.tyre_layout === truck.tyreLayout);
         if (row?.km_per_day) setKmPerDay(parseFloat(row.km_per_day));
@@ -696,10 +345,12 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
     const expiryDate = truck[doc.dateKey] as string;
     const daysLeft   = expiryDate ? daysBetween(today, expiryDate) : null;
 
-    // Validity period = history.updated_at (when user last set this doc via
-    // TruckFormDialog or UpdateDocumentDialog) → expiryDate.
-    // Both create_truck and update_truck log a history row, so this is always
-    // available for any truck whose data came through the forms.
+    // Validity period = its start → expiryDate. The start is the "Valid from"
+    // typed in on a renewal when there is one, else history.updated_at (when
+    // the doc was last set via Add Truck or a Renew) — the same rule as
+    // Running Cost and the P&L (backend/compliance_cost.py).
+    // Add Truck and every Renew log a history row (a correction doesn't; undoing a
+    // renewal removes its row), so this is always available for form-entered data.
     let perDay:   number | null = null;
     let perMonth: number | null = null;
 
@@ -707,13 +358,18 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
       const entries = history
         .filter((h) => h.document_type === doc.historyDocType)
         .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      if (entries.length > 0) {
-        const issuedAt = entries[0].updated_at.endsWith("Z") || entries[0].updated_at.includes("+")
-          ? entries[0].updated_at
-          : entries[0].updated_at + "Z";
+      const typedFrom = validFrom[RECORD_DOC[doc.historyDocType]];
+      if (typedFrom || entries.length > 0) {
+        const issuedAt = typedFrom
+          ? typedFrom
+          : entries[0].updated_at.endsWith("Z") || entries[0].updated_at.includes("+")
+            ? entries[0].updated_at
+            : entries[0].updated_at + "Z";
         const validityDays = daysBetween(issuedAt, expiryDate);
         if (validityDays > 0) {
-          perDay   = raw / validityDays;
+          // Per working day (26 a month), like every other per-day cost:
+          // cost per calendar day × 30.44 days a month ÷ 26.
+          perDay   = (raw / validityDays) * DAYS_PER_MONTH / 26;
           perMonth = perDay * 26;
         }
       }
@@ -730,9 +386,10 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
   const totalPerMonth = computed.reduce((s, c) => s + (c.perMonth ?? 0), 0);
   const totalPerDay   = computed.reduce((s, c) => s + (c.perDay   ?? 0), 0);
   const totalPerKm    = kmPerDay && kmPerDay > 0 ? totalPerDay / kmPerDay : null;
-  // Advanced = Per Day ÷ Monthly Distance Average (Truck Run Record) — no km/day involved.
+  // Advanced = the month's cost ÷ the month's km (Per Day × 26 ÷ Monthly
+  // Distance Average from Truck Run Record) — no km/day involved.
   const totalPerKmAdvanced = totalPerDay > 0 && runStats.monthlyAvg > 0
-    ? totalPerDay / runStats.monthlyAvg
+    ? (totalPerDay * 26) / runStats.monthlyAvg
     : null;
 
   const portal = createPortal(
@@ -911,10 +568,11 @@ function CostBreakdownDialog({ truck, onClose }: { truck: Truck; onClose: () => 
                   <span className="font-semibold text-slate-500"> Cost/km (Basic)</span> = {totalPerKm !== null ? "total daily cost ÷ km/day" : "set km/day in Admin → Truck Run Config to unlock"}
                 </p>
                 <p className="text-[10px] leading-relaxed text-slate-400">
-                  <span className="font-semibold text-slate-500">Cost/km (Advanced)</span> = Per day ÷ Monthly Distance Average
+                  <span className="font-semibold text-slate-500">Cost/km (Advanced)</span> = Per day × 26 ÷ Monthly Distance Average
                   {runStats.monthlyAvg > 0
                     ? ` (${runStats.monthlyAvg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} km/mo, from Truck Run Record)`
                     : " — no trip run history for this truck yet"}
+                  {missingSheetsNote(runStats) && <span className="block text-amber-600">{missingSheetsNote(runStats)}</span>}
                 </p>
               </div>
             </div>
@@ -947,11 +605,10 @@ const COLUMNS = [
   "",
 ];
 
-export function ComplianceTable({ trucks }: ComplianceTableProps) {
-  const { user: authUser } = useAuth();
-  const isAdmin = authUser?.softwareDesignation === "Admin";
+export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
   const [viewTruck,    setViewTruck]    = useState<Truck | null>(null);
   const [historyTruck, setHistoryTruck] = useState<Truck | null>(null);
+  const [renewTruck,   setRenewTruck]   = useState<Truck | null>(null);
   const [costTruck,    setCostTruck]    = useState<Truck | null>(null);
 
   if (trucks.length === 0) {
@@ -996,15 +653,20 @@ export function ComplianceTable({ trucks }: ComplianceTableProps) {
                     >
                       View Truck Data
                     </button>
-                    {isAdmin && (
-<button
+                    <button
+                      type="button"
+                      onClick={() => setRenewTruck(truck)}
+                      className="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                    >
+                      Update Document
+                    </button>
+                    <button
                       type="button"
                       onClick={() => setHistoryTruck(truck)}
                       className="whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100"
                     >
                       View Updation History
                     </button>
-)}
                     <button
                       type="button"
                       onClick={() => setCostTruck(truck)}
@@ -1021,11 +683,10 @@ export function ComplianceTable({ trucks }: ComplianceTableProps) {
       </div>
 
       {viewTruck && (
-        <TruckComplianceDialog truck={viewTruck} onClose={() => setViewTruck(null)} />
+        <TruckComplianceView truck={viewTruck} onClose={() => setViewTruck(null)} />
       )}
-      {historyTruck && (
-        <UpdateHistoryDialog truck={historyTruck} onClose={() => setHistoryTruck(null)} />
-      )}
+      <RenewDocumentsDialog truck={renewTruck} onClose={() => setRenewTruck(null)} onSaved={onChanged} />
+      <UpdationHistoryDialog truck={historyTruck} onClose={() => setHistoryTruck(null)} onSaved={onChanged} />
       {costTruck && (
         <CostBreakdownDialog truck={costTruck} onClose={() => setCostTruck(null)} />
       )}

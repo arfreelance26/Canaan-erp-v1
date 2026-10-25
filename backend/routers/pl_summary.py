@@ -1,12 +1,28 @@
 from datetime import date as date_type
-from calendar import monthrange
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 from database import get_db, engine
 import models
+from compliance_cost import document_periods, share_in_range
+
+# The trip sheet's expense lines, in the order the sheet shows them. Their
+# sum is total_expense (calcTripExpenses + halt pay on the trip sheet).
+TRIP_EXPENSE_LINES = (
+    "driver_pay", "halt_pay", "toll_charges", "port_pass_expense", "weight_sheet_expense",
+    "mamol_expense", "claimable_mamol_expense", "traffic_rto_expense", "lift_on_off_expense",
+    "crane_operator_expense", "parking_expense", "other_expenses",
+)
+
+# compliance_cost doc key → the P&L's document_breakdown key (unchanged for the frontend).
+DOC_BREAKDOWN_KEYS = {
+    "rc": "rc", "fc": "fc", "road_tax": "road_tax", "insurance": "insurance",
+    "national_permit": "national_permit", "local_permit": "local_permit",
+    "pollution_cert": "pollution_certificate",
+}
 
 
 def _net_hire(sheet, trip_meta) -> float:
@@ -43,51 +59,12 @@ def _ensure_emi_finance_columns() -> None:
 _ensure_emi_finance_columns()
 
 router = APIRouter(prefix="/pl-summary", tags=["P&L Summary"])
-
-
-# ── Date helpers ──────────────────────────────────────────────────────────────
-
-def _add_years(d: date_type, years: int) -> date_type:
-    try:
-        return d.replace(year=d.year + years)
-    except ValueError:
-        return d.replace(year=d.year + years, day=28)
-
-
-def _add_months(d: date_type, months: int) -> date_type:
-    month = d.month - 1 + months
-    year = d.year + month // 12
-    month = month % 12 + 1
-    day = min(d.day, monthrange(year, month)[1])
-    return date_type(year, month, day)
+# The Trip Breakdown window is also opened from Auditor Pages → Vehicle
+# Record, so it has its own (wider) access rule — see main.py.
+breakdown_router = APIRouter(prefix="/pl-summary", tags=["P&L Summary"])
 
 
 # ── Cost calculators ──────────────────────────────────────────────────────────
-
-def _doc_share(
-    expense,
-    issue: Optional[date_type],
-    expiry: Optional[date_type],
-    start: date_type,
-    end: date_type,
-) -> float:
-    """Amortise a document expense over its validity window, returning the share
-    that falls within [start, end]."""
-    if not expense or not issue or not expiry:
-        return 0.0
-    amt = float(expense)
-    if amt <= 0 or expiry <= issue:
-        return 0.0
-    ov_start = max(start, issue)
-    ov_end = min(end, expiry)
-    if ov_start > ov_end:
-        return 0.0
-    validity_days = (expiry - issue).days
-    if validity_days <= 0:
-        return 0.0
-    overlap_days = (ov_end - ov_start).days + 1
-    return round(amt * overlap_days / validity_days, 2)
-
 
 def _emi_share(
     emi_amount,
@@ -127,7 +104,12 @@ def get_pl_summary(
     Each trip_row is enriched with customer_name, trip_category, cargo_classification,
     and container_specification (joined from trips and customers tables) to support
     client-side profitability filtering.
+
+    Costs over time (EMI, document share, maintenance) stop at today: a period
+    reaching into the future (e.g. "This Year") never charges months that
+    haven't happened yet.
     """
+    cost_end = min(end_date, date_type.today())
     trucks_q = db.query(models.Truck).filter(models.Truck.deleted_at.is_(None))
     if truck_id:
         trucks_q = trucks_q.filter(models.Truck.truck_id == truck_id)
@@ -158,7 +140,7 @@ def get_pl_summary(
         db.query(models.MaintenanceRecord)
         .filter(
             models.MaintenanceRecord.date >= start_date,
-            models.MaintenanceRecord.date <= end_date,
+            models.MaintenanceRecord.date <= cost_end,
         )
         .all()
     ):
@@ -167,9 +149,11 @@ def get_pl_summary(
     sheets_by_vehicle: dict = {}
     for s in (
         db.query(models.TripSheet)
+        .join(models.Trip, models.Trip.id == models.TripSheet.trip_id)
         .filter(
             models.TripSheet.trip_sheet_date >= start_date,
             models.TripSheet.trip_sheet_date <= end_date,
+            models.Trip.deleted_at.is_(None),
         )
         .all()
     ):
@@ -198,38 +182,46 @@ def get_pl_summary(
 
     # ── Per-truck calculation ──────────────────────────────────────────────
 
+    active_ids = {t.truck_id for t in trucks}
+    removed_q = db.query(models.Truck).filter(
+        models.Truck.deleted_at.isnot(None),
+        models.Truck.truck_id.in_([v for v in sheets_by_vehicle if v and v not in active_ids] or [""]),
+    )
+    if truck_id:
+        removed_q = removed_q.filter(models.Truck.truck_id == truck_id)
+    trucks = list(trucks) + removed_q.all()
+
+    doc_periods = document_periods(db, {t.id for t in trucks})
+
     results = []
     for truck in trucks:
+        # A sold/deleted truck stops costing (EMI, documents, maintenance) the
+        # day it left the fleet.
+        t_cost_end = cost_end
+        if truck.deleted_at is not None:
+            t_cost_end = min(cost_end, truck.deleted_at.date())
+        truck_maint = [m for m in maint_by_truck.get(truck.id, []) if m.date <= t_cost_end]
 
-        # Document amortisation
-        ins_issue = _add_years(truck.insurance_expiry_date, -1) if truck.insurance_expiry_date else None
-        road_tax_expiry = _add_years(truck.road_tax_date, 1) if truck.road_tax_date else None
-        np_expiry = _add_years(truck.national_permit_date, 1) if truck.national_permit_date else None
-        lp_expiry = _add_years(truck.local_permit_date, 1) if truck.local_permit_date else None
-        pc_expiry = _add_months(truck.pollution_certificate_date, 6) if truck.pollution_certificate_date else None
-
-        doc_breakdown = {
-            "rc":                    _doc_share(truck.rc_expenses, truck.rc_date, truck.rc_validity_date, start_date, end_date),
-            "fc":                    _doc_share(truck.fc_expenses, truck.fc_date, truck.fc_expiry_date, start_date, end_date),
-            "road_tax":              _doc_share(truck.road_tax_expenses, truck.road_tax_date, road_tax_expiry, start_date, end_date),
-            "insurance":             _doc_share(truck.insurance_expenses, ins_issue, truck.insurance_expiry_date, start_date, end_date),
-            "national_permit":       _doc_share(truck.national_permit_expenses, truck.national_permit_date, np_expiry, start_date, end_date),
-            "local_permit":          _doc_share(truck.local_permit_expenses, truck.local_permit_date, lp_expiry, start_date, end_date),
-            "pollution_certificate": _doc_share(truck.pollution_certificate_expenses, truck.pollution_certificate_date, pc_expiry, start_date, end_date),
-        }
+        # Document amortisation — every period each document was held (first
+        # entry + renewals), spread from its start to its expiry; the part
+        # inside the report's dates is charged. See compliance_cost.py.
+        doc_breakdown = {key: 0.0 for key in DOC_BREAKDOWN_KEYS.values()}
+        for period in doc_periods.get(truck.id, []):
+            key = DOC_BREAKDOWN_KEYS[period.doc]
+            doc_breakdown[key] = round(doc_breakdown[key] + share_in_range(period, start_date, t_cost_end), 2)
         total_doc_share = round(sum(doc_breakdown.values()), 2)
 
         # EMI share for period
         emi_total = 0.0
         emi_details = []
         for e in emi_by_reg.get((truck.registration_number or "").strip().upper(), []):
-            share = _emi_share(e.emi_amount, e.emi_start_date, e.emi_end_date, start_date, end_date)
+            share = _emi_share(e.emi_amount, e.emi_start_date, e.emi_end_date, start_date, t_cost_end)
             if share > 0:
                 emi_total += share
                 monthly_fc = float(e.monthly_finance_cost or 0)
                 daily_fc   = float(e.daily_finance_cost or 0)
                 # Pro-rate monthly_finance_cost over the period overlap (same day-fraction logic)
-                period_fc  = round(_emi_share(monthly_fc, e.emi_start_date, e.emi_end_date, start_date, end_date), 2)
+                period_fc  = round(_emi_share(monthly_fc, e.emi_start_date, e.emi_end_date, start_date, t_cost_end), 2)
                 emi_details.append({
                     "emi_name":             e.emi_name,
                     "bank_name":            e.bank_name or "",
@@ -243,7 +235,7 @@ def get_pl_summary(
 
         # Maintenance cost in period
         maintenance_total = round(
-            sum(float(m.cost or 0) for m in maint_by_truck.get(truck.id, [])), 2
+            sum(float(m.cost or 0) for m in truck_maint), 2
         )
 
         # Trip revenue and expenses — a trip an Auditor has flagged for
@@ -294,6 +286,8 @@ def get_pl_summary(
             is_flagged = bool(trip_meta and trip_meta.flagged_for_recheck)
 
             trip_rows.append({
+                "trip_id":                  s.trip_id,
+                "trip_code":                trip_meta.trip_id if trip_meta else "",   # TRP-1490
                 "trip_sheet_date":          s.trip_sheet_date.isoformat() if s.trip_sheet_date else None,
                 "trip_sheet_no":            s.trip_sheet_no or "",
                 "booking_reference_no":     s.booking_reference_no or "",
@@ -301,6 +295,9 @@ def get_pl_summary(
                 "to_location":              s.to_location or "",
                 "hire_amount":              _net_hire(s, trip_meta),
                 "total_expense":            float(s.total_expense or 0),
+                # Every line that makes up total_expense (the trip sheet's own
+                # sum) — Profitability's Excel lists them for audit.
+                "expense_lines": {k: float(getattr(s, k) or 0) for k in TRIP_EXPENSE_LINES},
                 "total_km":                 float(s.total_km or 0),
                 # Under review by an Auditor (Booking Sheet / Trip Sheet data
                 # suspected incorrect) — shown here for context, but its
@@ -324,12 +321,15 @@ def get_pl_summary(
                 "description":      m.description or "",
                 "cost":             float(m.cost or 0),
             }
-            for m in sorted(maint_by_truck.get(truck.id, []), key=lambda m: m.date or date_type.min)
+            for m in sorted(truck_maint, key=lambda m: m.date or date_type.min)
         ]
 
         results.append({
             "truck_id":            truck.truck_id,
             "registration_number": truck.registration_number,
+            # "Sold" / "Deleted" for a truck no longer in the fleet (shown only
+            # because it ran trips in the period), else None.
+            "disposal":            (truck.disposal_type or "Deleted") if truck.deleted_at is not None else None,
             "trip_count":          len(truck_sheets_sorted),
             "flagged_trip_count":  flagged_trip_count,
             "total_hire_amount":   hire_total,
@@ -349,3 +349,130 @@ def get_pl_summary(
         })
 
     return results
+
+
+# Trip sheet expense lines, in the order Trip Sheet shows them. They add up to
+# the sheet's Total Expense (calcTripExpenses + company halt pay on the frontend).
+_TRIP_EXPENSE_LINES = (
+    ("driver_pay", "Driver Batta"),
+    ("halt_pay", "Company Halt Pay"),
+    ("port_pass_expense", "Port Pass"),
+    ("weight_sheet_expense", "Weight Sheet"),
+    ("mamol_expense", "Mamol"),
+    ("claimable_mamol_expense", "Claimable Mamol"),
+    ("traffic_rto_expense", "Traffic / RTO / Police"),
+    ("lift_on_off_expense", "Lift On / Off"),
+    ("crane_operator_expense", "Crane Operator"),
+    ("parking_expense", "Parking"),
+    ("toll_charges", "Toll Charges"),
+    ("other_expenses", "Other Expenses"),
+)
+
+
+@breakdown_router.get("/trip-breakdown/{trip_id}")
+def get_trip_breakdown(trip_id: int, db: Session = Depends(get_db)):
+    """Everything behind one Trip Profitability row, for its "Trip Breakdown"
+    window: hire (and any commission taken off it), the trip sheet's itemised
+    expenses, the km, and the truck's Cost/KM in each mode with its parts and
+    sources. Uses the same numbers as the table, so the window always adds up
+    to what the row shows."""
+    from fastapi import HTTPException
+    from routers.running_cost import truck_cost_detail
+
+    trip = db.get(models.Trip, trip_id)
+    if not trip or not trip.sheet:
+        raise HTTPException(404, "Trip sheet not found")
+    s = trip.sheet
+    truck = db.query(models.Truck).filter(models.Truck.truck_id == (s.vehicle_id or "").strip()).first()
+
+    gross_hire = float(s.hire_amount or 0)
+    commission = float(trip.transport_commission_amount or 0)
+    items = [{"label": label, "amount": float(getattr(s, col) or 0)} for col, label in _TRIP_EXPENSE_LINES]
+    items = [i for i in items if i["amount"]]
+    total_expense = float(s.total_expense or 0)
+    diff = round(total_expense - sum(i["amount"] for i in items), 2)
+    if abs(diff) >= 0.01:
+        items.append({"label": "Other (as saved on the trip sheet)", "amount": diff})
+
+    customer = db.get(models.Customer, trip.customer_id) if trip.customer_id else None
+    return {
+        "trip_id": trip.id,
+        "trip_code": trip.trip_id,
+        "trip_sheet_no": s.trip_sheet_no or "",
+        "truck_id": s.vehicle_id or "",
+        "registration_number": truck.registration_number if truck else "",
+        "customer_name": (trip.custom_customer_name if trip.use_custom_customer else (customer.name if customer else "")) or "",
+        "from_location": s.from_location or "",
+        "to_location": s.to_location or "",
+        "hire": {"gross": gross_hire, "commission": commission, "net": gross_hire - commission},
+        "expenses": {"total": total_expense, "items": items},
+        "km": {
+            "start": float(s.start_km or 0), "end": float(s.end_km or 0), "total": float(s.total_km or 0),
+        },
+        "flagged_for_recheck": bool(trip.flagged_for_recheck),
+        "flagged_remark": trip.flagged_remark if trip.flagged_for_recheck else None,
+        "cost": truck_cost_detail(db, truck) if truck else None,
+    }
+
+
+ExportMode = Literal["Manual", "Basic", "Advanced"]
+
+
+@router.get("/computed")
+def get_pl_computed(
+    start_date: date_type = Query(...),
+    end_date: date_type = Query(...),
+    mode: ExportMode = Query("Advanced"),
+    search: str = Query("", max_length=100),
+    db: Session = Depends(get_db),
+):
+    """The Profitability page's numbers, finished (pl_compute.py — the same
+    figures the Excel uses): every trip's and truck's profit, the totals and
+    the profitable / loss counts (after all costs). The page only displays them."""
+    import pl_compute
+    return pl_compute.compute(db, start_date, end_date, mode, search)
+
+
+@router.get("/export")
+def export_profitability(
+    start_date: date_type = Query(...),
+    end_date: date_type = Query(...),
+    mode: ExportMode = Query("Advanced"),
+    db: Session = Depends(get_db),
+):
+    """Profitability → View → Excel: the audit report (pl_export.py)."""
+    import pl_export
+    data, filename, _ = pl_export.build(db, start_date, end_date, mode)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export-preview")
+def export_profitability_preview(
+    start_date: date_type = Query(...),
+    end_date: date_type = Query(...),
+    mode: ExportMode = Query("Advanced"),
+    db: Session = Depends(get_db),
+):
+    """What the export's sheets show (its formulas worked out), for the in-app
+    preview — openpyxl can't store a formula's result in the file itself."""
+    import pl_export
+    _, filename, sheets = pl_export.build(db, start_date, end_date, mode)
+    return {"filename": filename, "sheets": sheets}
+
+
+@router.get("/first-trip-date")
+def get_first_trip_date(db: Session = Depends(get_db)):
+    """The earliest trip sheet date on record — Truck Profitability warns when
+    a period starts before it (costs then, but no recorded trips to pay them)."""
+    from sqlalchemy import func
+    first = (
+        db.query(func.min(models.TripSheet.trip_sheet_date))
+        .join(models.Trip, models.Trip.id == models.TripSheet.trip_id)
+        .filter(models.Trip.deleted_at.is_(None))
+        .scalar()
+    )
+    return {"first_trip_date": first.isoformat() if first else None}

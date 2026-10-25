@@ -139,7 +139,42 @@ export function dedupe<T>(key: string, fn: () => Promise<T>): Promise<T> {
  */
 export function cacheInvalidate(path: string) {
   const seg = resourceOf(path);
-  const drop = (k: string) => k === seg || k.startsWith(seg + "/") || k.startsWith(seg + "?");
+  dropWhere(seg, (k) => k === seg || k.startsWith(seg + "/") || k.startsWith(seg + "?"));
+  // A change to anything that feeds a cost also drops the cost figures worked
+  // out from it (they live under other resources, so the rule above misses them).
+  // (The calculator's own saves — "running-cost" — count too: Manual figures
+  // feed Profitability's Trip Breakdown.)
+  if (COST_INPUT_RESOURCES.has(seg.slice(1)) || seg === "/running-cost") {
+    for (const prefix of COST_DERIVED_PREFIXES) {
+      if (prefix === seg || prefix.startsWith(seg + "/")) continue;  // already dropped above
+      dropWhere(resourceOf(prefix), (k) => k === prefix || k.startsWith(prefix));
+    }
+  }
+}
+
+/** Resources (first path segment) whose changes feed Cost/KM: fuel logs and
+ *  maintenance (/maintenance), EMI (/finance), tyres, trucks / run config /
+ *  documents (/trucks, /compliance-records), trips and trip sheets (/trips),
+ *  and approved deletions (/deletion-approvals deletes a trip, truck, fuel
+ *  log or maintenance bill). */
+export const COST_INPUT_RESOURCES = new Set([
+  "trips", "maintenance", "finance", "trucks", "compliance-records", "deletion-approvals",
+  "tyre-inventory", "tyre-fitment", "tyre-range-config", "tyre-layout-type-config",
+]);
+
+/** Cached figures worked out from those inputs. */
+const COST_DERIVED_PREFIXES = [
+  "/running-cost",               // Cost/KM (all modes), cost parts, monthly distance
+  "/pl-summary",                 // Profitability + Trip Breakdown
+  "/trips/route-insights",       // Customer Insights
+  "/trucks/compliance-per",      // compliance per km / per day
+  "/trucks/cost-per-km-ranking", // Assign Trip's truck ranking
+  "/maintenance/cost-per",       // maintenance per km / per day
+  "/maintenance/fuel-stats",     // mileage
+  "/maintenance/trucks/",        // per-truck maintenance cost summary + fuel stats
+];
+
+function dropWhere(seg: string, drop: (k: string) => boolean) {
   generations.set(seg, (generations.get(seg) ?? 0) + 1);
   for (const k of Array.from(mem.keys())) if (drop(k)) mem.delete(k);
   // Forget in-flight GETs too: they started before this write, so a read made

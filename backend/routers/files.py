@@ -91,8 +91,16 @@ FIELD_MAP: dict[str, dict[str, str]] = {
         "national_permit":  "national_permit_proof_blob",
         "local_permit":     "local_permit_proof_blob",
         "pollution_cert":   "pollution_certificate_blob",
+        # Vehicle Images — "photo" above is the Vehicle Identity Image.
+        "front_view":       "front_view_blob",
+        "rear_view":        "rear_view_blob",
+        "left_view":        "left_view_blob",
+        "right_view":       "right_view_blob",
     },
 }
+
+# (entity, field) pairs that accept images only — no PDFs.
+IMAGE_ONLY_FIELDS = {("trucks", f) for f in ("photo", "front_view", "rear_view", "left_view", "right_view")}
 
 # Maps blob column name → the filename/url column that stores the original filename.
 FILENAME_COL: dict[str, str] = {
@@ -108,7 +116,20 @@ FILENAME_COL: dict[str, str] = {
     "national_permit_proof_blob":        "national_permit_proof_file_name",
     "local_permit_proof_blob":           "local_permit_proof_file_name",
     "pollution_certificate_blob":        "pollution_certificate_proof_file_name",
+    "front_view_blob":                   "front_view_file_name",
+    "rear_view_blob":                    "rear_view_file_name",
+    "left_view_blob":                    "left_view_file_name",
+    "right_view_blob":                   "right_view_file_name",
 }
+
+# Per-entity exceptions to FILENAME_COL (a truck's photo name lives in its own column).
+ENTITY_FILENAME_COL: dict[str, dict[str, str]] = {
+    "trucks": {"photo_blob": "truck_photos_file_name"},
+}
+
+
+def _filename_col(entity: str, col: str) -> str | None:
+    return ENTITY_FILENAME_COL.get(entity, {}).get(col) or FILENAME_COL.get(col)
 
 MODEL_MAP: dict[str, type] = {
     "drivers":   models.Driver,
@@ -171,8 +192,13 @@ async def upload_file(
             status_code=415,
             detail="Unsupported file type. Only PDF, JPG, PNG, WEBP or GIF files are allowed.",
         )
+    if (entity, field) in IMAGE_ONLY_FIELDS and sniffed not in IMAGE_MIMES:
+        raise HTTPException(
+            status_code=415,
+            detail="This field takes an image only (JPG, PNG, WEBP or GIF).",
+        )
     setattr(record, col, data)
-    name_col = FILENAME_COL.get(col)
+    name_col = _filename_col(entity, col)
     if name_col and hasattr(record, name_col):
         setattr(record, name_col, file.filename)
     db.commit()
@@ -195,7 +221,7 @@ def delete_file(
     record = _get_record(entity, entity_id, db)
     col = _col_name(entity, field)
     setattr(record, col, None)
-    name_col = FILENAME_COL.get(col)
+    name_col = _filename_col(entity, col)
     if name_col and hasattr(record, name_col):
         setattr(record, name_col, None)
     db.commit()
@@ -231,7 +257,7 @@ def download_file(
             resource=f"{entity}/{entity_id}/{field}",
         )
 
-    name_col = FILENAME_COL.get(col)
+    name_col = _filename_col(entity, col)
     filename: str = (getattr(record, name_col, None) if name_col else None) or f"{field}.bin"
     # Serve by the true (sniffed) type; fall back to the filename guess. Never honour
     # a stored type that could drive the browser to execute content.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { CelebrationPreviewBar } from "./CelebrationPreviewBar";
+import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -52,6 +53,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // though trailingSlash:true is what makes usePathname() report one.
     if (pathname === "/attendance/mark" || pathname === "/attendance/mark/" || pathname?.startsWith("/connect/chat")) return;
     router.replace("/attendance/mark");
+  }, [attendanceLocked, pathname, router]);
+
+  // The moment the lock lifts (they've just marked), send them on to their
+  // Dashboard — where login would have taken them if the lock hadn't been on.
+  // Only on that transition: opening Mark Attendance later is left alone.
+  const wasLocked = useRef(false);
+  useEffect(() => {
+    if (attendanceLocked) { wasLocked.current = true; return; }
+    if (!wasLocked.current) return;
+    wasLocked.current = false;
+    if (pathname === "/attendance/mark" || pathname === "/attendance/mark/") router.replace("/");
   }, [attendanceLocked, pathname, router]);
 
   useEffect(() => {
@@ -115,6 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           it animates, so the instant snap underneath is never seen. */}
       <div className={cn("hidden shrink-0 md:block", collapsed ? "md:w-16" : "md:w-[310px]")} />
       <div className="flex min-w-0 flex-1 flex-col [contain:layout_style]">
+        <CelebrationPreviewBar />
         <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} attendanceLocked={attendanceLocked} />
         <main className="flex-1 overflow-y-auto bg-gray-50 p-3 dark:bg-[#090c14] sm:p-4 md:p-6">{children}</main>
       </div>

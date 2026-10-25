@@ -4,13 +4,12 @@ import { useMemo, useState } from "react";
 import { Truck as TruckIcon } from "lucide-react";
 import type { Truck } from "@/types/truck";
 import type { Trip } from "@/types/trip";
-import type { TruckMaintenanceStatus } from "@/types/maintenance-status";
 import { getComplianceStatus } from "@/lib/compliance";
 import { COMPLIANCE_CHECKS } from "@/hooks/useComplianceAlerts";
 import { Segmented } from "@/components/ui/Segmented";
 
 type Filter = "all" | "road" | "attention";
-type Health = "ok" | "soon" | "expired";
+type Health = "ok" | "soon" | "missing" | "expired";
 
 // Same definition the rest of the dashboard uses for "on the road".
 const ON_ROAD = new Set(["Started", "Loaded", "On-Transit", "Reached", "Unloaded"]);
@@ -21,8 +20,8 @@ type Node = {
   health: Health;
   expired: string[];
   soon: string[];
-  maintOverdue: number;
-  maintNames: string[];
+  /** Documents with no expiry date entered (short names, e.g. "FC"). */
+  missing: string[];
   onRoad: Trip | null;
   assigned: Trip | null;
   idleDays: number | null;
@@ -43,7 +42,13 @@ function hexPoints(cx: number, cy: number, r: number) {
   }).join(" ");
 }
 
-const HEALTH_CLASS: Record<Health, string> = { ok: "fc-ok", soon: "fc-soon", expired: "fc-bad" };
+const HEALTH_CLASS: Record<Health, string> = { ok: "fc-ok", soon: "fc-soon", missing: "fc-miss", expired: "fc-bad" };
+
+// Short names for the "not added" line, keyed by COMPLIANCE_CHECKS field.
+const SHORT_LABEL: Record<string, string> = {
+  fc: "FC", nationalPermit: "National Permit", localPermit: "Local Permit",
+  pollution: "PUC", roadTax: "Road Tax", insurance: "Insurance",
+};
 const short = (t: Truck) => (t.registrationNumber || t.truckId || "").replace(/\s/g, "").slice(-4);
 
 function fmtDate(d: string) {
@@ -54,17 +59,14 @@ function fmtDate(d: string) {
 export function FleetConstellationCard({
   trucks,
   trips,
-  maintenanceStatus,
 }: {
   trucks: Truck[];
   trips: Trip[];
-  maintenanceStatus: TruckMaintenanceStatus[];
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [hovered, setHovered] = useState<string | null>(null);
 
   const { nodes, width, height } = useMemo(() => {
-    const maintByTruck = new Map(maintenanceStatus.map((m) => [String(m.truckDbId), m]));
     const tripsByVehicle = new Map<string, Trip[]>();
     for (const t of trips) {
       if (!t.vehicleId || t.status === "Cancelled") continue;
@@ -92,15 +94,17 @@ export function FleetConstellationCard({
 
       const expired: string[] = [];
       const soon: string[] = [];
+      const missing: string[] = [];
       for (const { field, label, dateKey } of COMPLIANCE_CHECKS) {
         const date = truck[dateKey] as string | undefined;
-        if (!date) continue;
+        if (!date) {
+          missing.push(SHORT_LABEL[field] ?? label);
+          continue;
+        }
         const s = getComplianceStatus(date, field);
         if (s === "Expired") expired.push(label);
         else if (s === "Expiring Soon") soon.push(label);
       }
-      const maint = maintByTruck.get(String(truck.id));
-      const maintNames = maint ? maint.items.filter((x) => x.status === "Overdue").map((x) => x.typeName) : [];
 
       const mine = tripsByVehicle.get(truck.truckId) ?? [];
       const onRoad = mine.find((t) => ON_ROAD.has(t.status) && !t.hasClosure && !t.isInvoiced) ?? null;
@@ -118,11 +122,12 @@ export function FleetConstellationCard({
       return {
         truck,
         short: short(truck),
-        health: expired.length ? "expired" : soon.length ? "soon" : "ok",
+        // Expired outranks missing (can't legally run), missing outranks
+        // expiring soon (status unknown at all).
+        health: expired.length ? "expired" : missing.length ? "missing" : soon.length ? "soon" : "ok",
         expired,
         soon,
-        maintOverdue: maint?.overdueCount ?? 0,
-        maintNames,
+        missing,
         onRoad,
         assigned,
         idleDays,
@@ -132,7 +137,7 @@ export function FleetConstellationCard({
       };
     });
     return { nodes: list, width: w, height: h };
-  }, [trucks, trips, maintenanceStatus]);
+  }, [trucks, trips]);
 
   const attention = (n: Node) => n.health !== "ok";
   const matches = (n: Node) => filter === "all" || (filter === "road" ? !!n.onRoad : attention(n));
@@ -140,7 +145,7 @@ export function FleetConstellationCard({
   const onRoadCount = nodes.filter((n) => n.onRoad).length;
   const expiredTrucks = nodes.filter((n) => n.health === "expired").length;
   const soonTrucks = nodes.filter((n) => n.health === "soon").length;
-  const maintTrucks = nodes.filter((n) => n.maintOverdue > 0).length;
+  const missingTrucks = nodes.filter((n) => n.missing.length > 0).length;
 
   const queue = useMemo(
     () =>
@@ -149,6 +154,7 @@ export function FleetConstellationCard({
         .sort(
           (a, b) =>
             b.expired.length - a.expired.length ||
+            b.missing.length - a.missing.length ||
             b.soon.length - a.soon.length
         ),
     [nodes]
@@ -159,6 +165,7 @@ export function FleetConstellationCard({
   const reasons = (n: Node) => {
     const out: string[] = [];
     if (n.expired.length) out.push(`${n.expired[0]}${n.expired.length > 1 ? ` +${n.expired.length - 1}` : ""} expired`);
+    if (n.missing.length) out.push(`${n.missing.length} not added`);
     if (n.soon.length) out.push(`${n.soon.length} expiring soon`);
     return out.join(" · ");
   };
@@ -193,7 +200,7 @@ export function FleetConstellationCard({
       ) : (
         <div className="flex flex-1 flex-col gap-4 p-4">
           {/* Headline numbers */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-sky-200/70 bg-sky-50/70 px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">On the road</p>
               <p className="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">
@@ -208,11 +215,11 @@ export function FleetConstellationCard({
               <p className="text-xs text-gray-500">
                 {expiredTrucks === 1 ? "truck" : "trucks"} expired · {soonTrucks} expiring soon
               </p>
-            </div>
-            <div className="rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Service</p>
-              <p className="mt-0.5 text-2xl font-bold tabular-nums text-gray-900">{maintTrucks}</p>
-              <p className="text-xs text-gray-500">{maintTrucks === 1 ? "truck" : "trucks"} with overdue service</p>
+              {missingTrucks > 0 && (
+                <p className="text-xs font-medium text-pink-600 dark:text-pink-300">
+                  {missingTrucks} {missingTrucks === 1 ? "truck" : "trucks"} with documents not added
+                </p>
+              )}
             </div>
           </div>
 
@@ -222,7 +229,7 @@ export function FleetConstellationCard({
               viewBox={`0 0 ${width} ${height}`}
               className="h-auto w-full"
               role="img"
-              aria-label={`${nodes.length} trucks: ${onRoadCount} on the road, ${expiredTrucks} with expired documents`}
+              aria-label={`${nodes.length} trucks: ${onRoadCount} on the road, ${expiredTrucks} with expired documents, ${missingTrucks} with documents not added`}
               onMouseLeave={() => setHovered(null)}
             >
               {nodes.map((n, i) => {
@@ -291,15 +298,14 @@ export function FleetConstellationCard({
                     <p key={l} className="text-red-600">● {l} expired</p>
                   ))}
                   {active.expired.length > 4 && <p className="text-red-600">+{active.expired.length - 4} more expired</p>}
+                  {active.missing.length > 0 && (
+                    <p className="text-pink-600 dark:text-pink-300">
+                      ● {active.missing.length === COMPLIANCE_CHECKS.length ? "No documents added" : `Not added: ${active.missing.join(", ")}`}
+                    </p>
+                  )}
                   {active.soon.slice(0, 3).map((l) => (
                     <p key={l} className="text-amber-600">● {l} expiring soon</p>
                   ))}
-                  {active.maintOverdue > 0 && (
-                    <p className="text-amber-700">
-                      ● {active.maintOverdue} service overdue
-                      {active.maintNames.length ? `: ${active.maintNames.slice(0, 2).join(", ")}${active.maintNames.length > 2 ? "…" : ""}` : ""}
-                    </p>
-                  )}
                   {!attention(active) && <p className="text-emerald-600">✓ All documents valid</p>}
                 </div>
               </div>
@@ -311,6 +317,7 @@ export function FleetConstellationCard({
             <span className="flex items-center gap-1.5"><i className="fc-key fc-ok" /> Healthy</span>
             <span className="flex items-center gap-1.5"><i className="fc-key fc-soon" /> Expiring soon</span>
             <span className="flex items-center gap-1.5"><i className="fc-key fc-bad" /> Expired</span>
+            <span className="flex items-center gap-1.5"><i className="fc-key fc-miss" /> Not added</span>
             <span className="flex items-center gap-1.5"><i className="fc-key-dot fc-road-dot" /> On the road</span>
             <span className="flex items-center gap-1.5"><i className="fc-key-dash" /> Trip assigned</span>
           </div>
@@ -322,7 +329,7 @@ export function FleetConstellationCard({
             </p>
             {queue.length === 0 ? (
               <p className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-4 text-center text-xs text-gray-500">
-                Every truck has valid documents.
+                Every truck has all its documents, and all are valid.
               </p>
             ) : (
               <div className="relative min-h-0 flex-1">
