@@ -1,6 +1,8 @@
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { toastManager } from './toast-manager';
+import { createElement } from 'react';
+import { toast } from 'sonner';
+import { MessageSquare } from 'lucide-react';
 
 export const MySwal = withReactContent(Swal);
 
@@ -129,21 +131,26 @@ export const showToast = (
   message: string,
   icon: 'success' | 'error' | 'info' | 'warning' | 'chat' = 'info',
   title?: string,
-  /** Overrides the Toaster's default 6s auto-dismiss (see components/ui/toaster.tsx) for this one toast. */
+  /** Overrides the Toaster's default 6s auto-dismiss (see components/ui/sonner.tsx) for this one toast. */
   durationMs?: number,
 ) => {
-  // Defer to a macrotask (not just a microtask): base-ui's Toast.Root calls
-  // flushSync internally when a toast is added. A microtask can still run inside
-  // React's commit/flush window, triggering "flushSync was called while React is
-  // already rendering". setTimeout(0) guarantees the add runs after the commit.
-  setTimeout(() => {
-    toastManager.add({
-      title: title ?? message,
-      description: title ? message : undefined,
-      type: icon,
-      ...(durationMs != null ? { timeout: durationMs } : {}),
+  const opts = {
+    description: title ? message : undefined,
+    ...(durationMs != null ? { duration: durationMs } : {}),
+  };
+  const heading = title ?? message;
+  if (icon === 'chat') {
+    toast(heading, {
+      ...opts,
+      icon: createElement(
+        'span',
+        { className: 'flex h-6 w-6 items-center justify-center rounded-full bg-brand-navy' },
+        createElement(MessageSquare, { className: 'h-3.5 w-3.5 text-brand-gold' }),
+      ),
     });
-  }, 0);
+  } else {
+    toast[icon](heading, opts);
+  }
 };
 
 /**

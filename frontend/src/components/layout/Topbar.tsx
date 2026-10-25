@@ -33,7 +33,6 @@ import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
 // import { useChat } from "@/context/ChatContext"; // Next phase
 import { showToast } from "@/lib/swal";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 // Trip pages whose local search is driven by the Topbar global search
 const SEARCHABLE_TRIP_PATHS = new Set([
@@ -56,20 +55,6 @@ const SEARCH_TARGET_BY_ROLE: Record<string, string> = {
   "Yard Supervisor": "/trips/sheet-collection",
   "Trip Sheet Register": "/trips/reconciliation",
 };
-
-function useBackendStatus() {
-  const [online, setOnline] = useState<boolean | null>(null);
-  useEffect(() => {
-    const check = () =>
-      fetch(`${API_URL}/`)
-        .then(() => setOnline(true))
-        .catch(() => setOnline(false));
-    check();
-    const id = setInterval(check, 15000);
-    return () => clearInterval(id);
-  }, []);
-  return online;
-}
 
 function getPageLabel(pathname: string): string {
   // next.config's trailingSlash:true means the live pathname always ends in
@@ -194,7 +179,6 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const pathname = usePathname();
   const router   = useRouter();
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: getPageLabel(pathname) }];
-  const backendOnline = useBackendStatus();
   const { user, logout } = useAuth();
 
   // Logout is gated on closing an open self-checked-in shift first — same

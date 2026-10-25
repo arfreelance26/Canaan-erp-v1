@@ -116,3 +116,6 @@ Quotation3.md
 invoice.js
 quotation.js
 quotation3.js
+
+# pytest
+.pytest_cache/

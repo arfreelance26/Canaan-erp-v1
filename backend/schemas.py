@@ -722,7 +722,7 @@ class StaffEditEventListOut(BaseModel):
     created_at: datetime
 
 
-TruckEditEventType = Literal["Truck Created", "Truck Edited", "Truck Deleted", "Truck Restored"]
+TruckEditEventType = Literal["Truck Created", "Truck Edited", "Truck Deleted", "Truck Restored", "Truck Sold"]
 
 
 class TruckEditEventListOut(BaseModel):

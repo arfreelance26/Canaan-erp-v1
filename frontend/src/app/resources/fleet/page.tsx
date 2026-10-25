@@ -39,6 +39,7 @@ const EDIT_EVENT_ICON: Record<TruckEditEventRow["event"], typeof Plus> = {
   "Truck Edited": Pencil,
   "Truck Deleted": Trash2,
   "Truck Restored": Undo2,
+  "Truck Sold": HandCoins,
 };
 
 const EDIT_EVENT_COLOR: Record<TruckEditEventRow["event"], string> = {
@@ -46,6 +47,7 @@ const EDIT_EVENT_COLOR: Record<TruckEditEventRow["event"], string> = {
   "Truck Edited": "bg-amber-100 text-amber-700",
   "Truck Deleted": "bg-red-100 text-red-700",
   "Truck Restored": "bg-emerald-100 text-emerald-700",
+  "Truck Sold": "bg-gray-100 text-gray-700",
 };
 export default function FleetPage() {
   const { user: authUser } = useAuth();

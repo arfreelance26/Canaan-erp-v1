@@ -2140,7 +2140,7 @@ async def activity_tracking(request: Request, call_next):
     # as a BackgroundTask *after* this response has already gone out, so it
     # never adds latency here. Attached to every response (even requests this
     # middleware doesn't record below, e.g. "/") so the health-check ping the
-    # Topbar sends every 15s is itself enough to keep flushing reliable even
+    # Topbar's internet status pill sends every 10s is itself enough to keep flushing reliable even
     # on a quiet night with no other activity. flush_if_due() is a cheap
     # no-op on every call where a flush/purge isn't actually due yet.
     from starlette.background import BackgroundTask
@@ -2153,8 +2153,8 @@ async def activity_tracking(request: Request, call_next):
     # recording them always attributed a phantom "anonymous" event right next
     # to the real, correctly-attributed one for almost every authenticated call.
     # "/" is also excluded (exact match, not a prefix — "/" as a prefix would
-    # match every route): it's the unauthenticated health check Topbar polls
-    # every 15s for the online/offline dot, not a real person reading anything.
+    # match every route): it's the unauthenticated health check the Topbar's internet
+    # status pill polls every 10s (3s while its panel is open), not a real person reading anything.
     # GET /files/... is just inline <img> serving (document previews) and is
     # skipped too — but POST/DELETE on that same prefix are real uploads and
     # deletions of someone's license/RC/Aadhaar, so those must still be tracked.

@@ -288,20 +288,6 @@ class Staff(Base):
         """True when this account is locked to a device (has a stored device_hash)."""
         return bool(self.device_hash)
 
-
-class StaffEditEvent(Base):
-    """Who edited a Staff record and when — same pattern as DriverEditEvent.
-    Logs the action only (not a field-level diff). The only edit surface for
-    Staff fields is the "Our Staff" page's Add/Edit Staff dialog."""
-    __tablename__ = "staff_edit_events"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
-    event = Column(Enum("Staff Created", "Staff Edited", "Staff Deleted", "Staff Restored"), nullable=False)
-    actor_name = Column(String(100), nullable=False)
-    actor_role = Column(String(50), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-
     @property
     def devices(self) -> list:
         """Bound devices for display: id (hash), kind label, and bind date."""
@@ -320,6 +306,20 @@ class StaffEditEvent(Base):
                 "bound_at": d.get("at"),
             })
         return out
+
+
+class StaffEditEvent(Base):
+    """Who edited a Staff record and when — same pattern as DriverEditEvent.
+    Logs the action only (not a field-level diff). The only edit surface for
+    Staff fields is the "Our Staff" page's Add/Edit Staff dialog."""
+    __tablename__ = "staff_edit_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    event = Column(Enum("Staff Created", "Staff Edited", "Staff Deleted", "Staff Restored"), nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class AppSetting(Base):

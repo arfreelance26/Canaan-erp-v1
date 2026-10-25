@@ -1,0 +1,7 @@
+# Test-only packages — install on your own machine, NOT on the production server.
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   cd backend && pytest
+# The tests need a LOCAL MySQL server (the one in backend/.env); they create
+# and drop their own `canaan_pytest` database — see tests/conftest.py.
+pytest==8.3.5
+httpx==0.27.2          # FastAPI's TestClient; 0.28+ doesn't work with the pinned FastAPI 0.104

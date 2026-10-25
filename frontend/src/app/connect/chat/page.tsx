@@ -1263,6 +1263,15 @@ export default function CanaanChatPage() {
   }, [markMessageFresh]);
 
   // -- derived --------------------------------------------------------------
+  // Group message avatars: sender staff id -> profile photo, from the contact
+  // list (everyone) plus the open group's members.
+  const photoBySender = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of [...contacts, ...(groupDetail?.members ?? [])]) {
+      if (p.photoUrl) map.set(Number(p.staffId), p.photoUrl);
+    }
+    return map;
+  }, [contacts, groupDetail]);
   const directConversations = useMemo(
     () => conversations.filter((c) => c.kind === "direct"),
     [conversations]
@@ -2373,12 +2382,22 @@ export default function CanaanChatPage() {
                             )}
                             {selected.kind === "group" && !fromMe && (
                               showSender ? (
+                                m.senderId != null && photoBySender.has(m.senderId) ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={photoBySender.get(m.senderId)}
+                                    alt={m.senderName ?? "Unknown"}
+                                    title={m.senderName ?? "Unknown"}
+                                    className="mb-0.5 h-6 w-6 shrink-0 rounded-full object-cover"
+                                  />
+                                ) : (
                                 <div
                                   className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${senderColor(m.senderId).bg}`}
                                   title={m.senderName ?? "Unknown"}
                                 >
                                   {getInitials(m.senderName || "?")}
                                 </div>
+                                )
                               ) : (
                                 <div className="w-6 shrink-0" />
                               )

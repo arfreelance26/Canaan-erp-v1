@@ -1510,7 +1510,7 @@ function toCompensationTransaction(b: B): CompensationTransaction {
 // Trucks API
 // ---------------------------------------------------------------------------
 
-export type TruckEditEventType = "Truck Created" | "Truck Edited" | "Truck Deleted" | "Truck Restored";
+export type TruckEditEventType = "Truck Created" | "Truck Edited" | "Truck Deleted" | "Truck Restored" | "Truck Sold";
 
 // One row in the page-wide "Edit History" log on Compliance & Renewals —
 // every compliance document update ever logged, across every truck. Derived
