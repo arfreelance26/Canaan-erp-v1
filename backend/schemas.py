@@ -3038,6 +3038,15 @@ class ChatMemberOut(OrmBase):
     role: Optional[ChatParticipantRole] = None
 
 
+class ChatReactionOut(OrmBase):
+    """One person's reaction. Sent as the raw per-person list (not pre-counted),
+    because the same message goes to every participant and "which one is mine"
+    differs for each of them, so the browser groups and highlights."""
+    staff_id: int
+    staff_name: Optional[str] = None
+    emoji: str
+
+
 class ChatMessageOut(OrmBase):
     id: int
     conversation_id: int
@@ -3058,6 +3067,7 @@ class ChatMessageOut(OrmBase):
     created_at: Optional[datetime] = None
     edited_at: Optional[datetime] = None
     deleted: bool = False
+    reactions: list[ChatReactionOut] = []
 
 
 class ChatOwnerConversationOut(OrmBase):
@@ -3156,6 +3166,40 @@ class ChatMessageCreate(BaseModel):
             if self.note and len(self.note) > CHAT_MAX_PAYMENT_NOTE_CHARS:
                 raise ValueError(f"Note is too long (limit {CHAT_MAX_PAYMENT_NOTE_CHARS} characters).")
         return self
+
+
+CHAT_REACTION_MAX_CHARS = 32   # family / flag / skin-tone emoji are several code points joined
+
+
+def clean_reaction_emoji(value: Optional[str]) -> Optional[str]:
+    """None or blank means "take my reaction back". Otherwise it must look like
+    an emoji: at least one non-ASCII symbol and no ASCII letters/digits, spaces
+    or control characters, so a reaction can't put arbitrary text on a message."""
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > CHAT_REACTION_MAX_CHARS:
+        raise ValueError("That isn't a single emoji.")
+    has_symbol = any(ord(ch) > 0x7F for ch in value)
+    keycap = "⃣" in value   # 1️⃣ / #️⃣ are an ASCII digit or # plus the keycap mark
+    bad = any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7F
+              or (ord(ch) < 0x80 and ch.isalnum() and not keycap)
+              or (ord(ch) > 0x7F and ch.isalpha()) for ch in value)
+    if not has_symbol or bad:
+        raise ValueError("Pick an emoji to react with.")
+    return value
+
+
+class ChatReactionSet(BaseModel):
+    """PUT body: the emoji to react with, or null to remove my reaction."""
+    emoji: Optional[str] = None
+
+    @field_validator("emoji")
+    @classmethod
+    def only_an_emoji(cls, v: Optional[str]) -> Optional[str]:
+        return clean_reaction_emoji(v)
 
 
 class ChatMessageEdit(BaseModel):

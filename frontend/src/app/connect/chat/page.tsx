@@ -35,10 +35,13 @@ import {
   KeyRound,
   ArrowLeft,
   ExternalLink,
+  SmilePlus,
 } from "lucide-react";
 import { chatApi, chatOwnerApi, toChatMessage } from "@/lib/api";
 import { OwnerViewDialog, type OwnerViewToken } from "@/components/chat/OwnerViewDialog";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
+import { ReactionMenu } from "@/components/chat/ReactionMenu";
+import { Bubble, BubbleContent, BubbleReactions } from "@/components/ui/bubble";
 import { Avatar, getInitials, formatTime, senderColor } from "@/components/chat/shared";
 import type { ChatConversation, ChatConversationDetail, ChatMember, ChatMessage } from "@/types/chat";
 import { useAuth } from "@/context/AuthContext";
@@ -860,6 +863,13 @@ export default function CanaanChatPage() {
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const draftInputRef = useRef<HTMLTextAreaElement>(null);
+  // Which message's "react" popover is open, and the button it hangs off.
+  const [reactionMenu, setReactionMenu] = useState<{
+    messageId: number;
+    anchor: HTMLElement;
+    align: "start" | "end";
+  } | null>(null);
+  const closeReactionMenu = useCallback(() => setReactionMenu(null), []);
 
   // The composer is a textarea so pasted point-wise text keeps its line
   // breaks. It grows with its content up to COMPOSER_MAX_PX, then scrolls.
@@ -1614,6 +1624,32 @@ export default function CanaanChatPage() {
     }
   }
 
+  // -- reactions -----------------------------------------------------------
+  function openReactionMenu(m: ChatMessage, anchor: HTMLElement, align: "start" | "end") {
+    setReactionMenu((cur) => (cur?.messageId === m.id ? null : { messageId: m.id, anchor, align }));
+  }
+
+  /** Set my reaction (or null to remove it). Shown at once, then replaced by what the server saved. */
+  async function handleReact(messageId: number, emoji: string | null) {
+    setReactionMenu(null);
+    if (myId == null) return;
+    const me = Number(myId);
+    const before = messages.find((x) => x.id === messageId);
+    if (!before) return;
+    const optimistic = before.reactions.filter((r) => r.staffId !== me);
+    if (emoji) optimistic.push({ staffId: me, staffName: user?.name ?? null, emoji });
+    const swap = (reactions: ChatMessage["reactions"]) =>
+      setMessages((prev) => prev.map((x) => (x.id === messageId ? { ...x, reactions } : x)));
+    swap(optimistic);
+    try {
+      const updated = await chatApi.setReaction(messageId, emoji);
+      swap(updated.reactions);
+    } catch (err) {
+      swap(before.reactions);
+      showError(err instanceof Error ? err.message : "Could not add that reaction.");
+    }
+  }
+
   // -- attachments (paperclip) -------------------------------------------
   async function handleAttachmentSelected(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -2342,6 +2378,30 @@ export default function CanaanChatPage() {
                       const isTextMsg = !["voice", "image", "file", "payment", "system"].includes(m.contentType);
                       // The message this one is a reply to (may be off the loaded page → null).
                       const replyParent = m.replyToId != null ? messages.find((x) => x.id === m.replyToId) ?? null : null;
+                      // Group reactions by emoji (first-reacted first) for the chips under the bubble.
+                      const reactionGroups: { emoji: string; names: string[]; mine: boolean }[] = [];
+                      for (const r of m.deleted ? [] : m.reactions) {
+                        let g = reactionGroups.find((x) => x.emoji === r.emoji);
+                        if (!g) reactionGroups.push((g = { emoji: r.emoji, names: [], mine: false }));
+                        const isMe = myId != null && r.staffId === Number(myId);
+                        g.names.push(isMe ? "You" : (r.staffName ?? "Someone"));
+                        if (isMe) g.mine = true;
+                      }
+                      const myReaction = reactionGroups.find((g) => g.mine)?.emoji ?? null;
+                      const reactButton = (
+                        <button
+                          type="button"
+                          data-emoji-toggle
+                          onClick={(e) => openReactionMenu(m, e.currentTarget, fromMe ? "end" : "start")}
+                          title="React"
+                          aria-label="React to message"
+                          className={`flex h-7 w-7 items-center justify-center rounded-full hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300 ${
+                            reactionMenu?.messageId === m.id ? "text-brand-navy" : "text-gray-400"
+                          }`}
+                        >
+                          <SmilePlus className="h-4 w-4" />
+                        </button>
+                      );
                       return (
                         <div
                           key={m.id}
@@ -2369,7 +2429,10 @@ export default function CanaanChatPage() {
                           ) : (
                           <div className={`group flex items-end gap-1.5 ${fromMe ? "justify-end" : "justify-start"}`}>
                             {fromMe && !m.deleted && (
-                              <div className="mb-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                              <div className={`mb-1 flex shrink-0 items-center gap-0.5 transition-opacity group-hover:opacity-100 ${
+                                reactionMenu?.messageId === m.id ? "opacity-100" : "opacity-0"
+                              }`}>
+                                {reactButton}
                                 <button
                                   type="button"
                                   onClick={() => startReply(m)}
@@ -2420,15 +2483,18 @@ export default function CanaanChatPage() {
                                 <div className="w-6 shrink-0" />
                               )
                             )}
-                            <div
+                            <Bubble
+                              align={fromMe ? "end" : "start"}
+                              variant={fromMe ? "mine" : "theirs"}
                               className={`${entranceAnim} max-w-[70%] text-[14px] shadow-[0_1px_2px_rgba(16,24,40,0.08)] ${
                                 m.contentType === "image" && !m.deleted ? "p-1" : "px-3 py-1.5"
                               } ${
                                 fromMe
-                                  ? `rounded-l-2xl rounded-br-md bg-amber-100 dark:bg-[#2a3a5e] text-gray-800 dark:text-gray-950 ${grouped ? "rounded-tr-md" : "rounded-tr-2xl"}`
-                                  : `rounded-r-2xl rounded-bl-md bg-white dark:bg-gray-300 text-gray-800 dark:text-gray-950 ${grouped ? "rounded-tl-md" : "rounded-tl-2xl"}`
-                              }`}
+                                  ? `rounded-l-2xl rounded-br-md ${grouped ? "rounded-tr-md" : "rounded-tr-2xl"}`
+                                  : `rounded-r-2xl rounded-bl-md ${grouped ? "rounded-tl-md" : "rounded-tl-2xl"}`
+                              } ${reactionGroups.length > 0 ? "mb-4" : ""}`}
                             >
+                              <BubbleContent>
                               {showSender && (
                                 <p className={`mb-0.5 text-[11px] font-semibold ${senderColor(m.senderId).text}`}>
                                   {m.senderName ?? "Unknown"}
@@ -2514,22 +2580,71 @@ export default function CanaanChatPage() {
                                   </span>
                                 </p>
                               )}
-                            </div>
+                              </BubbleContent>
+                              {reactionGroups.length > 0 && (
+                                <BubbleReactions align={fromMe ? "end" : "start"}>
+                                  {reactionGroups.map((g) => (
+                                    <button
+                                      key={g.emoji}
+                                      type="button"
+                                      onClick={() => handleReact(m.id, g.mine ? null : g.emoji)}
+                                      title={`${g.names.join(", ")}${g.mine ? " — tap to remove yours" : ""}`}
+                                      aria-label={`${g.emoji} ${g.names.length}${g.mine ? ", including you" : ""}`}
+                                      aria-pressed={g.mine}
+                                      className={`flex h-6 items-center gap-0.5 rounded-full px-1.5 text-[13px] leading-none transition-colors ${
+                                        g.mine
+                                          ? "bg-brand-navy/10 ring-1 ring-brand-navy/30 dark:bg-brand-gold/20 dark:ring-brand-gold/40"
+                                          : "hover:bg-gray-100"
+                                      }`}
+                                    >
+                                      <span>{g.emoji}</span>
+                                      {g.names.length > 1 && (
+                                        <span className="text-[11px] font-semibold text-gray-600">{g.names.length}</span>
+                                      )}
+                                    </button>
+                                  ))}
+                                </BubbleReactions>
+                              )}
+                            </Bubble>
                             {!fromMe && !m.deleted && (
-                              <button
-                                type="button"
-                                onClick={() => startReply(m)}
-                                title="Reply"
-                                className="mb-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-brand-navy group-hover:opacity-100 dark:hover:bg-gray-300"
-                              >
-                                <Reply className="h-4 w-4" />
-                              </button>
+                              <div className={`mb-1 flex shrink-0 items-center gap-0.5 transition-opacity group-hover:opacity-100 ${
+                                reactionMenu?.messageId === m.id ? "opacity-100" : "opacity-0"
+                              }`}>
+                                <button
+                                  type="button"
+                                  onClick={() => startReply(m)}
+                                  title="Reply"
+                                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-brand-navy dark:hover:bg-gray-300"
+                                >
+                                  <Reply className="h-4 w-4" />
+                                </button>
+                                {reactButton}
+                              </div>
                             )}
                           </div>
                           )}
                         </div>
                       );
                     })}
+                    {reactionMenu && messages.some((x) => x.id === reactionMenu.messageId && !x.deleted) && (
+                      <ReactionMenu
+                        anchor={reactionMenu.anchor}
+                        align={reactionMenu.align}
+                        current={
+                          messages
+                            .find((x) => x.id === reactionMenu.messageId)
+                            ?.reactions.find((r) => myId != null && r.staffId === Number(myId))?.emoji ?? null
+                        }
+                        onPick={(emoji) => {
+                          const mine = messages
+                            .find((x) => x.id === reactionMenu.messageId)
+                            ?.reactions.find((r) => myId != null && r.staffId === Number(myId))?.emoji;
+                          // Picking the reaction I already have takes it back, like WhatsApp.
+                          handleReact(reactionMenu.messageId, mine === emoji ? null : emoji);
+                        }}
+                        onClose={closeReactionMenu}
+                      />
+                    )}
                     {typingByConv[selected.id] && (
                       <div className="mt-2 flex justify-start">
                         <div className="flex items-center gap-1 rounded-r-2xl rounded-bl-md rounded-tl-2xl bg-white dark:bg-gray-300 px-3 py-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.08)]">

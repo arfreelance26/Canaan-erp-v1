@@ -36,6 +36,14 @@ export type ChatMessage = {
   createdAt: string | null;
   editedAt: string | null;
   deleted: boolean;
+  /** One entry per person who reacted (one reaction each). Empty on deleted messages. */
+  reactions: ChatReaction[];
+};
+
+export type ChatReaction = {
+  staffId: number;
+  staffName: string | null;
+  emoji: string;
 };
 
 export type ChatConversation = {

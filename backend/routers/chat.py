@@ -150,6 +150,28 @@ def _check_rate_limit(staff_id: int) -> None:
             _send_log.pop(uid, None)
 
 
+# Reactions get their own, looser window: tapping through a few emojis is
+# normal, but a script toggling a reaction in a loop would spam every
+# participant with live updates.
+_REACT_WINDOW_SECONDS = 60.0
+_REACT_MAX_IN_WINDOW = 120
+_react_log: dict[int, list[float]] = {}
+
+
+def _check_reaction_rate_limit(staff_id: int) -> None:
+    import time
+
+    now = time.monotonic()
+    recent = [t for t in _react_log.get(staff_id, []) if now - t < _REACT_WINDOW_SECONDS]
+    if len(recent) >= _REACT_MAX_IN_WINDOW:
+        raise HTTPException(429, "You're reacting too quickly. Please slow down.")
+    recent.append(now)
+    _react_log[staff_id] = recent
+    if len(_react_log) > 1000:
+        for uid in [u for u, ts in _react_log.items() if not any(now - t < _REACT_WINDOW_SECONDS for t in ts)]:
+            _react_log.pop(uid, None)
+
+
 def _me(current_user: TokenUser) -> int:
     """The caller's staff.id — chat requires a real staff record to attribute messages to."""
     if current_user.id is None:
@@ -236,6 +258,10 @@ def _message_out(msg: models.ChatMessage) -> schemas.ChatMessageOut:
         created_at=msg.created_at,
         edited_at=msg.edited_at,
         deleted=deleted,
+        reactions=[] if deleted else [
+            schemas.ChatReactionOut(staff_id=r.staff_id, staff_name=r.staff_name, emoji=r.emoji)
+            for r in msg.reactions
+        ],
     )
 
 
@@ -941,6 +967,74 @@ def edit_message(
     recipients = [p for p in _participant_ids(db, msg.conversation_id) if p != me]
     if recipients:
         emit_to_users(recipients, "chat_message_updated", out.model_dump(mode="json"))
+    return out
+
+
+@router.put("/messages/{message_id}/reaction", response_model=schemas.ChatMessageOut)
+def set_reaction(
+    message_id: int,
+    payload: schemas.ChatReactionSet,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """React to a message, change my reaction, or (emoji null) take it back.
+
+    One reaction per person per message, like WhatsApp. Anyone in the chat can
+    react to any message except deleted ones and automatic notices.
+    """
+    me = _me(current_user)
+    msg = db.get(models.ChatMessage, message_id)
+    if not msg:
+        raise HTTPException(404, "Message not found.")
+    _require_participant(db, msg.conversation_id, me)
+    if msg.deleted_at is not None:
+        raise HTTPException(400, "This message was deleted.")
+    if msg.content_type == "system":
+        raise HTTPException(400, "You can't react to an automatic notice.")
+    _check_reaction_rate_limit(me)
+
+    def mine():
+        return (
+            db.query(models.ChatMessageReaction)
+            .filter(models.ChatMessageReaction.message_id == msg.id,
+                    models.ChatMessageReaction.staff_id == me)
+            .first()
+        )
+
+    existing = mine()
+    changed = False
+    if payload.emoji is None:
+        if existing:
+            db.delete(existing)
+            changed = True
+    elif existing is None:
+        staff = db.get(models.Staff, me)
+        db.add(models.ChatMessageReaction(
+            message_id=msg.id, staff_id=me, staff_name=staff.name if staff else None, emoji=payload.emoji,
+        ))
+        changed = True
+    elif existing.emoji != payload.emoji:
+        existing.emoji = payload.emoji
+        changed = True
+
+    if changed:
+        try:
+            db.commit()
+        except IntegrityError:
+            # Two taps raced (e.g. two tabs): the other one inserted first — switch it instead.
+            db.rollback()
+            existing = mine()
+            if existing is not None and payload.emoji is not None:
+                existing.emoji = payload.emoji
+                db.commit()
+        db.expire(msg, ["reactions"])
+    db.refresh(msg)
+
+    out = _message_out(msg)
+    if changed:
+        recipients = [p for p in _participant_ids(db, msg.conversation_id) if p != me]
+        if recipients:
+            emit_to_users(recipients, "chat_message_updated", out.model_dump(mode="json"))
     return out
 
 

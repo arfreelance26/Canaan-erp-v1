@@ -5963,6 +5963,13 @@ export function toChatMessage(b: B): ChatMessage {
     createdAt: b.created_at ?? null,
     editedAt: b.edited_at ?? null,
     deleted: Boolean(b.deleted),
+    reactions: Array.isArray(b.reactions)
+      ? b.reactions.map((r: B) => ({
+          staffId: Number(r.staff_id),
+          staffName: r.staff_name ?? null,
+          emoji: String(r.emoji),
+        }))
+      : [],
   };
 }
 
@@ -6206,6 +6213,13 @@ export const chatApi = {
 
   deleteMessage: (messageId: number): Promise<ChatMessage> =>
     chatReq<B>(`/chat/messages/${messageId}`, { method: "DELETE" }).then(toChatMessage),
+
+  /** React with an emoji, switch my reaction, or pass null to remove it. */
+  setReaction: (messageId: number, emoji: string | null): Promise<ChatMessage> =>
+    chatReq<B>(`/chat/messages/${messageId}/reaction`, {
+      method: "PUT",
+      body: JSON.stringify({ emoji }),
+    }).then(toChatMessage),
 
   markRead: (id: number, messageId: number): Promise<void> =>
     chatReq<void>(`/chat/conversations/${id}/read`, {

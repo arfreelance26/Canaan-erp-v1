@@ -2435,11 +2435,42 @@ class ChatMessage(Base):
     deleted_at = Column(DateTime, nullable=True)
 
     conversation = relationship("ChatConversation", back_populates="messages")
+    # Loaded together with the message (one extra query per page, not one per
+    # message). passive_deletes: the DB's ON DELETE CASCADE removes the rows.
+    reactions = relationship(
+        "ChatMessageReaction", lazy="selectin", passive_deletes=True,
+        order_by="ChatMessageReaction.id",
+    )
 
     __table_args__ = (
         # Covers both history paging (WHERE conversation_id = ? AND id < ? ORDER BY id DESC)
         # and the unread count (WHERE conversation_id = ? AND id > ?).
         Index("ix_chat_message_conv_id", "conversation_id", "id"),
+    )
+
+
+class ChatMessageReaction(Base):
+    """One person's emoji reaction to a chat message — at most one per person
+    per message (like WhatsApp): picking a different emoji replaces it, picking
+    none removes it. Plain metadata, not message content, so unlike the message
+    text it isn't encrypted.
+
+    The table is explicitly utf8mb4: emoji are 4-byte characters, and on a
+    non-strict MySQL (the production host) a narrower column would silently
+    store them as '?' instead of refusing.
+    """
+    __tablename__ = "chat_message_reactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message_id = Column(Integer, ForeignKey("chat_messages.id", ondelete="CASCADE"), nullable=False)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False)
+    staff_name = Column(String(100), nullable=True)   # snapshot, same reasoning as ChatMessage.sender_name
+    emoji = Column(String(32), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("message_id", "staff_id", name="uq_chat_reaction_one_per_person"),
+        {"mysql_charset": "utf8mb4", "mysql_collate": "utf8mb4_unicode_ci"},
     )
 
 

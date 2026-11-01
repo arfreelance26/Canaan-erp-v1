@@ -111,3 +111,82 @@ def test_room_summon(api, staff, group):
     api.post("/room-summon", json={"target_type": "user", "target_id": staff["Maintenance"].id})
     api.post("/room-summon", json={"target_type": "group", "target_id": group["id"]})
     assert api.get("/room-summon")
+
+
+# ---------------------------------------------------------------- reactions
+
+def _react(api, mid, emoji, **kw):
+    return api.put(f"/chat/messages/{mid}/reaction", json={"emoji": emoji}, **kw)
+
+
+def test_reactions_set_change_and_clear(people, direct, monkeypatch):
+    A, B = people["A"], people["B"]
+    sent = []
+    monkeypatch.setattr("routers.chat.emit_to_users", lambda users, event, data: sent.append((users, event, data)))
+    msg = A.post(f"/chat/conversations/{direct['id']}/messages", json={"text": "React to me"})
+    assert msg["reactions"] == []
+
+    out = _react(B, msg["id"], "👍")
+    assert out["reactions"] == [{"staff_id": people["b"].id, "staff_name": people["b"].name, "emoji": "👍"}]
+    users, event, data = sent[-1]
+    assert event == "chat_message_updated" and people["b"].id not in users and people["a"].id in users
+    assert data["reactions"][0]["emoji"] == "👍"
+
+    _react(A, msg["id"], "❤️")
+    seen = next(m for m in A.get(f"/chat/conversations/{direct['id']}/messages") if m["id"] == msg["id"])
+    assert {(r["staff_id"], r["emoji"]) for r in seen["reactions"]} == {(people["b"].id, "👍"), (people["a"].id, "❤️")}
+
+    # One per person: B switches, and repeating the same one changes nothing (no live update).
+    assert {r["emoji"] for r in _react(B, msg["id"], "😂")["reactions"]} == {"😂", "❤️"}
+    before = len(sent)
+    assert len(_react(B, msg["id"], "😂")["reactions"]) == 2
+    assert len(sent) == before
+
+    assert [r["emoji"] for r in _react(B, msg["id"], None)["reactions"]] == ["❤️"]
+    assert [r["emoji"] for r in _react(B, msg["id"], None)["reactions"]] == ["❤️"]  # already gone: fine
+
+
+def test_reaction_emoji_survives_the_database_exactly(people, direct, db):
+    import models
+    A = people["A"]
+    msg = A.post(f"/chat/conversations/{direct['id']}/messages", json={"text": "family"})
+    for emoji in ["👨‍👩‍👧‍👦", "👍🏽", "🇮🇳", "🙏"]:
+        assert _react(A, msg["id"], emoji)["reactions"][0]["emoji"] == emoji
+        db.rollback()
+        row = db.query(models.ChatMessageReaction).filter_by(message_id=msg["id"]).one()
+        assert row.emoji == emoji
+
+
+@pytest.mark.parametrize("bad", ["abc", "a👍", "1", "👍 👍", "é", "👍" * 40, "<b>"])
+def test_reaction_must_be_an_emoji(people, direct, bad):
+    msg = people["A"].post(f"/chat/conversations/{direct['id']}/messages", json={"text": "x"})
+    _react(people["B"], msg["id"], bad, expect=422)
+
+
+def test_reactions_are_for_participants_on_live_messages(api, api_as, people, direct):
+    A, B = people["A"], people["B"]
+    msg = A.post(f"/chat/conversations/{direct['id']}/messages", json={"text": "secret"})
+    _react(api_as("Auditor"), msg["id"], "👍", expect=(403, 404))
+    _react(B, 999_999_999, "👍", expect=404)
+
+    _react(B, msg["id"], "👍")
+    assert A.delete(f"/chat/messages/{msg['id']}")["reactions"] == []  # a deleted message shows no reactions
+    _react(B, msg["id"], "👍", expect=400)
+
+    note = A.post(f"/chat/conversations/{direct['id']}/messages", json={
+        "content_type": "payment", "amount": 10, "note": "tea", "text": ""})
+    B.post(f"/chat/messages/{note['id']}/payment-status", json={"status": "rejected"})
+    notice = [m for m in A.get(f"/chat/conversations/{direct['id']}/messages") if m["content_type"] == "system"][-1]
+    _react(A, notice["id"], "👍", expect=400)
+    assert _react(B, note["id"], "🙏")["reactions"]  # the payment card itself can be reacted to
+
+
+def test_reacting_is_not_logged_as_activity(people, direct, client, auth, monkeypatch):
+    import activity_tracker
+    msg = people["A"].post(f"/chat/conversations/{direct['id']}/messages", json={"text": "quiet"})
+    calls = []
+    monkeypatch.setattr(activity_tracker, "record_request", lambda *a, **k: calls.append(a))
+    _react(people["B"], msg["id"], "👍")
+    assert calls == []
+    people["B"].delete(f"/chat/messages/{msg['id']}", expect=403)
+    assert calls  # the tracker is live — it just skips reactions

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { cn } from "@/lib/utils";
+
 type Category = {
   label: string;
   icon: string;
@@ -141,9 +143,12 @@ function saveRecent(list: string[]) {
 export function EmojiPicker({
   onSelect,
   onClose,
+  className,
 }: {
   onSelect: (emoji: string) => void;
   onClose: () => void;
+  /** Overrides the default "pop up above the composer" placement. */
+  className?: string;
 }) {
   const [recent, setRecent] = useState<string[]>([]);
   // Tracked by label, not index — the "Recent" tab only exists once something
@@ -190,7 +195,10 @@ export function EmojiPicker({
   return (
     <div
       ref={panelRef}
-      className="absolute bottom-full left-0 z-20 mb-2 flex h-80 w-72 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+      className={cn(
+        "absolute bottom-full left-0 z-20 mb-2 flex h-80 w-72 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl",
+        className,
+      )}
     >
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">

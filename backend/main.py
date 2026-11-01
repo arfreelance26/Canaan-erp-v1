@@ -2241,7 +2241,10 @@ async def activity_tracking(request: Request, call_next):
     # "Saved changes" per keystroke burst would bury the rest of the log.
     # Creating and deleting a note is still recorded.
     note_autosave = request.method == "PATCH" and path.startswith("/notes/")
-    if request.method != "OPTIONS" and path != "/" and not files_get and not note_autosave and not path.startswith(_ACTIVITY_SKIP):
+    # An emoji tap on a chat message isn't worth an Activity Log row.
+    chat_reaction = request.method == "PUT" and path.startswith("/chat/messages/") and path.endswith("/reaction")
+    if (request.method != "OPTIONS" and path != "/" and not files_get and not note_autosave
+            and not chat_reaction and not path.startswith(_ACTIVITY_SKIP)):
         try:
             import activity_tracker
             forwarded = request.headers.get("x-forwarded-for")
