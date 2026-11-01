@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   TrendingUp, TrendingDown, Route, ChevronLeft, ChevronRight,
   Compass, Calculator, X, FileText, Wallet, MousePointerClick, CalendarDays, FileSpreadsheet,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { tripsApi, type TripPnlSummaryData } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { TripSheetData } from "@/types/trip-sheet";
@@ -163,6 +165,10 @@ function QuickStartModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function PnlMileagePage() {
+  // Profit figures — Admin only (backend: GET /trips/pnl-summary).
+  const { user } = useAuth();
+  const router = useRouter();
+  const isAllowed = !user || user.softwareDesignation === "Admin";
   const [summary, setSummary] = useState<TripPnlSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -181,6 +187,10 @@ export default function PnlMileagePage() {
 
   const [refreshKey, setRefreshKey] = useState(0);
 
+  useEffect(() => {
+    if (!isAllowed) router.replace("/");
+  }, [isAllowed, router]);
+
   // Debounce the search box so every keystroke doesn't fire a request —
   // only the aggregate fetch below depends on `debouncedSearch`, so typing
   // stays instant while the network call settles 300ms after the user pauses.
@@ -196,6 +206,7 @@ export default function PnlMileagePage() {
     // Lazy — only the current page's rows are fetched. Total Hire/Expense/Net
     // P&L are computed server-side across every filtered trip, so they stay
     // accurate even though the browser never holds more than one page of data.
+    if (!isAllowed) return;
     setLoading(true);
     tripsApi.getPnlSummary({
       search: debouncedSearch || undefined,
@@ -207,7 +218,7 @@ export default function PnlMileagePage() {
       .then(setSummary)
       .catch(() => showError("Couldn't load trip summary — showing last known data, not necessarily current."))
       .finally(() => setLoading(false));
-  }, [debouncedSearch, dateFrom, dateTo, page, refreshKey]);
+  }, [debouncedSearch, dateFrom, dateTo, page, refreshKey, isAllowed]);
 
   // A trip sheet closed, edited, or a trip soft-deleted elsewhere previously
   // left this page's totals/table stale until a manual reload.
@@ -243,6 +254,7 @@ export default function PnlMileagePage() {
   const clearFilters = () => { setDateFrom(""); setDateTo(""); setSearch(""); };
   const hasFilters = !!(dateFrom || dateTo || search);
 
+  if (!isAllowed) return null;
   if (loading && !summary) return <PageSkeleton hasButton={false} hasSearch statCards={3} columns={9} rows={10} />;
 
   return (

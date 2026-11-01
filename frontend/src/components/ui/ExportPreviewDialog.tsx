@@ -163,12 +163,12 @@ export function ExportPreviewDialog({ title, filename, blob, sheets, onClose }: 
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {shown.map((row, r) => (
-                    <tr key={r} className="odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/40">
+                    <tr key={r} className="odd:bg-white even:bg-gray-50/50 hover:bg-blue-50/40 dark:odd:bg-transparent dark:even:bg-white/[0.03] dark:hover:bg-white/[0.06]">
                       {header.map((_, c) => {
                         const v = row[c] ?? "";
                         return (
                           <td key={c} className={`px-4 py-2.5 ${v === "" ? "text-gray-300" : "text-gray-700"}`}>
-                            {v === "" ? "—" : v}
+                            {v === "" ? (row.some(Boolean) ? "—" : "") : v}
                           </td>
                         );
                       })}

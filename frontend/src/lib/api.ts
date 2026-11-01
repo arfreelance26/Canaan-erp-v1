@@ -3873,7 +3873,42 @@ function activityFilterParams(filters: ActivityEventFilters): URLSearchParams {
 
 // Reads below use rawReq, not the cached req(): the Activity Log refreshes on
 // every live push, and a 12s-fresh cache would show the previous numbers.
+export type WorkReportPerson = {
+  key: string;
+  name: string;
+  role: string;
+  status: string;
+  shiftIn: string | null;
+  shiftOut: string | null;
+  markedMinutes: number | null;
+  activeMinutes: number;
+  workCount: number;
+  workDone: { work: string; count: number }[];
+  details: { time: string; work: string; group: string; record: string | null }[];
+  gaps: { from: string; to: string; minutes: number }[];
+  longestGapMinutes: number;
+  summary: string;
+};
+
+export type WorkReport = { day: string; live: boolean; saved: boolean; limited: boolean; staff: WorkReportPerson[] };
+
+function toWorkReport(b: B): WorkReport {
+  return {
+    day: b.day, live: b.live, saved: b.saved, limited: b.limited,
+    staff: (b.staff as B[]).map((p) => ({
+      key: p.key, name: p.name, role: p.role, status: p.status,
+      shiftIn: p.shift_in ?? null, shiftOut: p.shift_out ?? null,
+      markedMinutes: p.marked_minutes ?? null, activeMinutes: p.active_minutes, workCount: p.work_count,
+      workDone: p.work_done, details: p.details, gaps: p.gaps,
+      longestGapMinutes: p.longest_gap_minutes, summary: p.summary,
+    })),
+  };
+}
+
 export const activityApi = {
+  // Not cached: a saved day never changes, and today's must always be current.
+  workReport: (day: string): Promise<WorkReport> =>
+    rawReq<B>(`/activity/work-report?day=${encodeURIComponent(day)}`).then(toWorkReport),
   // Page views and clicks, sent in batches by useActivityTracking.
   // keepalive=true for the pagehide flush — a plain fetch is routinely
   // cancelled by the browser mid-flight once the page is being torn down;

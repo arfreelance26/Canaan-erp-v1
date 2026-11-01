@@ -1410,6 +1410,45 @@ class ActivityMinute(Base):
     last_at = Column(DateTime, nullable=True)
 
 
+class WorkItem(Base):
+    """One piece of real work (work_report.WORK). Kept for good: the Staff Work
+    Report has to work for any day, long after activity_events is purged. No
+    foreign keys and the name and role are copied, so a leaver's work stays."""
+    __tablename__ = "work_items"
+    __table_args__ = (
+        Index("ix_work_items_day_user", "day", "user_key"),
+        UniqueConstraint("source_event_id", name="uq_work_items_source_event"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    day = Column(Date, nullable=False)                 # IST calendar day
+    created_at = Column(DateTime, nullable=False)
+    user_key = Column(String(64), nullable=False)
+    user_name = Column(String(100), nullable=False, default="")
+    role = Column(String(60), nullable=True)
+    work = Column(String(80), nullable=False)
+    work_group = Column(String(40), nullable=False)
+    record = Column(String(100), nullable=True)        # e.g. TRP-1177, TN69AP3350
+    route = Column(String(200), nullable=False)
+    # Set on rows rebuilt from the activity log, which can't name the record.
+    source_event_id = Column(Integer, nullable=True)
+
+
+class WorkDayStaff(Base):
+    """One employee's finished day, saved by work_report.save_day(): shift times
+    and active time as they stood, so that day's report never changes."""
+    __tablename__ = "work_day_staff"
+
+    day = Column(Date, primary_key=True)               # IST calendar day
+    user_key = Column(String(64), primary_key=True)
+    user_name = Column(String(100), nullable=False, default="")
+    role = Column(String(60), nullable=True)
+    status = Column(String(20), nullable=False, default="Not Marked")
+    check_in = Column(String(20), nullable=True)
+    check_out = Column(String(20), nullable=True)
+    active_seconds = Column(Integer, nullable=False, default=0)
+
+
 class TyreRemarkPreset(Base):
     """Shared quick-pick remarks for the Manage Tyres dialog. Each scenario
     (Attachment, Removal, Swap) has its own list; the pills under the remark

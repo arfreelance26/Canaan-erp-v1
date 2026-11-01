@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 import activity_tracker as tracker
 import models
+import work_report
 from database import get_db
 from security import TokenUser, get_current_user, require_roles
 
@@ -276,6 +277,28 @@ def employee_timeline(
     ]
     items.sort(key=lambda i: i["time"])
     return items
+
+
+def _work_report(day: str, db: Session) -> dict:
+    tracker.flush_now()
+    work_report.catch_up(db)
+    report = work_report.build(db, _parse_day(day, "day"))
+    if report is None:
+        raise HTTPException(404, "No work recorded on this day.")
+    return report
+
+
+@router.get("/work-report", dependencies=[Depends(require_roles())])
+def work_report_day(day: str = Query(..., description="YYYY-MM-DD, IST"), db: Session = Depends(get_db)):
+    """Staff Work Report: real work only, employee by employee (work_report.py)."""
+    return _work_report(day, db)
+
+
+@router.get("/work-report/export", dependencies=[Depends(require_roles())])
+def work_report_excel(day: str = Query(..., description="YYYY-MM-DD, IST"),
+                      employee: str | None = Query(None, description="One employee's key; everyone when left out"),
+                      db: Session = Depends(get_db)):
+    return work_report.excel_response(_work_report(day, db), employee)
 
 
 @router.get("/overview", dependencies=[Depends(require_roles())])

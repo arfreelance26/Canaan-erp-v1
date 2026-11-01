@@ -481,7 +481,7 @@ def get_customer_profitability(
     return result
 
 
-@router.get("/pnl-summary", response_model=schemas.TripPnlSummaryOut, tags=["Trips"])
+@router.get("/pnl-summary", response_model=schemas.TripPnlSummaryOut, tags=["Trips"], dependencies=[Depends(require_roles())])  # profit figures — Admin only
 def get_pnl_summary(
     search: Optional[str] = Query(None, description="Matches Trip ID, vehicle, origin, or destination"),
     date_from: Optional[str] = Query(None, description="Filter by Trip.scheduled_date >="),

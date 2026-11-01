@@ -32,6 +32,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from jose import jwt
 
 import models
+import work_report
 from database import SessionLocal
 from security import ALGORITHM, SECRET_KEY
 
@@ -41,6 +42,7 @@ FLUSH_SECONDS = 3
 MAX_BUFFER = 20_000          # hard cap: if the database is unreachable for long, the oldest events are dropped
 RETENTION_DAYS = 180
 PURGE_EVERY_SECONDS = 86_400
+WORK_SAVE_EVERY_SECONDS = 3_600
 CLIENT_EVENTS_PER_MINUTE = 300   # per signed-in user; extra browser events are dropped
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -50,6 +52,7 @@ _ID_SEGMENT = re.compile(
 
 _lock = threading.Lock()
 _events: deque = deque()
+_work: deque = deque()
 # (user_key, user_name, route, minute) -> [count, first_at, last_at]
 _reads: dict = {}
 # user_key -> [window_minute, events_taken_in_that_minute]
@@ -61,6 +64,8 @@ _dropped = 0
 # that would mean every one of them running a purge query at once.
 _last_flush = time.monotonic()
 _last_purge = time.monotonic()
+# First run five minutes after a worker starts, then hourly.
+_last_work_save = time.monotonic() - WORK_SAVE_EVERY_SECONDS + 300
 
 
 def route_template(path: str) -> str:
@@ -184,6 +189,18 @@ def record_request(method: str, path: str, status: int, duration_ms: float,
     })
 
 
+def record_work(key: str, work, params: dict, body: bytes | None, auth_header: str | None) -> None:
+    """A successful piece of real work, for the Staff Work Report (work_report.py)."""
+    who = _who(auth_header)
+    if who is None:
+        return
+    row = work_report.work_row(key, work, params, body, who, _utc_now())
+    with _lock:
+        if len(_work) >= MAX_BUFFER:
+            _work.popleft()
+        _work.append(row)
+
+
 def record_client(user_key: str, user_name: str, user_id: int | None, role: str | None,
                   ip: str | None, items: list[dict]) -> None:
     """Page views and clicks sent by the browser (see POST /activity/batch)."""
@@ -203,13 +220,17 @@ def _flush_once() -> int:
         _events.clear()
         reads = dict(_reads)
         _reads.clear()
-    if not events and not reads:
+        work = list(_work)
+        _work.clear()
+    if not events and not reads and not work:
         return 0
 
     db = SessionLocal()
     try:
         if events:
             db.bulk_insert_mappings(models.ActivityEvent, events)
+        if work:
+            db.bulk_insert_mappings(models.WorkItem, work_report.resolve_records(db, work))
         if reads:
             rows = [
                 {"user_key": k[0], "user_name": k[1], "route": k[2], "minute": k[3],
@@ -234,6 +255,7 @@ def _flush_once() -> int:
                 _events.appendleft(e)
             while len(_events) > MAX_BUFFER:
                 _events.pop()
+            _work.extendleft(reversed(work))
             for k, v in reads.items():
                 if k in _reads:
                     _reads[k][0] += v[0]
@@ -311,7 +333,7 @@ def flush_if_due() -> None:
     be due for one — see activity_tracking middleware in main.py. Runs after
     that response has already gone out, so it never delays the request that
     triggers it. A no-op (cheap time check only) on every other request."""
-    global _last_flush, _last_purge
+    global _last_flush, _last_purge, _last_work_save
     now = time.monotonic()
     if now - _last_flush >= FLUSH_SECONDS:
         _last_flush = now
@@ -326,6 +348,13 @@ def flush_if_due() -> None:
             _purge_old()
         except Exception:
             log.exception("activity purge failed; will retry on a later request")
+    if now - _last_work_save >= WORK_SAVE_EVERY_SECONDS:
+        _last_work_save = now
+        db = SessionLocal()
+        try:
+            work_report.catch_up(db)
+        finally:
+            db.close()
 
 
 def _flush_at_exit() -> None:

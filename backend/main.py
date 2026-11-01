@@ -50,6 +50,7 @@ from fastapi import Depends, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import iterate_in_threadpool
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, DataError
 from database import engine, Base
@@ -2197,6 +2198,21 @@ async def activity_tracking(request: Request, call_next):
     except Exception:
         pass
     response = await call_next(request)
+
+    # Successful real work goes to the Staff Work Report. A create's record
+    # name is only in the reply, so those replies are read here and put back.
+    import work_report
+    work = work_report.entry_for(request.method, request.scope.get("route"))
+    if work and 200 <= response.status_code < 300:
+        body = None
+        if work[1].field:
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            response.body_iterator = iterate_in_threadpool(iter([body]))
+        try:
+            import activity_tracker
+            activity_tracker.record_work(work[0], work[1], request.path_params, body, request.headers.get("authorization"))
+        except Exception:
+            _log.exception("recording work failed")
 
     # Piggyback activity_tracker's buffer flush/purge on real traffic — runs
     # as a BackgroundTask *after* this response has already gone out, so it

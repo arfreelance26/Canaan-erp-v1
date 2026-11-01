@@ -369,3 +369,9 @@ def test_sheet_km_check(api, world):
     empty = api.post(url, json={"vehicle_id": "NO-SUCH-TRUCK", "start_km": 1, "end_km": 2})
     assert empty["warnings"] == [] and empty["previous"] is None
     api.post("/trips/999999/sheet/km-check", json={}, expect=404)
+
+
+@pytest.mark.parametrize("role", ["Commercial Manager", "Assistant Commercial Manager", "Accounts", "Maintenance"])
+def test_trip_summary_is_admin_only(api, api_as, role):
+    api.get("/trips/pnl-summary")
+    api_as(role).get("/trips/pnl-summary", expect=403)

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, AlertTriangle, ArrowUp, Eye, Loader2, Monitor, Pause, Play, ShieldAlert, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUp, ClipboardList, Eye, Loader2, Monitor, Pause, Play, ShieldAlert, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   activityApi,
@@ -11,6 +11,7 @@ import {
   type ActivityOverview,
   type ActivitySummaryRow,
   type ActivityTimelineItem,
+  type WorkReport,
   notesApi,
   type NoteAdminUsageRow,
 } from "@/lib/api";
@@ -18,6 +19,7 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
+import { WorkReportDialog } from "@/components/activity/WorkReportDialog";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { sidebarSections } from "@/lib/nav-config";
@@ -237,6 +239,8 @@ export default function ActivityLogPage() {
 
   const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
   const [preparingExport, setPreparingExport] = useState(false);
+  const [workReport, setWorkReport] = useState<WorkReport | null>(null);
+  const [preparingReport, setPreparingReport] = useState(false);
 
   const today = todayIst();
   const liveActive = live && (day === today || rangeTo >= today);
@@ -518,6 +522,18 @@ export default function ActivityLogPage() {
     }
   }
 
+  async function openWorkReport() {
+    if (preparingReport) return;
+    setPreparingReport(true);
+    try {
+      setWorkReport(await activityApi.workReport(day));
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Could not prepare the report.");
+    } finally {
+      setPreparingReport(false);
+    }
+  }
+
   if (!user || !isAdmin) return null;
   if (dashLoading && summary.length === 0 && !overview) {
     return <PageSkeleton hasButton={false} hasSearch columns={4} />;
@@ -587,6 +603,15 @@ export default function ActivityLogPage() {
           >
             {preparingExport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
             View
+          </button>
+          <button
+            type="button"
+            onClick={openWorkReport}
+            disabled={preparingReport}
+            className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
+          >
+            {preparingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+            Download Report
           </button>
         </div>
       </div>
@@ -1027,6 +1052,8 @@ export default function ActivityLogPage() {
           </aside>
         </div>
       )}
+
+      {workReport && <WorkReportDialog report={workReport} onClose={() => setWorkReport(null)} />}
 
       {exportPreview && (
         <ExportPreviewDialog
