@@ -188,7 +188,7 @@ function ModeTabBar({ active, onChange }: { active: GuideTab; onChange: (t: Guid
 
 function Formula({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-slate-900 px-4 py-3 font-mono text-[11px] leading-relaxed text-slate-100 overflow-x-auto">
+    <div className="rounded-lg bg-[#0f172a] px-4 py-3 font-mono text-[11px] leading-relaxed text-[#f1f5f9] overflow-x-auto dark:bg-[#070a12]">
       {children}
     </div>
   );

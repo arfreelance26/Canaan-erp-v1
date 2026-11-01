@@ -299,9 +299,11 @@ export function CalculatorButton() {
           ) : (
           <>
           {/* Display */}
-          <div className="mb-3 rounded-xl bg-gray-900 px-4 py-3 text-right">
-            <p className="h-4 truncate text-[11px] font-medium text-gray-400">{expression || " "}</p>
-            <p className="mt-1 truncate text-2xl font-bold text-gray-50 tabular-nums">{display}</p>
+          {/* Fixed hex colours: an LCD-style display that stays dark in both themes
+              (bg-gray-900 flips to near-white under the dark theme's gray remap). */}
+          <div className="mb-3 rounded-xl bg-[#111827] px-4 py-3 text-right dark:bg-[#070a12]">
+            <p className="h-4 truncate text-[11px] font-medium text-[#9ca3af]">{expression || " "}</p>
+            <p className="mt-1 truncate text-2xl font-bold text-[#f9fafb] tabular-nums">{display}</p>
           </div>
 
           {/* Keypad */}

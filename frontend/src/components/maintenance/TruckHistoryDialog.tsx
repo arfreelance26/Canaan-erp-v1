@@ -128,7 +128,7 @@ export function TruckHistoryDialog({ open, onClose, truck }: TruckHistoryDialogP
               type="button"
               onClick={() => setTypeFilter(null)}
               className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                typeFilter === null ? "bg-gray-900 text-white" : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                typeFilter === null ? "bg-[#111827] text-white dark:bg-[#26305a]" :"border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
               }`}
             >
               All ({events.length})

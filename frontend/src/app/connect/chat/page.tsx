@@ -273,7 +273,7 @@ function VideoPreview({ fetchUrl }: { fetchUrl: () => Promise<string> }) {
       type="button"
       onClick={handleLoad}
       disabled={loading}
-      className="flex h-40 w-64 flex-col items-center justify-center gap-1.5 rounded-lg bg-gray-800 text-white transition-colors hover:bg-gray-700 disabled:opacity-70"
+      className="flex h-40 w-64 flex-col items-center justify-center gap-1.5 rounded-lg bg-[#1f2937] text-white transition-colors hover:bg-[#374151] disabled:opacity-70 dark:bg-[#0b0e18] dark:hover:bg-[#1a2140]"
     >
       {loading ? (
         <Loader2 className="h-7 w-7 animate-spin" />

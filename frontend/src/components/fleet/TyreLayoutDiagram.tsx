@@ -376,8 +376,7 @@ export function TyreLayoutDiagram({
   return (
     <div className="flex flex-col gap-2">
       <div
-        className="flex flex-wrap items-center justify-center gap-6 rounded-lg border border-gray-200 p-4"
-        style={{ backgroundColor: "#eef2f6" }}
+        className="flex flex-wrap items-center justify-center gap-6 rounded-lg border border-gray-200 bg-[#eef2f6] p-4 dark:bg-[#161c33]"
       >
         <svg width={0} height={0} className="absolute">
           <defs>

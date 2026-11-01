@@ -156,7 +156,7 @@ export function TruckComplianceView({ truck, onClose }: { truck: Truck; onClose:
               return (
                 <li key={meta.key} className="flex items-center gap-3 bg-white px-3.5 py-3 transition-colors hover:bg-slate-50/70">
                   <span className={cn("h-9 w-1 shrink-0 rounded-full", state === "Missing" ? "bg-slate-200" : look.bar)} aria-hidden />
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1b2b5e]/[0.07] text-[#1b2b5e]">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1b2b5e]/[0.07] text-[#1b2b5e] dark:bg-blue-100 dark:text-blue-700">
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">

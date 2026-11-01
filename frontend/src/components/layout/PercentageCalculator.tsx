@@ -258,14 +258,15 @@ export function PercentageCalculator({ onUseResult }: Props) {
       })}
 
       {/* Result */}
-      <div className="rounded-xl bg-gray-900 px-4 py-3 text-right">
-        <p className="h-4 truncate text-[11px] font-medium text-gray-400" title={result?.breakdown}>
+      {/* Fixed hex colours: stays a dark display in both themes (see CalculatorButton). */}
+      <div className="rounded-xl bg-[#111827] px-4 py-3 text-right dark:bg-[#070a12]">
+        <p className="h-4 truncate text-[11px] font-medium text-[#9ca3af]" title={result?.breakdown}>
           {result?.breakdown || " "}
         </p>
         <p
           className={cn(
             "mt-1 truncate text-2xl font-bold tabular-nums",
-            result?.tone === "up" ? "text-emerald-400" : result?.tone === "down" ? "text-red-400" : "text-gray-50"
+            result?.tone === "up" ? "text-[#34d399]" : result?.tone === "down" ? "text-[#f87171]" : "text-[#f9fafb]"
           )}
         >
           {result ? result.text : "—"}

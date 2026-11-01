@@ -258,7 +258,7 @@ export function CurrentTripsCard() {
                 aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 rounded-full py-0.5 pl-2.5 pr-0.5 text-[10px] font-bold uppercase tracking-wide transition-all duration-200 ${
                   active
-                    ? `${STAGE_ACTIVE_CLASSES[label] ?? "bg-gray-700 text-white"} shadow-sm`
+                    ? `${STAGE_ACTIVE_CLASSES[label] ?? "bg-[#374151] text-white dark:bg-[#26305a]"} shadow-sm`
                     : `${STAGE_CLASSES[label] ?? "bg-gray-100 text-gray-600"} hover:brightness-95`
                 }`}
               >

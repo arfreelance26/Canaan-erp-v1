@@ -40,7 +40,7 @@ const TriggerInput = forwardRef<HTMLInputElement, TriggerProps>(
   ({ value, onClick, onChange, placeholder, required, disabled, onClear }, ref) => (
     <div
       onClick={disabled ? undefined : onClick}
-      className={`relative flex w-full items-center rounded-lg border-2 border-brand-gold bg-white/80 px-3 py-2 backdrop-blur-sm transition-all duration-200 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(201,162,39,0.2)] hover:bg-white/90"}`}
+      className={`relative flex w-full items-center rounded-lg border-2 border-brand-gold bg-white/80 px-3 py-2 backdrop-blur-sm transition-all duration-200 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer focus-within:bg-white dark:focus-within:bg-gray-100 focus-within:shadow-[0_0_0_4px_rgba(201,162,39,0.2)] hover:bg-white/90"}`}
     >
       <input
         ref={ref}

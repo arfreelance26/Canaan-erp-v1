@@ -72,7 +72,10 @@ html.dark {
   --color-gray-100: #141929;
   --color-gray-200: #1c2340;
   --color-gray-300: #2d3660;
-  --color-gray-400: #4d5e7a;
+  /* 400 is the app's "muted label" text (Reg No, table headers, timestamps…).
+     #4d5e7a only reached ~2.7:1 on the cards; this reaches ~4:1 and stays
+     dimmer than 500, so the light→dark hierarchy is unchanged. */
+  --color-gray-400: #6a7d9c;
   --color-gray-500: #7d92b0;
   --color-gray-600: #a2b5cc;
   --color-gray-700: #c4d4e8;
@@ -84,7 +87,7 @@ html.dark {
   --color-slate-100: #141929;
   --color-slate-200: #1c2340;
   --color-slate-300: #2d3660;
-  --color-slate-400: #4d5e7a;
+  --color-slate-400: #6a7d9c;
   --color-slate-500: #7d92b0;
   --color-slate-600: #a2b5cc;
   --color-slate-700: #c4d4e8;
@@ -159,6 +162,61 @@ html.dark {
   --color-violet-50:#160e3a; --color-violet-100:#201558; --color-violet-200:#312275;
   --color-violet-300:#5040b8; --color-violet-400:#8b5cf6; --color-violet-500:#8b5cf6;
   --color-violet-600:#a78bfa; --color-violet-700:#a78bfa; --color-violet-800:#ddd6fe; --color-violet-900:#ede9fe;
+
+  /* Cyan was missing here, so its pastel badges stayed light and its -600/-700
+     text stayed dark in dark mode. (Pink/fuchsia are deliberately NOT remapped:
+     the few places using them already set their own dark: colours, which
+     assume Tailwind's normal values.) */
+  --color-cyan-50:#062c33; --color-cyan-100:#0a3f48; --color-cyan-200:#115562;
+  --color-cyan-300:#1a8a9a; --color-cyan-400:#22d3ee; --color-cyan-500:#06b6d4;
+  --color-cyan-600:#22d3ee; --color-cyan-700:#67e8f9; --color-cyan-800:#a5f3fc; --color-cyan-900:#cffafe;
+}
+
+/* ── Solid colour buttons/badges (bg-*-600 / -700 with white text) ─────────────
+ * The scales above turn -600/-700 into BRIGHT text colours for dark mode, which
+ * also turned every solid button ("Close Trip", "Update", "View Fleet"…) into a
+ * pastel block with unreadable white text. As backgrounds they get their normal
+ * deep colour back. Elements that pick their own dark:bg-* are left alone. */
+html.dark .bg-blue-600:not([class*="dark:bg-"]), html.dark .hover\:bg-blue-600:hover:not([class*="dark:hover:bg-"]) { background-color: #2563eb; }
+html.dark .bg-blue-700:not([class*="dark:bg-"]), html.dark .hover\:bg-blue-700:hover:not([class*="dark:hover:bg-"]) { background-color: #1d4ed8; }
+html.dark .bg-emerald-600:not([class*="dark:bg-"]), html.dark .hover\:bg-emerald-600:hover:not([class*="dark:hover:bg-"]) { background-color: #059669; }
+html.dark .bg-emerald-700:not([class*="dark:bg-"]), html.dark .hover\:bg-emerald-700:hover:not([class*="dark:hover:bg-"]) { background-color: #047857; }
+html.dark .bg-green-600:not([class*="dark:bg-"]), html.dark .hover\:bg-green-600:hover:not([class*="dark:hover:bg-"]) { background-color: #16a34a; }
+html.dark .bg-green-700:not([class*="dark:bg-"]), html.dark .hover\:bg-green-700:hover:not([class*="dark:hover:bg-"]) { background-color: #15803d; }
+html.dark .bg-teal-600:not([class*="dark:bg-"]), html.dark .hover\:bg-teal-600:hover:not([class*="dark:hover:bg-"]) { background-color: #0d9488; }
+html.dark .bg-teal-700:not([class*="dark:bg-"]), html.dark .hover\:bg-teal-700:hover:not([class*="dark:hover:bg-"]) { background-color: #0f766e; }
+html.dark .bg-sky-600:not([class*="dark:bg-"]), html.dark .hover\:bg-sky-600:hover:not([class*="dark:hover:bg-"]) { background-color: #0284c7; }
+html.dark .bg-sky-700:not([class*="dark:bg-"]), html.dark .hover\:bg-sky-700:hover:not([class*="dark:hover:bg-"]) { background-color: #0369a1; }
+html.dark .bg-cyan-600:not([class*="dark:bg-"]), html.dark .hover\:bg-cyan-600:hover:not([class*="dark:hover:bg-"]) { background-color: #0891b2; }
+html.dark .bg-cyan-700:not([class*="dark:bg-"]), html.dark .hover\:bg-cyan-700:hover:not([class*="dark:hover:bg-"]) { background-color: #0e7490; }
+html.dark .bg-amber-600:not([class*="dark:bg-"]), html.dark .hover\:bg-amber-600:hover:not([class*="dark:hover:bg-"]) { background-color: #d97706; }
+html.dark .bg-amber-700:not([class*="dark:bg-"]), html.dark .hover\:bg-amber-700:hover:not([class*="dark:hover:bg-"]) { background-color: #b45309; }
+html.dark .bg-yellow-600:not([class*="dark:bg-"]), html.dark .hover\:bg-yellow-600:hover:not([class*="dark:hover:bg-"]) { background-color: #ca8a04; }
+html.dark .bg-yellow-700:not([class*="dark:bg-"]), html.dark .hover\:bg-yellow-700:hover:not([class*="dark:hover:bg-"]) { background-color: #a16207; }
+html.dark .bg-orange-600:not([class*="dark:bg-"]), html.dark .hover\:bg-orange-600:hover:not([class*="dark:hover:bg-"]) { background-color: #ea580c; }
+html.dark .bg-orange-700:not([class*="dark:bg-"]), html.dark .hover\:bg-orange-700:hover:not([class*="dark:hover:bg-"]) { background-color: #c2410c; }
+html.dark .bg-red-600:not([class*="dark:bg-"]), html.dark .hover\:bg-red-600:hover:not([class*="dark:hover:bg-"]) { background-color: #dc2626; }
+html.dark .bg-red-700:not([class*="dark:bg-"]), html.dark .hover\:bg-red-700:hover:not([class*="dark:hover:bg-"]) { background-color: #b91c1c; }
+html.dark .bg-rose-600:not([class*="dark:bg-"]), html.dark .hover\:bg-rose-600:hover:not([class*="dark:hover:bg-"]) { background-color: #e11d48; }
+html.dark .bg-rose-700:not([class*="dark:bg-"]), html.dark .hover\:bg-rose-700:hover:not([class*="dark:hover:bg-"]) { background-color: #be123c; }
+html.dark .bg-purple-600:not([class*="dark:bg-"]), html.dark .hover\:bg-purple-600:hover:not([class*="dark:hover:bg-"]) { background-color: #9333ea; }
+html.dark .bg-purple-700:not([class*="dark:bg-"]), html.dark .hover\:bg-purple-700:hover:not([class*="dark:hover:bg-"]) { background-color: #7e22ce; }
+html.dark .bg-violet-600:not([class*="dark:bg-"]), html.dark .hover\:bg-violet-600:hover:not([class*="dark:hover:bg-"]) { background-color: #7c3aed; }
+html.dark .bg-violet-700:not([class*="dark:bg-"]), html.dark .hover\:bg-violet-700:hover:not([class*="dark:hover:bg-"]) { background-color: #6d28d9; }
+html.dark .bg-indigo-600:not([class*="dark:bg-"]), html.dark .hover\:bg-indigo-600:hover:not([class*="dark:hover:bg-"]) { background-color: #4f46e5; }
+html.dark .bg-indigo-700:not([class*="dark:bg-"]), html.dark .hover\:bg-indigo-700:hover:not([class*="dark:hover:bg-"]) { background-color: #4338ca; }
+
+/* ── Brand navy text ───────────────────────────────────────────────────────────
+ * #1b2b5e is dark navy in both themes, so navy text/icons vanished on the dark
+ * navy cards. In dark mode it reads as a light navy-blue instead — except on a
+ * gold/amber chip, where navy-on-gold is the intended look. */
+html.dark .text-brand-navy:not([class*="dark:text-"]):not([class*="bg-brand-gold"]):not([class*="bg-amber-"]):not([class*="bg-yellow-"]),
+html.dark .hover\:text-brand-navy:hover:not([class*="dark:hover:text-"]),
+html.dark .group:hover .group-hover\:text-brand-navy:not([class*="dark:group-hover:text-"]) {
+  color: #a9c0f5;
+}
+html.dark .border-brand-navy:not([class*="dark:border-"]):not([class*="bg-brand-navy "]):not([class$="bg-brand-navy"]) {
+  border-color: #5b7bd5;
 }
 
 /* Bare inputs/textareas/selects with no explicit bg inherit the card surface in dark */

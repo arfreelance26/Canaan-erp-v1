@@ -34,8 +34,9 @@ export const SENDER_PALETTE = [
   { bg: "bg-blue-500", text: "text-blue-600" },
   { bg: "bg-indigo-500", text: "text-indigo-600" },
   { bg: "bg-violet-500", text: "text-violet-600" },
-  { bg: "bg-fuchsia-500", text: "text-fuchsia-600" },
-  { bg: "bg-pink-500", text: "text-pink-600" },
+  // Fuchsia/pink aren't remapped by the dark theme, so they pick their own light shade.
+  { bg: "bg-fuchsia-500", text: "text-fuchsia-600 dark:text-fuchsia-300" },
+  { bg: "bg-pink-500", text: "text-pink-600 dark:text-pink-300" },
 ] as const;
 
 export function senderColor(id: number | null): (typeof SENDER_PALETTE)[number] {

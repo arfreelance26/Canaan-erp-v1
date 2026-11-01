@@ -813,7 +813,7 @@ export default function TripReconciliationPage() {
                       ? "border-emerald-300 bg-emerald-100 text-emerald-700"
                       : sf === "Pending"
                         ? "border-amber-300 bg-amber-100 text-amber-700"
-                        : "border-gray-400 bg-gray-900 text-white"
+                        : "border-gray-400 bg-[#111827] text-white dark:border-[#5b7bd5] dark:bg-[#26305a]"
                     : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                 }`}
               >

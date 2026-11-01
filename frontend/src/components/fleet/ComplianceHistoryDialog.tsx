@@ -192,7 +192,7 @@ function Stat({ label, value, strong, className }: { label: string; value: strin
   return (
     <div className={cn("flex flex-col rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2.5", className)}>
       <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</span>
-      <span className={cn("mt-0.5 tabular-nums", strong ? "text-lg font-bold text-[#16213e]" : "text-base font-semibold text-gray-800")}>{value}</span>
+      <span className={cn("mt-0.5 tabular-nums", strong ? "text-lg font-bold text-[#16213e] dark:text-gray-900" :"text-base font-semibold text-gray-800")}>{value}</span>
     </div>
   );
 }

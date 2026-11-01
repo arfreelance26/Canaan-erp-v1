@@ -146,7 +146,7 @@ export function GlassCombobox({
     <div className={cn("relative w-full text-[14px]", className)} ref={containerRef}>
       <div
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border bg-white/60 px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] backdrop-blur-md transition-all duration-300 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10",
+          "flex w-full items-center justify-between gap-2 rounded-lg border bg-white/60 px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] backdrop-blur-md transition-all duration-300 focus-within:border-blue-400 focus-within:bg-white dark:focus-within:bg-gray-100 focus-within:ring-4 focus-within:ring-blue-500/10",
           disabled ? "cursor-not-allowed bg-gray-50/50 opacity-60" : "hover:border-blue-200/80 hover:bg-white/80 hover:shadow-md",
           isOpen ? "border-blue-400 bg-white shadow-md ring-4 ring-blue-500/10" : "border-gray-200",
         )}

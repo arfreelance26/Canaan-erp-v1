@@ -48,7 +48,7 @@ export function AutocompleteInput({ value, onChange, storageKey, suggestions, pl
   }
 
   return (
-    <div className="relative w-full rounded-lg border border-gray-200 bg-white/80 backdrop-blur-sm transition-all duration-200 focus-within:border-blue-500 focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] hover:border-gray-300 hover:bg-white/90">
+    <div className="relative w-full rounded-lg border border-gray-200 bg-white/80 backdrop-blur-sm transition-all duration-200 focus-within:border-blue-500 focus-within:bg-white dark:focus-within:bg-gray-100 focus-within:shadow-[0_0_0_3px_rgba(27,43,94,0.1)] hover:border-gray-300 hover:bg-white/90">
       {suggestion && (
         <div
           aria-hidden

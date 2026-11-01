@@ -646,7 +646,7 @@ export default function TripHistoryPage() {
                       ) : trip.status === "Cancelled" ? (
                         <span className="text-xs font-medium text-red-500">Trip cancelled</span>
                       ) : (
-                        <span className="text-xs text-gray-300">No sheet</span>
+                        <span className="text-xs text-gray-400">No sheet</span>
                       )}
                     </td>
 

@@ -150,7 +150,7 @@ export function InvoicePreviewDialog({
     );
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-gray-900/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#111827]/80 backdrop-blur-sm dark:bg-black/80">
 
       {/* Toolbar */}
       <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shadow-sm">

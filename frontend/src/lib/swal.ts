@@ -21,8 +21,10 @@ function getBaseClass(extra: Record<string, string> = {}) {
     confirmButton:
       'px-4 py-2 text-sm font-medium text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
     cancelButton: `px-4 py-2 text-sm font-medium rounded-lg border focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+      // The dark theme inverts the gray scale (gray-700 becomes a light tint), so
+      // the dark branch uses the low end of the scale to get a dark button.
       dark
-        ? 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600'
+        ? 'bg-gray-200 border-gray-300 text-gray-800 hover:bg-gray-300'
         : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
     }`,
     actions: 'gap-3 mt-6',
