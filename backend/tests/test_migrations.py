@@ -114,7 +114,7 @@ def test_enum_guard_detects_narrowing(app):
                  "ENUM('Customer','Vendor') NOT NULL")
     widening = ("ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type "
                 "ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip','FuelLog','Driver','Truck',"
-                "'MaintenanceRecord','Extra') NOT NULL")
+                "'MaintenanceRecord','AdBlueLog','Extra') NOT NULL")
     with engine.connect() as conn:
         conn.execute(text(
             "INSERT INTO edit_approval_requests (staff_db_id, staff_name, resource_type, resource_id, "

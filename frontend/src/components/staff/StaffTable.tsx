@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, FileText, Mail, Pencil, Phone, Smartphone, Trash2 } from "lucide-react";
+import { Eye, FileText, Lock, LockOpen, Mail, Pencil, Phone, Smartphone, Trash2 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import type { Staff } from "@/types/staff";
 import { formatDate } from "@/lib/format-date";
@@ -12,9 +12,11 @@ type StaffTableProps = {
   onEdit: (staff: Staff) => void;
   onDelete: (id: string) => void;
   onResetDevice?: (id: string, name: string) => void;
+  /** Freeze / Unfreeze Account (Admin; the owner password is asked in the dialog). */
+  onFreeze?: (staff: Staff) => void;
 };
 
-export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice }: StaffTableProps) {
+export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice, onFreeze }: StaffTableProps) {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
 
@@ -58,6 +60,14 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice }: S
                   <div className="min-w-0">
                     <p className="truncate font-bold text-gray-900">{member.name}</p>
                     <p className="truncate text-xs text-gray-500">{member.staffId || "—"}</p>
+                    {member.frozenAt && (
+                      <span
+                        title={`Frozen by ${member.frozenByName ?? "—"} on ${formatDate(member.frozenAt.slice(0, 10))}: ${member.frozenReason ?? ""}`}
+                        className="mt-1 inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700"
+                      >
+                        <Lock className="h-3 w-3" /> Frozen
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -146,6 +156,19 @@ export function StaffTable({ staff, onView, onEdit, onDelete, onResetDevice }: S
                 className="rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-amber-50 hover:text-amber-600"
               >
                 <Smartphone className="h-4 w-4" />
+              </button>
+            )}
+            {isAdmin && onFreeze && (
+              <button
+                type="button"
+                onClick={() => onFreeze(member)}
+                aria-label={`${member.frozenAt ? "Unfreeze" : "Freeze"} ${member.staffId}`}
+                title={member.frozenAt ? "Unfreeze Account" : "Freeze Account"}
+                className={member.frozenAt
+                  ? "rounded-md p-1.5 text-red-600 transition-all duration-300 hover:bg-emerald-50 hover:text-emerald-600"
+                  : "rounded-md p-1.5 text-gray-500 transition-all duration-300 hover:bg-red-50 hover:text-red-600"}
+              >
+                {member.frozenAt ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
               </button>
             )}
             <button

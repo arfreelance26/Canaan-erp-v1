@@ -1,5 +1,6 @@
 "use client";
 
+import { inDateRange } from "@/lib/format-date";
 import { Plus, CalendarClock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
@@ -89,13 +90,14 @@ export default function LeaveRequestsPage() {
     </div>
   );
 
+  const datedRequests = requests.filter((r) => inDateRange(r.fromDate, exportFrom, exportTo));
   const counts = {
-    all: requests.length,
-    Pending: requests.filter((r) => r.status === "Pending").length,
-    Approved: requests.filter((r) => r.status === "Approved").length,
-    Rejected: requests.filter((r) => r.status === "Rejected").length,
+    all: datedRequests.length,
+    Pending: datedRequests.filter((r) => r.status === "Pending").length,
+    Approved: datedRequests.filter((r) => r.status === "Approved").length,
+    Rejected: datedRequests.filter((r) => r.status === "Rejected").length,
   };
-  const filteredRequests = requests.filter(
+  const filteredRequests = datedRequests.filter(
     (r) =>
       (statusFilter === "all" || r.status === statusFilter) &&
       (!searchQuery ||

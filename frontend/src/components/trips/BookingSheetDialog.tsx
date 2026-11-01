@@ -219,7 +219,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               <input readOnly disabled value={trip.bookingReferenceNo ?? ""} className={roClass} />
             </Field>
             <Field label="Booking Created Date">
-              <DatePickerInput value={tf.bookingCreatedDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("bookingCreatedDate", v)} className={fc} />
+              <DatePickerInput value={tf.bookingCreatedDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("bookingCreatedDate", v)} className={fc} clearable={false} />
             </Field>
             <Field label="Trip Category">
               {readOnly ? (
@@ -410,7 +410,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
           <p className={sh}>Vehicle &amp; Trip Assignment</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Scheduled Trip Date">
-              <DatePickerInput value={tf.scheduledDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} />
+              <DatePickerInput value={tf.scheduledDate ?? ""} disabled={readOnly} onChange={(v) => updateTrip("scheduledDate", v)} className={fc} clearable={false} />
             </Field>
             <Field label="Assigned Vehicle">
               {readOnly ? (
@@ -632,6 +632,7 @@ export function BookingSheetDialog({ open, trip, closure, driver, truck, custome
               <DatePickerInput
                 value={form.tripCompletedDate}
                 disabled={readOnly}
+                clearable={false}
                 onChange={(v) => update("tripCompletedDate", v)}
                 className={fc}
               />

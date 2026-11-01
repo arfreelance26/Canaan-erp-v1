@@ -293,6 +293,13 @@ def approve_deletion(
             raise HTTPException(409, "This maintenance record no longer exists — the request may be a stale duplicate. Reject it instead.")
         db.delete(record)
         emit("maintenance_updated", {})
+    elif req.resource_type == "AdBlueLog":
+        record = db.get(models.AdBlueLog, req.resource_id)
+        if not record:
+            raise HTTPException(409, "This AdBlue log no longer exists — the request may be a stale duplicate. Reject it instead.")
+        from routers.maintenance import remove_adblue_log
+        remove_adblue_log(db, record, current_user.name, current_user.role)
+        emit("adblue_updated", {})
     elif req.resource_type == "Trip":
         # Soft delete — keeps the trip (and its closure/sheet/invoice) recoverable
         # from the "Deleted Trips" page instead of destroying it outright.

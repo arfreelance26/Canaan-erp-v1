@@ -13,10 +13,15 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 type AdBlueLogFormDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) => void;
+  /** Resolves true when saved; false keeps the form as typed so it can be corrected. */
+  onSave: (log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">, reason?: string) => Promise<boolean>;
   truck: Truck;
   /** The truck's manufacturer — its AdBlue rate pre-fills Cost Per Litre. */
   manufacturer?: AdBlueManufacturer | null;
+  /** The log being edited; leave out to enter a new one. */
+  log?: AdBlueLog | null;
+  /** An edit that goes to approval instead of saving: asks for a reason. */
+  requiresApproval?: boolean;
 };
 
 const inputClass =
@@ -44,19 +49,32 @@ function emptyForm() {
   };
 }
 
+function formFromLog(log: AdBlueLog) {
+  return {
+    date: log.date,
+    odometer: String(Number(log.odometer)),
+    litres: log.litres,
+    pricePerLitre: log.pricePerLitre,
+    totalCost: log.totalCost,
+    fillingLocation: log.fillingLocation ?? "",
+  };
+}
+
 function totalOf(litres: string, price: string): string {
   const l = parseFloat(litres);
   const p = parseFloat(price);
   return !isNaN(l) && l > 0 && !isNaN(p) && p >= 0 ? (l * p).toFixed(2) : "";
 }
 
-export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer }: AdBlueLogFormDialogProps) {
+export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer, log, requiresApproval }: AdBlueLogFormDialogProps) {
   // Lazy initializer — a fresh object per mount, with "today" computed at
   // open-time rather than once at module load.
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => (log ? formFromLog(log) : emptyForm()));
+  const [reason, setReason] = useState("");
 
+  // Drafts are for new entries only; an edit always starts from the saved log.
   const draftKey = `erp_adblue_log_draft_${truck.id}`;
-  useFormDraft(draftKey, open, form, setForm);
+  useFormDraft(draftKey, open && !log, form, setForm);
 
   // Where the pre-filled Cost Per Litre came from (shown under the field).
   const [priceSource, setPriceSource] = useState<string | null>(null);
@@ -65,7 +83,7 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
   // Cost Per Litre starts at the manufacturer's AdBlue rate, else this truck's
   // last logged price — still editable, since a fill can cost more or less.
   useEffect(() => {
-    if (!open) return;
+    if (!open || log) return;
     setPriceSource(null);
     const prefill = (price: string, source: string) =>
       setForm((prev) => {
@@ -83,7 +101,7 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
         if (last) prefill(last, "From this truck's last fill");
       })
       .catch(() => {});
-  }, [open, truck.id, rate, manufacturer?.name]);
+  }, [open, log, truck.id, rate, manufacturer?.name]);
 
   function update(field: "date" | "odometer" | "litres" | "pricePerLitre" | "fillingLocation", value: string) {
     if (field === "pricePerLitre") setPriceSource(null);
@@ -94,10 +112,13 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
     });
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.totalCost) return;
-    onSave({
+    if (!form.totalCost || saving || (requiresApproval && !reason.trim())) return;
+    setSaving(true);
+    const saved = await onSave({
       truckId: truck.id,
       date: form.date,
       odometer: form.odometer,
@@ -105,14 +126,17 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
       pricePerLitre: form.pricePerLitre,
       totalCost: form.totalCost,
       fillingLocation: form.fillingLocation || null,
-      remarks: null,
-    });
+      remarks: log?.remarks ?? null,
+    }, reason.trim());
+    setSaving(false);
+    // Refused (e.g. odometer not past the last fill): keep everything typed.
+    if (!saved || log) return;
     clearFormDraft(draftKey);
     setForm(emptyForm());
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Enter AdBlue Log">
+    <Dialog open={open} onClose={onClose} title={log ? "Edit AdBlue Log" : "Enter AdBlue Log"}>
       <div className="mb-6 flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100/50 text-blue-600">
           <Droplets className="h-5 w-5" />
@@ -193,21 +217,35 @@ export function AdBlueLogFormDialog({ open, onClose, onSave, truck, manufacturer
           />
         </Field>
 
+        {requiresApproval && (
+          <Field label="Reason for edit" required>
+            <textarea
+              required
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className={`${inputClass} resize-none`}
+              placeholder="Explain why this log needs to be changed…"
+            />
+            <p className="mt-1 text-xs text-amber-700">Requires approval — the log changes once this request is approved.</p>
+          </Field>
+        )}
+
         <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
           <button
             type="button"
-            onClick={() => { clearFormDraft(draftKey); onClose(); }}
+            onClick={() => { if (!log) clearFormDraft(draftKey); onClose(); }}
             className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={!form.totalCost}
+            disabled={!form.totalCost || saving || (requiresApproval && !reason.trim())}
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            Save AdBlue Log
+            {requiresApproval ? "Submit Request" : log ? "Save Changes" : "Save AdBlue Log"}
           </button>
         </div>
       </form>

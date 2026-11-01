@@ -27,4 +27,8 @@ export type Staff = {
   version?: number;
   deviceBound?: boolean;
   devices?: StaffDevice[];
+  /** Freeze Account: set while frozen (can't log in). */
+  frozenAt?: string | null;
+  frozenByName?: string | null;
+  frozenReason?: string | null;
 };

@@ -41,6 +41,8 @@ export default function DriverCompensationPage() {
   // Cleaner / Workshop Batta Records — view-only, one row per attendance day that earns it.
   const [cleanerTarget, setCleanerTarget] = useState<CompensationPerson | null>(null);
   const [workshopTarget, setWorkshopTarget] = useState<CompensationPerson | null>(null);
+  // Workshop Advance Record — view-only, one row per On Workshop day an advance was paid.
+  const [workshopAdvanceTarget, setWorkshopAdvanceTarget] = useState<CompensationPerson | null>(null);
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -172,6 +174,7 @@ export default function DriverCompensationPage() {
         onHaltPay={setHaltTarget}
         onCleanerBatta={setCleanerTarget}
         onWorkshopBatta={setWorkshopTarget}
+        onWorkshopAdvance={setWorkshopAdvanceTarget}
         photoLabel="Driver Photo"
         nameLabel="Driver Name"
         idLabel="Driver ID"
@@ -218,6 +221,13 @@ export default function DriverCompensationPage() {
         onClose={() => setWorkshopTarget(null)}
         driver={workshopTarget}
         onShowGuide={() => setGuideTab("workshop")}
+      />
+
+      <BattaRecordDialog
+        kind="workshopAdvance"
+        open={workshopAdvanceTarget !== null}
+        onClose={() => setWorkshopAdvanceTarget(null)}
+        driver={workshopAdvanceTarget}
       />
 
       <CompensationGuideDialog

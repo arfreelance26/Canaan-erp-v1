@@ -50,6 +50,7 @@ def _build_mode_response(mode: str, db: Session) -> dict:
     config     = db.query(models.RunningCostConfig).filter_by(mode=mode).first()
     tyre_rows  = db.query(models.RunningCostTyreEntry).filter_by(mode=mode).all()
     layout_rows = db.query(models.RunningCostLayoutEntry).filter_by(mode=mode).all()
+    adblue_rows = db.query(models.RunningCostAdblueEntry).filter_by(mode=mode).all()
     truck_rows  = db.query(models.RunningCostTruckMetrics).filter_by(mode=mode).all()
     return {
         "cost_per_litre": _fmt(config.cost_per_litre) if config else "",
@@ -62,6 +63,10 @@ def _build_mode_response(mode: str, db: Session) -> dict:
             r.tyre_layout: {"month": _fmt(r.km_per_month), "day": _fmt(r.km_per_day)}
             for r in layout_rows
         },
+        "adblue_prices": {
+            str(r.manufacturer_id): _fmt(r.price_per_litre)
+            for r in adblue_rows
+        },
         "truck_metrics": {
             str(r.truck_id): {
                 "emi_amount":              _fmt(r.emi_amount),
@@ -72,6 +77,9 @@ def _build_mode_response(mode: str, db: Session) -> dict:
                 "tyre_per_km":               _fmt(r.tyre_per_km),
                 "maintenance_per_km":        _fmt(r.maintenance_per_km),
                 "compliance_cost_per_year":  _fmt(r.compliance_cost_per_year),
+                "adblue_consume_l_per_km":   _fmt(r.adblue_consume_l_per_km),
+                "adblue_manufacturer_id":    str(r.adblue_manufacturer_id) if r.adblue_manufacturer_id else "",
+                "adblue_per_km":             _fmt(r.adblue_per_km),
             }
             for r in truck_rows
         },
@@ -117,6 +125,19 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
                 km_per_day=_to_decimal(entry.day),
             ))
 
+    # AdBlue Details prices
+    for mid_str, price_str in data.adblue_prices.items():
+        mid = _to_int(mid_str)
+        if mid is None:
+            continue
+        row = db.query(models.RunningCostAdblueEntry).filter_by(mode=mode, manufacturer_id=mid).first()
+        if row:
+            row.price_per_litre = _to_decimal(price_str)
+        else:
+            db.add(models.RunningCostAdblueEntry(
+                mode=mode, manufacturer_id=mid, price_per_litre=_to_decimal(price_str),
+            ))
+
     # Truck metrics
     for tid_str, m in data.truck_metrics.items():
         try:
@@ -135,6 +156,9 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
             row.tyre_per_km = _to_decimal(m.tyre_per_km)
             row.maintenance_per_km = _to_decimal(m.maintenance_per_km)
             row.compliance_cost_per_year = _to_decimal(m.compliance_cost_per_year)
+            row.adblue_consume_l_per_km = _to_decimal(m.adblue_consume_l_per_km)
+            row.adblue_manufacturer_id = _to_int(m.adblue_manufacturer_id)
+            row.adblue_per_km = _to_decimal(m.adblue_per_km)
         else:
             db.add(models.RunningCostTruckMetrics(
                 mode=mode, truck_id=tid,
@@ -146,6 +170,9 @@ def _save_mode_data(mode: str, data: schemas.RccModeDataIn, db: Session) -> None
                 tyre_per_km=_to_decimal(m.tyre_per_km),
                 maintenance_per_km=_to_decimal(m.maintenance_per_km),
                 compliance_cost_per_year=_to_decimal(m.compliance_cost_per_year),
+                adblue_consume_l_per_km=_to_decimal(m.adblue_consume_l_per_km),
+                adblue_manufacturer_id=_to_int(m.adblue_manufacturer_id),
+                adblue_per_km=_to_decimal(m.adblue_per_km),
             ))
 
 
@@ -196,6 +223,7 @@ def _manual_cost_live(db: Session, include_removed: bool = True) -> dict[str, di
     tyre_entries = {r.tyre_type: r for r in db.query(models.RunningCostTyreEntry).filter_by(mode="Manual").all()}
     km_per_day = {r.tyre_layout: _pos(r.km_per_day) for r in db.query(models.RunningCostLayoutEntry).filter_by(mode="Manual").all()}
     metrics = {m.truck_id: m for m in db.query(models.RunningCostTruckMetrics).filter_by(mode="Manual").all()}
+    adblue_price = manual_adblue_prices(db)
 
     def per_tyre(tyre_type: str) -> float | None:
         e = tyre_entries.get(tyre_type)
@@ -217,6 +245,14 @@ def _manual_cost_live(db: Session, include_removed: bool = True) -> dict[str, di
         mileage = _pos(m.mileage) if m else None
         fuel = price / mileage if mileage and price > 0 else None
 
+        # AdBlue: a typed ₹/km, else L/km × the AdBlue Details price of the
+        # manufacturer chosen on the card.
+        adblue = _pos(m.adblue_per_km) if m else None
+        if adblue is None and m:
+            ab_lkm = _pos(m.adblue_consume_l_per_km)
+            ab_price = adblue_price.get(m.adblue_manufacturer_id)
+            adblue = ab_lkm * ab_price if ab_lkm and ab_price else None
+
         tyre = _pos(m.tyre_per_km) if m else None        # typed override
         if tyre is None:                                  # Tyre Cost Configuration (qty × cost ÷ range)
             layout_qty = qty_cfg.get(layout) or {}
@@ -235,7 +271,7 @@ def _manual_cost_live(db: Session, include_removed: bool = True) -> dict[str, di
         per_year = _pos(m.compliance_cost_per_year) if m else None
         compliance = per_year / 12 / 26 / kpd if per_year and kpd else None
 
-        parts = {"emi": emi, "fuel": fuel, "tyre": tyre, "maintenance": maintenance, "compliance": compliance}
+        parts = {"emi": emi, "fuel": fuel, "adblue": adblue, "tyre": tyre, "maintenance": maintenance, "compliance": compliance}
         known = [v for v in parts.values() if v is not None]
         out[truck.truck_id] = {
             "total": round(sum(known), 6) if known else None,
@@ -366,6 +402,43 @@ def _fuel_base_price(db: Session) -> float:
     return float(fuel_cfg.cost_per_litre) if fuel_cfg and fuel_cfg.cost_per_litre else 0.0
 
 
+def manual_adblue_prices(db: Session) -> dict[int, float]:
+    """Manual mode's AdBlue Details: {manufacturer id: price per litre}."""
+    return {
+        r.manufacturer_id: float(r.price_per_litre)
+        for r in db.query(models.RunningCostAdblueEntry).filter_by(mode="Manual").all()
+        if r.price_per_litre is not None and float(r.price_per_litre) > 0
+    }
+
+
+def adblue_price_by_truck(db: Session) -> dict[int, float]:
+    """Each truck's AdBlue price per litre — its manufacturer's price on Our
+    Fleet → Manufacturers (matched by the truck's Manufacturer name)."""
+    prices = {
+        (m.name or "").strip().upper(): float(m.default_price_per_litre)
+        for m in db.query(models.AdBlueManufacturer).all()
+        if m.default_price_per_litre is not None and float(m.default_price_per_litre) > 0
+    }
+    return {
+        t.id: prices[(t.manufacturer or "").strip().upper()]
+        for t in db.query(models.Truck.id, models.Truck.manufacturer).all()
+        if (t.manufacturer or "").strip().upper() in prices
+    }
+
+
+def _auto_adblue_per_km_all(db: Session) -> dict[str, float]:
+    """Basic/Advanced AdBlue cost per km, keyed by trucks.id (as string) —
+    exactly like diesel: the truck's AdBlue price ÷ its lifetime-average AdBlue
+    km per litre from Truck's AdBlue History (needs 2+ fills)."""
+    from routers.maintenance import get_all_adblue_stats
+    price = adblue_price_by_truck(db)
+    return {
+        tid: price[int(tid)] / kml
+        for tid, kml in get_all_adblue_stats(db).items()
+        if kml and kml > 0 and int(tid) in price
+    }
+
+
 def _auto_fuel_per_km_all(db: Session) -> dict[str, float]:
     """Basic/Advanced "Mileage" cost per km, keyed by trucks.id (as string):
     Fuel History diesel price ÷ the truck's lifetime-average mileage (km/L)."""
@@ -380,7 +453,7 @@ def _auto_fuel_per_km_all(db: Session) -> dict[str, float]:
     }
 
 
-COST_PARTS = ("emi", "fuel", "tyre", "maintenance", "compliance")
+COST_PARTS = ("emi", "fuel", "adblue", "tyre", "maintenance", "compliance")
 
 
 def _compute_basic_advanced_cost_per_km(db: Session, mode: str, with_parts: bool = False, include_removed: bool = False) -> dict:
@@ -403,6 +476,7 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str, with_parts: bool
         return {}
 
     fuel_per_km_map  = _auto_fuel_per_km_all(db)
+    adblue_per_km_map = _auto_adblue_per_km_all(db)
     maint_map          = get_maintenance_cost_per_km_all(db)
     maint_per_day_map  = get_maintenance_cost_per_day_all(db) if mode == "Advanced" else {}
     compliance_per_day_map = get_compliance_per_day_all(db) if mode == "Advanced" else {}
@@ -460,6 +534,7 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str, with_parts: bool
     for truck in trucks:
         tid = str(truck.id)
         fuel_per_km = fuel_per_km_map.get(tid)
+        adblue_per_km = adblue_per_km_map.get(tid)
 
 
         reg = (truck.registration_number or "").strip().upper()
@@ -487,8 +562,8 @@ def _compute_basic_advanced_cost_per_km(db: Session, mode: str, with_parts: bool
             compliance_per_day = compliance_per_day_map.get(tid)
             compliance_per_km = per_km_advanced(compliance_per_day, monthly_avg)
 
-        # AdBlue isn't part of the calculator (Truck's Adblue History is a record only).
-        components = [emi_per_km, fuel_per_km, tyre_per_km, maintenance_per_km, compliance_per_km]
+        # Same order as COST_PARTS.
+        components = [emi_per_km, fuel_per_km, adblue_per_km, tyre_per_km, maintenance_per_km, compliance_per_km]
         total = round(sum(c or 0 for c in components), 6) if any(c is not None for c in components) else None
         if with_parts:
             result[truck.truck_id] = {"total": total, **{
@@ -611,11 +686,11 @@ def get_cost_parts_per_km(db: Session = Depends(get_db)):
     out: dict[str, dict] = {}
     for mode in ("Basic", "Advanced"):
         parts = _compute_basic_advanced_cost_per_km(db, mode, with_parts=True, include_removed=True)
-        out[mode] = {tid: {"fuel": d.get("fuel"), "tyre": d.get("tyre")} for tid, d in parts.items()}
+        out[mode] = {tid: {"fuel": d.get("fuel"), "adblue": d.get("adblue"), "tyre": d.get("tyre")} for tid, d in parts.items()}
     manual_all, _ = manual_cost_parts(db)
-    manual: dict[str, dict] = {bid: {"fuel": d.get("fuel"), "tyre": d.get("tyre")} for bid, d in manual_all.items()}
+    manual: dict[str, dict] = {bid: {"fuel": d.get("fuel"), "adblue": d.get("adblue"), "tyre": d.get("tyre")} for bid, d in manual_all.items()}
     for tid, fuel in get_mileage_cost_per_km(db)["Manual"].items():
-        manual.setdefault(tid, {"fuel": None, "tyre": None})
+        manual.setdefault(tid, {"fuel": None, "adblue": None, "tyre": None})
         if manual[tid]["fuel"] is None:
             manual[tid]["fuel"] = fuel
     out["Manual"] = manual

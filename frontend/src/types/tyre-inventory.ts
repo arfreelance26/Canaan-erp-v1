@@ -39,7 +39,45 @@ export type TyreMovementEvent = {
   expectedRange: number | null;
   retreadCount: number | null;
   retreadDoneBy?: string | null;
+  /** Retread rows: Vendor (linked to Our Vendors) or Individual, the invoice and its proof. */
+  retreadByType?: "Vendor" | "Individual" | null;
+  vendorId?: string | null;
+  invoiceNumber?: string | null;
+  invoiceDate?: string | null;
+  proofFileName?: string | null;
+  proofSizeBytes?: number | null;
   createdAt: string;
+};
+
+/** Retread Queue → Move to Inventory: who did it, the invoice and the proof (one request). */
+export type RetreadMoveInput = {
+  retreadCost: string;
+  expectedRange: string;
+  retreadByType: "Vendor" | "Individual";
+  vendorId: string;        // Vendor
+  retreadDoneBy: string;   // Individual (typed name)
+  invoiceNumber: string;
+  invoiceDate: string;
+  proof: File | null;
+};
+
+/** A retread a vendor did — Our Vendors → View Record → Tyre Retreads. */
+export type VendorRetread = {
+  id: string;              // the retread's history row
+  tyreId: string;
+  tyreNumber: string;
+  brand: string;
+  tyreSize: string;
+  tyreType: string;
+  date: string;
+  retreadCost: number;
+  expectedRange: number | null;
+  retreadCount: number | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  proofFileName: string | null;
+  proofSizeBytes: number | null;
+  actorName: string;
 };
 
 export type TyreData = {

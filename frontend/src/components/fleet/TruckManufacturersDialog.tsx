@@ -151,7 +151,8 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
     <div className="flex flex-col gap-4">
       <p className="text-sm text-gray-500">
         The Manufacturer list used when adding or editing a truck, and each one&apos;s AdBlue cost per litre —
-        the price an AdBlue fill starts with for its trucks.
+        the price an AdBlue fill starts with for its trucks, and the price behind their AdBlue cost per km
+        (Running Cost Calculator and Profitability).
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search manufacturers..." value={search} onChange={setSearch} />

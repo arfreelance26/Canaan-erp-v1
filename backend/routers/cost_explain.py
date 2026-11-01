@@ -19,6 +19,8 @@ from cost_units import WORKING_DAYS_PER_MONTH, DAYS_PER_MONTH
 PAGES = {
     "emi":         ("Finance → EMI Tracking", "/finance/emi-tracking"),
     "fuel":        ("Maintenance → Truck's Fuel History", "/maintenance/fuel-history"),
+    "adblue":      ("Maintenance → Truck's AdBlue History", "/admin/adblue"),
+    "manufacturers": ("Our Fleet → Manufacturers (AdBlue price)", "/resources/fleet"),
     "tyre_mgmt":   ("Tyre Records → Tyre Management", "/maintenance/tyre-management"),
     "tyre_range":  ("Administration → Tyre Range Configuration", "/admin/tyre-range-config"),
     "tyre_cost":   ("Administration → Tyre Cost Configuration", "/admin/tyre-cost-config"),
@@ -178,7 +180,49 @@ def explain_truck(db: Session, truck: models.Truck, mode: str) -> dict:
             "This truck needs at least two fuel fills to work out its mileage.")
     parts.append(p)
 
-    # ── ③ Tyres ─────────────────────────────────────────────────────────
+    # ── ③ AdBlue (like diesel) ──────────────────────────────────────────
+    from routers.maintenance import get_all_adblue_stats
+    from routers.running_cost import adblue_price_by_truck
+    ab_price = adblue_price_by_truck(db).get(truck.id)
+    ab_kml = get_all_adblue_stats(db).get(str(truck.id))
+    ab_fills = db.query(models.AdBlueLog).filter_by(truck_id=truck.id).count()
+    price_input = _inp("AdBlue price", f"{inr(ab_price)} a litre" if ab_price else "not set", "manufacturers",
+                       f"{truck.manufacturer or 'No manufacturer'}'s AdBlue price")
+    p = {"key": "adblue", "label": "AdBlue", "table": None, "value": values.get("adblue"), "inputs": [], "formula": None, "missing": None}
+    if mode == "Manual":
+        # AdBlue Details: L/km typed on the card × the price typed for the
+        # manufacturer chosen on the card — or a typed ₹/km.
+        from routers.running_cost import manual_adblue_prices
+        override = m("adblue_per_km")
+        lkm = m("adblue_consume_l_per_km")
+        mid = metrics.adblue_manufacturer_id if metrics else None
+        mfr = db.query(models.AdBlueManufacturer).filter_by(id=mid).first() if mid else None
+        price = manual_adblue_prices(db).get(mid) if mid else None
+        if override:
+            p["inputs"] = [_inp("AdBlue charges per km", inr(override, 4), "calculator", "typed for this truck")]
+            p["formula"] = "typed for this truck"
+        else:
+            p["inputs"] = [
+                _inp("AdBlue used", f"{lkm:g} L per km" if lkm else "not typed", "calculator"),
+                _inp("AdBlue price", f"{inr(price)} a litre" if price else "not set", "calculator",
+                     f"AdBlue Details · {mfr.name}" if mfr else "no manufacturer chosen on the card"),
+            ]
+            p["formula"] = f"{lkm:g} L per km × {inr(price)} a litre" if lkm and price else None
+        p["missing"] = None if p["value"] is not None else (
+            "No AdBlue (L / km) typed for this truck in Manual." if not lkm else
+            "Choose this truck's AdBlue Manufacturer on its card." if not mfr else
+            f"Type {mfr.name}'s AdBlue price in AdBlue Details.")
+    else:
+        p["inputs"] = [price_input, _inp(
+            "AdBlue km per litre", f"{ab_kml:.2f} km a litre" if ab_kml else "not enough fills", "adblue",
+            f"lifetime average from {ab_fills} AdBlue fill{'s' if ab_fills != 1 else ''}")]
+        p["formula"] = f"{inr(ab_price)} a litre ÷ {ab_kml:.2f} km a litre" if ab_price and ab_kml else None
+        p["missing"] = None if p["value"] is not None else (
+            f"Set {truck.manufacturer or 'this truck'}'s AdBlue price in Our Fleet → Manufacturers." if not ab_price else
+            "This truck needs at least two AdBlue fills to work out its km per litre.")
+    parts.append(p)
+
+    # ── ④ Tyres ─────────────────────────────────────────────────────────
     p = {"key": "tyre", "label": "Tyres", "table": None, "value": values.get("tyre"), "inputs": [], "formula": None, "missing": None}
     ranges = {r.tyre_type: r for r in db.query(models.TyreRangeConfig)}
     if mode == "Basic":
@@ -247,7 +291,7 @@ def explain_truck(db: Session, truck: models.Truck, mode: str) -> dict:
         p["missing"] = None if p["value"] is not None else "Nothing typed for tyres in Manual."
     parts.append(p)
 
-    # ── ④ Maintenance ───────────────────────────────────────────────────
+    # ── ⑤ Maintenance ───────────────────────────────────────────────────
     p = {"key": "maintenance", "label": "Maintenance", "table": None, "value": values.get("maintenance"), "inputs": [], "formula": None, "missing": None}
     if mode == "Manual":
         typed = m("maintenance_per_km")
@@ -276,7 +320,7 @@ def explain_truck(db: Session, truck: models.Truck, mode: str) -> dict:
              else "No trip sheets for this truck yet, so its monthly distance isn't known."))
     parts.append(p)
 
-    # ── ⑤ Compliance ────────────────────────────────────────────────────
+    # ── ⑥ Compliance ────────────────────────────────────────────────────
     p = {"key": "compliance", "label": "Compliance", "table": None, "value": values.get("compliance"), "inputs": [], "formula": None, "missing": None}
     if mode == "Manual":
         typed = m("compliance_cost_per_year")

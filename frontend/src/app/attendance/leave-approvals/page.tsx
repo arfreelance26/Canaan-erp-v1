@@ -16,7 +16,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { CheckCircle2, History, Send, Check, X } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<LeaveRequestEditEventRow["event"], typeof Send> = {
   "Leave Requested": Send,
@@ -76,16 +76,21 @@ export default function LeaveApprovalsPage() {
   useWebSocketEvent("leave_request_updated", () => setRefreshKey(k => k + 1));
 
 
+  const datedRequests = useMemo(
+    () => requests.filter((r) => inDateRange(r.fromDate, exportFrom, exportTo)),
+    [requests, exportFrom, exportTo],
+  );
+
   const summary = useMemo(() => {
     const counts = { Pending: 0, Approved: 0, Rejected: 0 };
-    for (const request of requests) {
+    for (const request of datedRequests) {
       counts[request.status] += 1;
     }
     return counts;
-  }, [requests]);
+  }, [datedRequests]);
 
   const filteredRequests = useMemo(() => {
-    let result = requests;
+    let result = datedRequests;
     if (filter !== "All") {
       result = result.filter((request) => request.category === filter);
     }
@@ -94,7 +99,7 @@ export default function LeaveApprovalsPage() {
       result = result.filter((request) => request.applicantName.toLowerCase().includes(query));
     }
     return result;
-  }, [requests, filter, search]);
+  }, [datedRequests, filter, search]);
 
   const pendingCounts = useMemo(() => {
     const counts: Record<FilterValue, number> = {
@@ -108,13 +113,13 @@ export default function LeaveApprovalsPage() {
       "Yard Supervisor": 0,
       Auditor: 0,
     };
-    for (const request of requests) {
+    for (const request of datedRequests) {
       if (request.status !== "Pending") continue;
       counts[request.category] += 1;
       counts.All += 1;
     }
     return counts;
-  }, [requests]);
+  }, [datedRequests]);
 
   async function handleApprove(id: string) {
     try {

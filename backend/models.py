@@ -30,6 +30,11 @@ class Branch(Base):
     party_halt_fee_open_load = Column(Numeric(10, 2), nullable=True)
     driver_halt_day_percentage = Column(Numeric(5, 2), default=0)
     cleaner_batta_fee = Column(Numeric(10, 2), default=0)
+    # Cleaner Batta Fee for each container type (not used in the calculations yet).
+    cleaner_batta_fee_20ft = Column(Numeric(10, 2), nullable=True)
+    cleaner_batta_fee_40ft = Column(Numeric(10, 2), nullable=True)
+    cleaner_batta_fee_2x20 = Column(Numeric(10, 2), nullable=True)
+    cleaner_batta_fee_open_load = Column(Numeric(10, 2), nullable=True)
     # Per day the driver is marked "On Workshop" (Driver Compensation → Workshop Batta Record).
     workshop_batta_fee = Column(Numeric(10, 2), default=0)
     version = Column(Integer, default=1, nullable=False)
@@ -266,6 +271,11 @@ class Staff(Base):
     password_hash = Column(String(255))
     device_hash = Column(String(1024), nullable=True, default=None)  # comma-separated SHA-256(s) of bound devices; NULL = unbound
     token_version = Column(Integer, default=0, nullable=False, server_default="0")  # bump to invalidate all of this user's JWTs (force logout)
+    # Freeze Account (Our Staff, owner password): a frozen account can't log
+    # in and every session it had was ended. Unfreezing clears these.
+    frozen_at = Column(DateTime, nullable=True)
+    frozen_by_name = Column(String(100), nullable=True)
+    frozen_reason = Column(Text, nullable=True)
     version = Column(Integer, default=1, nullable=False)
     # Soft delete — "Our Staff" -> Delete sets this instead of removing the row, so
     # attendance, payment/compensation history, chat messages, and anything else
@@ -306,6 +316,19 @@ class Staff(Base):
                 "bound_at": d.get("at"),
             })
         return out
+
+
+class StaffFreezeEvent(Base):
+    """Every Freeze / Unfreeze of a staff account — the Freeze History on Our Staff."""
+    __tablename__ = "staff_freeze_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    staff_id = Column(Integer, ForeignKey("staff.id", ondelete="CASCADE"), nullable=False, index=True)
+    event = Column(String(12), nullable=False)          # "Frozen" | "Unfrozen"
+    reason = Column(Text, nullable=False)
+    actor_name = Column(String(100), nullable=False)
+    actor_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
 class StaffEditEvent(Base):
@@ -624,6 +647,12 @@ class Trip(Base):
     # False the moment the trip is flagged again (a new flag supersedes a
     # past verification).
     audit_verified = Column(Boolean, default=False, nullable=False)
+    # Set by Flag for Re-Verification (see request_reverification): a user sent
+    # a verified trip back to the Auditor. Cleared when the Auditor verifies or
+    # flags it. reverification_remark being set is what marks the trip.
+    reverification_remark = Column(Text, nullable=True)
+    reverification_by = Column(String(100), nullable=True)
+    reverification_at = Column(DateTime, nullable=True)
     # Yard Supervisor: advance paid to driver verification
     advance_verified = Column(Boolean, nullable=True)
     advance_verification_remark = Column(Text, nullable=True)
@@ -899,6 +928,13 @@ class DriverAttendance(Base):
     status = Column(Enum("Present", "Absent", "On Leave", "Not Marked", "On Trip", "On Halt", "Leave", "On Workshop"), nullable=False, default="Not Marked")
     check_in_time = Column(String(20))
     marked_at = Column(DateTime)
+    # The vehicle type picked when marking a day that earns Cleaner Batta (same
+    # values as trips.container_specification). Empty on days marked before this
+    # existed — those keep the branch's single Cleaner Batta Fee.
+    container_specification = Column(String(30), nullable=True)
+    # The advance entered when marking the day On Workshop. Empty on any other
+    # day, and on On Workshop days marked before this existed.
+    workshop_advance = Column(Numeric(10, 2), nullable=True)
 
     driver = relationship("Driver", back_populates="attendance_records")
 
@@ -1215,8 +1251,9 @@ class FuelBaseConfig(Base):
 
 
 class AdBlueLog(Base):
-    """One AdBlue fill on Truck's Adblue History — a record only; it feeds no
-    calculator or cost figure."""
+    """One AdBlue fill on Truck's Adblue History. Like Fuel History, the fills
+    give each truck's AdBlue km per litre; × its manufacturer's AdBlue price
+    that's the AdBlue part of Cost/KM (Running Cost Calculator, Profitability)."""
     __tablename__ = "adblue_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -1405,8 +1442,20 @@ class TyreMovementEvent(Base):
     retread_cost = Column(Numeric(10, 2), nullable=True)
     expected_range = Column(Integer, nullable=True)
     retread_count = Column(Integer, nullable=True)
-    # Vendor that did the retreading (picked from Our Vendors when the tyre comes back).
+    # Who did the retreading (the name), and — like Maintenance By — whether
+    # that's a Vendor (linked to Our Vendors, so it shows on the vendor's
+    # View Record) or an Individual (a typed name).
     retread_done_by = Column(String(200), nullable=True)
+    retread_by_type = Column(String(12), nullable=True)             # "Vendor" | "Individual"
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_number = Column(String(100), nullable=True)              # given by the vendor / individual
+    invoice_date = Column(Date, nullable=True)
+    # This retread's Proof of Payment/Invoice — one PDF or image, ≤15 MB.
+    # Each retread keeps its own; the tyre's purchase proof is on TyreInventory.
+    proof_file_name = Column(String(255), nullable=True)
+    proof_size_bytes = Column(Integer, nullable=True)
+    proof_data = deferred(Column(LargeBinary(length=26214400), nullable=True))  # LONGBLOB
+    proof_uploaded_by = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
 
@@ -1776,6 +1825,11 @@ class BranchCleanerBattaFeeHistory(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     branch_id = Column(Integer, ForeignKey("branches.id", ondelete="CASCADE"), nullable=False, index=True)
     cleaner_batta_fee = Column(Numeric(10, 2), nullable=False, default=0)
+    # The fee for each container type, as of the same date.
+    cleaner_batta_fee_20ft = Column(Numeric(10, 2), nullable=True)
+    cleaner_batta_fee_40ft = Column(Numeric(10, 2), nullable=True)
+    cleaner_batta_fee_2x20 = Column(Numeric(10, 2), nullable=True)
+    cleaner_batta_fee_open_load = Column(Numeric(10, 2), nullable=True)
     effective_from = Column(DateTime, nullable=False)
     changed_by_name = Column(String(200), nullable=True)
 
@@ -1887,7 +1941,7 @@ class DeletionApprovalRequest(Base):
     __tablename__ = "deletion_approval_requests"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor", "TyreInventory", "CfsYardEntry"), nullable=False)
+    resource_type = Column(Enum("FuelLog", "MaintenanceRecord", "Trip", "Driver", "Truck", "Staff", "Customer", "Vendor", "TyreInventory", "CfsYardEntry", "AdBlueLog"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(300), nullable=False)    # e.g. "Fuel Log — CGI-T001 · 2024-01-15 · 150L"
     log_details = Column(JSON, nullable=True)              # snapshot of the record at time of request
@@ -1915,7 +1969,7 @@ class EditApprovalRequest(Base):
     staff_db_id = Column(Integer, nullable=False)        # staff.id (numeric)
     staff_name = Column(String(100), nullable=False)
     staff_code = Column(String(20))                      # STF-1001
-    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck", "MaintenanceRecord"), nullable=False)
+    resource_type = Column(Enum("Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck", "MaintenanceRecord", "AdBlueLog"), nullable=False)
     resource_id = Column(Integer, nullable=False)
     resource_name = Column(String(200), nullable=False)
     action = Column(Enum("Edit", "Delete"), nullable=False)
@@ -2075,7 +2129,7 @@ class TripRecheckEvent(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)
-    event = Column(Enum("Flagged", "Returned for Review", "Verified"), nullable=False)
+    event = Column(Enum("Flagged", "Returned for Review", "Verified", "Verification Undone", "Flagged for Re-Verification"), nullable=False)
     remark = Column(Text, nullable=True)
     actor_name = Column(String(100), nullable=False)
     actor_role = Column(String(50), nullable=True)
@@ -2169,11 +2223,25 @@ class RunningCostTruckCostPerKm(Base):
     # re-derived server-side). Null on rows saved before they were stored.
     emi_per_km = Column(Numeric(12, 6), nullable=True)
     fuel_per_km = Column(Numeric(12, 6), nullable=True)
+    adblue_per_km = Column(Numeric(12, 6), nullable=True)
     tyre_per_km = Column(Numeric(12, 6), nullable=True)
     maintenance_per_km = Column(Numeric(12, 6), nullable=True)
     compliance_per_km = Column(Numeric(12, 6), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     __table_args__ = (UniqueConstraint("mode", "truck_business_id", name="uq_rcc_costkm_mode_truck"),)
+
+
+class RunningCostAdblueEntry(Base):
+    """Manual mode's AdBlue Details: an AdBlue price per litre for each
+    manufacturer, typed on the calculator (separate from Manufacturers' price)."""
+    __tablename__ = "running_cost_adblue_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mode = Column(String(20), nullable=False, default="Manual")
+    manufacturer_id = Column(Integer, nullable=False)
+    price_per_litre = Column(Numeric(10, 4), nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("mode", "manufacturer_id", name="uq_rcc_adblue_mode"),)
 
 
 class RunningCostTruckMetrics(Base):
@@ -2191,6 +2259,11 @@ class RunningCostTruckMetrics(Base):
     emi_per_km  = Column(Numeric(10, 6), nullable=True)  # manual override; used in Basic mode
     maintenance_per_km = Column(Numeric(10, 6), nullable=True)
     compliance_cost_per_year = Column(Numeric(12, 2), nullable=True)
+    # Manual AdBlue: litres used per km, the AdBlue Details manufacturer chosen
+    # for the truck, and an optional typed ₹/km that overrides L/km × price.
+    adblue_consume_l_per_km = Column(Numeric(10, 6), nullable=True)
+    adblue_manufacturer_id = Column(Integer, nullable=True)
+    adblue_per_km = Column(Numeric(10, 6), nullable=True)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     __table_args__ = (UniqueConstraint("mode", "truck_id", name="uq_rcc_truck_mode"),)
 

@@ -242,16 +242,26 @@ def driver_monthly_net_payable(
 CLEANER_BATTA_STATUSES = ("Present", "On Trip", "On Halt")
 # Attendance statuses that earn a day of Workshop Batta.
 WORKSHOP_BATTA_STATUSES = ("On Workshop",)
+# The branch's Cleaner Batta Fee for the vehicle type picked in Driver Attendance.
+CLEANER_FEE_BY_VEHICLE_TYPE = {
+    "20 FT CONTAINER": "cleaner_batta_fee_20ft",
+    "40 FT CONTAINER": "cleaner_batta_fee_40ft",
+    "2 X 20 FEET CONTAINERS": "cleaner_batta_fee_2x20",
+    "OPEN LOAD CARGO": "cleaner_batta_fee_open_load",
+}
 
 
-def _daily_batta_rows(db: Session, driver_id: str, statuses, history_model, fee_attr: str, fee_label: str):
+def _daily_batta_rows(db: Session, driver_id: str, statuses, history_model, fee_attr: str, fee_label: str,
+                      fee_by_vehicle_type=None):
     """One row per attendance day in `statuses`, each priced at the branch
     fee `fee_attr` of the branch of the truck the driver had that day, at the
     fee that applied that day:
       truck  — the trip the driver was on that day; else the truck they were
                assigned to that day (assignment history); else their current truck;
       branch — that truck's branch that day (truck branch history);
-      fee    — that branch's fee that day (`history_model`)."""
+      fee    — that branch's fee that day (`history_model`). With
+               `fee_by_vehicle_type`, the fee of the day's vehicle type; a day
+               without one uses `fee_attr`."""
     from bisect import bisect_right
 
     def day_of(dt):
@@ -321,12 +331,12 @@ def _daily_batta_rows(db: Session, driver_id: str, statuses, history_model, fee_
             return hist[0].from_branch
         return truck.branch_registered_to
 
-    def fee_on(branch, d):
+    def fee_on(branch, d, attr):
         hist = fee_hist.get(branch.id, [])
         before = [f for f in hist if day_of(f.effective_from) <= d]
         if before:
-            return float(getattr(before[-1], fee_attr) or 0)
-        return float(getattr(hist[0], fee_attr) or 0) if hist else float(getattr(branch, fee_attr) or 0)
+            return float(getattr(before[-1], attr) or 0)
+        return float(getattr(hist[0], attr) or 0) if hist else float(getattr(branch, attr) or 0)
 
     rows = []
     for a in attendance:
@@ -334,7 +344,8 @@ def _daily_batta_rows(db: Session, driver_id: str, statuses, history_model, fee_
         truck = trucks.get(vehicle) if vehicle else None
         branch_name = branch_on(truck, a.date) if truck else None
         branch = branches.get(branch_name) if branch_name else None
-        rate = fee_on(branch, a.date) if branch else 0.0
+        attr = (fee_by_vehicle_type or {}).get(a.container_specification, fee_attr)
+        rate = fee_on(branch, a.date, attr) if branch else 0.0
         note = None
         if not truck:
             note = "No truck for this day — no branch fee applied"
@@ -345,6 +356,7 @@ def _daily_batta_rows(db: Session, driver_id: str, statuses, history_model, fee_
         rows.append({
             "date": a.date.isoformat(),
             "status": a.status,
+            "container_specification": a.container_specification,
             "truck_id": truck.truck_id if truck else None,
             "truck_registration": truck.registration_number if truck else None,
             "truck_source": source,
@@ -363,9 +375,11 @@ def driver_cleaner_batta(
     db: Session = Depends(get_db),
 ):
     """Driver Compensation → Cleaner Batta Record: each Present / On Trip /
-    On Halt day at the branch's Cleaner Batta Fee (see _daily_batta_rows)."""
+    On Halt day at the branch's Cleaner Batta Fee for the vehicle type picked
+    that day (see _daily_batta_rows)."""
     rows = _daily_batta_rows(db, driver_id, CLEANER_BATTA_STATUSES,
-                             models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", "Cleaner Batta Fee")
+                             models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", "Cleaner Batta Fee",
+                             CLEANER_FEE_BY_VEHICLE_TYPE)
     return {"statuses": list(CLEANER_BATTA_STATUSES), "rows": rows}
 
 
@@ -378,6 +392,29 @@ def driver_workshop_batta(
     branch's On Workshop Batta Fee (see _daily_batta_rows)."""
     rows = _daily_batta_rows(db, driver_id, WORKSHOP_BATTA_STATUSES,
                              models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", "On Workshop Batta Fee")
+    return {"statuses": list(WORKSHOP_BATTA_STATUSES), "rows": rows}
+
+
+@router.get("/compensation/workshop-advance")
+def driver_workshop_advance(
+    driver_id: str = Query(..., description="drivers.driver_id, e.g. CGI-D0001"),
+    db: Session = Depends(get_db),
+):
+    """Driver Compensation → Workshop Advance Record: each On Workshop day an
+    advance was paid, with the truck and branch of that day (see
+    _daily_batta_rows)."""
+    advances = dict(
+        db.query(models.DriverAttendance.date, models.DriverAttendance.workshop_advance)
+        .filter(models.DriverAttendance.driver_id == driver_id,
+                models.DriverAttendance.status.in_(WORKSHOP_BATTA_STATUSES),
+                models.DriverAttendance.workshop_advance > 0)
+        .all()
+    )
+    paid = {d.isoformat(): float(amount) for d, amount in advances.items()}
+    rows = _daily_batta_rows(db, driver_id, WORKSHOP_BATTA_STATUSES,
+                             models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", "On Workshop Batta Fee")
+    rows = [{**r, "rate": paid[r["date"]], "amount": paid[r["date"]], "note": None}
+            for r in rows if r["date"] in paid]
     return {"statuses": list(WORKSHOP_BATTA_STATUSES), "rows": rows}
 
 

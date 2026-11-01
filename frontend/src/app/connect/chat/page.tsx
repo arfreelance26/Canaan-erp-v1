@@ -46,6 +46,14 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError, confirmAction } from "@/lib/swal";
 
+/** Tallest the message box grows (about 6 lines) before it scrolls. */
+const COMPOSER_MAX_PX = 140;
+
+/** Phones/tablets: Enter adds a new line there (no Shift+Enter on a touch keyboard). */
+function isTouchDevice() {
+  return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+}
+
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_MB = 25;
 
@@ -851,7 +859,17 @@ export default function CanaanChatPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const draftInputRef = useRef<HTMLInputElement>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // The composer is a textarea so pasted point-wise text keeps its line
+  // breaks. It grows with its content up to COMPOSER_MAX_PX, then scrolls.
+  useEffect(() => {
+    const el = draftInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_PX)}px`;
+    el.style.overflowY = el.scrollHeight > COMPOSER_MAX_PX ? "auto" : "hidden";
+  }, [draft]);
   // Reply / edit composer state — mutually exclusive.
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
@@ -2575,13 +2593,13 @@ export default function CanaanChatPage() {
                   </button>
                 </div>
               ) : (
-                <div className="relative flex shrink-0 items-center gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
+                <div className="relative flex shrink-0 items-end gap-3 bg-gray-100 dark:bg-gray-200 px-4 py-2.5">
                   <button
                     type="button"
                     data-emoji-toggle
                     onClick={() => setShowEmojiPicker((v) => !v)}
                     title="Emoji"
-                    className={`shrink-0 rounded-lg p-0.5 transition-colors ${
+                    className={`mb-1.5 shrink-0 rounded-lg p-0.5 transition-colors ${
                       showEmojiPicker ? "text-brand-navy dark:text-brand-gold" : "text-gray-500 hover:text-gray-700"
                     }`}
                   >
@@ -2601,7 +2619,7 @@ export default function CanaanChatPage() {
                     onClick={() => attachmentInputRef.current?.click()}
                     disabled={sendingAttachment}
                     title="Attach a file"
-                    className="shrink-0 text-gray-500 transition-colors hover:text-gray-700 disabled:opacity-60"
+                    className="mb-2.5 shrink-0 text-gray-500 transition-colors hover:text-gray-700 disabled:opacity-60"
                   >
                     {sendingAttachment ? (
                       <Loader2 className="h-5 w-5 animate-spin text-brand-navy" />
@@ -2609,26 +2627,31 @@ export default function CanaanChatPage() {
                       <Paperclip className="h-5 w-5" />
                     )}
                   </button>
-                  <input
+                  <textarea
                     ref={draftInputRef}
-                    type="text"
+                    rows={1}
                     value={draft}
                     onChange={(e) => {
                       setDraft(e.target.value);
                       notifyTyping();
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSend();
+                      // Enter sends, Shift+Enter adds a line (WhatsApp Web). On
+                      // phones Enter adds a line and the send button sends.
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !isTouchDevice()) {
+                        e.preventDefault();
+                        handleSend();
+                      }
                       if (e.key === "Escape") cancelComposerContext();
                     }}
                     placeholder="Type a message"
-                    className="input-no-transform flex-1 rounded-lg border-none bg-white dark:bg-gray-100 dark:text-gray-900 px-4 py-2.5 text-sm text-gray-700 outline-none transition-all placeholder:text-gray-500 focus:ring-2 focus:ring-brand-gold/30"
+                    className="input-no-transform block max-h-[140px] min-h-[40px] flex-1 resize-none overflow-y-hidden rounded-lg border-none bg-white dark:bg-gray-100 dark:text-gray-900 px-4 py-2.5 text-sm leading-5 text-gray-700 outline-none transition-[box-shadow] placeholder:text-gray-500 focus:ring-2 focus:ring-brand-gold/30"
                   />
                   <button
                     type="button"
                     onClick={openPaymentDialog}
                     title="Send a payment note"
-                    className="btn-interactive flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15 dark:bg-brand-gold/30 text-brand-navy dark:text-brand-gold transition-all duration-200 hover:bg-brand-gold/25 dark:hover:bg-brand-gold/45 active:scale-90"
+                    className="btn-interactive mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-gold/15 dark:bg-brand-gold/30 text-brand-navy dark:text-brand-gold transition-all duration-200 hover:bg-brand-gold/25 dark:hover:bg-brand-gold/45 active:scale-90"
                   >
                     <IndianRupee className="h-4 w-4" />
                   </button>
@@ -2637,7 +2660,7 @@ export default function CanaanChatPage() {
                     onClick={draft.trim() ? handleSend : startRecording}
                     disabled={sending || sendingVoice}
                     title={draft.trim() ? "Send" : "Record a voice message"}
-                    className="btn-interactive flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white transition-all duration-200 hover:bg-brand-navy/90 active:scale-90 disabled:opacity-60 disabled:active:scale-100"
+                    className="btn-interactive mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white transition-all duration-200 hover:bg-brand-navy/90 active:scale-90 disabled:opacity-60 disabled:active:scale-100"
                   >
                     {sending || sendingVoice ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

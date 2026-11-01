@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, LogIn, ShieldAlert, Clock, CalendarCheck, Timer, ClipboardCheck,
+  CheckCircle2, XCircle, CalendarOff, ChevronLeft, ChevronRight, LogOut, LogIn, ShieldAlert, Clock, CalendarCheck, Timer, ClipboardCheck, Loader2,
 } from "lucide-react";
 import { attendanceApi, usageApi } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -69,6 +69,40 @@ const STATUS_PILL: Record<string, string> = {
   "Not Marked": "bg-gray-100 text-gray-500",
 };
 
+// Colour of the ring that pulses out of today's pill right after marking (.ma-pop).
+const STATUS_PULSE: Record<string, string> = {
+  Present: "rgba(16,185,129,0.45)",
+  Absent: "rgba(239,68,68,0.4)",
+  "On Leave": "rgba(245,158,11,0.45)",
+};
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/** Counts from the number on screen to `target` (ease-out, ~0.6 s) — on load
+ * from 0, on a month change from the old month's figure. */
+function useCountUp(target: number, ms = 600): number {
+  const [shown, setShown] = useState(target);
+  const from = useRef(target);
+  useEffect(() => {
+    if (from.current === target) return;
+    const start = from.current;
+    const t0 = performance.now();
+    const length = prefersReducedMotion() ? 0 : ms;
+    let raf = 0;
+    const step = (t: number) => {
+      const k = length ? Math.min(1, (t - t0) / length) : 1;
+      const v = Math.round(start + (target - start) * (1 - Math.pow(1 - k, 3)));
+      from.current = v;
+      setShown(v);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return shown;
+}
+
 export default function MarkAttendancePage() {
   const { user, ready } = useAuth();
   const staffNumericId = user?.id ?? null;
@@ -92,8 +126,26 @@ export default function MarkAttendancePage() {
   const [summary, setSummary] = useState<StaffSelfSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [marking, setMarking] = useState(false);
+  const [markingStatus, setMarkingStatus] = useState<MarkableStatus | null>(null);   // the option being saved
   const [closingShift, setClosingShift] = useState(false);
   const [appreciationMsg, setAppreciationMsg] = useState<string | null>(null);
+
+  // One-off effects after an action: today's pill pops (just marked) and
+  // today's history row flashes (marked, shift closed or resumed).
+  const [popPill, setPopPill] = useState(false);
+  const [flashRow, setFlashRow] = useState(false);
+  useEffect(() => {
+    if (!popPill) return;
+    const t = setTimeout(() => setPopPill(false), 1100);
+    return () => clearTimeout(t);
+  }, [popPill]);
+  useEffect(() => {
+    if (!flashRow) return;
+    const t = setTimeout(() => setFlashRow(false), 1300);
+    return () => clearTimeout(t);
+  }, [flashRow]);
+  // Which way the history list slides in after a month change.
+  const [slideFrom, setSlideFrom] = useState<"left" | "right" | null>(null);
 
   // Auto-dismiss appreciation dialog after 6 seconds
   useEffect(() => {
@@ -183,9 +235,12 @@ export default function MarkAttendancePage() {
     async (status: MarkableStatus) => {
       if (marking || !staffNumericId) return;
       setMarking(true);
+      setMarkingStatus(status);
       try {
         const updated = await attendanceApi.selfMarkStaff(staffNumericId, status);
         setTodayRecord(updated);
+        setPopPill(true);
+        setFlashRow(true);
         const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
         if (isCurrentMonth) {
           setMonthRecords((prev) => [...prev.filter((r) => r.date !== today), updated]);
@@ -195,6 +250,7 @@ export default function MarkAttendancePage() {
         showError(err instanceof Error ? err.message : "Failed to mark attendance.");
       } finally {
         setMarking(false);
+        setMarkingStatus(null);
       }
     },
     [marking, staffNumericId, today, viewYear, viewMonth, currentYear, currentMonth]
@@ -206,6 +262,7 @@ export default function MarkAttendancePage() {
     try {
       const updated = await attendanceApi.closeShiftStaff(staffNumericId);
       setTodayRecord(updated);
+      setFlashRow(true);
       const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
       if (isCurrentMonth) {
         setMonthRecords((prev) => [...prev.filter((r) => r.date !== today), updated]);
@@ -225,6 +282,7 @@ export default function MarkAttendancePage() {
     try {
       const updated = await attendanceApi.resumeShiftStaff(staffNumericId);
       setTodayRecord(updated);
+      setFlashRow(true);
       const isCurrentMonth = viewYear === currentYear && viewMonth === currentMonth;
       if (isCurrentMonth) {
         setMonthRecords((prev) => [...prev.filter((r) => r.date !== today), updated]);
@@ -259,11 +317,13 @@ export default function MarkAttendancePage() {
     viewYear < currentYear || (viewYear === currentYear && viewMonth < currentMonth);
 
   function prevMonth() {
+    setSlideFrom("left");
     if (viewMonth === 1) { setViewYear((y) => y - 1); setViewMonth(12); }
     else setViewMonth((m) => m - 1);
   }
   function nextMonth() {
     if (!canGoNext) return;
+    setSlideFrom("right");
     if (viewMonth === 12) { setViewYear((y) => y + 1); setViewMonth(1); }
     else setViewMonth((m) => m + 1);
   }
@@ -296,6 +356,14 @@ export default function MarkAttendancePage() {
   const ringColor = pct >= 75 ? "#10b981" : pct >= 50 ? "#f59e0b" : "#ef4444";
   const standingLabel = pct >= 75 ? "Good standing" : pct >= 50 ? "Needs improvement" : "Below threshold";
   const standingDot = pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-400" : "bg-red-500";
+
+  // The figures count up to their value (hooks — so before the early returns).
+  const pctShown = useCountUp(pct);
+  const presentShown = useCountUp(summary?.present ?? 0);
+  const absentShown = useCountUp(summary?.absent ?? 0);
+  const onLeaveShown = useCountUp(summary?.onLeave ?? 0);
+  const holidaysShown = useCountUp(summary?.holidays ?? 0);
+  const notMarkedShown = useCountUp(summary?.notMarked ?? 0);
 
   if (!ready) return null;
 
@@ -359,7 +427,7 @@ export default function MarkAttendancePage() {
                   <p className="text-xs text-gray-500">{monthLabel}</p>
                 </div>
               </div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+              <span key={standingLabel} className="ma-fade inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
                 <i className={`h-1.5 w-1.5 rounded-full ${standingDot}`} />
                 {standingLabel}
               </span>
@@ -379,14 +447,14 @@ export default function MarkAttendancePage() {
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center">
-                  <span className="text-2xl font-semibold leading-none tabular-nums text-gray-900">{pct}%</span>
+                  <span className="text-2xl font-semibold leading-none tabular-nums text-gray-900">{pctShown}%</span>
                   <span className="mt-1 text-[10px] text-gray-400">attendance</span>
                 </div>
               </div>
 
               <div className="flex min-w-[260px] flex-1 flex-col gap-3">
                 <p className="text-sm text-gray-500">
-                  <span className="font-medium tabular-nums text-gray-900">{summary?.present ?? 0}</span> present out of{" "}
+                  <span className="font-medium tabular-nums text-gray-900">{presentShown}</span> present out of{" "}
                   <span className="font-medium tabular-nums text-gray-900">{summary?.workingDays ?? 26}</span> working days
                 </p>
 
@@ -399,11 +467,11 @@ export default function MarkAttendancePage() {
 
                 <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-5">
                   {[
-                    { label: "Present", count: summary?.present ?? 0, dot: "bg-emerald-500" },
-                    { label: "Absent", count: summary?.absent ?? 0, dot: "bg-red-500" },
-                    { label: "On leave", count: summary?.onLeave ?? 0, dot: "bg-amber-400" },
-                    { label: "Holiday", count: summary?.holidays ?? 0, dot: "bg-blue-500" },
-                    { label: "Unmarked", count: summary?.notMarked ?? 0, dot: "bg-gray-300" },
+                    { label: "Present", count: presentShown, dot: "bg-emerald-500" },
+                    { label: "Absent", count: absentShown, dot: "bg-red-500" },
+                    { label: "On leave", count: onLeaveShown, dot: "bg-amber-400" },
+                    { label: "Holiday", count: holidaysShown, dot: "bg-blue-500" },
+                    { label: "Unmarked", count: notMarkedShown, dot: "bg-gray-300" },
                   ].map(({ label, count, dot }) => (
                     <div key={label} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
                       <p className="flex items-center gap-1.5 text-[11px] text-gray-500">
@@ -450,12 +518,26 @@ export default function MarkAttendancePage() {
             </div>
 
             {historyLoading ? (
-              <div className="py-12 text-center text-sm text-gray-400">Loading…</div>
+              <div className="divide-y divide-gray-100" aria-busy="true" aria-label="Loading attendance history">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex animate-pulse items-center gap-4 px-5 py-3.5" style={{ animationDelay: `${i * 80}ms` }}>
+                    <div className="w-14 shrink-0 space-y-1.5">
+                      <div className="h-3.5 w-12 rounded bg-gray-200" />
+                      <div className="h-2.5 w-8 rounded bg-gray-100" />
+                    </div>
+                    <div className="h-3 flex-1 rounded bg-gray-100" />
+                    <div className="h-6 w-20 rounded-full bg-gray-100" />
+                  </div>
+                ))}
+              </div>
             ) : historyDates.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-400">No records yet this month</div>
             ) : (
-              <div className="custom-scrollbar max-h-[380px] divide-y divide-gray-100 overflow-y-auto">
-                {historyDates.map((dateStr) => {
+              <div
+                key={`${viewYear}-${viewMonth}`}
+                className={`custom-scrollbar max-h-[380px] divide-y divide-gray-100 overflow-y-auto ${slideFrom === "right" ? "ma-from-right" : slideFrom === "left" ? "ma-from-left" : ""}`}
+              >
+                {historyDates.map((dateStr, rowIndex) => {
                   const rec = recordByDate.get(dateStr);
                   const isToday = dateStr === today;
                   const d = new Date(dateStr + "T00:00:00");
@@ -470,8 +552,12 @@ export default function MarkAttendancePage() {
                   return (
                     <div
                       key={dateStr}
-                      className={`flex items-center gap-4 px-5 py-3 transition-colors ${isToday ? "bg-blue-50/60" : "hover:bg-gray-50/70"}`}
+                      className={`ma-row relative flex items-center gap-4 px-5 py-3 transition-colors ${isToday ? "bg-blue-50/60" : "hover:bg-gray-50/70"}`}
+                      style={{ animationDelay: `${Math.min(rowIndex, 10) * 35}ms` }}
                     >
+                      {isToday && flashRow && (
+                        <span className="ma-flash pointer-events-none absolute inset-0 bg-emerald-100/70 dark:bg-emerald-400/10" aria-hidden="true" />
+                      )}
                       <div className="w-14 shrink-0">
                         <p className="text-sm font-medium tabular-nums text-gray-900">{dayNum} {monthShort}</p>
                         <p className="text-[11px] text-gray-400">{dayName}</p>
@@ -545,7 +631,10 @@ export default function MarkAttendancePage() {
             <p className="mt-1 text-lg font-medium text-gray-900">{todayLabelShort}</p>
             <div className="mt-3 flex justify-center">
               {todayLoaded ? (
-                <span className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${STATUS_PILL[displayTodayStatus]}`}>
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${STATUS_PILL[displayTodayStatus]} ${popPill ? "ma-pop" : ""}`}
+                  style={popPill ? ({ "--ma-pulse": STATUS_PULSE[displayTodayStatus] ?? "transparent" } as React.CSSProperties) : undefined}
+                >
                   <i className={`h-2 w-2 rounded-full ${STATUS_DOT[displayTodayStatus]}`} />
                   {displayTodayStatus}
                 </span>
@@ -606,32 +695,47 @@ export default function MarkAttendancePage() {
             {/* Not marked yet → three choices — available every day, holiday or not */}
             {todayStatus === "Not Marked" && !adminOverridden && (
               <>
-                <p className="mb-0.5 text-[11px] uppercase tracking-wider text-gray-400">How is your day?</p>
-                {ACTIONS.map(({ status, label, hint, icon: Icon, chip, hover }) => (
-                  <button
-                    key={status}
-                    type="button"
-                    disabled={marking || !todayLoaded}
-                    onClick={() => handleMark(status)}
-                    className={`group flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${hover} disabled:pointer-events-none disabled:opacity-50`}
-                  >
-                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${chip}`}>
-                      <Icon className="h-[18px] w-[18px]" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-gray-900">{label}</span>
-                      <span className="block text-xs text-gray-500">{hint}</span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-gray-500" />
-                  </button>
-                ))}
+                <p className="ma-enter mb-0.5 text-[11px] uppercase tracking-wider text-gray-400">How is your day?</p>
+                {ACTIONS.map(({ status, label, hint, icon: Icon, chip, hover }, i) => {
+                  // While one option saves, it stays lit (with a spinner) and the others fade back.
+                  const saving = markingStatus === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled={marking || !todayLoaded}
+                      onClick={() => handleMark(status)}
+                      style={{ animationDelay: `${60 + i * 50}ms` }}
+                      className={`ma-enter group flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${hover} disabled:pointer-events-none ${
+                        saving ? "border-gray-300 shadow-md" : markingStatus ? "border-gray-200 opacity-40" : "border-gray-200 disabled:opacity-50"
+                      }`}
+                    >
+                      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${chip}`}>
+                        <Icon className="h-[18px] w-[18px]" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-gray-900">{label}</span>
+                        <span className="block text-xs text-gray-500">{saving ? "Saving…" : hint}</span>
+                      </span>
+                      {saving ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-gray-500" />
+                      )}
+                    </button>
+                  );
+                })}
               </>
             )}
 
             {/* Present → shift times + close shift */}
             {todayStatus === "Present" && (
-              <div className="flex flex-col gap-2.5">
-                <p className="text-[11px] uppercase tracking-wider text-gray-400">
+              <div className="ma-enter flex flex-col gap-2.5">
+                <p
+                  key={checkOutTime ? "done" : adminOverridden ? "admin" : "live"}
+                  className="ma-fade flex items-center gap-2 text-[11px] uppercase tracking-wider text-gray-400"
+                >
+                  {!checkOutTime && !adminOverridden && <span className="ma-live" aria-hidden="true" />}
                   {checkOutTime ? "Shift complete" : adminOverridden ? "Marked by admin" : "Shift in progress"}
                 </p>
 
@@ -649,7 +753,7 @@ export default function MarkAttendancePage() {
 
                 {checkOutTime ? (
                   <>
-                    <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                    <div className="ma-enter flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
                       <span className="flex items-center gap-2 text-sm text-gray-600">
                         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-600">
                           <LogOut className="h-4 w-4" />
@@ -674,9 +778,9 @@ export default function MarkAttendancePage() {
                         type="button"
                         disabled={resumingShift}
                         onClick={handleResumeShift}
-                        className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-emerald-600 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
+                        className="ma-enter mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-emerald-600 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-emerald-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
                       >
-                        <LogIn className="h-4 w-4" />
+                        {resumingShift ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
                         {resumingShift ? "Resuming…" : "Still working — resume shift"}
                       </button>
                     )}
@@ -688,7 +792,7 @@ export default function MarkAttendancePage() {
                     onClick={handleCloseShift}
                     className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-blue-600 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-[1.02] hover:bg-blue-700 hover:shadow-md disabled:pointer-events-none disabled:opacity-60"
                   >
-                    <LogOut className="h-4 w-4" />
+                    {closingShift ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
                     {closingShift ? "Closing…" : "Close shift"}
                   </button>
                 ) : null}
@@ -697,7 +801,7 @@ export default function MarkAttendancePage() {
 
             {/* Absent / On Leave → locked */}
             {(todayStatus === "Absent" || todayStatus === "On Leave") && (
-              <div className="flex flex-col items-center gap-1 rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-6 text-center">
+              <div className="ma-enter flex flex-col items-center gap-1 rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-6 text-center">
                 <p className="text-sm font-medium text-gray-900">Attendance recorded</p>
                 <p className="text-xs text-gray-500">No further action is needed for today.</p>
               </div>

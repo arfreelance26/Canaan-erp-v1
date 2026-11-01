@@ -223,6 +223,11 @@ def _run_schema_migrations():
         "ALTER TABLE trips ADD COLUMN recheck_returned BOOLEAN NOT NULL DEFAULT FALSE",
         # Terminal "closed, verified by Audit" state — see models.py for the full state machine
         "ALTER TABLE trips ADD COLUMN audit_verified BOOLEAN NOT NULL DEFAULT FALSE",
+        # Flag for Re-Verification — a user sends a verified trip back to the Auditor
+        "ALTER TABLE trips ADD COLUMN reverification_remark TEXT NULL",
+        "ALTER TABLE trips ADD COLUMN reverification_by VARCHAR(100) NULL",
+        "ALTER TABLE trips ADD COLUMN reverification_at DATETIME NULL",
+        "ALTER TABLE trip_recheck_events MODIFY COLUMN event ENUM('Flagged','Returned for Review','Verified','Verification Undone','Flagged for Re-Verification') NOT NULL",
         # Advance paid to driver verification by Yard Supervisor
         "ALTER TABLE trips ADD COLUMN advance_verified TINYINT(1) NULL",
         "ALTER TABLE trips ADD COLUMN advance_verification_remark TEXT NULL",
@@ -326,6 +331,28 @@ def _run_schema_migrations():
         "ALTER TABLE emi_records ADD COLUMN emi_cost_per_km DECIMAL(10,6) NOT NULL DEFAULT 0",
         # branches — cleaner batta daily fee
         "ALTER TABLE branches ADD COLUMN cleaner_batta_fee DECIMAL(10,2) DEFAULT 0",
+        # Cleaner Batta Fee per container type — every type starts at the branch's
+        # single fee, and each past fee in the history likewise.
+        "ALTER TABLE branches ADD COLUMN cleaner_batta_fee_20ft DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN cleaner_batta_fee_40ft DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN cleaner_batta_fee_2x20 DECIMAL(10,2) NULL",
+        "ALTER TABLE branches ADD COLUMN cleaner_batta_fee_open_load DECIMAL(10,2) NULL",
+        "UPDATE branches SET cleaner_batta_fee_20ft = cleaner_batta_fee WHERE cleaner_batta_fee_20ft IS NULL",
+        "UPDATE branches SET cleaner_batta_fee_40ft = cleaner_batta_fee WHERE cleaner_batta_fee_40ft IS NULL",
+        "UPDATE branches SET cleaner_batta_fee_2x20 = cleaner_batta_fee WHERE cleaner_batta_fee_2x20 IS NULL",
+        "UPDATE branches SET cleaner_batta_fee_open_load = cleaner_batta_fee WHERE cleaner_batta_fee_open_load IS NULL",
+        "ALTER TABLE branch_cleaner_batta_fee_history ADD COLUMN cleaner_batta_fee_20ft DECIMAL(10,2) NULL",
+        "ALTER TABLE branch_cleaner_batta_fee_history ADD COLUMN cleaner_batta_fee_40ft DECIMAL(10,2) NULL",
+        "ALTER TABLE branch_cleaner_batta_fee_history ADD COLUMN cleaner_batta_fee_2x20 DECIMAL(10,2) NULL",
+        "ALTER TABLE branch_cleaner_batta_fee_history ADD COLUMN cleaner_batta_fee_open_load DECIMAL(10,2) NULL",
+        "UPDATE branch_cleaner_batta_fee_history SET cleaner_batta_fee_20ft = cleaner_batta_fee WHERE cleaner_batta_fee_20ft IS NULL",
+        "UPDATE branch_cleaner_batta_fee_history SET cleaner_batta_fee_40ft = cleaner_batta_fee WHERE cleaner_batta_fee_40ft IS NULL",
+        "UPDATE branch_cleaner_batta_fee_history SET cleaner_batta_fee_2x20 = cleaner_batta_fee WHERE cleaner_batta_fee_2x20 IS NULL",
+        "UPDATE branch_cleaner_batta_fee_history SET cleaner_batta_fee_open_load = cleaner_batta_fee WHERE cleaner_batta_fee_open_load IS NULL",
+        # driver_attendance — vehicle type picked when marking the day
+        "ALTER TABLE driver_attendance ADD COLUMN container_specification VARCHAR(30) NULL",
+        # driver_attendance — advance paid when marking the day On Workshop
+        "ALTER TABLE driver_attendance ADD COLUMN workshop_advance DECIMAL(10,2) NULL",
         # branches — On Workshop batta daily fee
         "ALTER TABLE branches ADD COLUMN workshop_batta_fee DECIMAL(10,2) DEFAULT 0",
         # running_cost_truck_cost_per_km — the five parts of each saved Cost/Km
@@ -587,6 +614,27 @@ def _run_schema_migrations():
         "ALTER TABLE tyre_inventory ADD CONSTRAINT fk_tyre_inventory_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (id) ON DELETE SET NULL",
         "CREATE INDEX ix_tyre_inventory_vendor_id ON tyre_inventory (vendor_id)",
         "ALTER TABLE tyre_inventory ADD COLUMN invoice_number VARCHAR(100) NULL",
+        # Retread → Move to Inventory: Vendor/Individual, invoice and proof per retread
+        "ALTER TABLE tyre_movement_events ADD COLUMN retread_by_type VARCHAR(12) NULL",
+        "ALTER TABLE tyre_movement_events ADD COLUMN vendor_id INT NULL",
+        "ALTER TABLE tyre_movement_events ADD CONSTRAINT fk_tyre_movement_vendor FOREIGN KEY (vendor_id) REFERENCES vendors (id) ON DELETE SET NULL",
+        "CREATE INDEX ix_tyre_movement_events_vendor_id ON tyre_movement_events (vendor_id)",
+        "ALTER TABLE tyre_movement_events ADD COLUMN invoice_number VARCHAR(100) NULL",
+        "ALTER TABLE tyre_movement_events ADD COLUMN invoice_date DATE NULL",
+        "ALTER TABLE tyre_movement_events ADD COLUMN proof_file_name VARCHAR(255) NULL",
+        "ALTER TABLE tyre_movement_events ADD COLUMN proof_size_bytes INT NULL",
+        "ALTER TABLE tyre_movement_events ADD COLUMN proof_data LONGBLOB NULL",
+        "ALTER TABLE tyre_movement_events ADD COLUMN proof_uploaded_by VARCHAR(100) NULL",
+        # Freeze Account (Our Staff)
+        "ALTER TABLE staff ADD COLUMN frozen_at DATETIME NULL",
+        "ALTER TABLE staff ADD COLUMN frozen_by_name VARCHAR(100) NULL",
+        "ALTER TABLE staff ADD COLUMN frozen_reason TEXT NULL",
+        # AdBlue is a Cost/KM part again (from Truck's AdBlue History); Manual
+        # has its old per-truck AdBlue inputs back.
+        "ALTER TABLE running_cost_truck_metrics ADD COLUMN adblue_consume_l_per_km DECIMAL(10,6) NULL",
+        "ALTER TABLE running_cost_truck_metrics ADD COLUMN adblue_manufacturer_id INT NULL",
+        "ALTER TABLE running_cost_truck_metrics ADD COLUMN adblue_per_km DECIMAL(10,6) NULL",
+        "ALTER TABLE running_cost_truck_cost_per_km ADD COLUMN adblue_per_km DECIMAL(12,6) NULL",
         "ALTER TABLE tyre_inventory ADD COLUMN invoice_date DATE NULL",
         "ALTER TABLE tyre_inventory ADD COLUMN proof_file_name VARCHAR(255) NULL",
         "ALTER TABLE tyre_inventory ADD COLUMN proof_size_bytes INT NULL",
@@ -1029,7 +1077,9 @@ def _run_staff_history_migrations():
             "ALTER TABLE trips ADD COLUMN use_custom_customer BOOLEAN NOT NULL DEFAULT 0",
             "ALTER TABLE trips ADD COLUMN custom_customer_name VARCHAR(200) NULL",
             "ALTER TABLE deletion_approval_requests MODIFY COLUMN resource_type "
-            "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory','CfsYardEntry') NOT NULL",
+            "ENUM('FuelLog','MaintenanceRecord','Trip','Driver','Truck','Staff','Customer','Vendor','TyreInventory','CfsYardEntry','AdBlueLog') NOT NULL",
+            "ALTER TABLE edit_approval_requests MODIFY COLUMN resource_type "
+            "ENUM('Customer','Vendor','BookingSheet','TripSheet','TripData','Trip','FuelLog','Driver','Truck','MaintenanceRecord','AdBlueLog') NOT NULL",
             "ALTER TABLE tyre_movement_events ADD COLUMN retread_done_by VARCHAR(200) NULL",
             "ALTER TABLE activity_minutes ADD COLUMN first_at DATETIME NULL",
             "ALTER TABLE activity_minutes ADD COLUMN last_at DATETIME NULL",
@@ -1574,24 +1624,10 @@ _release_drivers_of_removed_trucks()
 
 
 def _drop_adblue_tables():
-    """AdBlue was taken out of the Running Cost Calculator, so its AdBlue
-    price table and per-truck AdBlue columns are dropped. Truck's Adblue History (adblue_logs and
-    adblue_log_edit_events) is a live page again and is never touched here.
-    A no-op once the table is gone."""
+    """Manual AdBlue briefly used a typed km per litre; it's back to the old
+    L/km + AdBlue Details inputs, so that column is dropped. A no-op once gone."""
     with engine.begin() as conn:
-        for table in ("running_cost_adblue_entries",):
-            try:
-                existed = conn.execute(text(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :t"
-                ), {"t": table}).scalar()
-                if existed:
-                    conn.execute(text(f"DROP TABLE `{table}`"))
-                    print(f"[migration] dropped {table} (AdBlue removed from the Running Cost Calculator)")
-            except Exception as e:
-                print(f"[migration] couldn't drop {table}: {e}")
-        # The calculator's old per-truck AdBlue inputs — unused since AdBlue
-        # left the calculator; dropped so nothing can hook them up again.
-        for column in ("adblue_consume_l_per_km", "adblue_manufacturer_id", "adblue_per_km"):
+        for column in ("adblue_km_per_litre",):
             try:
                 existed = conn.execute(text(
                     "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() "
@@ -1614,9 +1650,10 @@ def _seed_batta_fee_history():
     branches with no history yet."""
     from database import SessionLocal
     from datetime import datetime as _dt
-    for model, attr, label in (
-        (models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", "Cleaner Batta"),
-        (models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", "Workshop Batta"),
+    from routers.branches import CLEANER_FEE_ATTRS
+    for model, attrs, label in (
+        (models.BranchCleanerBattaFeeHistory, CLEANER_FEE_ATTRS, "Cleaner Batta"),
+        (models.BranchWorkshopBattaFeeHistory, ("workshop_batta_fee",), "Workshop Batta"),
     ):
         db = SessionLocal()
         try:
@@ -1626,7 +1663,7 @@ def _seed_batta_fee_history():
                 if b.id in have:
                     continue
                 db.add(model(
-                    branch_id=b.id, **{attr: getattr(b, attr) or 0},
+                    branch_id=b.id, **{a: getattr(b, a) or 0 for a in attrs},
                     effective_from=_dt(2000, 1, 1), changed_by_name="System (starting fee)",
                 ))
                 added += 1
@@ -1729,6 +1766,8 @@ def _repair_trip_recheck_state():
             last_flag = next((e for e in reversed(history) if e.event == "Flagged"), None)
             if last == "Verified":
                 want = (False, False, True, None)
+            elif last in ("Verification Undone", "Flagged for Re-Verification"):
+                want = (False, False, False, None)
             elif last == "Returned for Review":
                 want = (True, True, False, (last_flag.remark if last_flag else trip.flagged_remark))
             else:  # Flagged
@@ -2239,6 +2278,8 @@ from routers import maintenance_requests as _maintenance_requests_router
 app.include_router(_maintenance_requests_router.router, dependencies=AUTH)
 from routers import todos as _todos_router
 app.include_router(_todos_router.router, dependencies=AUTH)
+from routers import documents as _documents_router
+app.include_router(_documents_router.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)
@@ -2317,6 +2358,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str = ""):
     # specific participants instead of broadcasting them to everyone.
     _sub = payload.get("sub")
     ws_user_id = int(_sub) if _sub and _sub != "admin" else None
+    if ws_user_id is not None:
+        from database import SessionLocal
+        _db = SessionLocal()
+        try:
+            _row = _db.query(models.Staff.token_version, models.Staff.frozen_at).filter(models.Staff.id == ws_user_id).first()
+        finally:
+            _db.close()
+        if _row is not None and (_row.frozen_at is not None or int(payload.get("tv", 0)) != int(_row.token_version)):
+            await websocket.close(code=1008)  # frozen / sessions ended
+            return
 
     # Was this user already online (another tab/device) before this socket?
     # Only the *first* socket flips them online and the *last* one flips them
@@ -2354,3 +2405,31 @@ async def websocket_endpoint(websocket: WebSocket, token: str = ""):
                 "chat_presence",
                 {"userId": ws_user_id, "online": False, "lastSeen": time.time()},
             )
+
+
+def _backfill_retread_vendors():
+    """Retreads saved before the Vendor/Individual switch only have a name,
+    always picked from Our Vendors: mark them Vendor and link the vendor when
+    exactly one current vendor has that name (two vendors can share a name —
+    then it stays unlinked, the name is kept). A no-op once done."""
+    with engine.begin() as conn:
+        try:
+            rows = conn.execute(text(
+                "SELECT id, retread_done_by FROM tyre_movement_events "
+                "WHERE event = 'Moved to Inventory' AND retread_by_type IS NULL AND retread_done_by IS NOT NULL"
+            )).fetchall()
+            if not rows:
+                return
+            by_name: dict[str, list[int]] = {}
+            for vid, name in conn.execute(text("SELECT id, name FROM vendors WHERE deleted_at IS NULL")).fetchall():
+                by_name.setdefault((name or "").strip().upper(), []).append(vid)
+            for eid, name in rows:
+                match = by_name.get((name or "").strip().upper(), [])
+                conn.execute(text("UPDATE tyre_movement_events SET retread_by_type = 'Vendor', vendor_id = :v WHERE id = :e"),
+                             {"v": match[0] if len(match) == 1 else None, "e": eid})
+            print(f"[migration] retread vendor backfill: {len(rows)} retread(s) marked Vendor")
+        except Exception as e:
+            print(f"[migration] retread vendor backfill skipped: {e}")
+
+
+_backfill_retread_vendors()

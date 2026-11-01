@@ -9,6 +9,10 @@ export type DriverAttendanceRecord = {
   status: AttendanceStatus;
   checkInTime: string | null;
   markedAt: string | null;
+  /** The vehicle type picked for this day — sets its Cleaner Batta Fee. */
+  containerSpecification?: string | null;
+  /** The advance entered when marking the day On Workshop. */
+  workshopAdvance?: number | null;
 };
 
 export type StaffAttendanceRecord = {

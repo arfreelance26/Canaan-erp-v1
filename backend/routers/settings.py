@@ -137,6 +137,32 @@ def get_attendance_mandatory(db: Session = Depends(get_db), user: TokenUser = De
     return AttendanceMandatory(mandatory=settings_store.attendance_marking_mandatory(db))
 
 
+class DriverAdvanceMax(BaseModel):
+    amount: float
+
+
+@router.get("/driver-advance-max", response_model=DriverAdvanceMax)
+def get_driver_advance_max(db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    return DriverAdvanceMax(amount=settings_store.driver_advance_max(db))
+
+
+@router.put("/driver-advance-max", response_model=DriverAdvanceMax)
+def update_driver_advance_max(
+    payload: DriverAdvanceMax,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: TokenUser = Depends(require_roles()),
+):
+    if not 0 < payload.amount <= 10000000:
+        raise HTTPException(400, "Max amount must be more than 0 and at most 1,00,00,000.")
+    settings_store.set_driver_advance_max(db, payload.amount)
+    record_audit(
+        "attendance.driver_advance_max", request=request, actor_id=user.id, actor_name=user.name,
+        actor_role=user.role, detail=f"driver_advance_max={payload.amount}",
+    )
+    return DriverAdvanceMax(amount=settings_store.driver_advance_max(db))
+
+
 @router.put("/attendance-mandatory", response_model=AttendanceMandatory)
 def update_attendance_mandatory(
     payload: AttendanceMandatory,

@@ -21,16 +21,16 @@ const MAINTENANCE_BY_TYPES = ["Vendor", "Individual"] as const;
 
 // Proof of Payment/Invoice: one PDF or image, 15 MB. The server re-checks the
 // real bytes; SVG is refused there (it can carry scripts), so it's left out here.
-const PROOF_MAX_BYTES = 15 * 1024 * 1024;
+export const PROOF_MAX_BYTES = 15 * 1024 * 1024;
 const PROOF_IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp|tiff?|heic|heif|avif|ico)$/;
 
-function proofAccepted(file: File): boolean {
+export function proofAccepted(file: File): boolean {
   const name = file.name.toLowerCase();
   if (file.type === "image/svg+xml" || name.endsWith(".svg")) return false;
   return file.type === "application/pdf" || name.endsWith(".pdf") || file.type.startsWith("image/") || PROOF_IMAGE_EXT.test(name);
 }
 
-function fileSize(bytes: number): string {
+export function fileSize(bytes: number): string {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
@@ -261,6 +261,7 @@ export function TyreInventoryFormDialog({
           <Field label="Purchase Date" required>
             <DatePickerInput
               value={form.purchaseDate}
+              clearable={false}
               onChange={(v) => update("purchaseDate", v)}
               className={inputClass}
             />

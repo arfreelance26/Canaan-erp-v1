@@ -26,6 +26,8 @@ type CompensationTableProps = {
   onCleanerBatta?: (person: CompensationPerson) => void;
   /** Driver Compensation only: opens the driver's Workshop Batta Record. */
   onWorkshopBatta?: (person: CompensationPerson) => void;
+  /** Driver Compensation only: opens the driver's Workshop Advance Record. */
+  onWorkshopAdvance?: (person: CompensationPerson) => void;
   photoLabel: string;
   nameLabel: string;
   idLabel?: string;
@@ -40,6 +42,7 @@ export function CompensationTable({
   onHaltPay,
   onCleanerBatta,
   onWorkshopBatta,
+  onWorkshopAdvance,
   photoLabel,
   nameLabel,
   idLabel,
@@ -134,6 +137,15 @@ export function CompensationTable({
                       className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
                     >
                       Workshop Batta Record
+                    </button>
+                  )}
+                  {onWorkshopAdvance && (
+                    <button
+                      type="button"
+                      onClick={() => onWorkshopAdvance(person)}
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-100"
+                    >
+                      Workshop Advance Record
                     </button>
                   )}
                   {isAdmin && onViewHistory && (

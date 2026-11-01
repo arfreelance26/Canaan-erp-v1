@@ -10,6 +10,7 @@ from websocket_manager import emit
 from security import get_current_user, require_roles, TokenUser
 import settings_store
 import activity_tracker
+from routers.finance import CLEANER_BATTA_STATUSES, WORKSHOP_BATTA_STATUSES
 
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -181,8 +182,34 @@ def list_driver_attendance(
     return q.order_by(models.DriverAttendance.date.asc(), models.DriverAttendance.id.asc()).all()
 
 
+def _vehicle_type_for(status: str, container_specification: Optional[str]) -> Optional[str]:
+    """A day that earns Cleaner Batta needs a vehicle type (it sets the fee);
+    any other day has none."""
+    if status not in CLEANER_BATTA_STATUSES:
+        return None
+    if not container_specification:
+        raise HTTPException(400, "Select which vehicle the driver is driving.")
+    return container_specification
+
+
+def _workshop_advance_for(db: Session, status: str, amount: Optional[float]) -> Optional[float]:
+    """An On Workshop day needs the advance paid (0 if none), up to the max
+    amount set by the Admins; any other day has none."""
+    if status not in WORKSHOP_BATTA_STATUSES:
+        return None
+    if amount is None:
+        raise HTTPException(400, "Enter the advance paid to the driver.")
+    max_amount = settings_store.driver_advance_max(db)
+    if not 0 <= amount <= max_amount:
+        raise HTTPException(400, f"Advance paid must be between 0 and {max_amount:g}.")
+    return round(amount, 2)
+
+
 @router.post("/drivers", response_model=schemas.DriverAttendanceOut, status_code=201, dependencies=[Depends(require_roles("Commercial Manager", "Assistant Commercial Manager"))])
 def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session = Depends(get_db), user: TokenUser = Depends(get_current_user)):
+    values = {**payload.model_dump(),
+              "container_specification": _vehicle_type_for(payload.status, payload.container_specification),
+              "workshop_advance": _workshop_advance_for(db, payload.status, payload.workshop_advance)}
     late_entry_exists = db.query(models.DriverAttendanceLateEntryLog).filter(
         models.DriverAttendanceLateEntryLog.date == payload.date
     ).first() is not None
@@ -194,7 +221,7 @@ def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session 
     driver = db.query(models.Driver).filter(models.Driver.driver_id == payload.driver_id).first()
     driver_name = driver.name if driver else payload.driver_id
     if existing:
-        for field, value in payload.model_dump().items():
+        for field, value in values.items():
             setattr(existing, field, value)
         db.add(models.DriverAttendanceEditEvent(
             driver_id=payload.driver_id, driver_name=driver_name, date=payload.date,
@@ -204,7 +231,7 @@ def mark_driver_attendance(payload: schemas.DriverAttendanceCreate, db: Session 
         db.refresh(existing)
         emit("attendance_updated", {})
         return existing
-    record = models.DriverAttendance(**payload.model_dump())
+    record = models.DriverAttendance(**values)
     db.add(record)
     db.add(models.DriverAttendanceEditEvent(
         driver_id=payload.driver_id, driver_name=driver_name, date=payload.date,
@@ -227,6 +254,8 @@ def update_driver_attendance(record_id: int, payload: schemas.DriverAttendanceUp
     _assert_editable_date(record.date, user, bypass_lock=late_entry_exists)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, field, value)
+    record.container_specification = _vehicle_type_for(record.status, payload.container_specification)
+    record.workshop_advance = _workshop_advance_for(db, record.status, payload.workshop_advance)
     record.marked_at = datetime.now(timezone.utc)
     driver = db.query(models.Driver).filter(models.Driver.driver_id == record.driver_id).first()
     db.add(models.DriverAttendanceEditEvent(

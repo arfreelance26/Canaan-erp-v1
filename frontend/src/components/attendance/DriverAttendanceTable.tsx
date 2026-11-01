@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Truck, PauseCircle, CalendarOff, Wrench, Loader2, Plus, Pencil, Trash2, X, MessageSquare, AlertCircle } from "lucide-react";
+import { Truck, PauseCircle, CalendarOff, Wrench, Loader2, Plus, Pencil, Trash2, X, Check, MessageSquare, AlertCircle } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
+import { Dialog } from "@/components/ui/Dialog";
+import { DecimalInput } from "@/components/ui/DecimalInput";
+import { Field, inputClassLower } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
 import { getAttendanceForDate } from "@/lib/attendance-data";
 import { formatDateTime } from "@/lib/format-date";
-import { confirmDelete } from "@/lib/swal";
-import { attendanceApi } from "@/lib/api";
+import { confirmDelete, showError } from "@/lib/swal";
+import { attendanceApi, securityApi } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { HALT_CONTAINER_TYPES, containerLabel } from "@/lib/halt-pay";
 import type { Driver } from "@/types/driver";
 import type { DriverAttendanceRecord, DriverAttendanceRemark } from "@/types/attendance";
 
@@ -20,7 +25,7 @@ type DriverAttendanceTableProps = {
   remarks: DriverAttendanceRemark[];
   date: string;
   readOnly?: boolean;
-  onMark: (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => Promise<void>;
+  onMark: (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string, containerSpecification?: string, workshopAdvance?: number) => Promise<void>;
   onAddRemark: (driverId: string, remark: string) => Promise<DriverAttendanceRemark | undefined>;
   onUpdateRemark: (id: string, remark: string) => Promise<void>;
   onDeleteRemark: (id: string) => Promise<void>;
@@ -35,17 +40,127 @@ const statusOptions = [
   { value: "On Workshop", label: "On Workshop",   icon: Wrench,       activeClass: "border-purple-500 bg-purple-50 text-purple-700" },
 ];
 
+/** These earn Cleaner Batta, so marking one asks for the vehicle type first. */
+const VEHICLE_TYPE_STATUSES = ["On Trip", "On Halt"];
+
+/** Marking this asks for the advance paid to the driver first. */
+const ADVANCE_STATUS = "On Workshop";
+
+// ── Max advance pill (Admins click it to change the limit) ────────────────────
+function MaxAdvancePill({ amount, onChange }: { amount: number | null; onChange: (amount: number) => void }) {
+  const { user } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const label = `Max Amount: ${amount?.toLocaleString("en-IN") ?? "…"}`;
+  const pillClass = "inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold whitespace-nowrap text-blue-700";
+
+  async function save() {
+    const value = Number(text);
+    if (!text || !(value > 0)) { showError("Enter a max amount above 0."); return; }
+    setSaving(true);
+    try {
+      onChange(await securityApi.updateDriverAdvanceMax(value));
+      setEditing(false);
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update the max amount.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (user?.softwareDesignation !== "Admin") return <span className={pillClass}>{label}</span>;
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        disabled={amount === null}
+        onClick={() => { setText(String(amount)); setEditing(true); }}
+        title="Change the max amount"
+        className={cn(pillClass, "transition-colors hover:bg-blue-100 disabled:opacity-60")}
+      >
+        {label}
+        <Pencil className="h-3 w-3" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <DecimalInput
+        autoFocus
+        min="0"
+        aria-label="Max Amount"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onWheel={(e) => e.currentTarget.blur()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") { e.stopPropagation(); setEditing(false); }
+        }}
+        className="w-24 rounded-full border border-blue-300 px-3 py-1 text-xs focus:border-blue-500 focus:outline-none"
+      />
+      <button type="button" onClick={save} disabled={saving} aria-label="Save max amount"
+        className="rounded-full bg-blue-600 p-1 text-white disabled:opacity-50">
+        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+      </button>
+      <button type="button" onClick={() => setEditing(false)} aria-label="Cancel"
+        className="rounded-full border border-gray-200 p-1 text-gray-500 hover:bg-gray-50">
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 // ── Attendance radio group ────────────────────────────────────────────────────
 function AttendanceRadioGroup({
-  driverId, record, onMark, readOnly,
-}: { driverId: string; record: DriverAttendanceRecord | undefined; onMark: DriverAttendanceTableProps["onMark"]; readOnly?: boolean; }) {
+  driverId, driverName, record, onMark, readOnly,
+}: { driverId: string; driverName: string; record: DriverAttendanceRecord | undefined; onMark: DriverAttendanceTableProps["onMark"]; readOnly?: boolean; }) {
   const [saving, setSaving] = useState(false);
+  // The status waiting for its vehicle type (the dialog is open while set).
+  const [askStatus, setAskStatus] = useState<string | null>(null);
+  const [askAdvance, setAskAdvance] = useState(false);
+  const [advance, setAdvance] = useState("");
+  const [maxAdvance, setMaxAdvance] = useState<number | null>(null);
   const current = record?.status ?? "Not Marked";
+  const vehicleSpec = record?.containerSpecification ?? null;
+  const vehicleLabel = containerLabel(vehicleSpec);
+  const savedAdvance = record?.workshopAdvance ?? null;
 
-  async function handleSelect(status: string) {
-    if (status === current || saving || readOnly) return;
+  async function mark(status: string, containerSpecification?: string, workshopAdvance?: number) {
     setSaving(true);
-    try { await onMark(driverId, record, status); } finally { setSaving(false); }
+    try { await onMark(driverId, record, status, containerSpecification, workshopAdvance); } finally { setSaving(false); }
+  }
+
+  function handleSelect(status: string) {
+    if (status === current || saving || readOnly) return;
+    if (VEHICLE_TYPE_STATUSES.includes(status)) setAskStatus(status);
+    else if (status === ADVANCE_STATUS) openAdvance();
+    else mark(status);
+  }
+
+  function openAdvance() {
+    setAdvance(savedAdvance === null ? "" : String(savedAdvance));
+    setMaxAdvance(null);
+    setAskAdvance(true);
+    securityApi.getDriverAdvanceMax().then(setMaxAdvance).catch(() => {
+      setAskAdvance(false);
+      showError("Couldn't load the max amount. Please try again.");
+    });
+  }
+
+  function handleAdvance(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAskAdvance(false);
+    const amount = Number(advance);
+    if (!(current === ADVANCE_STATUS && amount === savedAdvance)) mark(ADVANCE_STATUS, undefined, amount);
+  }
+
+  function handleVehicle(spec: string) {
+    const status = askStatus;
+    setAskStatus(null);
+    if (status && !(status === current && spec === vehicleSpec)) mark(status, spec);
   }
 
   return (
@@ -67,7 +182,111 @@ function AttendanceRadioGroup({
           </label>
         );
       })}
+      {VEHICLE_TYPE_STATUSES.includes(current) && (vehicleLabel || !readOnly) && (
+        <button
+          type="button"
+          disabled={saving || readOnly}
+          onClick={() => setAskStatus(current)}
+          title={readOnly ? undefined : "Change the vehicle type"}
+          className="rounded-full border border-dashed border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {vehicleLabel ?? "Set type"}
+        </button>
+      )}
+      {current === ADVANCE_STATUS && (savedAdvance !== null || !readOnly) && (
+        <button
+          type="button"
+          disabled={saving || readOnly}
+          onClick={openAdvance}
+          title={readOnly ? undefined : "Change the advance paid"}
+          className="rounded-full border border-dashed border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {savedAdvance === null ? "Set advance" : `Advance ₹${savedAdvance.toLocaleString("en-IN")}`}
+        </button>
+      )}
       {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+      <Dialog
+        open={askStatus !== null}
+        onClose={() => setAskStatus(null)}
+        title="Which Vehicle is the Driver driving today?"
+        className="sm:max-w-md"
+      >
+        <p className="mb-3 text-sm text-gray-500">{driverName} · {askStatus}</p>
+        <div className="grid grid-cols-2 gap-3">
+          {HALT_CONTAINER_TYPES.map((t) => (
+            <button
+              key={t.spec}
+              type="button"
+              onClick={() => handleVehicle(t.spec)}
+              className={cn(
+                "rounded-xl border px-4 py-4 text-sm font-semibold transition-colors",
+                t.spec === vehicleSpec
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/50",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </Dialog>
+      <Dialog
+        open={askAdvance}
+        onClose={() => setAskAdvance(false)}
+        title="Advance Paid to the Driver"
+        className="sm:max-w-lg"
+        headerRight={<MaxAdvancePill amount={maxAdvance} onChange={setMaxAdvance} />}
+      >
+        <form onSubmit={handleAdvance} className="flex flex-col gap-5">
+          <div className="dk-inset flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50 to-white text-purple-600 shadow-sm">
+              <Wrench className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-gray-900">{driverName}</p>
+              <p className="text-xs text-gray-500">Driver</p>
+            </div>
+            <span className="shrink-0 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700">
+              {ADVANCE_STATUS}
+            </span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Field label="Advance Paid" required>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-lg font-semibold text-gray-400">₹</span>
+                <DecimalInput
+                  autoFocus
+                  required
+                  min="0"
+                  max={maxAdvance ?? undefined}
+                  value={advance}
+                  onChange={(e) => setAdvance(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0.00"
+                  className={cn(inputClassLower, "h-12 pl-9 text-lg font-semibold")}
+                />
+              </div>
+            </Field>
+            <p className="text-xs text-gray-500">Enter 0 if no advance was paid.</p>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setAskAdvance(false)}
+              className="btn-interactive rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={maxAdvance === null}
+              className="btn-interactive rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }
@@ -320,7 +539,7 @@ export function DriverAttendanceTable({ drivers, records, remarks, date, readOnl
                 <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{driver.driverId}</td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{driver.name}</td>
                 <td className="px-4 py-3">
-                  <AttendanceRadioGroup driverId={driver.driverId} record={record || undefined} onMark={onMark} readOnly={readOnly} />
+                  <AttendanceRadioGroup driverId={driver.driverId} driverName={driver.name} record={record || undefined} onMark={onMark} readOnly={readOnly} />
                 </td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDateTime(record?.markedAt)}</td>
                 <td className="px-4 py-3">

@@ -657,9 +657,25 @@ export default function TripVerificationPage() {
   }
 
 
+  // Date range reference depends on status:
+  //  - Invoiced trips → invoice_date (when the invoice was raised)
+  //  - Otherwise (Pending etc.) → scheduledDate (the trip date), since there is no invoice date yet
+  function inReportRange(t: Trip) {
+    if (!fromMs && !toMs) return true;
+    let ms: number | null = null;
+    const inv = invoiceData.get(t.id);
+    if (invoicedIds.has(t.id) && inv?.invoice_date) {
+      ms = new Date(inv.invoice_date as string).getTime();
+    } else if (t.scheduledDate) {
+      ms = new Date(t.scheduledDate + "T00:00:00").getTime();
+    }
+    if (ms === null) return true;
+    return !(fromMs && ms < fromMs) && !(toMs && ms > toMs);
+  }
+
   const allFiltered = useMemo(
-    () => trips.filter((t) => tripMatchesSearch(t, searchQuery, trucks, drivers, customers)),
-    [trips, searchQuery, trucks, drivers, customers],
+    () => trips.filter((t) => inReportRange(t) && tripMatchesSearch(t, searchQuery, trucks, drivers, customers)),
+    [trips, searchQuery, trucks, drivers, customers, dateFrom, dateTo, invoiceData, invoicedIds],
   );
 
   const filteredTrips = useMemo(() => allFiltered
@@ -775,7 +791,12 @@ export default function TripVerificationPage() {
         <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <div title="Invoice Date — scopes the View report to trips invoiced in this range">
-            <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+            <DateRangePill
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1); }}
+              onToChange={(v) => { setDateTo(v); setPage(1); }}
+            />
           </div>
           <button
             type="button"
@@ -1294,23 +1315,7 @@ export default function TripVerificationPage() {
           if (modalStatusFilter === "Verified" && (!verifiedIds.has(t.id) || invoicedIds.has(t.id) || waivedIds.has(t.id))) return false;
           if (modalStatusFilter === "Invoiced" && !invoicedIds.has(t.id)) return false;
           if (modalStatusFilter === "Waived Invoice" && !(waivedIds.has(t.id) && !invoicedIds.has(t.id))) return false;
-          // Date filter reference depends on status:
-          //  - Invoiced trips → filter by invoice_date (when the invoice was raised)
-          //  - Otherwise (Pending etc.) → filter by scheduledDate (the trip date), since there is no invoice date yet
-          if (fromMs || toMs) {
-            let ms: number | null = null;
-            const inv = invoiceData.get(t.id);
-            if (invoicedIds.has(t.id) && inv?.invoice_date) {
-              ms = new Date(inv.invoice_date as string).getTime();
-            } else if (t.scheduledDate) {
-              ms = new Date(t.scheduledDate + "T00:00:00").getTime();
-            }
-            if (ms !== null) {
-              if (fromMs && ms < fromMs) return false;
-              if (toMs && ms > toMs) return false;
-            }
-          }
-          return true;
+          return inReportRange(t);
         });
         const tripStatus = (t: Trip) =>
           invoicedIds.has(t.id) ? "Invoiced"

@@ -8,8 +8,8 @@ import { showSuccess, showError } from "@/lib/swal";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { CheckCircle, XCircle, Clock, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake, Boxes, History } from "lucide-react";
-import { formatDate, formatDateTime } from "@/lib/format-date";
+import { CheckCircle, XCircle, Clock, Droplets, Fuel, Wrench, Truck, User, Calendar, FileText, Layers, IdCard, Trash2, Users, Building2, Handshake, Boxes, History } from "lucide-react";
+import { formatDate, formatDateTime, inDateRange } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
@@ -87,6 +87,7 @@ function RequestCard({
   // Only a real fuel log gets the fuel styling — an unrecognised/blank type
   // used to fall through to it, making every broken request look like one.
   const isFuel = req.resourceType === "FuelLog";
+  const isAdBlue = req.resourceType === "AdBlueLog";
   // A truck request is either a sale ("Sell Truck") or a delete.
   const isSale = isTruck && d?.action === "sell";
   const sale = (isSale ? d?.sale : null) as { sold_date?: string; sold_odometer?: number; note?: string | null } | null;
@@ -109,6 +110,8 @@ function RequestCard({
     ? "bg-orange-100 text-orange-600"
     : isFuel
     ? "bg-red-100 text-red-600"
+    : isAdBlue
+    ? "bg-cyan-100 text-cyan-600"
     : "bg-gray-100 text-gray-500";
   const BadgeIcon = isTrip
     ? Truck
@@ -128,6 +131,8 @@ function RequestCard({
     ? Boxes
     : isFuel
     ? Fuel
+    : isAdBlue
+    ? Droplets
     : FileText;
 
   return (
@@ -250,12 +255,13 @@ function RequestCard({
                 </>
               ) : (
                 <>
-                  <LogDetailRow label="Fuel Filled" value={d.litres ? `${Number(d.litres).toFixed(1)} L` : null} />
+                  <LogDetailRow label={isAdBlue ? "AdBlue Filled" : "Fuel Filled"} value={d.litres ? `${Number(d.litres).toFixed(1)} L` : null} />
                   <LogDetailRow label="Price / Litre" value={d.price_per_litre ? `₹${Number(d.price_per_litre).toFixed(2)}` : null} />
                   <LogDetailRow label="Total Cost" value={d.total_cost ? `₹${Number(d.total_cost).toFixed(2)}` : null} />
                   <LogDetailRow label="Distance" value={d.distance && Number(d.distance) > 0 ? `${Number(d.distance).toLocaleString()} km` : null} />
                   <LogDetailRow label="Mileage" value={d.mileage && Number(d.mileage) > 0 ? `${Number(d.mileage).toFixed(2)} km/L` : null} />
                   {!!d.fuel_station && <LogDetailRow label="Fuel Station" value={String(d.fuel_station)} />}
+                  {!!d.supplier && <LogDetailRow label="Filling Location" value={String(d.supplier)} />}
                 </>
               )}
               <LogDetailRow label="User Modified" value={String(d.entered_by_name ?? "")} />
@@ -329,6 +335,7 @@ export default function DeletionApprovalsPage() {
   }
 
   useEffect(() => { load(); }, [filter]);
+  const datedRequests = requests.filter((r) => inDateRange(r.createdAt, exportFrom, exportTo));
   useWebSocketEvent("deletion_approval_created", load);
   useWebSocketEvent("deletion_approval_updated", load);
 
@@ -421,7 +428,7 @@ export default function DeletionApprovalsPage() {
       </div>
 
       {/* Content */}
-      {requests.length === 0 ? (
+      {datedRequests.length === 0 ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center">
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
             <Calendar className="h-5 w-5 text-gray-400" />
@@ -431,7 +438,7 @@ export default function DeletionApprovalsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {requests.map((req) => (
+          {datedRequests.map((req) => (
             <RequestCard
               key={req.id}
               req={req}

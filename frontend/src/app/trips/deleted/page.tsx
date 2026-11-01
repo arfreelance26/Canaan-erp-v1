@@ -14,7 +14,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { confirmDelete, showSuccess, showError } from "@/lib/swal";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Admin"];
 
@@ -160,14 +160,15 @@ export default function DeletedTripsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return requests;
-    return requests.filter(
+    const dated = requests.filter((r) => inDateRange(r.approvedAt, exportFrom, exportTo));
+    if (!q) return dated;
+    return dated.filter(
       (r) =>
         r.requestedByName.toLowerCase().includes(q) ||
         r.resourceName.toLowerCase().includes(q) ||
         (r.approvedByName ?? "").toLowerCase().includes(q)
     );
-  }, [requests, search]);
+  }, [requests, search, exportFrom, exportTo]);
 
   if (!isAllowed) return null;
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;
@@ -202,7 +203,7 @@ export default function DeletedTripsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch value={search} onChange={setSearch} placeholder="Search by trip, requester, or approver" />
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <div title="Deleted On — scopes the View report to trips deleted in this range">
+          <div title="Deleted On — filters the list and the View report to trips deleted in this range">
             <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
           </div>
           <DownloadExcelButton
@@ -221,7 +222,7 @@ export default function DeletedTripsPage() {
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <Trash2 className="h-8 w-8 text-gray-200" />
             <p className="text-sm font-medium text-gray-500">
-              {requests.length === 0 ? "No trips have been deleted." : "No deleted trips match this search."}
+              {requests.length === 0 ? "No trips have been deleted." : "No deleted trips match these filters."}
             </p>
           </div>
         ) : (

@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { trucksApi, fuelLogsApi, type FuelLogEditEventRow } from "@/lib/api";
+import type { FuelLog } from "@/types/fuel-log";
 import type { Truck } from "@/types/truck";
 import { showSuccess, showError } from "@/lib/swal";
 import { FuelHistoryTable } from "@/components/maintenance/FuelHistoryTable";
@@ -17,7 +18,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<FuelLogEditEventRow["event"], typeof Plus> = {
   "Log Created": Plus,
@@ -47,6 +48,7 @@ export default function FuelHistoryPage() {
   const [selectedTruck, setSelectedTruck] = useState<Truck | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
+  const [fuelLogs, setFuelLogs] = useState<FuelLog[] | null>(null);
   const [exportTo, setExportTo] = useState("");
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<FuelLogEditEventRow[]>([]);
@@ -83,6 +85,13 @@ export default function FuelHistoryPage() {
       .catch(() => {});
   }, [refreshKey]);
 
+  // The logs are only needed to work out which trucks fuelled in the date range.
+  const hasRange = Boolean(exportFrom || exportTo);
+  useEffect(() => {
+    if (!hasRange) return;
+    fuelLogsApi.listFuelLogs().then(setFuelLogs).catch(() => {});
+  }, [hasRange, refreshKey]);
+
   useAutoRefresh(() => setRefreshKey(k => k + 1), 5000);
 
   useWebSocketEvent("fuel_updated", () => setRefreshKey(k => k + 1));
@@ -107,7 +116,10 @@ export default function FuelHistoryPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={5} />;
 
-  const filteredTrucks = trucks.filter((t) => !searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const datedTruckIds = hasRange && fuelLogs
+    ? new Set(fuelLogs.filter((l) => inDateRange(l.date, exportFrom, exportTo)).map((l) => l.truckId))
+    : null;
+  const filteredTrucks = trucks.filter((t) => (!datedTruckIds || datedTruckIds.has(t.id)) && (!searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase())));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

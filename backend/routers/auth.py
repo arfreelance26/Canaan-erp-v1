@@ -175,6 +175,12 @@ def login(
 
     _clear_failures(lockout_key)
 
+    if member.frozen_at is not None:
+        record_audit("login.failure", outcome="failure", request=request,
+                     actor_id=member.id, actor_name=member.name, detail="account frozen")
+        _activity_login(member.id, member.name, member.software_designation, request, ok=False)
+        raise HTTPException(status_code=403, detail="Your account has been frozen. Please contact the Admin.")
+
     # ── Device lock (staff only; hardcoded admin returned earlier and skips this) ──
     # Gated by DEVICE_LOCK_ENABLED in .env — when off, no binding/cookie/lockout.
     # Each account may bind up to N devices: regular staff N=1, Admins

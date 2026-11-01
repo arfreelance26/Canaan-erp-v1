@@ -20,7 +20,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, inDateRange } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<TyreFitmentEventRow["event"], typeof ArrowDownToLine> = {
   "Tyre Fitted": ArrowDownToLine,
@@ -63,7 +63,7 @@ export default function TyreManagementPage() {
       .finally(() => setEditHistoryLoading(false));
   }
 
-  const { setTyres, setFitmentRecords } = useTyreInventory();
+  const { tyres, fitmentRecords, setTyres, setFitmentRecords } = useTyreInventory();
   const [refreshKey, setRefreshKey] = useState(0);
   const [rangeConfigMap, setRangeConfigMap] = useState<Record<string, number | null>>({});
 
@@ -109,7 +109,12 @@ export default function TyreManagementPage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
 
-  const filteredTrucks = trucks.filter((t) => !searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()));
+  // With a date range: trucks currently fitted with a tyre bought in that range.
+  const datedTyreIds = new Set(tyres.filter((t) => inDateRange(t.purchaseDate, exportFrom, exportTo)).map((t) => t.id));
+  const datedTruckIds = exportFrom || exportTo
+    ? new Set(fitmentRecords.filter((f) => !f.removedDate && datedTyreIds.has(f.tyreId)).map((f) => f.truckId))
+    : null;
+  const filteredTrucks = trucks.filter((t) => (!datedTruckIds || datedTruckIds.has(t.id)) && (!searchQuery || t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) || t.truckId?.toLowerCase().includes(searchQuery.toLowerCase())));
 
   return (
     <div className="animate-stagger flex flex-col gap-6">

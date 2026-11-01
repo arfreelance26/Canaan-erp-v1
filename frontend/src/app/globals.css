@@ -1549,3 +1549,86 @@ i.fc-key-dot.fc-maint-dot { background: var(--fc-maint); }
   .founding-sweep, .founding-shine { animation: none; }
   .founding-sweep { display: none; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Mark Attendance (app/attendance/mark) — small, quick motion only.
+ * ───────────────────────────────────────────────────────────────────────────── */
+/* A panel / row that has just appeared (the shift panel, "Checked out", …).
+   `backwards`, not `both`: once in, the element's own opacity/transform rule again. */
+.ma-enter { animation: ma-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes ma-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* A label that has just changed ("Shift complete", the standing badge) */
+.ma-fade { animation: ma-fade 300ms ease backwards; }
+@keyframes ma-fade { from { opacity: 0; } }
+
+/* Today's status pill right after marking: a small pop and one soft ring in
+   the status colour (--ma-pulse, set inline). */
+.ma-pop { position: relative; animation: ma-pop 450ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both; }
+.ma-pop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  animation: ma-pulse 900ms ease-out 150ms both;
+  pointer-events: none;
+}
+@keyframes ma-pop {
+  0% { transform: scale(0.85); opacity: 0.4; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes ma-pulse {
+  from { box-shadow: 0 0 0 0 var(--ma-pulse); }
+  to { box-shadow: 0 0 0 14px transparent; }
+}
+
+/* Today's history row after it changed — one light wash that fades away */
+.ma-flash { animation: ma-flash 1.2s ease-out both; }
+@keyframes ma-flash {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* "Shift in progress" — a live dot that gently breathes */
+.ma-live {
+  position: relative;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #10b981;
+}
+.ma-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: ma-breathe 2.2s ease-out infinite;
+}
+@keyframes ma-breathe {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Attendance history — rows fade in one after another; a month change slides
+   the list in from the side you moved towards. */
+.ma-row { animation: ma-row 340ms ease-out backwards; }
+@keyframes ma-row {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.ma-from-right { animation: ma-slide-r 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+.ma-from-left { animation: ma-slide-l 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes ma-slide-r { from { opacity: 0; transform: translateX(24px); } }
+@keyframes ma-slide-l { from { opacity: 0; transform: translateX(-24px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ma-enter, .ma-fade, .ma-pop, .ma-pop::after, .ma-flash, .ma-live::after,
+  .ma-row, .ma-from-right, .ma-from-left { animation: none !important; }
+  .ma-flash { opacity: 0; }
+}

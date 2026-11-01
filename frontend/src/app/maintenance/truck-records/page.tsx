@@ -12,7 +12,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, inDateRange } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 
@@ -96,18 +96,23 @@ export default function TruckMaintenanceRecordPage() {
   useWebSocketEvent("maintenance_updated", () => setRefreshKey((k) => k + 1));
   useWebSocketEvent("truck_updated", () => setRefreshKey((k) => k + 1));
 
+  const datedRecords = useMemo(
+    () => records.filter((r) => inDateRange(r.date, exportFrom, exportTo)),
+    [records, exportFrom, exportTo],
+  );
+
   const recordsByTruck = useMemo(() => {
     const map = new Map<string, MaintenanceRecord[]>();
-    for (const r of records) {
+    for (const r of datedRecords) {
       const list = map.get(r.truckId) ?? [];
       list.push(r);
       map.set(r.truckId, list);
     }
     for (const list of map.values()) list.sort((a, b) => b.date.localeCompare(a.date));
     return map;
-  }, [records]);
+  }, [datedRecords]);
 
-  const totalCost = useMemo(() => records.reduce((sum, r) => sum + n(r.cost), 0), [records]);
+  const totalCost = useMemo(() => datedRecords.reduce((sum, r) => sum + n(r.cost), 0), [datedRecords]);
 
   function toggle(truckId: string) {
     setExpanded((prev) => {
@@ -132,8 +137,9 @@ export default function TruckMaintenanceRecordPage() {
   // record-only match auto-expands the card so the matching entry is visible
   // right away instead of making the auditor open it themselves.
   const visibleTrucks = useMemo(() => {
-    if (!q) return [...trucks].sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber));
-    return trucks
+    const inRange = exportFrom || exportTo ? trucks.filter((t) => recordsByTruck.has(t.id)) : trucks;
+    if (!q) return [...inRange].sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber));
+    return inRange
       .filter((t) => {
         const recordMatch = (recordsByTruck.get(t.id) ?? []).some(
           (r) =>
@@ -144,7 +150,7 @@ export default function TruckMaintenanceRecordPage() {
         return truckDetailsMatch(t) || recordMatch;
       })
       .sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber));
-  }, [trucks, q, recordsByTruck]);
+  }, [trucks, q, recordsByTruck, exportFrom, exportTo]);
 
   useEffect(() => {
     if (!q) return;
@@ -221,7 +227,7 @@ export default function TruckMaintenanceRecordPage() {
         <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm dark:border-gray-300/20 dark:bg-gray-200/40">
           <Wrench className="h-8 w-8 text-gray-200" />
           <p className="text-sm font-medium text-gray-500">
-            {trucks.length === 0 ? "No trucks yet." : "No trucks or records match this search."}
+            {trucks.length === 0 ? "No trucks yet." : "No trucks or records match these filters."}
           </p>
         </div>
       ) : (

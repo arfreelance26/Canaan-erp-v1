@@ -115,7 +115,7 @@ export function SheetTrackingCard({
           >
             <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-gray-500">{d.label}</span>
             <div className="w-[92px]">
-              <DatePickerInput value={d.value} onChange={d.onChange} placeholder="" dateFormat="dd MMM yyyy" />
+              <DatePickerInput value={d.value} onChange={d.onChange} placeholder="" dateFormat="dd MMM yyyy" clearable={false} />
             </div>
             {d.value && (
               <button

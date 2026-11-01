@@ -18,7 +18,7 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { isEmiCompleted, isEmiOverdue } from "@/lib/emi-schedule";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, overlapsDateRange } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -88,16 +88,21 @@ export default function EmiTrackingPage() {
 
   useWebSocketEvent("finance_updated", () => setRefreshKey(k => k + 1));
 
+  const datedRecords = useMemo(
+    () => records.filter((r) => overlapsDateRange(r.emiStartDate, r.emiEndDate, exportFrom, exportTo)),
+    [records, exportFrom, exportTo],
+  );
+
   const filteredBySearch = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    if (!query) return records;
-    return records.filter(
+    if (!query) return datedRecords;
+    return datedRecords.filter(
       (r) =>
         r.emiName?.toLowerCase().includes(query) ||
         r.truckRegistration?.toLowerCase().includes(query) ||
         r.bankName?.toLowerCase().includes(query)
     );
-  }, [records, searchQuery]);
+  }, [datedRecords, searchQuery]);
 
   // An EMI is "Completed" once Amount Paid has caught up to Total EMI
   // Payable (EMI Amount × Tenure) — not based on the EMI End Date field.
@@ -122,12 +127,12 @@ export default function EmiTrackingPage() {
   );
 
   const summary = useMemo(() => {
-    const unfilteredActive = records.filter((r) => !isEmiCompleted(r));
-    const unfilteredCompleted = records.filter((r) => isEmiCompleted(r));
-    const unfilteredOverdue = records.filter((r) => isEmiOverdue(r));
+    const unfilteredActive = datedRecords.filter((r) => !isEmiCompleted(r));
+    const unfilteredCompleted = datedRecords.filter((r) => isEmiCompleted(r));
+    const unfilteredOverdue = datedRecords.filter((r) => isEmiOverdue(r));
     const monthlyTotal = unfilteredActive.reduce((sum, r) => sum + (Number(r.emiAmount) || 0), 0);
     return { active: unfilteredActive.length, completed: unfilteredCompleted.length, overdue: unfilteredOverdue.length, monthlyTotal };
-  }, [records]);
+  }, [datedRecords]);
 
   function handleAdd() {
     setEditingRecord(null);

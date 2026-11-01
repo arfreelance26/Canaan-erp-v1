@@ -50,11 +50,24 @@ def test_file_upload_download_delete(api, client, auth):
 @pytest.mark.parametrize("path,key", [
     ("/settings/device-lock", None), ("/settings/max-shift-hours", "hours"),
     ("/settings/auto-close-enabled", "enabled"), ("/settings/attendance-mandatory", "mandatory"),
+    ("/settings/driver-advance-max", "amount"),
 ])
 def test_settings_round_trip(api, api_as, path, key):
     current = api.get(path)
     api_as("Accounts").put(path, json=current, expect=403)
     assert api.put(path, json=current) == current
+
+
+def test_driver_advance_max(api, api_as):
+    path = "/settings/driver-advance-max"
+    assert api.get(path) == {"amount": 500}
+    assert api_as("Commercial Manager").get(path) == {"amount": 500}
+    api_as("Commercial Manager").put(path, json={"amount": 750}, expect=403)
+    api.put(path, json={"amount": 0}, expect=400)
+    api.put(path, json={"amount": -1}, expect=400)
+    assert api.put(path, json={"amount": 750.5}) == {"amount": 750.5}
+    assert api_as("Commercial Manager").get(path) == {"amount": 750.5}
+    api.put(path, json={"amount": 500})
 
 
 def test_device_lock_reset_all(api):
@@ -185,3 +198,51 @@ def test_backups(api, api_as, path):
     res = api.get(path)
     assert res.content
     api_as("Accounts").get(path, expect=403)
+
+
+def test_freeze_and_unfreeze_staff(api, api_as, client, db):
+    import settings_store
+    settings_store.set_chat_owner_view_password(db, "pytest-freeze-pass")
+    password = "Pytest#" + secrets.token_hex(6)
+    person = create_staff(api, password=password)
+    sid = person["id"]
+    login = {"username": person["username"], "password": password}
+    token = client.post("/auth/login", json=login).json()["access_token"]
+    body = {"reason": "Left the company", "owner_password": "pytest-freeze-pass"}
+
+    api_as("Accounts").post(f"/staff/{sid}/freeze", json=body, expect=403)
+    api.post(f"/staff/{sid}/freeze", json={**body, "reason": "  "}, expect=400)
+    api.post(f"/staff/{sid}/freeze", json={**body, "owner_password": "wrong"}, expect=403)
+    api.post(f"/staff/{sid}/unfreeze", json=body, expect=409)  # not frozen yet
+    api.post("/staff/999999/freeze", json=body, expect=404)
+
+    frozen = api.post(f"/staff/{sid}/freeze", json=body)
+    assert frozen["frozen_at"] and frozen["frozen_reason"] == "Left the company"
+    api.post(f"/staff/{sid}/freeze", json=body, expect=409)  # only once
+    assert client.post("/auth/login", json=login).status_code == 403
+    assert client.get("/trucks", headers={"Authorization": f"Bearer {token}"}).status_code == 401  # session ended
+
+    api_as("Accounts").post(f"/staff/{sid}/unfreeze", json=body, expect=403)
+    api.post(f"/staff/{sid}/unfreeze", json={**body, "owner_password": "wrong"}, expect=403)
+    unfrozen = api.post(f"/staff/{sid}/unfreeze", json={**body, "reason": "Rejoined"})
+    assert unfrozen["frozen_at"] is None and unfrozen["frozen_reason"] is None
+    assert client.post("/auth/login", json=login).status_code == 200
+    events = api.get("/staff/freeze-events", params={"staff_id": sid})
+    assert [e["event"] for e in events] == ["Unfrozen", "Frozen"]
+
+
+def test_download_document(api, api_as, db):
+    import models
+    driver = create_driver(api)
+    row = db.query(models.Driver).filter_by(driver_id=driver["driver_id"]).first()
+    row.license_blob, row.license_file_name = JPEG, "licence.jpg"
+    db.commit()
+    key = f"dr-{row.id}-license"
+
+    res = api.get(f"/documents/file/{key}")
+    assert res.content == JPEG and res.headers["content-type"].startswith("image/")
+    assert res.headers["x-content-type-options"] == "nosniff" and "licence.jpg" in res.headers["content-disposition"]
+    api_as("Accounts").get(f"/documents/file/{key}", expect=403)  # personal ID documents are Admin only
+    api_as("Maintenance").get(f"/documents/file/{key}", expect=403)  # no access to the page at all
+    for missing in ("dr-999999-license", f"dr-{row.id}-nonsense", "dr-abc", "nope"):
+        api.get(f"/documents/file/{missing}", expect=404)

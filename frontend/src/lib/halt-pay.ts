@@ -14,11 +14,16 @@ import type { TripClosureData } from "@/types/trip-closure";
 
 /** The four container types a trip can have, and which branch fees each uses. */
 export const HALT_CONTAINER_TYPES = [
-  { spec: "20 FT CONTAINER",        label: "20FT",      company: "haltDayFee20ft",     party: "partyHaltFee20ft" },
-  { spec: "40 FT CONTAINER",        label: "40FT",      company: "haltDayFee40ft",     party: "partyHaltFee40ft" },
-  { spec: "2 X 20 FEET CONTAINERS", label: "2×20FT",    company: "haltDayFee2x20",     party: "partyHaltFee2x20" },
-  { spec: "OPEN LOAD CARGO",        label: "Open Load", company: "haltDayFeeOpenLoad", party: "partyHaltFeeOpenLoad" },
-] as const satisfies readonly { spec: string; label: string; company: keyof Branch; party: keyof Branch }[];
+  { spec: "20 FT CONTAINER",        label: "20FT",      company: "haltDayFee20ft",     party: "partyHaltFee20ft",     cleaner: "cleanerBattaFee20ft" },
+  { spec: "40 FT CONTAINER",        label: "40FT",      company: "haltDayFee40ft",     party: "partyHaltFee40ft",     cleaner: "cleanerBattaFee40ft" },
+  { spec: "2 X 20 FEET CONTAINERS", label: "2×20FT",    company: "haltDayFee2x20",     party: "partyHaltFee2x20",     cleaner: "cleanerBattaFee2x20" },
+  { spec: "OPEN LOAD CARGO",        label: "Open Load", company: "haltDayFeeOpenLoad", party: "partyHaltFeeOpenLoad", cleaner: "cleanerBattaFeeOpenLoad" },
+] as const satisfies readonly { spec: string; label: string; company: keyof Branch; party: keyof Branch; cleaner: keyof Branch }[];
+
+/** "40 FT CONTAINER" → "40FT"; null when there's no (known) type. */
+export function containerLabel(spec: string | null | undefined): string | null {
+  return HALT_CONTAINER_TYPES.find((t) => t.spec === spec)?.label ?? null;
+}
 
 export type HaltRates = {
   companyRate: number;

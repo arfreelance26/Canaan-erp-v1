@@ -107,13 +107,13 @@ export default function DriverAttendancePage() {
   useWebSocketEvent("driver_updated", () => setRefreshKey(k => k + 1));
 
   const handleMark = useCallback(
-    async (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string) => {
+    async (driverId: string, currentRecord: DriverAttendanceRecord | undefined, status: string, containerSpecification?: string, workshopAdvance?: number) => {
       try {
         let updated: DriverAttendanceRecord;
         if (currentRecord) {
-          updated = await attendanceApi.updateDriver(currentRecord.id, status);
+          updated = await attendanceApi.updateDriver(currentRecord.id, status, containerSpecification, workshopAdvance);
         } else {
-          updated = await attendanceApi.markDriver(driverId, date, status);
+          updated = await attendanceApi.markDriver(driverId, date, status, containerSpecification, workshopAdvance);
         }
         setRecords((prev) => {
           const without = prev.filter((r) => r.id !== updated.id);
@@ -480,7 +480,7 @@ export default function DriverAttendancePage() {
           {/* Day being marked */}
           <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">
             <div className="w-[128px]">
-              <DatePickerInput value={date} onChange={(v) => setDate(v)} />
+              <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} />
             </div>
           </div>
         </div>

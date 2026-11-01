@@ -1,8 +1,10 @@
 "use client";
 
+import { inDateRange } from "@/lib/format-date";
 import { useEffect, useState } from "react";
 import { Truck as TruckIcon, FileText, BarChart3, Activity } from "lucide-react";
-import { trucksApi } from "@/lib/api";
+import { trucksApi, tripsApi } from "@/lib/api";
+import type { Trip } from "@/types/trip";
 import type { Truck } from "@/types/truck";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -25,6 +27,7 @@ export default function TruckRunRecordPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
+  const [trips, setTrips] = useState<Trip[] | null>(null);
   const [exportTo, setExportTo] = useState("");
   const [viewingRecordTruck, setViewingRecordTruck] = useState<Truck | null>(null);
   const [viewingBreakdownTruck, setViewingBreakdownTruck] = useState<Truck | null>(null);
@@ -32,6 +35,13 @@ export default function TruckRunRecordPage() {
   useEffect(() => {
     trucksApi.list().then(setTrucks).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  // The trips are only needed to work out which trucks ran in the date range.
+  const hasRange = Boolean(exportFrom || exportTo);
+  useEffect(() => {
+    if (!hasRange) return;
+    tripsApi.list().then(setTrips).catch(() => {});
+  }, [hasRange]);
 
   function handleViewRecord(truck: Truck) {
     setViewingRecordTruck(truck);
@@ -44,8 +54,13 @@ export default function TruckRunRecordPage() {
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={1} />;
 
   const q = searchQuery.trim().toLowerCase();
+  const datedVehicleIds = hasRange && trips
+    ? new Set(trips.filter((t) => inDateRange(t.assignedDate, exportFrom, exportTo)).map((t) => t.vehicleId))
+    : null;
   const filteredTrucks = trucks.filter(
-    (t) => !q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q)
+    (t) =>
+      (!datedVehicleIds || datedVehicleIds.has(t.truckId)) &&
+      (!q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q))
   );
 
   return (
@@ -80,7 +95,7 @@ export default function TruckRunRecordPage() {
       {filteredTrucks.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm">
           <TruckIcon className="h-8 w-8 text-gray-200" />
-          <p className="text-sm font-medium text-gray-500">{trucks.length === 0 ? "No trucks yet." : "No trucks match this search."}</p>
+          <p className="text-sm font-medium text-gray-500">{trucks.length === 0 ? "No trucks yet." : "No trucks match these filters."}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

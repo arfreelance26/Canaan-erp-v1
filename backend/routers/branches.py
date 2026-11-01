@@ -9,21 +9,27 @@ from security import get_current_user, TokenUser
 # A branch's first fee covers every earlier day too (its history starts here).
 FEE_HISTORY_START = datetime(2000, 1, 1)
 
+# The Cleaner Batta Fees of a branch: the single fee the calculations still use,
+# then one per container type.
+CLEANER_FEE_ATTRS = ("cleaner_batta_fee", "cleaner_batta_fee_20ft", "cleaner_batta_fee_40ft",
+                     "cleaner_batta_fee_2x20", "cleaner_batta_fee_open_load")
+WORKSHOP_FEE_ATTRS = ("workshop_batta_fee",)
 
-def record_fee_change(db: Session, history_model, fee_attr: str, branch, actor_name: str):
+
+def record_fee_change(db: Session, history_model, fee_attrs, branch, actor_name: str):
     """Log a new Cleaner / Workshop Batta Fee from now on — past days keep the
     fee they had. Exception: while the branch has never had a fee (its history
     is only ₹0), the first fee applies to all past days too, so setting it for
     the first time doesn't leave every earlier day at ₹0."""
-    fee = getattr(branch, fee_attr) or 0
+    fees = {a: getattr(branch, a) or 0 for a in fee_attrs}
     hist = db.query(history_model).filter(history_model.branch_id == branch.id).all()
-    if all(float(getattr(h, fee_attr) or 0) == 0 for h in hist):
+    if all(float(getattr(h, a) or 0) == 0 for h in hist for a in fee_attrs):
         for h in hist:
             db.delete(h)
         effective_from = FEE_HISTORY_START
     else:
         effective_from = datetime.now(timezone.utc)
-    db.add(history_model(branch_id=branch.id, **{fee_attr: fee},
+    db.add(history_model(branch_id=branch.id, **fees,
                          effective_from=effective_from, changed_by_name=actor_name))
 
 router = APIRouter(prefix="/branches", tags=["Branches"])
@@ -61,8 +67,8 @@ def create_branch(
     db.add(branch)
     db.commit()
     db.refresh(branch)
-    record_fee_change(db, models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", branch, current_user.name)
-    record_fee_change(db, models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", branch, current_user.name)
+    record_fee_change(db, models.BranchCleanerBattaFeeHistory, CLEANER_FEE_ATTRS, branch, current_user.name)
+    record_fee_change(db, models.BranchWorkshopBattaFeeHistory, WORKSHOP_FEE_ATTRS, branch, current_user.name)
     db.add(models.BranchEditEvent(
         branch_id=branch.id, name=branch.name, event="Branch Created",
         actor_name=current_user.name, actor_role=current_user.role,
@@ -97,7 +103,7 @@ def update_branch(
             "Please refresh the page to get the latest data and try again."
         )
     updates = payload.model_dump(exclude_unset=True, exclude={"client_version"})
-    old_fee = float(branch.cleaner_batta_fee or 0)
+    old_cleaner_fees = {a: float(getattr(branch, a) or 0) for a in CLEANER_FEE_ATTRS}
     old_workshop_fee = float(branch.workshop_batta_fee or 0)
     old_name = branch.name
     for field, value in updates.items():
@@ -117,10 +123,10 @@ def update_branch(
         db.query(models.TruckBranchHistory).filter(models.TruckBranchHistory.to_branch == old_name) \
             .update({models.TruckBranchHistory.to_branch: new_name}, synchronize_session=False)
     # A new Cleaner / Workshop Batta Fee applies from now on; past days keep the old one.
-    if "cleaner_batta_fee" in updates and float(branch.cleaner_batta_fee or 0) != old_fee:
-        record_fee_change(db, models.BranchCleanerBattaFeeHistory, "cleaner_batta_fee", branch, current_user.name)
+    if any(a in updates and float(getattr(branch, a) or 0) != old for a, old in old_cleaner_fees.items()):
+        record_fee_change(db, models.BranchCleanerBattaFeeHistory, CLEANER_FEE_ATTRS, branch, current_user.name)
     if "workshop_batta_fee" in updates and float(branch.workshop_batta_fee or 0) != old_workshop_fee:
-        record_fee_change(db, models.BranchWorkshopBattaFeeHistory, "workshop_batta_fee", branch, current_user.name)
+        record_fee_change(db, models.BranchWorkshopBattaFeeHistory, WORKSHOP_FEE_ATTRS, branch, current_user.name)
     branch.version = (branch.version or 1) + 1
     db.add(models.BranchEditEvent(
         branch_id=branch.id, name=branch.name, event="Branch Edited",

@@ -118,6 +118,11 @@ export type Trip = {
   flaggedRemark?: string;
   recheckReturned?: boolean;
   auditVerified?: boolean;
+  // Set while a verified trip is back with the Auditor via Flag for
+  // Re-Verification (Audit Verified Trips).
+  reverificationRemark?: string;
+  reverificationBy?: string;
+  reverificationAt?: string;
   // Yard Supervisor: advance paid to driver verification
   advanceVerified?: boolean | null;
   advanceVerificationRemark?: string;

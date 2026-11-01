@@ -1,4 +1,5 @@
 import {
+  FolderOpen,
   PartyPopper,
   LayoutDashboard,
   ClipboardCheck,
@@ -49,6 +50,7 @@ import {
   Activity,
   Flag,
   BadgeCheck,
+  Hourglass,
   Monitor,
   Bell,
   type LucideIcon,
@@ -133,9 +135,15 @@ export const sidebarSections: NavSection[] = [
       { label: "Trip Reconciliation", href: "/trips/reconciliation", icon: ClipboardList },
       { label: "Verification & Invoicing", href: "/trips/verification", icon: ClipboardCheck },
       { label: "Trip History", href: "/trips/history", icon: History },
+      { label: "Deleted Trips", href: "/trips/deleted", icon: Trash2 },
+    ],
+  },
+  {
+    title: "Audit Outcomes",
+    items: [
+      { label: "Pending Audit", href: "/trips/pending-audit", icon: Hourglass },
       { label: "Audit Flagged Trips", href: "/trips/flagged", icon: Flag },
       { label: "Audit Verified Trips", href: "/trips/audit-verified", icon: BadgeCheck },
-      { label: "Deleted Trips", href: "/trips/deleted", icon: Trash2 },
     ],
   },
   {
@@ -182,6 +190,7 @@ export const sidebarSections: NavSection[] = [
       { label: "Staff Compensation", href: "/finance/staff-compensation", icon: Banknote },
       { label: "EMI Tracking", href: "/finance/emi-tracking", icon: Landmark },
       { label: "Compliance & Renewals", href: "/maintenance/compliance", icon: ShieldCheck },
+      { label: "Proof and Documents", href: "/finance/documents", icon: FolderOpen },
     ],
   },
   {

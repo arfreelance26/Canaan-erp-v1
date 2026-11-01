@@ -3,9 +3,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   BadgeCheck, Briefcase, Building2, CalendarDays, Cake, Download, Eye, EyeOff, FileText,
-  IdCard, Image as ImageIcon, Laptop, Loader2, Mail, MapPin, Phone, Smartphone, X, ZoomIn,
+  IdCard, Image as ImageIcon, Laptop, Loader2, Lock, LockOpen, Mail, MapPin, Phone, Smartphone, X, ZoomIn,
 } from "lucide-react";
-import { fileUrl } from "@/lib/api";
+import { fileUrl, staffApi, type StaffFreezeEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
 import { FileViewer } from "@/components/ui/FileViewer";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ type Props = {
   downloading: boolean;
   onDownloadPdf: (s: Staff) => void;
   onResetDevice: (staffId: string, deviceId: string, label: string) => void;
+  /** Freeze / Unfreeze Account (Admin) — opens the owner-password dialog. */
+  onFreeze?: (s: Staff) => void;
 };
 
 type Doc = { key: string; label: string; field: string; kind: "image" | "pdf"; filename: string };
@@ -78,11 +80,22 @@ function InfoRow({ icon, label, children }: { icon: ReactNode; label: string; ch
  * profile header, work & personal info, identity, uploaded documents (opened
  * in an in-app viewer, never a new browser tab) and registered devices.
  */
-export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDownloadPdf, onResetDevice }: Props) {
+export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDownloadPdf, onResetDevice, onFreeze }: Props) {
   const [viewing, setViewing] = useState<Doc | null>(null);
   const [showAadhaar, setShowAadhaar] = useState(false);
+  // This staff member's Freeze History (Admin) — reloaded when it's frozen/unfrozen.
+  const [freezeEvents, setFreezeEvents] = useState<StaffFreezeEventRow[] | null>(null);
 
   useEffect(() => { setViewing(null); setShowAadhaar(false); }, [staff?.id]);
+
+  useEffect(() => {
+    if (!staff || !isAdmin) { setFreezeEvents(null); return; }
+    let stale = false;
+    staffApi.listFreezeEvents(staff.id)
+      .then((rows) => { if (!stale) setFreezeEvents(rows); })
+      .catch(() => { if (!stale) setFreezeEvents([]); });
+    return () => { stale = true; };
+  }, [staff?.id, staff?.frozenAt, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!staff) return;
@@ -248,6 +261,73 @@ export function StaffDetailDialog({ staff, onClose, isAdmin, downloading, onDown
                 )}
               </SectionCard>
             </div>
+
+            {/* Account access — Freeze / Unfreeze and this staff member's Freeze History */}
+            {isAdmin && (
+              <div className="mt-4">
+                <SectionCard title="Account Access & Freeze History" icon={<Lock className="h-3.5 w-3.5" />}>
+                  <div className={cn(
+                    "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2.5",
+                    m.frozenAt ? "border-red-200 bg-red-50" : "border-emerald-100 bg-emerald-50/60",
+                  )}>
+                    <div className="min-w-0 text-sm">
+                      {m.frozenAt ? (
+                        <>
+                          <p className="flex items-center gap-1.5 font-semibold text-red-700"><Lock className="h-4 w-4" /> Frozen — can&apos;t log in</p>
+                          <p className="mt-0.5 text-xs text-red-600">
+                            By {m.frozenByName ?? "—"} on {fmtDateTime(m.frozenAt)}{m.frozenReason ? ` · ${m.frozenReason}` : ""}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="flex items-center gap-1.5 font-semibold text-emerald-700"><LockOpen className="h-4 w-4" /> Active — can log in</p>
+                      )}
+                    </div>
+                    {onFreeze && (
+                      <button
+                        type="button"
+                        onClick={() => onFreeze(m)}
+                        className={cn(
+                          "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition",
+                          m.frozenAt ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700",
+                        )}
+                      >
+                        {m.frozenAt ? <LockOpen className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                        {m.frozenAt ? "Unfreeze Account" : "Freeze Account"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    {freezeEvents === null ? (
+                      <p className="py-2 text-center text-xs text-gray-400">Loading history…</p>
+                    ) : freezeEvents.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-center text-xs text-gray-400">
+                        This account has never been frozen.
+                      </p>
+                    ) : (
+                      <ol className="flex flex-col gap-2">
+                        {freezeEvents.map((ev) => (
+                          <li key={ev.id} className="flex items-start gap-2.5 rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                            <span className={cn(
+                              "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
+                              ev.event === "Frozen" ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600",
+                            )}>
+                              {ev.event === "Frozen" ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
+                            </span>
+                            <div className="min-w-0 flex-1 text-sm">
+                              <p className="font-semibold text-gray-800">
+                                {ev.event} <span className="font-normal text-gray-500">by {ev.actorName}{ev.actorRole ? ` (${ev.actorRole})` : ""}</span>
+                              </p>
+                              <p className="whitespace-pre-wrap break-words text-gray-700">{ev.reason}</p>
+                              <p className="text-xs text-gray-400">{fmtDateTime(ev.createdAt)}</p>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                </SectionCard>
+              </div>
+            )}
 
             {/* Documents — previews open in the in-app viewer */}
             <div className="mt-4">

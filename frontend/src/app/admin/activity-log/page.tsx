@@ -577,7 +577,7 @@ export default function ActivityLogPage() {
             )}
           </button>
           <div className="w-40">
-            <DatePickerInput value={day} onChange={(v) => v && changeDay(v)} />
+            <DatePickerInput value={day} onChange={(v) => v && changeDay(v)} clearable={false} />
           </div>
           <button
             type="button"

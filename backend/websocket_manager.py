@@ -73,6 +73,18 @@ class ConnectionManager:
         for ws in dead:
             self.disconnect(ws)
 
+    async def kick_users(self, user_ids, event_type: str, payload: dict | None = None, code: int = 4003):
+        """Tell these users' sockets why, then close them (Freeze Account).
+        Their reconnects are refused by the token-version check in main.py."""
+        await self.send_to_users(user_ids, event_type, payload)
+        for uid in user_ids:
+            for ws in list(self._by_user.get(int(uid), set())):
+                try:
+                    await ws.close(code=code)
+                except Exception:
+                    pass
+                self.disconnect(ws)
+
     async def broadcast(self, event_type: str, payload: dict | None = None):
         if not self.active_connections:
             return
@@ -148,4 +160,17 @@ def emit_to_users(user_ids, event_type: str, payload: dict | None = None) -> Non
         return
     _loop.call_soon_threadsafe(
         lambda: asyncio.ensure_future(manager.send_to_users(recipients, event_type, payload))
+    )
+
+
+def kick_users(user_ids, event_type: str, payload: dict | None = None) -> None:
+    """From a sync route handler: send an event to these users, then close
+    their sockets (see ConnectionManager.kick_users)."""
+    if _loop is None or not _loop.is_running():
+        return
+    recipients = [int(u) for u in user_ids if u is not None]
+    if not recipients:
+        return
+    _loop.call_soon_threadsafe(
+        lambda: asyncio.ensure_future(manager.kick_users(recipients, event_type, payload))
     )

@@ -38,6 +38,24 @@ export type MaintenanceAlertNotif = {
   alertedAt: string;
 };
 
+/** A user sent a verified trip back to the Auditor (Flag for Re-Verification). */
+export type ReverificationNotif = {
+  serverId: number;
+  tripIdStr: string;
+  remark: string;
+  by: string;
+  role: string;
+  driverId: string;
+  alertedAt: string;
+};
+
+export const REVERIFICATION_ALERT_TYPE = "reverification_requested";
+
+/** Opens Driver Based Record on the trip's driver. */
+export function reverificationAlertHref(driverId: string): string {
+  return `/resources/driver-record${driverId ? `?search=${encodeURIComponent(driverId)}` : ""}`;
+}
+
 export const MAINTENANCE_ALERT_TYPES = ["maintenance_due", "maintenance_due_soon"];
 
 /** Where clicking a maintenance alert goes — Commercial Managers can't open Truck Maintenance. */
@@ -52,6 +70,8 @@ type NotificationCtx = {
   kmVarianceAlerts: KmVarianceNotif[];
   maintenanceAlerts: MaintenanceAlertNotif[];
   dismissMaintenanceAlert: (serverId: number) => void;
+  reverificationAlerts: ReverificationNotif[];
+  dismissReverificationAlert: (serverId: number) => void;
   reminders: Reminder[];
   complianceAlertCount: number;
   setComplianceAlertCount: (n: number) => void;
@@ -72,6 +92,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [sheetAlerts, setSheetAlerts] = useState<SheetAlertNotif[]>([]);
   const [kmVarianceAlerts, setKmVarianceAlerts] = useState<KmVarianceNotif[]>([]);
   const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertNotif[]>([]);
+  const [reverificationAlerts, setReverificationAlerts] = useState<ReverificationNotif[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [complianceAlertCount, setComplianceAlertCount] = useState(0);
   const alertsRef = useRef(sheetAlerts);
@@ -81,8 +102,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.softwareDesignation === "Admin";
   // Admin + Commercial Manager get sheet alerts; Accounts additionally gets payment reminders.
+  const isAuditor = user?.softwareDesignation === "Auditor";
   const canReceive =
     isAdmin ||
+    isAuditor ||
     user?.softwareDesignation === "Commercial Manager" ||
     user?.softwareDesignation === "Assistant Commercial Manager" ||
     user?.softwareDesignation === "Accounts" ||
@@ -100,6 +123,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setSheetAlerts([]);
     setKmVarianceAlerts([]);
     setMaintenanceAlerts([]);
+    setReverificationAlerts([]);
     setReminders([]);
     setComplianceAlertCount(0);
   }, [canReceive]);
@@ -111,6 +135,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     // Maintenance alerts already seen by this tab — only newer ones pop a toast.
     let seenMaintenance: Set<number> | null = null;
+    let seenReverification: Set<number> | null = null;
 
     const load = () => {
       notificationsApi
@@ -123,8 +148,32 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           // trip_assigned / trip_closed are shown in the CurrentTripsCard — exclude from sheet alerts
           const TRIP_EVENT_TYPES = new Set(["trip_assigned", "trip_closed"]);
           const maintRows = rows.filter((r) => MAINTENANCE_ALERT_TYPES.includes(r.eventType));
+          const reverificationRows = rows.filter((r) => r.eventType === REVERIFICATION_ALERT_TYPE);
           const sheetRows = rows.filter((r) =>
-            r.eventType !== "km_variance" && !TRIP_EVENT_TYPES.has(r.eventType) && !MAINTENANCE_ALERT_TYPES.includes(r.eventType));
+            r.eventType !== "km_variance" && r.eventType !== REVERIFICATION_ALERT_TYPE && !TRIP_EVENT_TYPES.has(r.eventType) && !MAINTENANCE_ALERT_TYPES.includes(r.eventType));
+
+          const reverification: ReverificationNotif[] = reverificationRows.map((r) => {
+            let m: { remark?: string; by?: string; role?: string; driver_id?: string } = {};
+            try { m = JSON.parse(r.message || "{}"); } catch {}
+            return {
+              serverId: r.id,
+              tripIdStr: r.tripIdStr,
+              remark: m.remark ?? "",
+              by: m.by ?? r.createdBy,
+              role: m.role ?? "",
+              driverId: m.driver_id ?? "",
+              alertedAt: r.createdAt,
+            };
+          });
+          if (seenReverification) {
+            for (const a of reverification) {
+              if (!seenReverification.has(a.serverId)) {
+                showToast(`${a.tripIdStr} — ${a.remark}`, "info", "Sent for Re-Verification");
+              }
+            }
+          }
+          seenReverification = new Set(reverification.map((a) => a.serverId));
+          setReverificationAlerts(reverification);
 
           const maint: MaintenanceAlertNotif[] = maintRows.map((r) => {
             let m: { registration?: string; maintenance_type?: string; remind_at?: number; odometer?: number } = {};
@@ -192,6 +241,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
         })
         .catch(() => {});
+      if (isAuditor) return;
       remindersApi
         .list()
         .then((rows) => {
@@ -223,7 +273,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       unsub();
       window.removeEventListener("focus", onFocus);
     };
-  }, [canReceive]);
+  }, [canReceive, isAuditor]);
 
   const pushSheetAlert = useCallback((alert: Omit<SheetAlertNotif, "alertedAt">) => {
     setSheetAlerts((prev) => {
@@ -273,9 +323,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setMaintenanceAlerts((prev) => prev.filter((a) => a.serverId !== serverId));
   }, []);
 
+  const dismissReverificationAlert = useCallback((serverId: number) => {
+    notificationsApi.markRead(serverId).catch(() => {});
+    setReverificationAlerts((prev) => prev.filter((a) => a.serverId !== serverId));
+  }, []);
+
   return (
     <NotificationContext.Provider
-      value={{ sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
+      value={{ sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
     >
       {children}
     </NotificationContext.Provider>

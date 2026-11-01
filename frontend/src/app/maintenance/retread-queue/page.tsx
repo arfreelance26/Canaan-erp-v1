@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Eye, FileText, Paperclip, RefreshCw, X } from "lucide-react";
 import { tyreApi, vendorsApi } from "@/lib/api";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
+import { FileViewer } from "@/components/ui/FileViewer";
+import { PROOF_MAX_BYTES, proofAccepted, fileSize } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
+import type { Vendor } from "@/types/vendor";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate, formatDateTime } from "@/lib/format-date";
@@ -38,21 +42,48 @@ export default function RetreadQueuePage() {
   const [moving, setMoving] = useState(false);
   const [dataTyreId, setDataTyreId] = useState<string | null>(null);
   const [discardTarget, setDiscardTarget] = useState<TyreInventoryItem | null>(null);
-  const [vendorNames, setVendorNames] = useState<string[]>([]);
-  const [moveDoneBy, setMoveDoneBy] = useState("");
+  // Rethreading Done by — Vendor (Our Vendors, so it shows on the vendor's
+  // View Record) or Individual (a typed name) — plus the invoice and proof.
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [moveByType, setMoveByType] = useState<"Vendor" | "Individual">("Vendor");
+  const [moveVendorId, setMoveVendorId] = useState("");
+  const [moveIndividual, setMoveIndividual] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofError, setProofError] = useState("");
+  const [viewingProof, setViewingProof] = useState(false);
 
   useEffect(() => {
-    // Vendors may share a name, so list each name once (the pick is stored as text).
-    vendorsApi.list().then((vs) => setVendorNames(Array.from(new Set(vs.map((v) => v.name))).sort())).catch(() => {});
+    vendorsApi.list().then(setVendors).catch(() => {});
   }, []);
+  const vendorOptions = vendors
+    .filter((v) => v.status !== "BLACKLISTED" && v.status !== "INACTIVE")
+    .sort((a, b) => a.name.localeCompare(b.name))
+    // Two vendors can share a name — the category tells them apart.
+    .map((v) => ({ value: v.id, label: v.category ? `${v.name} · ${v.category}` : v.name }));
   const [moveError, setMoveError] = useState<string | null>(null);
 
   function openMoveDialog(tyre: TyreInventoryItem) {
     setMoveTarget(tyre);
     setRetreadCostInput("");
     setExpectedRangeInput("");
-    setMoveDoneBy("");
+    setMoveByType("Vendor");
+    setMoveVendorId("");
+    setMoveIndividual("");
+    setInvoiceNumber("");
+    setInvoiceDate("");
+    setProofFile(null);
+    setProofError("");
     setMoveError(null);
+  }
+
+  function pickProof(list: FileList | null) {
+    const file = list?.[0];
+    if (!file) return;
+    if (!proofAccepted(file)) setProofError(`"${file.name}" isn't a PDF or an image.`);
+    else if (file.size > PROOF_MAX_BYTES) setProofError(`"${file.name}" is over 15 MB.`);
+    else { setProofFile(file); setProofError(""); }
   }
 
   async function handleDiscardConfirm(tyre: TyreInventoryItem, reason: string) {
@@ -73,11 +104,16 @@ export default function RetreadQueuePage() {
     const range = parseInt(expectedRangeInput, 10);
     if (isNaN(cost) || cost < 0) return setMoveError("Enter a valid retread cost.");
     if (isNaN(range) || range <= 0) return setMoveError("Enter an expected range greater than zero.");
-    if (!moveDoneBy.trim()) return setMoveError("Select the vendor that did the retreading.");
+    if (moveByType === "Vendor" && !moveVendorId) return setMoveError("Select the vendor that did the retreading.");
+    if (moveByType === "Individual" && !moveIndividual.trim()) return setMoveError("Enter the name of the person who did the retreading.");
     setMoving(true);
     setMoveError(null);
     try {
-      await tyreApi.moveToInventory(moveTarget.id, retreadCostInput, expectedRangeInput, moveDoneBy.trim());
+      await tyreApi.moveToInventory(moveTarget.id, {
+        retreadCost: retreadCostInput, expectedRange: expectedRangeInput,
+        retreadByType: moveByType, vendorId: moveVendorId, retreadDoneBy: moveIndividual,
+        invoiceNumber, invoiceDate, proof: proofFile,
+      });
       setTyres((prev) => prev.filter((t) => t.id !== moveTarget.id));
       setMoveTarget(null);
       showSuccess("Tyre moved back to Tyre Inventory.");
@@ -207,17 +243,114 @@ export default function RetreadQueuePage() {
               className="rounded-lg border border-gray-300 px-3 py-2"
             />
           </label>
+          {/* Not a <label>: a click on the text would be forwarded to the first toggle button. */}
           <div className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-gray-700">Rethreading Done by *</span>
-            <GlassCombobox
-              required
-              strictSelect
-              value={moveDoneBy}
-              onChange={setMoveDoneBy}
-              options={vendorNames.map((name) => ({ value: name, label: name }))}
-              placeholder="Search or select a vendor"
-            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-gray-700">Rethreading Done by *</span>
+              <div role="radiogroup" aria-label="Rethreading done by" className="flex shrink-0 gap-0.5 rounded-full border border-gray-200 bg-gray-100 p-0.5 shadow-inner">
+                {(["Vendor", "Individual"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    role="radio"
+                    aria-checked={moveByType === t}
+                    onClick={() => setMoveByType(t)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 ${
+                      moveByType === t
+                        ? "bg-brand-navy text-white shadow-[0_2px_6px_-1px_rgba(27,43,94,0.45)]"
+                        : "text-gray-500 hover:bg-white/70 hover:text-gray-800"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {moveByType === "Vendor" ? (
+              <GlassCombobox
+                required
+                strictSelect
+                value={moveVendorId}
+                onChange={setMoveVendorId}
+                options={vendorOptions}
+                placeholder={vendorOptions.length === 0 ? "No active vendors — add one in Our Vendors" : "Search or select a vendor"}
+              />
+            ) : (
+              <input
+                type="text"
+                required
+                maxLength={200}
+                aria-label="Rethreading done by (individual)"
+                value={moveIndividual}
+                onChange={(e) => setMoveIndividual(e.target.value)}
+                placeholder="e.g. the person's name"
+                className="rounded-lg border border-gray-300 px-3 py-2"
+              />
+            )}
           </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-gray-700">Invoice Number (given by the {moveByType === "Vendor" ? "vendor" : "individual"})</span>
+              <input
+                type="text"
+                maxLength={100}
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="e.g. INV-2026-0412"
+                className="rounded-lg border border-gray-300 px-3 py-2"
+              />
+            </label>
+            <div className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-gray-700">Invoice Date</span>
+              <DatePickerInput value={invoiceDate} onChange={setInvoiceDate} className="rounded-lg border border-gray-300 px-3 py-2" />
+            </div>
+          </div>
+          {/* Proof of Payment/Invoice — sent with the move in one request. */}
+          <div className="flex flex-col gap-1.5 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-gray-700">Proof of Payment/Invoice</span>
+              <span className="text-xs text-gray-400">PDF or image · max 15 MB</span>
+            </div>
+            {proofFile ? (
+              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-2.5 py-2">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-blue-50 text-blue-600">
+                  <FileText className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm text-gray-800">{proofFile.name}</span>
+                  <span className="block text-xs text-gray-400">{fileSize(proofFile.size)} · saved with the move</span>
+                </span>
+                <button type="button" onClick={() => setViewingProof(true)} aria-label="View proof"
+                  className="rounded-full p-1 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600">
+                  <Eye className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => { setProofFile(null); setProofError(""); }} aria-label="Remove proof"
+                  className="rounded-full p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-4 text-sm text-gray-600 transition-colors hover:border-blue-400 hover:bg-blue-50/40 hover:text-blue-700">
+                <Paperclip className="h-4 w-4" />
+                Upload a PDF or image (max 15 MB)
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf,image/*,.heic,.heif,.tif,.tiff,.avif"
+                  className="sr-only"
+                  onChange={(e) => { pickProof(e.target.files); e.target.value = ""; }}
+                />
+              </label>
+            )}
+            {proofError && <p className="text-xs text-red-600">{proofError}</p>}
+          </div>
+          <FileViewer
+            open={viewingProof && !!proofFile}
+            onClose={() => setViewingProof(false)}
+            url={proofFile ? `picked:${proofFile.name}:${proofFile.size}` : ""}
+            title={proofFile?.name ?? "Proof of Payment/Invoice"}
+            filename={proofFile?.name}
+            load={() => Promise.resolve<Blob>(proofFile as File)}
+          />
           <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
             <span className="font-medium text-gray-700">Retread Count</span>
             <span className="text-gray-600">

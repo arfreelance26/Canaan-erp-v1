@@ -395,7 +395,7 @@ export default function StaffAttendancePage() {
           {/* Day being marked */}
           <div className="flex h-10 items-center gap-1 rounded-full border border-gray-200 bg-white px-3 shadow-sm transition-transform duration-300 hover:scale-105 hover:shadow-md [&_.border-brand-gold]:!border-0 [&_.border-brand-gold]:!bg-transparent [&_.border-brand-gold]:!px-1 [&_.border-brand-gold]:!py-1 [&_.border-brand-gold]:!shadow-none [&_.border-brand-gold_svg]:!text-gray-500">
             <div className="w-[128px]">
-              <DatePickerInput value={date} onChange={(v) => setDate(v)} />
+              <DatePickerInput value={date} onChange={(v) => setDate(v)} clearable={false} />
             </div>
           </div>
         </div>

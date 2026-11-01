@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu, Wrench } from "lucide-react";
+import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu, Wrench, RotateCcw } from "lucide-react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -21,7 +21,7 @@ import { attendanceApi, editApprovalsApi, deletionApprovalsApi, maintenanceReque
 import type { LeaveRequest } from "@/types/leave-request";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate } from "@/lib/format-date";
-import { useNotifications, maintenanceAlertHref } from "@/context/NotificationContext";
+import { useNotifications, maintenanceAlertHref, reverificationAlertHref } from "@/context/NotificationContext";
 import { useBirthday } from "@/context/BirthdayContext";
 import { useSeason } from "@/context/SeasonContext";
 import { useFounding } from "@/context/FoundingContext";
@@ -203,7 +203,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
 
   // Compliance Alerts and Renewals & Payments no longer come through here —
   // see the comment where their bell sections used to render, further down.
-  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert, dismissMaintenanceAlert } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert } = useNotifications();
   // const { isOpen: isChatOpen, toggle: toggleChat } = useChat(); // Next phase
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
@@ -584,7 +584,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
         <>
           {/* behind the pill / buttons, like the December snow */}
           <Balloons count={9} className="-z-10" />
-          <Bunting className="z-[1]" />
+          <Bunting className="-z-10" />
         </>
       ) : founding.decorated ? (
         <GoldWave />
@@ -729,6 +729,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               recentSheetAlerts.length +
               recentKmVarianceAlerts.length +
               maintenanceAlerts.length +
+              reverificationAlerts.length +
               maintRequestNotifs.length +
               (isAdmin ? recentLeaveRequests.length + recentDeletionRequestNotifs.length : 0) +
               ((isAdmin || isFleetManager) ? recentEditRequestNotifs.length : 0) +
@@ -763,6 +764,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     recentSheetAlerts.length +
                     recentKmVarianceAlerts.length +
                     maintenanceAlerts.length +
+                    reverificationAlerts.length +
                     maintRequestNotifs.length +
                     (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
                     recentMyDecidedRequests.length;
@@ -775,7 +777,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               </div>
 
               {/* Body */}
-              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 ? (
+              {!isAdmin && !isFleetManager && !isFinanceManager && !isStaff && !isMaintenance && recentMyDecidedRequests.length === 0 && reverificationAlerts.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <Bell className="h-8 w-8 text-gray-200" />
                   <p className="text-sm font-medium text-gray-500">No notifications yet</p>
@@ -953,6 +955,44 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     </div>
                     );
                   })()}
+
+                  {/* ── Re-Verification (Auditor) — stays until it's opened. ── */}
+                  {reverificationAlerts.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-violet-600">
+                        Sent for Re-Verification
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {reverificationAlerts.slice(0, NOTIF_ROW_CAP).map((alert) => (
+                          <li key={`reverify-${alert.serverId}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dismissReverificationAlert(alert.serverId);
+                                setIsNotifOpen(false);
+                                router.push(reverificationAlertHref(alert.driverId));
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-violet-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100">
+                                <RotateCcw className="h-3.5 w-3.5 text-violet-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">{alert.tripIdStr} came for Re-Verification</p>
+                                <p className="text-[11px] text-gray-600">{alert.remark}</p>
+                                <p className="text-[11px] text-gray-500">By {alert.by}{alert.role ? ` (${alert.role})` : ""}</p>
+                              </div>
+                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                                {timeAgo(alert.alertedAt)}
+                                <br />
+                                {fmtIST(alert.alertedAt)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* ── Maintenance Alerts (Admin, Commercial Managers, Maintenance) —
                       "Notify me when this is due again" on a maintenance record. ── */}
@@ -1284,6 +1324,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                   {recentSheetAlerts.length === 0 &&
                    recentKmVarianceAlerts.length === 0 &&
                    maintenanceAlerts.length === 0 &&
+                   reverificationAlerts.length === 0 &&
                    recentMyDecidedRequests.length === 0 &&
                    maintRequestNotifs.length === 0 &&
                    (isStaff || isFinanceManager || isMaintenance || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (

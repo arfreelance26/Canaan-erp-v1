@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { LOGOUT_REASON_KEY } from "@/lib/api";
 
 function useDeviceOS(): string {
   const [os, setOS] = useState("");
@@ -50,6 +51,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loginState, setLoginState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  // Why the last session ended (e.g. the account was frozen) — shown once.
+  useEffect(() => {
+    try {
+      const reason = sessionStorage.getItem(LOGOUT_REASON_KEY);
+      if (reason) {
+        sessionStorage.removeItem(LOGOUT_REASON_KEY);
+        setError(reason);
+      }
+    } catch {}
+  }, []);
 
   // The login screen always renders in its light theme, regardless of the
   // app-wide dark-mode setting. Strip the `dark` class off <html> while this

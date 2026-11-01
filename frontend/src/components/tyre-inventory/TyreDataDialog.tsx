@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Eye, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { tyreApi } from "@/lib/api";
 import type { TyreData, TyreMovementEvent } from "@/types/tyre-inventory";
 import { Dialog } from "@/components/ui/Dialog";
+import { FileViewer } from "@/components/ui/FileViewer";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { useAuth } from "@/context/AuthContext";
+import { confirmDelete, showError, showSuccess } from "@/lib/swal";
+import { PROOF_MAX_BYTES, proofAccepted, fileSize } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 
 const EVENT_LABEL: Record<TyreMovementEvent["event"], string> = {
   "Flagged for Retreading": "Moved for retreading",
@@ -25,17 +30,51 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
   const [data, setData] = useState<TyreData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  // A retread's Proof of Payment/Invoice: view it, or add/replace it afterwards.
+  const { user } = useAuth();
+  const role = user?.softwareDesignation;
+  const canUpload = role === "Admin" || role === "Maintenance";
+  const [viewingProof, setViewingProof] = useState<TyreMovementEvent | null>(null);
+  const [uploadingFor, setUploadingFor] = useState<number | null>(null);
 
   useEffect(() => {
     if (!tyreId) return;
     setLoading(true);
     setError(null);
-    setData(null);
+    if (reloadKey === 0) setData(null);
     tyreApi.getTyreData(tyreId)
       .then(setData)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load tyre data."))
       .finally(() => setLoading(false));
-  }, [tyreId]);
+  }, [tyreId, reloadKey]);
+
+  async function uploadProof(m: TyreMovementEvent, list: FileList | null) {
+    const file = list?.[0];
+    if (!file || !tyreId) return;
+    if (!proofAccepted(file)) return showError(`"${file.name}" isn't a PDF or an image.`);
+    if (file.size > PROOF_MAX_BYTES) return showError(`"${file.name}" is over 15 MB.`);
+    setUploadingFor(m.id);
+    try {
+      await tyreApi.uploadRetreadProof(tyreId, m.id, file);
+      showSuccess("Proof saved.");
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Upload failed.");
+    } finally {
+      setUploadingFor(null);
+    }
+  }
+
+  async function removeProof(m: TyreMovementEvent) {
+    if (!tyreId || !(await confirmDelete("this retread's proof")).isConfirmed) return;
+    try {
+      await tyreApi.deleteRetreadProof(tyreId, m.id);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Could not remove the proof.");
+    }
+  }
 
   const tyre = data?.tyre;
 
@@ -45,7 +84,7 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
       onClose={onClose}
       title={tyre ? `Tyre ${tyre.tyreNumber}` : "Tyre Data"}
     >
-      {loading && <p className="p-4 text-sm text-gray-500">Loading…</p>}
+      {loading && !data && <p className="p-4 text-sm text-gray-500">Loading…</p>}
       {error && <p className="p-4 text-sm text-red-600">{error}</p>}
       {data && tyre && (
         <div className="flex flex-col gap-5 p-1">
@@ -84,7 +123,51 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
                     {m.actorRole ? ` (${m.actorRole})` : ""}
                   </p>
                   {m.retreadDoneBy && (
-                    <p className="mt-0.5 text-xs text-gray-600">Retreaded by {m.retreadDoneBy}</p>
+                    <p className="mt-0.5 text-xs text-gray-600">
+                      Retreaded by <span className="font-semibold">{m.retreadDoneBy}</span>
+                      {m.retreadByType && <> ({m.retreadByType})</>}
+                    </p>
+                  )}
+                  {(m.invoiceNumber || m.invoiceDate) && (
+                    <p className="mt-0.5 text-xs text-gray-600">
+                      Invoice {m.invoiceNumber ? <span className="font-semibold">{m.invoiceNumber}</span> : "—"}
+                      {m.invoiceDate && <> dated {formatDate(m.invoiceDate)}</>}
+                    </p>
+                  )}
+                  {m.event === "Moved to Inventory" && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      {m.proofFileName ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewingProof(m)}
+                          className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 font-semibold text-blue-700 hover:bg-blue-100"
+                          title={`${m.proofFileName}${m.proofSizeBytes ? ` · ${fileSize(m.proofSizeBytes)}` : ""}`}
+                        >
+                          <Eye className="h-3 w-3" /> View proof
+                        </button>
+                      ) : (
+                        <span className="italic text-gray-400">No proof of payment</span>
+                      )}
+                      {canUpload && (
+                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-blue-600 hover:bg-blue-50">
+                          {uploadingFor === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+                          {m.proofFileName ? "Replace proof" : "Add proof"}
+                          <input
+                            type="file"
+                            accept="application/pdf,.pdf,image/*,.heic,.heif,.tif,.tiff,.avif"
+                            className="sr-only"
+                            disabled={uploadingFor !== null}
+                            onChange={(e) => { void uploadProof(m, e.target.files); e.target.value = ""; }}
+                          />
+                        </label>
+                      )}
+                      {role === "Admin" && m.proofFileName && (
+                        <button type="button" onClick={() => removeProof(m)} aria-label="Remove proof"
+                          className="rounded-full p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   )}
                   {(m.retreadCost != null || m.expectedRange != null || m.retreadCount != null) && (
                     <p className="mt-0.5 text-xs text-gray-600">
@@ -99,6 +182,14 @@ export function TyreDataDialog({ tyreId, onClose }: Props) {
           </section>
         </div>
       )}
+      <FileViewer
+        open={viewingProof !== null}
+        onClose={() => setViewingProof(null)}
+        url={viewingProof && tyreId ? `retread-proof:${tyreId}:${viewingProof.id}:${viewingProof.proofSizeBytes ?? ""}` : ""}
+        title={viewingProof?.proofFileName ?? "Proof of Payment/Invoice"}
+        filename={viewingProof?.proofFileName ?? undefined}
+        load={() => tyreApi.fetchRetreadProofBlob(tyreId as string, viewingProof!.id)}
+      />
     </Dialog>
   );
 }

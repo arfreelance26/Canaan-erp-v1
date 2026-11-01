@@ -215,10 +215,12 @@ def get_current_user(request: Request) -> TokenUser:
         from models import Staff
         db = SessionLocal()
         try:
-            current_tv = db.query(Staff.token_version).filter(Staff.id == user_id).scalar()
+            row = db.query(Staff.token_version, Staff.frozen_at).filter(Staff.id == user_id).first()
         finally:
             db.close()
-        if current_tv is not None and int(payload.get("tv", 0)) != int(current_tv):
+        if row is not None and row.frozen_at is not None:
+            raise _credentials_error("Your account has been frozen. Please contact the Admin.")
+        if row is not None and int(payload.get("tv", 0)) != int(row.token_version):
             raise _credentials_error("Your session was ended. Please log in again.")
 
     return TokenUser(
@@ -227,6 +229,10 @@ def get_current_user(request: Request) -> TokenUser:
         role=payload.get("role", "Trip Sheet Register"),
         staff_id=payload.get("staff_id"),
     )
+
+
+# Who sees the Pending Audit page (Admin always passes require_roles).
+PENDING_AUDIT_ROLES = ("Accounts", "Yard Supervisor", "Trip Sheet Register")
 
 
 def require_roles(*roles: str):

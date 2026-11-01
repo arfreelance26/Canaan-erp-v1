@@ -124,9 +124,9 @@ export default function VehicleRecordPage() {
     t.truckId?.toLowerCase().includes(q)
   );
 
-  // Trips with a trip sheet in the date range (same rule as Driver Record).
+  // Accounts-verified trips with a trip sheet in the date range (same rule as Driver Record).
   const tripsInRange = useMemo(() => trips.filter((t) => {
-    if (!t.scheduledDate || !t.hasSheet) return false;
+    if (!t.scheduledDate || !t.hasSheet || t.verificationStatus !== "verified") return false;
     if (dateFrom && t.scheduledDate < dateFrom) return false;
     if (dateTo && t.scheduledDate > dateTo) return false;
     return true;

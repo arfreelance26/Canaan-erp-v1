@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Flag, Undo2, FileText, ClipboardList, Pencil, History as HistoryIcon, CheckCircle2 } from "lucide-react";
+import { Flag, Undo2, FileText, ClipboardList, Pencil, History as HistoryIcon, CheckCircle2, RotateCcw } from "lucide-react";
 import { tripsApi, driversApi, trucksApi, customersApi, type TripRecheckEventRow } from "@/lib/api";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
@@ -11,10 +11,12 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
+import { DateRangePill } from "@/components/ui/DateRangePill";
+import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
-import { formatDate, formatDateTime } from "@/lib/format-date";
+import { formatDate, formatDateTime, inDateRange } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -28,12 +30,16 @@ const EVENT_ICON: Record<TripRecheckEventRow["event"], typeof Flag> = {
   Flagged: Flag,
   "Returned for Review": Undo2,
   Verified: CheckCircle2,
+  "Verification Undone": RotateCcw,
+  "Flagged for Re-Verification": RotateCcw,
 };
 
 const EVENT_COLOR: Record<TripRecheckEventRow["event"], string> = {
   Flagged: "bg-red-100 text-red-700",
   "Returned for Review": "bg-blue-100 text-blue-700",
   Verified: "bg-emerald-100 text-emerald-700",
+  "Verification Undone": "bg-gray-200 text-gray-700",
+  "Flagged for Re-Verification": "bg-violet-100 text-violet-700",
 };
 
 export default function FlaggedTripsPage() {
@@ -48,6 +54,8 @@ export default function FlaggedTripsPage() {
   const [sheets, setSheets] = useState<Map<string, TripSheetData>>(new Map());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [returningId, setReturningId] = useState<string | null>(null);
   const [bookingDialog, setBookingDialog] = useState<BookingDialogState | null>(null);
@@ -75,14 +83,13 @@ export default function FlaggedTripsPage() {
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
 
-  const flaggedTrips = trips
-    .filter((t) => t.flaggedForRecheck)
-    .filter((t) =>
-      !searchQuery ||
-      t.tripId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.driverName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.flaggedRemark?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const search = searchQuery.trim();
+  const q = search.toLowerCase();
+  const allFlagged = trips.filter((t) => t.flaggedForRecheck);
+  const flaggedTrips = allFlagged.filter((t) =>
+    inDateRange(t.scheduledDate, dateFrom, dateTo) &&
+    (!q || [t.tripId, t.driverName, t.flaggedRemark].some((v) => v?.toLowerCase().includes(q)))
+  );
 
   // Closures/sheets for every flagged trip — one bulk request each. This list
   // is small (a handful of disputed trips at a time), so no per-page slicing.
@@ -162,11 +169,39 @@ export default function FlaggedTripsPage() {
 )}
       </div>
 
-      <PillSearch placeholder="Search by trip ID, driver, or reason…" value={searchQuery} onChange={setSearchQuery} />
+      {/* Toolbar: search on the left, Scheduled Date range (filters the list and the View export) + View on the right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PillSearch placeholder="Search by trip ID, driver, or reason…" value={searchQuery} onChange={setSearchQuery} />
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <DateRangePill from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          <DownloadExcelButton
+            path="/exports/audit-flagged"
+            filename="audit_flagged_trips.xlsx"
+            params={{
+              ...(dateFrom ? { from_date: dateFrom } : {}),
+              ...(dateTo ? { to_date: dateTo } : {}),
+              ...(search ? { search } : {}),
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 text-sm text-gray-500">
+        <span>Showing {flaggedTrips.length} of {allFlagged.length} trip{allFlagged.length !== 1 ? "s" : ""}</span>
+        {(dateFrom || dateTo) && (
+          <button
+            type="button"
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="font-medium text-blue-600 hover:text-blue-700"
+          >
+            Clear dates
+          </button>
+        )}
+      </div>
 
       {flaggedTrips.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-          {trips.some((t) => t.flaggedForRecheck) ? "No flagged trips match this search." : "No flagged trips yet."}
+          {allFlagged.length > 0 ? "No flagged trips match these filters." : "No flagged trips yet."}
         </div>
       ) : (
         <div className="overflow-auto rounded-xl border border-gray-200 bg-white">

@@ -17,7 +17,7 @@ import { onRevalidated } from "@/lib/api-cache";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<AdBlueLogEditEventRow["event"], typeof Plus> = {
   "Log Created": Plus,
@@ -32,10 +32,11 @@ const EDIT_EVENT_COLOR: Record<AdBlueLogEditEventRow["event"], string> = {
 };
 
 /**
- * Truck's Adblue History — a record of every AdBlue fill per truck. It feeds
- * no calculator or cost figure. Trucks are grouped by manufacturer, managed
- * here under Manufacturers along with each one's AdBlue cost per litre (the
- * price a new fill starts with); sold and deleted trucks aren't shown.
+ * Truck's Adblue History — a record of every AdBlue fill per truck. Like Fuel
+ * History, the fills give each truck's AdBlue km per litre, which (× its
+ * manufacturer's AdBlue price) is the AdBlue part of Cost/KM in the Running
+ * Cost Calculator and Profitability. Trucks are grouped by manufacturer,
+ * managed here under Manufacturers; sold and deleted trucks aren't shown.
  */
 export default function AdblueManagementPage() {
   const { user: authUser } = useAuth();
@@ -46,6 +47,7 @@ export default function AdblueManagementPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportFrom, setExportFrom] = useState("");
+  const [adblueLogs, setAdblueLogs] = useState<AdBlueLog[] | null>(null);
   const [exportTo, setExportTo] = useState("");
   const [editHistoryOpen, setEditHistoryOpen] = useState(false);
   const [editHistoryEvents, setEditHistoryEvents] = useState<AdBlueLogEditEventRow[]>([]);
@@ -69,13 +71,16 @@ export default function AdblueManagementPage() {
   // View History dialog
   const [historyTruck, setHistoryTruck] = useState<Truck | null>(null);
 
-  async function handleSaveAdBlueLog(log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">) {
+  /** True when saved — the form keeps what was typed if the server refuses it. */
+  async function handleSaveAdBlueLog(log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">): Promise<boolean> {
     try {
       await adblueLogsApi.createLog(log);
       showSuccess("AdBlue log saved.");
       setLogTarget(null);
+      return true;
     } catch (e: unknown) {
       showError(e instanceof Error && e.message ? e.message : "Could not save the AdBlue log. Please try again.");
+      return false;
     }
   }
 
@@ -89,12 +94,23 @@ export default function AdblueManagementPage() {
       .finally(() => setLoading(false));
   }, [reloadKey]);
 
+  // The logs are only needed to work out which trucks were filled in the date range.
+  const hasRange = Boolean(exportFrom || exportTo);
+  useEffect(() => {
+    if (!hasRange) return;
+    adblueLogsApi.listLogs().then(setAdblueLogs).catch(() => {});
+  }, [hasRange, reloadKey]);
+
   // The API cache answers instantly and refreshes in the background; show the fresher copy when it lands.
   useEffect(() => onRevalidated(() => setReloadKey((k) => k + 1)), []);
 
   const q = searchQuery.trim().toLowerCase();
+  const datedTruckIds = hasRange && adblueLogs
+    ? new Set(adblueLogs.filter((l) => inDateRange(l.date, exportFrom, exportTo)).map((l) => l.truckId))
+    : null;
   const matches = (t: Truck) =>
-    !q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q);
+    (!datedTruckIds || datedTruckIds.has(t.id)) &&
+    (!q || t.registrationNumber?.toLowerCase().includes(q) || t.truckId?.toLowerCase().includes(q));
   const knownManufacturers = new Set(manufacturers.map((m) => m.name.trim().toLowerCase()));
   const otherTrucks = trucks.filter((t) => !knownManufacturers.has((t.manufacturer ?? "").trim().toLowerCase()) && matches(t));
 
@@ -174,7 +190,7 @@ export default function AdblueManagementPage() {
             <p className="text-sm font-medium text-gray-400">No trucks in the fleet yet.</p>
           </div>
         ) : !trucks.some(matches) ? (
-          <p className="py-10 text-center text-sm text-gray-400">No trucks match this search.</p>
+          <p className="py-10 text-center text-sm text-gray-400">No trucks match these filters.</p>
         ) : (
           <>
             {manufacturers.map((m) => {

@@ -2,8 +2,7 @@
  * Centralized API client — all calls to the FastAPI backend go through here.
  * Transforms snake_case backend responses to the camelCase frontend types.
  */
-import { previewQuery } from "@/lib/celebration-preview";
-import type { AdBlueLog } from "@/types/adblue-log";
+import { previewQuery } from "@/lib/celebration-preview";import type { AdBlueLog } from "@/types/adblue-log";
 import type { Truck } from "@/types/truck";
 import type { Driver } from "@/types/driver";
 import type { Staff } from "@/types/staff";
@@ -22,7 +21,7 @@ import type { LeaveRequest } from "@/types/leave-request";
 import type { EditApprovalRequest, EditApprovalAction, EditApprovalResourceType } from "@/types/edit-approval";
 import type { MaintenanceRecord, MaintenanceProof } from "@/types/truck-maintenance";
 import type { MaintenanceRequest, MaintenanceRequestProof } from "@/types/maintenance-request";
-import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventory";
+import type { TyreInventoryItem, TyreData, TyreRemarkPreset, TyreRemarkScenario, RetreadMoveInput, VendorRetread } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
 import type { CompensationTransaction } from "@/types/compensation";
@@ -54,6 +53,9 @@ function authHeaders(): Record<string, string> {
     return {};
   }
 }
+
+/** sessionStorage key: why the user was sent to the login page (shown there once). */
+export const LOGOUT_REASON_KEY = "canaan_logout_reason";
 
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
@@ -117,8 +119,11 @@ async function rawReq<T>(path: string, options?: RequestInit): Promise<T> {
     clearTimeout(timeout);
   }
   if (res.status === 401 && !path.startsWith("/auth/")) {
+    // Why the session ended (e.g. "Your account has been frozen…"), shown on the login page.
+    const reason = await res.json().then((d) => (typeof d?.detail === "string" ? d.detail : null)).catch(() => null);
+    try { if (reason) sessionStorage.setItem(LOGOUT_REASON_KEY, reason); } catch {}
     handleUnauthorized();
-    throw new Error("Session expired. Please log in again.");
+    throw new Error(reason ?? "Session expired. Please log in again.");
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json();
@@ -672,6 +677,9 @@ function toStaff(b: B): Staff {
     password: "",
     version: typeof b.version === "number" ? b.version : undefined,
     deviceBound: Boolean(b.device_bound),
+    frozenAt: (b.frozen_at as string | null) ?? null,
+    frozenByName: (b.frozen_by_name as string | null) ?? null,
+    frozenReason: (b.frozen_reason as string | null) ?? null,
     devices: Array.isArray(b.devices)
       ? (b.devices as B[]).map((d) => ({
           id: String(d.id ?? ""),
@@ -873,6 +881,9 @@ function toTrip(b: B): Trip & { _dbId: number } {
     flaggedRemark: b.flagged_remark ?? undefined,
     recheckReturned: b.recheck_returned ?? undefined,
     auditVerified: b.audit_verified ?? undefined,
+    reverificationRemark: b.reverification_remark ?? undefined,
+    reverificationBy: b.reverification_by ?? undefined,
+    reverificationAt: b.reverification_at ?? undefined,
     advanceVerified: b.advance_verified ?? undefined,
     advanceVerificationRemark: b.advance_verification_remark ?? undefined,
     advanceCorrectedAmount: b.advance_corrected_amount != null ? String(b.advance_corrected_amount) : undefined,
@@ -1218,6 +1229,8 @@ function toDriverAttendance(b: B): DriverAttendanceRecord {
     status: b.status ?? "Not Marked",
     checkInTime: b.check_in_time ?? null,
     markedAt: b.marked_at ?? null,
+    containerSpecification: b.container_specification ?? null,
+    workshopAdvance: b.workshop_advance ?? null,
   };
 }
 
@@ -1949,6 +1962,19 @@ export type StaffEditEventRow = {
   createdAt: string;
 };
 
+/** One Freeze / Unfreeze of a staff account (Our Staff → Freeze History). */
+export type StaffFreezeEventRow = {
+  id: number;
+  staffDbId: string;
+  staffIdStr: string;
+  staffName: string;
+  event: "Frozen" | "Unfrozen";
+  reason: string;
+  actorName: string;
+  actorRole: string | null;
+  createdAt: string;
+};
+
 export const staffApi = {
   list: () => req<B[]>("/staff").then((d) => d.map(toStaff)),
   // Raw (snake_case) single-record fetch for the Profile modal — unlike the
@@ -1979,6 +2005,26 @@ export const staffApi = {
         staffIdStr: String(r.staff_id_str ?? ""),
         staffName: String(r.staff_name ?? ""),
         event: String(r.event) as StaffEditEventType,
+        actorName: String(r.actor_name ?? ""),
+        actorRole: (r.actor_role as string | null) ?? null,
+        createdAt: String(r.created_at ?? ""),
+      }))
+    ),
+  /** Freeze / Unfreeze Account — a reason and the owner password (Chat Owner View's). */
+  freeze: (dbId: string, reason: string, ownerPassword: string) =>
+    req<B>(`/staff/${dbId}/freeze`, { method: "POST", body: JSON.stringify({ reason, owner_password: ownerPassword }) }).then(toStaff),
+  unfreeze: (dbId: string, reason: string, ownerPassword: string) =>
+    req<B>(`/staff/${dbId}/unfreeze`, { method: "POST", body: JSON.stringify({ reason, owner_password: ownerPassword }) }).then(toStaff),
+  /** Freeze History — every staff member, or one. Always fresh. */
+  listFreezeEvents: (staffDbId?: string): Promise<StaffFreezeEventRow[]> =>
+    rawReq<B[]>(`/staff/freeze-events${staffDbId ? `?staff_id=${staffDbId}` : ""}`).then((rows) =>
+      rows.map((r) => ({
+        id: Number(r.id),
+        staffDbId: String(r.staff_id ?? ""),
+        staffIdStr: String(r.staff_id_str ?? ""),
+        staffName: String(r.staff_name ?? ""),
+        event: String(r.event) as StaffFreezeEventRow["event"],
+        reason: String(r.reason ?? ""),
         actorName: String(r.actor_name ?? ""),
         actorRole: (r.actor_role as string | null) ?? null,
         createdAt: String(r.created_at ?? ""),
@@ -2164,6 +2210,20 @@ export const vendorsApi = {
     const q = qs.toString();
     return rawReq<B[]>(`/vendors/${vendorId}/maintenance-records${q ? `?${q}` : ""}`).then((d) => d.map(toMaintenanceRecord));
   },
+  /** Our Vendors → View Record → Tyre Retreads. */
+  retreads: (vendorId: string, from?: string, to?: string): Promise<VendorRetread[]> => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from_date", from);
+    if (to) qs.set("to_date", to);
+    const q = qs.toString();
+    return rawReq<B[]>(`/vendors/${vendorId}/retreads${q ? `?${q}` : ""}`).then((d) => d.map((r) => ({
+      id: String(r.id), tyreId: String(r.tyre_id), tyreNumber: r.tyre_number ?? "", brand: r.brand ?? "",
+      tyreSize: r.tyre_size ?? "", tyreType: r.tyre_type ?? "", date: String(r.date ?? ""),
+      retreadCost: Number(r.retread_cost ?? 0), expectedRange: r.expected_range ?? null, retreadCount: r.retread_count ?? null,
+      invoiceNumber: r.invoice_number ?? null, invoiceDate: r.invoice_date ?? null,
+      proofFileName: r.proof_file_name ?? null, proofSizeBytes: r.proof_size_bytes ?? null, actorName: r.actor_name ?? "",
+    })));
+  },
   create: (vendor: Vendor) =>
     req<B>("/vendors", { method: "POST", body: JSON.stringify(fromVendor(vendor)) }).then(toVendor),
   update: (dbId: string, vendor: Vendor) =>
@@ -2207,9 +2267,11 @@ export const vendorCategoriesApi = {
 // Trips API
 // ---------------------------------------------------------------------------
 
+export type RecheckEventType = "Flagged" | "Returned for Review" | "Verified" | "Verification Undone" | "Flagged for Re-Verification";
+
 export type TripRecheckEvent = {
   id: number;
-  event: "Flagged" | "Returned for Review" | "Verified";
+  event: RecheckEventType;
   remark: string | null;
   actorName: string;
   actorRole: string | null;
@@ -2227,7 +2289,7 @@ export type TripRecheckEventRow = {
   driverName: string | null;
   origin: string | null;
   destination: string | null;
-  event: "Flagged" | "Returned for Review" | "Verified";
+  event: RecheckEventType;
   remark: string | null;
   actorName: string;
   actorRole: string | null;
@@ -2270,6 +2332,19 @@ export type AuditVerifiedTrip = {
   verifiedAt: string;
   verifiedRemark: string | null;
   wasDisputed: boolean;
+};
+
+// One row on the "Pending Audit" page — verified by Accounts, not yet verified
+// or flagged by the Auditor.
+export type PendingAuditTrip = {
+  tripDbId: string;
+  tripId: string;
+  driverName: string | null;
+  vehicleId: string | null;
+  truckRegistration: string | null;
+  origin: string | null;
+  destination: string | null;
+  scheduledDate: string | null;
 };
 
 const BULK_CHUNK = 200;
@@ -2320,6 +2395,28 @@ export const tripsApi = {
     req<B>(`/trips/${dbId}/sheet`, { method: "POST", body: JSON.stringify(fromSheet(data)) }).then(toSheet),
   getSheet: (dbId: string) =>
     req<B | null>(`/trips/${dbId}/sheet`).then((b) => (b ? toSheet(b) : null)),
+  /** Start/End KM against the truck's trips before/after this one (new sheets
+   *  and edits) — warnings only. rawReq: a check, not a change, so no cache is dropped. */
+  checkSheetKm: (dbId: string, v: { vehicleId: string; scheduledDate: string; startKm: string; endKm: string }): Promise<SheetKmCheck> =>
+    rawReq<B>(`/trips/${dbId}/sheet/km-check`, {
+      method: "POST",
+      body: JSON.stringify({
+        vehicle_id: v.vehicleId || null, trip_scheduled_date: v.scheduledDate || null,
+        start_km: v.startKm || null, end_km: v.endKm || null,
+      }),
+    }).then((b) => {
+      const nb = (x: B | null): SheetKmNeighbour | null => x ? {
+        tripCode: String(x.trip_code), date: (x.date as string | null) ?? null,
+        startKm: Number(x.start_km ?? 0), endKm: Number(x.end_km ?? 0),
+      } : null;
+      return {
+        warnings: ((b.warnings as B[]) ?? []).map((w) => ({ field: w.field as "start" | "end", message: String(w.message) })),
+        previous: nb(b.previous as B | null),
+        next: nb(b.next as B | null),
+        highestOtherReading: (b.highest_other_reading as number | null) ?? null,
+        odometerNote: (b.odometer_note as string | null) ?? null,
+      };
+    }),
 
   // Bulk — sheets/closures for many trips in one request (chunked) instead of
   // one request per trip. Keyed by trip id; trips with no sheet/closure are
@@ -2400,11 +2497,15 @@ export const tripsApi = {
     req<B>(`/trips/${dbId}/recheck-return`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
   verifyRecheck: (dbId: string, remark = "") =>
     req<B>(`/trips/${dbId}/recheck-verify`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
+  undoVerification: (dbId: string, remark: string) =>
+    req<B>(`/trips/${dbId}/recheck-undo-verify`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
+  requestReverification: (dbId: string, remark: string) =>
+    req<B>(`/trips/${dbId}/request-reverification`, { method: "POST", body: JSON.stringify({ remark }) }).then(toTrip),
   getRecheckHistory: (dbId: string): Promise<TripRecheckEvent[]> =>
     req<B[]>(`/trips/${dbId}/recheck-history`).then((rows) =>
       rows.map((r) => ({
         id: Number(r.id),
-        event: String(r.event) as "Flagged" | "Returned for Review" | "Verified",
+        event: String(r.event) as RecheckEventType,
         remark: (r.remark as string | null) ?? null,
         actorName: String(r.actor_name ?? ""),
         actorRole: (r.actor_role as string | null) ?? null,
@@ -2422,7 +2523,7 @@ export const tripsApi = {
         driverName: (r.driver_name as string | null) ?? null,
         origin: (r.origin as string | null) ?? null,
         destination: (r.destination as string | null) ?? null,
-        event: String(r.event) as "Flagged" | "Returned for Review" | "Verified",
+        event: String(r.event) as RecheckEventType,
         remark: (r.remark as string | null) ?? null,
         actorName: String(r.actor_name ?? ""),
         actorRole: (r.actor_role as string | null) ?? null,
@@ -2463,6 +2564,19 @@ export const tripsApi = {
         verifiedAt: String(r.verified_at ?? ""),
         verifiedRemark: (r.verified_remark as string | null) ?? null,
         wasDisputed: Boolean(r.was_disputed ?? false),
+      }))
+    ),
+  listPendingAudit: (): Promise<PendingAuditTrip[]> =>
+    req<B[]>(`/trips/pending-audit`).then((rows) =>
+      rows.map((r) => ({
+        tripDbId: String(r.trip_id ?? ""),
+        tripId: String(r.trip_id_str ?? ""),
+        driverName: (r.driver_name as string | null) ?? null,
+        vehicleId: (r.vehicle_id as string | null) ?? null,
+        truckRegistration: (r.truck_registration as string | null) ?? null,
+        origin: (r.origin as string | null) ?? null,
+        destination: (r.destination as string | null) ?? null,
+        scheduledDate: (r.scheduled_date as string | null) ?? null,
       }))
     ),
   verifyAdvance: (dbId: string, verified: boolean, remark: string, correctedAmount: number | null) =>
@@ -2564,15 +2678,15 @@ export const attendanceApi = {
     if (dateTo) params.set("date_to", dateTo);
     return req<B[]>(`/attendance/drivers?${params}`).then((d) => d.map(toDriverAttendance));
   },
-  markDriver: (driverId: string, date: string, status: string, checkInTime?: string) =>
+  markDriver: (driverId: string, date: string, status: string, containerSpecification?: string, workshopAdvance?: number, checkInTime?: string) =>
     req<B>("/attendance/drivers", {
       method: "POST",
-      body: JSON.stringify({ driver_id: driverId, date, status, check_in_time: checkInTime ?? null, marked_at: new Date().toISOString() }),
+      body: JSON.stringify({ driver_id: driverId, date, status, container_specification: containerSpecification ?? null, workshop_advance: workshopAdvance ?? null, check_in_time: checkInTime ?? null, marked_at: new Date().toISOString() }),
     }).then(toDriverAttendance),
-  updateDriver: (recordId: string, status: string, checkInTime?: string) =>
+  updateDriver: (recordId: string, status: string, containerSpecification?: string, workshopAdvance?: number, checkInTime?: string) =>
     req<B>(`/attendance/drivers/${recordId}`, {
       method: "PUT",
-      body: JSON.stringify({ status, check_in_time: checkInTime ?? null }),
+      body: JSON.stringify({ status, container_specification: containerSpecification ?? null, workshop_advance: workshopAdvance ?? null, check_in_time: checkInTime ?? null }),
     }).then(toDriverAttendance),
 
   listDriverRemarks: (driverId?: string, date?: string, dateFrom?: string, dateTo?: string) => {
@@ -3466,6 +3580,8 @@ export type TruckCostPerKmRanking = {
 
 /** A truck manufacturer (Truck's AdBlue History → Manufacturers). The "AdBlue" names are
  * historical — this list used to be managed on the AdBlue page. */
+export type AdBlueStats = { kmPerLitre: number | null; pricePerLitre: number | null; costPerKm: number | null };
+
 export type AdBlueManufacturer = {
   id: string;
   name: string;
@@ -3512,6 +3628,13 @@ export const adblueApi = {
     ),
   listManufacturers: () =>
     req<B[]>("/maintenance/adblue-manufacturers").then((d) => d.map(toAdBlueManufacturer)),
+  /** Every truck's AdBlue km per litre (from Truck's AdBlue History, like Fuel
+   *  History's mileage), its manufacturer's AdBlue price and the AdBlue ₹/km. Keyed by trucks.id. */
+  getAllStats: (): Promise<Record<string, AdBlueStats>> =>
+    rawReq<Record<string, { km_per_litre: number | null; price_per_litre: number | null; cost_per_km: number | null }>>("/maintenance/adblue-stats/all")
+      .then((d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, {
+        kmPerLitre: v.km_per_litre, pricePerLitre: v.price_per_litre, costPerKm: v.cost_per_km,
+      }]))),
   /** pricePerLitre: the manufacturer's AdBlue cost per litre (null = not set). */
   createManufacturer: (name: string, pricePerLitre: number | null) =>
     req<B>("/maintenance/adblue-manufacturers", {
@@ -3584,6 +3707,19 @@ export const adblueLogsApi = {
         total_cost: parseFloat(log.totalCost),
         supplier: log.fillingLocation || null,
         remarks: log.remarks || null,
+      }),
+    }).then(toAdBlueLog),
+  updateLog: (id: string, log: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "truckId">) =>
+    req<B>(`/maintenance/adblue-logs/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        client_version: log.version,
+        date: log.date,
+        odometer: parseInt(log.odometer),
+        litres: parseFloat(log.litres),
+        price_per_litre: parseFloat(log.pricePerLitre),
+        total_cost: parseFloat(log.totalCost),
+        supplier: log.fillingLocation || null,
       }),
     }).then(toAdBlueLog),
   deleteLog: (id: string) => req<void>(`/maintenance/adblue-logs/${id}`, { method: "DELETE" }),
@@ -3853,19 +3989,75 @@ export const tyreApi = {
         expectedRange: m.expected_range ?? null,
         retreadCount: m.retread_count ?? null,
         retreadDoneBy: m.retread_done_by ?? null,
+        retreadByType: m.retread_by_type ?? null,
+        vendorId: m.vendor_id != null ? String(m.vendor_id) : null,
+        invoiceNumber: m.invoice_number ?? null,
+        invoiceDate: m.invoice_date ?? null,
+        proofFileName: m.proof_file_name ?? null,
+        proofSizeBytes: m.proof_size_bytes ?? null,
         createdAt: m.created_at,
       })),
     }) as TyreData),
   // Moves a retread-queue tyre back to inventory; its retread cost becomes purchase cost.
-  moveToInventory: (id: string, retreadCost: string, expectedRange: string, retreadDoneBy: string) =>
-    req<B>(`/tyre-inventory/${id}/move-to-inventory`, {
-      method: "POST",
-      body: JSON.stringify({
-        retread_cost: retreadCost,
-        expected_range: parseInt(expectedRange, 10),
-        retread_done_by: retreadDoneBy,
-      }),
-    }).then(toTyreInventory),
+  // Who did it, the invoice and the proof go in ONE request (multipart), so
+  // the move and its proof are saved together or not at all.
+  moveToInventory: async (id: string, v: RetreadMoveInput): Promise<TyreInventoryItem> => {
+    const form = new FormData();
+    form.append("retread_cost", v.retreadCost);
+    form.append("expected_range", String(parseInt(v.expectedRange, 10)));
+    form.append("retread_by_type", v.retreadByType);
+    form.append("vendor_id", v.retreadByType === "Vendor" ? v.vendorId : "");
+    form.append("retread_done_by", v.retreadByType === "Individual" ? v.retreadDoneBy.trim() : "");
+    form.append("invoice_number", v.invoiceNumber.trim());
+    form.append("invoice_date", v.invoiceDate);
+    if (v.proof) form.append("proof", v.proof, v.proof.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/tyre-inventory/${id}/move-to-inventory`, { method: "POST", headers: authHeaders(), body: form });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not move the tyre: HTTP ${res.status}`));
+    cacheInvalidate("/tyre-inventory");
+    return toTyreInventory(await res.json());
+  },
+  /** One retread's Proof of Payment/Invoice — add/replace afterwards, view, remove (Admin). */
+  uploadRetreadProof: async (tyreId: string, eventId: string | number, file: File): Promise<void> => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/tyre-inventory/${tyreId}/retreads/${eventId}/proof`, { method: "POST", headers: authHeaders(), body: form });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Upload failed: HTTP ${res.status}`));
+    cacheInvalidate("/tyre-inventory");
+  },
+  fetchRetreadProofBlob: async (tyreId: string, eventId: string | number): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/tyre-inventory/${tyreId}/retreads/${eventId}/proof`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the file: HTTP ${res.status}`));
+    return res.blob();
+  },
+  deleteRetreadProof: (tyreId: string, eventId: string | number) =>
+    req<B>(`/tyre-inventory/${tyreId}/retreads/${eventId}/proof`, { method: "DELETE" }).then(() => undefined),
   // Page-wide "Edit History" log on Tyre Inventory — every Create/Edit/
   // Delete/Restore across every tyre stock record.
   listInventoryEditEvents: (): Promise<TyreInventoryEditEventRow[]> =>
@@ -4030,6 +4222,7 @@ export type CompensationEditEventRow = {
 export type BattaRow = {
   date: string;
   status: string;
+  container_specification: string | null;
   truck_id: string | null;
   truck_registration: string | null;
   truck_source: string;
@@ -4083,6 +4276,11 @@ export const financeApi = {
   getDriverWorkshopBatta: (driverCode: string) =>
     rawReq<{ statuses: string[]; rows: BattaRow[] }>(
       `/finance/compensation/workshop-batta?driver_id=${encodeURIComponent(driverCode)}`,
+    ),
+  /** Driver Compensation → Workshop Advance Record: every On Workshop day an advance was paid. */
+  getDriverWorkshopAdvance: (driverCode: string) =>
+    rawReq<{ statuses: string[]; rows: BattaRow[] }>(
+      `/finance/compensation/workshop-advance?driver_id=${encodeURIComponent(driverCode)}`,
     ),
   addDriverCompensation: (personId: string, type: string, amount: number, date: string, note?: string, tripNumber?: string) =>
     req<B>("/finance/compensation/drivers", {
@@ -4138,6 +4336,10 @@ function toBranch(b: B): Branch {
     partyHaltFeeOpenLoad: String(b.party_halt_fee_open_load ?? b.party_halt_fee_20ft ?? b.halt_day_fee_20ft ?? "0"),
     driverHaltDayPercentage: String(b.driver_halt_day_percentage ?? "0"),
     cleanerBattaFee: String(b.cleaner_batta_fee ?? "0"),
+    cleanerBattaFee20ft: String(b.cleaner_batta_fee_20ft ?? b.cleaner_batta_fee ?? "0"),
+    cleanerBattaFee40ft: String(b.cleaner_batta_fee_40ft ?? b.cleaner_batta_fee ?? "0"),
+    cleanerBattaFee2x20: String(b.cleaner_batta_fee_2x20 ?? b.cleaner_batta_fee ?? "0"),
+    cleanerBattaFeeOpenLoad: String(b.cleaner_batta_fee_open_load ?? b.cleaner_batta_fee ?? "0"),
     workshopBattaFee: String(b.workshop_batta_fee ?? "0"),
     version: typeof b.version === "number" ? b.version : undefined,
   };
@@ -4156,6 +4358,10 @@ function fromBranch(f: Branch) {
     party_halt_fee_open_load: f.partyHaltFeeOpenLoad ? parseFloat(f.partyHaltFeeOpenLoad) : 0,
     driver_halt_day_percentage: f.driverHaltDayPercentage ? parseFloat(f.driverHaltDayPercentage) : 0,
     cleaner_batta_fee: f.cleanerBattaFee ? parseFloat(f.cleanerBattaFee) : 0,
+    cleaner_batta_fee_20ft: f.cleanerBattaFee20ft ? parseFloat(f.cleanerBattaFee20ft) : 0,
+    cleaner_batta_fee_40ft: f.cleanerBattaFee40ft ? parseFloat(f.cleanerBattaFee40ft) : 0,
+    cleaner_batta_fee_2x20: f.cleanerBattaFee2x20 ? parseFloat(f.cleanerBattaFee2x20) : 0,
+    cleaner_batta_fee_open_load: f.cleanerBattaFeeOpenLoad ? parseFloat(f.cleanerBattaFeeOpenLoad) : 0,
     workshop_batta_fee: f.workshopBattaFee ? parseFloat(f.workshopBattaFee) : 0,
     client_version: f.version,
   };
@@ -4578,7 +4784,7 @@ export type TruckPLTripRow = {
   tripId: number | null;
   /** The trip's code, e.g. TRP-1490 ("" for a sheet with no trip). */
   tripCode: string;
-  tripSheetDate: string;
+  tripDate: string;
   tripSheetNo: string;
   bookingReferenceNo: string;
   fromLocation: string;
@@ -4652,7 +4858,7 @@ export type TruckPLEntry = {
 /** One mode's Cost/KM for a truck, split into its parts (₹/km). */
 export type TripBreakdownCost = {
   total: number | null;
-  parts: { emi: number | null; fuel: number | null; tyre: number | null; maintenance: number | null; compliance: number | null };
+  parts: { emi: number | null; fuel: number | null; adblue: number | null; tyre: number | null; maintenance: number | null; compliance: number | null };
   /** False in Manual until the calculator saves the split. */
   partsKnown: boolean;
   dieselPrice: number | null;
@@ -4684,7 +4890,7 @@ function toBreakdownCost(c: B): TripBreakdownCost {
   const p = (c.parts ?? {}) as B;
   return {
     total: num(c.total),
-    parts: { emi: num(p.emi), fuel: num(p.fuel), tyre: num(p.tyre), maintenance: num(p.maintenance), compliance: num(p.compliance) },
+    parts: { emi: num(p.emi), fuel: num(p.fuel), adblue: num(p.adblue), tyre: num(p.tyre), maintenance: num(p.maintenance), compliance: num(p.compliance) },
     partsKnown: Boolean(c.parts_known),
     dieselPrice: num(c.diesel_price),
     mileage: num(c.mileage),
@@ -4697,7 +4903,7 @@ function toPlTripRow(t: B): TruckPLTripRow {
   return {
           tripId:                 typeof t.trip_id === "number" ? t.trip_id : null,
           tripCode:               String(t.trip_code ?? ""),
-          tripSheetDate:          String(t.trip_sheet_date ?? ""),
+          tripDate:               String(t.trip_date ?? ""),
           tripSheetNo:            String(t.trip_sheet_no ?? ""),
           bookingReferenceNo:     String(t.booking_reference_no ?? ""),
           fromLocation:           String(t.from_location ?? ""),
@@ -4783,12 +4989,26 @@ export type PlTruckMoney = {
   dieselRate: number | null;
   diesel: number | null;
   gross: number | null;
+  /** KM × AdBlue ₹/km (0 until the truck has 2+ AdBlue fills). */
+  adblueRate: number | null;
+  adblue: number;
   tyreRate: number | null;
   tyres: number | null;
   running: number;
   fixed: number;
   net: number;
   incomplete: string[];
+  /** Trucks tab vs the sum of this truck's trips (Trips tab):
+   *  net = tripsFinal + maintenance + emi + documents + other, exactly. */
+  reconcile: PlTruckReconcile;
+};
+
+/** Each term is the cost NOT covered by the trips (negative = extra cost). */
+export type PlTruckReconcile = {
+  tripsFinal: number; tripsJudged: number; tripsCounted: number; tripsFlagged: number; itemised: boolean;
+  maintenance: number; emi: number; documents: number; other: number;
+  maintenanceActual: number; emiActual: number; documentsActual: number;
+  maintenanceOnTrips: number; emiOnTrips: number; documentsOnTrips: number;
 };
 
 export type PlComputedTrip = TruckPLTripRow & { truckId: string; registrationNumber: string; disposal: string | null; money: PlTripMoney };
@@ -4850,9 +5070,21 @@ function toPlComputed(b: B): PlComputed {
         ...toTruckPLEntry(e),
         money: {
           tripProfit: Number(m.trip_profit ?? 0), dieselRate: num(m.diesel_rate), diesel: num(m.diesel),
-          gross: num(m.gross), tyreRate: num(m.tyre_rate), tyres: num(m.tyres),
+          gross: num(m.gross), adblueRate: num(m.adblue_rate), adblue: Number(m.adblue ?? 0),
+          tyreRate: num(m.tyre_rate), tyres: num(m.tyres),
           running: Number(m.running ?? 0), fixed: Number(m.fixed ?? 0), net: Number(m.net ?? 0),
           incomplete: ((m.incomplete as string[]) ?? []).map(String),
+          reconcile: ((rc: B) => ({
+            tripsFinal: Number(rc.trips_final ?? 0), tripsJudged: Number(rc.trips_judged ?? 0),
+            tripsCounted: Number(rc.trips_counted ?? 0), tripsFlagged: Number(rc.trips_flagged ?? 0),
+            itemised: Boolean(rc.itemised),
+            maintenance: Number(rc.maintenance ?? 0), emi: Number(rc.emi ?? 0),
+            documents: Number(rc.documents ?? 0), other: Number(rc.other ?? 0),
+            maintenanceActual: Number(rc.maintenance_actual ?? 0), emiActual: Number(rc.emi_actual ?? 0),
+            documentsActual: Number(rc.documents_actual ?? 0),
+            maintenanceOnTrips: Number(rc.maintenance_on_trips ?? 0), emiOnTrips: Number(rc.emi_on_trips ?? 0),
+            documentsOnTrips: Number(rc.documents_on_trips ?? 0),
+          }))((m.reconcile ?? {}) as B),
         },
       };
     }),
@@ -5252,6 +5484,14 @@ export const securityApi = {
       method: "PUT",
       body: JSON.stringify({ mandatory }),
     }).then((r) => Boolean(r.mandatory)),
+  // Most that can be entered as the advance when a driver is marked On Workshop.
+  getDriverAdvanceMax: () =>
+    req<{ amount: number }>("/settings/driver-advance-max").then((r) => Number(r.amount)),
+  updateDriverAdvanceMax: (amount: number) =>
+    req<{ amount: number }>("/settings/driver-advance-max", {
+      method: "PUT",
+      body: JSON.stringify({ amount }),
+    }).then((r) => Number(r.amount)),
   // Whether the auto-close-shift background sweep runs at all. Manual
   // "Close Shift" (self or Admin) always works regardless of this flag.
   getAutoCloseEnabled: () =>
@@ -5282,6 +5522,79 @@ export const securityApi = {
     }),
 };
 
+export type SheetKmNeighbour = { tripCode: string; date: string | null; startKm: number; endKm: number };
+export type SheetKmCheck = {
+  warnings: { field: "start" | "end"; message: string }[];
+  previous: SheetKmNeighbour | null;
+  next: SheetKmNeighbour | null;
+  highestOtherReading: number | null;
+  /** What saving does to the truck's odometer when End KM is lowered on an edit. */
+  odometerNote: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// Proof and Documents — every proof/document in one place (read-only)
+// ---------------------------------------------------------------------------
+
+export type DocumentItem = {
+  key: string;
+  category: string;
+  categoryLabel: string;
+  date: string | null;
+  title: string;
+  truckId: string | null;
+  registrationNumber: string | null;
+  party: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  amount: number | null;
+  fileName: string | null;      // null on the Missing proof list
+  sizeBytes: number | null;
+  uploadedBy: string | null;
+  uploadedAt: string | null;
+  status: string | null;
+  link: string | null;          // the page the document belongs to
+  ref: string | null;           // e.g. "Maintenance record #12"
+};
+
+function toDocumentItem(b: B): DocumentItem {
+  return {
+    key: String(b.key), category: String(b.category), categoryLabel: String(b.category_label ?? ""),
+    date: b.date ?? null, title: String(b.title ?? ""), truckId: b.truck_id ?? null,
+    registrationNumber: b.registration_number ?? null, party: b.party ?? null,
+    invoiceNumber: b.invoice_number ?? null, invoiceDate: b.invoice_date ?? null,
+    amount: b.amount != null ? Number(b.amount) : null, fileName: b.file_name ?? null,
+    sizeBytes: b.size_bytes ?? null, uploadedBy: b.uploaded_by ?? null, uploadedAt: b.uploaded_at ?? null,
+    status: b.status ?? null, link: b.link ?? null, ref: b.ref ?? null,
+  };
+}
+
+export const documentsApi = {
+  /** Everything this role may see, plus the types it may filter by. Always fresh. */
+  list: (): Promise<{ categories: { key: string; label: string }[]; items: DocumentItem[] }> =>
+    rawReq<B>("/documents").then((d) => ({
+      categories: ((d.categories as B[]) ?? []).map((c) => ({ key: String(c.key), label: String(c.label) })),
+      items: ((d.items as B[]) ?? []).map(toDocumentItem),
+    })),
+  /** Costs that still have no proof. */
+  missing: (): Promise<DocumentItem[]> => rawReq<B[]>("/documents/missing").then((d) => d.map(toDocumentItem)),
+  /** One document's file, fetched with the auth header (checked by the page's own rules). */
+  fetchBlob: async (key: string): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/documents/file/${encodeURIComponent(key)}`, { headers: authHeaders() });
+    } catch {
+      throw new Error("Cannot reach the server. Make sure the backend is running.");
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the file: HTTP ${res.status}`));
+    return res.blob();
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Running Cost Calculator API
 // ---------------------------------------------------------------------------
@@ -5292,6 +5605,8 @@ type RccModeData = {
   tyreCostConfigQty?: Record<string, Record<string, string>>;
   tyreEntries: Record<string, { cost: string; range: string }>;
   runEntries: Record<string, { month: string; day: string }>;
+  /** AdBlue Details: manufacturer id → AdBlue price per litre. */
+  adbluePrices?: Record<string, string>;
   truckMetrics: Record<string, {
     emiAmount: string;
     emiPerDay: string;
@@ -5301,6 +5616,9 @@ type RccModeData = {
     tyrePerKm: string;
     maintenancePerKm: string;
     complianceCostPerYear: string;
+    adblueConsumeLKm: string;
+    adblueManufacturer: string;
+    adbluePerKm: string;
   }>;
 };
 
@@ -5320,6 +5638,7 @@ function _parseModeData(d: Record<string, any>): RccModeData {
     runEntries: Object.fromEntries(
       Object.entries(d.run_entries ?? {}).map(([k, v]: [string, any]) => [k, { month: v.month ?? "", day: v.day ?? "" }])
     ),
+    adbluePrices: d.adblue_prices ?? {},
     truckMetrics: Object.fromEntries(
       Object.entries(d.truck_metrics ?? {}).map(([k, v]: [string, any]) => {
         return [k, {
@@ -5331,6 +5650,9 @@ function _parseModeData(d: Record<string, any>): RccModeData {
           tyrePerKm: v.tyre_per_km ?? "",
           maintenancePerKm: v.maintenance_per_km ?? "",
           complianceCostPerYear: v.compliance_cost_per_year ?? "",
+          adblueConsumeLKm: v.adblue_consume_l_per_km ?? "",
+          adblueManufacturer: v.adblue_manufacturer_id ?? "",
+          adbluePerKm: v.adblue_per_km ?? "",
         }];
       })
     ),
@@ -5348,6 +5670,7 @@ function _serializeModeData(d: RccModeData) {
     run_entries: Object.fromEntries(
       Object.entries(d.runEntries).map(([k, v]) => [k, { month: v.month, day: v.day }])
     ),
+    adblue_prices: d.adbluePrices ?? {},
     truck_metrics: Object.fromEntries(
       Object.entries(d.truckMetrics).map(([k, v]) => [k, {
         emi_amount:  v.emiAmount,
@@ -5358,6 +5681,9 @@ function _serializeModeData(d: RccModeData) {
         tyre_per_km: v.tyrePerKm,
         maintenance_per_km: v.maintenancePerKm,
         compliance_cost_per_year: v.complianceCostPerYear,
+        adblue_consume_l_per_km: v.adblueConsumeLKm,
+        adblue_manufacturer_id: v.adblueManufacturer,
+        adblue_per_km: v.adbluePerKm,
       }])
     ),
   };
@@ -5403,6 +5729,7 @@ export type ServerCostParts = {
   total: number | null;
   emi: number | null;
   fuel: number | null;
+  adblue: number | null;
   tyre: number | null;
   maintenance: number | null;
   compliance: number | null;
@@ -5519,7 +5846,7 @@ export const runningCostApi = {
   saveCostPerKm: (
     mode: string,
     values: Record<string, number | null>,
-    parts?: Record<string, { emi: number | null; fuel: number | null; tyre: number | null; maintenance: number | null; compliance: number | null }>,
+    parts?: Record<string, { emi: number | null; fuel: number | null; adblue: number | null; tyre: number | null; maintenance: number | null; compliance: number | null }>,
   ): Promise<void> =>
     req<void>("/running-cost/cost-per-km", {
       method: "PUT",

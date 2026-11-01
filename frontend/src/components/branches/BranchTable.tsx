@@ -62,6 +62,34 @@ function HaltFeeGrid({ branch }: { branch: Branch }) {
   );
 }
 
+/** The Cleaner Batta Fee of each container type. */
+function CleanerFeeGrid({ branch }: { branch: Branch }) {
+  return (
+    <div className="inline-block overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <table className="text-xs">
+        <thead>
+          <tr className="bg-slate-50">
+            {HALT_CONTAINER_TYPES.map((t) => (
+              <th key={t.spec} className="px-3 py-1.5 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                {t.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            {HALT_CONTAINER_TYPES.map((t) => (
+              <td key={t.spec} className="min-w-[72px] px-3 py-1.5 text-right font-medium tabular-nums text-slate-800">
+                {fmtFee(branch[t.cleaner])}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
   if (branches.length === 0) {
     return (
@@ -94,7 +122,9 @@ export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
                 <HaltFeeGrid branch={branch} />
               </td>
               <td className="px-5 py-5 tabular-nums text-gray-700">{branch.driverHaltDayPercentage}%</td>
-              <td className="px-5 py-5 tabular-nums text-gray-700">{fmt(branch.cleanerBattaFee)}</td>
+              <td className="px-5 py-4">
+                <CleanerFeeGrid branch={branch} />
+              </td>
               <td className="px-5 py-5 tabular-nums text-gray-700">{fmt(branch.workshopBattaFee)}</td>
               <td className="px-5 py-5">
                 <div className="flex items-center gap-2">

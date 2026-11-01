@@ -295,7 +295,7 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
             <Section title="What it is">
               <p className="text-sm leading-relaxed text-slate-600">
                 A daily amount the driver earns for every day they work, based on their <span className="font-semibold text-slate-800">attendance</span>.
-                Each branch&apos;s daily amount is its <span className="font-semibold text-slate-800">Cleaner Batta Fee</span> in Branch Management.
+                Each branch has a <span className="font-semibold text-slate-800">Cleaner Batta Fee</span> for each vehicle type in Branch Management, and the type is picked when the driver is marked in Driver Attendance.
               </p>
             </Section>
             <Section title="Which days count">
@@ -311,7 +311,8 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
             <Section title="How each day is priced">
               <FormulaRow name="Truck that day" formula="Trip → assigned truck → current truck" note="The truck on the trip the driver was on that day; otherwise the truck they were assigned to that day; otherwise their current truck." />
               <FormulaRow name="Branch that day" formula="That truck's branch on that day" note="Follows the truck's branch history, so a branch change mid-month is handled day by day." />
-              <FormulaRow name="Amount" formula="That branch's Cleaner Batta Fee on that day" note="A changed fee only applies from the day it's changed — past days keep the fee they had. (A branch's very first fee also covers the days before it.)" />
+              <FormulaRow name="Vehicle type" formula="20FT, 40FT, 2×20FT or Open Load" note="Picked when the day is marked On Trip or On Halt. Days marked before this have no type and keep the branch's earlier single fee." />
+              <FormulaRow name="Amount" formula="That branch's Cleaner Batta Fee for that vehicle type on that day" note="A changed fee only applies from the day it's changed — past days keep the fee they had. (A branch's very first fee also covers the days before it.)" />
             </Section>
             <Section title="Good to know">
               <ul className="flex flex-col gap-2 text-sm text-slate-600">

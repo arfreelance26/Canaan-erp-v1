@@ -6,9 +6,9 @@ from datetime import date, datetime, timedelta, timezone
 # Optional[date] resolves the type reference to the field itself (None)
 # instead of datetime.date, silently corrupting it into an always-None field.
 from datetime import date as _DateType
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
@@ -885,6 +885,103 @@ def _active_truck_or_error(db: Session, truck_id: int) -> models.Truck:
     return truck
 
 
+def _check_adblue_odometer(db: Session, log: models.AdBlueLog, new_date, new_odometer: int) -> None:
+    """An edited fill must still sit in order: the km between fills are what
+    give the truck's km per litre, so a reading can't repeat or jump past a
+    fill dated before or after it."""
+    others = db.query(models.AdBlueLog).filter(
+        models.AdBlueLog.truck_id == log.truck_id, models.AdBlueLog.id != log.id,
+    ).all()
+    for other in others:
+        day = other.date.strftime("%d-%m-%Y")
+        if other.odometer == new_odometer:
+            raise HTTPException(400, f"Odometer ({new_odometer}) is the same as the {day} AdBlue fill's reading.")
+        if other.date < new_date and other.odometer > new_odometer:
+            raise HTTPException(400, f"Odometer ({new_odometer}) must be greater than the {day} AdBlue fill's reading ({other.odometer}).")
+        if other.date > new_date and other.odometer < new_odometer:
+            raise HTTPException(400, f"Odometer ({new_odometer}) must be less than the {day} AdBlue fill's reading ({other.odometer}).")
+
+
+def apply_adblue_log_update(
+    db: Session,
+    log: models.AdBlueLog,
+    payload: schemas.AdBlueLogUpdate,
+    actor_name: str,
+    actor_role: str,
+) -> None:
+    """Validate and apply an edit to an AdBlue log, and log it. Shared by the
+    Admin's direct edit (PUT below) and by approving a non-Admin's edit request
+    (routers/edit_approvals.py). Doesn't commit. Entered By stays the person who
+    made the entry; who changed it is in Edit History."""
+    _active_truck_or_error(db, log.truck_id)
+    updates = payload.model_dump(exclude_unset=True, exclude={"client_version"})
+    for field in ("date", "odometer", "litres", "price_per_litre", "total_cost"):
+        if field in updates and updates[field] is None:
+            raise HTTPException(400, f"{field.replace('_', ' ').capitalize()} can't be empty.")
+    new_date = updates.get("date", log.date)
+    new_odometer = updates.get("odometer", log.odometer)
+    if new_date != log.date or new_odometer != log.odometer:
+        _check_adblue_odometer(db, log, new_date, new_odometer)
+    for field, value in updates.items():
+        setattr(log, field, value)
+    log.version = (log.version or 1) + 1
+    db.add(models.AdBlueLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Edited", actor_name=actor_name, actor_role=actor_role,
+    ))
+
+
+def remove_adblue_log(db: Session, log: models.AdBlueLog, actor_name: str, actor_role: str) -> None:
+    """Delete an AdBlue log and log it. Shared by the Admin's direct delete and
+    by approving a non-Admin's deletion request. Doesn't commit."""
+    _active_truck_or_error(db, log.truck_id)
+    db.add(models.AdBlueLogEditEvent(
+        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
+        event="Log Deleted", actor_name=actor_name, actor_role=actor_role,
+    ))
+    db.delete(log)
+
+
+def get_all_adblue_stats(db: Session) -> dict[str, float]:
+    """Each truck's AdBlue km per litre (keyed by trucks.id as a string) —
+    exactly how Fuel History works out mileage: the km between consecutive
+    fills ÷ the litres filled, odd intervals removed (_iqr_filter), weighted
+    over the truck's whole history. Needs at least 2 fills."""
+    raw: dict[int, list[dict]] = {}
+    prev: dict[int, models.AdBlueLog] = {}
+    for log in db.query(models.AdBlueLog).order_by(models.AdBlueLog.truck_id, models.AdBlueLog.odometer.asc()):
+        tid = log.truck_id
+        litres = float(log.litres or 0)
+        if tid in prev and litres > 0:
+            dist = max(float(log.odometer) - float(prev[tid].odometer), 0)
+            if dist > 0:
+                raw.setdefault(tid, []).append({"distance": dist, "litres": litres, "mileage": dist / litres})
+        prev[tid] = log
+    out = {}
+    for tid, intervals in raw.items():
+        kept = _iqr_filter(intervals)
+        litres = sum(r["litres"] for r in kept)
+        if litres > 0:
+            out[str(tid)] = round(sum(r["distance"] for r in kept) / litres, 6)
+    return out
+
+
+@router.get("/maintenance/adblue-stats/all", tags=["AdBlue"])
+def adblue_stats_all(db: Session = Depends(get_db)):
+    """Truck's AdBlue History → each truck's AdBlue km per litre, its
+    manufacturer's AdBlue price and the AdBlue cost per km (price ÷ km/L) —
+    the same figure the Running Cost Calculator and Profitability use."""
+    from routers.running_cost import adblue_price_by_truck
+    kml = get_all_adblue_stats(db)
+    price = adblue_price_by_truck(db)
+    out = {}
+    for t in db.query(models.Truck.id).all():
+        tid = str(t.id)
+        k, p = kml.get(tid), price.get(t.id)
+        out[tid] = {"km_per_litre": k, "price_per_litre": p, "cost_per_km": round(p / k, 6) if k and p else None}
+    return out
+
+
 @router.get("/maintenance/adblue-logs/edit-events", response_model=list[schemas.AdBlueLogEditEventOut], tags=["AdBlue"])
 def list_adblue_log_edit_events(db: Session = Depends(get_db)):
     """Every Create/Edit/Delete of an AdBlue log, most recent first — the
@@ -927,9 +1024,18 @@ def list_adblue_logs(
 def create_adblue_log(
     payload: schemas.AdBlueLogCreate,
     db: Session = Depends(get_db),
-    current_user: TokenUser = Depends(get_current_user),
+    # Only the roles that have Truck's Adblue History (Admin, Maintenance).
+    current_user: TokenUser = Depends(require_roles("Maintenance")),
 ):
     _active_truck_or_error(db, payload.truck_id)
+    # Same rule as Fuel History: km per litre comes from the distance between
+    # fills, so each fill's odometer must be past the last one.
+    latest = (
+        db.query(models.AdBlueLog).filter(models.AdBlueLog.truck_id == payload.truck_id)
+        .order_by(models.AdBlueLog.odometer.desc()).first()
+    )
+    if latest and payload.odometer <= latest.odometer:
+        raise HTTPException(400, f"Odometer ({payload.odometer}) must be greater than the previous AdBlue fill's reading ({latest.odometer}).")
     log = models.AdBlueLog(**payload.model_dump(), entered_by_name=current_user.name)
     db.add(log)
     db.commit()
@@ -948,22 +1054,15 @@ def update_adblue_log(
     log_id: int,
     payload: schemas.AdBlueLogUpdate,
     db: Session = Depends(get_db),
-    current_user: TokenUser = Depends(get_current_user),
+    # Admin only — Maintenance raises an edit request instead.
+    current_user: TokenUser = Depends(require_roles()),
 ):
     log = db.query(models.AdBlueLog).with_for_update().filter(models.AdBlueLog.id == log_id).first()
     if not log:
         raise HTTPException(404, "AdBlue log not found")
-    _active_truck_or_error(db, log.truck_id)
     if payload.client_version is not None and log.version != payload.client_version:
         raise HTTPException(409, "This record was modified by someone else. Please refresh and try again.")
-    for field, value in payload.model_dump(exclude_unset=True, exclude={"client_version"}).items():
-        setattr(log, field, value)
-    log.entered_by_name = current_user.name
-    log.version = (log.version or 1) + 1
-    db.add(models.AdBlueLogEditEvent(
-        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
-        event="Log Edited", actor_name=current_user.name, actor_role=current_user.role,
-    ))
+    apply_adblue_log_update(db, log, payload, current_user.name, current_user.role)
     db.commit()
     db.refresh(log)
     emit("adblue_updated", {})
@@ -971,16 +1070,13 @@ def update_adblue_log(
 
 
 @router.delete("/maintenance/adblue-logs/{log_id}", status_code=204, tags=["AdBlue"])
-def delete_adblue_log(log_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+def delete_adblue_log(log_id: int, db: Session = Depends(get_db), current_user: TokenUser = Depends(require_roles())):
+    """Admin only — Maintenance raises a deletion request instead."""
     log = db.get(models.AdBlueLog, log_id)
     if not log:
         raise HTTPException(404, "AdBlue log not found")
-    _active_truck_or_error(db, log.truck_id)
-    db.add(models.AdBlueLogEditEvent(
-        truck_id=log.truck_id, log_id=log.id, log_date=log.date, litres=log.litres,
-        event="Log Deleted", actor_name=current_user.name, actor_role=current_user.role,
-    ))
-    db.delete(log)
+    remove_adblue_log(db, log, current_user.name, current_user.role)
+    auto_reject_stale_requests(db, "AdBlueLog", log_id, current_user.name)
     db.commit()
     emit("adblue_updated", {})
 
@@ -1437,16 +1533,74 @@ def flag_tyre_for_retread(
     return tyre
 
 
+async def _read_retread_proof(file) -> tuple[bytes, str] | None:
+    """A retread's Proof of Payment/Invoice upload, checked like the tyre's own
+    proof: ≤15 MB, real bytes are a PDF or an image. None when no file."""
+    if file is None or not getattr(file, "filename", None):
+        return None
+    data = await file.read(TYRE_PROOF_MAX_BYTES + 1)
+    if len(data) > TYRE_PROOF_MAX_BYTES:
+        raise HTTPException(413, "File too large. The proof can be at most 15 MB.")
+    if not data:
+        raise HTTPException(400, "The proof file is empty.")
+    mime = _tyre_proof_mime(data)
+    if not mime or not (mime == "application/pdf" or mime.startswith("image/")):
+        raise HTTPException(415, "Only PDF files and images can be uploaded as Proof of Payment/Invoice.")
+    return data, (file.filename or "proof").replace("\\", "/").split("/")[-1][:255]
+
+
 @router.post("/tyre-inventory/{tyre_id}/move-to-inventory", response_model=schemas.TyreInventoryOut, tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])
-def move_retread_tyre_to_inventory(
+async def move_retread_tyre_to_inventory(
     tyre_id: int,
-    payload: schemas.TyreMoveToInventory,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: TokenUser = Depends(get_current_user),
 ):
     """Moves a retread-queue tyre back into Tyre Inventory. The retread cost
     becomes the tyre's purchase cost and retread cost, and the entered expected
-    range replaces its range. Cost per km is recalculated from them."""
+    range replaces its range. Cost per km is recalculated from them.
+
+    Who did it (Vendor from Our Vendors, or an Individual), the invoice and the
+    Proof of Payment/Invoice are saved on this retread's history row — all in
+    one request (multipart: fields + optional "proof" file; plain JSON still
+    accepted), so the move and its proof are saved together or not at all."""
+    proof = None
+    ctype = request.headers.get("content-type") or ""
+    if ctype.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
+        form = await request.form()
+        fields = {k: v for k, v in form.items() if k != "proof" and isinstance(v, str)}
+        for k in ("vendor_id", "invoice_number", "invoice_date"):
+            if fields.get(k, None) == "":
+                fields[k] = None
+        proof = await _read_retread_proof(form.get("proof"))
+    else:
+        try:
+            fields = await request.json()
+        except ValueError:
+            raise HTTPException(400, "Couldn't read the form. Please try again.")
+        if not isinstance(fields, dict):
+            raise HTTPException(400, "Couldn't read the form. Please try again.")
+    try:
+        payload = schemas.TyreMoveToInventory(**fields)
+    except ValidationError as e:
+        raise HTTPException(422, "; ".join(err["msg"] for err in e.errors()))
+    if payload.retread_by_type == "Vendor":
+        vendor = db.get(models.Vendor, payload.vendor_id) if payload.vendor_id else None
+        if vendor is None and payload.retread_done_by.strip():
+            # An older screen sends only the vendor's name — link it if it's unambiguous.
+            same = db.query(models.Vendor).filter(models.Vendor.name == payload.retread_done_by.strip(),
+                                                  models.Vendor.deleted_at.is_(None)).all()
+            vendor = same[0] if len(same) == 1 else None
+            done_by = payload.retread_done_by.strip()
+        else:
+            if vendor is None or vendor.deleted_at is not None:
+                raise HTTPException(400, "Select the vendor that did the retreading.")
+            done_by = vendor.name
+    else:
+        vendor = None
+        done_by = payload.retread_done_by.strip()
+        if not done_by:
+            raise HTTPException(400, "Enter the name of the person who did the retreading.")
     tyre = db.query(models.TyreInventory).with_for_update().filter(models.TyreInventory.id == tyre_id).first()
     if not tyre:
         raise HTTPException(404, "Tyre not found")
@@ -1466,7 +1620,12 @@ def move_retread_tyre_to_inventory(
         tyre_id=tyre.id, event="Moved to Inventory",
         actor_name=current_user.name, actor_role=current_user.role,
         retread_cost=payload.retread_cost, expected_range=payload.expected_range,
-        retread_count=tyre.retread_count, retread_done_by=payload.retread_done_by,
+        retread_count=tyre.retread_count, retread_done_by=done_by,
+        retread_by_type=payload.retread_by_type, vendor_id=vendor.id if vendor else None,
+        invoice_number=(payload.invoice_number or "").strip() or None, invoice_date=payload.invoice_date,
+        proof_data=proof[0] if proof else None, proof_file_name=proof[1] if proof else None,
+        proof_size_bytes=len(proof[0]) if proof else None,
+        proof_uploaded_by=current_user.name if proof else None,
     ))
     db.add(models.TyreInventoryEditEvent(
         tyre_id=tyre.id, event="Tyre Edited",
@@ -1476,6 +1635,78 @@ def move_retread_tyre_to_inventory(
     db.refresh(tyre)
     emit("tyre_updated", {})
     return tyre
+
+
+def _retread_event(db: Session, tyre_id: int, event_id: int, lock: bool = False) -> models.TyreMovementEvent:
+    q = db.query(models.TyreMovementEvent)
+    if lock:
+        q = q.with_for_update()
+    ev = q.filter(models.TyreMovementEvent.id == event_id, models.TyreMovementEvent.tyre_id == tyre_id,
+                  models.TyreMovementEvent.event == "Moved to Inventory").first()
+    if not ev:
+        raise HTTPException(404, "Retread not found")
+    return ev
+
+
+@router.get("/tyre-inventory/{tyre_id}/retreads/{event_id}/proof", tags=["Tyre"])
+def download_retread_proof(tyre_id: int, event_id: int, db: Session = Depends(get_db)):
+    """One retread's Proof of Payment/Invoice (View Tyre Data, Our Vendors)."""
+    ev = _retread_event(db, tyre_id, event_id)
+    if not ev.proof_file_name or ev.proof_data is None:
+        raise HTTPException(404, "No proof uploaded for this retread")
+    data = ev.proof_data
+    return Response(
+        content=data,
+        media_type=_tyre_proof_mime(data) or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'inline; filename="{ev.proof_file_name.replace(chr(34), "")}"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+    )
+
+
+@router.post("/tyre-inventory/{tyre_id}/retreads/{event_id}/proof", response_model=schemas.TyreMovementEventOut,
+             tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])
+async def upload_retread_proof(
+    tyre_id: int,
+    event_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(get_current_user),
+):
+    """Add or replace one retread's Proof of Payment/Invoice afterwards."""
+    proof = await _read_retread_proof(file)
+    if proof is None:
+        raise HTTPException(400, "Choose a file to upload.")
+    ev = _retread_event(db, tyre_id, event_id, lock=True)
+    ev.proof_data, ev.proof_file_name = proof
+    ev.proof_size_bytes = len(proof[0])
+    ev.proof_uploaded_by = current_user.name
+    db.add(models.TyreInventoryEditEvent(
+        tyre_id=tyre_id, event="Tyre Edited", actor_name=current_user.name, actor_role=current_user.role,
+    ))
+    db.commit()
+    db.refresh(ev)
+    emit("tyre_updated", {})
+    return ev
+
+
+@router.delete("/tyre-inventory/{tyre_id}/retreads/{event_id}/proof", response_model=schemas.TyreMovementEventOut,
+               tags=["Tyre"], dependencies=[Depends(require_roles())])
+def delete_retread_proof(tyre_id: int, event_id: int, db: Session = Depends(get_db),
+                         current_user: TokenUser = Depends(get_current_user)):
+    """Admin only: remove one retread's proof."""
+    ev = _retread_event(db, tyre_id, event_id, lock=True)
+    if ev.proof_file_name:
+        ev.proof_data = ev.proof_file_name = ev.proof_size_bytes = ev.proof_uploaded_by = None
+        db.add(models.TyreInventoryEditEvent(
+            tyre_id=tyre_id, event="Tyre Edited", actor_name=current_user.name, actor_role=current_user.role,
+        ))
+        db.commit()
+        db.refresh(ev)
+        emit("tyre_updated", {})
+    return ev
 
 
 @router.post("/tyre-inventory/{tyre_id}/flag-discard", response_model=schemas.TyreInventoryOut, tags=["Tyre"], dependencies=[Depends(require_roles("Maintenance"))])

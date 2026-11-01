@@ -16,8 +16,12 @@ def _day(offset):
 def test_driver_attendance_and_remarks(api, api_as):
     cm = api_as("Commercial Manager")
     driver = create_driver(api)
-    rec = cm.post("/attendance/drivers", json={"driver_id": driver["driver_id"], "date": _day(1), "status": "Present"})
-    assert cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "On Trip"})["status"] == "On Trip"
+    marking = {"driver_id": driver["driver_id"], "date": _day(1), "status": "Present"}
+    cm.post("/attendance/drivers", json=marking, expect=400)  # no vehicle type chosen
+    rec = cm.post("/attendance/drivers", json={**marking, "container_specification": "20 FT CONTAINER"})
+    cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "On Trip"}, expect=400)
+    updated = cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "On Trip", "container_specification": "40 FT CONTAINER"})
+    assert updated["status"] == "On Trip" and updated["container_specification"] == "40 FT CONTAINER"
     api_as("Accounts").post("/attendance/drivers", json={
         "driver_id": driver["driver_id"], "date": _day(2), "status": "Present"}, expect=403)
 
@@ -26,6 +30,37 @@ def test_driver_attendance_and_remarks(api, api_as):
     assert cm.put(f"/attendance/drivers/remarks/{remark['id']}", json={"remark": "Came 1h late"})["remark"] == "Came 1h late"
     cm.delete(f"/attendance/drivers/remarks/{remark['id']}")
     cm.post("/attendance/drivers/late-entry-log", json={"date": _day(1), "remark": "Marked late — network down"})
+
+
+def test_workshop_advance_saved_and_shown_in_record(api, api_as):
+    cm = api_as("Commercial Manager")
+    driver = create_driver(api)
+    record_of = lambda: api.get("/finance/compensation/workshop-advance", params={"driver_id": driver["driver_id"]})["rows"]
+    day = {"driver_id": driver["driver_id"], "date": _day(0), "status": "On Workshop"}
+
+    cm.post("/attendance/drivers", json=day, expect=400)  # no amount
+    cm.post("/attendance/drivers", json={**day, "workshop_advance": -1}, expect=400)
+    cm.post("/attendance/drivers", json={**day, "workshop_advance": 500.01}, expect=400)  # above the max
+    assert record_of() == []
+
+    rec = cm.post("/attendance/drivers", json={**day, "workshop_advance": 0})  # no advance paid: not in the record
+    assert rec["workshop_advance"] == 0 and record_of() == []
+    rec = cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "On Workshop", "workshop_advance": 450.5})
+    assert rec["workshop_advance"] == 450.5
+    assert [(r["date"], r["amount"], r["note"]) for r in record_of()] == [(_day(0), 450.5, None)]
+    assert api.get("/attendance/drivers", params={"driver_id": driver["driver_id"]})[0]["workshop_advance"] == 450.5
+
+    cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "On Workshop"}, expect=400)
+    assert record_of()[0]["amount"] == 450.5  # a refused change keeps the amount
+
+    # Max raised by an Admin: a bigger amount is now accepted.
+    api.put("/settings/driver-advance-max", json={"amount": 1000})
+    assert cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "On Workshop", "workshop_advance": 900})["workshop_advance"] == 900
+    api.put("/settings/driver-advance-max", json={"amount": 500})
+
+    # No longer On Workshop: the advance goes, on any other status.
+    left = cm.put(f"/attendance/drivers/{rec['id']}", json={"status": "Leave", "workshop_advance": 100})
+    assert left["workshop_advance"] is None and record_of() == []
 
 
 def test_staff_attendance_by_admin(api):

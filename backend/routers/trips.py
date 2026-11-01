@@ -8,10 +8,11 @@ from pydantic import BaseModel
 from sqlalchemy import func, text, or_, inspect as sa_inspect
 from sqlalchemy.orm import Session, joinedload, selectinload
 from database import get_db
-from security import require_roles, get_current_user, TokenUser
+from security import PENDING_AUDIT_ROLES, require_roles, get_current_user, TokenUser
 import models, schemas
 import maintenance_reminders
 import odometer
+import trip_km
 from duplicate_checks import check_trip_duplicates
 from excel_utils import build_excel_response
 from websocket_manager import emit
@@ -133,7 +134,10 @@ ACTIVE_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached", "Un
 
 def _check_driver_truck_conflict(db: Session, driver_id, vehicle_id, exclude_trip_id=None):
     """Raise 400 if the driver or truck is already on an active trip."""
-    q = db.query(models.Trip).filter(models.Trip.status.in_(ACTIVE_STATUSES))
+    q = db.query(models.Trip).filter(
+        models.Trip.status.in_(ACTIVE_STATUSES),
+        models.Trip.deleted_at.is_(None),
+    )
     if exclude_trip_id is not None:
         q = q.filter(models.Trip.id != exclude_trip_id)
     if driver_id:
@@ -1240,6 +1244,7 @@ def list_all_recheck_events(db: Session = Depends(get_db)):
         return []
     trip_ids = {e.trip_id for e in events}
     trips_by_id = {t.id: t for t in db.query(models.Trip).filter(models.Trip.id.in_(trip_ids)).all()}
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
 
     result = []
     for e in events:
@@ -1248,7 +1253,7 @@ def list_all_recheck_events(db: Session = Depends(get_db)):
             "id": e.id,
             "trip_id": e.trip_id,
             "trip_id_str": trip.trip_id if trip else "—",
-            "driver_name": trip.driver_name if trip else None,
+            "driver_name": driver_names.get(trip.driver_id) if trip else None,
             "origin": trip.origin if trip else None,
             "destination": trip.destination if trip else None,
             "event": e.event,
@@ -1277,6 +1282,7 @@ def list_all_edit_events(db: Session = Depends(get_db)):
         return []
     trip_ids = {e.trip_id for e in events}
     trips_by_id = {t.id: t for t in db.query(models.Trip).filter(models.Trip.id.in_(trip_ids)).all()}
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
 
     result = []
     for e in events:
@@ -1285,7 +1291,7 @@ def list_all_edit_events(db: Session = Depends(get_db)):
             "id": e.id,
             "trip_id": e.trip_id,
             "trip_id_str": trip.trip_id if trip else "—",
-            "driver_name": trip.driver_name if trip else None,
+            "driver_name": driver_names.get(trip.driver_id) if trip else None,
             "origin": trip.origin if trip else None,
             "destination": trip.destination if trip else None,
             "event": e.event,
@@ -1298,12 +1304,16 @@ def list_all_edit_events(db: Session = Depends(get_db)):
 
 @router.get("/audit-verified", response_model=list[schemas.AuditVerifiedTripOut])
 def list_audit_verified_trips(db: Session = Depends(get_db)):
+    """Registered before GET /{trip_id} so "audit-verified" isn't swallowed as
+    a trip_id path param."""
+    return audit_verified_rows(db)
+
+
+def audit_verified_rows(db: Session) -> list[dict]:
     """The counterpart to Flagged Trips: every trip whose most recent Auditor
     recheck event is "Verified" — closed-out review, whether the trip was
     disputed-then-fixed or verified proactively clean. Most recently verified
-    first. Registered before GET /{trip_id} so "audit-verified" isn't
-    swallowed as a trip_id path param.
-    """
+    first. The Audit Verified Trips page and its export both use this."""
     events = (
         db.query(models.TripRecheckEvent)
         # id (autoincrement) breaks ties deterministically for events created
@@ -1328,7 +1338,9 @@ def list_audit_verified_trips(db: Session = Depends(get_db)):
     if not verified_ids:
         return []
 
-    trips_by_id = {t.id: t for t in db.query(models.Trip).filter(models.Trip.id.in_(verified_ids)).all()}
+    trips_by_id = {t.id: t for t in db.query(models.Trip).filter(
+        models.Trip.id.in_(verified_ids), models.Trip.deleted_at.is_(None)).all()}
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
 
     result = []
     for tid in verified_ids:
@@ -1339,7 +1351,7 @@ def list_audit_verified_trips(db: Session = Depends(get_db)):
         result.append({
             "trip_id": trip.id,
             "trip_id_str": trip.trip_id,
-            "driver_name": trip.driver_name,
+            "driver_name": driver_names.get(trip.driver_id),
             "origin": trip.origin,
             "destination": trip.destination,
             "scheduled_date": trip.scheduled_date,
@@ -1351,6 +1363,43 @@ def list_audit_verified_trips(db: Session = Depends(get_db)):
         })
     result.sort(key=lambda r: r["verified_at"], reverse=True)
     return result
+
+
+def pending_audit_rows(db: Session) -> list[dict]:
+    """Completed trips verified by Accounts (they've reached the Auditor on
+    Driver / Vehicle Based Record) that the Auditor hasn't verified or flagged.
+    Oldest first. The Pending Audit page and its Excel export both use this."""
+    trips = (
+        db.query(models.Trip)
+        .filter(
+            models.Trip.deleted_at.is_(None),
+            models.Trip.status == "Completed",
+            models.Trip.verification_status == "verified",
+            models.Trip.flagged_for_recheck.is_(False),
+            models.Trip.audit_verified.is_(False),
+        )
+        .order_by(models.Trip.scheduled_date, models.Trip.id)
+        .all()
+    )
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
+    registrations = dict(db.query(models.Truck.truck_id, models.Truck.registration_number).all())
+    return [{
+        "trip_id": t.id,
+        "trip_id_str": t.trip_id,
+        "driver_name": driver_names.get(t.driver_id),
+        "vehicle_id": t.vehicle_id,
+        "truck_registration": registrations.get(t.vehicle_id),
+        "origin": t.origin,
+        "destination": t.destination,
+        "scheduled_date": t.scheduled_date,
+    } for t in trips]
+
+
+@router.get("/pending-audit", response_model=list[schemas.PendingAuditTripOut], dependencies=[Depends(require_roles(*PENDING_AUDIT_ROLES))])
+def list_pending_audit_trips(db: Session = Depends(get_db)):
+    """Registered before GET /{trip_id} so "pending-audit" isn't swallowed as a
+    trip_id path param."""
+    return pending_audit_rows(db)
 
 
 @router.get("/deleted-ids", dependencies=[Depends(require_roles())])
@@ -1472,22 +1521,6 @@ def _sync_sheet_from_trip(trip: "models.Trip", changed_keys: set) -> None:
     # trip_sheet_no is derived from the booking reference (CGI… → TS…)
     if "booking_reference_no" in changed_keys and (trip.booking_reference_no or "").startswith("CGI"):
         sheet.trip_sheet_no = "TS" + trip.booking_reference_no[3:]
-
-    # RETURN TRIP driver batta is DERIVED from hire: round(10% of (hire − weight sheet)).
-    # When hire changes it must be recomputed, or the stored batta (and the expense totals
-    # that include it) go stale. batta feeds calcTripExpenses only, so we adjust
-    # trip_expenses_total / total_expense by the delta (driver_expenses_total is unaffected).
-    if "transport_hire_amount" in changed_keys and (sheet.trip_type or "").upper() == "RETURN TRIP":
-        base = float(sheet.hire_amount or 0) - float(sheet.weight_sheet_expense or 0)
-        new_batta = round(base * 0.10) if base > 0 else 0
-        old_batta = float(sheet.driver_pay or 0)
-        delta = new_batta - old_batta
-        if delta:
-            sheet.driver_pay = Decimal(str(new_batta))
-            if sheet.trip_expenses_total is not None:
-                sheet.trip_expenses_total = Decimal(str(round(float(sheet.trip_expenses_total) + delta, 2)))
-            if sheet.total_expense is not None:
-                sheet.total_expense = Decimal(str(round(float(sheet.total_expense) + delta, 2)))
 
 
 @router.put("/{trip_id}", response_model=schemas.TripOut)
@@ -1633,6 +1666,9 @@ def restore_trip(trip_id: int, db: Session = Depends(get_db), current_user: Toke
         raise HTTPException(404, "Trip not found")
     if trip.deleted_at is None:
         raise HTTPException(409, "Trip is not deleted")
+    # Its truck and driver were freed by the delete and may be on a new trip now.
+    if trip.status in ACTIVE_STATUSES:
+        _check_driver_truck_conflict(db, trip.driver_id, trip.vehicle_id, exclude_trip_id=trip.id)
     trip.deleted_at = None
     db.add(models.TripEditEvent(
         trip_id=trip.id, event="Trip Restored",
@@ -1818,6 +1854,9 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
 
     data = derive_sheet_totals(payload.model_dump(exclude={"client_version"}))
     is_new = not trip.sheet
+    # Before it's overwritten — a lowered End KM may need to bring the truck's odometer down.
+    old_end_km = trip.sheet.end_km if trip.sheet else None
+    old_vehicle = (trip.sheet.vehicle_id or trip.vehicle_id) if trip.sheet else None
 
     if trip.sheet:
         sheet = trip.sheet
@@ -1884,6 +1923,12 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     # Always update the truck's current odometer to end_km if it advances it
     if truck and payload.end_km and odometer.advance(db, truck, payload.end_km):
         db.commit()
+    # An edit that lowered End KM (a typo fixed): if the odometer came from
+    # this sheet, bring it down — never below another record's reading.
+    elif truck and old_end_km and old_vehicle == truck.truck_id and trip_km.lower_after_edit(
+            db, truck, trip, old_end_km, payload.end_km, current_user.name, current_user.role) is not None:
+        db.commit()
+        emit("truck_updated", {"id": truck.id})
 
     # Auto-sync diesel entries to FuelLog
     entries = payload.diesel_entries or []
@@ -1958,7 +2003,19 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
     elif not truck:
         print(f"[TripSheet] FuelLog sync skipped: truck not found for vehicle_id='{vehicle_id}'", flush=True)
     elif not entries:
-        print(f"[TripSheet] FuelLog sync skipped: no diesel entries with litres > 0", flush=True)
+        # Every fill was cleared/removed: drop the Fuel History rows this sheet
+        # made earlier (the cleanup above only runs while a fill remains).
+        # Rows from the old single-diesel form ("trip:<id>", no ":<n>") are real
+        # fills kept from before diesel entries existed — never touched here.
+        stale = db.query(models.FuelLog).filter(
+            models.FuelLog.truck_id == truck.id,
+            models.FuelLog.logged_by.like(f"trip:{trip_id}:%"),
+        ).all()
+        for log in stale:
+            db.delete(log)
+        if stale:
+            db.commit()
+        print(f"[TripSheet] no diesel entries with litres > 0 — removed {len(stale)} earlier FuelLog row(s)", flush=True)
 
     # Major repairs → Maintenance Approvals (runs on every save, not just
     # first). Each line becomes a request for Admin/Accounts; unchanged lines
@@ -1991,6 +2048,22 @@ def upsert_trip_sheet(trip_id: int, payload: schemas.TripSheetCreate, db: Sessio
         emit("maintenance_updated", {})
 
     return sheet
+
+
+@router.post("/{trip_id}/sheet/km-check")
+def check_trip_sheet_km(trip_id: int, payload: schemas.TripSheetKmCheckIn, db: Session = Depends(get_db),
+                        current_user: TokenUser = Depends(get_current_user)):
+    """Trip Sheet form → Start/End KM against the truck's trips before and
+    after this one and its highest other reading (new sheets and edits), and
+    what saving would do to the truck's odometer. Warnings only."""
+    trip = db.get(models.Trip, trip_id)
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    r = trip_km.check(db, trip, payload.vehicle_id, payload.trip_scheduled_date, payload.start_km, payload.end_km)
+    for k in ("previous", "next"):
+        if r[k]:
+            r[k] = {**r[k], "date": r[k]["date"].isoformat() if r[k]["date"] else None}
+    return r
 
 
 @router.get("/{trip_id}/sheet", response_model=Optional[schemas.TripSheetOut])
@@ -2146,6 +2219,12 @@ def _log_recheck_event(db: Session, trip_id: int, event: str, remark: Optional[s
     ))
 
 
+def _clear_reverification(trip: models.Trip) -> None:
+    trip.reverification_remark = None
+    trip.reverification_by = None
+    trip.reverification_at = None
+
+
 class RecheckFlagBody(BaseModel):
     remark: str
 
@@ -2175,6 +2254,7 @@ def flag_trip_for_recheck(
     # A new flag supersedes any past verification — the trip is no longer
     # considered "closed, verified" once it's under review again.
     trip.audit_verified = False
+    _clear_reverification(trip)
     _log_recheck_event(db, trip_id, "Flagged", body.remark.strip(), current_user)
     db.commit()
     db.refresh(trip)
@@ -2221,7 +2301,7 @@ def verify_trip_recheck(
     trip_id: int,
     body: RecheckVerifyBody,
     db: Session = Depends(get_db),
-    current_user: TokenUser = Depends(get_current_user),
+    current_user: TokenUser = Depends(require_roles("Auditor")),
 ):
     """Auditor: close the loop — clears any flag/return state entirely (the
     trip drops off Flagged Trips) and marks the trip as terminally verified:
@@ -2239,7 +2319,75 @@ def verify_trip_recheck(
     trip.recheck_returned = False
     trip.flagged_remark = None
     trip.audit_verified = True
+    _clear_reverification(trip)
     _log_recheck_event(db, trip_id, "Verified", body.remark.strip(), current_user)
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+class AuditReasonBody(BaseModel):
+    remark: str = ""
+
+
+def _verified_trip_or_error(db: Session, trip_id: int, body: AuditReasonBody) -> models.Trip:
+    trip = db.query(models.Trip).options(
+        joinedload(models.Trip.closure), joinedload(models.Trip.sheet)
+    ).filter(models.Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(404, "Trip not found")
+    if not trip.audit_verified:
+        raise HTTPException(409, "This trip isn't verified by Audit any more.")
+    if not body.remark.strip():
+        raise HTTPException(400, "A reason is required.")
+    return trip
+
+
+@router.post("/{trip_id}/recheck-undo-verify", response_model=schemas.TripOut)
+def undo_trip_verification(
+    trip_id: int,
+    body: AuditReasonBody,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(require_roles("Auditor")),
+):
+    """Auditor: take back a Verify made by mistake. The trip goes back to
+    Pending Audit, with Flag and Verify unlocked for a fresh decision."""
+    trip = _verified_trip_or_error(db, trip_id, body)
+    trip.audit_verified = False
+    _log_recheck_event(db, trip_id, "Verification Undone", body.remark.strip(), current_user)
+    db.commit()
+    db.refresh(trip)
+    return _enrich(trip)
+
+
+@router.post("/{trip_id}/request-reverification", response_model=schemas.TripOut)
+def request_reverification(
+    trip_id: int,
+    body: AuditReasonBody,
+    db: Session = Depends(get_db),
+    current_user: TokenUser = Depends(require_roles("Accounts", "Trip Sheet Register")),
+):
+    """Audit Verified Trips: a user sends a verified trip back to the Auditor
+    to be checked again. Unlike a Flag there's nothing to correct first, so
+    Flag and Verify unlock straight away; the Auditor sees why on Driver /
+    Vehicle Record and in their notifications."""
+    trip = _verified_trip_or_error(db, trip_id, body)
+    remark = body.remark.strip()
+    trip.audit_verified = False
+    trip.reverification_remark = remark
+    trip.reverification_by = current_user.name
+    trip.reverification_at = datetime.now(timezone.utc)
+    _log_recheck_event(db, trip_id, "Flagged for Re-Verification", remark, current_user)
+    db.add(models.Notification(
+        event_type="reverification_requested",
+        title=f"Trip {trip.trip_id} sent for Re-Verification",
+        message=json.dumps({"remark": remark, "by": current_user.name, "role": current_user.role, "driver_id": trip.driver_id or ""}),
+        trip_id_str=trip.trip_id,
+        booking_reference_no=trip.booking_reference_no,
+        target_roles="Auditor",
+        created_by=current_user.name,
+        created_by_role=current_user.role,
+    ))
     db.commit()
     db.refresh(trip)
     return _enrich(trip)

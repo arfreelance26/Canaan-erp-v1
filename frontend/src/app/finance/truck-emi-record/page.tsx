@@ -12,7 +12,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
-import { formatDate, todayIst } from "@/lib/format-date";
+import { formatDate, todayIst, overlapsDateRange } from "@/lib/format-date";
 
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 const OTHER_ASSETS_KEY = "__other__";
@@ -91,9 +91,14 @@ export default function TruckEmiRecordPage() {
     return map;
   }, [trucks]);
 
+  const datedRecords = useMemo(
+    () => records.filter((r) => overlapsDateRange(r.emiStartDate, r.emiEndDate, exportFrom, exportTo)),
+    [records, exportFrom, exportTo],
+  );
+
   const recordsByGroup = useMemo(() => {
     const map = new Map<string, EmiRecord[]>();
-    for (const r of records) {
+    for (const r of datedRecords) {
       const key = truckByReg.has((r.truckRegistration ?? "").trim().toUpperCase())
         ? (r.truckRegistration ?? "").trim().toUpperCase()
         : OTHER_ASSETS_KEY;
@@ -103,13 +108,13 @@ export default function TruckEmiRecordPage() {
     }
     for (const list of map.values()) list.sort((a, b) => b.emiStartDate.localeCompare(a.emiStartDate));
     return map;
-  }, [records, truckByReg]);
+  }, [datedRecords, truckByReg]);
 
   const totalMonthlyActive = useMemo(
-    () => records.filter((r) => r.emiEndDate >= today).reduce((sum, r) => sum + n(r.emiAmount), 0),
-    [records, today]
+    () => datedRecords.filter((r) => r.emiEndDate >= today).reduce((sum, r) => sum + n(r.emiAmount), 0),
+    [datedRecords, today]
   );
-  const activeCount = useMemo(() => records.filter((r) => r.emiEndDate >= today).length, [records, today]);
+  const activeCount = useMemo(() => datedRecords.filter((r) => r.emiEndDate >= today).length, [datedRecords, today]);
 
   function toggle(key: string) {
     setExpanded((prev) => {
@@ -146,11 +151,12 @@ export default function TruckEmiRecordPage() {
       .sort((a, b) => a.registrationNumber.localeCompare(b.registrationNumber))
       .map((t) => ({ key: t.registrationNumber.trim().toUpperCase(), truck: t, records: recordsByGroup.get(t.registrationNumber.trim().toUpperCase()) ?? [] }));
     const other = recordsByGroup.get(OTHER_ASSETS_KEY) ?? [];
-    const groups = other.length > 0 ? [...truckGroups, { key: OTHER_ASSETS_KEY, truck: null, records: other }] : truckGroups;
+    const allGroups = other.length > 0 ? [...truckGroups, { key: OTHER_ASSETS_KEY, truck: null, records: other }] : truckGroups;
+    const groups = exportFrom || exportTo ? allGroups.filter((g) => g.records.length > 0) : allGroups;
 
     if (!q) return groups;
     return groups.filter((g) => (g.truck ? truckDetailsMatch(g.truck) : false) || groupRecordsMatch(g.records));
-  }, [trucks, recordsByGroup, q]);
+  }, [trucks, recordsByGroup, q, exportFrom, exportTo]);
 
   useEffect(() => {
     if (!q) return;
@@ -226,7 +232,7 @@ export default function TruckEmiRecordPage() {
         <div className="flex flex-col items-center gap-2 rounded-xl border border-white/80 bg-white/40 py-16 text-center shadow-sm backdrop-blur-sm">
           <Landmark className="h-8 w-8 text-gray-200" />
           <p className="text-sm font-medium text-gray-500">
-            {trucks.length === 0 && records.length === 0 ? "No trucks or EMI entries yet." : "No trucks or EMI entries match this search."}
+            {trucks.length === 0 && records.length === 0 ? "No trucks or EMI entries yet." : "No trucks or EMI entries match these filters."}
           </p>
         </div>
       ) : (

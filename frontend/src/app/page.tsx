@@ -72,7 +72,7 @@ import type { EditApprovalRequest } from "@/types/edit-approval";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { EmiRecord, RecurringPayment } from "@/types/finance";
-import { todayIst } from "@/lib/format-date";
+import { formatDateWithMonth, inDateRange, todayIst } from "@/lib/format-date";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useComplianceAlerts } from "@/hooks/useComplianceAlerts";
@@ -740,46 +740,44 @@ function AdminDashboard() {
 
       {/* ── Today's Fuel Rate ────────────────────────────────────────────── */}
       {(() => {
-        const updatedToday = fuelRate.updatedAt
-          ? fuelRate.updatedAt.slice(0, 10) === today
-          : false;
+        const updatedToday = inDateRange(fuelRate.updatedAt, today, today);
         return (
-          <div className={cn(
-            "dk-inset flex flex-wrap items-center gap-4 rounded-2xl border bg-gradient-to-r to-white px-5 py-3.5 shadow-sm",
-            updatedToday ? "border-emerald-200/80 from-emerald-50" : "border-amber-200/80 from-amber-50"
-          )}>
+          <div className="dk-inset flex flex-wrap items-center gap-4 rounded-2xl border border-gray-200/80 bg-white px-5 py-3.5 shadow-sm">
             <span className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-              updatedToday ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              updatedToday ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
             )}>
-              <Fuel className="h-4 w-4" />
+              <Fuel className="h-5 w-5" />
             </span>
 
             {/* Label + current value */}
-            <div className="flex min-w-0 flex-col">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Today&apos;s Fuel Rate</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-semibold tabular-nums text-gray-900">
-                  {fuelRate.costPerLitre !== null ? `₹ ${Number(fuelRate.costPerLitre).toFixed(2)} / L` : "Not set"}
-                </span>
-                {fuelRate.updatedAt && (
-                  <span className="text-xs text-gray-500">
-                    {updatedToday
-                      ? "Updated today"
-                      : `Last updated ${fuelRate.updatedAt.slice(0, 10).split("-").reverse().join("-")}`}
-                  </span>
-                )}
-              </div>
+              <span className="text-xl font-bold tabular-nums text-gray-900">
+                {fuelRate.costPerLitre !== null ? (
+                  <>
+                    ₹{Number(fuelRate.costPerLitre).toFixed(2)}
+                    <span className="ml-1 text-sm font-medium text-gray-400">/ L</span>
+                  </>
+                ) : "Not set"}
+              </span>
             </div>
+
+            {/* One status: fresh today, or due with the date the rate was set */}
+            <span className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+              updatedToday ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
+            )}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", updatedToday ? "bg-emerald-500" : "bg-amber-400")} />
+              {updatedToday
+                ? "Updated today"
+                : fuelRate.updatedAt
+                  ? `Update due · Set on ${formatDateWithMonth(fuelRate.updatedAt)}`
+                  : "Update due"}
+            </span>
 
             {/* Always-visible input + button */}
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              {!updatedToday && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                  Update needed
-                </span>
-              )}
               <div className="flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 shadow-sm transition-all focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100">
                 <span className="text-sm text-gray-400">₹</span>
                 <input

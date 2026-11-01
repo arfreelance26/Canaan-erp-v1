@@ -143,6 +143,11 @@ export default function DriverRecordPage() {
   const requestedClosureIds = useRef<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  // ?search=<driver ID> — a Re-Verification notification opens its driver.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("search");
+    if (q) setSearchQuery(q);
+  }, []);
   // Defaults to no range at all — Total Trips/Salary show lifetime earnings
   // until the user deliberately picks a range. tripsInRange's empty-string
   // checks already treat "" as "no bound on this side", so no other change is
@@ -205,6 +210,8 @@ export default function DriverRecordPage() {
     if (dateFrom && t.scheduledDate < dateFrom) return false;
     if (dateTo && t.scheduledDate > dateTo) return false;
     if (!t.hasSheet) return false;
+    // Only trips Accounts has verified (Verify Trip dialog) reach the Auditor.
+    if (t.verificationStatus !== "verified") return false;
     return true;
   }), [trips, dateFrom, dateTo]);
 

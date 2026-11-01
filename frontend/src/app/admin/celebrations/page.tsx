@@ -346,7 +346,7 @@ export default function CelebrationsPage() {
           </div>
           <p className="mb-3 text-xs text-gray-500">See the app as it will look on a chosen date — on your screen only. Nobody else is affected.</p>
           <div className="flex flex-col gap-3">
-            <DatePickerInput value={customDate} onChange={setCustomDate} className={inputClass} />
+            <DatePickerInput value={customDate} onChange={setCustomDate} className={inputClass} clearable={false} />
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={customBirthday} onChange={(e) => setCustomBirthday(e.target.checked)} className="h-4 w-4 rounded border-gray-300" />
               Also treat it as my birthday

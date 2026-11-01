@@ -26,6 +26,7 @@ const fmtKm = (v: number) => v.toLocaleString("en-IN", { maximumFractionDigits: 
 
 const PART_LABEL: Record<string, string> = {
   emi: "EMI",
+  adblue: "AdBlue",
   tyre: "Tyres",
   maintenance: "Maintenance",
   compliance: "Documents / Compliance",
@@ -33,18 +34,21 @@ const PART_LABEL: Record<string, string> = {
 const PART_SOURCE: Record<Mode, Record<string, string>> = {
   Manual: {
     emi: "Running Cost Calculator → Manual",
+    adblue: "Running Cost Calculator → Manual (AdBlue L/km × the AdBlue Details price)",
     tyre: "Running Cost Calculator → Manual",
     maintenance: "Running Cost Calculator → Manual",
     compliance: "Running Cost Calculator → Manual",
   },
   Basic: {
     emi: "Finance → EMI (daily cost ÷ km per day for the tyre layout)",
+    adblue: "Truck's AdBlue History (manufacturer's AdBlue price ÷ km per litre)",
     tyre: "Tyre cost for this truck's tyre layout",
     maintenance: "Truck Maintenance records (cost per km)",
     compliance: "Compliance & Renewals (cost per km)",
   },
   Advanced: {
     emi: "Finance → EMI (daily cost ÷ this truck's monthly average km)",
+    adblue: "Truck's AdBlue History (manufacturer's AdBlue price ÷ km per litre)",
     tyre: "Tyres fitted on this truck (cost ÷ expected range)",
     maintenance: "Truck Maintenance (per day ÷ monthly average km)",
     compliance: "Compliance & Renewals (per day ÷ monthly average km)",
@@ -303,7 +307,7 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
               {other != null && cost && (
                 <>
                   {cost.partsKnown ? (
-                    (["emi", "tyre", "maintenance", "compliance"] as const).map((k) => {
+                    (["emi", "adblue", "tyre", "maintenance", "compliance"] as const).map((k) => {
                       const rate = cost.parts[k];
                       return (
                         <div key={k} className="py-0.5">
@@ -317,7 +321,7 @@ export function TripBreakdownDialog({ open, onClose, tripId, mode: pageMode }: P
                     })
                   ) : (
                     <>
-                      <Line label={`${fmtKm(km)} km × ${fmtRate(other / km)}/km (EMI, tyres, maintenance and documents together)`} value={fmt(other)} />
+                      <Line label={`${fmtKm(km)} km × ${fmtRate(other / km)}/km (EMI, AdBlue, tyres, maintenance and documents together)`} value={fmt(other)} />
                       <p className="mt-1.5 text-[11px] text-amber-700">
                         The split isn&apos;t saved yet for this truck. Open Running Cost Calculator → Manual once and it&apos;ll be saved.
                       </p>

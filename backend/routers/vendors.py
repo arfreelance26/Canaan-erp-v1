@@ -188,6 +188,40 @@ def permanently_delete_vendor(vendor_id: int, db: Session = Depends(get_db), cur
     emit("vendor_updated", {})
 
 
+@router.get("/{vendor_id}/retreads", response_model=list[schemas.VendorRetreadOut])
+def vendor_retreads(
+    vendor_id: int,
+    from_date: Optional[str] = Query(None, description="YYYY-MM-DD, inclusive"),
+    to_date: Optional[str] = Query(None, description="YYYY-MM-DD, inclusive"),
+    db: Session = Depends(get_db),
+):
+    """Our Vendors → View Record → Tyre Retreads: every retread this vendor did
+    (Retread Queue → Move to Inventory with Vendor picked), newest first."""
+    if not db.get(models.Vendor, vendor_id):
+        raise HTTPException(404, "Vendor not found")
+    return [{
+        "id": ev.id, "tyre_id": t.id, "tyre_number": t.tyre_number, "brand": t.brand, "tyre_size": t.size,
+        "tyre_type": t.tyre_type, "date": ev.created_at, "retread_cost": ev.retread_cost,
+        "expected_range": ev.expected_range, "retread_count": ev.retread_count,
+        "invoice_number": ev.invoice_number, "invoice_date": ev.invoice_date,
+        "proof_file_name": ev.proof_file_name, "proof_size_bytes": ev.proof_size_bytes, "actor_name": ev.actor_name,
+    } for ev, t in retread_rows(db, vendor_id, from_date, to_date)]
+
+
+def retread_rows(db: Session, vendor_id: int, from_date: Optional[str], to_date: Optional[str]):
+    """(movement event, tyre) for this vendor's retreads in the date range — shared with the Excel."""
+    q = (
+        db.query(models.TyreMovementEvent, models.TyreInventory)
+        .join(models.TyreInventory, models.TyreInventory.id == models.TyreMovementEvent.tyre_id)
+        .filter(models.TyreMovementEvent.event == "Moved to Inventory", models.TyreMovementEvent.vendor_id == vendor_id)
+    )
+    if from_date:
+        q = q.filter(func.date(models.TyreMovementEvent.created_at) >= from_date)
+    if to_date:
+        q = q.filter(func.date(models.TyreMovementEvent.created_at) <= to_date)
+    return q.order_by(models.TyreMovementEvent.created_at.desc(), models.TyreMovementEvent.id.desc()).all()
+
+
 @router.get("/{vendor_id}/maintenance-records", response_model=list[schemas.VendorMaintenanceRecordOut])
 def vendor_maintenance_records(
     vendor_id: int,

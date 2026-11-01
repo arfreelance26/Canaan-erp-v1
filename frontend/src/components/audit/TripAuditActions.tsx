@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Flag } from "lucide-react";
+import { CheckCircle2, Flag, RotateCcw } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
+import { useAuth } from "@/context/AuthContext";
 import { tripsApi } from "@/lib/api";
+import { formatDateTime } from "@/lib/format-date";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
 import type { Trip } from "@/types/trip";
 
@@ -14,7 +16,9 @@ import type { Trip } from "@/types/trip";
  *
  *  - Under review (flagged, not yet returned): both are blocked until someone
  *    corrects the data and clicks Return for Review on Flagged Trips.
- *  - Verified: a closed state — both stay disabled until it's flagged again.
+ *  - Verified: a closed state — both stay disabled. The Auditor can take it
+ *    back with Undo Verification, or a user can send it back from Audit
+ *    Verified Trips (Flag for Re-Verification); either unlocks both.
  *
  * `onUpdated` gets the trip back from the server so the page can patch its
  * list instantly (its live refresh will also pick it up).
@@ -24,6 +28,11 @@ export function TripAuditActions({ trip, onUpdated }: { trip: Trip; onUpdated: (
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const { user } = useAuth();
+  const canUndo = user?.softwareDesignation === "Auditor" || user?.softwareDesignation === "Admin";
+  const [undoOpen, setUndoOpen] = useState(false);
+  const [undoReason, setUndoReason] = useState("");
+  const [undoing, setUndoing] = useState(false);
 
   const blocked = trip.flaggedForRecheck && !trip.recheckReturned;
   const closed = trip.auditVerified;
@@ -64,6 +73,23 @@ export function TripAuditActions({ trip, onUpdated }: { trip: Trip; onUpdated: (
     }
   }
 
+  async function submitUndo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!undoReason.trim()) return;
+    setUndoing(true);
+    try {
+      const updated = await tripsApi.undoVerification(trip.id, undoReason.trim());
+      onUpdated(updated);
+      showSuccess(`${trip.tripId} is back in Pending Audit.`, "Verification undone");
+      setUndoOpen(false);
+      setUndoReason("");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to undo this verification.");
+    } finally {
+      setUndoing(false);
+    }
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-1.5 border-l border-gray-200 pl-3">
@@ -87,6 +113,22 @@ export function TripAuditActions({ trip, onUpdated }: { trip: Trip; onUpdated: (
           <CheckCircle2 className="h-3.5 w-3.5" />
           {closed ? "Verified" : verifying ? "Verifying..." : "Mark as Verified"}
         </button>
+        {closed && canUndo && (
+          <button
+            type="button"
+            onClick={() => { setUndoOpen(true); setUndoReason(""); }}
+            className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Undo Verification
+          </button>
+        )}
+        {trip.reverificationRemark && (
+          <p className="basis-full whitespace-normal text-[11px] text-violet-700">
+            <span className="font-semibold">Came for Re-Verification:</span> {trip.reverificationRemark}
+            <span className="text-violet-500"> — {trip.reverificationBy}, {formatDateTime(trip.reverificationAt)}</span>
+          </p>
+        )}
       </div>
 
       {/* Flag For Rechecking — reason is required; submitting moves the trip
@@ -134,6 +176,51 @@ export function TripAuditActions({ trip, onUpdated }: { trip: Trip; onUpdated: (
           </div>
         </form>
       </Dialog>
+
+      {/* Undo Verification — takes back a Verify made by mistake; reason required. */}
+      <Dialog
+        open={undoOpen}
+        onClose={() => { if (!undoing) { setUndoOpen(false); setUndoReason(""); } }}
+        title={`Undo Verification of ${trip.tripId}`}
+        className="sm:max-w-md"
+      >
+        <form onSubmit={submitUndo} className="flex flex-col gap-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            This trip will leave <span className="font-semibold">Audit Verified Trips</span> and go back to Pending Audit for a fresh decision.
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-gray-700">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={undoReason}
+              onChange={(e) => setUndoReason(e.target.value)}
+              placeholder="Why is this verification being undone?"
+              rows={4}
+              required
+              autoFocus
+              className="w-full resize-none rounded-lg border border-gray-200 bg-white/50 px-3 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-amber-400 focus:bg-white focus:ring-4 focus:ring-amber-500/10"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => { setUndoOpen(false); setUndoReason(""); }}
+              disabled={undoing}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={undoing || !undoReason.trim()}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {undoing ? "Undoing..." : "Undo Verification"}
+            </button>
+          </div>
+        </form>
+      </Dialog>
     </>
   );
 }
@@ -146,6 +233,16 @@ export function TripAuditActions({ trip, onUpdated }: { trip: Trip; onUpdated: (
  */
 export function TripAuditBadge({ trip }: { trip: Trip }) {
   const base = "ml-1.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider align-middle";
+  if (trip.reverificationRemark) {
+    return (
+      <span
+        className={`${base} cursor-help bg-violet-100 text-violet-700`}
+        title={`Came for Re-Verification: ${trip.reverificationRemark} — ${trip.reverificationBy}, ${formatDateTime(trip.reverificationAt)}`}
+      >
+        <RotateCcw className="h-2.5 w-2.5" /> Re-Verification
+      </span>
+    );
+  }
   if (trip.auditVerified) {
     return (
       <span className={`${base} bg-emerald-100 text-emerald-700`} title="Verified by Audit — flag it again only if something new comes up">

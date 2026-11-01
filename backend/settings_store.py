@@ -163,6 +163,23 @@ def set_chat_owner_view_password(db: Session, new_password: str) -> None:
     _set(db, CHAT_OWNER_VIEW_PASSWORD_HASH_KEY, _owner_view_pwd_ctx.hash(new_password))
 
 
+DRIVER_ADVANCE_MAX_KEY = "driver_advance_max"
+DEFAULT_DRIVER_ADVANCE_MAX = 500.0
+
+
+def driver_advance_max(db: Session) -> float:
+    """Most that can be entered as the advance paid when a driver is marked
+    On Workshop."""
+    try:
+        return float(_get(db, DRIVER_ADVANCE_MAX_KEY) or DEFAULT_DRIVER_ADVANCE_MAX)
+    except ValueError:
+        return DEFAULT_DRIVER_ADVANCE_MAX
+
+
+def set_driver_advance_max(db: Session, amount: float) -> None:
+    _set(db, DRIVER_ADVANCE_MAX_KEY, str(round(amount, 2)))
+
+
 FESTIVE_SEASON_KEY = "festive_season_enabled"
 
 

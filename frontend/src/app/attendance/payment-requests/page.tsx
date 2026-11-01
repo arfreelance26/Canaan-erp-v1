@@ -7,7 +7,7 @@ import { paymentRequestsApi, type PaymentRequestEditEventRow } from "@/lib/api";
 import type { PaymentRequest } from "@/types/payment-request";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { confirmAction, showError, showSuccess } from "@/lib/swal";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -158,18 +158,23 @@ export default function PaymentRequestsPage() {
   // reasonably fresh without needing a new WebSocket event type just for this.
   useAutoRefresh(() => setRefreshKey((k) => k + 1), 15000);
 
+  const datedRequests = useMemo(
+    () => requests.filter((r) => inDateRange(r.askedAt, exportFrom, exportTo)),
+    [requests, exportFrom, exportTo],
+  );
+
   const counts = useMemo(() => {
     const base: Record<FilterStatus, number> = { pending: 0, unpaid: 0, paid: 0, rejected: 0 };
-    for (const r of requests) base[statusOf(r)] += 1;
+    for (const r of datedRequests) base[statusOf(r)] += 1;
     return base;
-  }, [requests]);
+  }, [datedRequests]);
 
   const filteredRequests = useMemo(() => {
-    const sorted = [...requests].sort(
+    const sorted = [...datedRequests].sort(
       (a, b) => new Date(b.approvedAt ?? 0).getTime() - new Date(a.approvedAt ?? 0).getTime()
     );
     return statusFilter ? sorted.filter((r) => statusOf(r) === statusFilter) : sorted;
-  }, [requests, statusFilter]);
+  }, [datedRequests, statusFilter]);
 
   async function handleDecision(request: PaymentRequest, status: "approved" | "rejected") {
     if (actingId) return;

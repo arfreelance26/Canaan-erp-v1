@@ -18,7 +18,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/swal";
 
 const EDIT_EVENT_ICON: Record<MaintenanceRecordEditEventRow["event"], typeof Plus> = {
@@ -137,11 +137,14 @@ export default function TruckMaintenancePage() {
 
   if (loading) return <PageSkeleton hasButton={false} hasSearch columns={4} />;
 
+  const hasRange = Boolean(exportFrom || exportTo);
+  const datedRecords = records.filter((r) => inDateRange(r.date, exportFrom, exportTo));
   const filteredTrucks = trucks.filter(
     (t) =>
-      !searchQuery ||
-      t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.truckId?.toLowerCase().includes(searchQuery.toLowerCase())
+      (!hasRange || datedRecords.some((r) => r.truckId === t.id)) &&
+      (!searchQuery ||
+        t.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.truckId?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -184,7 +187,7 @@ export default function TruckMaintenancePage() {
 
       <TruckMaintenanceTable
         trucks={filteredTrucks}
-        records={records}
+        records={datedRecords}
         onUpdateRecord={handleUpdateRecord}
         onViewRecord={handleViewRecord}
         onViewStatus={handleViewStatus}

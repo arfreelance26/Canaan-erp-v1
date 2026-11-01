@@ -29,6 +29,10 @@ const emptyForm: Omit<Branch, "id"> = {
   partyHaltFeeOpenLoad: "",
   driverHaltDayPercentage: "",
   cleanerBattaFee: "",
+  cleanerBattaFee20ft: "",
+  cleanerBattaFee40ft: "",
+  cleanerBattaFee2x20: "",
+  cleanerBattaFeeOpenLoad: "",
   workshopBattaFee: "",
 };
 
@@ -125,18 +129,6 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
             />
           </Field>
 
-          <Field label="Cleaner Batta Fee (₹)">
-            <DecimalInput type="number"
-              min="0"
-              step="0.01"
-              value={form.cleanerBattaFee}
-              onChange={(e) => setForm((p) => ({ ...p, cleanerBattaFee: e.target.value }))}
-              onWheel={(e) => e.currentTarget.blur()}
-              className={inputClass}
-              placeholder="e.g. 200"
-            />
-          </Field>
-
           <Field label="On Workshop Batta Fee (₹)">
             <DecimalInput type="number"
               min="0"
@@ -148,6 +140,35 @@ export function BranchFormDialog({ open, onClose, onSave, initialData }: BranchF
               placeholder="e.g. 300"
             />
           </Field>
+
+          {/* Cleaner Batta — one fee for every container type a trip can have. */}
+          <div className="sm:col-span-2 flex flex-col gap-2">
+            <p className="text-sm font-medium text-gray-700">Cleaner Batta Fee (₹)</p>
+            <div className="overflow-hidden rounded-xl border border-gray-200">
+              <div className="grid grid-cols-[1fr_2fr] gap-px bg-gray-200 text-xs">
+                {["Container Type", "Cleaner Batta Fee"].map((h) => (
+                  <div key={h} className="bg-gray-50 px-3 py-2 font-semibold uppercase tracking-wider text-gray-500">{h}</div>
+                ))}
+                {HALT_CONTAINER_TYPES.map((t) => (
+                  <div key={t.spec} className="contents">
+                    <div className="flex items-center bg-white px-3 py-2 text-sm font-semibold text-gray-800">{t.label}</div>
+                    <div className="bg-white p-1.5">
+                      <DecimalInput type="number"
+                        min="0"
+                        step="0.01"
+                        aria-label={`Cleaner batta fee — ${t.label}`}
+                        value={form[t.cleaner]}
+                        onChange={(e) => setForm((p) => ({ ...p, [t.cleaner]: e.target.value }))}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        className={inputClass}
+                        placeholder="e.g. 200"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-2 flex justify-end gap-3">

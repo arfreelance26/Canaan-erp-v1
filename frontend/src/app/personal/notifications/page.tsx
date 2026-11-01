@@ -9,9 +9,10 @@ import {
   User,
   ShieldCheck,
   Wrench,
+  RotateCcw,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useNotifications, maintenanceAlertHref } from "@/context/NotificationContext";
+import { useNotifications, maintenanceAlertHref, reverificationAlertHref } from "@/context/NotificationContext";
 import { editApprovalsApi, deletionApprovalsApi, attendanceApi, maintenanceRequestsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -28,7 +29,8 @@ import { cn } from "@/lib/utils";
 type Category =
   | "Edit Requests" | "Deletion Requests" | "Leave Requests"
   | "Trip Sheet Alerts" | "KM Variance Alerts" | "Compliance Alerts"
-  | "Renewals & Payments" | "Your Request Updates" | "Maintenance Alerts" | "Maintenance Approvals";
+  | "Renewals & Payments" | "Your Request Updates" | "Maintenance Alerts" | "Maintenance Approvals"
+  | "Re-Verification";
 
 type NotifItem = {
   key: string;
@@ -57,6 +59,7 @@ const TONE_CLASSES: Record<string, { chip: string; icon: string; hover: string; 
   purple: { chip: "bg-purple-100", icon: "text-purple-600", hover: "hover:bg-purple-50/60", text: "text-purple-700" },
   red: { chip: "bg-red-100", icon: "text-red-600", hover: "hover:bg-red-50/60", text: "text-red-700" },
   rose: { chip: "bg-rose-100", icon: "text-rose-600", hover: "hover:bg-rose-50/60", text: "text-rose-700" },
+  violet: { chip: "bg-violet-100", icon: "text-violet-600", hover: "hover:bg-violet-50/60", text: "text-violet-700" },
   orange: { chip: "bg-orange-100", icon: "text-orange-600", hover: "hover:bg-orange-50/60", text: "text-orange-700" },
   amber: { chip: "bg-amber-100", icon: "text-amber-600", hover: "hover:bg-amber-50/60", text: "text-amber-700" },
   blue: { chip: "bg-blue-100", icon: "text-blue-600", hover: "hover:bg-blue-50/60", text: "text-blue-700" },
@@ -67,7 +70,7 @@ const TONE_CLASSES: Record<string, { chip: string; icon: string; hover: string; 
 export default function NotificationsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reminders, complianceAlertCount } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, reminders, complianceAlertCount } = useNotifications();
 
   const isAdmin = user?.softwareDesignation === "Admin";
   const isFleetManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
@@ -263,9 +266,21 @@ export default function NotificationsPage() {
       onOpen: () => dismissMaintenanceAlert(a.serverId),
     }));
 
-    return [...editRequests, ...deletionRequests, ...maintenanceRequests, ...leaveRequests, ...maintenanceItems, ...sheetItems, ...kmItems, ...complianceItems, ...reminderItems, ...myUpdates]
+    const reverificationItems: NotifItem[] = reverificationAlerts.map((a) => ({
+      key: `reverify-${a.serverId}`,
+      category: "Re-Verification",
+      icon: RotateCcw,
+      tone: "violet",
+      title: `${a.tripIdStr} came for Re-Verification`,
+      detail: `${a.remark} — by ${a.by}${a.role ? ` (${a.role})` : ""}`,
+      time: a.alertedAt,
+      href: reverificationAlertHref(a.driverId),
+      onOpen: () => dismissReverificationAlert(a.serverId),
+    }));
+
+    return [...editRequests, ...deletionRequests, ...maintenanceRequests, ...leaveRequests, ...maintenanceItems, ...reverificationItems, ...sheetItems, ...kmItems, ...complianceItems, ...reminderItems, ...myUpdates]
       .sort((a, b) => (b.time || "").localeCompare(a.time || ""));
-  }, [editRequests, deletionRequests, maintenanceRequests, leaveRequests, maintenanceAlerts, dismissMaintenanceAlert, sheetAlerts, kmVarianceAlerts, complianceAlertCount, reminders, myUpdates, isAdmin, remindersLabel, user?.softwareDesignation]);
+  }, [editRequests, deletionRequests, maintenanceRequests, leaveRequests, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, sheetAlerts, kmVarianceAlerts, complianceAlertCount, reminders, myUpdates, isAdmin, remindersLabel, user?.softwareDesignation]);
 
   const categories = useMemo<Category[]>(
     () => [...new Set(allItems.map((i) => i.category))],

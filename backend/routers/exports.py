@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timezone
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from sqlalchemy import func, or_
@@ -7,9 +8,10 @@ from sqlalchemy.orm import Session, joinedload
 from database import get_db
 import models
 from excel_utils import build_excel_response
-from security import get_current_user, TokenUser
+from security import PENDING_AUDIT_ROLES, get_current_user, require_roles, TokenUser
 
 router = APIRouter(prefix="/exports", tags=["Exports"])
+IST = ZoneInfo("Asia/Kolkata")
 
 
 def _live_emi_figures(db: Session, records: list["models.EmiRecord"]):
@@ -70,11 +72,15 @@ def export_branches(db: Session = Depends(get_db)):
     headers = ["Branch Name",
                "Company Halt Fee (20ft)", "Company Halt Fee (40ft)", "Company Halt Fee (2x20)", "Company Halt Fee (Open Load)",
                "Customer Halt Fee (20ft)", "Customer Halt Fee (40ft)", "Customer Halt Fee (2x20)", "Customer Halt Fee (Open Load)",
-               "Driver Halt Day %", "Cleaner Batta Fee", "On Workshop Batta Fee"]
+               "Driver Halt Day %",
+               "Cleaner Batta Fee (20ft)", "Cleaner Batta Fee (40ft)", "Cleaner Batta Fee (2x20)", "Cleaner Batta Fee (Open Load)",
+               "On Workshop Batta Fee"]
     data = [[r.name,
              r.halt_day_fee_20ft, r.halt_day_fee_40ft, r.halt_day_fee_2x20, r.halt_day_fee_open_load,
              r.party_halt_fee_20ft, r.party_halt_fee_40ft, r.party_halt_fee_2x20, r.party_halt_fee_open_load,
-             r.driver_halt_day_percentage, r.cleaner_batta_fee, r.workshop_batta_fee] for r in rows]
+             r.driver_halt_day_percentage,
+             r.cleaner_batta_fee_20ft, r.cleaner_batta_fee_40ft, r.cleaner_batta_fee_2x20, r.cleaner_batta_fee_open_load,
+             r.workshop_batta_fee] for r in rows]
     return build_excel_response([("Branches", headers, data)], "branches.xlsx")
 
 
@@ -387,6 +393,86 @@ def export_driver_assignments(db: Session = Depends(get_db)):
 # Attendance & HR
 # ---------------------------------------------------------------------------
 
+@router.get("/pending-audit", dependencies=[Depends(require_roles(*PENDING_AUDIT_ROLES))])
+def export_pending_audit(
+    from_date: Optional[date] = Query(None, description="Range start YYYY-MM-DD (inclusive, filters by scheduled date)"),
+    to_date: Optional[date] = Query(None, description="Range end YYYY-MM-DD (inclusive, filters by scheduled date)"),
+    db: Session = Depends(get_db),
+):
+    from routers.trips import pending_audit_rows
+    rows = pending_audit_rows(db)
+    if from_date or to_date:
+        rows = [r for r in rows if r["scheduled_date"]
+                and (not from_date or r["scheduled_date"] >= from_date)
+                and (not to_date or r["scheduled_date"] <= to_date)]
+    headers = ["Trip ID", "Driver", "Truck", "Origin", "Destination", "Date"]
+    data = [[r["trip_id_str"], r["driver_name"], r["truck_registration"] or r["vehicle_id"],
+             r["origin"], r["destination"], r["scheduled_date"]] for r in rows]
+    return build_excel_response([("Pending Audit", headers, data)], "pending_audit_trips.xlsx")
+
+
+@router.get("/audit-verified")
+def export_audit_verified(
+    from_date: Optional[date] = Query(None, description="Range start YYYY-MM-DD (inclusive, IST day it was verified)"),
+    to_date: Optional[date] = Query(None, description="Range end YYYY-MM-DD (inclusive, IST day it was verified)"),
+    search: Optional[str] = Query(None, description="Trip ID, driver or verifier, same as the page's search box"),
+    db: Session = Depends(get_db),
+):
+    from routers.trips import audit_verified_rows
+    rows = audit_verified_rows(db)
+    for r in rows:  # stored in UTC; the page shows and filters by IST
+        r["verified_at"] = r["verified_at"].replace(tzinfo=timezone.utc).astimezone(IST).replace(tzinfo=None)
+    if from_date or to_date:
+        rows = [r for r in rows if (not from_date or r["verified_at"].date() >= from_date)
+                and (not to_date or r["verified_at"].date() <= to_date)]
+    q = (search or "").strip().lower()
+    if q:
+        rows = [r for r in rows if any(q in (v or "").lower() for v in (r["trip_id_str"], r["driver_name"], r["verified_by"]))]
+    headers = ["Trip ID", "Driver", "Origin", "Destination", "Date", "Verified By", "Role", "Verified On", "Verification Note", "Was Disputed"]
+    data = [[r["trip_id_str"], r["driver_name"], r["origin"], r["destination"], r["scheduled_date"], r["verified_by"],
+             r["verified_role"], r["verified_at"], r["verified_remark"], "Yes" if r["was_disputed"] else "No"] for r in rows]
+    return build_excel_response([("Audit Verified Trips", headers, data)], "audit_verified_trips.xlsx")
+
+
+@router.get("/audit-flagged")
+def export_audit_flagged(
+    from_date: Optional[date] = Query(None, description="Range start YYYY-MM-DD (inclusive, filters by scheduled date)"),
+    to_date: Optional[date] = Query(None, description="Range end YYYY-MM-DD (inclusive, filters by scheduled date)"),
+    search: Optional[str] = Query(None, description="Trip ID, driver or reason, same as the page's search box"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Trip).filter(models.Trip.deleted_at.is_(None), models.Trip.flagged_for_recheck.is_(True))
+    if from_date:
+        q = q.filter(models.Trip.scheduled_date >= from_date)
+    if to_date:
+        q = q.filter(models.Trip.scheduled_date <= to_date)
+    trips = q.order_by(models.Trip.booking_created_date.desc()).all()
+    driver_names = {d.driver_id: d.name for d in db.query(models.Driver.driver_id, models.Driver.name).all()}
+    term = (search or "").strip().lower()
+    if term:
+        trips = [t for t in trips if any(term in (v or "").lower() for v in
+                                         (t.trip_id, driver_names.get(t.driver_id), t.flagged_remark))]
+    # Oldest first, so each trip ends up with its latest Flagged event.
+    flags = (
+        db.query(models.TripRecheckEvent)
+        .filter(models.TripRecheckEvent.trip_id.in_([t.id for t in trips]), models.TripRecheckEvent.event == "Flagged")
+        .order_by(models.TripRecheckEvent.created_at, models.TripRecheckEvent.id)
+        .all()
+    )
+    latest_flag = {e.trip_id: e for e in flags}
+    headers = ["Trip ID", "Driver", "Origin", "Destination", "Scheduled Date", "Reason", "Status", "Flagged By", "Flagged On"]
+    data = []
+    for t in trips:
+        e = latest_flag.get(t.id)
+        data.append([
+            t.trip_id, driver_names.get(t.driver_id), t.origin, t.destination, t.scheduled_date, t.flagged_remark,
+            "Returned - awaiting Auditor" if t.recheck_returned else "Under Review",
+            e.actor_name if e else None,
+            e.created_at.replace(tzinfo=timezone.utc).astimezone(IST).replace(tzinfo=None) if e else None,
+        ])
+    return build_excel_response([("Audit Flagged Trips", headers, data)], "audit_flagged_trips.xlsx")
+
+
 @router.get("/driver-attendance")
 def export_driver_attendance(
     from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
@@ -618,6 +704,27 @@ def export_maintenance_records(
             truck_part += "_" + "".join(c if c.isalnum() else "_" for c in v.name).strip("_")
     suffix = f"_{from_date}_to_{to_date}" if from_date or to_date else ""
     return build_excel_response([("Maintenance Records", headers, data)], f"maintenance_records{truck_part}{suffix}.xlsx")
+
+
+@router.get("/vendor-retreads")
+def export_vendor_retreads(
+    vendor_id: int = Query(..., description="Our Vendors → View Record → Tyre Retreads"),
+    from_date: Optional[str] = Query(None, description="Range start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, description="Range end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    from routers.vendors import retread_rows
+    v = db.get(models.Vendor, vendor_id)
+    if not v:
+        raise HTTPException(404, "Vendor not found")
+    headers = ["Date", "Tyre Number", "Brand", "Tyre Size", "Tyre Type", "Retread Count", "Expected Range (km)",
+               "Invoice Number", "Invoice Date", "Proof of Payment", "Moved By", "Retread Cost"]
+    data = [[ev.created_at.date(), t.tyre_number, t.brand, t.size, t.tyre_type, ev.retread_count, ev.expected_range,
+             ev.invoice_number, ev.invoice_date, ev.proof_file_name or "", ev.actor_name, ev.retread_cost]
+            for ev, t in retread_rows(db, vendor_id, from_date, to_date)]
+    name = "".join(c if c.isalnum() else "_" for c in v.name).strip("_")
+    suffix = f"_{from_date or ''}_to_{to_date or ''}" if from_date or to_date else ""
+    return build_excel_response([("Tyre Retreads", headers, data)], f"vendor_retreads_{name}{suffix}.xlsx")
 
 
 @router.get("/tyre-inventory")

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -90,6 +90,24 @@ def list_all_staff_edit_events(db: Session = Depends(get_db)):
             "created_at": e.created_at,
         })
     return result
+
+
+@router.get("/freeze-events", response_model=list[schemas.StaffFreezeEventOut], dependencies=[Depends(require_roles())])
+def list_freeze_events(staff_id: int | None = None, db: Session = Depends(get_db)):
+    """Admin only: every Freeze / Unfreeze, newest first — all staff, or one
+    (staff_id). Registered before GET /{staff_id}."""
+    q = (
+        db.query(models.StaffFreezeEvent, models.Staff)
+        .join(models.Staff, models.Staff.id == models.StaffFreezeEvent.staff_id)
+    )
+    if staff_id is not None:
+        q = q.filter(models.StaffFreezeEvent.staff_id == staff_id)
+    rows = q.order_by(models.StaffFreezeEvent.created_at.desc(), models.StaffFreezeEvent.id.desc()).all()
+    return [{
+        "id": e.id, "staff_id": m.id, "staff_id_str": m.staff_id, "staff_name": m.name,
+        "event": e.event, "reason": e.reason, "actor_name": e.actor_name, "actor_role": e.actor_role,
+        "created_at": e.created_at,
+    } for e, m in rows]
 
 
 @router.get("/{staff_id}", response_model=schemas.StaffOut)
@@ -238,3 +256,96 @@ def force_logout(staff_id: int, db: Session = Depends(get_db)):
     member.token_version = (member.token_version or 0) + 1
     db.commit()
     return {"ok": True, "token_version": member.token_version}
+
+
+# ---------------------------------------------------------------------------
+# Freeze Account — owner password only (the Chat Owner View password)
+# ---------------------------------------------------------------------------
+
+def _check_owner_password(db: Session, request: Request, current_user: TokenUser, password: str, action: str) -> None:
+    """Same password, lockout (5 wrong tries → 15 min) and audit trail as
+    Chat Owner View. A wrong password is 403 (not 401) so the Admin's own
+    session isn't treated as expired."""
+    import settings_store
+    from audit import record_audit
+    from routers.chat_owner_view import _check_lockout, _record_failure, _clear_failures
+    key = current_user.id or 0
+    _check_lockout(key)
+    configured = settings_store.chat_owner_view_password_hash(db) is not None
+    if not settings_store.verify_chat_owner_view_password(db, password):
+        _record_failure(key)
+        record_audit(f"staff.{action}", outcome="denied", request=request, actor_id=current_user.id,
+                     actor_name=current_user.name, actor_role=current_user.role,
+                     detail="owner password not set up" if not configured else "wrong owner password")
+        if not configured:
+            raise HTTPException(409, "The owner password hasn't been set up yet.")
+        raise HTTPException(403, "Wrong owner password.")
+    _clear_failures(key)
+
+
+def _freeze_target(db: Session, staff_id: int, current_user: TokenUser) -> models.Staff:
+    member = db.query(models.Staff).with_for_update().filter(models.Staff.id == staff_id).first()
+    if not member or member.deleted_at is not None:
+        raise HTTPException(404, "Staff member not found")
+    if current_user.id is not None and member.id == current_user.id:
+        raise HTTPException(400, "You can't freeze the account you're logged in with.")
+    # The built-in admin login uses the first Admin staff record (routers/auth.py)
+    # — freezing it wouldn't stop that login, so it's not allowed.
+    builtin = db.query(models.Staff.id).filter(models.Staff.software_designation == "Admin").first()
+    if builtin and member.id == builtin[0]:
+        raise HTTPException(400, "This record is used by the built-in admin login and can't be frozen.")
+    return member
+
+
+@router.post("/{staff_id}/freeze", response_model=schemas.StaffOut, dependencies=[Depends(require_roles())])
+def freeze_staff(staff_id: int, payload: schemas.StaffFreezeIn, request: Request,
+                 db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Freeze an account: no logins, every session ended now (open screens
+    are told and sent to the login page). Needs a reason and the owner password."""
+    from audit import record_audit
+    from websocket_manager import kick_users
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(400, "Please give a reason.")
+    member = _freeze_target(db, staff_id, current_user)
+    if member.frozen_at is not None:
+        raise HTTPException(409, f"{member.name}'s account is already frozen.")
+    _check_owner_password(db, request, current_user, payload.owner_password, "freeze")
+    member.frozen_at = datetime.now(timezone.utc)
+    member.frozen_by_name = current_user.name
+    member.frozen_reason = reason
+    member.token_version = (member.token_version or 0) + 1   # ends every session it holds
+    db.add(models.StaffFreezeEvent(staff_id=member.id, event="Frozen", reason=reason,
+                                   actor_name=current_user.name or "Unknown", actor_role=current_user.role))
+    db.commit()
+    db.refresh(member)
+    record_audit("staff.freeze", request=request, actor_id=current_user.id, actor_name=current_user.name,
+                 actor_role=current_user.role, resource=f"staff:{member.id}", detail=reason)
+    kick_users([member.id], "account_frozen", {"message": "Your account has been frozen by the Admin."})
+    return member
+
+
+@router.post("/{staff_id}/unfreeze", response_model=schemas.StaffOut, dependencies=[Depends(require_roles())])
+def unfreeze_staff(staff_id: int, payload: schemas.StaffFreezeIn, request: Request,
+                   db: Session = Depends(get_db), current_user: TokenUser = Depends(get_current_user)):
+    """Let a frozen account log in again. Needs a reason and the owner password."""
+    from audit import record_audit
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(400, "Please give a reason.")
+    member = db.query(models.Staff).with_for_update().filter(models.Staff.id == staff_id).first()
+    if not member or member.deleted_at is not None:
+        raise HTTPException(404, "Staff member not found")
+    if member.frozen_at is None:
+        raise HTTPException(409, f"{member.name}'s account isn't frozen.")
+    _check_owner_password(db, request, current_user, payload.owner_password, "unfreeze")
+    member.frozen_at = None
+    member.frozen_by_name = None
+    member.frozen_reason = None
+    db.add(models.StaffFreezeEvent(staff_id=member.id, event="Unfrozen", reason=reason,
+                                   actor_name=current_user.name or "Unknown", actor_role=current_user.role))
+    db.commit()
+    db.refresh(member)
+    record_audit("staff.unfreeze", request=request, actor_id=current_user.id, actor_name=current_user.name,
+                 actor_role=current_user.role, resource=f"staff:{member.id}", detail=reason)
+    return member

@@ -2,7 +2,7 @@ from datetime import date as date_type
 from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
 from database import get_db, engine
@@ -15,6 +15,15 @@ TRIP_EXPENSE_LINES = (
     "driver_pay", "halt_pay", "toll_charges", "port_pass_expense", "weight_sheet_expense",
     "mamol_expense", "claimable_mamol_expense", "traffic_rto_expense", "lift_on_off_expense",
     "crane_operator_expense", "parking_expense", "other_expenses",
+)
+
+# The day a trip counts on: when it was completed, not when its sheet was typed
+# in (a September trip entered on 1 October belongs to September). The entry
+# date only stands in for a sheet with no completed date recorded.
+TRIP_DAY = func.coalesce(
+    models.TripSheet.trip_completed_date,
+    models.TripClosure.trip_completed_date,
+    models.TripSheet.trip_sheet_date,
 )
 
 # compliance_cost doc key → the P&L's document_breakdown key (unchanged for the frontend).
@@ -96,7 +105,7 @@ def get_pl_summary(
 ):
     """Return per-truck P&L breakdown for the given date range.
 
-    Revenue  = sum of hire_amount from trip_sheets (trip_sheet_date in range),
+    Revenue  = sum of hire_amount from trip_sheets (TRIP_DAY in range),
                net of each trip's transport_commission_amount (see _net_hire)
     Cost     = trip_expenses + maintenance + EMI share + document amortisation share
     Net P&L  = Revenue - Cost
@@ -147,16 +156,19 @@ def get_pl_summary(
         maint_by_truck.setdefault(m.truck_id, []).append(m)
 
     sheets_by_vehicle: dict = {}
-    for s in (
-        db.query(models.TripSheet)
+    trip_days: dict = {}
+    for s, trip_day in (
+        db.query(models.TripSheet, TRIP_DAY)
         .join(models.Trip, models.Trip.id == models.TripSheet.trip_id)
+        .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.TripSheet.trip_id)
         .filter(
-            models.TripSheet.trip_sheet_date >= start_date,
-            models.TripSheet.trip_sheet_date <= end_date,
+            TRIP_DAY >= start_date,
+            TRIP_DAY <= end_date,
             models.Trip.deleted_at.is_(None),
         )
         .all()
     ):
+        trip_days[s.id] = trip_day
         vid = (s.vehicle_id or "").strip()
         sheets_by_vehicle.setdefault(vid, []).append(s)
 
@@ -248,7 +260,7 @@ def get_pl_summary(
         # this is a live filter, so the trip flows straight back into every
         # total the moment it's resolved, with no separate sync step.
         truck_sheets = sheets_by_vehicle.get((truck.truck_id or "").strip(), [])
-        truck_sheets_sorted = sorted(truck_sheets, key=lambda s: s.trip_sheet_date or date_type.min)
+        truck_sheets_sorted = sorted(truck_sheets, key=lambda s: trip_days[s.id])
 
         def _is_flagged(s):
             tm = trips_meta.get(s.trip_id) if s.trip_id else None
@@ -288,6 +300,7 @@ def get_pl_summary(
             trip_rows.append({
                 "trip_id":                  s.trip_id,
                 "trip_code":                trip_meta.trip_id if trip_meta else "",   # TRP-1490
+                "trip_date":                trip_days[s.id].isoformat(),
                 "trip_sheet_date":          s.trip_sheet_date.isoformat() if s.trip_sheet_date else None,
                 "trip_sheet_no":            s.trip_sheet_no or "",
                 "booking_reference_no":     s.booking_reference_no or "",
@@ -311,6 +324,7 @@ def get_pl_summary(
                 "trip_category":            trip_cat,
                 "cargo_classification":     cargo_class,
                 "container_specification":  container_spec,
+                "container_numbers":        _container_numbers(trip_meta, s),
             })
 
         # Maintenance detail rows
@@ -433,16 +447,28 @@ def get_pl_computed(
     return pl_compute.compute(db, start_date, end_date, mode, search)
 
 
+def _container_numbers(trip, sheet) -> str:
+    """The trip's container number(s) for the Excel: the booking's, else the
+    sheet's. A 2 X 20 trip uses its two 2 X 20 fields, so an old single-container
+    number left behind by a type change isn't listed as a third."""
+    source = trip or sheet
+    numbers = [source.container_number_1, source.container_number_2]
+    if not trip or "2 X 20" not in str(trip.container_specification or "") or not any(numbers):
+        numbers = [source.container_number, *numbers]
+    return ", ".join(n.strip() for n in numbers if n and n.strip())
+
+
 @router.get("/export")
 def export_profitability(
     start_date: date_type = Query(...),
     end_date: date_type = Query(...),
     mode: ExportMode = Query("Advanced"),
+    search: str = Query("", max_length=100),
     db: Session = Depends(get_db),
 ):
     """Profitability → View → Excel: the audit report (pl_export.py)."""
     import pl_export
-    data, filename, _ = pl_export.build(db, start_date, end_date, mode)
+    data, filename, _ = pl_export.build(db, start_date, end_date, mode, search)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -455,23 +481,25 @@ def export_profitability_preview(
     start_date: date_type = Query(...),
     end_date: date_type = Query(...),
     mode: ExportMode = Query("Advanced"),
+    search: str = Query("", max_length=100),
     db: Session = Depends(get_db),
 ):
     """What the export's sheets show (its formulas worked out), for the in-app
     preview — openpyxl can't store a formula's result in the file itself."""
     import pl_export
-    _, filename, sheets = pl_export.build(db, start_date, end_date, mode)
+    _, filename, sheets = pl_export.build(db, start_date, end_date, mode, search)
     return {"filename": filename, "sheets": sheets}
 
 
 @router.get("/first-trip-date")
 def get_first_trip_date(db: Session = Depends(get_db)):
-    """The earliest trip sheet date on record — Truck Profitability warns when
+    """The earliest trip day on record — Truck Profitability warns when
     a period starts before it (costs then, but no recorded trips to pay them)."""
-    from sqlalchemy import func
     first = (
-        db.query(func.min(models.TripSheet.trip_sheet_date))
+        db.query(func.min(TRIP_DAY))
+        .select_from(models.TripSheet)
         .join(models.Trip, models.Trip.id == models.TripSheet.trip_id)
+        .outerjoin(models.TripClosure, models.TripClosure.trip_id == models.TripSheet.trip_id)
         .filter(models.Trip.deleted_at.is_(None))
         .scalar()
     )

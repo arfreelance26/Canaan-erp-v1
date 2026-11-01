@@ -67,6 +67,9 @@ def test_pl_summary(api, api_as, world):
     api.get("/pl-summary/computed", params=window)
     api.get("/pl-summary/export-preview", params=window)
     res = api.get("/pl-summary/export", params=window)
+    nothing = api.get("/pl-summary/export-preview", params={**window, "search": "no such trip zz"})
+    assert [r for r in nothing["sheets"][1]["rows"][1:] if r[0].startswith(("TRP", "PT-"))] == []
+    assert "no_such_trip_zz" in nothing["filename"]
     assert "spreadsheet" in res.headers["content-type"] or res.content[:2] == b"PK"
     trip = sheeted_trip(api, world)
     breakdown = api_as("Accounts").get(f"/pl-summary/trip-breakdown/{trip['id']}")

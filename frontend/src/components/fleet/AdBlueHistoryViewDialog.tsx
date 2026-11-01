@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { Droplets, MapPin, IndianRupee, Gauge, TrendingUp, ArrowRight, Trash2, type LucideIcon } from "lucide-react";
+import { Droplets, MapPin, IndianRupee, Gauge, TrendingUp, ArrowRight, Pencil, Trash2, type LucideIcon } from "lucide-react";
+import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
 import type { Truck } from "@/types/truck";
 import type { AdBlueLog } from "@/types/adblue-log";
-import { adblueLogsApi } from "@/lib/api";
+import { adblueApi, adblueLogsApi, deletionApprovalsApi, editApprovalsApi, type AdBlueStats } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { formatDate } from "@/lib/format-date";
 import { showSuccess, showError, confirmDelete } from "@/lib/swal";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
@@ -48,14 +50,78 @@ function StatCard({ title, value, icon: Icon, subtitle }: { title: string; value
   );
 }
 
+function logLabel(log: AdBlueLog, truck: Truck) {
+  return `AdBlue Log — ${truck.registrationNumber} · ${formatDate(log.date)} · ${Number(log.litres).toFixed(2)} L`;
+}
+
+function DeleteRequestDialog({ log, truck, onClose, onSubmit }: {
+  log: AdBlueLog;
+  truck: Truck;
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    await onSubmit(reason.trim());
+    setSending(false);
+  }
+
+  return (
+    <Dialog open onClose={onClose} title="Request AdBlue Log Deletion" className="sm:max-w-md md:max-w-md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{logLabel(log, truck)}</p>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Reason for deletion <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            required
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="block w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="Explain why this log needs to be deleted…"
+          />
+          <p className="mt-1 text-xs text-gray-500">The log stays until an Admin approves this on Deletion Approvals.</p>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+          <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={sending || !reason.trim()}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {sending ? "Sending…" : "Send Request"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryViewDialogProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.softwareDesignation === "Admin";
   const [logs, setLogs] = useState<AdBlueLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editLog, setEditLog] = useState<AdBlueLog | null>(null);
+  const [deleteRequestLog, setDeleteRequestLog] = useState<AdBlueLog | null>(null);
+  // The figures the Running Cost Calculator and Profitability use, worked out
+  // on the server: km per litre (like Fuel History's mileage) and AdBlue ₹/km
+  // = the manufacturer's AdBlue price ÷ km per litre.
+  const [serverStats, setServerStats] = useState<AdBlueStats | null>(null);
 
   const loadLogs = useCallback((showSpinner: boolean) => {
     if (!truck) return;
     if (showSpinner) setLoading(true);
+    adblueApi.getAllStats().then((all) => setServerStats(all[truck.id] ?? null)).catch(() => setServerStats(null));
     adblueLogsApi.listLogs(truck.id)
       .then(setLogs)
       .catch(() => {})
@@ -68,7 +134,73 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
 
   useWebSocketEvent("adblue_updated", () => { if (open) loadLogs(false); });
 
+  async function handleEditSave(
+    edited: Omit<AdBlueLog, "id" | "createdAt" | "enteredByName" | "version">,
+    reason?: string,
+  ): Promise<boolean> {
+    if (!editLog || !truck) return false;
+    try {
+      if (isAdmin) {
+        await adblueLogsApi.updateLog(editLog.id, { ...edited, version: editLog.version });
+        showSuccess("AdBlue log updated.");
+        loadLogs(false);
+      } else {
+        await editApprovalsApi.create({
+          resourceType: "AdBlueLog",
+          resourceId: parseInt(editLog.id),
+          resourceName: logLabel(editLog, truck),
+          action: "Edit",
+          reason: reason ?? "",
+          proposedChanges: {
+            date: edited.date,
+            odometer: Number(edited.odometer),
+            litres: Number(edited.litres),
+            price_per_litre: Number(edited.pricePerLitre),
+            total_cost: Number(edited.totalCost),
+            supplier: edited.fillingLocation,
+          },
+        });
+        showSuccess("Edit request submitted. Awaiting approval.");
+      }
+      setEditLog(null);
+      return true;
+    } catch (e: unknown) {
+      showError(e instanceof Error && e.message ? e.message : "Could not save the change. Please try again.");
+      return false;
+    }
+  }
+
+  async function handleDeleteRequest(log: AdBlueLog, reason: string) {
+    if (!truck) return;
+    try {
+      await deletionApprovalsApi.create({
+        resourceType: "AdBlueLog",
+        resourceId: parseInt(log.id),
+        resourceName: logLabel(log, truck),
+        reason,
+        logDetails: {
+          date: log.date,
+          truck_id: truck.registrationNumber,
+          odometer: Number(log.odometer),
+          litres: Number(log.litres),
+          price_per_litre: Number(log.pricePerLitre),
+          total_cost: Number(log.totalCost),
+          supplier: log.fillingLocation,
+          entered_by_name: log.enteredByName,
+        },
+      });
+      showSuccess("Delete request sent to Admin — you'll see it approved or rejected on Edit & Delete Requests.");
+      setDeleteRequestLog(null);
+    } catch (e: unknown) {
+      showError(e instanceof Error && e.message ? e.message : "Could not send the delete request. Please try again.");
+    }
+  }
+
   async function handleDelete(log: AdBlueLog) {
+    if (!isAdmin) {
+      setDeleteRequestLog(log);
+      return;
+    }
     const result = await confirmDelete(`the AdBlue log from ${formatDate(log.date)}`);
     if (!result.isConfirmed) return;
     setDeletingId(log.id);
@@ -76,8 +208,9 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
       await adblueLogsApi.deleteLog(log.id);
       setLogs((prev) => prev.filter((l) => l.id !== log.id));
       showSuccess("AdBlue log deleted.");
-    } catch {
-      showError("Could not delete the AdBlue log. Please try again.");
+    } catch (e: unknown) {
+      // The server's reason (no permission, truck sold…) when it gives one.
+      showError(e instanceof Error && e.message ? e.message : "Could not delete the AdBlue log. Please try again.");
     } finally {
       setDeletingId(null);
     }
@@ -127,11 +260,15 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
 
   const totalLitres = logs.reduce((sum, l) => sum + (Number(l.litres) || 0), 0);
   const totalCost = logs.reduce((sum, l) => sum + (Number(l.totalCost) || 0), 0);
-  const avgPricePerLitre = totalLitres > 0 ? totalCost / totalLitres : null;
-  const { lifetimeAvgRate, currentRate, totalDistance, rowStatsById } = consumptionStats;
-  const costPerKm = lifetimeAvgRate != null && avgPricePerLitre != null ? lifetimeAvgRate * avgPricePerLitre : null;
+  const { currentRate, totalDistance, rowStatsById } = consumptionStats;
+  // Lifetime figures come from the server (one formula app-wide).
+  const kmPerLitre = serverStats?.kmPerLitre ?? null;
+  const lifetimeAvgRate = kmPerLitre ? 1 / kmPerLitre : null;          // shown as L/km too
+  const costPerKm = serverStats?.costPerKm ?? null;
+  const price = serverStats?.pricePerLitre ?? null;
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} title="Truck's Adblue History">
       <div className="mb-6">
         <p className="text-sm text-gray-500">
@@ -154,15 +291,17 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
               />
               <StatCard
                 title="Lifetime Average"
-                value={lifetimeAvgRate != null ? `${lifetimeAvgRate.toFixed(5)} L/km` : "—"}
+                value={kmPerLitre != null ? `${kmPerLitre.toFixed(2)} km/L` : "—"}
                 icon={TrendingUp}
-                subtitle={`Total: ${totalDistance.toLocaleString()} km`}
+                subtitle={kmPerLitre != null ? `Total: ${totalDistance.toLocaleString()} km` : "Needs at least 2 fills"}
               />
               <StatCard
                 title="Cost Per Kilometer"
                 value={costPerKm != null ? `₹${costPerKm.toFixed(4)}` : "—"}
                 icon={IndianRupee}
-                subtitle="Consumption × Avg Price/Litre"
+                subtitle={price == null
+                  ? `No AdBlue price set for ${truck.manufacturer || "this manufacturer"} (Manufacturers)`
+                  : `₹${price.toFixed(2)}/L (${truck.manufacturer}'s price) ÷ km per litre — used in Cost/KM`}
               />
               <StatCard
                 title="L/KM"
@@ -199,7 +338,7 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
                       <th className="px-6 py-3 text-right font-medium">Consumption</th>
                       <th className="px-6 py-3 font-medium">Filling Location</th>
                       <th className="px-6 py-3 font-medium">Entered By</th>
-                      <th className="px-6 py-3 font-medium">Delete</th>
+                      <th className="sticky right-0 bg-gray-50 px-4 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-sm">
@@ -258,16 +397,26 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
                           <td className="px-6 py-4 text-gray-600">
                             {log.enteredByName ?? <span className="text-gray-400">—</span>}
                           </td>
-                          <td className="px-4 py-4">
-                            <button
-                              type="button"
-                              title="Delete"
-                              disabled={deletingId === log.id}
-                              onClick={() => handleDelete(log)}
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                          <td className="sticky right-0 bg-white px-4 py-4">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                title={isAdmin ? "Edit" : "Request edit"}
+                                onClick={() => setEditLog(log)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                title={isAdmin ? "Delete" : "Request delete"}
+                                disabled={deletingId === log.id}
+                                onClick={() => handleDelete(log)}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                         );
@@ -281,5 +430,27 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
         )}
       </div>
     </Dialog>
+
+    {editLog && (
+      <AdBlueLogFormDialog
+        key={editLog.id}
+        open
+        onClose={() => setEditLog(null)}
+        onSave={handleEditSave}
+        truck={truck}
+        log={editLog}
+        requiresApproval={!isAdmin}
+      />
+    )}
+
+    {deleteRequestLog && (
+      <DeleteRequestDialog
+        log={deleteRequestLog}
+        truck={truck}
+        onClose={() => setDeleteRequestLog(null)}
+        onSubmit={(reason) => handleDeleteRequest(deleteRequestLog, reason)}
+      />
+    )}
+    </>
   );
 }

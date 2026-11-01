@@ -7,27 +7,47 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 import { financeApi, type BattaRow } from "@/lib/api";
+import { containerLabel } from "@/lib/halt-pay";
 import { showError } from "@/lib/swal";
 import { cn } from "@/lib/utils";
 import type { CompensationPerson } from "./CompensationTable";
 
-export type BattaKind = "cleaner" | "workshop";
+export type BattaKind = "cleaner" | "workshop" | "workshopAdvance";
 
-/** What differs between the two daily batta records. */
+/** What differs between the daily records. */
 const KIND = {
   cleaner: {
     title: "Cleaner Batta Record",
     feeLabel: "Cleaner Batta Fee",
+    amountLabel: "Amount",
     totalLabel: "Total Cleaner Batta",
+    totalCardLabel: "Total Cleaner Batta Owed",
     empty: "No attendance days earning Cleaner Batta for this driver.",
+    showVehicleType: true,
+    showFee: true,
     load: financeApi.getDriverCleanerBatta,
   },
   workshop: {
     title: "Workshop Batta Record",
     feeLabel: "On Workshop Batta Fee",
+    amountLabel: "Amount",
     totalLabel: "Total Workshop Batta",
+    totalCardLabel: "Total Workshop Batta Owed",
     empty: "No On Workshop days for this driver.",
+    showVehicleType: false,
+    showFee: true,
     load: financeApi.getDriverWorkshopBatta,
+  },
+  workshopAdvance: {
+    title: "Workshop Advance Record",
+    feeLabel: "",
+    amountLabel: "Advance Paid",
+    totalLabel: "Total Workshop Advance",
+    totalCardLabel: "Total Workshop Advance Paid",
+    empty: "No workshop advances paid to this driver.",
+    showVehicleType: false,
+    showFee: false,
+    load: financeApi.getDriverWorkshopAdvance,
   },
 } as const;
 
@@ -110,7 +130,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
     const q = search.trim().toLowerCase();
     if (q) {
       r = r.filter((x) =>
-        [x.status, x.truck_id ?? "", x.truck_registration ?? "", x.branch ?? "", fmtDate(x.date)]
+        [x.status, containerLabel(x.container_specification) ?? "", x.truck_id ?? "", x.truck_registration ?? "", x.branch ?? "", fmtDate(x.date)]
           .some((v) => v.toLowerCase().includes(q)),
       );
     }
@@ -127,15 +147,16 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
       const data: Record<string, string | number>[] = visible.map((r) => ({
         "Date": fmtDate(r.date),
         "Attendance": r.status,
+        ...(cfg.showVehicleType ? { "Vehicle Type": containerLabel(r.container_specification) ?? "—" } : {}),
         "Truck Reg": r.truck_registration ?? "—",
         "Truck ID": r.truck_id ?? "—",
         "Truck From": r.truck_source,
         "Branch": r.branch ?? "—",
-        [`${cfg.feeLabel} (Rs)`]: r.rate,
-        "Amount (Rs)": r.amount,
-        "Note": r.note ?? "",
+        ...(cfg.showFee ? { [`${cfg.feeLabel} (Rs)`]: r.rate } : {}),
+        [`${cfg.amountLabel} (Rs)`]: r.amount,
+        ...(cfg.showFee ? { "Note": r.note ?? "" } : {}),
       }));
-      data.push({ "Date": cfg.totalLabel, "Amount (Rs)": Number(total.toFixed(2)) });
+      data.push({ "Date": cfg.totalLabel, [`${cfg.amountLabel} (Rs)`]: Number(total.toFixed(2)) });
       const { utils, write } = await import("xlsx");
       const wb = utils.book_new();
       utils.book_append_sheet(wb, utils.json_to_sheet(data), cfg.title);
@@ -208,7 +229,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
           </div>
         </div>
 
-        {statuses.length > 0 && (
+        {cfg.showFee && statuses.length > 0 && (
           <p className="mb-3 text-xs text-slate-500">
             Counts attendance days marked{" "}
             {statuses.map((s, i) => (
@@ -235,10 +256,11 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className={thClass}>Date</th>
                     <th className={thClass}>Attendance</th>
+                    {cfg.showVehicleType && <th className={thClass}>Vehicle Type</th>}
                     <th className={thClass}>Truck</th>
                     <th className={thClass}>Branch</th>
-                    <th className={thRClass}>{cfg.feeLabel}</th>
-                    <th className={thRClass}>Amount</th>
+                    {cfg.showFee && <th className={thRClass}>{cfg.feeLabel}</th>}
+                    <th className={thRClass}>{cfg.amountLabel}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -250,6 +272,9 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
                           {r.status}
                         </span>
                       </td>
+                      {cfg.showVehicleType && (
+                        <td className="px-3 py-2.5 font-medium text-gray-700">{containerLabel(r.container_specification) ?? "—"}</td>
+                      )}
                       <td className="px-3 py-2.5">
                         {r.truck_registration ? (
                           <>
@@ -262,7 +287,7 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
                         {r.branch ?? "—"}
                         {r.note && <span className="ml-1.5 text-[10px] font-medium text-amber-600">⚠ {r.note}</span>}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{fmtCur(r.rate)}</td>
+                      {cfg.showFee && <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{fmtCur(r.rate)}</td>}
                       <td className="px-3 py-2.5 text-right font-bold tabular-nums text-brand-navy">{fmtCur(r.amount)}</td>
                     </tr>
                   ))}
@@ -271,19 +296,21 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
             </div>
 
             {/* Summary */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className={cn("grid grid-cols-1 gap-3", cfg.showFee ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
               <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Days counted</p>
                 <p className="mt-1 text-lg font-bold tabular-nums text-slate-800">{visible.length}</p>
               </div>
-              <div className={cn("rounded-xl border px-4 py-3", missing > 0 ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white")}>
-                <p className={cn("text-[10px] font-semibold uppercase tracking-widest", missing > 0 ? "text-amber-600" : "text-slate-400")}>
-                  Days without a fee
-                </p>
-                <p className={cn("mt-1 text-lg font-bold tabular-nums", missing > 0 ? "text-amber-700" : "text-slate-800")}>{missing}</p>
-              </div>
+              {cfg.showFee && (
+                <div className={cn("rounded-xl border px-4 py-3", missing > 0 ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-white")}>
+                  <p className={cn("text-[10px] font-semibold uppercase tracking-widest", missing > 0 ? "text-amber-600" : "text-slate-400")}>
+                    Days without a fee
+                  </p>
+                  <p className={cn("mt-1 text-lg font-bold tabular-nums", missing > 0 ? "text-amber-700" : "text-slate-800")}>{missing}</p>
+                </div>
+              )}
               <div className="rounded-xl bg-brand-navy px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">{cfg.totalLabel} Owed</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/60">{cfg.totalCardLabel}</p>
                 <p className="mt-1 text-lg font-bold tabular-nums text-white">{fmtCur(total)}</p>
               </div>
             </div>

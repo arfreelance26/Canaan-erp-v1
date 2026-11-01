@@ -15,7 +15,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
 import { showSuccess, showError, confirmDelete, confirmAction } from "@/lib/swal";
 import { Trash2 } from "lucide-react";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<EditApprovalEditEventRow["event"], typeof Check> = {
   "Edit Request Approved": Check,
@@ -109,9 +109,14 @@ export default function EditApprovalsPage() {
   useWebSocketEvent("edit_approval_updated", () => setRefreshKey(k => k + 1));
   useWebSocketEvent("edit_approval_deleted", () => setRefreshKey(k => k + 1));
 
+  const datedRequests = useMemo(
+    () => requests.filter((r) => inDateRange(r.createdAt, exportFrom, exportTo)),
+    [requests, exportFrom, exportTo],
+  );
+
   const summary = useMemo(() => {
     const acc = { Pending: 0, Approved: 0, Completed: 0, Rejected: 0 };
-    for (const r of requests) {
+    for (const r of datedRequests) {
       if (r.status === "Approved") {
         if (isRequestExpired(r)) acc.Completed++;
         else acc.Approved++;
@@ -122,10 +127,10 @@ export default function EditApprovalsPage() {
       }
     }
     return acc;
-  }, [requests]);
+  }, [datedRequests]);
 
   const filtered = useMemo(() => {
-    let result = requests.filter((r) =>
+    let result = datedRequests.filter((r) =>
       filter === "Completed" ? isRequestExpired(r)
         : filter === "Approved" ? r.status === "Approved" && !isRequestExpired(r)
         : r.status === filter
@@ -136,7 +141,7 @@ export default function EditApprovalsPage() {
       r.resourceName.toLowerCase().includes(q)
     );
     return result;
-  }, [requests, filter, search]);
+  }, [datedRequests, filter, search]);
 
   async function handleApprove(id: string, adminNote?: string) {
     try {
@@ -148,6 +153,8 @@ export default function EditApprovalsPage() {
         showSuccess("Fuel log updated — changes applied immediately.");
       } else if (updated.action === "Edit" && updated.resourceType === "MaintenanceRecord") {
         showSuccess("Maintenance record updated — changes applied immediately.");
+      } else if (updated.action === "Edit" && updated.resourceType === "AdBlueLog") {
+        showSuccess("AdBlue log updated — changes applied immediately.");
       } else {
         showSuccess("Edit access approved — Staff has 8 hours to make changes.");
       }
@@ -300,7 +307,12 @@ export default function EditApprovalsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch value={search} onChange={setSearch} placeholder="Search by staff name or resource" />
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <DateRangePill from={exportFrom} to={exportTo} onFromChange={setExportFrom} onToChange={setExportTo} />
+          <DateRangePill
+            from={exportFrom}
+            to={exportTo}
+            onFromChange={(v) => { setExportFrom(v); setSelected(new Set()); }}
+            onToChange={(v) => { setExportTo(v); setSelected(new Set()); }}
+          />
           <DownloadExcelButton
             path="/edit-approvals/export"
             filename="edit_approvals.xlsx"
@@ -586,14 +598,14 @@ export default function EditApprovalsPage() {
               </p>
             </div>
 
-            {viewing.proposedChanges && (viewing.resourceType === "FuelLog" || viewing.resourceType === "MaintenanceRecord") && (
+            {viewing.proposedChanges && (viewing.resourceType === "FuelLog" || viewing.resourceType === "MaintenanceRecord" || viewing.resourceType === "AdBlueLog") && (
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Proposed Changes</p>
                 <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
                   {/* vendor_id is an internal link — maintenance_by already shows the vendor's name. */}
                   {Object.entries(viewing.proposedChanges).filter(([k]) => k !== "vendor_id").map(([k, v]) => (
                     <div key={k} className="flex gap-1.5">
-                      <span className="text-blue-400 capitalize min-w-[90px]">{k.replace(/_/g, " ")}:</span>
+                      <span className="text-blue-400 capitalize min-w-[90px]">{viewing.resourceType === "AdBlueLog" && k === "supplier" ? "filling location" : k.replace(/_/g, " ")}:</span>
                       <span className="font-semibold text-blue-900">{String(v ?? "—")}</span>
                     </div>
                   ))}

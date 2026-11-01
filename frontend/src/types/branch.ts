@@ -13,7 +13,13 @@ export type Branch = {
   partyHaltFee2x20: string;
   partyHaltFeeOpenLoad: string;
   driverHaltDayPercentage: string;
+  /** The single fee the Cleaner Batta Record and the calculator still use. */
   cleanerBattaFee: string;
+  /** Cleaner Batta Fee for each container type. */
+  cleanerBattaFee20ft: string;
+  cleanerBattaFee40ft: string;
+  cleanerBattaFee2x20: string;
+  cleanerBattaFeeOpenLoad: string;
   /** Per day the driver is marked "On Workshop" (Workshop Batta Record). */
   workshopBattaFee: string;
   version?: number;

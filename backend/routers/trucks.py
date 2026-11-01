@@ -293,7 +293,7 @@ def get_compliance_per_day_all(db: Session = Depends(get_db)):
 def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     """
     Ranks trucks by "Cost/Km (Efficiency)" — fuel/mileage + tyre +
-    maintenance per km (AdBlue isn't counted — Truck's Adblue History is a record only) — cheapest first. Powers the "recommended truck"
+    AdBlue + maintenance per km — cheapest first. Powers the "recommended truck"
     suggestion in the Assign Trip dialog's customer insights panel.
 
     Deliberately EXCLUDES EMI and compliance from the ranking metric: those
@@ -325,6 +325,8 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
     # Same "Lifetime Average" mileage (km/L) source used everywhere else in
     # the app (Running Cost Calculator, TruckStatusDialog, etc.) — IQR-filtered.
     mileage_map = get_all_fuel_stats(db)
+    from routers.running_cost import _auto_adblue_per_km_all
+    adblue_map = _auto_adblue_per_km_all(db)   # 0 until a truck has 2+ AdBlue fills
 
     tyre_layout_costs = {
         c.tyre_layout: float(c.cost or 0)
@@ -356,7 +358,8 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
         compliance_km = compliance_map.get(str(truck.id), 0.0)
         emi_per_km = emi_totals.get(truck.registration_number.strip().upper(), 0.0)
 
-        efficiency = fuel_per_km + tyre_per_km + maint_per_km
+        adblue_per_km = adblue_map.get(str(truck.id), 0.0)
+        efficiency = fuel_per_km + adblue_per_km + tyre_per_km + maint_per_km
         total = efficiency + compliance_km + emi_per_km
         results.append({
             "truck_db_id": str(truck.id),
@@ -367,6 +370,7 @@ def get_cost_per_km_ranking(db: Session = Depends(get_db)):
             "total_cost_per_km": round(total, 4),
             "breakdown": {
                 "fuel_per_km": round(fuel_per_km, 4),
+                "adblue_per_km": round(adblue_per_km, 4),
                 "tyre_per_km": round(tyre_per_km, 4),
                 "maintenance_per_km": round(maint_per_km, 4),
                 "compliance_per_km": round(compliance_km, 4),

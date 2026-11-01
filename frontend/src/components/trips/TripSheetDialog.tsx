@@ -10,7 +10,7 @@ import type { TripClosureData } from "@/types/trip-closure";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 import type { RepairType } from "@/types/repair-type";
-import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate } from "@/lib/api";
+import { repairTypesApi, fuelLogsApi, tripsApi, tripExpenseRatesApi, type TripExpenseRate, type SheetKmCheck } from "@/lib/api";
 import type { FuelLog } from "@/types/fuel-log";
 import { showError, MySwal, confirmAction } from "@/lib/swal";
 import { todayIst, formatDate } from "@/lib/format-date";
@@ -128,27 +128,35 @@ type Props = {
   onSubmit: (data: TripSheetData) => void;
 };
 
-// Start KM this far above the truck's current odometer (on a new sheet), or a
-// single trip this long, is almost certainly a typo (an extra digit).
-const START_KM_JUMP_WARN = 20000;
+// A single trip this long is almost certainly a typo (an extra digit). The
+// checks against the truck's other trips (before/after this one, its highest
+// other reading) come from the server — tripsApi.checkSheetKm — and work the
+// same for new sheets and edits.
 const TRIP_KM_WARN = 5000;
 
-function kmWarningParts(odometer: string | undefined, startKm: string, endKm: string, isExisting: boolean): [string | undefined, string | undefined] {
-  const odo = Number(odometer || 0);
-  const start = Number(startKm || 0);
-  const end = Number(endKm || 0);
-  const fmt = (v: number) => v.toLocaleString("en-IN");
-  const startWarn = !isExisting && odo > 0 && start - odo > START_KM_JUMP_WARN
-    ? `This is ${fmt(start - odo)} km above the truck's current odometer (${fmt(odo)} km). Is it correct?`
-    : undefined;
-  const endWarn = start > 0 && end - start > TRIP_KM_WARN
-    ? `That makes this one trip ${fmt(end - start)} km. Is End km correct?`
-    : undefined;
-  return [startWarn, endWarn];
+/** A fill goes to Fuel History only with litres > 0 (lib/api.ts fromSheet + the server). */
+const fillRecorded = (e: DieselEntry) => n(e.litres) > 0;
+const fillTouched = (e: DieselEntry) => !!(e.date || e.odometer || e.litres || e.costPerLitre || e.totalCost || e.fuelStation);
+
+/** Diesel fills that won't save the way the user probably expects. */
+function dieselWarnings(entries: DieselEntry[]): string[] {
+  const out: string[] = [];
+  entries.forEach((e, i) => {
+    if (fillRecorded(e) && !(n(e.totalCost) > 0)) {
+      out.push(`Fill #${i + 1} has ${e.litres} L but no Cost Per Litre / Total — it would go to Fuel History at ₹0.`);
+    } else if (!fillRecorded(e) && fillTouched(e) && (e.odometer || e.costPerLitre || e.totalCost || e.fuelStation)) {
+      out.push(`Fill #${i + 1} has no Quantity (Litres), so it won't be saved.`);
+    }
+  });
+  return out;
 }
 
-function kmWarnings(odometer: string | undefined, startKm: string, endKm: string, isExisting: boolean): string[] {
-  return kmWarningParts(odometer, startKm, endKm, isExisting).filter((w): w is string => !!w);
+function tripLengthWarning(startKm: string, endKm: string): string | undefined {
+  const start = Number(startKm || 0);
+  const end = Number(endKm || 0);
+  return start > 0 && end - start > TRIP_KM_WARN
+    ? `That makes this one trip ${(end - start).toLocaleString("en-IN")} km. Is End km correct?`
+    : undefined;
 }
 
 export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, autoEditable, onRequestAutoEdit, drivers, trucks, onClose, onSubmit }: Props) {
@@ -157,6 +165,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   const [fuelStations, setFuelStations] = useState<string[]>([]);
   const [costPerKm, setCostPerKm] = useState<string>("");
   const [lastFuelLog, setLastFuelLog] = useState<FuelLog | null>(null);
+  const [kmCheck, setKmCheck] = useState<SheetKmCheck | null>(null);
   const [saving, setSaving] = useState(false);
   const [invoiceRequired, setInvoiceRequired] = useState(true);
   // driverAdvance and additionalDriverAdvance live in form (TripSheetData) — not local state
@@ -191,6 +200,20 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       })
       .catch(() => setLastFuelLog(null));
   }, [truckDbId]);
+
+  // Start/End KM against the truck's trips before/after this one — checked a
+  // moment after typing stops, for new sheets and edits alike.
+  const tripDbId = trip?.id;
+  useEffect(() => {
+    if (!open || !tripDbId || readOnly || !form.vehicleId || (!form.startKm && !form.endKm)) { setKmCheck(null); return; }
+    let stale = false;
+    const t = setTimeout(() => {
+      tripsApi.checkSheetKm(tripDbId, {
+        vehicleId: form.vehicleId, scheduledDate: form.tripScheduledDate, startKm: form.startKm, endKm: form.endKm,
+      }).then((r) => { if (!stale) setKmCheck(r); }).catch(() => { if (!stale) setKmCheck(null); });
+    }, 500);
+    return () => { stale = true; clearTimeout(t); };
+  }, [open, tripDbId, readOnly, form.vehicleId, form.tripScheduledDate, form.startKm, form.endKm]);
 
   useEffect(() => {
     if (!open || !trip) {
@@ -241,7 +264,7 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         ...tripMirroredFields(trip),
         dieselEntries: existingSheet.dieselEntries?.length
           ? existingSheet.dieselEntries
-          : [emptyDieselEntry(existingSheet.tripSheetDate || todayIst())],
+          : [emptyDieselEntry()],
         // Fallback to closure for old sheets saved before these columns existed
         driverAdvance:           existingSheet.driverAdvance           || String(closure?.driverAdvance           ?? ""),
         additionalDriverAdvance: existingSheet.additionalDriverAdvance || String(closure?.additionalDriverAdvance  ?? ""),
@@ -348,12 +371,21 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    // An extra digit in Start/End KM would push the truck's odometer up by
-    // lakhs of km (it only ever moves up on its own) — make the user confirm.
+    // A wrong Start/End KM would skew Total KM (profit) and could push the
+    // truck's odometer up by lakhs of km — make the user confirm. Fresh check
+    // on submit; if it can't be reached, only the trip-length check applies.
     if (!readOnly) {
-      const warnings = kmWarnings(trucks.find((t) => t.truckId === form.vehicleId)?.odometer, form.startKm, form.endKm, !!existingSheet);
-      if (warnings.length > 0) {
-        const res = await confirmAction("Check the KM readings", `${warnings.join(" ")} Save anyway?`, "Save anyway");
+      const fresh = trip ? await tripsApi.checkSheetKm(trip.id, {
+        vehicleId: form.vehicleId, scheduledDate: form.tripScheduledDate, startKm: form.startKm, endKm: form.endKm,
+      }).catch(() => null) : null;
+      const warnings = [
+        ...(fresh?.warnings.map((w) => w.message) ?? []),
+        ...[tripLengthWarning(form.startKm, form.endKm)].filter((w): w is string => !!w),
+      ];
+      const fuel = dieselWarnings(form.dieselEntries);
+      if (warnings.length > 0 || fuel.length > 0) {
+        const title = warnings.length && fuel.length ? "Check the KM readings and diesel" : warnings.length ? "Check the KM readings" : "Check the diesel entries";
+        const res = await confirmAction(title, `${[...warnings, ...fuel].join(" ")} Save anyway?`, "Save anyway");
         if (!res.isConfirmed) return;
       }
     }
@@ -444,7 +476,14 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   function addDieselEntry() {
     setForm((prev) => ({
       ...prev,
-      dieselEntries: [...prev.dieselEntries, emptyDieselEntry(todayIst())],
+      dieselEntries: [...prev.dieselEntries, emptyDieselEntry()],
+    }));
+  }
+
+  function clearDieselEntry(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      dieselEntries: prev.dieselEntries.map((e, i) => (i === index ? emptyDieselEntry() : e)),
     }));
   }
 
@@ -454,14 +493,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
       dieselEntries: prev.dieselEntries.filter((_, i) => i !== index),
     }));
   }
-
-  // RETURN TRIP batta: 10% of (Hire Amount − Weight Sheet Expense)
-  useEffect(() => {
-    if (form.tripType !== "RETURN TRIP") return;
-    const base = n(form.hireAmount) - n(form.weightSheetExpense);
-    const batta = base > 0 ? String(Math.round(base * 0.10)) : "";
-    setForm((prev) => recalcDerived({ ...prev, driverPay: batta }, haltPay));
-  }, [form.tripType, form.hireAmount, form.weightSheetExpense]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!trip) return null;
 
@@ -480,7 +511,9 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
   // sheet, the truck's odometer was already advanced to this sheet's end km on save,
   // so comparing its start km against the odometer would always false-positive.
   const startKmTooLow  = !ro && !existingSheet && !!currentTruck && n(form.startKm) > 0 && n(form.startKm) < Number(currentTruck.odometer);
-  const [startKmWarning, endKmWarning] = ro ? [undefined, undefined] : kmWarningParts(currentTruck?.odometer, form.startKm, form.endKm, !!existingSheet);
+  const endKmWarning = ro ? undefined : tripLengthWarning(form.startKm, form.endKm);
+  const startKmChecks = ro ? [] : (kmCheck?.warnings ?? []).filter((w) => w.field === "start");
+  const endKmChecks = ro ? [] : (kmCheck?.warnings ?? []).filter((w) => w.field === "end");
 
   return (
     <Dialog open={open} onClose={onClose} title={ro ? `View Trip Sheet — ${trip.tripId}` : `Trip Sheet — ${trip.tripId}`} className="max-w-4xl">
@@ -543,21 +576,21 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </Field>
           <Field label="Booking Date">
             {auto ? (
-              <DatePickerInput value={form.bookingDate} onChange={(v) => set("bookingDate", v)} />
+              <DatePickerInput value={form.bookingDate} onChange={(v) => set("bookingDate", v)} clearable={false} />
             ) : (
               <input className={roClass} value={form.bookingDate ? form.bookingDate.split("-").reverse().join("-") : ""} readOnly disabled />
             )}
           </Field>
           <Field label="Trip Scheduled Date">
             {auto ? (
-              <DatePickerInput value={form.tripScheduledDate} onChange={(v) => set("tripScheduledDate", v)} />
+              <DatePickerInput value={form.tripScheduledDate} onChange={(v) => set("tripScheduledDate", v)} clearable={false} />
             ) : (
               <input className={roClass} value={form.tripScheduledDate ? form.tripScheduledDate.split("-").reverse().join("-") : ""} readOnly disabled />
             )}
           </Field>
           <Field label="Trip Completed Date">
             {auto ? (
-              <DatePickerInput value={form.tripCompletedDate} onChange={(v) => set("tripCompletedDate", v)} />
+              <DatePickerInput value={form.tripCompletedDate} onChange={(v) => set("tripCompletedDate", v)} clearable={false} />
             ) : (
               <input className={roClass} value={form.tripCompletedDate ? form.tripCompletedDate.split("-").reverse().join("-") : ""} readOnly disabled />
             )}
@@ -640,7 +673,12 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                 Below current odometer ({Number(currentTruck!.odometer).toLocaleString()} km). Please Check the Value.
               </p>
             )}
-            {startKmWarning && <p className="mt-1 text-xs text-amber-600">{startKmWarning}</p>}
+            {startKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-amber-600">{w.message}</p>)}
+            {!ro && kmCheck?.previous && startKmChecks.length === 0 && (
+              <p className="mt-1 text-xs text-gray-400">
+                Previous trip {kmCheck.previous.tripCode}{kmCheck.previous.date ? ` (${formatDate(kmCheck.previous.date)})` : ""} ended at {kmCheck.previous.endKm.toLocaleString("en-IN")} km
+              </p>
+            )}
           </Field>
           <Field label="End km *">
             <DecimalInput type="number" min="0" className={fc} value={form.endKm} readOnly={ro} disabled={ro} onChange={(e) => set("endKm", e.target.value)} placeholder="e.g. 84500" />
@@ -648,6 +686,8 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
               <p className="mt-1 text-xs text-red-500">End Km must be greater than Start Km.</p>
             )}
             {endKmWarning && <p className="mt-1 text-xs text-amber-600">{endKmWarning}</p>}
+            {endKmChecks.map((w) => <p key={w.message} className="mt-1 text-xs text-amber-600">{w.message}</p>)}
+            {!ro && kmCheck?.odometerNote && <p className="mt-1 text-xs text-blue-600">{kmCheck.odometerNote}</p>}
           </Field>
           <Field label="Total km *">
             <DecimalInput type="number" className={`${fc} bg-gray-50`} value={form.totalKm} readOnly placeholder="Auto-calculated" />
@@ -746,7 +786,30 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
                     <Trash2 className="h-3.5 w-3.5" /> Remove
                   </button>
                 )}
+                {!ro && form.dieselEntries.length === 1 && fillTouched(entry) && (
+                  <button
+                    type="button"
+                    onClick={() => clearDieselEntry(idx)}
+                    className="inline-flex items-center gap-1 text-xs text-rose-500 hover:text-rose-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Clear
+                  </button>
+                )}
               </div>
+              {/* Whether this fill will reach Fuel History (litres > 0) */}
+              {!ro && (
+                fillRecorded(entry) ? (
+                  <p className={`mb-3 text-xs ${n(entry.totalCost) > 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {n(entry.totalCost) > 0
+                      ? "Will be added to Fuel History when you save."
+                      : "Will be added to Fuel History — but enter Cost Per Litre, or it's recorded at ₹0."}
+                  </p>
+                ) : (
+                  <p className="mb-3 text-xs text-gray-400">
+                    Not recorded — enter Quantity (Litres) to add this fill to Fuel History.
+                  </p>
+                )
+              )}
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Date">
                   <DatePickerInput
@@ -1027,15 +1090,6 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
         {/* ── 8. Driver Settlement ── */}
         <p className={sh}>Driver Settlement</p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {form.tripType === "RETURN TRIP" && (
-            <div className="sm:col-span-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-              <span className="mt-0.5 text-blue-500 text-sm">ℹ</span>
-              <p className="text-sm text-blue-800">
-                <span className="font-semibold">Return Trip Batta Rule — </span>
-                Driver Batta is automatically calculated as <span className="font-semibold">10% of (Hire Amount − Weight Sheet Expense)</span>. This field is locked and updates in real time as you fill in the hire amount and weight sheet expense above.
-              </p>
-            </div>
-          )}
           {(() => {
             if (!trip?.advanceCorrectedAmount || trip?.advanceVerified !== false) return null;
             const corrected   = parseFloat(String(trip.advanceCorrectedAmount)) || 0;
@@ -1066,21 +1120,13 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
             <DecimalInput
               type="number"
               min="0"
-              className={`${fc} ${form.tripType === "RETURN TRIP" ? "cursor-not-allowed bg-blue-50" : ""}`}
+              className={fc}
               value={form.driverPay}
-              readOnly={ro || form.tripType === "RETURN TRIP"}
+              readOnly={ro}
               onChange={(e) => set("driverPay", e.target.value)}
               placeholder="e.g. 1000"
             />
             {(() => {
-              if (form.tripType === "RETURN TRIP") {
-                const base = n(form.hireAmount) - n(form.weightSheetExpense);
-                return (
-                  <p className="mt-1 text-xs text-blue-500">
-                    Auto-calculated: 10% of (Hire ₹{n(form.hireAmount).toLocaleString("en-IN")} − Weight Sheet ₹{n(form.weightSheetExpense).toLocaleString("en-IN")}) = ₹{Math.round(base > 0 ? base * 0.10 : 0).toLocaleString("en-IN")}
-                  </p>
-                );
-              }
               if (form.driverCompensationType === "CUSTOM") return <p className="mt-1 text-xs text-gray-400">Custom batta amount based on compensation type.</p>;
               if (form.driverCompensationType === "PER KM" && n(form.totalKm) > 0) return <p className="mt-1 text-xs text-gray-400">Per-km rate × {n(form.totalKm).toLocaleString()} km. Edit to set amount.</p>;
               return <p className="mt-1 text-xs text-gray-400">Batta paid to driver for this trip.</p>;

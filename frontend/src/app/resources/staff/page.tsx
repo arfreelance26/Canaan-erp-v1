@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Users, History, Pencil, Trash2, Undo2 } from "lucide-react";
+import { Plus, Users, History, Pencil, Trash2, Undo2, Lock, LockOpen } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { staffApi, uploadFile, fileUrl, type StaffEditEventRow } from "@/lib/api";
+import { staffApi, uploadFile, fileUrl, type StaffEditEventRow, type StaffFreezeEventRow } from "@/lib/api";
+import { FreezeAccountDialog } from "@/components/staff/FreezeAccountDialog";
 import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/swal";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
@@ -50,6 +51,28 @@ export default function StaffPage() {
   const [editHistoryEvents, setEditHistoryEvents] = useState<StaffEditEventRow[]>([]);
   const [editHistoryLoading, setEditHistoryLoading] = useState(false);
   const [editHistorySearch, setEditHistorySearch] = useState("");
+  // Freeze Account
+  const [freezeTarget, setFreezeTarget] = useState<Staff | null>(null);
+  const [frozenOnly, setFrozenOnly] = useState(false);
+  const [freezeHistoryOpen, setFreezeHistoryOpen] = useState(false);
+  const [freezeEvents, setFreezeEvents] = useState<StaffFreezeEventRow[]>([]);
+  const [freezeHistoryLoading, setFreezeHistoryLoading] = useState(false);
+  const [freezeHistorySearch, setFreezeHistorySearch] = useState("");
+
+  function openFreezeHistory() {
+    setFreezeHistoryOpen(true);
+    setFreezeHistoryLoading(true);
+    staffApi.listFreezeEvents()
+      .then(setFreezeEvents)
+      .catch(() => {})
+      .finally(() => setFreezeHistoryLoading(false));
+  }
+
+  function handleFrozenChange(updated: Staff) {
+    setStaff((prev) => prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)));
+    setViewingStaff((v) => (v && v.id === updated.id ? { ...v, ...updated } : v));
+    setFreezeTarget(null);
+  }
 
   // Fetched fresh every time it's opened, covering every staff edit ever
   // logged — searching by staff name/ID here doubles as that staff member's
@@ -63,10 +86,12 @@ export default function StaffPage() {
       .finally(() => setEditHistoryLoading(false));
   }
 
+  const frozenCount = staff.filter((s) => s.frozenAt).length;
   const filteredStaff = staff.filter(s =>
+    (!frozenOnly || !!s.frozenAt) && (
     !searchQuery ||
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.staffId?.toLowerCase().includes(searchQuery.toLowerCase())
+    s.staffId?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   useEffect(() => {
@@ -283,6 +308,16 @@ export default function StaffPage() {
             Edit History
           </button>
 )}
+          {isAdmin && (
+          <button
+            type="button"
+            onClick={openFreezeHistory}
+            className="flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-300 hover:scale-105 hover:bg-gray-50"
+          >
+            <Lock className="h-4 w-4" />
+            Freeze History
+          </button>
+          )}
           <button
             type="button"
             onClick={handleAdd}
@@ -297,12 +332,27 @@ export default function StaffPage() {
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search staff..." value={searchQuery} onChange={setSearchQuery} />
+        {isAdmin && (frozenCount > 0 || frozenOnly) && (
+          <button
+            type="button"
+            onClick={() => setFrozenOnly((v) => !v)}
+            className={cn(
+              "flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-semibold shadow-sm transition-all duration-300",
+              frozenOnly ? "border-red-300 bg-red-50 text-red-700" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+            )}
+          >
+            <Lock className="h-4 w-4" />
+            Frozen ({frozenCount})
+          </button>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DownloadExcelButton path="/exports/staff" filename="staff.xlsx" />
         </div>
       </div>
 
-      <StaffTable staff={filteredStaff} onView={setViewingStaff} onEdit={handleEdit} onDelete={handleDelete} onResetDevice={handleResetDevice} />
+      <StaffTable staff={filteredStaff} onView={setViewingStaff} onEdit={handleEdit} onDelete={handleDelete} onResetDevice={handleResetDevice} onFreeze={setFreezeTarget} />
+
+      <FreezeAccountDialog staff={freezeTarget} onClose={() => setFreezeTarget(null)} onDone={handleFrozenChange} />
 
       <StaffFormDialog
         open={dialogOpen}
@@ -318,7 +368,70 @@ export default function StaffPage() {
         downloading={downloading}
         onDownloadPdf={(m) => handleDownloadPDF(m)}
         onResetDevice={handleResetOneDevice}
+        onFreeze={setFreezeTarget}
       />
+
+      {/* Freeze History — every Freeze / Unfreeze, newest first. Search by a
+          name or ID for one staff member's history. */}
+      <Dialog
+        open={freezeHistoryOpen}
+        onClose={() => setFreezeHistoryOpen(false)}
+        title="Freeze History"
+        className="sm:max-w-4xl"
+      >
+        <div className="flex flex-col gap-4">
+          <PillSearch placeholder="Search by staff name, ID, reason, or actor…" value={freezeHistorySearch} onChange={setFreezeHistorySearch} />
+          {freezeHistoryLoading ? (
+            <p className="py-8 text-center text-sm text-gray-400">Loading history…</p>
+          ) : (() => {
+            const q = freezeHistorySearch.toLowerCase();
+            const filtered = freezeEvents.filter((ev) =>
+              !q || [ev.staffIdStr, ev.staffName, ev.actorName, ev.reason].some((v) => v.toLowerCase().includes(q))
+            );
+            return filtered.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                {freezeEvents.length === 0 ? "No account has been frozen yet." : "No history matches this search."}
+              </p>
+            ) : (
+              <div className="max-h-[60vh] overflow-auto rounded-lg border border-gray-100">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Staff</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Action</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">Reason</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">By</th>
+                      <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-gray-400">When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="px-3 py-2">
+                          <p className="font-semibold text-gray-800">{ev.staffName}</p>
+                          <p className="text-[11px] text-gray-400">{ev.staffIdStr}</p>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            ev.event === "Frozen" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700")}>
+                            {ev.event === "Frozen" ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />} {ev.event}
+                          </span>
+                        </td>
+                        <td className="max-w-[260px] whitespace-pre-wrap break-words px-3 py-2 text-gray-700">{ev.reason}</td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {ev.actorName}
+                          {ev.actorRole && <span className="text-[11px] text-gray-400"> ({ev.actorRole})</span>}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-500">{formatDateTime(ev.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      </Dialog>
 
       {/* Edit History — every Create/Edit/Delete/Restore ever logged, across
           every staff member (not just the ones currently on this page), in

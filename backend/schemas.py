@@ -274,6 +274,9 @@ class StaffOut(StaffBase):
     version: int = 1
     device_bound: bool = False
     devices: list[DeviceInfo] = []
+    frozen_at: Optional[datetime] = None
+    frozen_by_name: Optional[str] = None
+    frozen_reason: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -587,6 +590,9 @@ class LRDataSave(OrmBase):
 
 class TripOut(TripBase):
     id: int
+    reverification_remark: Optional[str] = None
+    reverification_by: Optional[str] = None
+    reverification_at: Optional[datetime] = None
     verification_status: VerificationStatus = "pending"
     verification_rejection_reason: Optional[str] = None
     is_invoiced: bool = False
@@ -623,9 +629,12 @@ class TripOut(TripBase):
     lr_saved_at: Optional[datetime] = None
 
 
+TripRecheckEventType = Literal["Flagged", "Returned for Review", "Verified", "Verification Undone", "Flagged for Re-Verification"]
+
+
 class TripRecheckEventOut(BaseModel):
     id: int
-    event: Literal["Flagged", "Returned for Review", "Verified"]
+    event: TripRecheckEventType
     remark: Optional[str] = None
     actor_name: str
     actor_role: Optional[str] = None
@@ -646,7 +655,7 @@ class TripRecheckEventListOut(BaseModel):
     driver_name: Optional[str] = None
     origin: Optional[str] = None
     destination: Optional[str] = None
-    event: Literal["Flagged", "Returned for Review", "Verified"]
+    event: TripRecheckEventType
     remark: Optional[str] = None
     actor_name: str
     actor_role: Optional[str] = None
@@ -717,6 +726,24 @@ class StaffEditEventListOut(BaseModel):
     staff_id_str: str
     staff_name: str
     event: StaffEditEventType
+    actor_name: str
+    actor_role: Optional[str] = None
+    created_at: datetime
+
+
+class StaffFreezeIn(BaseModel):
+    """Freeze / Unfreeze Account — a reason and the owner password (Chat Owner View's)."""
+    reason: str = Field(min_length=1, max_length=1000)
+    owner_password: str = Field(min_length=1, max_length=200)
+
+
+class StaffFreezeEventOut(BaseModel):
+    id: int
+    staff_id: int
+    staff_id_str: str
+    staff_name: str
+    event: Literal["Frozen", "Unfrozen"]
+    reason: str
     actor_name: str
     actor_role: Optional[str] = None
     created_at: datetime
@@ -1267,6 +1294,19 @@ class AuditVerifiedTripOut(BaseModel):
     was_disputed: bool = False
 
 
+class PendingAuditTripOut(BaseModel):
+    """One row on the "Pending Audit" page — a trip verified by Accounts that
+    the Auditor hasn't verified or flagged yet."""
+    trip_id: int
+    trip_id_str: str
+    driver_name: Optional[str] = None
+    vehicle_id: Optional[str] = None
+    truck_registration: Optional[str] = None
+    origin: Optional[str] = None
+    destination: Optional[str] = None
+    scheduled_date: Optional[date] = None
+
+
 # ---------------------------------------------------------------------------
 # Trip Closure
 # ---------------------------------------------------------------------------
@@ -1510,12 +1550,16 @@ class DriverAttendanceCreate(OrmBase):
     status: AttendanceStatus
     check_in_time: Optional[str] = None
     marked_at: Optional[datetime] = None
+    container_specification: Optional[ContainerSpecification] = None
+    workshop_advance: Optional[float] = None
 
 
 class DriverAttendanceUpdate(OrmBase):
     status: AttendanceStatus
     check_in_time: Optional[str] = None
     marked_at: Optional[datetime] = None
+    container_specification: Optional[ContainerSpecification] = None
+    workshop_advance: Optional[float] = None
 
 
 class DriverAttendanceOut(OrmBase):
@@ -1525,6 +1569,8 @@ class DriverAttendanceOut(OrmBase):
     status: AttendanceStatus
     check_in_time: Optional[str] = None
     marked_at: Optional[datetime] = None
+    container_specification: Optional[str] = None
+    workshop_advance: Optional[float] = None
 
 
 class DriverAttendanceRemarkCreate(OrmBase):
@@ -1651,7 +1697,7 @@ class HolidayOut(OrmBase):
 # ---------------------------------------------------------------------------
 
 EditApprovalAction = Literal["Edit", "Delete"]
-EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck", "MaintenanceRecord"]
+EditApprovalResourceType = Literal["Customer", "Vendor", "BookingSheet", "TripSheet", "TripData", "Trip", "FuelLog", "Driver", "Truck", "MaintenanceRecord", "AdBlueLog"]
 EditApprovalStatus = Literal["Pending", "Approved", "Rejected"]
 
 
@@ -1784,7 +1830,8 @@ class MaintenanceRecordCreate(OrmBase):
 class MaintenanceRecordUpdate(OrmBase):
     client_version: Optional[int] = None
     date: Optional[_DateType] = None
-    maintenance_end_date: Optional[date] = None
+    # _DateType, not `date`: the field above shadows the name inside this class.
+    maintenance_end_date: Optional[_DateType] = None
     odometer: Optional[int] = None
     maintenance_type: Optional[str] = None
     repair_type: Optional[str] = None
@@ -1962,6 +2009,14 @@ class FuelStats(OrmBase):
 # AdBlue Logs (Truck's Adblue History)
 # ---------------------------------------------------------------------------
 
+class TripSheetKmCheckIn(BaseModel):
+    """The Trip Sheet form's KM readings, checked against the truck's other trips (trip_km.check)."""
+    vehicle_id: Optional[str] = None
+    trip_scheduled_date: Optional[_DateType] = None
+    start_km: Optional[Decimal] = None
+    end_km: Optional[Decimal] = None
+
+
 class AdBlueLogCreate(OrmBase):
     truck_id: int
     date: date
@@ -2098,7 +2153,32 @@ class TyreMovementEventOut(OrmBase):
     expected_range: Optional[int] = None
     retread_count: Optional[int] = None
     retread_done_by: Optional[str] = None
+    retread_by_type: Optional[str] = None
+    vendor_id: Optional[int] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[_DateType] = None
+    proof_file_name: Optional[str] = None
+    proof_size_bytes: Optional[int] = None
     created_at: datetime
+
+
+class VendorRetreadOut(BaseModel):
+    """A retread this vendor did — Our Vendors → View Record → Tyre Retreads."""
+    id: int                      # tyre_movement_events.id
+    tyre_id: int
+    tyre_number: Optional[str] = None
+    brand: Optional[str] = None
+    tyre_size: Optional[str] = None
+    tyre_type: Optional[str] = None
+    date: datetime               # when it was moved back to inventory
+    retread_cost: Optional[Decimal] = None
+    expected_range: Optional[int] = None
+    retread_count: Optional[int] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[_DateType] = None
+    proof_file_name: Optional[str] = None
+    proof_size_bytes: Optional[int] = None
+    actor_name: str
 
 
 class TyreDataOut(OrmBase):
@@ -2108,19 +2188,23 @@ class TyreDataOut(OrmBase):
 
 
 class TyreMoveToInventory(OrmBase):
-    """Body for moving a Retread Queue tyre back to Tyre Inventory."""
+    """Body for moving a Retread Queue tyre back to Tyre Inventory. "Vendor"
+    needs vendor_id (the name is taken from Our Vendors); "Individual" needs
+    the typed name in retread_done_by. Invoice fields are optional."""
     retread_cost: Decimal
     expected_range: int
-    retread_done_by: str
+    retread_done_by: str = ""
+    retread_by_type: Literal["Vendor", "Individual"] = "Vendor"
+    vendor_id: Optional[int] = None
+    invoice_number: Optional[str] = Field(default=None, max_length=100)
+    invoice_date: Optional[_DateType] = None
 
     @field_validator("retread_done_by")
     @classmethod
-    def _done_by_required(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("Select the vendor that did the retreading")
+    def _done_by_length(cls, v: str) -> str:
+        v = (v or "").strip()
         if len(v) > 200:
-            raise ValueError("Vendor name must be 200 characters or fewer")
+            raise ValueError("Name must be 200 characters or fewer")
         return v
 
     @field_validator("retread_cost")
@@ -2453,11 +2537,16 @@ class RccTruckMetricsIn(BaseModel):
     tyre_per_km: Optional[str] = ""
     maintenance_per_km: Optional[str] = ""
     compliance_cost_per_year: Optional[str] = ""
+    adblue_consume_l_per_km: Optional[str] = ""
+    adblue_manufacturer_id: Optional[str] = ""
+    adblue_per_km: Optional[str] = ""
 
 class RccModeDataIn(BaseModel):
     cost_per_litre: Optional[str] = ""
     tyre_entries: dict[str, RccTyreEntryIn] = {}
     run_entries: dict[str, RccLayoutEntryIn] = {}
+    # AdBlue Details: {manufacturer id: price per litre}
+    adblue_prices: dict[str, str] = {}
     truck_metrics: dict[str, RccTruckMetricsIn] = {}
     # {tyre_layout: {tyre_type: quantity}} — None = not sent (leave as is).
     tyre_cost_config_qty: Optional[dict[str, dict[str, str]]] = None
@@ -2563,6 +2652,10 @@ class BranchBase(OrmBase):
     party_halt_fee_open_load: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
     cleaner_batta_fee: Optional[Decimal] = None
+    cleaner_batta_fee_20ft: Optional[Decimal] = None
+    cleaner_batta_fee_40ft: Optional[Decimal] = None
+    cleaner_batta_fee_2x20: Optional[Decimal] = None
+    cleaner_batta_fee_open_load: Optional[Decimal] = None
     workshop_batta_fee: Optional[Decimal] = None
 
 
@@ -2583,6 +2676,10 @@ class BranchUpdate(OrmBase):
     party_halt_fee_open_load: Optional[Decimal] = None
     driver_halt_day_percentage: Optional[Decimal] = None
     cleaner_batta_fee: Optional[Decimal] = None
+    cleaner_batta_fee_20ft: Optional[Decimal] = None
+    cleaner_batta_fee_40ft: Optional[Decimal] = None
+    cleaner_batta_fee_2x20: Optional[Decimal] = None
+    cleaner_batta_fee_open_load: Optional[Decimal] = None
     workshop_batta_fee: Optional[Decimal] = None
 
 

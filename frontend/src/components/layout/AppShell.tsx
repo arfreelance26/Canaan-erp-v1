@@ -12,9 +12,10 @@ import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { useAttendanceGate } from "@/hooks/useAttendanceGate";
 import { showToast } from "@/lib/swal";
 import { useChatMessageToasts } from "@/hooks/useChatMessageToasts";
+import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
+import { LOGOUT_REASON_KEY } from "@/lib/api";
 import { RoomSummonListener } from "./RoomSummonListener";
-import { EventReminderListener } from "./EventReminderListener";
-import { cn } from "@/lib/utils";
+import { EventReminderListener } from "./EventReminderListener";import { cn } from "@/lib/utils";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
 
 const IDLE_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
@@ -35,6 +36,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useActivityTracking(Boolean(user), pathname);
 
   useChatMessageToasts();
+
+  // Freeze Account (Our Staff): the server ends this person's sessions and
+  // tells their open screens right away — log out and say why on the login page.
+  useWebSocketEvent("account_frozen", (payload) => {
+    const msg = typeof payload?.message === "string" ? payload.message : "Your account has been frozen by the Admin.";
+    try { sessionStorage.setItem(LOGOUT_REASON_KEY, `${msg} Please contact the Admin.`); } catch {}
+    logout();
+  });
 
   // "Set Marking Attendance as Mandatory" (SetWorkingHoursDialog) — while on
   // and today unmarked, every route but Mark Attendance and Chat bounces back

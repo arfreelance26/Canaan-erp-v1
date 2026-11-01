@@ -24,7 +24,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 const EDIT_EVENT_ICON: Record<TyreInventoryEditEventRow["event"], typeof Plus> = {
   "Tyre Created": Plus,
@@ -196,11 +196,12 @@ export default function TyreInventoryPage() {
   const [discardTarget, setDiscardTarget] = useState<TyreInventoryItem | null>(null);
 
   const attachedIds = new Set(fitmentRecords.filter((f) => !f.removedDate).map((f) => f.tyreId));
-  const totalCount = tyres.length;
-  const availableCount = tyres.filter((t) => !attachedIds.has(t.id)).length;
-  const attachedCount = tyres.filter((t) => attachedIds.has(t.id)).length;
+  const datedTyres = tyres.filter((t) => inDateRange(t.purchaseDate, exportFrom, exportTo));
+  const totalCount = datedTyres.length;
+  const availableCount = datedTyres.filter((t) => !attachedIds.has(t.id)).length;
+  const attachedCount = datedTyres.filter((t) => attachedIds.has(t.id)).length;
 
-  const filteredTyres = tyres.filter((t) => {
+  const filteredTyres = datedTyres.filter((t) => {
     if (statusFilter === "Available" && attachedIds.has(t.id)) return false;
     if (statusFilter === "Attached" && !attachedIds.has(t.id)) return false;
     return (

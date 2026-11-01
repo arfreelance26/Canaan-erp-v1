@@ -246,6 +246,24 @@ def approve_edit_request(
         requester_role = getattr(requester, "software_designation", None) or "Staff"
         apply_maintenance_record_update(db, record, changes, req.staff_name, requester_role)
         applied_maintenance = True
+    # An AdBlue log edit too — same rule, a change that's no longer valid
+    # (log deleted, odometer now out of order…) leaves the request Pending.
+    applied_adblue = False
+    if req.action == "Edit" and req.resource_type == "AdBlueLog":
+        if req.status != "Pending":
+            raise HTTPException(409, f"This request was already {req.status.lower()}.")
+        from routers.maintenance import apply_adblue_log_update
+        log = db.query(models.AdBlueLog).with_for_update().filter(models.AdBlueLog.id == req.resource_id).first()
+        if not log:
+            raise HTTPException(409, "This AdBlue log no longer exists — reject the request instead.")
+        try:
+            changes = schemas.AdBlueLogUpdate(**(req.proposed_changes or {}))
+        except Exception:
+            raise HTTPException(400, "The requested changes are not valid any more — reject the request instead.")
+        requester = db.get(models.Staff, req.staff_db_id)
+        requester_role = getattr(requester, "software_designation", None) or "Staff"
+        apply_adblue_log_update(db, log, changes, req.staff_name, requester_role)
+        applied_adblue = True
 
     req.status = "Approved"
     req.approved_at = datetime.now(timezone.utc)
@@ -299,7 +317,7 @@ def approve_edit_request(
                     row.mileage = (dist / float(row.litres)) if float(row.litres) > 0 and dist > 0 else 0
             emit("fuel_updated", {})
         req.expires_at = None
-    elif applied_maintenance:
+    elif applied_maintenance or applied_adblue:
         req.expires_at = None
         req.used_at = req.approved_at
     else:
@@ -309,6 +327,8 @@ def approve_edit_request(
     db.refresh(req)
     if applied_maintenance:
         emit("maintenance_updated", {})
+    if applied_adblue:
+        emit("adblue_updated", {})
     emit("edit_approval_updated", {
         "id": req.id,
         "staff_db_id": req.staff_db_id,
