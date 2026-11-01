@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, FileSpreadsheet, Loader2 } from "lucide-react";
 import { downloadExcel, fetchExcel } from "@/lib/api";
+import { problemFromMessage, reportProblem } from "@/lib/connection-problem";
 import { showError } from "@/lib/swal";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
 
@@ -26,6 +27,8 @@ type Props = {
   title?: string;
 };
 
+const SLOW_AFTER_MS = 15_000;
+
 const VIEW_CLASS =
   "flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-105 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50";
 const DIRECT_CLASS =
@@ -44,9 +47,16 @@ function titleFromFilename(name: string): string {
 
 export function DownloadExcelButton({ path, filename, label = "Download Excel", className, params, direct = false, title }: Props) {
   const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
   const [preview, setPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
 
   const qs = params && Object.keys(params).length > 0 ? "?" + new URLSearchParams(params).toString() : "";
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setSlow(true), SLOW_AFTER_MS);
+    return () => { clearTimeout(timer); setSlow(false); };
+  }, [loading]);
 
   async function handleClick() {
     setLoading(true);
@@ -67,7 +77,10 @@ export function DownloadExcelButton({ path, filename, label = "Download Excel", 
       }));
       setPreview({ blob, filename: served, sheets });
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Failed to load the export.");
+      const message = err instanceof Error ? err.message : "Failed to load the export.";
+      const problem = problemFromMessage(message);
+      if (problem) reportProblem({ ...problem, onRetry: handleClick });
+      else showError(message);
     } finally {
       setLoading(false);
     }
@@ -88,7 +101,7 @@ export function DownloadExcelButton({ path, filename, label = "Download Excel", 
         ) : (
           <Eye className="h-4 w-4" />
         )}
-        {loading ? "Preparing…" : direct ? label : "View"}
+        {loading ? (slow ? "Still preparing, this is a large record" : "Preparing…") : direct ? label : "View"}
       </button>
       {preview && (
         <ExportPreviewDialog

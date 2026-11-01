@@ -3,6 +3,7 @@ import withReactContent from 'sweetalert2-react-content';
 import { createElement } from 'react';
 import { toast } from 'sonner';
 import { MessageSquare } from 'lucide-react';
+import { problemFromMessage, reportProblem } from './connection-problem';
 
 export const MySwal = withReactContent(Swal);
 
@@ -71,6 +72,9 @@ export const confirmAction = async (title: string, text?: string, confirmText = 
  * Error notification dialog.
  */
 export const showError = async (message: string, title = 'Error') => {
+  // Connection and server failures get the checking card (ProblemCardHost).
+  const problem = problemFromMessage(message);
+  if (problem) return reportProblem(problem);
   return MySwal.fire({
     title,
     text: message,

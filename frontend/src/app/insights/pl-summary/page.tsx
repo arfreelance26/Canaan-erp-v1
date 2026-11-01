@@ -8,6 +8,7 @@ import {
   DollarSign, Wrench, Landmark, AlertCircle, CalendarDays, X, ShieldCheck, ChevronDown,
   Calculator, Compass, Route, FileText, Fuel, MousePointerClick, SlidersHorizontal, Info,
 } from "lucide-react";
+import { problemFromMessage, reportProblem } from "@/lib/connection-problem";
 import { fetchExcel, plSummaryApi, type PlComputed, type PlComputedTrip, type PlComputedTruck, type PlTruckMoney, type TruckPLEntry } from "@/lib/api";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { Segmented } from "@/components/ui/Segmented";
@@ -1311,7 +1312,10 @@ export default function PLSummaryPage() {
       ]);
       setExportPreview({ blob: file.blob, filename: file.filename, sheets: preview.sheets, search: typed });
     } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Could not prepare the export.");
+      const message = err instanceof Error ? err.message : "Could not prepare the export.";
+      const problem = problemFromMessage(message);
+      if (problem) reportProblem({ ...problem, onRetry: openExportPreview });
+      else showError(message);
     } finally {
       setPreparingExport(false);
     }

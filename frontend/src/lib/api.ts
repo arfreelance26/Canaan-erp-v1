@@ -36,6 +36,7 @@ import type { ChatMember, ChatMessage, ChatConversation, ChatConversationDetail,
 import type { PaymentRequest } from "@/types/payment-request";
 
 import { cacheGet, cacheSet, cacheGeneration, dedupe, cacheInvalidate, emitRevalidated, FRESH_MS } from "./api-cache";
+import { DOWNLOAD_TIMEOUT_MESSAGE, UNREACHABLE_MESSAGE } from "./connection-problem";
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -75,6 +76,8 @@ const method = (o?: RequestInit) => (o?.method ?? "GET").toUpperCase();
 // connections still succeed; reads get less patience than writes.
 const READ_TIMEOUT_MS = 30_000;
 const WRITE_TIMEOUT_MS = 60_000;
+// Big records take a while to build on the server.
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 // Marks connectivity errors so callers/UI can tell them apart from real HTTP errors.
 export class NetworkError extends Error {
@@ -114,7 +117,7 @@ async function rawReq<T>(path: string, options?: RequestInit): Promise<T> {
           : "The request is taking too long — please check your internet connection and try again.",
       );
     }
-    throw new NetworkError("unreachable", "Can't reach the server — your connection may be slow or unstable. Please check your internet and try again.");
+    throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
   } finally {
     clearTimeout(timeout);
   }
@@ -224,28 +227,46 @@ export function fileUrl(entity: string, entityId: string, field: string): string
 
 // Requests a server-generated .xlsx export and returns the file (not yet saved).
 export async function fetchExcel(path: string, fallbackFilename: string): Promise<{ blob: Blob; filename: string }> {
-  let res: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+  const failed = (err: unknown) =>
+    err instanceof DOMException && err.name === "AbortError"
+      ? new NetworkError("timeout", DOWNLOAD_TIMEOUT_MESSAGE)
+      : new NetworkError("unreachable", UNREACHABLE_MESSAGE);
   try {
-    res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
-  } catch {
-    throw new Error(`Cannot reach the server at ${BASE}. Make sure the backend is running (uvicorn main:app --port 8000).`);
-  }
-  if (res.status === 401) {
-    handleUnauthorized();
-    throw new Error("Session expired. Please log in again.");
-  }
-  if (!res.ok) {
-    let errorMsg = `HTTP ${res.status}`;
+    let res: Response;
     try {
-      const data = await res.json();
-      if (typeof data?.detail === "string") errorMsg = data.detail;
-    } catch {}
-    throw new Error(errorMsg);
+      res = await fetch(`${BASE}${path}`, { headers: authHeaders(), signal: controller.signal });
+    } catch (err) {
+      throw failed(err);
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    // The server itself is down or restarting, seen from the hosting in front of it.
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
+    }
+    if (!res.ok) {
+      let errorMsg = `HTTP ${res.status}`;
+      try {
+        const data = await res.json();
+        if (typeof data?.detail === "string") errorMsg = data.detail;
+      } catch {}
+      throw new Error(errorMsg);
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match?.[1] ?? fallbackFilename;
+    try {
+      return { blob: await res.blob(), filename };
+    } catch (err) {
+      throw failed(err);
+    }
+  } finally {
+    clearTimeout(timeout);
   }
-  const disposition = res.headers.get("Content-Disposition") ?? "";
-  const match = disposition.match(/filename="?([^"]+)"?/);
-  const filename = match?.[1] ?? fallbackFilename;
-  return { blob: await res.blob(), filename };
 }
 
 // Triggers a browser download of an in-memory file.
@@ -283,7 +304,7 @@ export async function uploadFile(
       body: form,
     });
   } catch {
-    throw new Error("Cannot reach the server. Make sure the backend is running.");
+    throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
   }
   if (res.status === 401) {
     handleUnauthorized();
@@ -313,7 +334,7 @@ export async function deleteFile(
       headers: authHeaders(),
     });
   } catch {
-    throw new Error("Cannot reach the server. Make sure the backend is running.");
+    throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
   }
   if (res.status === 401) {
     handleUnauthorized();
@@ -390,7 +411,7 @@ async function postComplianceForm(path: string, form: FormData): Promise<void> {
   try {
     res = await fetch(`${BASE}${path}`, { method: "POST", headers: authHeaders(), body: form });
   } catch {
-    throw new Error("Cannot reach the server. Make sure the backend is running.");
+    throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
   }
   if (res.status === 401) {
     handleUnauthorized();
@@ -2995,7 +3016,7 @@ export const maintenanceApi = {
         body: form,
       });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -3010,7 +3031,7 @@ export const maintenanceApi = {
     try {
       res = await fetch(`${BASE}/maintenance/records/${recordId}/proofs/${proofId}`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -3281,7 +3302,7 @@ export const maintenanceRequestsApi = {
     try {
       res = await fetch(`${BASE}/maintenance-requests/${requestId}/proofs`, { method: "POST", headers: authHeaders(), body: form });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -3297,7 +3318,7 @@ export const maintenanceRequestsApi = {
     try {
       res = await fetch(`${BASE}/maintenance-requests/${requestId}/proofs/${proofId}`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -4015,7 +4036,7 @@ export const tyreApi = {
     try {
       res = await fetch(`${BASE}/tyre-inventory/${id}/move-to-inventory`, { method: "POST", headers: authHeaders(), body: form });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -4033,7 +4054,7 @@ export const tyreApi = {
     try {
       res = await fetch(`${BASE}/tyre-inventory/${tyreId}/retreads/${eventId}/proof`, { method: "POST", headers: authHeaders(), body: form });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -4047,7 +4068,7 @@ export const tyreApi = {
     try {
       res = await fetch(`${BASE}/tyre-inventory/${tyreId}/retreads/${eventId}/proof`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -4106,7 +4127,7 @@ export const tyreApi = {
     try {
       res = await fetch(`${BASE}/tyre-inventory/${dbId}/proof`, { method: "POST", headers: authHeaders(), body: form });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -4121,7 +4142,7 @@ export const tyreApi = {
     try {
       res = await fetch(`${BASE}/tyre-inventory/${dbId}/proof`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -5584,7 +5605,7 @@ export const documentsApi = {
     try {
       res = await fetch(`${BASE}/documents/file/${encodeURIComponent(key)}`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6061,7 +6082,7 @@ export const chatApi = {
         body: form,
       });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6198,7 +6219,7 @@ export const chatApi = {
         body: form,
       });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6224,7 +6245,7 @@ export const chatApi = {
     try {
       res = await fetch(`${BASE}/chat/messages/${messageId}/voice`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6253,7 +6274,7 @@ export const chatApi = {
         body: form,
       });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6279,7 +6300,7 @@ export const chatApi = {
     try {
       res = await fetch(`${BASE}/chat/messages/${messageId}/attachment`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6374,7 +6395,7 @@ export const paymentRequestsApi = {
         body: form,
       });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -6394,7 +6415,7 @@ export const paymentRequestsApi = {
     try {
       res = await fetch(`${BASE}/payment-requests/${id}/proof`, { headers: authHeaders() });
     } catch {
-      throw new Error("Cannot reach the server. Make sure the backend is running.");
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
     }
     if (res.status === 401) {
       handleUnauthorized();

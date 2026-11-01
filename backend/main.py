@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import secrets
 import os
 import re
 import time
@@ -2069,6 +2070,28 @@ else:
 # when CORS_ORIGINS lists explicit origins (set CORS_ORIGINS in .env for dev too).
 _allow_credentials = _cors_env != "*"
 
+def _unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    """Never leak exception type/stack to the client. The reference is shown to
+    the user and written here, so a reported error can be found in the log."""
+    reference = f"ERR-{secrets.token_hex(2).upper()}"
+    _log.error("Unhandled error %s on %s %s", reference, request.method, request.url.path, exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Something went wrong on our side. Please try again. Reference: {reference}", "reference": reference},
+    )
+
+
+# Added before CORSMiddleware, so it runs inside it: the outermost error handler
+# sits outside every middleware, its replies carry no CORS headers, and the
+# browser reports them as "can't reach the server".
+@app.middleware("http")
+async def unexpected_errors(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        return _unexpected_error(request, exc)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -2333,12 +2356,7 @@ async def sqlalchemy_operational_exception_handler(request: Request, exc: Operat
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    # Never leak exception type/stack to the client. Full detail goes to the server log.
-    _log.exception("Unhandled error on %s %s", request.method, request.url.path)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "An unexpected error occurred. Please try again or contact support."},
-    )
+    return _unexpected_error(request, exc)
 
 @app.get("/", tags=["Health"])
 def health_check():

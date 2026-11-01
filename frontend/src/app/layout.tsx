@@ -15,6 +15,7 @@ import { UppercaseInputs } from "@/components/ui/UppercaseInputs";
 import { NoScrollNumberInputs } from "@/components/ui/NoScrollNumberInputs";
 import { ChatProvider } from "@/context/ChatContext";
 import { Toaster } from "@/components/ui/sonner";
+import { ProblemCardHost } from "@/components/ui/ProblemCardHost";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,6 +65,7 @@ export default function RootLayout({
         <UppercaseInputs />
         <NoScrollNumberInputs />
         <Toaster />
+        <ProblemCardHost />
         <ThemeProvider>
         <AuthProvider>
           <WebSocketProvider>
