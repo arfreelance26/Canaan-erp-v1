@@ -384,7 +384,7 @@ export default function TripHistoryPage() {
             onFromChange={(v) => { setExportFrom(v); setPage(1); }}
             onToChange={(v) => { setExportTo(v); setPage(1); }}
           />
-          {/* View follows the summary card currently selected (All / Assigned / Current / …) */}
+          {/* View follows the summary card currently selected (All / Assigned / Current / …), the dates and the search */}
           <DownloadExcelButton
             path="/exports/trips"
             filename={`${statusFilter.toLowerCase().replace(/ /g, "_")}_trips.xlsx`}
@@ -392,6 +392,7 @@ export default function TripHistoryPage() {
               ...exportScope(statusFilter),
               ...(exportFrom ? { from_date: exportFrom } : {}),
               ...(exportTo ? { to_date: exportTo } : {}),
+              ...(searchQuery ? { search: searchQuery } : {}),
             }}
           />
         </div>

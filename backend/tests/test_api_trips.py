@@ -183,6 +183,28 @@ def test_audit_flagged_export(api, api_as, world):
     assert code not in export()[1]
 
 
+def test_trips_export_follows_search_and_dates(api, world):
+    day = date.today().isoformat()
+    other_day = (date.today() + timedelta(days=30)).isoformat()
+    mine = fresh_trip(api, world, scheduled_date=day)
+    complete_and_close(api, mine)  # the same truck can then take its next trip
+    mine_later = create_trip(api, world, driver_id=mine["driver_id"], vehicle_id=mine["vehicle_id"], scheduled_date=other_day)
+    other = fresh_trip(api, world, scheduled_date=day)
+    truck = next(t for t in api.get("/trucks") if t["truck_id"] == mine["vehicle_id"])
+
+    def export(**params):
+        rows = list(load_workbook(BytesIO(api.get("/exports/trips", params={"status": "Assigned,Completed", **params}).content)).active.values)
+        return {r[0] for r in rows[1:]}
+
+    codes = {mine["trip_id"], mine_later["trip_id"], other["trip_id"]}
+    assert codes <= export()  # no search: everything, as before
+    for term in (truck["registration_number"].lower(), mine["vehicle_id"], mine["trip_id"]):
+        assert mine["trip_id"] in export(search=term) and other["trip_id"] not in export(search=term)
+    found = export(search=truck["registration_number"], from_date=day, to_date=day)
+    assert found == {mine["trip_id"]}  # that truck, those dates, nothing else
+    assert export(search="NO-SUCH-TRUCK") == set()
+
+
 def test_undo_verification(api, api_as, world):
     tid = fresh_trip(api, world)["id"]
     auditor = api_as("Auditor")

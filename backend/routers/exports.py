@@ -307,6 +307,7 @@ def export_trips(
     has_closure: Optional[bool] = Query(None, description="true = only trips with a booking-sheet closure, false = only trips without one"),
     is_invoiced: Optional[bool] = Query(None, description="true = only invoiced trips, false = only trips not yet invoiced"),
     invoice_waived: Optional[bool] = Query(None, description="true = only trips whose invoice was waived, false = only trips not waived"),
+    search: Optional[str] = Query(None, description="Same fields as Trip History's search box (frontend: tripMatchesSearch)"),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.Trip)
@@ -328,6 +329,12 @@ def export_trips(
     customer_map = {c.id: c.name for c in db.query(models.Customer).all()}
     driver_map = {d.driver_id: d.name for d in db.query(models.Driver).all()}
     truck_map = {t.truck_id: t.registration_number for t in db.query(models.Truck).all()}
+    if search:
+        term = search.lower()
+        trips = [t for t in trips if any(term in (v or "").lower() for v in (
+            t.trip_id, t.booking_reference_no, t.origin, t.destination, t.vehicle_id, truck_map.get(t.vehicle_id),
+            driver_map.get(t.driver_id), t.container_number, t.container_number_1, t.container_number_2, t.cargo_reference,
+        ))]
 
     headers = [
         "Trip ID", "Status", "Booking Reference No", "Booking Created Date",
