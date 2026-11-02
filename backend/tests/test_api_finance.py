@@ -103,3 +103,53 @@ def test_compliance_renew_correct_undo_and_files(api, client, auth):
 def test_only_admin_undoes_a_renewal(api_as):
     api_as("Commercial Manager").post("/compliance-records/truck/1/insurance/undo-renewal",
                                       data={"reason": "x"}, expect=403)
+
+
+def test_salary_record_adds_up_every_part(api, api_as, world, db):
+    """Final Net Payable = Trip Salary Record + halt pay + Cleaner Batta + Workshop Batta − Workshop Advance,
+    each part exactly what its own record shows for the period."""
+    import models
+    trip = sheeted_trip(api, world)
+    driver_id = trip["driver_id"]
+    closure = db.query(models.TripClosure).filter_by(trip_id=trip["id"]).one()
+    closure.company_halt_days, closure.party_halt_days, closure.driver_halt_compensation = 1, 2, 750
+    sheet = db.query(models.TripSheet).filter_by(trip_id=trip["id"]).one()
+    sheet.trip_completed_date = date.today()  # the Trip Salary Record counts a trip by its sheet's completed date
+    db.commit()
+    today, yesterday = _iso(), _iso(-1)
+    api.post("/attendance/drivers", json={"driver_id": driver_id, "date": yesterday, "status": "Present",
+                                          "container_specification": "20 FT CONTAINER"})
+    api.post("/attendance/drivers", json={"driver_id": driver_id, "date": today, "status": "On Workshop", "workshop_advance": 200})
+
+    period = {"driver_id": driver_id, "from_date": yesterday, "to_date": today}
+    s = api.get("/finance/compensation/salary-statement", params=period)
+    part = {p["key"]: p for p in s["parts"]}
+    in_period = lambda rows: [r for r in rows if yesterday <= r["date"] <= today]
+    record = lambda path: sum(r["amount"] for r in in_period(api.get(f"/finance/compensation/{path}", params={"driver_id": driver_id})["rows"]))
+
+    month = api.get("/finance/compensation/drivers/monthly-net-payable", params={"month": today[:7], "driver_ids": driver_id})
+    if yesterday[:7] == today[:7]:
+        assert part["trips"]["amount"] == month[driver_id]
+    assert [r["trip_id"] for r in part["trips"]["rows"]] == [trip["trip_id"]]
+    assert part["halt"]["amount"] == 750 and part["halt"]["rows"][0]["party_days"] == 2
+    assert part["cleaner"]["amount"] == record("cleaner-batta") and part["cleaner"]["count"] == 1
+    assert part["workshop"]["amount"] == record("workshop-batta") and part["workshop"]["count"] == 1
+    assert part["workshopAdvance"]["amount"] == record("workshop-advance") == 200 and part["workshopAdvance"]["sign"] == -1
+    expected = part["trips"]["amount"] + 750 + part["cleaner"]["amount"] + part["workshop"]["amount"] - 200
+    assert s["net_payable"] == round(expected, 2)
+
+    before = api.get("/finance/compensation/salary-statement", params={**period, "to_date": _iso(-5), "from_date": _iso(-9)})
+    assert before["net_payable"] == 0 and all(p["count"] == 0 for p in before["parts"])   # nothing in an earlier period
+    everything = api.get("/finance/compensation/salary-statement", params={"driver_id": driver_id})
+    assert everything["net_payable"] == s["net_payable"]                                    # all time = the only activity
+
+    from io import BytesIO
+    from openpyxl import load_workbook
+    wb = load_workbook(BytesIO(api.get("/finance/compensation/salary-statement/export", params=period).content))
+    assert wb.sheetnames == ["Salary Record", "Trips", "Halt Pay", "Cleaner Batta", "Workshop Batta", "Workshop Advance"]
+    last = list(wb["Salary Record"].values)[-1]
+    assert last[0] == "Final Net Payable" and last[3] == s["net_payable"]
+
+    api.get("/finance/compensation/salary-statement", params={"driver_id": "NO-SUCH"}, expect=404)
+    api.get("/finance/compensation/salary-statement", params={**period, "from_date": "bad"}, expect=422)
+    api_as("Maintenance").get("/finance/compensation/salary-statement", params=period, expect=403)

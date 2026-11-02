@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { DailySummaryCard } from "@/components/dashboard/DailySummaryCard";
 import { FleetManagerDashboard } from "@/components/dashboard/FleetManagerDashboard";
 import { TyreManagerDashboard } from "@/components/dashboard/TyreManagerDashboard";
 import { FinanceManagerDashboard } from "@/components/dashboard/FinanceManagerDashboard";
@@ -660,6 +661,8 @@ function AdminDashboard() {
           {dateIntro === "play" && <span aria-hidden className="date-intro-shimmer" />}
         </div>
       </div>
+
+      <DailySummaryCard />
 
       {/* ── Current Trips ────────────────────────────────────────────────── */}
       <CurrentTripsCard />

@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from database import get_db
 import models
@@ -11,6 +11,13 @@ ACTIVE_TRIP_STATUSES = {"Assigned", "Started", "Loaded", "On-Transit", "Reached"
 # Only trips that have actually started (Assigned excluded from the stat-card count)
 CURRENT_TRIP_STATUSES = {"Started", "Loaded", "On-Transit", "Reached", "Unloaded"}
 EXPIRING_SOON_DAYS = 30
+
+
+def pending_invoice_query(db: Session):
+    """Completed trips not invoiced yet — the Trip Status card's Pending Invoice,
+    also counted by the Admin morning summary (daily_summary.py)."""
+    return db.query(models.Trip).filter(
+        models.Trip.status == "Completed", or_(models.Trip.is_invoiced.is_(False), models.Trip.is_invoiced.is_(None)))
 
 
 def _compliance_status(expiry_date) -> str:
@@ -131,7 +138,7 @@ def get_trips_overview(db: Session = Depends(get_db)):
 
     current = [_row(t) for t in trips if t.status in ACTIVE_TRIP_STATUSES]
     completed_all = [_row(t) for t in trips if t.status == "Completed"]
-    pending_invoice = [_row(t) for t in trips if t.status == "Completed" and not t.is_invoiced]
+    pending_invoice = [_row(t) for t in pending_invoice_query(db).order_by(models.Trip.scheduled_date.desc())]
 
     return {
         "current_trips": current,

@@ -748,6 +748,8 @@ function toCustomer(b: B): Customer {
     customerType: b.customer_type ?? "",
     isGta: b.is_gta ?? "",
     applicableForEInvoice: b.applicable_for_e_invoice ?? "",
+    avatarStyle: b.avatar_style ?? null,
+    avatarSeed: b.avatar_seed ?? null,
     version: typeof b.version === "number" ? b.version : undefined,
   };
 }
@@ -763,6 +765,8 @@ function fromCustomer(f: Customer) {
     customer_type: f.customerType || null,
     is_gta: f.isGta || null,
     applicable_for_e_invoice: f.applicableForEInvoice || null,
+    avatar_style: f.avatarStyle ?? null,
+    avatar_seed: f.avatarSeed ?? null,
     client_version: f.version,
   };
 }
@@ -827,7 +831,8 @@ function toVendor(b: B): Vendor {
     pan: b.pan ?? "",
     email: b.email ?? "",
     address: b.address ?? "",
-    status: b.status ?? "",
+    avatarStyle: b.avatar_style ?? null,
+    avatarSeed: b.avatar_seed ?? null,
     createdAt: b.created_at ?? "",
     version: typeof b.version === "number" ? b.version : undefined,
   };
@@ -842,7 +847,8 @@ function fromVendor(f: Vendor) {
     pan: f.pan || null,
     email: f.email || null,
     address: f.address || null,
-    status: f.status || "ACTIVE",
+    avatar_style: f.avatarStyle ?? null,
+    avatar_seed: f.avatarSeed ?? null,
     client_version: f.version,
   };
 }
@@ -3905,7 +3911,49 @@ function toWorkReport(b: B): WorkReport {
   };
 }
 
+export type DailySummaryLine = { text: string; href: string | null };
+export type DailySummary = {
+  day: string;
+  dayLabel: string;
+  todayLabel: string;
+  builtAt: string;
+  headline: string;
+  attention: DailySummaryLine[];
+  sections: { key: string; title: string; icon: string; lines: DailySummaryLine[] }[];
+  today: DailySummaryLine[];
+  metrics: Record<string, number>;
+};
+
+function toDailySummary(b: B | null): DailySummary | null {
+  if (!b) return null;
+  return {
+    day: b.day, dayLabel: b.day_label, todayLabel: b.today_label, builtAt: b.built_at, headline: b.headline,
+    attention: b.attention, sections: b.sections, today: b.today, metrics: b.metrics,
+  };
+}
+
+/** Admin morning summary — not cached: the morning one is fixed, Refresh must be live. */
+export const dailySummaryApi = {
+  get: () => rawReq<{ summary: B | null }>("/daily-summary").then((r) => toDailySummary(r.summary)),
+  live: () => rawReq<{ summary: B | null }>("/daily-summary/live").then((r) => toDailySummary(r.summary)),
+};
+
+export type PresenceStatus = "active" | "idle" | "offline";
+export type Presence = {
+  people: Record<string, { status: PresenceStatus; screen: string | null; lastAt: string | null }>;
+  /** Group conversation id → how many of its members are online. */
+  groups: Record<string, number>;
+};
+
 export const activityApi = {
+  // Not cached: always the live picture.
+  presence: (): Promise<Presence> =>
+    rawReq<{ people: Record<string, { status: PresenceStatus; screen: string | null; last_at: string | null }>; groups: Record<string, number> }>(
+      "/activity/presence",
+    ).then((b) => ({
+      people: Object.fromEntries(Object.entries(b.people).map(([k, p]) => [k, { status: p.status, screen: p.screen, lastAt: p.last_at }])),
+      groups: b.groups,
+    })),
   // Not cached: a saved day never changes, and today's must always be current.
   workReport: (day: string): Promise<WorkReport> =>
     rawReq<B>(`/activity/work-report?day=${encodeURIComponent(day)}`).then(toWorkReport),
@@ -4286,6 +4334,111 @@ export type BattaRow = {
   rate: number;
   amount: number;
   note: string | null;
+};
+
+/** One part of a driver's Salary Record (backend finance.salary_statement); rows vary by part. */
+export type SalaryStatementPart = {
+  key: "trips" | "halt" | "cleaner" | "workshop" | "workshopAdvance";
+  label: string;
+  sign: 1 | -1;
+  unit: string;
+  amount: number;
+  count: number;
+  rows: any[];
+};
+export type SalaryStatement = { driverId: string; fromDate: string | null; toDate: string | null; parts: SalaryStatementPart[]; netPayable: number };
+
+export type DetentionStatus = "Not billed" | "Missed on invoice" | "Invoice waived" | "Billed" | "Paid";
+export type DetentionRow = {
+  tripDbId: number;
+  tripId: string;
+  customer: string;
+  completedDate: string | null;
+  partyDays: number;
+  amount: number;
+  invoiceNo: string | null;
+  invoiceDate: string | null;
+  billedAmount: number;
+  status: DetentionStatus;
+  paidOn: string | null;
+  paidAmount: number | null;
+  paidNote: string | null;
+  paidBy: string | null;
+  paidSavedAt: string | null;
+  proofFileName: string | null;
+  proofSizeBytes: number | null;
+};
+export type DetentionTotals = {
+  outstandingAmount: number; outstandingTrips: number; missedOnInvoice: number;
+  billedTrips: number; billedAmount: number; paidAmount: number; paidThisMonth: number;
+};
+
+function toDetentionRow(r: B): DetentionRow {
+  return {
+    tripDbId: r.trip_db_id, tripId: r.trip_id, customer: r.customer, completedDate: r.completed_date,
+    partyDays: r.party_days, amount: r.amount, invoiceNo: r.invoice_no, invoiceDate: r.invoice_date,
+    billedAmount: r.billed_amount, status: r.status, paidOn: r.paid_on, paidAmount: r.paid_amount,
+    paidNote: r.paid_note, paidBy: r.paid_by, paidSavedAt: r.paid_saved_at,
+    proofFileName: r.proof_file_name, proofSizeBytes: r.proof_size_bytes,
+  };
+}
+
+/** Customer Detention (party halt) — backend routers/party_halt.py. Not cached. */
+export const detentionApi = {
+  list: (): Promise<{ rows: DetentionRow[]; totals: DetentionTotals }> =>
+    rawReq<B>("/party-halt").then((b) => ({
+      rows: (b.rows as B[]).map(toDetentionRow),
+      totals: {
+        outstandingAmount: b.totals.outstanding_amount, outstandingTrips: b.totals.outstanding_trips,
+        missedOnInvoice: b.totals.missed_on_invoice, billedTrips: b.totals.billed_trips, billedAmount: b.totals.billed_amount,
+        paidAmount: b.totals.paid_amount, paidThisMonth: b.totals.paid_this_month,
+      },
+    })),
+  /** Multipart: the date received, an optional amount and note, and an optional proof file. */
+  markPaid: async (tripDbId: number, v: { receivedOn: string; amount: string; note: string; proof: File | null }): Promise<DetentionRow> => {
+    const form = new FormData();
+    form.append("received_on", v.receivedOn);
+    if (v.amount.trim()) form.append("amount", v.amount.trim());
+    if (v.note.trim()) form.append("note", v.note.trim());
+    if (v.proof) form.append("proof", v.proof, v.proof.name);
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/party-halt/${tripDbId}/paid`, { method: "POST", headers: authHeaders(), body: form });
+    } catch {
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not save: HTTP ${res.status}`));
+    return toDetentionRow(await res.json());
+  },
+  undoPaid: (tripDbId: number) => rawReq<B | null>(`/party-halt/${tripDbId}/paid`, { method: "DELETE" }),
+  fetchProofBlob: async (tripDbId: number): Promise<Blob> => {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}/party-halt/${tripDbId}/proof`, { headers: authHeaders() });
+    } catch {
+      throw new NetworkError("unreachable", UNREACHABLE_MESSAGE);
+    }
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(await extractDetail(res, `Could not open the file: HTTP ${res.status}`));
+    return res.blob();
+  },
+};
+
+/** Driver Compensation → Salary Record: not cached, so it always matches the records. */
+export const compensationApi = {
+  salaryStatement: (driverId: string, from: string, to: string): Promise<SalaryStatement> => {
+    const qs = new URLSearchParams({ driver_id: driverId, ...(from ? { from_date: from } : {}), ...(to ? { to_date: to } : {}) });
+    return rawReq<B>(`/finance/compensation/salary-statement?${qs}`).then((b) => ({
+      driverId: b.driver_id, fromDate: b.from_date, toDate: b.to_date, parts: b.parts, netPayable: b.net_payable,
+    }));
+  },
 };
 
 export const financeApi = {

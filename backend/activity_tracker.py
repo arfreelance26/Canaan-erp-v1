@@ -43,6 +43,7 @@ MAX_BUFFER = 20_000          # hard cap: if the database is unreachable for long
 RETENTION_DAYS = 180
 PURGE_EVERY_SECONDS = 86_400
 WORK_SAVE_EVERY_SECONDS = 3_600
+SUMMARY_CHECK_EVERY_SECONDS = 300
 CLIENT_EVENTS_PER_MINUTE = 300   # per signed-in user; extra browser events are dropped
 _IST = ZoneInfo("Asia/Kolkata")
 
@@ -66,6 +67,8 @@ _last_flush = time.monotonic()
 _last_purge = time.monotonic()
 # First run five minutes after a worker starts, then hourly.
 _last_work_save = time.monotonic() - WORK_SAVE_EVERY_SECONDS + 300
+_last_summary_check = 0.0
+_summary_saved_for = None   # the day this process already knows is saved
 
 
 def route_template(path: str) -> str:
@@ -333,7 +336,7 @@ def flush_if_due() -> None:
     be due for one — see activity_tracking middleware in main.py. Runs after
     that response has already gone out, so it never delays the request that
     triggers it. A no-op (cheap time check only) on every other request."""
-    global _last_flush, _last_purge, _last_work_save
+    global _last_flush, _last_purge, _last_work_save, _last_summary_check, _summary_saved_for
     now = time.monotonic()
     if now - _last_flush >= FLUSH_SECONDS:
         _last_flush = now
@@ -355,6 +358,19 @@ def flush_if_due() -> None:
             work_report.catch_up(db)
         finally:
             db.close()
+    if now - _last_summary_check >= SUMMARY_CHECK_EVERY_SECONDS:
+        _last_summary_check = now
+        import daily_summary
+        if daily_summary.now_ist().hour >= daily_summary.SUMMARY_HOUR and _summary_saved_for != daily_summary.due_day():
+            db = SessionLocal()
+            try:
+                if daily_summary.ensure_saved(db):
+                    _summary_saved_for = daily_summary.due_day()
+            except Exception:
+                db.rollback()
+                log.exception("building the morning summary failed; will retry")
+            finally:
+                db.close()
 
 
 def _flush_at_exit() -> None:

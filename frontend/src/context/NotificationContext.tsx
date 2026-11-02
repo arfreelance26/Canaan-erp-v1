@@ -51,6 +51,10 @@ export type ReverificationNotif = {
 
 export const REVERIFICATION_ALERT_TYPE = "reverification_requested";
 
+/** The Admin morning summary is ready (backend daily_summary.py); opens the dashboard. */
+export type SummaryNotif = { serverId: number; title: string; headline: string; attention: number; alertedAt: string };
+export const SUMMARY_ALERT_TYPE = "daily_summary";
+
 /** Opens Driver Based Record on the trip's driver. */
 export function reverificationAlertHref(driverId: string): string {
   return `/resources/driver-record${driverId ? `?search=${encodeURIComponent(driverId)}` : ""}`;
@@ -72,6 +76,8 @@ type NotificationCtx = {
   dismissMaintenanceAlert: (serverId: number) => void;
   reverificationAlerts: ReverificationNotif[];
   dismissReverificationAlert: (serverId: number) => void;
+  summaryAlerts: SummaryNotif[];
+  dismissSummaryAlert: (serverId: number) => void;
   reminders: Reminder[];
   complianceAlertCount: number;
   setComplianceAlertCount: (n: number) => void;
@@ -93,6 +99,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [kmVarianceAlerts, setKmVarianceAlerts] = useState<KmVarianceNotif[]>([]);
   const [maintenanceAlerts, setMaintenanceAlerts] = useState<MaintenanceAlertNotif[]>([]);
   const [reverificationAlerts, setReverificationAlerts] = useState<ReverificationNotif[]>([]);
+  const [summaryAlerts, setSummaryAlerts] = useState<SummaryNotif[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [complianceAlertCount, setComplianceAlertCount] = useState(0);
   const alertsRef = useRef(sheetAlerts);
@@ -124,6 +131,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setKmVarianceAlerts([]);
     setMaintenanceAlerts([]);
     setReverificationAlerts([]);
+    setSummaryAlerts([]);
     setReminders([]);
     setComplianceAlertCount(0);
   }, [canReceive]);
@@ -149,8 +157,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const TRIP_EVENT_TYPES = new Set(["trip_assigned", "trip_closed"]);
           const maintRows = rows.filter((r) => MAINTENANCE_ALERT_TYPES.includes(r.eventType));
           const reverificationRows = rows.filter((r) => r.eventType === REVERIFICATION_ALERT_TYPE);
+          setSummaryAlerts(rows.filter((r) => r.eventType === SUMMARY_ALERT_TYPE).map((r) => {
+            let m: { headline?: string; attention?: number } = {};
+            try { m = JSON.parse(r.message || "{}"); } catch {}
+            return { serverId: r.id, title: r.title, headline: m.headline ?? "", attention: m.attention ?? 0, alertedAt: r.createdAt };
+          }));
           const sheetRows = rows.filter((r) =>
-            r.eventType !== "km_variance" && r.eventType !== REVERIFICATION_ALERT_TYPE && !TRIP_EVENT_TYPES.has(r.eventType) && !MAINTENANCE_ALERT_TYPES.includes(r.eventType));
+            r.eventType !== "km_variance" && r.eventType !== REVERIFICATION_ALERT_TYPE && r.eventType !== SUMMARY_ALERT_TYPE && !TRIP_EVENT_TYPES.has(r.eventType) && !MAINTENANCE_ALERT_TYPES.includes(r.eventType));
 
           const reverification: ReverificationNotif[] = reverificationRows.map((r) => {
             let m: { remark?: string; by?: string; role?: string; driver_id?: string } = {};
@@ -328,9 +341,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setReverificationAlerts((prev) => prev.filter((a) => a.serverId !== serverId));
   }, []);
 
+  const dismissSummaryAlert = useCallback((serverId: number) => {
+    notificationsApi.markRead(serverId).catch(() => {});
+    setSummaryAlerts((prev) => prev.filter((a) => a.serverId !== serverId));
+  }, []);
+
   return (
     <NotificationContext.Provider
-      value={{ sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
+      value={{ sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, summaryAlerts, dismissSummaryAlert, reminders, complianceAlertCount, setComplianceAlertCount, pushSheetAlert, dismissSheetAlert, clearSheetAlerts, pushKmVarianceAlert, dismissKmVarianceAlert }}
     >
       {children}
     </NotificationContext.Provider>

@@ -7,6 +7,8 @@ import { Field, inputClass } from "@/components/ui/Field";
 import { CUSTOMER_TYPE_OPTIONS } from "@/lib/customer-data";
 import type { Customer } from "@/types/customer";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { newAvatarSeed } from "@/components/ui/ProfileAvatar";
+import { ProfileAvatarPicker } from "@/components/ui/ProfileAvatarPicker";
 
 export const DRAFT_KEY = "erp_customer_form_draft";
 
@@ -38,7 +40,8 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
   useEffect(() => {
     if (open) {
       const { id: _id, ...rest } = initialData ?? { id: "", ...emptyForm };
-      setForm(rest);
+      // A new customer starts with a picture of its own (Shuffle to change it).
+      setForm(initialData ? rest : { ...rest, avatarStyle: "notionists", avatarSeed: newAvatarSeed() });
     }
   }, [open, initialData]);
 
@@ -59,6 +62,13 @@ export function CustomerFormDialog({ open, onClose, onSave, initialData }: Custo
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Customer" : "Add Customer"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Profile picture — saved with the customer, so it goes through the same edit process. */}
+        <ProfileAvatarPicker
+          look={form.avatarStyle}
+          seed={form.avatarSeed}
+          fallbackSeed={`customer-${initialData?.id ?? "new"}`}
+          onChange={({ look, seed }) => setForm((prev) => ({ ...prev, avatarStyle: look, avatarSeed: seed }))}
+        />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Customer Name" required>
             <input

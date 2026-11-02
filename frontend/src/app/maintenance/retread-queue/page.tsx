@@ -57,8 +57,7 @@ export default function RetreadQueuePage() {
   useEffect(() => {
     vendorsApi.list().then(setVendors).catch(() => {});
   }, []);
-  const vendorOptions = vendors
-    .filter((v) => v.status !== "BLACKLISTED" && v.status !== "INACTIVE")
+  const vendorOptions = [...vendors]
     .sort((a, b) => a.name.localeCompare(b.name))
     // Two vendors can share a name — the category tells them apart.
     .map((v) => ({ value: v.id, label: v.category ? `${v.name} · ${v.category}` : v.name }));

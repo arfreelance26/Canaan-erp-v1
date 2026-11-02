@@ -14,6 +14,9 @@ export type Customer = {
   isGta: YesNoOption | "";
   applicableForEInvoice: YesNoOption | "";
   photoUrl?: string | null;
+  /** The customer's picture: a face ("notionists") or "shapes", drawn from avatarSeed (ProfileAvatar). */
+  avatarStyle?: "notionists" | "shapes" | null;
+  avatarSeed?: string | null;
   status?: string;
   tdsExemptionApplicable?: YesNoOption | "";
   msmeDeclarationSubmitted?: YesNoOption | "";

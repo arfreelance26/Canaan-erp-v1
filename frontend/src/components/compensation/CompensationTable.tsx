@@ -2,15 +2,12 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
-import { StatusBadge } from "@/components/compensation/StatusBadge";
-import type { PersonStatus } from "@/types/compensation";
 
 export type CompensationPerson = {
   id: string;
   driverId?: string;
   photoUrl: string | null;
   name: string;
-  status: PersonStatus;
 };
 
 type CompensationTableProps = {
@@ -18,6 +15,8 @@ type CompensationTableProps = {
   showAdvance: boolean;
   onPayAdvance: (person: CompensationPerson) => void;
   onPaySalary: (person: CompensationPerson) => void;
+  /** Driver Compensation only: opens the driver's Salary Record (final pay); onPaySalary is then the Trip Salary Record. */
+  onSalaryStatement?: (person: CompensationPerson) => void;
   /** Opens the person's Transaction History (Staff Compensation only). */
   onViewHistory?: (person: CompensationPerson) => void;
   /** Driver Compensation only: opens the driver's Halt Pay Record. */
@@ -38,6 +37,7 @@ export function CompensationTable({
   showAdvance,
   onPayAdvance,
   onPaySalary,
+  onSalaryStatement,
   onViewHistory,
   onHaltPay,
   onCleanerBatta,
@@ -74,9 +74,6 @@ export function CompensationTable({
               {nameLabel}
             </th>
             <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               Actions
             </th>
           </tr>
@@ -91,11 +88,17 @@ export function CompensationTable({
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{person.driverId ?? "—"}</td>
               )}
               <td className="px-4 py-3 font-medium text-gray-900">{person.name}</td>
-              <td className="px-4 py-3">
-                <StatusBadge status={person.status} />
-              </td>
               <td className="px-4 py-4">
                 <div className="flex flex-wrap items-center gap-3">
+                  {onSalaryStatement && (
+                    <button
+                      type="button"
+                      onClick={() => onSalaryStatement(person)}
+                      className="rounded-lg border border-emerald-600 bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                    >
+                      Salary Record
+                    </button>
+                  )}
                   {showAdvance && (
                     <button
                       type="button"
@@ -110,7 +113,7 @@ export function CompensationTable({
                     onClick={() => onPaySalary(person)}
                     className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-xs font-semibold text-green-700 shadow-sm transition-colors hover:border-green-300 hover:bg-green-100"
                   >
-                    Salary Record
+                    {onSalaryStatement ? "Trip Salary Record" : "Salary Record"}
                   </button>
                   {onHaltPay && (
                     <button

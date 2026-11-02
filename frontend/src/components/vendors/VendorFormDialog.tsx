@@ -9,6 +9,8 @@ import type { Vendor } from "@/types/vendor";
 import type { VendorCategory } from "@/types/vendor-category";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { newAvatarSeed } from "@/components/ui/ProfileAvatar";
+import { ProfileAvatarPicker } from "@/components/ui/ProfileAvatarPicker";
 
 export const DRAFT_KEY = "erp_vendor_form_draft";
 
@@ -27,7 +29,6 @@ const emptyForm: Omit<Vendor, "id" | "createdAt"> = {
   pan: "",
   email: "",
   address: "",
-  status: "",
 };
 
 export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorFormDialogProps) {
@@ -41,7 +42,8 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
         createdAt: "",
         ...emptyForm,
       };
-      setForm(rest);
+      // A new vendor starts with a picture of its own (Shuffle to change it).
+      setForm(initialData ? rest : { ...rest, avatarStyle: "notionists", avatarSeed: newAvatarSeed() });
       vendorCategoriesApi.list().then(setCategories).catch(() => {});
     }
   }, [open, initialData]);
@@ -67,6 +69,14 @@ export function VendorFormDialog({ open, onClose, onSave, initialData }: VendorF
   return (
     <Dialog open={open} onClose={onClose} title={initialData ? "Edit Vendor" : "Add Vendor"}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Profile picture — saved with the vendor, so it goes through the same edit process. */}
+        <ProfileAvatarPicker
+          look={form.avatarStyle}
+          seed={form.avatarSeed}
+          fallbackSeed={`vendor-${initialData?.id ?? "new"}`}
+          onChange={({ look, seed }) => setForm((prev) => ({ ...prev, avatarStyle: look, avatarSeed: seed }))}
+        />
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Vendor Name" required>
             <input

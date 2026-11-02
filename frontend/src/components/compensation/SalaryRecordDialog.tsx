@@ -124,7 +124,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
         // That field already applies whichever compensation type (Normal / Default /
         // Custom) was used at assignment time, so it's more accurate than
         // recomputing a branch % here — no need to re-derive it independently.
-        const regularPay = parseFloat(t.driverAdvanceAmount ?? sheet?.driverPay ?? "0") || 0;
+        const regularPay = parseFloat(t.driverAdvanceAmount || sheet?.driverPay || "0") || 0;
         // RETURN TRIP not marked batta-applicable: batta isn't paid (it rode
         // along with the outbound trip) — but leftover advance is still deducted.
         const excludedFromTotal = t.tripCategory === "RETURN TRIP" && !t.isBattaApplicable;
@@ -214,7 +214,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(16);
     pdf.setTextColor(40, 40, 120);
-    pdf.text(`Salary Record — ${driver?.name ?? ""}`, marginX, 12);
+    pdf.text(`Trip Salary Record — ${driver?.name ?? ""}`, marginX, 12);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
     pdf.setTextColor(80, 80, 80);
@@ -363,7 +363,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
     data.push({ "Trip ID": "Total Net Payable (Rs)", "Net Payable (Rs)": totalNetPayable } as (typeof data)[number]);
     const ws = utils.json_to_sheet(data);
     const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, "Salary Record");
+    utils.book_append_sheet(wb, ws, "Trip Salary Record");
     writeFile(wb, `Salary_Record_${(driver?.name ?? "Driver").replace(/\s+/g, "_")}_${filterMode}.xlsx`);
   }
 
@@ -405,7 +405,7 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Salary Record — ${driver?.name ?? ""}`}
+      title={`Trip Salary Record — ${driver?.name ?? ""}`}
       className="w-[95vw] max-w-[95vw] h-[90vh]"
       headerRight={onShowGuide ? (
         <button

@@ -79,7 +79,6 @@ export default function StaffCompensationPage() {
         id: staff.id,
         photoUrl: staff.photoUrl,
         name: staff.name,
-        status: "Active",
       })),
     [staffList]
   );

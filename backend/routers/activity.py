@@ -301,6 +301,92 @@ def work_report_excel(day: str = Query(..., description="YYYY-MM-DD, IST"),
     return work_report.excel_response(_work_report(day, db), employee)
 
 
+def online_now(db: Session) -> dict[str, dict]:
+    """Who's online, by user key: "active" = did something in the last
+    ONLINE_WINDOW, "idle" = only a page open and refreshing itself. Read from
+    the database, so every worker process gives the same answer (the chat's
+    WebSocket roster is per process). Shared by Activity Log and the Invite
+    dialog, so the two always agree."""
+    cutoff = datetime.utcnow() - ONLINE_WINDOW
+    start, _ = tracker.day_bounds_utc(tracker.today_ist())
+    people: dict[str, dict] = {}
+    for key, name, last, role in (
+        db.query(E.user_key, E.user_name, func.max(E.created_at), func.max(E.role))
+        .filter(E.user_key != tracker.ANON_KEY, E.created_at >= cutoff, E.kind != "login_failed")
+        .group_by(E.user_key, E.user_name).all()
+    ):
+        people[key] = {"user_name": name, "role": role, "last_at": last, "status": "active"}
+    for key, name, last in (
+        db.query(M.user_key, M.user_name, func.max(M.last_at))
+        .filter(M.user_key != tracker.ANON_KEY, M.last_at >= cutoff)
+        .group_by(M.user_key, M.user_name).all()
+    ):
+        if key not in people:
+            people[key] = {"user_name": name, "role": None, "last_at": last, "status": "idle"}
+    if not people:
+        return people
+    # Which screen each person is on = their latest page view today.
+    latest_view = dict(
+        db.query(E.user_key, func.max(E.id))
+        .filter(E.user_key.in_(list(people)), E.kind == "view", E.created_at >= start)
+        .group_by(E.user_key).all()
+    )
+    screen_by_id = dict(
+        db.query(E.id, E.route).filter(E.id.in_(list(latest_view.values()))).all()
+    ) if latest_view else {}
+    if any(p["role"] is None for p in people.values()):
+        roles = dict(
+            db.query(models.Staff.id, models.Staff.software_designation)
+            .filter(models.Staff.id.in_([int(k) for k in people if k.isdigit()])).all()
+        )
+        for key, p in people.items():
+            if p["role"] is None and key.isdigit():
+                p["role"] = roles.get(int(key))
+    for key, p in people.items():
+        p["screen"] = screen_by_id.get(latest_view.get(key))
+    return people
+
+
+LAST_SEEN_DAYS = 30
+
+
+@router.get("/presence", dependencies=[Depends(require_roles())])
+def presence(db: Session = Depends(get_db)):
+    """The Invite dialog: every staff member's status (active / idle / offline
+    with when they were last seen), and how many of each chat group are online."""
+    tracker.flush_now()
+    online = online_now(db)
+    staff_keys = [str(i) for (i,) in db.query(models.Staff.id).filter(models.Staff.deleted_at.is_(None))]
+    since = datetime.utcnow() - timedelta(days=LAST_SEEN_DAYS)
+    last_seen: dict[str, datetime] = {}
+    for key, last in (
+        list(db.query(E.user_key, func.max(E.created_at))
+             .filter(E.user_key.in_(staff_keys), E.created_at >= since, E.kind != "login_failed")
+             .group_by(E.user_key))
+        + list(db.query(M.user_key, func.max(M.last_at))
+               .filter(M.user_key.in_(staff_keys), M.minute >= since).group_by(M.user_key))
+    ):
+        if last and (key not in last_seen or last > last_seen[key]):
+            last_seen[key] = last
+    people = {}
+    for key in staff_keys:
+        p = online.get(key)
+        people[key] = {
+            "status": p["status"] if p else "offline",
+            "screen": p["screen"] if p else None,
+            "last_at": _iso(p["last_at"] if p else last_seen.get(key)),
+        }
+    online_ids = {int(k) for k, p in people.items() if p["status"] != "offline"}
+    groups: dict[str, int] = defaultdict(int)
+    for conversation_id, staff_id in (
+        db.query(models.ChatParticipant.conversation_id, models.ChatParticipant.staff_id)
+        .join(models.ChatConversation, models.ChatConversation.id == models.ChatParticipant.conversation_id)
+        .filter(models.ChatConversation.kind == "group", models.ChatParticipant.left_at.is_(None)).all()
+    ):
+        groups[str(conversation_id)] += staff_id in online_ids
+    return {"people": people, "groups": dict(groups)}
+
+
 @router.get("/overview", dependencies=[Depends(require_roles())])
 def day_overview(day: str | None = Query(None, description="YYYY-MM-DD, IST; defaults to today"),
                  db: Session = Depends(get_db)):
@@ -346,47 +432,12 @@ def day_overview(day: str | None = Query(None, description="YYYY-MM-DD, IST; def
     # -- Online now (only meaningful when looking at today) -------------------
     online: list[dict] = []
     if chosen == tracker.today_ist():
-        now = datetime.utcnow()
-        cutoff = now - ONLINE_WINDOW
-        people: dict[str, dict] = {}
-        for key, name, last, role in (
-            db.query(E.user_key, E.user_name, func.max(E.created_at), func.max(E.role))
-            .filter(E.user_key != tracker.ANON_KEY, E.created_at >= cutoff, E.kind != "login_failed")
-            .group_by(E.user_key, E.user_name).all()
-        ):
-            people[key] = {"user_name": name, "role": role, "last_at": last, "status": "active"}
-        for key, name, last in (
-            db.query(M.user_key, M.user_name, func.max(M.last_at))
-            .filter(M.user_key != tracker.ANON_KEY, M.last_at >= cutoff)
-            .group_by(M.user_key, M.user_name).all()
-        ):
-            if key not in people:
-                people[key] = {"user_name": name, "role": None, "last_at": last, "status": "idle"}
-        if people:
-            # Which screen each person is on = their latest page view today.
-            latest_view = dict(
-                db.query(E.user_key, func.max(E.id))
-                .filter(E.user_key.in_(list(people)), E.kind == "view", E.created_at >= start)
-                .group_by(E.user_key).all()
-            )
-            screen_by_id = dict(
-                db.query(E.id, E.route).filter(E.id.in_(list(latest_view.values()))).all()
-            ) if latest_view else {}
-            if any(p["role"] is None for p in people.values()):
-                roles = dict(
-                    db.query(models.Staff.id, models.Staff.software_designation)
-                    .filter(models.Staff.id.in_([int(k) for k in people if k.isdigit()])).all()
-                )
-                for key, p in people.items():
-                    if p["role"] is None and key.isdigit():
-                        p["role"] = roles.get(int(key))
-            for key, p in people.items():
-                online.append({
-                    "user_name": p["user_name"], "role": p["role"], "status": p["status"],
-                    "last_at": _iso(p["last_at"]),
-                    "screen": screen_by_id.get(latest_view.get(key)),
-                })
-            online.sort(key=lambda p: (p["status"] != "active", p["user_name"].lower()))
+        online = [
+            {"user_name": p["user_name"], "role": p["role"], "status": p["status"],
+             "last_at": _iso(p["last_at"]), "screen": p["screen"]}
+            for p in online_now(db).values()
+        ]
+        online.sort(key=lambda p: (p["status"] != "active", p["user_name"].lower()))
 
     # -- Alerts ---------------------------------------------------------------
     alerts: list[dict] = []

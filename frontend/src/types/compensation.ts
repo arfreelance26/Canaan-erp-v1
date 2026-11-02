@@ -1,5 +1,3 @@
-export type PersonStatus = "Active" | "On-Trip" | "Leave" | "Non-Active";
-
 export type CompensationTransactionType = "Advance" | "Salary";
 
 export type CompensationTransaction = {

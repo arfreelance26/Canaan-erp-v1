@@ -299,6 +299,8 @@ class CustomerBase(OrmBase):
     customer_type: Optional[CustomerType] = None
     is_gta: Optional[str] = None
     applicable_for_e_invoice: Optional[str] = None
+    avatar_style: Optional[Literal["notionists", "shapes"]] = None
+    avatar_seed: Optional[str] = Field(default=None, max_length=40)
 
 
 class CustomerCreate(CustomerBase):
@@ -410,7 +412,8 @@ class VendorBase(OrmBase):
     pan: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
-    status: Optional[EntityStatus] = "ACTIVE"
+    avatar_style: Optional[Literal["notionists", "shapes"]] = None
+    avatar_seed: Optional[str] = Field(default=None, max_length=40)
 
 
 class VendorCreate(VendorBase):

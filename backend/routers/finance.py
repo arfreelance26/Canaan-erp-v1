@@ -222,19 +222,131 @@ def driver_monthly_net_payable(
         .all()
     )
     for trip, sheet in rows:
-        # A RETURN TRIP not marked batta-applicable pays no batta (it was paid
-        # beforehand) — but any advance left in the driver's hand is still
-        # deducted, so it isn't forgotten.
-        if trip.trip_category == "RETURN TRIP" and not trip.is_batta_applicable:
-            regular_pay = 0.0
-        else:
-            regular_pay = float(
-                trip.driver_advance_amount if trip.driver_advance_amount is not None else (sheet.driver_pay or 0)
-            )
-        outstanding_advance = float(sheet.driver_advance_amount or 0) - float(sheet.driver_expenses_total or 0)
-        totals[trip.driver_id] += regular_pay - outstanding_advance
+        totals[trip.driver_id] += _trip_pay(trip, sheet)["net_payable"]
 
     return {driver_id: round(total, 2) for driver_id, total in totals.items()}
+
+
+def _trip_pay(trip: models.Trip, sheet: models.TripSheet) -> dict:
+    """One trip's line on the Trip Salary Record (SalaryRecordDialog.tsx):
+    Net Payable = Regular Pay − (advance − driver expenses). A RETURN TRIP not
+    marked batta-applicable pays no batta (it was paid beforehand), but any
+    advance left in the driver's hand is still deducted, so it isn't forgotten."""
+    excluded = trip.trip_category == "RETURN TRIP" and not trip.is_batta_applicable
+    regular_pay = float(trip.driver_advance_amount if trip.driver_advance_amount is not None else (sheet.driver_pay or 0))
+    advance = float(sheet.driver_advance_amount or 0)
+    expenses = float(sheet.driver_expenses_total or 0)
+    return {
+        "regular_pay": regular_pay, "advance": advance, "expenses": expenses, "batta_excluded": excluded,
+        "net_payable": (0.0 if excluded else regular_pay) - (advance - expenses),
+    }
+
+
+def _in_period(day: str | None, start: str | None, end: str | None) -> bool:
+    """Both ends inclusive and optional; with a period, an undated row is out."""
+    if not start and not end:
+        return True
+    return bool(day) and (not start or day >= start) and (not end or day <= end)
+
+
+def salary_statement(db: Session, driver_id: str, start: str | None, end: str | None) -> dict:
+    """Driver Compensation → Salary Record: the driver's final pay for a period.
+
+        Trip Salary Record's Net Payable   (by the trip sheet's completed date)
+      + Halt pay owed                      (by the trip's completed date, Halt Pay Record)
+      + Cleaner Batta                      (by attendance date)
+      + Workshop Batta                     (by attendance date)
+      − Workshop Advance                   (by attendance date)
+      = Final Net Payable
+
+    Advances are already inside the trip lines, so the Advance Record isn't
+    counted again. Each part uses the same rules as its own record."""
+    regs = dict(db.query(models.Truck.truck_id, models.Truck.registration_number).all())
+    trips = []
+    for trip, sheet in (db.query(models.Trip, models.TripSheet)
+                        .join(models.TripSheet, models.TripSheet.trip_id == models.Trip.id)
+                        .filter(models.Trip.driver_id == driver_id, models.Trip.deleted_at.is_(None))
+                        .order_by(models.TripSheet.trip_completed_date.desc())):
+        done = sheet.trip_completed_date.isoformat() if sheet.trip_completed_date else None
+        if _in_period(done, start, end):
+            trips.append({"date": done, "trip_id": trip.trip_id, "truck_registration": regs.get(trip.vehicle_id),
+                          "trip_category": trip.trip_category, **_trip_pay(trip, sheet)})
+    halts = []
+    for trip, closure in (db.query(models.Trip, models.TripClosure)
+                          .join(models.TripClosure, models.TripClosure.trip_id == models.Trip.id)
+                          .filter(models.Trip.driver_id == driver_id, models.Trip.deleted_at.is_(None),
+                                  models.TripClosure.driver_halt_compensation > 0)
+                          .order_by(models.TripClosure.trip_completed_date.desc())):
+        done = closure.trip_completed_date.isoformat() if closure.trip_completed_date else None
+        if _in_period(done, start, end):
+            halts.append({"date": done, "trip_id": trip.trip_id, "truck_registration": regs.get(trip.vehicle_id),
+                          "company_days": closure.company_halt_days or 0, "party_days": closure.party_halt_days or 0,
+                          "amount": float(closure.driver_halt_compensation or 0)})
+
+    def dated(rows):
+        return [r for r in rows if _in_period(r["date"], start, end)]
+
+    cleaner = dated(driver_cleaner_batta(driver_id, db)["rows"])
+    workshop = dated(driver_workshop_batta(driver_id, db)["rows"])
+    advances = dated(driver_workshop_advance(driver_id, db)["rows"])
+    parts = [
+        {"key": "trips", "label": "Trip Salary Record (net payable)", "sign": 1, "unit": "trip",
+         "amount": sum(r["net_payable"] for r in trips), "rows": trips},
+        {"key": "halt", "label": "Halt pay owed", "sign": 1, "unit": "trip", "amount": sum(r["amount"] for r in halts), "rows": halts},
+        {"key": "cleaner", "label": "Cleaner Batta", "sign": 1, "unit": "day", "amount": sum(r["amount"] for r in cleaner), "rows": cleaner},
+        {"key": "workshop", "label": "Workshop Batta", "sign": 1, "unit": "day", "amount": sum(r["amount"] for r in workshop), "rows": workshop},
+        {"key": "workshopAdvance", "label": "Workshop Advance", "sign": -1, "unit": "day",
+         "amount": sum(r["amount"] for r in advances), "rows": advances},
+    ]
+    for p in parts:
+        p["amount"] = round(p["amount"], 2)
+        p["count"] = len(p["rows"])
+    return {"driver_id": driver_id, "from_date": start, "to_date": end, "parts": parts,
+            "net_payable": round(sum(p["sign"] * p["amount"] for p in parts), 2)}
+
+
+@router.get("/compensation/salary-statement")
+def driver_salary_statement(
+    driver_id: str = Query(..., description="drivers.driver_id, e.g. CGI-D0001"),
+    from_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Period start YYYY-MM-DD (inclusive)"),
+    to_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$", description="Period end YYYY-MM-DD (inclusive)"),
+    db: Session = Depends(get_db),
+):
+    """Driver Compensation → Salary Record: the final Net Payable (salary_statement)."""
+    if not db.query(models.Driver.id).filter(models.Driver.driver_id == driver_id).first():
+        raise HTTPException(404, "Driver not found")
+    return salary_statement(db, driver_id, from_date, to_date)
+
+
+@router.get("/compensation/salary-statement/export")
+def driver_salary_statement_excel(
+    driver_id: str = Query(...),
+    from_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    to_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    db: Session = Depends(get_db),
+):
+    from excel_utils import build_excel_response
+    driver = db.query(models.Driver).filter(models.Driver.driver_id == driver_id).first()
+    if not driver:
+        raise HTTPException(404, "Driver not found")
+    s = salary_statement(db, driver_id, from_date, to_date)
+    part = {p["key"]: p for p in s["parts"]}
+    summary = [[p["label"], "−" if p["sign"] < 0 else "+", p["count"], p["amount"]] for p in s["parts"]]
+    summary.append(["Final Net Payable", "=", "", s["net_payable"]])
+    sheets = [
+        ("Salary Record", ["Part", "", "Count", "Amount"], summary),
+        ("Trips", ["Completed", "Trip ID", "Truck", "Category", "Regular Pay", "Advance", "Driver Expenses", "Net Payable"],
+         [[r["date"], r["trip_id"], r["truck_registration"], r["trip_category"], 0 if r["batta_excluded"] else r["regular_pay"],
+           r["advance"], r["expenses"], round(r["net_payable"], 2)] for r in part["trips"]["rows"]]),
+        ("Halt Pay", ["Completed", "Trip ID", "Truck", "Company Days", "Party Days", "Amount"],
+         [[r["date"], r["trip_id"], r["truck_registration"], r["company_days"], r["party_days"], r["amount"]] for r in part["halt"]["rows"]]),
+    ]
+    for key, title in (("cleaner", "Cleaner Batta"), ("workshop", "Workshop Batta"), ("workshopAdvance", "Workshop Advance")):
+        sheets.append((title, ["Date", "Status", "Truck", "Branch", "Amount"],
+                       [[r["date"], r["status"], r["truck_registration"], r["branch"], r["amount"]] for r in part[key]["rows"]]))
+    period = f"_{from_date or 'start'}_to_{to_date or 'today'}" if from_date or to_date else ""
+    name = "".join(c if c.isalnum() else "_" for c in driver.name).strip("_")
+    return build_excel_response(sheets, f"Salary_Record_{name}{period}.xlsx")
 
 
 # Attendance statuses that earn a day of Cleaner Batta. "On Workshop" days

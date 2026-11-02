@@ -134,7 +134,8 @@ def test_branch_edit_and_delete(api):
 def test_vendor_lifecycle(api):
     vendor = api.post("/vendors", json={"name": f"Pytest Vendor {tag()}"})
     vid = vendor["id"]
-    assert api.put(f"/vendors/{vid}", json={"status": "INACTIVE"})["status"] == "INACTIVE"
+    assert api.put(f"/vendors/{vid}", json={"category": "Pytest"})["category"] == "Pytest"
+    assert "status" not in api.get("/vendors")[0]   # vendor status is gone from the app
     api.delete(f"/vendors/{vid}")
     api.post(f"/vendors/{vid}/restore")
     api.delete(f"/vendors/{vid}")
@@ -189,3 +190,28 @@ def test_customer_origins_routes_and_pricing(api):
     api.delete(f"/customers/{cid}/destinations/{route['id']}")
     api.delete(f"/customers/{cid}/origins/{origin['id']}")
     assert api.get(f"/customers/{cid}/destinations") == []
+
+
+def test_vendor_picture_is_saved_with_the_vendor(api):
+    vendor = api.post("/vendors", json={"name": f"Pytest Vendor {tag()}", "avatar_style": "notionists", "avatar_seed": "k3f9x2ab"})
+    assert vendor["avatar_style"] == "notionists" and vendor["avatar_seed"] == "k3f9x2ab"
+    vid = vendor["id"]
+    shuffled = api.put(f"/vendors/{vid}", json={"avatar_style": "shapes", "avatar_seed": "q8w7e6"})
+    assert shuffled["avatar_style"] == "shapes" and shuffled["avatar_seed"] == "q8w7e6"
+    assert api.put(f"/vendors/{vid}", json={"address": "Pytest Road"})["avatar_seed"] == "q8w7e6"   # other edits keep it
+    plain = api.post("/vendors", json={"name": f"Pytest Vendor {tag()}"})
+    assert plain["avatar_style"] is None and plain["avatar_seed"] is None                         # falls back to a face by id
+    api.put(f"/vendors/{vid}", json={"avatar_style": "cartoon"}, expect=422)
+    api.put(f"/vendors/{vid}", json={"avatar_seed": "x" * 41}, expect=422)
+
+
+def test_customer_picture_is_saved_with_the_customer(api):
+    customer = api.post("/customers", json={"name": f"Pytest Customer {tag()}", "customer_type": "Shipping",
+                                            "avatar_style": "shapes", "avatar_seed": "z1y2x3"})
+    assert customer["avatar_style"] == "shapes" and customer["avatar_seed"] == "z1y2x3"
+    cid = customer["id"]
+    faced = api.put(f"/customers/{cid}", json={"avatar_style": "notionists", "avatar_seed": "a9b8c7"})
+    assert faced["avatar_style"] == "notionists" and faced["avatar_seed"] == "a9b8c7"
+    assert api.put(f"/customers/{cid}", json={"phone": "9000000000"})["avatar_seed"] == "a9b8c7"   # other edits keep it
+    api.put(f"/customers/{cid}", json={"avatar_style": "cartoon"}, expect=422)
+    api.put(f"/customers/{cid}", json={"avatar_seed": "x" * 41}, expect=422)

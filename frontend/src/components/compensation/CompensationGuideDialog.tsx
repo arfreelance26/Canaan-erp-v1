@@ -4,11 +4,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
-export type GuideTab = "overview" | "salary" | "advance" | "halt" | "cleaner" | "workshop";
+export type GuideTab = "overview" | "final" | "salary" | "advance" | "halt" | "cleaner" | "workshop";
 
 const TABS: { id: GuideTab; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "salary", label: "Salary Record" },
+  { id: "final", label: "Salary Record" },
+  { id: "salary", label: "Trip Salary Record" },
   { id: "advance", label: "Advance Record" },
   { id: "halt", label: "Halt Pay Record" },
   { id: "cleaner", label: "Cleaner Batta" },
@@ -116,7 +117,7 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm font-semibold text-slate-800">Salary Record</p>
+                  <p className="text-sm font-semibold text-slate-800">Trip Salary Record</p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
                     What the driver is <span className="font-semibold text-slate-700">owed after</span> the trip: their batta,
                     minus any advance money still left with them.
@@ -129,11 +130,30 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
                 <li className="flex gap-2"><span className="text-slate-300">•</span>Only trips assigned to this driver.</li>
                 <li className="flex gap-2"><span className="text-slate-300">•</span>
                   <span><span className="font-semibold text-slate-700">Advance Record</span> needs the trip&apos;s closure;{" "}
-                  <span className="font-semibold text-slate-700">Salary Record</span> needs its trip sheet. Until then the amounts show as &ldquo;—&rdquo;.</span>
+                  <span className="font-semibold text-slate-700">Trip Salary Record</span> needs its trip sheet. Until then the amounts show as &ldquo;—&rdquo;.</span>
                 </li>
                 <li className="flex gap-2"><span className="text-slate-300">•</span>
                   The <span className="font-semibold text-slate-700">This Month / Custom</span> filters use the trip&apos;s <span className="font-semibold text-slate-700">completion date</span>.
                 </li>
+              </ul>
+            </Section>
+          </>
+        )}
+
+        {tab === "final" && (
+          <>
+            <Section title="The driver's final pay for a period">
+              <FormulaRow name="Trip Salary Record" formula="Total Net Payable of the trips" note="By trip completed date. Each trip's advance is already deducted here, so the Advance Record isn't counted again." />
+              <FormulaRow name="+ Halt pay owed" formula="Company + party halt pay from Close Trip" note="By trip completed date — the Halt Pay Record." />
+              <FormulaRow name="+ Cleaner Batta" formula="Present / On Trip / On Halt days × the branch fee" note="By attendance date — the Cleaner Batta Record." />
+              <FormulaRow name="+ Workshop Batta" formula="On Workshop days × the branch fee" note="By attendance date — the Workshop Batta Record." />
+              <FormulaRow name="− Workshop Advance" formula="Advance paid on On Workshop days" note="By attendance date — the Workshop Advance Record." />
+              <FormulaRow name="= Final Net Payable" formula="What the driver is owed for the period" note="Negative means the driver owes money back." />
+            </Section>
+            <Section title="Good to know">
+              <ul className="flex flex-col gap-2 text-sm text-slate-600">
+                <li className="flex gap-2"><span className="text-slate-300">•</span>Every part uses the same rules as its own record, so the numbers always match those records.</li>
+                <li className="flex gap-2"><span className="text-slate-300">•</span>Click a part to see the trips or days behind it.</li>
               </ul>
             </Section>
           </>
@@ -283,7 +303,7 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
             <Section title="Good to know">
               <ul className="flex flex-col gap-2 text-sm text-slate-600">
                 <li className="flex gap-2"><span className="text-slate-300">•</span>Each trip shows one row per halt type, so a trip with both shows two rows.</li>
-                <li className="flex gap-2"><span className="text-slate-300">•</span>Halt pay is <span className="font-semibold text-slate-700">separate from the Salary Record</span> — it isn&apos;t part of Net Payable.</li>
+                <li className="flex gap-2"><span className="text-slate-300">•</span>Halt pay isn&apos;t part of the Trip Salary Record, but it <span className="font-semibold text-slate-700">is added in the Salary Record</span> (the driver&apos;s final pay).</li>
                 <li className="flex gap-2"><span className="text-slate-300">•</span>This record is view-only: it shows what&apos;s owed, and payments are handled by the admins.</li>
               </ul>
             </Section>
@@ -317,7 +337,7 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
             <Section title="Good to know">
               <ul className="flex flex-col gap-2 text-sm text-slate-600">
                 <li className="flex gap-2"><span className="text-slate-300">•</span>Days with no truck, no branch, or a ₹0 fee are highlighted so they can be checked.</li>
-                <li className="flex gap-2"><span className="text-slate-300">•</span>Cleaner Batta is separate from the Salary Record and Halt Pay Record. This record is view-only; payments are handled by the admins.</li>
+                <li className="flex gap-2"><span className="text-slate-300">•</span>Cleaner Batta isn&apos;t part of the Trip Salary Record, but it is added in the Salary Record (the driver&apos;s final pay). This record is view-only.</li>
               </ul>
             </Section>
           </>
@@ -367,7 +387,7 @@ export function CompensationGuideDialog({ open, onClose, initialTab = "overview"
                 <li className="flex gap-2"><span className="text-slate-300">•</span>All trip types are included the same way — Return Trips too.</li>
                 <li className="flex gap-2"><span className="text-slate-300">•</span>
                   What the driver doesn&apos;t spend from these advances is the <span className="font-semibold text-slate-700">Outstanding Advance</span>{" "}
-                  that the Salary Record later deducts from their pay.
+                  that the Trip Salary Record later deducts from their pay.
                 </li>
               </ul>
             </Section>

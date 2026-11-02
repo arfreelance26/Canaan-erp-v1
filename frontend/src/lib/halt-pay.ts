@@ -95,3 +95,17 @@ export function haltPayFromClosure(closure: TripClosureData | undefined | null):
     companyPay: companyDays * rate, partyPay: partyDays * rate, total,
   };
 }
+
+/** The SAC "linked expense" that bills party halt to the customer (SAC Code Management). */
+export const HALT_EXPENSE = "Halt Pay";
+
+/** What an invoice charges on lines linked to Halt Pay (backend routers/party_halt.py reads it the same way). */
+export function haltBilledOn(
+  services: { sacId: string; quantity: string; rate: string }[],
+  sacCodes: { id: number | string; linkedExpense?: string | null }[],
+): number {
+  const haltIds = new Set(sacCodes.filter((sc) => sc.linkedExpense === HALT_EXPENSE).map((sc) => String(sc.id)));
+  return services
+    .filter((s) => haltIds.has(String(s.sacId)))
+    .reduce((sum, s) => sum + (Number(s.rate) || 0) * (Number(s.quantity) || 1), 0);
+}

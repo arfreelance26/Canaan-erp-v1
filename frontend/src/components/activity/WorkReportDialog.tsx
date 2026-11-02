@@ -130,7 +130,7 @@ export function WorkReportDialog({ report, onClose }: { report: WorkReport; onCl
                 <h3 className="text-base font-bold text-gray-900">{p.name}</h3>
                 <p className="text-xs text-gray-500">{p.role}</p>
               </div>
-              <p className="rounded-lg bg-indigo-50 px-3.5 py-2.5 text-sm text-indigo-950">{p.summary}</p>
+              <p className="rounded-lg bg-indigo-50 px-3.5 py-2.5 text-sm text-indigo-900">{p.summary}</p>
               <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {headline(p).map(([label, value]) => (
                   <div key={label}>

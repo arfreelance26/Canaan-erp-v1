@@ -14,6 +14,7 @@ import type { SacCode } from "@/types/sac-code";
 import { sacCodesApi, tripsApi } from "@/lib/api";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
+import { HALT_EXPENSE, haltBilledOn, haltPayFromClosure } from "@/lib/halt-pay";
 
 export const INVOICE_TYPES = ["Bill of Supply", "Transport Memo", "Tax Invoice"] as const;
 export type InvoiceType = (typeof INVOICE_TYPES)[number];
@@ -499,6 +500,31 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
   const subtotalAll = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.subtotal, 0) + extraChargesTotal, [serviceCalcs, extraChargesTotal]);
   const totalGst = useMemo(() => serviceCalcs.reduce((sum, s) => sum + s.gstAmount, 0), [serviceCalcs]);
   const grandTotal = useMemo(() => subtotalAll + totalGst, [subtotalAll, totalGst]);
+
+  // Party (customer-caused) halt: billed through a SAC code linked to "Halt Pay".
+  const haltParts = haltPayFromClosure(closure);
+  const partyHaltOwed = Math.round(haltParts.partyPay * 100) / 100;
+  const haltOnInvoice = haltBilledOn(form.services, sacCodes);
+  const haltSacs = sacCodes.filter((sc) => sc.linkedExpense === HALT_EXPENSE);
+  const haltSac = haltSacs.find((sc) => sc.autoPopulateInvoiceType === form.invoiceType)
+    ?? haltSacs.find((sc) => !sc.autoPopulateInvoiceType) ?? haltSacs[0];
+
+  function addHaltLine() {
+    if (!haltSac) return;
+    const line: ServiceLine = {
+      descriptionOfService: haltSac.description,
+      sacCode: haltSac.code,
+      sacId: String(haltSac.id),
+      gstRate: parseFloat(haltSac.gstRate) > 0 ? haltSac.gstRate : "",
+      quantity: "1",
+      rate: String(partyHaltOwed),
+    };
+    setForm((prev) => {
+      const blank = prev.services.findIndex(isBlankService);
+      const services = blank >= 0 ? prev.services.map((s, i) => (i === blank ? line : s)) : [...prev.services, line];
+      return { ...prev, services };
+    });
+  }
   const grandTotalRounded = useMemo(() => roundGrandTotal(grandTotal), [grandTotal]);
   const amountInWords = useMemo(() => numberToWords(grandTotalRounded), [grandTotalRounded]);
 
@@ -912,6 +938,26 @@ export function GenerateInvoiceDialog({ open, trip, closure, sheet, customer, tr
             <textarea rows={3} value={form.narration} onChange={(e) => update("narration", e.target.value)} className={inputClass} placeholder="e.g. Payment to be made within 30 days of invoice date" />
           </Field>
         </section>
+
+        {/* Party halt not on the invoice — the customer owes it, and the driver is paid it. */}
+        {partyHaltOwed > 0 && haltOnInvoice <= 0 && (
+          <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+            <p className="text-sm text-amber-900">
+              <span className="font-semibold">This trip has ₹{partyHaltOwed.toLocaleString("en-IN")} party halt</span>{" "}
+              ({haltParts.partyDays} customer-caused day{haltParts.partyDays === 1 ? "" : "s"}), but the invoice has no halting charges.
+              Add them so the customer is billed.
+            </p>
+            {haltSac && (
+              <button
+                type="button"
+                onClick={addHaltLine}
+                className="shrink-0 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                Add halting charges
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-between border-t border-gray-100 pt-4">

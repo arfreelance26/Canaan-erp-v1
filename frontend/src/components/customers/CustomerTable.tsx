@@ -2,6 +2,7 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import type { Customer } from "@/types/customer";
+import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 type CustomerTableProps = {
   customers: Customer[];
@@ -46,7 +47,14 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
         <tbody className="divide-y divide-gray-100">
           {customers.map((customer) => (
             <tr key={customer.id} className="hover:bg-gray-50">
-              {hasData.name && <td className="px-4 py-3 font-medium text-gray-900">{customer.name}</td>}
+              {hasData.name && (
+                <td className="px-4 py-3 font-medium text-gray-900">
+                  <div className="flex items-center gap-3">
+                    <ProfileAvatar look={customer.avatarStyle} seed={customer.avatarSeed || `customer-${customer.id}`} className="h-9 w-9 shrink-0" />
+                    {customer.name}
+                  </div>
+                </td>
+              )}
               {hasData.gstin && <td className="px-4 py-3 text-gray-600">{customer.gstin}</td>}
               {hasData.contactPersonnel && <td className="px-4 py-3 text-gray-600">{customer.contactPersonnelName}</td>}
               {hasData.phone && <td className="px-4 py-3 text-gray-600">{customer.phone}</td>}

@@ -35,6 +35,7 @@ CATEGORIES: dict[str, tuple[str, tuple[str, ...]]] = {
     "request":         ("Maintenance request (awaiting approval)", ("Accounts",)),
     "tyre":            ("Tyre purchase", ("Accounts",)),
     "retread":         ("Tyre retread", ("Accounts",)),
+    "detention":       ("Customer detention payment", ("Accounts",)),
     "truck_doc":       ("Truck document", ("Accounts",)),
     "truck_doc_old":   ("Truck document (previous)", ("Accounts",)),
     "truck_photo":     ("Truck photo", ("Accounts",)),
@@ -135,6 +136,20 @@ def collect(db: Session, cats: set[str]) -> list[dict]:
                              invoice_number=t.invoice_number, invoice_date=t.invoice_date, amount=t.cost,
                              file_name=t.proof_file_name, size=t.proof_size_bytes,
                              link="/maintenance/tyre-inventory", ref=f"Tyre {t.tyre_number}"))
+
+    if "detention" in cats:
+        from routers.party_halt import party_halt_amount
+        customers = dict(db.query(models.Customer.id, models.Customer.name).all())
+        for rec, trip, closure in (db.query(models.PartyHaltRecovery, models.Trip, models.TripClosure)
+                                   .join(models.Trip, models.Trip.id == models.PartyHaltRecovery.trip_id)
+                                   .join(models.TripClosure, models.TripClosure.trip_id == models.Trip.id)
+                                   .filter(models.PartyHaltRecovery.proof_file_name.isnot(None)).all()):
+            out.append(_item(f"ph-{trip.id}", "detention", date_=rec.received_on,
+                             title=f"Customer detention · {trip.trip_id}",
+                             party=customers.get(trip.customer_id) or trip.custom_customer_name,
+                             amount=rec.amount or party_halt_amount(closure), file_name=rec.proof_file_name,
+                             size=rec.proof_size_bytes, uploaded_by=rec.marked_by_name, uploaded_at=rec.marked_at,
+                             link="/finance/customer-detention", ref=f"Trip {trip.trip_id}"))
 
     if "retread" in cats:
         rows = (db.query(models.TyreMovementEvent, models.TyreInventory)
@@ -307,6 +322,11 @@ def _file_for(db: Session, key: str) -> tuple[str, bytes, str]:
         t = db.query(models.TyreInventory).options(undefer(models.TyreInventory.proof_data)).filter_by(id=rid).first()
         if t and t.proof_data:
             return "tyre", t.proof_data, t.proof_file_name
+    elif kind == "ph":
+        rec = (db.query(models.PartyHaltRecovery).options(undefer(models.PartyHaltRecovery.proof_data))
+               .filter_by(trip_id=rid).first())
+        if rec and rec.proof_data:
+            return "detention", rec.proof_data, rec.proof_file_name
     elif kind == "rt":
         ev = db.query(models.TyreMovementEvent).options(undefer(models.TyreMovementEvent.proof_data)).filter_by(id=rid).first()
         if ev and ev.proof_data:

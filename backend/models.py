@@ -371,6 +371,10 @@ class Customer(Base):
     customer_type = Column(Enum("Transports", "Shipping"))
     photo_url = Column(Text(length=16777215))
     photo_blob = Column(LargeBinary(length=26214400))
+    # The customer's picture (frontend ProfileAvatar): "notionists" (a face) or
+    # "shapes", drawn from the seed. NULL = a face seeded by the customer's id.
+    avatar_style = Column(String(20), nullable=True)
+    avatar_seed = Column(String(40), nullable=True)
     is_gta = Column(Enum("Yes", "No"))
     applicable_for_e_invoice = Column(Enum("Yes", "No"))
     version = Column(Integer, default=1, nullable=False)
@@ -502,7 +506,12 @@ class Vendor(Base):
     pan = Column(String(20))
     email = Column(String(100))
     address = Column(Text)
+    # No longer used (removed from the app); kept so the column's data isn't dropped.
     status = Column(Enum("ACTIVE", "INACTIVE", "BLACKLISTED"), default="ACTIVE")
+    # The vendor's picture (frontend VendorAvatar): "notionists" (a face) or
+    # "shapes", drawn from the seed. NULL = a face seeded by the vendor's id.
+    avatar_style = Column(String(20), nullable=True)
+    avatar_seed = Column(String(40), nullable=True)
     version = Column(Integer, default=1, nullable=False)
     # Soft delete — "Our Vendors" -> Delete sets this instead of removing the row,
     # so any historical reference to this vendor keeps resolving it. See
@@ -1447,6 +1456,33 @@ class WorkDayStaff(Base):
     check_in = Column(String(20), nullable=True)
     check_out = Column(String(20), nullable=True)
     active_seconds = Column(Integer, nullable=False, default=0)
+
+
+class PartyHaltRecovery(Base):
+    """Customer Detention: a trip's party (customer-caused) halt pay, paid back
+    by the customer (routers/party_halt.py). Billed is read from the invoice."""
+    __tablename__ = "party_halt_recoveries"
+
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), primary_key=True)
+    received_on = Column(Date, nullable=False)          # the day the customer paid
+    amount = Column(Numeric(10, 2), nullable=False)
+    note = Column(String(500), nullable=True)
+    marked_by_id = Column(Integer, nullable=True)       # who saved it (no FK: kept if they leave)
+    marked_by_name = Column(String(100), nullable=True)
+    marked_at = Column(DateTime, nullable=False)        # when it was saved (UTC)
+    proof_file_name = Column(String(255), nullable=True)
+    proof_size_bytes = Column(Integer, nullable=True)
+    proof_data = deferred(Column(LargeBinary(length=26214400), nullable=True))   # optional
+
+
+class DailySummary(Base):
+    """The Admin morning summary of one day (daily_summary.py), saved as it
+    read that morning so it never changes afterwards."""
+    __tablename__ = "daily_summaries"
+
+    day = Column(Date, primary_key=True)               # the IST day it covers
+    built_at = Column(DateTime, nullable=False)        # IST
+    data = Column(Text(length=16777215), nullable=False)
 
 
 class TyreRemarkPreset(Base):

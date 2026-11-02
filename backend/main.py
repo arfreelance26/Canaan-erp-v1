@@ -627,6 +627,16 @@ def _run_schema_migrations():
         "ALTER TABLE tyre_movement_events ADD COLUMN proof_size_bytes INT NULL",
         "ALTER TABLE tyre_movement_events ADD COLUMN proof_data LONGBLOB NULL",
         "ALTER TABLE tyre_movement_events ADD COLUMN proof_uploaded_by VARCHAR(100) NULL",
+        # Our Vendors / Customer List: the picture (Shuffle / No Characters)
+        "ALTER TABLE customers ADD COLUMN avatar_style VARCHAR(20) NULL",
+        "ALTER TABLE customers ADD COLUMN avatar_seed VARCHAR(40) NULL",
+        "ALTER TABLE vendors ADD COLUMN avatar_style VARCHAR(20) NULL",
+        "ALTER TABLE vendors ADD COLUMN avatar_seed VARCHAR(40) NULL",
+        # Customer Detention: who marked it paid, and an optional proof
+        "ALTER TABLE party_halt_recoveries ADD COLUMN marked_by_id INT NULL",
+        "ALTER TABLE party_halt_recoveries ADD COLUMN proof_file_name VARCHAR(255) NULL",
+        "ALTER TABLE party_halt_recoveries ADD COLUMN proof_size_bytes INT NULL",
+        "ALTER TABLE party_halt_recoveries ADD COLUMN proof_data LONGBLOB NULL",
         # Freeze Account (Our Staff)
         "ALTER TABLE staff ADD COLUMN frozen_at DATETIME NULL",
         "ALTER TABLE staff ADD COLUMN frozen_by_name VARCHAR(100) NULL",
@@ -2322,6 +2332,10 @@ from routers import todos as _todos_router
 app.include_router(_todos_router.router, dependencies=AUTH)
 from routers import documents as _documents_router
 app.include_router(_documents_router.router, dependencies=AUTH)
+from routers import daily_summary as _daily_summary_router
+app.include_router(_daily_summary_router.router, dependencies=AUTH)
+from routers import party_halt as _party_halt_router
+app.include_router(_party_halt_router.router, dependencies=AUTH)
 
 
 @app.exception_handler(IntegrityError)

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
 import { AdvanceRecordDialog } from "@/components/compensation/AdvanceRecordDialog";
 import { SalaryRecordDialog } from "@/components/compensation/SalaryRecordDialog";
+import { SalaryStatementDialog } from "@/components/compensation/SalaryStatementDialog";
 import { CompensationGuideDialog, type GuideTab } from "@/components/compensation/CompensationGuideDialog";
 import { HaltPayRecordDialog } from "@/components/compensation/HaltPayRecordDialog";
 import { BattaRecordDialog } from "@/components/compensation/BattaRecordDialog";
@@ -53,6 +54,7 @@ export default function DriverCompensationPage() {
 
   const [advanceRecordTarget, setAdvanceRecordTarget] = useState<CompensationPerson | null>(null);
   const [salaryRecordTarget, setSalaryRecordTarget] = useState<CompensationPerson | null>(null);
+  const [salaryStatementTarget, setSalaryStatementTarget] = useState<CompensationPerson | null>(null);
   const [search, setSearch] = useState("");
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
@@ -96,7 +98,6 @@ export default function DriverCompensationPage() {
         driverId: driver.driverId,
         photoUrl: driver.photoUrl,
         name: driver.name,
-        status: "Active",
       })),
     [drivers]
   );
@@ -171,6 +172,7 @@ export default function DriverCompensationPage() {
         showAdvance
         onPayAdvance={handlePayAdvance}
         onPaySalary={handlePaySalary}
+        onSalaryStatement={setSalaryStatementTarget}
         onHaltPay={setHaltTarget}
         onCleanerBatta={setCleanerTarget}
         onWorkshopBatta={setWorkshopTarget}
@@ -196,6 +198,13 @@ export default function DriverCompensationPage() {
         trips={trips}
         trucks={trucks}
         onShowGuide={() => setGuideTab("salary")}
+      />
+
+      <SalaryStatementDialog
+        open={salaryStatementTarget !== null}
+        onClose={() => setSalaryStatementTarget(null)}
+        driver={salaryStatementTarget}
+        onShowGuide={() => setGuideTab("final")}
       />
 
       <HaltPayRecordDialog

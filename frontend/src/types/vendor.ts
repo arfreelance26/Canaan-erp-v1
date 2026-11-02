@@ -1,5 +1,3 @@
-export type VendorStatus = "ACTIVE" | "INACTIVE" | "BLACKLISTED";
-
 export type Vendor = {
   id: string;
   name: string;
@@ -9,7 +7,9 @@ export type Vendor = {
   pan: string;
   email: string;
   address: string;
-  status: VendorStatus | "";
+  /** The vendor's picture: a face ("notionists") or "shapes", drawn from avatarSeed (ProfileAvatar). */
+  avatarStyle?: "notionists" | "shapes" | null;
+  avatarSeed?: string | null;
   createdAt: string;
   version?: number;
 };

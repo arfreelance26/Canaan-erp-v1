@@ -244,8 +244,8 @@ def export_trucks(
 @router.get("/vendors")
 def export_vendors(db: Session = Depends(get_db)):
     rows = db.query(models.Vendor).order_by(models.Vendor.name).all()
-    headers = ["Name", "Category", "Contact Number", "GSTIN", "PAN", "Email", "Address", "Status"]
-    data = [[r.name, r.category, r.contact_number, r.gstin, r.pan, r.email, r.address, r.status] for r in rows]
+    headers = ["Name", "Category", "Contact Number", "GSTIN", "PAN", "Email", "Address"]
+    data = [[r.name, r.category, r.contact_number, r.gstin, r.pan, r.email, r.address] for r in rows]
     return build_excel_response([("Vendors", headers, data)], "vendors.xlsx")
 
 

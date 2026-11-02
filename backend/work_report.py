@@ -83,6 +83,7 @@ WORK = {
     "POST /finance/recurring-payments": Work("Recurring payment added", "Accounts"),
     "PUT /finance/recurring-payments/{payment_id}": Work("Recurring payment edited", "Accounts"),
     "POST /payment-requests/{message_id}/mark-paid": Work("Payment marked as paid", "Accounts"),
+    "POST /party-halt/{trip_id}/paid": Work("Customer detention marked paid", "Accounts", "trip"),
     # Approvals
     "POST /payment-requests/{message_id}/decision": Work("Payment request decided", "Approvals"),
     "PUT /maintenance-requests/{request_id}/approve": Work("Maintenance request approved", "Approvals"),
@@ -167,6 +168,8 @@ NOT_WORK = frozenset({
     "POST /chat/conversations/{conversation_id}/voice",
     "DELETE /chat/messages/{message_id}",
     "PATCH /chat/messages/{message_id}",
+    "PUT /chat/messages/{message_id}/reaction",
+    "DELETE /party-halt/{trip_id}/paid",
     "POST /chat/messages/{message_id}/payment-status",
     "POST /chat/owner-view/change-password",
     "POST /chat/owner-view/lock",

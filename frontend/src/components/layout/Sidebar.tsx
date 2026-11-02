@@ -69,6 +69,7 @@ const ROLE_HREFS: Record<string, string[] | "all"> = {
   Accounts: [
     "/",
     "/finance/documents",
+    "/finance/customer-detention",
     "/connect/chat",
     "/trips/verification",
     "/trips/history",
@@ -205,6 +206,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
   const founding = useFounding();
   // On the Dashboard a birthday outranks the Christmas decorations for the day.
   const dashDecor = birthday.decorated ? "birthday" : founding.decorated ? "founding" : season.decorated ? "christmas" : null;
+  // The active menu item's colours follow the celebration on every page, not
+  // just the Dashboard (same order: birthday, then founding, then December).
+  const menuTheme = birthday.festive ? "birthday" : founding.festive ? "founding" : season.festive ? "christmas" : null;
 
   // Logout is gated on closing an open self-checked-in shift first — see
   // CloseShiftBeforeLogoutDialog for why this isn't skippable.
@@ -491,9 +495,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                     {isActive && (
                       <span className={cn(
                         "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full",
-                        dashDecor === "birthday" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
-                          : dashDecor === "christmas" ? "bg-gradient-to-b from-[#e53935] to-[#9b1c1c]"
-                          : dashDecor === "founding" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
+                        menuTheme === "birthday" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
+                          : menuTheme === "christmas" ? "bg-gradient-to-b from-[#e53935] to-[#9b1c1c]"
+                          : menuTheme === "founding" ? "bg-gradient-to-b from-[#f3d98b] to-[#c9a227]"
                           : "bg-blue-600 dark:bg-blue-400"
                       )} />
                     )}
@@ -516,11 +520,11 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                       <span className={cn(
                         "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
                         isActive
-                          ? dashDecor === "birthday"
+                          ? menuTheme === "birthday"
                             ? "text-white shadow-[0_2px_8px_-2px_rgba(154,116,20,0.55)] [background:linear-gradient(135deg,#f3d98b_-20%,#c9a227_45%,#9a7414_120%)]"
-                            : dashDecor === "christmas"
+                            : menuTheme === "christmas"
                             ? "text-white ring-1 ring-[#e3b341] shadow-[0_2px_8px_-2px_rgba(155,28,28,0.55)] [background:linear-gradient(135deg,#e53935_-10%,#b71c1c_55%,#7f1010_120%)]"
-                            : dashDecor === "founding"
+                            : menuTheme === "founding"
                             ? "text-[#f3d98b] ring-1 ring-[#e3b341] shadow-[0_2px_8px_-2px_rgba(27,43,94,0.55)] [background:linear-gradient(135deg,#2b3f9f_-10%,#1b2b5e_55%,#0f1a38_120%)]"
                             : "bg-blue-600 text-white shadow-sm shadow-blue-600/30 dark:bg-blue-300 dark:shadow-none"
                           : "text-gray-400"

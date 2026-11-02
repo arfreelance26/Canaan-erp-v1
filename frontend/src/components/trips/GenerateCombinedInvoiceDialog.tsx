@@ -13,6 +13,7 @@ import { todayIst } from "@/lib/format-date";
 import { amountToWords } from "@/lib/invoice-builder";
 import { INVOICE_TYPES, roundGrandTotal, type InvoiceType, type ServiceLine } from "./GenerateInvoiceDialog";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { haltBilledOn } from "@/lib/halt-pay";
 
 const emptyService = (): ServiceLine => ({
   descriptionOfService: "", sacCode: "", sacId: "", gstRate: "", quantity: "", rate: "",
@@ -427,6 +428,13 @@ export function GenerateCombinedInvoiceDialog({
   const grandSubtotal = useMemo(() => lineCalcs.reduce((sum, c) => sum + c.subtotal, 0), [lineCalcs]);
   const grandGst = useMemo(() => lineCalcs.reduce((sum, c) => sum + c.gst, 0), [lineCalcs]);
   const grandTotal = useMemo(() => grandSubtotal + grandGst, [grandSubtotal, grandGst]);
+
+  // Party (customer-caused) halt on these trips that no invoice line bills yet.
+  const partyHaltTrips = trips
+    .map((t) => ({ tripId: t.tripId, amount: Number(sheets.get(t.id)?.partyHaltPay || 0) }))
+    .filter((t) => t.amount > 0);
+  const partyHaltOwed = partyHaltTrips.reduce((sum, t) => sum + t.amount, 0);
+  const haltOnInvoice = lines.reduce((sum, l) => sum + haltBilledOn(l.services, sacCodes), 0);
   const grandTotalRounded = useMemo(() => roundGrandTotal(grandTotal), [grandTotal]);
   const amountInWords = useMemo(() => amountToWords(String(grandTotalRounded)), [grandTotalRounded]);
 
@@ -751,6 +759,15 @@ export function GenerateCombinedInvoiceDialog({
             <Field label="Contact"><input value={shared.contact} onChange={(e) => updateShared("contact", e.target.value)} className={inputClass} /></Field>
           </div>
         </section>
+
+        {/* Party halt not on the invoice — the customer owes it, and the driver is paid it. */}
+        {partyHaltOwed > 0 && haltOnInvoice <= 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <span className="font-semibold">₹{partyHaltOwed.toLocaleString("en-IN")} party halt</span> on{" "}
+            {partyHaltTrips.map((t) => t.tripId).join(", ")}, but the invoice has no halting charges. Add a halting
+            charges line so the customer is billed.
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-between border-t border-gray-100 pt-4">

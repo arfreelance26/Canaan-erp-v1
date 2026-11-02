@@ -1,4 +1,5 @@
 import {
+  Timer,
   FolderOpen,
   PartyPopper,
   LayoutDashboard,
@@ -187,6 +188,7 @@ export const sidebarSections: NavSection[] = [
     title: "Finance Hub",
     items: [
       { label: "Driver Compensation", href: "/finance/driver-compensation", icon: Wallet },
+      { label: "Customer Detention", href: "/finance/customer-detention", icon: Timer },
       { label: "Staff Compensation", href: "/finance/staff-compensation", icon: Banknote },
       { label: "EMI Tracking", href: "/finance/emi-tracking", icon: Landmark },
       { label: "Compliance & Renewals", href: "/maintenance/compliance", icon: ShieldCheck },

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Wrench,
   RotateCcw,
+  Sunrise,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications, maintenanceAlertHref, reverificationAlertHref } from "@/context/NotificationContext";
@@ -30,7 +31,7 @@ type Category =
   | "Edit Requests" | "Deletion Requests" | "Leave Requests"
   | "Trip Sheet Alerts" | "KM Variance Alerts" | "Compliance Alerts"
   | "Renewals & Payments" | "Your Request Updates" | "Maintenance Alerts" | "Maintenance Approvals"
-  | "Re-Verification";
+  | "Re-Verification" | "Daily Summary";
 
 type NotifItem = {
   key: string;
@@ -70,7 +71,7 @@ const TONE_CLASSES: Record<string, { chip: string; icon: string; hover: string; 
 export default function NotificationsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, reminders, complianceAlertCount } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, summaryAlerts, dismissSummaryAlert, reminders, complianceAlertCount } = useNotifications();
 
   const isAdmin = user?.softwareDesignation === "Admin";
   const isFleetManager = user?.softwareDesignation === "Commercial Manager" || user?.softwareDesignation === "Assistant Commercial Manager";
@@ -278,9 +279,21 @@ export default function NotificationsPage() {
       onOpen: () => dismissReverificationAlert(a.serverId),
     }));
 
-    return [...editRequests, ...deletionRequests, ...maintenanceRequests, ...leaveRequests, ...maintenanceItems, ...reverificationItems, ...sheetItems, ...kmItems, ...complianceItems, ...reminderItems, ...myUpdates]
+    const summaryItems: NotifItem[] = summaryAlerts.map((a) => ({
+      key: `summary-${a.serverId}`,
+      category: "Daily Summary",
+      icon: Sunrise,
+      tone: "amber",
+      title: a.title,
+      detail: a.attention > 0 ? `${a.headline} ${a.attention} thing${a.attention === 1 ? "" : "s"} need${a.attention === 1 ? "s" : ""} your attention.` : a.headline,
+      time: a.alertedAt,
+      href: "/",
+      onOpen: () => dismissSummaryAlert(a.serverId),
+    }));
+
+    return [...editRequests, ...deletionRequests, ...maintenanceRequests, ...leaveRequests, ...maintenanceItems, ...reverificationItems, ...summaryItems, ...sheetItems, ...kmItems, ...complianceItems, ...reminderItems, ...myUpdates]
       .sort((a, b) => (b.time || "").localeCompare(a.time || ""));
-  }, [editRequests, deletionRequests, maintenanceRequests, leaveRequests, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, sheetAlerts, kmVarianceAlerts, complianceAlertCount, reminders, myUpdates, isAdmin, remindersLabel, user?.softwareDesignation]);
+  }, [editRequests, deletionRequests, maintenanceRequests, leaveRequests, maintenanceAlerts, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, summaryAlerts, dismissSummaryAlert, sheetAlerts, kmVarianceAlerts, complianceAlertCount, reminders, myUpdates, isAdmin, remindersLabel, user?.softwareDesignation]);
 
   const categories = useMemo<Category[]>(
     () => [...new Set(allItems.map((i) => i.category))],

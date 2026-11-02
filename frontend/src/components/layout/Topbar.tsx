@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu, Wrench, RotateCcw } from "lucide-react";
+import { Home, ChevronRight, Bell, ChevronDown, CalendarClock, User, AlertTriangle, MessageSquare, Menu, Wrench, RotateCcw, Sunrise } from "lucide-react";
 import { sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -203,7 +203,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
 
   // Compliance Alerts and Renewals & Payments no longer come through here —
   // see the comment where their bell sections used to render, further down.
-  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert } = useNotifications();
+  const { sheetAlerts, kmVarianceAlerts, maintenanceAlerts, pushSheetAlert, dismissSheetAlert, pushKmVarianceAlert, dismissKmVarianceAlert, dismissMaintenanceAlert, reverificationAlerts, dismissReverificationAlert, summaryAlerts, dismissSummaryAlert } = useNotifications();
   // const { isOpen: isChatOpen, toggle: toggleChat } = useChat(); // Next phase
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
@@ -730,6 +730,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               recentKmVarianceAlerts.length +
               maintenanceAlerts.length +
               reverificationAlerts.length +
+              summaryAlerts.length +
               maintRequestNotifs.length +
               (isAdmin ? recentLeaveRequests.length + recentDeletionRequestNotifs.length : 0) +
               ((isAdmin || isFleetManager) ? recentEditRequestNotifs.length : 0) +
@@ -765,6 +766,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     recentKmVarianceAlerts.length +
                     maintenanceAlerts.length +
                     reverificationAlerts.length +
+                    summaryAlerts.length +
                     maintRequestNotifs.length +
                     (isAdmin ? recentLeaveRequests.length + recentEditRequestNotifs.length + recentDeletionRequestNotifs.length : 0) +
                     recentMyDecidedRequests.length;
@@ -955,6 +957,46 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                     </div>
                     );
                   })()}
+
+                  {/* ── Morning summary (Admin) — stays until it's opened. ── */}
+                  {summaryAlerts.length > 0 && (
+                    <div>
+                      <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-600">
+                        Your Daily Summary
+                      </p>
+                      <ul className="divide-y divide-gray-50">
+                        {summaryAlerts.slice(0, NOTIF_ROW_CAP).map((alert) => (
+                          <li key={`summary-${alert.serverId}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                dismissSummaryAlert(alert.serverId);
+                                setIsNotifOpen(false);
+                                router.push("/");
+                              }}
+                              className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/60"
+                            >
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                                <Sunrise className="h-3.5 w-3.5 text-amber-600" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-semibold text-gray-900">{alert.title}</p>
+                                <p className="text-[11px] text-gray-600">{alert.headline}</p>
+                                {alert.attention > 0 && (
+                                  <p className="text-[11px] font-medium text-amber-700">{alert.attention} thing{alert.attention === 1 ? "" : "s"} need{alert.attention === 1 ? "s" : ""} your attention</p>
+                                )}
+                              </div>
+                              <span className="shrink-0 text-right text-[10px] text-gray-400">
+                                {timeAgo(alert.alertedAt)}
+                                <br />
+                                {fmtIST(alert.alertedAt)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* ── Re-Verification (Auditor) — stays until it's opened. ── */}
                   {reverificationAlerts.length > 0 && (
@@ -1325,6 +1367,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
                    recentKmVarianceAlerts.length === 0 &&
                    maintenanceAlerts.length === 0 &&
                    reverificationAlerts.length === 0 &&
+                   summaryAlerts.length === 0 &&
                    recentMyDecidedRequests.length === 0 &&
                    maintRequestNotifs.length === 0 &&
                    (isStaff || isFinanceManager || isMaintenance || (isFleetManager && recentEditRequestNotifs.length === 0) || (isAdmin && recentLeaveRequests.length === 0 && recentEditRequestNotifs.length === 0 && recentDeletionRequestNotifs.length === 0)) && (

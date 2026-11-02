@@ -254,11 +254,6 @@ export default function VendorsPage() {
             <span className="text-sm font-medium text-gray-800">{value || "—"}</span>
           </div>
         );
-        const statusColors: Record<string, string> = {
-          ACTIVE: "bg-emerald-50 text-emerald-700",
-          INACTIVE: "bg-gray-100 text-gray-600",
-          BLACKLISTED: "bg-red-50 text-red-700",
-        };
         return (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setViewingVendor(null); }}>
             <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl">
@@ -267,11 +262,6 @@ export default function VendorsPage() {
                   <p className="font-semibold text-gray-900">{v.name}</p>
                   <div className="mt-1 flex items-center gap-2">
                     {v.category && <span className="text-xs text-gray-500">{v.category}</span>}
-                    {v.status && (
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusColors[v.status] ?? "bg-gray-100 text-gray-600"}`}>
-                        {v.status}
-                      </span>
-                    )}
                   </div>
                 </div>
                 <button type="button" onClick={() => setViewingVendor(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">

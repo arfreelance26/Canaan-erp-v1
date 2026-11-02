@@ -10,7 +10,6 @@ export const initialVendors: Vendor[] = [
     pan: "AABCT1234F",
     email: "contact@annaityremart.com",
     address: "21, GST Road, Chennai, Tamil Nadu",
-    status: "ACTIVE",
     createdAt: "2026-01-15",
   },
   {
@@ -22,7 +21,6 @@ export const initialVendors: Vendor[] = [
     pan: "AAACV5678G",
     email: "velu.spares@gmail.com",
     address: "8, Ring Road, Coimbatore, Tamil Nadu",
-    status: "ACTIVE",
     createdAt: "2026-02-02",
   },
 ];

@@ -109,10 +109,7 @@ export function TyreInventoryFormDialog({
 
   const maintenanceByType = form.maintenanceByType ?? "Vendor";
   const vendorId = form.vendorId ?? "";
-  const vendorOptions = vendors
-    // When editing, keep the tyre's own vendor listed even if it has since
-    // been made inactive — otherwise the field would show up empty.
-    .filter((v) => (v.status !== "BLACKLISTED" && v.status !== "INACTIVE") || v.id === vendorId)
+  const vendorOptions = [...vendors]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((v) => ({ value: v.id, label: v.category ? `${v.name} — ${v.category}` : v.name }));
 
