@@ -11,7 +11,6 @@ import {
   type ActivityOverview,
   type ActivitySummaryRow,
   type ActivityTimelineItem,
-  type WorkReport,
   notesApi,
   type NoteAdminUsageRow,
 } from "@/lib/api";
@@ -205,8 +204,7 @@ export default function ActivityLogPage() {
 
   const [exportPreview, setExportPreview] = useState<{ blob: Blob; filename: string; sheets: PreviewSheet[] } | null>(null);
   const [preparingExport, setPreparingExport] = useState(false);
-  const [workReport, setWorkReport] = useState<WorkReport | null>(null);
-  const [preparingReport, setPreparingReport] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const today = todayIst();
   const liveActive = live && (day === today || rangeTo >= today);
@@ -488,18 +486,6 @@ export default function ActivityLogPage() {
     }
   }
 
-  async function openWorkReport() {
-    if (preparingReport) return;
-    setPreparingReport(true);
-    try {
-      setWorkReport(await activityApi.workReport(day));
-    } catch (err: unknown) {
-      showError(err instanceof Error ? err.message : "Could not prepare the report.");
-    } finally {
-      setPreparingReport(false);
-    }
-  }
-
   if (!user || !isAdmin) return null;
   if (dashLoading && summary.length === 0 && !overview) {
     return <PageSkeleton hasButton={false} hasSearch columns={4} />;
@@ -572,11 +558,10 @@ export default function ActivityLogPage() {
           </button>
           <button
             type="button"
-            onClick={openWorkReport}
-            disabled={preparingReport}
+            onClick={() => setReportOpen(true)}
             className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50"
           >
-            {preparingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+            <ClipboardList className="h-4 w-4" />
             Download Report
           </button>
         </div>
@@ -1019,7 +1004,7 @@ export default function ActivityLogPage() {
         </div>
       )}
 
-      {workReport && <WorkReportDialog report={workReport} onClose={() => setWorkReport(null)} />}
+      {reportOpen && <WorkReportDialog day={day} onClose={() => setReportOpen(false)} />}
 
       {exportPreview && (
         <ExportPreviewDialog

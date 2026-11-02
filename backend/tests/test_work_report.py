@@ -206,3 +206,37 @@ def test_opening_a_report_rebuilds_older_days_itself(api, db):
     rep = report(api, date(2019, 6, 4))
     assert rep["limited"] is True and person(rep, name)["work_count"] == 1
     assert api.client.get("/activity/work-report", params={"day": "2019-06-05"}, headers=api.headers).status_code == 404
+
+
+def test_range_report_adds_up_the_single_days(api, api_as, db):
+    key, name = f"5{tag()[:5]}".lower(), f"Pytest Range {tag()}"
+    days = [date(2024, 6, 3), date(2024, 6, 4), date(2024, 6, 5)]
+    for d, (status, check_in, check_out, items) in zip(days, [("Present", "09:00 AM", "06:00 PM", 2), ("Absent", None, None, 0),
+                                                              ("Present", "09:00 AM", "01:00 PM", 1)]):
+        db.add(models.WorkDayStaff(day=d, user_key=key, user_name=name, role="Accounts", status=status,
+                                   check_in=check_in, check_out=check_out, active_seconds=3600 if items else 0))
+        for n in range(items):
+            db.add(models.WorkItem(day=d, created_at=datetime(d.year, d.month, d.day, 5 + n, 0), user_key=key, user_name=name,
+                                   role="Accounts", work="Invoice generated", work_group="Accounts", record=f"TRP-{n}", route="POST /x"))
+    db.commit()
+
+    params = {"from_date": "2024-06-03", "to_date": "2024-06-05"}
+    rng = api.get("/activity/work-report/range", params=params)
+    me = person(rng, name)
+    singles = [person(report(api, d), name) for d in days]
+    assert rng["range"] == {"from": "2024-06-03", "to": "2024-06-05", "days": 3}
+    assert me["work_count"] == sum(s["work_count"] for s in singles) == 3                 # both ends included
+    assert me["marked_minutes"] == 540 + 240 and me["active_minutes"] == 120
+    assert me["days_present"] == 2 and me["status"] == "Present 2 of 3 days"
+    assert [d["date"] for d in me["days"]] == ["2024-06-03", "2024-06-04", "2024-06-05"]
+    assert all(d["date"] for d in me["details"]) and all(g["date"] for g in me["gaps"])
+    assert me["summary"].startswith(f"{name} was present 2 of 3 days")
+
+    from openpyxl import load_workbook
+    wb = load_workbook(BytesIO(api.get("/activity/work-report/range/export", params={**params, "employee": key}).content))
+    assert wb.sheetnames == ["Summary", name] and "Day by day" in [c.value for c in wb[name]["A"]]
+
+    api.get("/activity/work-report/range", params={"from_date": "2024-06-05", "to_date": "2024-06-03"}, expect=400)
+    api.get("/activity/work-report/range", params={"from_date": "2024-06-01", "to_date": "2024-07-15"}, expect=400)   # over 31 days
+    api.get("/activity/work-report/range", params={"from_date": "2001-02-01", "to_date": "2001-02-03"}, expect=404)
+    api_as("Accounts").get("/activity/work-report/range", params=params, expect=403)

@@ -624,3 +624,124 @@ def excel_response(report: dict, only: str | None = None) -> StreamingResponse:
         buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="Staff_Work_Report_{report["day"]}.xlsx"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# A date range: each day's report, added up per employee
+# ---------------------------------------------------------------------------
+
+MAX_RANGE_DAYS = 31
+
+
+def _range_summary(p: dict, total_days: int) -> str:
+    name, count = p["name"], p["work_count"]
+    top = p["work_done"][0] if p["work_done"] else None
+    text = f"{name} was present {p['days_present']} of {total_days} day{'' if total_days == 1 else 's'}"
+    if p["marked_minutes"]:
+        pct = round(p["active_minutes"] / p["marked_minutes"] * 100)
+        text += f", marked {_duration(p['marked_minutes'])} and was active in the software for {_duration(p['active_minutes'])} ({pct}%)"
+    elif p["active_minutes"]:
+        text += f" and was active in the software for {_duration(p['active_minutes'])}"
+    text += "."
+    text += (f" They completed {count} work item{'' if count == 1 else 's'}, mostly {top['work'].lower()} ({top['count']})."
+             if top else " No work was recorded.")
+    if p["gaps"]:
+        g, n = max(p["gaps"], key=lambda x: x["minutes"]), len(p["gaps"])
+        when = date.fromisoformat(g["date"]).strftime("%A, %d-%m")
+        text += (f" There {'was 1 quiet gap' if n == 1 else f'were {n} quiet gaps'} of 1 hour or more;"
+                 f" the longest was {_duration(g['minutes'])} on {when}.")
+    return text
+
+
+def build_range(db: Session, start: date, end: date) -> dict | None:
+    """Each day's report (the same as the single-day one), added up per employee."""
+    total_days = (end - start).days + 1
+    people: dict[str, dict] = {}
+    limited = False
+    for i in range(total_days):
+        day = start + timedelta(days=i)
+        report = build(db, day)
+        if not report:
+            continue
+        limited = limited or report["limited"]
+        for p in report["staff"]:
+            agg = people.setdefault(p["key"], {
+                "key": p["key"], "name": p["name"], "role": p["role"], "shift_in": None, "shift_out": None,
+                "marked_minutes": 0, "active_minutes": 0, "work_count": 0, "days_present": 0,
+                "work_done": Counter(), "details": [], "gaps": [], "days": [],
+            })
+            agg["name"], agg["role"] = p["name"], p["role"]   # as on the latest day
+            agg["marked_minutes"] += p["marked_minutes"] or 0
+            agg["active_minutes"] += p["active_minutes"]
+            agg["work_count"] += p["work_count"]
+            agg["days_present"] += p["status"] == "Present"
+            agg["work_done"].update({w["work"]: w["count"] for w in p["work_done"]})
+            agg["details"] += [{**d, "date": day.isoformat()} for d in p["details"]]
+            agg["gaps"] += [{**g, "date": day.isoformat()} for g in p["gaps"]]
+            agg["days"].append({"date": day.isoformat(), "status": p["status"], "shift_in": p["shift_in"], "shift_out": p["shift_out"],
+                                "marked_minutes": p["marked_minutes"], "active_minutes": p["active_minutes"],
+                                "work_count": p["work_count"], "longest_gap_minutes": p["longest_gap_minutes"]})
+    if not people:
+        return None
+    rank = {r: i for i, r in enumerate(ROLE_ORDER)}
+    staff = []
+    for p in people.values():
+        p["work_done"] = [{"work": w, "count": c} for w, c in p["work_done"].most_common()]
+        p["longest_gap_minutes"] = max((g["minutes"] for g in p["gaps"]), default=0)
+        p["status"] = f"Present {p['days_present']} of {total_days} days"
+        p["summary"] = _range_summary(p, total_days)
+        staff.append(p)
+    staff.sort(key=lambda p: (rank.get(p["role"], len(rank)), p["name"].lower()))
+    return {"day": start.isoformat(), "range": {"from": start.isoformat(), "to": end.isoformat(), "days": total_days},
+            "live": end >= _now_ist().date(), "saved": False, "limited": limited, "staff": staff}
+
+
+def _sheet_title(name: str, used: set) -> str:
+    base = "".join(ch for ch in name if ch not in ':\\/?*[]')[:28] or "Employee"
+    title, n = base, 2
+    while title.lower() in used:
+        title, n = f"{base} {n}", n + 1
+    used.add(title.lower())
+    return title
+
+
+def excel_range_response(report: dict, only: str | None = None) -> StreamingResponse:
+    """Everyone's period totals first, then one sheet per employee with a day-by-day table."""
+    people = [p for p in report["staff"] if not only or p["key"] == only]
+    rng = report["range"]
+    fmt = lambda iso, f="%d-%m-%Y": date.fromisoformat(iso).strftime(f)
+    period = f"{fmt(rng['from'])} to {fmt(rng['to'])}"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Summary"
+    ws.cell(1, 1, f"Staff Work Report: {period}").font = Font(bold=True, size=14, color="1B2B5E")
+    _block(ws, 3, "Everyone", ["Role", "Employee", "Days present", "Hours marked", "Actually active", "Work done", "Work per day", "Longest quiet gap"],
+           [[p["role"], p["name"], p["days_present"], _duration(p["marked_minutes"]), _duration(p["active_minutes"]), p["work_count"],
+             round(p["work_count"] / rng["days"], 1), _duration(p["longest_gap_minutes"]) if p["gaps"] else "—"] for p in people])
+    for col, width in zip("ABCDEFGH", (26, 24, 13, 14, 16, 11, 13, 18)):
+        ws.column_dimensions[col].width = width
+    used = {"summary"}
+    for p in people:
+        ws = wb.create_sheet(_sheet_title(p["name"], used))
+        ws.cell(1, 1, f"{p['name']} ({p['role']}) · {period}").font = Font(bold=True, size=14, color="1B2B5E")
+        ws.cell(2, 1, p["summary"]).alignment = Alignment(wrap_text=True, vertical="top")
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=7)
+        ws.row_dimensions[2].height = 75
+        row = _block(ws, 4, "Day by day", ["Date", "Status", "Shift", "Hours marked", "Actually active", "Work done", "Longest quiet gap"],
+                     [[fmt(x["date"], "%a %d-%m"), x["status"], f"{x['shift_in'] or '—'} to {x['shift_out'] or '—'}",
+                       _duration(x["marked_minutes"]) if x["marked_minutes"] is not None else "—", _duration(x["active_minutes"]),
+                       x["work_count"], _duration(x["longest_gap_minutes"]) if x["longest_gap_minutes"] else "—"] for x in p["days"]])
+        row = _block(ws, row, "Work done", ["Type of work", "Count"], [[w["work"], w["count"]] for w in p["work_done"]])
+        row = _block(ws, row, "Work details", ["Date", "Time", "Work done", "Record"],
+                     [[fmt(x["date"], "%a %d-%m"), x["time"], x["work"], x["record"] or "—"] for x in p["details"]])
+        _block(ws, row, "Quiet gaps", ["Date", "From", "To", "Gap"],
+               [[fmt(g["date"], "%a %d-%m"), g["from"], g["to"], _duration(g["minutes"])] for g in p["gaps"]])
+        for col, width in zip("ABCDEFG", (14, 26, 30, 14, 16, 11, 18)):
+            ws.column_dimensions[col].width = width
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="Staff_Work_Report_{rng["from"]}_to_{rng["to"]}.xlsx"'},
+    )

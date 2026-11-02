@@ -9,7 +9,22 @@ function shift(p: WorkReportPerson): string {
   return p.shiftIn ? `${p.shiftIn} to ${p.shiftOut ?? "now"}` : "—";
 }
 
-export function headline(p: WorkReportPerson): [string, string][] {
+export function dayLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(/\//g, "-");
+}
+
+/** The facts row: one day's, or the period's totals on a date-range report. */
+export function headline(p: WorkReportPerson, days?: number): [string, string][] {
+  if (days) {
+    return [
+      ["Days present", `${p.daysPresent ?? 0} of ${days}`],
+      ["Hours marked", duration(p.markedMinutes ?? 0)],
+      ["Actually active", duration(p.activeMinutes)],
+      ["Work done", String(p.workCount)],
+      ["Work per day", (p.workCount / days).toFixed(1)],
+      ["Longest quiet gap", p.gaps.length ? duration(p.longestGapMinutes) : "—"],
+    ];
+  }
   return [
     ["Status", p.status],
     ["Shift", shift(p)],
@@ -90,7 +105,7 @@ export async function savePdf(report: WorkReport, people: WorkReportPerson[]) {
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8.5);
     pdf.setTextColor(110, 110, 110);
-    pdf.text(`Staff Work Report: ${formatDate(report.day)}`, margin, y);
+    pdf.text(`Staff Work Report: ${report.range ? `${formatDate(report.range.from)} to ${formatDate(report.range.to)}` : formatDate(report.day)}`, margin, y);
     y += 7;
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(15);
@@ -106,20 +121,30 @@ export async function savePdf(report: WorkReport, people: WorkReportPerson[]) {
     pdf.text(lines, margin + 4, y + 6);
     y += boxH + 6;
 
-    const facts = headline(p);
+    const facts = headline(p, report.range?.days);
     table(facts.map(([label]) => label), [facts.map(([, value]) => value)], [0.13, 0.27, 0.15, 0.15, 0.12, 0.18]);
+    if (p.days?.length) {
+      heading("Day by day");
+      table(["Date", "Status", "Marked", "Active", "Work", "Longest gap"], p.days.map((d) => [
+        dayLabel(d.date), d.status, d.markedMinutes === null ? "—" : duration(d.markedMinutes), duration(d.activeMinutes),
+        String(d.workCount), d.longestGapMinutes ? duration(d.longestGapMinutes) : "—",
+      ]), [0.16, 0.22, 0.15, 0.15, 0.12, 0.2]);
+    }
     if (p.workDone.length) {
       heading("Work done");
       table(["Type of work", "Count"], p.workDone.map((w) => [w.work, String(w.count)]), [0.8, 0.2]);
     }
-    if (p.details.length) {
+    // A period's every item can run to hundreds of rows: those stay in the Excel.
+    if (p.details.length && !report.range) {
       heading("Work details");
       table(["Time", "Work done", "Record"], p.details.map((d) => [d.time, d.work, d.record ?? "—"]), [0.18, 0.5, 0.32]);
     }
     if (p.gaps.length) {
       heading("Quiet gaps");
-      table(["From", "To", "Gap"], p.gaps.map((g) => [g.from, g.to, duration(g.minutes)]), [0.34, 0.33, 0.33]);
+      table(report.range ? ["Date", "From", "To", "Gap"] : ["From", "To", "Gap"],
+        p.gaps.map((g) => [...(report.range ? [dayLabel(g.date ?? "")] : []), g.from, g.to, duration(g.minutes)]),
+        report.range ? [0.25, 0.25, 0.25, 0.25] : [0.34, 0.33, 0.33]);
     }
   });
-  pdf.save(`Staff_Work_Report_${report.day}.pdf`);
+  pdf.save(`Staff_Work_Report_${report.range ? `${report.range.from}_to_${report.range.to}` : report.day}.pdf`);
 }

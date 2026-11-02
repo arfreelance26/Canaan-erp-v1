@@ -3890,23 +3890,42 @@ export type WorkReportPerson = {
   activeMinutes: number;
   workCount: number;
   workDone: { work: string; count: number }[];
-  details: { time: string; work: string; group: string; record: string | null }[];
-  gaps: { from: string; to: string; minutes: number }[];
+  /** `date` is set on a date-range report. */
+  details: { time: string; work: string; group: string; record: string | null; date?: string }[];
+  gaps: { from: string; to: string; minutes: number; date?: string }[];
   longestGapMinutes: number;
   summary: string;
+  /** Date-range report only: the day-by-day table and days marked Present. */
+  days?: WorkReportDay[];
+  daysPresent?: number;
 };
 
-export type WorkReport = { day: string; live: boolean; saved: boolean; limited: boolean; staff: WorkReportPerson[] };
+export type WorkReportDay = {
+  date: string; status: string; shiftIn: string | null; shiftOut: string | null;
+  markedMinutes: number | null; activeMinutes: number; workCount: number; longestGapMinutes: number;
+};
+
+export type WorkReport = {
+  day: string; live: boolean; saved: boolean; limited: boolean; staff: WorkReportPerson[];
+  /** Set on a date-range report. */
+  range: { from: string; to: string; days: number } | null;
+};
 
 function toWorkReport(b: B): WorkReport {
   return {
-    day: b.day, live: b.live, saved: b.saved, limited: b.limited,
+    day: b.day, live: b.live, saved: b.saved, limited: b.limited, range: b.range ?? null,
     staff: (b.staff as B[]).map((p) => ({
       key: p.key, name: p.name, role: p.role, status: p.status,
       shiftIn: p.shift_in ?? null, shiftOut: p.shift_out ?? null,
       markedMinutes: p.marked_minutes ?? null, activeMinutes: p.active_minutes, workCount: p.work_count,
       workDone: p.work_done, details: p.details, gaps: p.gaps,
       longestGapMinutes: p.longest_gap_minutes, summary: p.summary,
+      daysPresent: p.days_present,
+      days: (p.days as B[] | undefined)?.map((d) => ({
+        date: d.date, status: d.status, shiftIn: d.shift_in ?? null, shiftOut: d.shift_out ?? null,
+        markedMinutes: d.marked_minutes ?? null, activeMinutes: d.active_minutes, workCount: d.work_count,
+        longestGapMinutes: d.longest_gap_minutes,
+      })),
     })),
   };
 }
@@ -3957,6 +3976,8 @@ export const activityApi = {
   // Not cached: a saved day never changes, and today's must always be current.
   workReport: (day: string): Promise<WorkReport> =>
     rawReq<B>(`/activity/work-report?day=${encodeURIComponent(day)}`).then(toWorkReport),
+  workReportRange: (from: string, to: string): Promise<WorkReport> =>
+    rawReq<B>(`/activity/work-report/range?${new URLSearchParams({ from_date: from, to_date: to })}`).then(toWorkReport),
   // Page views and clicks, sent in batches by useActivityTracking.
   // keepalive=true for the pagehide flush — a plain fetch is routinely
   // cancelled by the browser mid-flight once the page is being torn down;

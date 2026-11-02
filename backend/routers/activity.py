@@ -387,6 +387,32 @@ def presence(db: Session = Depends(get_db)):
     return {"people": people, "groups": dict(groups)}
 
 
+def _range(from_date: str, to_date: str, db: Session) -> dict:
+    start, end = _parse_day(from_date, "from_date"), _parse_day(to_date, "to_date")
+    if end < start:
+        raise HTTPException(400, "The end date must be on or after the start date.")
+    if (end - start).days + 1 > work_report.MAX_RANGE_DAYS:
+        raise HTTPException(400, f"Pick a range of up to {work_report.MAX_RANGE_DAYS} days.")
+    tracker.flush_now()
+    work_report.catch_up(db)
+    report = work_report.build_range(db, start, end)
+    if report is None:
+        raise HTTPException(404, "No work recorded in this period.")
+    return report
+
+
+@router.get("/work-report/range", dependencies=[Depends(require_roles())])
+def work_report_range(from_date: str = Query(...), to_date: str = Query(...), db: Session = Depends(get_db)):
+    """Staff Work Report for a period: each day's report added up per employee."""
+    return _range(from_date, to_date, db)
+
+
+@router.get("/work-report/range/export", dependencies=[Depends(require_roles())])
+def work_report_range_excel(from_date: str = Query(...), to_date: str = Query(...),
+                            employee: str | None = Query(None), db: Session = Depends(get_db)):
+    return work_report.excel_range_response(_range(from_date, to_date, db), employee)
+
+
 @router.get("/overview", dependencies=[Depends(require_roles())])
 def day_overview(day: str | None = Query(None, description="YYYY-MM-DD, IST; defaults to today"),
                  db: Session = Depends(get_db)):
