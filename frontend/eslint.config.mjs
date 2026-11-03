@@ -19,7 +19,6 @@ const TOKEN_ONLY_ZONES = ["src/**/*.{ts,tsx}"];
 // fixed festive colours (gold bunting, red Christmas, navy Founding Day) on
 // purpose, so the token-only rule does not apply to them.
 const CELEBRATION_FILES = [
-  "src/app/admin/celebrations/page.tsx",
   "src/components/layout/BirthdayDecor.tsx",
   "src/components/layout/SeasonDecor.tsx",
   "src/components/layout/FoundingDecor.tsx",

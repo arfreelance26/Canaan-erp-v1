@@ -31,9 +31,9 @@ function Switch({ on, busy, onChange, label }: { on: boolean; busy?: boolean; on
       aria-label={label}
       disabled={busy}
       onClick={() => onChange(!on)}
-      className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60", on ? "bg-emerald-500" : "bg-gray-300")}
+      className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60", on ? "bg-success-solid" : "bg-fill-3")}
     >
-      <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-[left]", on ? "left-[22px]" : "left-0.5")} />
+      <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-background-primary-default shadow transition-[left]", on ? "left-[22px]" : "left-0.5")} />
     </button>
   );
 }
@@ -150,14 +150,14 @@ export default function CelebrationsPage() {
     status: string; previews: { label: string; p: CelebrationPreview }[];
   }[] = [
     {
-      key: "birthdays", title: "Staff Birthdays", icon: Cake, tone: "from-amber-50 text-amber-600 border-amber-100",
+      key: "birthdays", title: "Staff Birthdays", icon: Cake, tone: "bg-warning-surface text-warning-text border-warning-border",
       when: "On each staff member's birthday",
       detail: ["Everyone: flags, balloons, lights (sidebar)", "Birthday person: their card + confetti, 🥳 on their photo", "Nobody else is told whose birthday it is"],
       status: nextBirthday ? `${nextBirthday.title.replace("'s birthday", "")} · ${inDays(nextBirthday.days)}` : "No birthdays in the next 90 days",
       previews: [{ label: "Preview my birthday", p: { birthday: true, label: "Your birthday" } }],
     },
     {
-      key: "season", title: "December Season", icon: TreePine, tone: "from-emerald-50 text-emerald-600 border-emerald-100",
+      key: "season", title: "December Season", icon: TreePine, tone: "bg-success-surface text-success-text border-success-border",
       when: "1 December – 4 January",
       detail: ["Christmas lights, garland, snow", "24–25 Dec: Christmas card · 25th: Santa's sleigh", "31 Dec: countdown · 1–4 Jan: fireworks, streamers"],
       status: seasonActive ? "Active now" : nextSeason ? `Starts ${inDays(nextSeason.days)}` : "",
@@ -170,7 +170,7 @@ export default function CelebrationsPage() {
       ],
     },
     {
-      key: "founding", title: "Founding Day", icon: Landmark, tone: "from-blue-50 text-blue-600 border-blue-100",
+      key: "founding", title: "Founding Day", icon: Landmark, tone: "bg-accent-surface text-accent-text border-accent-border",
       when: "5 January · est. 2015",
       detail: ["Anniversary card with live company totals", "Gold wave, “EST. 2015”, logo shine", "Fireworks on every 5th year"],
       status: nextFounding ? `${nextFounding.detail} · ${inDays(nextFounding.days)}` : "",
@@ -185,12 +185,12 @@ export default function CelebrationsPage() {
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-center gap-3.5">
-        <span className="dk-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white text-amber-600 shadow-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-warning-border bg-warning-surface text-warning-text">
           <PartyPopper className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Celebrations Management</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-title-1-semibold tracking-tight text-text-primary">Celebrations Management</h1>
+          <p className="mt-0.5 text-body-regular text-text-secondary">
             Birthdays, the December season and Founding Day — switch them on or off for everyone, edit the card text, and preview any day.
           </p>
         </div>
@@ -198,16 +198,16 @@ export default function CelebrationsPage() {
 
       {/* Preview state */}
       {preview && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning-border bg-warning-surface px-4 py-3 text-body-regular text-warning-text">
           <Eye className="h-4 w-4 shrink-0" />
           <span className="flex-1">
             You&apos;re previewing <b>{preview.label ?? "a celebration"}</b>
             {preview.date ? <> ({niceDate(preview.date)})</> : null}{preview.birthday ? " as your birthday" : ""} — only on your screen.
           </span>
-          <button type="button" onClick={() => router.push("/")} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-amber-100">
+          <button type="button" onClick={() => router.push("/")} className="rounded-lg border border-warning-border-strong bg-background-primary-default px-3 py-1.5 text-caption-1-semibold hover:bg-warning-surface-strong">
             Open Dashboard
           </button>
-          <button type="button" onClick={() => setPreview(null)} className="flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">
+          <button type="button" onClick={() => setPreview(null)} className="flex items-center gap-1 rounded-lg bg-warning-solid px-3 py-1.5 text-caption-1-semibold text-on-solid hover:bg-warning-solid-hover">
             <X className="h-3.5 w-3.5" /> Exit preview
           </button>
         </div>
@@ -219,33 +219,33 @@ export default function CelebrationsPage() {
           const on = data.switches[c.key];
           const Icon = c.icon;
           return (
-            <div key={c.key} className={cn("flex flex-col rounded-2xl border bg-white p-5 shadow-sm transition-opacity", on ? "border-gray-200" : "border-gray-200 opacity-75")}>
+            <div key={c.key} className={cn("flex flex-col rounded-2xl border border-separator-border bg-background-primary-default p-5 shadow-sm transition-opacity", !on && "opacity-75")}>
               <div className="flex items-start gap-3">
-                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-gradient-to-br to-white", c.tone)}>
+                <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border", c.tone)}>
                   <Icon className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-gray-900">{c.title}</p>
-                  <p className="text-xs text-gray-500">{c.when}</p>
+                  <p className="text-headline-semibold text-text-primary">{c.title}</p>
+                  <p className="text-caption-1-regular text-text-secondary">{c.when}</p>
                 </div>
                 <Switch on={on} busy={busy === c.key} onChange={(v) => toggle(c.key, v)} label={`${c.title} on/off`} />
               </div>
               <span className={cn(
                 "mt-3 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
-                !on ? "bg-gray-100 text-gray-500" : "bg-emerald-50 text-emerald-700",
+                !on ? "bg-fill-2 text-text-secondary" : "bg-success-surface text-success-text",
               )}>
                 <i className="h-1.5 w-1.5 rounded-full bg-current" />
                 {on ? c.status || "On" : "Off for everyone"}
               </span>
-              <ul className="mt-3 flex-1 space-y-1 text-xs text-gray-600">
-                {c.detail.map((d) => <li key={d} className="flex gap-1.5"><span className="text-gray-300">•</span>{d}</li>)}
+              <ul className="mt-3 flex-1 space-y-1 text-caption-1-regular text-text-secondary">
+                {c.detail.map((d) => <li key={d} className="flex gap-1.5"><span className="text-text-placeholder">•</span>{d}</li>)}
               </ul>
-              <div className="mt-4 border-t border-gray-100 pt-3">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Preview</p>
+              <div className="mt-4 border-t border-separator-border pt-3">
+                <p className="mb-2 text-caption-1-semibold text-text-tertiary">Preview</p>
                 <div className="flex flex-wrap gap-1.5">
                   {c.previews.map((p) => (
                     <button key={p.label} type="button" onClick={() => startPreview(p.p)}
-                      className="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800">
+                      className="rounded-full border border-separator-border px-2.5 py-1 text-caption-1-medium text-text-secondary transition-colors hover:border-warning-border-strong hover:bg-warning-surface hover:text-warning-text">
                       {p.label}
                     </button>
                   ))}
@@ -258,32 +258,32 @@ export default function CelebrationsPage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         {/* Upcoming */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm xl:col-span-2">
+        <section className="rounded-2xl border border-separator-border bg-background-primary-default p-5 shadow-sm xl:col-span-2">
           <div className="mb-3 flex items-center gap-2">
-            <CalendarHeart className="h-4 w-4 text-rose-500" />
-            <h2 className="font-semibold text-gray-900">Upcoming · next 90 days</h2>
+            <CalendarHeart className="h-4 w-4 text-danger-text" />
+            <h2 className="text-headline-semibold text-text-primary">Upcoming · next 90 days</h2>
           </div>
           {data.upcoming.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">Nothing in the next 90 days.</p>
+            <p className="py-6 text-center text-body-regular text-text-tertiary">Nothing in the next 90 days.</p>
           ) : (
-            <ul className="max-h-[420px] divide-y divide-gray-100 overflow-y-auto">
+            <ul className="max-h-[420px] divide-y divide-separator-border overflow-y-auto">
               {data.upcoming.map((u, i) => {
                 const Icon = u.kind === "birthday" ? Cake : u.kind === "season" ? TreePine : Landmark;
                 const off = !data.switches[u.kind === "birthday" ? "birthdays" : u.kind];
                 return (
                   <li key={`${u.date}-${i}`} className={cn("flex items-center gap-3 py-2.5", off && "opacity-50")}>
                     <span className="w-14 shrink-0 text-center">
-                      <span className="block text-[10px] font-semibold uppercase text-gray-400">
+                      <span className="block text-caption-2-semibold uppercase text-text-tertiary">
                         {new Date(`${u.date}T00:00:00`).toLocaleDateString("en-IN", { month: "short" })}
                       </span>
-                      <span className="block text-lg font-bold leading-none text-gray-800">{new Date(`${u.date}T00:00:00`).getDate()}</span>
+                      <span className="block text-title-3-semibold leading-none tabular-nums text-text-primary">{new Date(`${u.date}T00:00:00`).getDate()}</span>
                     </span>
-                    <Icon className={cn("h-4 w-4 shrink-0", u.kind === "birthday" ? "text-amber-500" : u.kind === "season" ? "text-emerald-600" : "text-blue-600")} />
+                    <Icon className={cn("h-4 w-4 shrink-0", u.kind === "birthday" ? "text-warning-text" : u.kind === "season" ? "text-success-text" : "text-accent-text")} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-gray-800">{u.title}</span>
-                      {u.detail && <span className="block truncate text-xs text-gray-500">{u.detail}</span>}
+                      <span className="block truncate text-body-medium text-text-primary">{u.title}</span>
+                      {u.detail && <span className="block truncate text-caption-1-regular text-text-secondary">{u.detail}</span>}
                     </span>
-                    <span className="shrink-0 text-xs text-gray-400">{off ? "off" : inDays(u.days)}</span>
+                    <span className="shrink-0 text-caption-1-regular text-text-tertiary">{off ? "off" : inDays(u.days)}</span>
                   </li>
                 );
               })}
@@ -292,11 +292,11 @@ export default function CelebrationsPage() {
         </section>
 
         {/* Card text */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm xl:col-span-3">
+        <section className="rounded-2xl border border-separator-border bg-background-primary-default p-5 shadow-sm xl:col-span-3">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-gray-900">Card text</h2>
+            <h2 className="text-headline-semibold text-text-primary">Card text</h2>
             <button type="button" disabled={!dirty || saving} onClick={saveMessages}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+              className="flex items-center gap-1.5 rounded-lg bg-accent-solid px-3.5 py-2 text-body-medium text-on-solid transition-colors hover:bg-accent-solid-hover disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
             </button>
           </div>
@@ -307,15 +307,15 @@ export default function CelebrationsPage() {
               return (
                 <div key={f.key}>
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <label htmlFor={`msg-${f.key}`} className="text-sm font-medium text-gray-700">{f.label}</label>
+                    <label htmlFor={`msg-${f.key}`} className="text-body-medium text-text-primary">{f.label}</label>
                     <span className="flex items-center gap-2">
                       {!isDefault && (
                         <button type="button" onClick={() => setDraft({ ...draft, [f.key]: data.defaults[f.key] })}
-                          className="flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-700">
+                          className="flex items-center gap-1 text-caption-1-medium text-text-tertiary hover:text-text-primary">
                           <RotateCcw className="h-3 w-3" /> Default
                         </button>
                       )}
-                      <span className={cn("text-[11px] tabular-nums", value.length > data.maxMessage - 20 ? "text-amber-600" : "text-gray-400")}>
+                      <span className={cn("text-[11px] tabular-nums", value.length > data.maxMessage - 20 ? "text-warning-text" : "text-text-tertiary")}>
                         {value.length}/{data.maxMessage}
                       </span>
                     </span>
@@ -327,7 +327,7 @@ export default function CelebrationsPage() {
                     <textarea id={`msg-${f.key}`} rows={2} maxLength={data.maxMessage} value={value}
                       onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} className={inputClass} />
                   )}
-                  <p className="mt-1 text-[11px] text-gray-400">{f.hint} Leave blank to use the default.</p>
+                  <p className="mt-1 text-caption-1-regular text-text-tertiary">{f.hint} Leave blank to use the default.</p>
                 </div>
               );
             })}
@@ -337,36 +337,36 @@ export default function CelebrationsPage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         {/* Custom preview */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm xl:col-span-2">
+        <section className="rounded-2xl border border-separator-border bg-background-primary-default p-5 shadow-sm xl:col-span-2">
           <div className="mb-1 flex items-center gap-2">
-            <Eye className="h-4 w-4 text-amber-600" />
-            <h2 className="font-semibold text-gray-900">Preview any day</h2>
+            <Eye className="h-4 w-4 text-warning-text" />
+            <h2 className="text-headline-semibold text-text-primary">Preview any day</h2>
           </div>
-          <p className="mb-3 text-xs text-gray-500">See the app as it will look on a chosen date — on your screen only. Nobody else is affected.</p>
+          <p className="mb-3 text-caption-1-regular text-text-secondary">See the app as it will look on a chosen date — on your screen only. Nobody else is affected.</p>
           <div className="flex flex-col gap-3">
             <DatePickerInput value={customDate} onChange={setCustomDate} className={inputClass} clearable={false} />
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={customBirthday} onChange={(e) => setCustomBirthday(e.target.checked)} className="h-4 w-4 rounded border-gray-300" />
+            <label className="flex items-center gap-2 text-body-regular text-text-primary">
+              <input type="checkbox" checked={customBirthday} onChange={(e) => setCustomBirthday(e.target.checked)} className="h-4 w-4 rounded border-separator-border-strong accent-accent-solid" />
               Also treat it as my birthday
             </label>
             <button type="button" disabled={!customDate && !customBirthday}
               onClick={() => startPreview({ date: customDate || undefined, birthday: customBirthday || undefined, label: "Custom date" })}
-              className="flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50">
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-warning-solid px-3.5 py-2 text-body-medium text-on-solid transition-colors hover:bg-warning-solid-hover disabled:cursor-not-allowed disabled:opacity-50">
               <Eye className="h-4 w-4" /> Preview on the Dashboard
             </button>
           </div>
         </section>
 
         {/* History */}
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm xl:col-span-3">
+        <section className="rounded-2xl border border-separator-border bg-background-primary-default p-5 shadow-sm xl:col-span-3">
           <div className="mb-3 flex items-center gap-2">
-            <History className="h-4 w-4 text-gray-500" />
-            <h2 className="font-semibold text-gray-900">Change history</h2>
+            <History className="h-4 w-4 text-foreground-icon-secondary" />
+            <h2 className="text-headline-semibold text-text-primary">Change history</h2>
           </div>
           {data.history.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-400">No changes yet.</p>
+            <p className="py-6 text-center text-body-regular text-text-tertiary">No changes yet.</p>
           ) : (
-            <ul className="max-h-[260px] divide-y divide-gray-100 overflow-y-auto">
+            <ul className="max-h-[260px] divide-y divide-separator-border overflow-y-auto">
               {data.history.map((h, i) => {
                 let text = h.detail ?? "";
                 const m = /^(\w+)=(on|off)$/.exec(text);
@@ -374,10 +374,10 @@ export default function CelebrationsPage() {
                 const legacy = /^enabled=(True|False)$/.exec(text);
                 if (legacy) text = `turned ${legacy[1] === "True" ? "on" : "off"}`;
                 return (
-                  <li key={i} className="flex items-center gap-3 py-2 text-sm">
-                    <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{EVENT_LABEL[h.event] ?? h.event}</span>
-                    <span className="min-w-0 flex-1 truncate text-gray-700">{text}</span>
-                    <span className="shrink-0 text-right text-xs text-gray-400">
+                  <li key={i} className="flex items-center gap-3 py-2 text-body-regular">
+                    <span className="w-24 shrink-0 text-caption-1-semibold text-text-tertiary">{EVENT_LABEL[h.event] ?? h.event}</span>
+                    <span className="min-w-0 flex-1 truncate text-text-primary">{text}</span>
+                    <span className="shrink-0 text-right text-caption-1-regular text-text-tertiary">
                       {h.actor ?? "—"}<br />{h.at ? formatDateTime(h.at) : ""}
                     </span>
                   </li>
