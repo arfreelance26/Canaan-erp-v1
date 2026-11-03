@@ -90,6 +90,7 @@ export function DownloadExcelButton({ path, filename, label = "Download Excel", 
     <>
       <button
         type="button"
+        data-tour="page-export"
         onClick={handleClick}
         disabled={loading}
         className={className ?? (direct ? DIRECT_CLASS : VIEW_CLASS)}

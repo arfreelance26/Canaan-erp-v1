@@ -195,7 +195,7 @@ export function CurrentTripsCard() {
   const newCount = newTripIds.size;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+    <div data-tour="current-trips" className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Card header */}
       <div className="flex items-center justify-between border-b border-separator-border bg-accent-surface/70 px-5 py-3.5">
         <div className="flex items-center gap-3">

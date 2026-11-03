@@ -54,6 +54,7 @@ export function DashboardHero({ eyebrow, role, title, description, actions, illu
   return (
     <section
       ref={ref}
+      data-tour="dashboard-hero"
       className={cx(
         "relative w-full overflow-hidden rounded-3xl border border-separator-border bg-background-primary-default",
         className,

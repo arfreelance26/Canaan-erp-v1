@@ -1,0 +1,121 @@
+/* ---------------------------------------------------------------------------
+ * Guided tours (driver.js, run by components/joshine/joshine-tour.ts).
+ * driver.js's own stylesheet first, then its popover restyled on tokens so it
+ * matches the app in both themes. Joshine's face sits beside the title and
+ * text, so each step reads as Joshine speaking.
+ * --------------------------------------------------------------------------- */
+@import "driver.js/dist/driver.css";
+
+.driver-popover.joshine-tour {
+  font-family: var(--font-sans);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 12px;
+  min-width: 280px;
+  max-width: 360px;
+  padding: 16px 16px 14px;
+  border: 1px solid var(--color-border-button-default);
+  border-radius: 20px;
+  background-color: var(--color-background-primary-default);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sidebar);
+}
+
+.joshine-tour .joshine-tour-face {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+  display: block;
+  width: 44px;
+  height: 44px;
+}
+
+.joshine-tour .driver-popover-title {
+  grid-column: 2;
+  padding-right: 24px; /* room for the close button */
+  @apply text-headline-semibold text-text-primary;
+}
+
+.joshine-tour .driver-popover-description {
+  grid-column: 2;
+  margin-top: 4px;
+  @apply text-body-regular text-text-secondary;
+}
+/* A step with no title still keeps the text beside the face. */
+.joshine-tour .driver-popover-title[style*="none"] + .driver-popover-description {
+  grid-row: 1 / span 2;
+  margin-top: 0;
+}
+
+.joshine-tour .driver-popover-footer {
+  grid-column: 1 / -1;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-separator-border);
+}
+
+.joshine-tour .driver-popover-progress-text {
+  @apply text-caption-1-regular tabular-nums text-text-tertiary;
+}
+
+.joshine-tour .driver-popover-navigation-btns {
+  gap: 8px;
+}
+
+.joshine-tour .driver-popover-footer-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-button-default);
+  border-radius: 10px;
+  background-color: var(--color-background-primary-default);
+  color: var(--color-text-primary);
+  text-shadow: none;
+  @apply text-body-medium transition-colors duration-150;
+}
+.joshine-tour .driver-popover-footer-btn:hover {
+  background-color: var(--color-fill-2);
+}
+.joshine-tour .driver-popover-footer-btn:focus-visible,
+.joshine-tour .driver-popover-close-btn:focus-visible {
+  outline: 2px solid var(--color-border-focus-ring);
+  outline-offset: 2px;
+}
+/* Next / Done is the primary action. */
+.joshine-tour .driver-popover-next-btn {
+  border-color: transparent;
+  background-color: var(--color-accent-solid);
+  color: var(--color-on-solid);
+}
+.joshine-tour .driver-popover-next-btn:hover {
+  background-color: var(--color-accent-solid-hover);
+}
+.joshine-tour .driver-popover-btn-disabled {
+  opacity: 0.4;
+}
+
+.joshine-tour .driver-popover-close-btn {
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--color-text-tertiary);
+}
+.joshine-tour .driver-popover-close-btn:hover {
+  background-color: var(--color-fill-2);
+  color: var(--color-text-primary);
+}
+
+/* The arrow takes the popover's surface colour in both themes. */
+.joshine-tour .driver-popover-arrow-side-left   { border-left-color: var(--color-background-primary-default); }
+.joshine-tour .driver-popover-arrow-side-right  { border-right-color: var(--color-background-primary-default); }
+.joshine-tour .driver-popover-arrow-side-top    { border-top-color: var(--color-background-primary-default); }
+.joshine-tour .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-background-primary-default); }
+
+@media (prefers-reduced-motion: reduce) {
+  .driver-fade .driver-overlay,
+  .driver-fade .driver-stage,
+  .driver-fade .driver-popover {
+    animation: none;
+  }
+}

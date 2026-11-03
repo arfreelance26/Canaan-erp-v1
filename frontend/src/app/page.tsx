@@ -413,7 +413,7 @@ function AdminDashboard() {
   ];
 
   const tabBar = (
-    <div className="flex flex-wrap items-center gap-2.5">
+    <div data-tour="dashboard-tabs" className="flex flex-wrap items-center gap-2.5">
       {ADMIN_TABS.map(({ key, label, icon: Icon }) => (
         <button
           key={key}

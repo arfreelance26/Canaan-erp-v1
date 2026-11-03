@@ -25,7 +25,7 @@ presentation only; behaviour, data flow and APIs are as they were.
 | `src/components/ui/EmptyState.tsx` | Empty, no-results and all-done states with an illustration | us |
 | `src/components/layout/UniversalSearch.tsx` | Topbar search (⌘K or "/"): pages from `visibleSections` in `lib/nav-config.ts`, plus trips, trucks, drivers, customers, staff and vendors the role can open. Built on BoardUI `command-palette` | us |
 | `src/lib/motion/` | `useEnter`, `useCountUp`, `useCountUpText`, `useRouteLineFill`, and `icon-hover.ts` (app-wide icon hover gestures) — the one place timings live | us |
-| `src/components/joshine/` | Joshine, the assistant: `JoshineFace` (body + 14 expressions, blink and cursor-follow), `JoshinePet` (bottom-right corner, mounted in AppShell), `JoshineCreator` (look, about, preferences). Data and per-user store in `lib/joshine.ts` | us |
+| `src/components/joshine/` | Joshine, the assistant: `JoshineFace` (body + 14 expressions, blink and cursor-follow), `JoshinePet` (bottom-right corner, mounted in AppShell), `JoshineCreator` (look, size, tours). Data and per-user store in `lib/joshine.ts`. Guided tours: the format and app tour in `lib/tours.ts`, one short guide per page in `lib/page-tours.ts` (a new page = one entry there; shared parts like search, dates, export, tables and pagination are found automatically), run by `joshine-tour.ts` with driver.js, styled in `styles/tour.css` | us |
 | `src/components/ui/AnimatedNumber.tsx` | A stat figure that counts up on appearance and on change, keeping its format ("₹1,23,456", "12 / 20") | us |
 | `src/components/ui/` | Legacy shared wrappers (`Dialog`, `PillSearch`, …), restyled in place on BoardUI | us |
 | `src/components/<module>/` | Feature components (trips, fleet, finance, …) | us |

@@ -92,7 +92,7 @@ export default function AvailableTripsPage() {
       {/* Toolbar: search on the left, View on the right (same place as on the other pages) */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search trips..." value={searchQuery} onChange={setSearchQuery} />
-        <div className="ml-auto flex flex-wrap items-center gap-3">
+        <div data-tour="export" className="ml-auto flex flex-wrap items-center gap-3">
           {/* Follows the status chip currently selected; "All" = every status the page can show */}
           <DownloadExcelButton
             path="/exports/trips"
@@ -102,7 +102,7 @@ export default function AvailableTripsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div data-tour="trip-stages" className="flex flex-wrap gap-2">
         {FILTERS.map((status) => (
           <button
             key={status}
@@ -120,12 +120,14 @@ export default function AvailableTripsPage() {
         ))}
       </div>
 
-      <TripTable
-        trips={trips}
-        drivers={drivers}
-        trucks={trucks}
-        customers={customers}
-      />
+      <div data-tour="trip-table">
+        <TripTable
+          trips={trips}
+          drivers={drivers}
+          trucks={trucks}
+          customers={customers}
+        />
+      </div>
     </div>
   );
 }

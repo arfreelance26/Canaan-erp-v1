@@ -39,6 +39,7 @@ export function UniversalSearch({ locked }: { locked?: boolean }) {
       <button
         type="button"
         aria-label="Search"
+        data-tour="search"
         onPointerEnter={preload}
         onFocus={preload}
         onClick={() => {

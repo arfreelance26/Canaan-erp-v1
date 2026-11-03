@@ -31,6 +31,7 @@ export function TablePagination({
 
   return (
     <div
+      data-tour="page-pagination"
       className={
         bare
           ? "flex flex-wrap items-center justify-between gap-3 border-t border-separator-border px-4 py-3"

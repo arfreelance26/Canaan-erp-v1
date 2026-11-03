@@ -111,6 +111,7 @@ export function NetworkStatus() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={`Internet status: ${look.label}`}
+        data-tour="network"
         title={`Internet: ${look.label}${net.latency != null && !down ? ` · ${net.latency} ms` : ""}`}
         className="group relative flex h-10 items-center justify-center rounded-full border border-separator-border bg-background-primary-default shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-accent-solid/10 px-2.5 gap-1.5"
       >

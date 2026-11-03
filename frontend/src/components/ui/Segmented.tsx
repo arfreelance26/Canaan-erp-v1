@@ -25,6 +25,7 @@ export function Segmented<T extends string>({ value, onChange, options, label, s
   const md = size === "md";
   return (
     <div
+      data-tour="page-tabs"
       role="group"
       aria-label={label}
       className={cx("seg-track flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-lg p-0.5", md && "min-h-10 rounded-[10px] p-1")}

@@ -10,6 +10,7 @@
  *   motion.css     overlay mount animations (modal, scrim, pop)
  *   components.css shared hand-drawn surfaces (seg-track, seg-thumb)
  *   celebrations.css birthday / season / founding decor (restored as-is)
+ *   tour.css       Joshine's guided tours (driver.js popover on tokens)
  *   legacy.css     pre-redesign overrides; shrinks as modules migrate
  * --------------------------------------------------------------------------- */
 @import "./globals.css";
@@ -20,4 +21,5 @@
 @import "./motion.css";
 @import "./components.css";
 @import "./celebrations.css";
+@import "./tour.css";
 @import "./legacy.css";

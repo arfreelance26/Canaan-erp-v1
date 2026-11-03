@@ -34,6 +34,7 @@ export function PillSearch({ value, onChange, placeholder = "Search…", size = 
   const z = SIZE[size];
   return (
     <label
+      data-tour="page-search"
       className={`group flex ${z.box} shrink-0 cursor-text items-center justify-center gap-2 overflow-hidden rounded-full border border-separator-border bg-background-primary-default px-3 shadow-sm transition duration-300 hover:shadow-md focus-within:scale-105 focus-within:border-accent-border-strong focus-within:shadow-md ${
         value ? z.open : z.closed
       }`}

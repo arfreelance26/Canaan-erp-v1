@@ -289,7 +289,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
       )}
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
+      <nav data-tour="nav" className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
         {sections.map((section, i) => (
           <div key={section.title} className={cn(i > 0 && (collapsed ? "mt-3" : "mt-4"))}>
             {/* Groups are split by a hairline in both states: short and centred when collapsed, full width when open. */}

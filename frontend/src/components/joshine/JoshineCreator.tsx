@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { animate } from "animejs";
-import { RiArrowDownSLine, RiResetLeftLine } from "@remixicon/react";
+import { RiArrowDownSLine, RiResetLeftLine, RiRouteLine } from "@remixicon/react";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
 import { ColorWell } from "@/components/base/color-picker/color-picker";
@@ -40,9 +40,11 @@ type Props = {
   onTuck: () => void;
   /** The pet's current size, so the panel opens just above it. */
   petSize: number;
+  /** Guided tours Joshine can give from here (this page, the whole app). */
+  tours?: { label: string; onStart: () => void }[];
 };
 
-export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, petSize }: Props) {
+export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, petSize, tours = [] }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const custom = !JOSHINE_COLORS.some((c) => c.value.toLowerCase() === settings.color.toLowerCase());
 
@@ -96,6 +98,21 @@ export function JoshineCreator({ settings, onChange, onReset, onClose, onTuck, p
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-5 pb-5">
+        {/* Guided tours (lib/tours.ts) */}
+        {tours.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-separator-border bg-background-secondary-default px-4 py-3">
+            <span className="me-auto flex items-center gap-2 text-body-medium text-text-secondary">
+              <RiRouteLine className="size-4 text-foreground-icon-secondary" aria-hidden />
+              Show me around
+            </span>
+            {tours.map((t) => (
+              <Button key={t.label} variant="secondary" size="small" onClick={t.onStart}>
+                {t.label}
+              </Button>
+            ))}
+          </div>
+        )}
+
         {/* Face with its expressions around it */}
         <div className="relative mx-auto shrink-0" style={{ width: STAGE, height: STAGE }}>
           <div className="absolute inset-0 flex items-center justify-center">

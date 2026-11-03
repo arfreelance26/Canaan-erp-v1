@@ -22,7 +22,7 @@ export function DateRangePill({
   toPlaceholder = "To",
 }: Props) {
   return (
-    <div className="flex h-10 items-center gap-1 rounded-full border border-border-button-default bg-background-primary-default px-3 shadow-xs transition-colors hover:border-border-button-hover">
+    <div data-tour="page-dates" className="flex h-10 items-center gap-1 rounded-full border border-border-button-default bg-background-primary-default px-3 shadow-xs transition-colors hover:border-border-button-hover">
       <div className="w-[112px]">
         <DatePickerInput value={from} onChange={onFromChange} placeholder={fromPlaceholder} clearable={false} variant="bare" aria-label="From date" />
       </div>

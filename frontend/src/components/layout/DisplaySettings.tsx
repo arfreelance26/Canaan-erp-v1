@@ -34,6 +34,7 @@ export function DisplaySettings() {
       <button
         type="button"
         aria-label="Display settings"
+        data-tour="display"
         onClick={() => setOpen((v) => !v)}
         className="group relative flex h-10 w-10 items-center justify-center rounded-full border border-separator-border bg-background-primary-default text-text-secondary shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] transition duration-300 hover:border-accent-border hover:bg-accent-surface-strong hover:text-accent-text hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] focus:outline-none focus:ring-4 focus:ring-accent-solid/10"
       >

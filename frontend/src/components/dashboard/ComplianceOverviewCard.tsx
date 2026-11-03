@@ -83,7 +83,7 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
   const trucksWithIssues = rows.filter((r) => r.expired > 0).length;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
+    <div data-tour="compliance" className="overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default shadow-sm">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-separator-border bg-accent-surface/70 px-5 py-3.5">
         <div className="flex items-center gap-3">
