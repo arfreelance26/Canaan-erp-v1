@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
 import { DailySummaryCard } from "@/components/dashboard/DailySummaryCard";
 import { FleetManagerDashboard } from "@/components/dashboard/FleetManagerDashboard";
@@ -75,6 +76,13 @@ function fmtDate(iso?: string | null): string {
 
 // Trips that have actually started (excludes Assigned-but-not-started)
 const CURRENT_TRIP_STATUSES: TripStatus[] = ["Started", "Loaded", "On-Transit", "Reached", "Unloaded"];
+
+// Same rule as the trip form's "already on a trip" check: a truck is taken
+// from the moment a trip is Assigned until that trip is Completed or Cancelled.
+const BUSY_TRIP_STATUSES: TripStatus[] = ["Assigned", ...CURRENT_TRIP_STATUSES];
+
+const AvailableVehiclesDialog = dynamic(() =>
+  import("@/components/dashboard/AvailableVehiclesDialog").then((m) => m.AvailableVehiclesDialog));
 
 function isActiveTrip(t: Trip): boolean {
   return CURRENT_TRIP_STATUSES.includes(t.status) && !t.hasClosure && !t.isInvoiced;
@@ -337,6 +345,17 @@ function AdminDashboard() {
       ),
     [trips]
   );
+
+  // Free for a new trip: not sold, and not on an Assigned or running trip.
+  const [availableOpen, setAvailableOpen] = useState(false);
+  const { availableTrucks, bookedTruckCount } = useMemo(() => {
+    const busy = new Set(trips.filter((t) => BUSY_TRIP_STATUSES.includes(t.status)).map((t) => t.vehicleId));
+    const booked = new Set(trips.filter((t) => t.status === "Assigned").map((t) => t.vehicleId));
+    return {
+      availableTrucks: trucks.filter((t) => !t.soldDate && !busy.has(t.truckId)),
+      bookedTruckCount: [...booked].filter((id) => !trucksOnTripIds.has(id)).length,
+    };
+  }, [trips, trucks, trucksOnTripIds]);
 
   // ── People ────────────────────────────────────────────────────────────────
   const driverById = useMemo(
@@ -702,6 +721,9 @@ function AdminDashboard() {
       })()}
 
       {/* ── Section 1: Fleet status ─────────────────────────────────────── */}
+      {availableOpen && (
+        <AvailableVehiclesDialog open trucks={availableTrucks} onClose={() => setAvailableOpen(false)} />
+      )}
       <FleetStatusPanel
         segments={[
           {
@@ -718,6 +740,14 @@ function AdminDashboard() {
             tone: trucksOnTripCount > 0 ? "neutral" : "good",
             caption: `${trucksAvailableCount} truck${trucksAvailableCount !== 1 ? "s" : ""} available`,
             onClick: () => router.push("/trips/current"),
+          },
+          {
+            key: "available-vehicles", kind: "count", tour: "available-vehicles",
+            label: "Available vehicles", icon: Truck,
+            value: String(availableTrucks.length),
+            tone: availableTrucks.length === 0 ? "warn" : "good",
+            caption: `${bookedTruckCount} booked · ${trucksOnTripCount} on road`,
+            onClick: () => setAvailableOpen(true),
           },
           {
             key: "present-today", kind: "ratio",

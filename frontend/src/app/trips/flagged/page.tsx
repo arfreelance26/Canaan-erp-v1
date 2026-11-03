@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { RiFlagLine as Flag, RiArrowGoBackLine as Undo2, RiFileTextLine as FileText, RiFileList3Line as ClipboardList, RiPencilLine as Pencil, RiHistoryLine as HistoryIcon, RiCheckboxCircleLine as CheckCircle2, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
-import { tripsApi, driversApi, trucksApi, customersApi, type TripRecheckEventRow } from "@/lib/api";
+import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, type TripRecheckEventRow } from "@/lib/api";
+import type { EditApprovalRequest } from "@/types/edit-approval";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { confirmAction, showSuccess, showError } from "@/lib/feedback";
+import { confirmAction, showSuccess, showError, showInfo } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import dynamic from "next/dynamic";
@@ -28,6 +29,10 @@ import { PagedTbody } from "@/components/ui/PagedTbody";
 // Dialogs load on demand, after the page has drawn (next/dynamic).
 const BookingSheetDialog = dynamic(() => import("@/components/trips/BookingSheetDialog").then((m) => m.BookingSheetDialog));
 const TripSheetDialog = dynamic(() => import("@/components/trips/TripSheetDialog").then((m) => m.TripSheetDialog));
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
+
+/** The two sheets on this page; a non-Admin edits one only under an approved edit request. */
+type SheetKind = "BookingSheet" | "TripSheet";
 type BookingDialogState = { trip: Trip; readOnly: boolean };
 type SheetDialogState = { trip: Trip; readOnly: boolean };
 
@@ -69,6 +74,11 @@ export default function FlaggedTripsPage() {
   const [historyEvents, setHistoryEvents] = useState<TripRecheckEventRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
+  // Edit requests (non-Admin): the approved ones open the sheet for editing;
+  // pending ones say so instead of asking again.
+  const [activeApprovals, setActiveApprovals] = useState<EditApprovalRequest[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<EditApprovalRequest[]>([]);
+  const [editRequest, setEditRequest] = useState<{ kind: SheetKind; trip: Trip } | null>(null);
 
   // allSettled — a source failing (e.g. Trucks/Customers, if ever role-gated
   // for a role this page gets opened up to) must not blank the whole page.
@@ -84,6 +94,52 @@ export default function FlaggedTripsPage() {
   }, [refreshKey]);
   useAutoRefresh(() => setRefreshKey((k) => k + 1), 10000);
   useWebSocketEvent("trip_updated", () => setRefreshKey((k) => k + 1));
+
+  function loadMyRequests() {
+    if (isAdmin) return;
+    editApprovalsApi.getMyActive().then(setActiveApprovals).catch(() => {});
+    editApprovalsApi.getMine("Pending").then(setPendingRequests).catch(() => {});
+  }
+  useEffect(loadMyRequests, [refreshKey, isAdmin]);
+  useWebSocketEvent("edit_approval_updated", loadMyRequests);
+
+  const matches = (kind: SheetKind, trip: Trip) => (a: EditApprovalRequest) =>
+    a.resourceType === kind && String(a.resourceId) === trip.id && a.action === "Edit";
+
+  /** Admin edits straight away; anyone else needs an approved edit request, or sends one. */
+  function openEdit(kind: SheetKind, trip: Trip) {
+    const open = () => (kind === "BookingSheet" ? setBookingDialog({ trip, readOnly: false }) : setSheetDialog({ trip, readOnly: false }));
+    if (isAdmin || activeApprovals.some(matches(kind, trip))) return open();
+    if (pendingRequests.some(matches(kind, trip))) {
+      showInfo("Your edit request for this sheet is waiting for approval. You'll be able to edit once it's approved.", "Request pending");
+      return;
+    }
+    setEditRequest({ kind, trip });
+  }
+
+  async function submitEditRequest(reason: string) {
+    if (!editRequest) return;
+    const { kind, trip } = editRequest;
+    try {
+      await editApprovalsApi.create({
+        resourceType: kind,
+        resourceId: parseInt(trip.id),
+        resourceName: trip.bookingReferenceNo || trip.tripId,
+        action: "Edit",
+        reason,
+      });
+      showSuccess("Edit request sent for approval. The sheet opens for editing once it's approved.");
+      setEditRequest(null);
+      loadMyRequests();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to send the edit request.");
+    }
+  }
+
+  function editState(kind: SheetKind, trip: Trip): "edit" | "pending" | "request" {
+    if (isAdmin || activeApprovals.some(matches(kind, trip))) return "edit";
+    return pendingRequests.some(matches(kind, trip)) ? "pending" : "request";
+  }
 
   const driverById = new Map(drivers.map((d) => [d.driverId, d]));
   const truckById = new Map(trucks.map((t) => [t.truckId, t]));
@@ -256,13 +312,15 @@ export default function FlaggedTripsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setBookingDialog({ trip, readOnly: !isAdmin })}
-                        disabled={!trip.hasClosure || !isAdmin}
-                        title={!trip.hasClosure ? "No booking sheet recorded for this trip" : !isAdmin ? "Only Admin can edit" : undefined}
+                        onClick={() => openEdit("BookingSheet", trip)}
+                        disabled={!trip.hasClosure}
+                        title={!trip.hasClosure ? "No booking sheet recorded for this trip"
+                          : { edit: undefined, pending: "Edit request waiting for approval", request: "Sends an edit request for approval" }[editState("BookingSheet", trip)]}
                         className="flex items-center gap-1.5 rounded-lg border border-accent-border-strong bg-accent-surface px-2.5 py-1.5 text-caption-2-semibold text-accent-text hover:bg-accent-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit Booking Sheet
+                        {editState("BookingSheet", trip) === "pending" && <span className="rounded-full bg-warning-surface-strong px-1.5 text-[10px] text-warning-text">Pending</span>}
                       </button>
                       <button
                         type="button"
@@ -276,13 +334,15 @@ export default function FlaggedTripsPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSheetDialog({ trip, readOnly: !isAdmin })}
-                        disabled={!trip.hasSheet || !isAdmin}
-                        title={!trip.hasSheet ? "No trip sheet recorded for this trip" : !isAdmin ? "Only Admin can edit" : undefined}
+                        onClick={() => openEdit("TripSheet", trip)}
+                        disabled={!trip.hasSheet}
+                        title={!trip.hasSheet ? "No trip sheet recorded for this trip"
+                          : { edit: undefined, pending: "Edit request waiting for approval", request: "Sends an edit request for approval" }[editState("TripSheet", trip)]}
                         className="flex items-center gap-1.5 rounded-lg border border-purple-border-strong bg-purple-surface px-2.5 py-1.5 text-caption-2-semibold text-purple-text hover:bg-purple-surface-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit Trip Sheet
+                        {editState("TripSheet", trip) === "pending" && <span className="rounded-full bg-warning-surface-strong px-1.5 text-[10px] text-warning-text">Pending</span>}
                       </button>
                     </div>
                   </td>
@@ -308,10 +368,8 @@ export default function FlaggedTripsPage() {
         </div>
       )}
 
-      {/* Booking Sheet — readOnly is decided per-open by which button was
-          clicked: View always opens read-only; Edit opens editable only for
-          Admin (same permission rule as Trip History — non-Admin has no path
-          to edit these today, so Edit just falls back to read-only for them). */}
+      {/* Booking Sheet — View opens read-only; Edit opens editable for Admin,
+          or for anyone else under an approved edit request (openEdit). */}
       <BookingSheetDialog
         open={bookingDialog !== null}
         trip={bookingDialog?.trip ?? null}
@@ -356,6 +414,17 @@ export default function FlaggedTripsPage() {
           }
         }}
       />
+
+      {editRequest && (
+        <EditRequestDialog
+          open
+          resourceType={editRequest.kind}
+          resourceName={editRequest.trip.bookingReferenceNo || editRequest.trip.tripId}
+          action="Edit"
+          onSubmit={submitEditRequest}
+          onClose={() => setEditRequest(null)}
+        />
+      )}
 
       {/* History — every Flag / Return for Review / Verify event ever logged,
           across every trip (not just the ones currently on this page), in

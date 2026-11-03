@@ -50,3 +50,44 @@
 @media (prefers-reduced-motion: reduce) {
   .joshine-breathe { animation: none; }
 }
+
+/* The login Sign In button (app/login/page.tsx), brought back from the old
+   page: on success a truck drives through (1.5s — the pause before the app
+   opens); on a wrong password it rolls in, stalls and sinks, and
+   "Access denied" slides in beside it (2s — then the button resets). */
+@keyframes login-truck-go {
+  0%   { transform: translateX(-60px); opacity: 0; animation-timing-function: ease-out; }
+  30%  { transform: translateX(-5px);  opacity: 1; animation-timing-function: linear; }
+  70%  { transform: translateX(5px);   opacity: 1; animation-timing-function: ease-in; }
+  100% { transform: translateX(60px);  opacity: 0; }
+}
+@keyframes login-truck-stall {
+  0%   { transform: translateX(-40px); opacity: 0; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+  25%  { transform: translateX(3px) rotate(-5deg); opacity: 1; animation-timing-function: ease-in-out; }
+  45%  { transform: translateX(-1px) rotate(2deg); animation-timing-function: ease-in-out; }
+  65%  { transform: translateX(0) rotate(0); animation-timing-function: linear; }
+  85%  { transform: translateX(0) rotate(0); opacity: 1; animation-timing-function: ease-in; }
+  100% { transform: translateY(8px); opacity: 0; }
+}
+@keyframes login-denied-text {
+  0%, 35% { opacity: 0; transform: translateX(10px); }
+  55%     { opacity: 1; transform: translateX(0); }
+  85%     { opacity: 1; }
+  100%    { opacity: 0; }
+}
+@utility animate-login-truck-go {
+  animation: login-truck-go 1.5s forwards;
+}
+@utility animate-login-truck-stall {
+  animation: login-truck-stall 2s forwards;
+}
+@utility animate-login-denied-text {
+  animation: login-denied-text 2s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-login-truck-go,
+  .animate-login-truck-stall,
+  .animate-login-denied-text {
+    animation: none;
+  }
+}

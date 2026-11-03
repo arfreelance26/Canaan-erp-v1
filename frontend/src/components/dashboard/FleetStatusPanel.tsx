@@ -26,6 +26,8 @@ export type FleetStatusSegment = {
   label: string;
   icon: LucideIcon;
   onClick?: () => void;
+  /** Guided-tour anchor (lib/page-tours.ts). */
+  tour?: string;
 } & (
   | { kind: "count"; value: string; caption?: string; tone?: "neutral" | "good" | "warn" }
   | { kind: "ratio"; numerator: number; denominator: number; caption?: string; tone?: "neutral" | "good" | "warn" }
@@ -70,7 +72,7 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
     segment.kind === "ratio" ? `${segment.numerator}/${segment.denominator}` : segment.value;
 
   const body = (
-    <div className="flex h-full flex-col gap-3 bg-background-primary-default p-5">
+    <div data-tour={segment.onClick ? undefined : segment.tour} className="flex h-full flex-col gap-3 bg-background-primary-default p-5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-body-2-medium text-text-secondary">
           {segment.label}
@@ -105,6 +107,7 @@ function Segment({ segment }: { segment: FleetStatusSegment }) {
   return (
     <button
       type="button"
+      data-tour={segment.tour}
       onClick={segment.onClick}
       className="h-full w-full text-left transition-colors hover:bg-fill-2"
     >

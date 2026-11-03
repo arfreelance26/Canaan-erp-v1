@@ -46,13 +46,13 @@ export function UniversalSearch({ locked }: { locked?: boolean }) {
           setUsed(true);
           setOpen(true);
         }}
-        className="flex h-10 items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default px-3 text-text-tertiary outline-none transition-colors hover:bg-background-secondary-hover hover:text-text-secondary focus-visible:ring-2 focus-visible:ring-border-focus-ring lg:w-64"
+        className="flex h-10 items-center gap-2 rounded-full border border-border-button-default bg-background-secondary-default pl-4 pr-3 text-text-tertiary outline-none transition-colors hover:bg-background-secondary-hover hover:text-text-secondary focus-visible:ring-2 focus-visible:ring-border-focus-ring lg:w-64"
       >
         <RiSearchLine className="size-4 shrink-0 text-foreground-icon-secondary" aria-hidden />
         <span className="hidden flex-1 truncate text-start text-body-regular lg:inline">Search</span>
-        <span className="hidden items-center gap-0.5 lg:flex" aria-hidden>
-          <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
-          <Kbd>K</Kbd>
+        <span className="hidden items-center gap-1 lg:flex" aria-hidden>
+          <Kbd className="h-5 min-w-5 px-1.5 py-0">{isMac ? "⌘" : "Ctrl"}</Kbd>
+          <Kbd className="h-5 min-w-5 px-1.5 py-0">K</Kbd>
         </span>
       </button>
       {used && <UniversalSearchPalette open={open} setOpen={setOpen} locked={locked} />}

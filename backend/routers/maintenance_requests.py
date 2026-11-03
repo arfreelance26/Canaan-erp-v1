@@ -262,9 +262,6 @@ def approve_request(request_id: int, db: Session = Depends(get_db), current_user
         db, payload,
         entered_by_name=req.submitted_by_name, actor_role=req.submitted_by_role,
         source=req.source, trip_id=req.trip_id,
-        # Trip-sheet repairs never had the odometer check (the sheet's End KM
-        # is the default reading) — kept as it was.
-        check_odometer=req.source == "Web",
     )
     proofs = db.query(models.MaintenanceRequestProof).filter(models.MaintenanceRequestProof.request_id == req.id).all()
     for p in proofs:

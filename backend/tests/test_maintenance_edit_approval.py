@@ -37,10 +37,11 @@ def test_required_fields_cannot_be_blanked(client, auth, maintenance_record, fie
     assert res.status_code == 400
 
 
-def test_odometer_cannot_exceed_the_trucks(client, auth, maintenance_record, truck):
+def test_odometer_can_exceed_the_trucks(client, auth, maintenance_record, truck):
+    """Any reading is allowed: a record isn't capped at the truck's odometer."""
     res = client.put(f"/maintenance/records/{maintenance_record.id}", headers=auth("Admin"),
                      json={"odometer": int(truck.odometer) + 1})
-    assert res.status_code == 400
+    assert res.status_code == 200
 
 
 def test_approving_a_request_applies_it(client, auth, db, staff, maintenance_record):
@@ -54,8 +55,8 @@ def test_approving_a_request_applies_it(client, auth, db, staff, maintenance_rec
     assert client.patch(f"/edit-approvals/{rid}/approve", headers=auth("Admin")).status_code == 409
 
 
-def test_invalid_change_leaves_request_pending(client, auth, db, maintenance_record, truck):
-    rid = _request(client, auth("Maintenance"), maintenance_record.id, {"odometer": int(truck.odometer) + 100_000})
+def test_invalid_change_leaves_request_pending(client, auth, db, maintenance_record):
+    rid = _request(client, auth("Maintenance"), maintenance_record.id, {"maintenance_type": ""})
     assert client.patch(f"/edit-approvals/{rid}/approve", headers=auth("Admin")).status_code == 400
     assert _status(db, rid) == "Pending"
 

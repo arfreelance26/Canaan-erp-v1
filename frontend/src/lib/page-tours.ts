@@ -47,6 +47,7 @@ export const PAGE_GUIDES: Record<string, PageGuide> = {
       { title: "The dashboard", text: "Your start page: what's on the road and what needs attention today.", expression: "happy" },
       { target: "dashboard-tabs", title: "One dashboard per desk", text: "Switch between the overview and each team's view: commercial, accounts, yard, trip sheets and maintenance.", expression: "curious", side: "bottom", align: "start" },
       { target: "dashboard-hero", title: "Today at a glance", text: "The fleet in one line, with the things that need attention, and shortcuts to current trips and backups.", expression: "happy", side: "bottom" },
+      { target: "available-vehicles", title: "Trucks free for a trip", text: "How many trucks aren't booked or on the road. Click it for the list, with a warning on any truck that has an expired document.", expression: "curious", side: "bottom" },
       { target: "current-trips", title: "Trips on the road", text: "Every live trip with its stage. Click a stage above the table to filter; the route line shows how far each trip has come.", expression: "focused", side: "top" },
       { target: "compliance", title: "Expiring documents", text: "Insurance, permits and fitness certificates that are due or overdue, so nothing lapses on the road.", expression: "determined", side: "top" },
     ],

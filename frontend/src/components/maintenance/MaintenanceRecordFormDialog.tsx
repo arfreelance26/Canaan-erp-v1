@@ -260,7 +260,6 @@ export function MaintenanceRecordFormDialog({
 
   const currentOdometer = truck ? Number(truck.odometer) : null;
   const enteredOdometer = form.odometer !== "" ? Number(form.odometer) : null;
-  const odometerTooHigh = enteredOdometer !== null && currentOdometer !== null && enteredOdometer > currentOdometer;
 
   // The reminder must be ahead of where the truck already is (and of this
   // record's own reading) — otherwise it would go off the moment it's saved.
@@ -306,7 +305,7 @@ export function MaintenanceRecordFormDialog({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!truck) return;
-    if (odometerTooHigh || remindError || saving) return;
+    if (remindError || saving) return;
     if (requireReason && !reason.trim()) return;
     if (repairOptions.length > 0 && selectedRepairs.length === 0) {
       setRepairMissing(true);
@@ -378,18 +377,12 @@ export function MaintenanceRecordFormDialog({
             <DecimalInput type="number"
               required
               min="0"
-              max={currentOdometer !== null && currentOdometer > 0 ? currentOdometer : undefined}
               value={form.odometer}
               onChange={(e) => handleOdometerChange(e.target.value)}
-              className={`${inputClass} ${odometerTooHigh ? "border-danger-border-strong ring-2 ring-danger-border" : ""}`}
+              className={inputClass}
               placeholder="e.g. 85000"
             />
-            {odometerTooHigh && (
-              <p className="mt-1 text-xs text-danger-text">
-                Must be less than or equal to the current odometer ({currentOdometer!.toLocaleString("en-IN")} km).
-              </p>
-            )}
-            {!odometerTooHigh && currentOdometer !== null && currentOdometer > 0 && (
+            {currentOdometer !== null && currentOdometer > 0 && (
               <p className="mt-1 text-xs text-text-tertiary">Enter the odometer reading when this maintenance was done.</p>
             )}
           </Field>

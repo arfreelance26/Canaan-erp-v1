@@ -188,28 +188,25 @@ def _apply_maintenance_by(db: Session, data: dict) -> dict:
     return data
 
 
-def check_new_record(db: Session, payload: schemas.MaintenanceRecordCreate, check_odometer: bool = True) -> models.Truck:
+def check_new_record(db: Session, payload: schemas.MaintenanceRecordCreate) -> models.Truck:
     """The checks a new maintenance record must pass — run when it's
     submitted for approval and again when it's approved (the truck or vendor
     may have changed in between)."""
     truck = db.get(models.Truck, payload.truck_id)
     if not truck or truck.deleted_at is not None:
         raise HTTPException(404, "Truck not found")
-    current_odo = int(truck.odometer or 0)
-    if check_odometer and current_odo > 0 and int(payload.odometer) > current_odo:
-        raise HTTPException(400, f"Odometer ({payload.odometer} km) cannot exceed the truck's current odometer ({current_odo} km).")
     _apply_maintenance_by(db, payload.model_dump())
     return truck
 
 
 def create_record(
     db: Session, payload: schemas.MaintenanceRecordCreate, *, entered_by_name: str, actor_role: str | None,
-    source: str | None, trip_id: int | None = None, check_odometer: bool = True,
+    source: str | None, trip_id: int | None = None,
 ) -> models.MaintenanceRecord:
     """Adds the real record (and its "Record Created" log). There's no direct
     endpoint for this any more — every new record goes through Maintenance
     Approvals (routers/maintenance_requests.py). Doesn't commit."""
-    truck = check_new_record(db, payload, check_odometer)
+    truck = check_new_record(db, payload)
     data = _apply_maintenance_by(db, payload.model_dump())
     remind_at = data.pop("remind_at_odometer", None)
     record = models.MaintenanceRecord(**data, trip_id=trip_id, entered_by_name=entered_by_name, source=source)
@@ -369,12 +366,6 @@ def apply_maintenance_record_update(
     for f in _REQUIRED_RECORD_FIELDS:
         if f in updates and updates[f] in (None, ""):
             raise HTTPException(400, f"{f.replace('_', ' ').capitalize()} can't be empty.")
-    if updates.get("odometer") is not None:
-        truck = db.get(models.Truck, record.truck_id)
-        if truck:
-            current_odo = int(truck.odometer or 0)
-            if current_odo > 0 and int(updates["odometer"]) > current_odo:
-                raise HTTPException(400, f"Odometer ({updates['odometer']} km) cannot exceed the truck's current odometer ({current_odo} km).")
     if {"vendor_id", "maintenance_by_type"} & updates.keys():
         updates = _apply_maintenance_by(db, updates)
     has_reminder = "remind_at_odometer" in updates

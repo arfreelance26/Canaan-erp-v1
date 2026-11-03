@@ -33,6 +33,8 @@
   --color-gold-500: oklch(0.71 0.135 86); /* #c9a227 */
   --color-gold-600: oklch(0.6 0.12 84);
   --color-gold-700: oklch(0.5 0.1 82);
+  /* Rich, saturated gold for the navy login panel (old login's #e0a92b, a touch stronger). */
+  --color-gold-strong: oklch(0.79 0.17 78);
 
   /* Fixed brand surfaces — the same in both themes (the login S panel). */
   --color-brand-navy: #1b2b5e;      /* old logo navy */
