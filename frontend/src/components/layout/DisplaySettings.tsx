@@ -1,5 +1,7 @@
 "use client";
 
+import { Kbd } from "@/components/base/kbd/kbd";
+import { SHORTCUTS } from "@/lib/shortcuts";
 import { useEffect, useRef, useState } from "react";
 import { RiSunLine as Sun, RiMoonLine as Moon, RiText as Type, RiSubtractLine as Minus, RiAddLine as Plus, RiSettings3Line as Settings2 } from "@remixicon/react";
 import { useTheme, FONT_SCALE_STEPS } from "@/context/ThemeContext";
@@ -44,7 +46,12 @@ export function DisplaySettings() {
 
           {/* Theme toggle */}
           <div className="mb-4">
-            <p className="mb-2 text-body-medium text-text-primary">Theme</p>
+            <p className="mb-2 flex items-center justify-between text-body-medium text-text-primary">
+              Theme
+              <span className="flex items-center gap-1.5 text-caption-1-regular text-text-tertiary">
+                Press <Kbd>{SHORTCUTS.theme.key}</Kbd>
+              </span>
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"

@@ -12,19 +12,16 @@ import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-col
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RouteLine } from "@/components/trips/RouteLine";
-import { getRouteStep } from "@/lib/trip-stage";
+import { getRouteStep, ROUTE_STEPS } from "@/lib/trip-stage";
 const PAGE_SIZE = 10;
 
 // Trip lifecycle → color/label for the row tint + status badge, in the
 // office's words (see ROUTE_STEPS): Booked → Current → Completed → Closed.
 function tripStage(trip: Trip): { color: StageColor; label: string } {
-  switch (trip.status) {
-    case "Assigned":  return { color: "blue", label: "Booked" };
-    case "Started":   return { color: "amber", label: "Current" };
-    case "Completed": return trip.hasClosure ? { color: "gray", label: "Closed" } : { color: "emerald", label: "Completed" };
-    case "Cancelled": return { color: "rose", label: "Cancelled" };
-    default:          return { color: "gray", label: trip.status || "—" };
-  }
+  const step = getRouteStep(trip);
+  if (step === null) return { color: "rose", label: "Cancelled" };
+  const colors: StageColor[] = ["blue", "amber", "emerald", "gray"];
+  return { color: colors[step], label: ROUTE_STEPS[step] };
 }
 
 type TripTableProps = {

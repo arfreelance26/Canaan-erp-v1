@@ -351,7 +351,7 @@ export default function SecurityLogPage() {
   if (!user || user.softwareDesignation !== "Admin") return null;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 p-2">
+    <div className="space-y-8 p-2">
       {/* Header */}
       <div className="flex items-center gap-3.5">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-danger-border bg-danger-surface text-danger-text shadow-sm">

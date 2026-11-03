@@ -3,6 +3,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { RiArrowRightSLine } from "@remixicon/react";
 import { cx } from "@/utils/cx";
+import { Kbd } from "@/components/base/kbd/kbd";
 
 type WorkspaceTileProps = {
   icon: ComponentType<{ className?: string }>;
@@ -14,6 +15,8 @@ type WorkspaceTileProps = {
   /** Tone of the count: "attention" for things due, "neutral" otherwise. */
   countTone?: "attention" | "neutral";
   onClick: () => void;
+  /** Keyboard shortcut that also opens it (lib/shortcuts.ts), shown as a keycap. */
+  shortcut?: string;
   "aria-label"?: string;
 };
 
@@ -21,12 +24,13 @@ type WorkspaceTileProps = {
  * A card on My profile that opens one of the personal tools (Meetings,
  * To-do, Notes). The tools keep their own panels; this is only the way in.
  */
-export function WorkspaceTile({ icon: Icon, title, summary, count = 0, countTone = "neutral", onClick, "aria-label": ariaLabel }: WorkspaceTileProps) {
+export function WorkspaceTile({ icon: Icon, title, summary, count = 0, countTone = "neutral", onClick, shortcut, "aria-label": ariaLabel }: WorkspaceTileProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={ariaLabel ?? title}
+      aria-keyshortcuts={shortcut}
       className="group flex w-full items-center gap-4 rounded-3xl border border-separator-border bg-background-primary-default p-5 text-start outline-none transition-colors hover:bg-background-secondary-default focus-visible:ring-2 focus-visible:ring-border-focus-ring"
     >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-accent-surface text-accent-text">
@@ -48,6 +52,7 @@ export function WorkspaceTile({ icon: Icon, title, summary, count = 0, countTone
         </span>
         <span className="truncate text-body-regular text-text-secondary">{summary}</span>
       </span>
+      {shortcut && <Kbd className="min-w-5 shrink-0" title={`Press ${shortcut}`}>{shortcut}</Kbd>}
       <RiArrowRightSLine className="size-5 shrink-0 text-foreground-icon-tertiary transition-colors group-hover:text-foreground-icon-primary" />
     </button>
   );

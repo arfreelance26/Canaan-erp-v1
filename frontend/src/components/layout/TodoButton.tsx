@@ -11,6 +11,7 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { WorkspaceTile } from "./WorkspaceTile";
+import { SHORTCUTS, useShortcutPanel } from "@/lib/shortcuts";
 const TITLE_MAX = 300;
 
 type Filter = "active" | "done";
@@ -58,7 +59,7 @@ function dueChip(t: Todo, today: string): { text: string; tone: "red" | "amber" 
  * enforced by the server — see routers/todos.py.
  */
 /** `variant="tile"` draws the My profile card instead of the round icon; the panel is the same. */
-export function TodoButton({ variant = "icon" }: { variant?: "icon" | "tile" } = {}) {
+export function TodoButton({ variant = "icon" }: { variant?: "icon" | "tile" | "panel" } = {}) {
   const [open, setOpen] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [usage, setUsage] = useState<TodoUsage | null>(null);
@@ -92,11 +93,12 @@ export function TodoButton({ variant = "icon" }: { variant?: "icon" | "tile" } =
     }
   }, []);
 
-  // Once on mount, quietly, so the button can show what's due.
+  // Once on mount, quietly, so the button can show what's due. The app-wide
+  // shortcut panel has no button, so it loads only when opened.
   useEffect(() => {
     setMounted(true);
-    void load(true);
-  }, [load]);
+    if (variant !== "panel") void load(true);
+  }, [load, variant]);
 
   function openPanel() {
     setOpen(true);
@@ -207,12 +209,16 @@ export function TodoButton({ variant = "icon" }: { variant?: "icon" | "tile" } =
     return todos.filter((t) => (filter === "done" ? t.done : !t.done) && (!q || t.title.toLowerCase().includes(q)));
   }, [todos, filter, search]);
 
+  // T opens and closes this panel from anywhere (lib/shortcuts.ts).
+  useShortcutPanel("todo", () => (open ? closePanel() : openPanel()), { fallback: variant === "panel" });
+
   return (
     <>
-      {variant === "tile" ? (
+      {variant === "panel" ? null : variant === "tile" ? (
         <WorkspaceTile
           icon={ListTodo}
           title="To-do"
+          shortcut={SHORTCUTS.todo.key}
           summary={openCount === 0 ? "All clear" : `${openCount} open${dueCount ? ` · ${dueCount} due today or overdue` : ""}`}
           count={dueCount}
           countTone="attention"

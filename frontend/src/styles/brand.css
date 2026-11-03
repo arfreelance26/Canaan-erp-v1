@@ -205,8 +205,12 @@
   --illo-line: oklch(0.42 0.07 268);
   --illo-paper: var(--color-brand-navy);
 }
-/* The truck scene's plants on the navy panel: a step lighter than the panel
-   surface so the leaves read against it. */
-.illo-on-brand .truck-scene {
-  --illo-surface: oklch(0.47 0.07 268);
+/* The truck scene's plants (components/illustrations/TruckScene.tsx) are one
+ * plain leaf green, softened with transparency so they sit back behind the
+ * truck and pick up the card colour in both themes: the tall plant behind is
+ * fainter, the shrub in front a little stronger. Veins stay --illo-paper. */
+.truck-scene {
+  --truck-plant-green: oklch(0.63 0.17 145); /* ≈ #2fa24d */
 }
+.truck-scene .truck-plant-back  { --illo-surface: color-mix(in oklch, var(--truck-plant-green) 45%, transparent); }
+.truck-scene .truck-plant-front { --illo-surface: color-mix(in oklch, var(--truck-plant-green) 60%, transparent); }

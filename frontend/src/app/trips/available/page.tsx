@@ -7,6 +7,7 @@ import { tripsApi, driversApi, trucksApi, customersApi } from "@/lib/api";
 import { RiNavigationLine as Navigation } from "@remixicon/react";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { TRIP_PROGRESS_STATUSES, TRIP_STATUS_OPTIONS } from "@/lib/trip-data";
+import { ROUTE_STEPS, getRouteStep } from "@/lib/trip-stage";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -17,7 +18,20 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { showError } from "@/lib/feedback";
 
 import { PillSearch } from "@/components/ui/PillSearch";
-const FILTERS: Array<Trip["status"] | "All"> = ["All", ...TRIP_PROGRESS_STATUSES];
+// The office's four steps (Booked → Current → Completed → Closed), not the
+// driver's fine-grained progress statuses, which all count as "Current".
+type Filter = "All" | (typeof ROUTE_STEPS)[number];
+const FILTERS: Filter[] = ["All", ...ROUTE_STEPS];
+
+/** Trip statuses the Excel export asks for under each filter. Completed and
+ *  Closed share "Completed": closure isn't a status the export can filter on. */
+const EXPORT_STATUSES: Record<Filter, Trip["status"][]> = {
+  All: TRIP_STATUS_OPTIONS,
+  Booked: ["Assigned"],
+  Current: TRIP_PROGRESS_STATUSES.filter((s) => s !== "Assigned" && s !== "Completed"),
+  Completed: ["Completed"],
+  Closed: ["Completed"],
+};
 
 export default function AvailableTripsPage() {
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
@@ -25,7 +39,7 @@ export default function AvailableTripsPage() {
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Trip["status"] | "All">("All");
+  const [filter, setFilter] = useState<Filter>("All");
   const [searchQuery, setSearchQuery] = useState("");
   useGlobalSearchQuery(setSearchQuery);
 
@@ -55,7 +69,7 @@ export default function AvailableTripsPage() {
 
 
   const trips = allTrips.filter((trip) =>
-    (filter === "All" || trip.status === filter) &&
+    (filter === "All" || ROUTE_STEPS[getRouteStep(trip) ?? -1] === filter) &&
     tripMatchesSearch(trip, searchQuery, trucks)
   );
 
@@ -70,7 +84,7 @@ export default function AvailableTripsPage() {
         <div>
           <h1 className="text-title-1-semibold tracking-tight text-text-primary">Available Trips</h1>
           <p className="mt-0.5 text-sm text-text-secondary">
-            View all trips and filter by the progress status updated by the driver
+            View all trips by stage: booked, current, completed and closed
           </p>
         </div>
       </div>
@@ -83,7 +97,7 @@ export default function AvailableTripsPage() {
           <DownloadExcelButton
             path="/exports/trips"
             filename={filter === "All" ? "available_trips.xlsx" : `${filter.toLowerCase()}_trips.xlsx`}
-            params={{ status: filter === "All" ? TRIP_STATUS_OPTIONS.join(",") : filter }}
+            params={{ status: EXPORT_STATUSES[filter].join(",") }}
           />
         </div>
       </div>

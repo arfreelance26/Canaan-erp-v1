@@ -17,6 +17,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { LOGOUT_REASON_KEY } from "@/lib/api";
 import { RoomSummonListener } from "./RoomSummonListener";
 import { EventReminderListener } from "./EventReminderListener";
+import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { cn } from "@/lib/utils";
 import { useEnter } from "@/lib/motion";
 // import { ERPChatWidget } from "@/components/ai/ERPChatWidget"; // Next phase
@@ -145,12 +146,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <CelebrationPreviewBar />
         <Topbar onMenuOpen={() => setMobileMenuOpen((v) => !v)} attendanceLocked={attendanceLocked} />
         <main className="flex-1 overflow-y-auto bg-background-full p-4 md:p-6">
-          <div ref={mainRef} className="mx-auto h-full w-full max-w-[1600px]">{children}</div>
+          <div ref={mainRef} className="h-full w-full">{children}</div>
         </main>
       </div>
       {/* <ERPChatWidget /> */}{/* Next phase */}
       <RoomSummonListener />
       <EventReminderListener />
+      {/* D dark mode, T to-do, N notes (lib/shortcuts.ts). */}
+      <KeyboardShortcuts />
       {/* Joshine, the assistant, in the bottom-right corner (AI to come). */}
       <JoshinePet />
     </div>

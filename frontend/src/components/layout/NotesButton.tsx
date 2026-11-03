@@ -9,6 +9,7 @@ import { confirmDelete, showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { WorkspaceTile } from "./WorkspaceTile";
+import { SHORTCUTS, useShortcutPanel } from "@/lib/shortcuts";
 const AUTOSAVE_MS = 800;
 const RETRY_MS = 15_000;
 const NOTE_MAX_CHARS = 50_000;
@@ -59,7 +60,7 @@ function kb(bytes: number): string {
  * server — see routers/notes.py — and surfaced here.
  */
 /** `variant="tile"` draws the My profile card instead of the round icon; the panel is the same. */
-export function NotesButton({ variant = "icon" }: { variant?: "icon" | "tile" } = {}) {
+export function NotesButton({ variant = "icon" }: { variant?: "icon" | "tile" | "panel" } = {}) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<Item[]>([]);
   const [usage, setUsage] = useState<NoteUsage | null>(null);
@@ -304,12 +305,16 @@ export function NotesButton({ variant = "icon" }: { variant?: "icon" | "tile" } 
   const saveLabel =
     saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? saveError || "Couldn't save — retrying" : "";
 
+  // N opens and closes this panel from anywhere (lib/shortcuts.ts).
+  useShortcutPanel("notes", () => void (open ? closePanel() : openPanel()), { fallback: variant === "panel" });
+
   return (
     <>
-      {variant === "tile" ? (
+      {variant === "panel" ? null : variant === "tile" ? (
         <WorkspaceTile
           icon={NotebookPen}
           title="Notes"
+          shortcut={SHORTCUTS.notes.key}
           summary="Your private notepad, saved as you type"
           onClick={() => (open ? void closePanel() : void openPanel())}
         />

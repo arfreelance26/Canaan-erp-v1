@@ -369,7 +369,7 @@ export default function MarkAttendancePage() {
 
   if (staffNumericId === null) {
     return (
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+      <div className="flex flex-col gap-6">
         <div className="flex items-center gap-3.5">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-purple-border bg-purple-surface text-purple-text shadow-sm">
             <ClipboardCheck className="h-5 w-5" />
@@ -396,7 +396,7 @@ export default function MarkAttendancePage() {
   }
 
   return (
-    <div className="animate-stagger mx-auto flex max-w-7xl flex-col gap-6">
+    <div className="animate-stagger flex flex-col gap-6">
 
       {/* Page header */}
       <div className="flex items-center gap-3.5">

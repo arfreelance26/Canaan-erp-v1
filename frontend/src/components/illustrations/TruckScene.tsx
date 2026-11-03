@@ -18,7 +18,7 @@ export function TruckScene({ className, image = HERO_TRUCK }: TruckSceneProps) {
   return (
     <div className={cx("truck-scene relative w-full", className)}>
       {/* Tall plant behind, on the left. */}
-      <Illustration name="plant-a" className="absolute bottom-1 left-0 h-full" />
+      <Illustration name="plant-a" className="truck-plant-back absolute bottom-1 left-0 h-full" />
       {/* Ground shadow so the truck sits on the surface instead of floating. */}
       <span aria-hidden className="absolute bottom-1 left-1/2 h-4 w-3/4 -translate-x-1/2 rounded-[50%] bg-scrim/15 blur-md" />
       {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer */}
@@ -29,7 +29,7 @@ export function TruckScene({ className, image = HERO_TRUCK }: TruckSceneProps) {
         draggable={false}
       />
       {/* Shrub in front, on the right. */}
-      <Illustration name="plant-b" className="absolute bottom-1 right-0 h-[27%]" />
+      <Illustration name="plant-b" className="truck-plant-front absolute bottom-1 right-0 h-[27%]" />
     </div>
   );
 }
