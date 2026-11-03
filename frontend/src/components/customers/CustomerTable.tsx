@@ -5,6 +5,7 @@ import type { Customer } from "@/types/customer";
 import { ProfileAvatar } from "@/components/ui/ProfileAvatar";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type CustomerTableProps = {
   customers: Customer[];
   onEdit: (customer: Customer) => void;
@@ -43,8 +44,8 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
             <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {customers.map((customer) => (
+        <PagedTbody className="divide-y divide-separator-border" items={customers}>
+          {(customer) => (
             <tr key={customer.id} className="hover:bg-fill-2">
               {hasData.name && (
                 <td className="px-4 py-3 font-medium text-text-primary">
@@ -81,8 +82,8 @@ export function CustomerTable({ customers, onEdit, onDelete }: CustomerTableProp
                 </div>
               </td>
             </tr>
-          ))}
-        </tbody>
+          )}
+        </PagedTbody>
       </table>
     </div>
   );

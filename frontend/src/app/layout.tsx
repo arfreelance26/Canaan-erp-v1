@@ -17,6 +17,7 @@ import { ChatProvider } from "@/context/ChatContext";
 import { Toaster } from "@/components/feedback/Toaster";
 import { ConfirmHost } from "@/components/feedback/ConfirmHost";
 import { ProblemCardHost } from "@/components/feedback/ProblemCardHost";
+import { IconHoverMotion } from "@/components/ui/IconHoverMotion";
 
 // Inter is BoardUI's interface face (styles/theme.css reads --font-inter);
 // JetBrains Mono backs `font-mono` for figures, IDs and codes.
@@ -54,13 +55,14 @@ export default function RootLayout({
         */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}var f=parseFloat(localStorage.getItem('erp_font_scale'));if([0.9,1,1.1,1.2,1.3].indexOf(f)>-1){document.documentElement.style.fontSize=(f*100)+'%';}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('erp_theme');var login=/\\/login(\\/|\\/index\\.html)?$/.test(location.pathname);if(t!=='light'&&!login){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}var f=parseFloat(localStorage.getItem('erp_font_scale'));if([0.9,1,1.1,1.2,1.3].indexOf(f)>-1){document.documentElement.style.fontSize=(f*100)+'%';}}catch(e){}})();`,
           }}
         />
       </head>
       <body className="h-full bg-mesh-light font-sans text-text-primary">
         <UppercaseInputs />
         <NoScrollNumberInputs />
+        <IconHoverMotion />
         <Toaster />
         <ConfirmHost />
         <ProblemCardHost />

@@ -21,6 +21,7 @@ import type { Truck as TruckType } from "@/types/truck";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { plural } from "@/lib/plural";
 interface OverviewData {
   total_trucks: number;
   active_trips: number;
@@ -210,7 +211,18 @@ export function FleetManagerDashboard() {
     <div className="animate-stagger flex flex-col gap-6">
 
       {/* Header */}
-      <DashboardHero illustration="delivery" title="Commercial" description="Fleet status, active trips and operations" />
+      <DashboardHero
+        role="Commercial"
+        description={
+          loading
+            ? "Loading today's fleet…"
+            : [
+                plural(activeCount, "active trip"),
+                `${onTripTrucks.length} of ${trucks.length} trucks on the road`,
+                pendingApprovals > 0 ? plural(pendingApprovals, "approval") + " pending" : null,
+              ].filter(Boolean).join(" · ")
+        }
+      />
 
       {/* Current Trips */}
       <CurrentTripsCard />

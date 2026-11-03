@@ -78,6 +78,21 @@
   --gradient-button-primary-hover:   linear-gradient(180deg, #1d4ed8 0%, #1d4ed8 100%);
   --gradient-button-primary-active:  linear-gradient(180deg, #1d4ed8 0%, #1e40af 100%);
   --color-border-focus-ring: #4a6fd4;
+
+  /* BoardUI's dark tokens assume accent-800/900/950 are the DARK end of the
+     ramp; the ramp above runs the other way (950 is near-white). Re-point the
+     tokens that use those steps at the mirrored step, so each comes out dark
+     as BoardUI meant. Without this the calendar's picked day was pale blue
+     with white text. */
+  --color-date-range-background:      var(--color-accent-100);
+  --color-date-range-edge-background: #2563eb; /* same blue as the Apply button */
+  --color-button-ghost-background:    var(--color-accent-100);
+  --color-button-ghost-hover:         var(--color-accent-200);
+  --color-button-ghost-active:        var(--color-accent-300);
+  --color-button-ghost-foreground:    var(--color-accent-700);
+  --color-badge-new-background:       color-mix(in srgb, var(--color-accent-50) 50%, transparent);
+  --color-tab-count-selected-background: color-mix(in srgb, var(--color-accent-200) 60%, transparent);
+  --color-pill-tab-blue-selected-background: color-mix(in srgb, var(--color-accent-50) 60%, transparent);
 }
 
 /* ----- Neutrals ------------------------------------------------------------
@@ -156,6 +171,31 @@
   --illo-line: var(--color-neutral-600);
 }
 
+/* Generated avatars (lib/avatar.ts): DiceBear draws with placeholder colours
+ * that are swapped for these, so faces and group shapes follow the theme.
+ * Tiles: navy, gold and slate tints from the brand; ink stays dark because
+ * the tiles stay light enough to carry it in both themes. */
+:root {
+  --avatar-bg-1: var(--color-accent-100);
+  --avatar-bg-2: #f1e4b8;
+  --avatar-bg-3: #dfe4ec;
+  --avatar-ink: var(--color-accent-700);
+  --avatar-face: #ffffff;
+  --avatar-shape-1: var(--color-accent-600);
+  --avatar-shape-2: var(--color-accent-400);
+  --avatar-shape-3: var(--color-gold-500);
+}
+.dark {
+  --avatar-bg-1: #6880bd;
+  --avatar-bg-2: #b09245;
+  --avatar-bg-3: #7a8aa4;
+  --avatar-ink: #0e111d;
+  --avatar-face: #edf3fb;
+  --avatar-shape-1: #0e1e4a;
+  --avatar-shape-2: #cce0fd;
+  --avatar-shape-3: #e0a92b;
+}
+
 /* Illustrations placed on the fixed navy brand panel. */
 .illo-on-brand {
   --illo-accent: var(--color-gold-500);
@@ -164,4 +204,9 @@
   --illo-surface: oklch(0.34 0.07 268);
   --illo-line: oklch(0.42 0.07 268);
   --illo-paper: var(--color-brand-navy);
+}
+/* The truck scene's plants on the navy panel: a step lighter than the panel
+   surface so the leaves read against it. */
+.illo-on-brand .truck-scene {
+  --illo-surface: oklch(0.47 0.07 268);
 }

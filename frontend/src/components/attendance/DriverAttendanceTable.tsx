@@ -18,6 +18,7 @@ import type { Driver } from "@/types/driver";
 import type { DriverAttendanceRecord, DriverAttendanceRemark } from "@/types/attendance";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const PREVIEW_COUNT = 2;
 
 type DriverAttendanceTableProps = {
@@ -526,8 +527,8 @@ export function DriverAttendanceTable({ drivers, records, remarks, date, readOnl
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {drivers.map((driver) => {
+        <PagedTbody className="divide-y divide-separator-border" items={drivers}>
+          {(driver) => {
             const record = getAttendanceForDate(records, driver.driverId, date);
             const driverRemarks = remarks.filter((r) => r.driverId === driver.driverId && r.date === date);
             return (
@@ -550,8 +551,8 @@ export function DriverAttendanceTable({ drivers, records, remarks, date, readOnl
                 </td>
               </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
   );

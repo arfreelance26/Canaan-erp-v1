@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export type Theme = "light" | "dark";
 
@@ -12,6 +13,13 @@ const THEME_KEY = "erp_theme";
 const FONT_KEY = "erp_font_scale";
 const DEFAULT_THEME: Theme = "dark";
 const DEFAULT_SCALE: FontScale = 1;
+
+/** Pages that are always light, whatever the saved theme: the sign-in page
+ *  shows the brand panel as designed. Keep in step with the pre-hydration
+ *  script in app/layout.tsx. */
+export function isAlwaysLight(pathname: string | null): boolean {
+  return /^\/login(\/|$)/.test(pathname ?? "");
+}
 
 type ThemeContextValue = {
   theme: Theme;
@@ -53,6 +61,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [fontScale, setFontScaleState] = useState<FontScale>(DEFAULT_SCALE);
   const themeRef = useRef<Theme>(theme);
+  const forcedLight = isAlwaysLight(usePathname());
 
   // Rehydrate from localStorage on mount (the inline pre-hydration script in
   // layout.tsx has already applied these to <html> to avoid a flash).
@@ -65,6 +74,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       setFontScaleState(savedScale as FontScale);
     }
   }, []);
+
+  // Entering an always-light page drops dark mode; leaving it brings the saved
+  // theme back. Instant, no cross-fade: it happens with the page change.
+  useEffect(() => {
+    const root = document.documentElement;
+    const effective: Theme = forcedLight ? "light" : themeRef.current;
+    root.classList.toggle("dark", effective === "dark");
+    root.style.colorScheme = effective;
+  }, [forcedLight]);
 
   const setTheme = useCallback((t: Theme) => {
     themeRef.current = t;

@@ -6,7 +6,6 @@ import { Segmented } from "@/components/ui/Segmented";
 import React, { useEffect, useRef, useState } from "react";
 import { tyreRangeConfigApi, tyreLayoutTypeConfigApi, tyreApi, trucksApi, runningCostApi, financeApi, fuelLogsApi, maintenanceApi, adblueApi, type AdBlueManufacturer, type AdBlueStats, type ServerCostParts, type TruckRunStats } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
-import { CostExplainDialog } from "@/components/insights/CostExplainDialog";
 import { onRevalidated, COST_INPUT_RESOURCES } from "@/lib/api-cache";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { usePollWhenOffline } from "@/hooks/usePollWhenOffline";
@@ -20,6 +19,11 @@ import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPr
 import { showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const CostExplainDialog = dynamic(() => import("@/components/insights/CostExplainDialog").then((m) => m.CostExplainDialog));
 const MODES = ["Manual", "Basic", "Advanced"] as const;
 type Mode = (typeof MODES)[number];
 
@@ -653,20 +657,14 @@ function TruckCostCard({
                     display ? "border-teal-border bg-teal-surface text-teal-text" : "border-separator-border bg-fill-1 text-text-tertiary"
                   }`}>{display ?? "NIL"}</div>;
                 })() : (
-                <select
+                <GlassSelect
+                  size="sm"
+                  aria-label="AdBlue manufacturer"
                   value={metrics[key] ?? ""}
-                  onChange={(e) => onMetricChange(key, e.target.value)}
-                  className={`w-full rounded-lg border px-1 py-1.5 text-center text-caption-1-semibold shadow-sm outline-none focus:ring-2 transition cursor-pointer ${
-                    metrics[key]
-                      ? "border-warning-border-strong bg-warning-surface text-warning-text focus:border-warning-border-strong focus:ring-warning-border"
-                      : "border-separator-border bg-background-primary-default text-text-primary focus:border-accent-border-strong focus:ring-accent-border"
-                  }`}
-                >
-                  <option value="">—</option>
-                  {adblueManufacturers.map((m) => (
-                    <option key={m.id} value={String(m.id)}>{m.name}</option>
-                  ))}
-                </select>)
+                  onChange={(v) => onMetricChange(key, v)}
+                  options={[{ value: "", label: "—" }, ...adblueManufacturers.map((m) => ({ value: String(m.id), label: m.name }))]}
+                  triggerClassName={metrics[key] ? "border-warning-border-strong bg-warning-surface text-warning-text" : undefined}
+                />)
               ) : key === "adbluePerKm" ? (
                 fromServer ? (() => {
                   const display = adblueChargesCalc !== null ? adblueChargesCalc.toFixed(4) : null;
@@ -725,16 +723,13 @@ function TruckCostCard({
                     —
                   </div>
                 ) : (
-                  <select
+                  <GlassSelect
+                    size="sm"
+                    aria-label="Tyre type"
                     value={metrics[key] ?? ""}
-                    onChange={(e) => onMetricChange(key, e.target.value)}
-                    className="w-full rounded-lg border border-separator-border bg-background-primary-default px-1 py-1.5 text-center text-caption-1-semibold text-text-primary shadow-sm outline-none focus:border-accent-border-strong focus:ring-2 focus:ring-accent-border transition cursor-pointer"
-                  >
-                    <option value="">—</option>
-                    {tyreTypes.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => onMetricChange(key, v)}
+                    options={[{ value: "", label: "—" }, ...tyreTypes.map((t) => ({ value: t, label: t }))]}
+                  />
                 )
               ) : key === "tyrePerKm" ? (
                 isAdvancedMode || isBasicMode ? (() => {

@@ -1,12 +1,12 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 import { RiDownloadLine as Download, RiEyeLine as Eye, RiLoader4Line as Loader2, RiCloseLine as X, RiGroupLine as Users, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiTimeLine as Clock } from "@remixicon/react";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StaffAttendanceTable } from "@/components/attendance/StaffAttendanceTable";
-import { SetWorkingHoursDialog } from "@/components/attendance/SetWorkingHoursDialog";
 import { AttendanceMandatoryToggle } from "@/components/attendance/AttendanceMandatoryToggle";
 import { staffApi, attendanceApi, type StaffAttendanceEditEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
@@ -22,6 +22,10 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const SetWorkingHoursDialog = dynamic(() => import("@/components/attendance/SetWorkingHoursDialog").then((m) => m.SetWorkingHoursDialog));
 const EDIT_EVENT_ICON: Record<StaffAttendanceEditEventRow["event"], typeof Plus> = {
   "Attendance Marked": Plus,
   "Attendance Updated": Pencil,
@@ -492,7 +496,6 @@ export default function StaffAttendancePage() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
                     {(() => {
                       const dates: string[] = [];
                       const [fy, fm, fd] = fromDate.split("-").map(Number);
@@ -509,10 +512,12 @@ export default function StaffAttendancePage() {
                         "On Leave": "text-warning-text bg-warning-surface",
                         "Not Marked": "text-text-secondary bg-fill-1",
                       };
-                      let rowIdx = 0;
-                      return dates.flatMap((d) =>
-                        staff.map((member) => {
-                          rowIdx++;
+                      // One row per day per person; only the current page of rows is drawn.
+                      const cells = dates.flatMap((d) => staff.map((member) => ({ d, member })));
+                      return (
+                        <PagedTbody className="divide-y divide-separator-border" items={cells}>
+                          {({ d, member }, i) => {
+                          const rowIdx = i + 1;
                           const status = reportRecords.find((r) => r.staffId === member.id && r.date === d)?.status ?? "Not Marked";
                           return (
                             <tr key={`${d}-${member.id}`} className="hover:bg-fill-2">
@@ -528,10 +533,10 @@ export default function StaffAttendancePage() {
                               </td>
                             </tr>
                           );
-                        })
+                          }}
+                        </PagedTbody>
                       );
                     })()}
-                  </tbody>
                 </table>
               )}
             </div>
@@ -590,8 +595,8 @@ export default function StaffAttendancePage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -609,8 +614,8 @@ export default function StaffAttendancePage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

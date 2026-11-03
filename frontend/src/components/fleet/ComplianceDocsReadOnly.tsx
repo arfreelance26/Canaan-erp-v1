@@ -8,9 +8,12 @@ import { fileUrl } from "@/lib/api";
 import { COMPLIANCE_DOCS, COMPLIANCE_MANAGER_ROLES, formatRupees } from "@/lib/compliance-docs";
 import { getComplianceStatus } from "@/lib/compliance";
 import { formatDate } from "@/lib/format-date";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 const STATUS_TEXT = {
   Valid: "text-success-text",

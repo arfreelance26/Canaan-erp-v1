@@ -4,18 +4,8 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { EditApprovalRequest } from "@/types/edit-approval";
-import { VerifyTripDialog } from "@/components/trips/VerifyTripDialog";
-import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
-import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
 import { GenerateInvoiceDialog, type InvoiceType, type InvoiceFormData } from "@/components/trips/GenerateInvoiceDialog";
-import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
-import { GenerateCombinedInvoiceDialog } from "@/components/trips/GenerateCombinedInvoiceDialog";
-import { CombinedInvoicePreviewDialog } from "@/components/trips/CombinedInvoicePreviewDialog";
-import { LRConsignmentDialog } from "@/components/trips/LRConsignmentDialog";
-import { DABDialog } from "@/components/trips/DABDialog";
-import { CABDialog } from "@/components/trips/CABDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -38,6 +28,21 @@ import { cn } from "@/lib/utils";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
+const VerifyTripDialog = dynamic(() => import("@/components/trips/VerifyTripDialog").then((m) => m.VerifyTripDialog));
+const TripSheetDialog = dynamic(() => import("@/components/trips/TripSheetDialog").then((m) => m.TripSheetDialog));
+const BookingSheetDialog = dynamic(() => import("@/components/trips/BookingSheetDialog").then((m) => m.BookingSheetDialog));
+const InvoicePreviewDialog = dynamic(() => import("@/components/trips/InvoicePreviewDialog").then((m) => m.InvoicePreviewDialog));
+const GenerateCombinedInvoiceDialog = dynamic(() => import("@/components/trips/GenerateCombinedInvoiceDialog").then((m) => m.GenerateCombinedInvoiceDialog));
+const CombinedInvoicePreviewDialog = dynamic(() => import("@/components/trips/CombinedInvoicePreviewDialog").then((m) => m.CombinedInvoicePreviewDialog));
+const LRConsignmentDialog = dynamic(() => import("@/components/trips/LRConsignmentDialog").then((m) => m.LRConsignmentDialog));
+const DABDialog = dynamic(() => import("@/components/trips/DABDialog").then((m) => m.DABDialog));
+const CABDialog = dynamic(() => import("@/components/trips/CABDialog").then((m) => m.CABDialog));
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
   "Booking Edited": Pencil,
@@ -1338,18 +1343,21 @@ export default function TripVerificationPage() {
               <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-fill-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-caption-1-medium text-text-secondary whitespace-nowrap">Status:</span>
-                  <select
+                  <GlassSelect
+                    size="sm"
+                    aria-label="Status"
                     value={modalStatusFilter}
-                    onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
-                    className="rounded-lg border border-separator-border bg-background-primary-default py-1.5 px-2 text-sm outline-none focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/10"
-                  >
-                    <option value="All">All Trips</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Verified">Verified</option>
-                    <option value="Invoiced">Invoiced</option>
-                    <option value="Waived Invoice">Waived Invoice</option>
-                  </select>
+                    onChange={(v) => setModalStatusFilter(v as typeof modalStatusFilter)}
+                    options={[
+                      { value: "All", label: "All Trips" },
+                      { value: "Pending", label: "Pending" },
+                      { value: "Rejected", label: "Rejected" },
+                      { value: "Verified", label: "Verified" },
+                      { value: "Invoiced", label: "Invoiced" },
+                      { value: "Waived Invoice", label: "Waived Invoice" },
+                    ]}
+                    className="w-44"
+                  />
                 </div>
                 {modalStatusFilter !== "All" && (
                   <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-border-button-default bg-background-primary-default px-2.5 py-1 text-xs text-text-secondary hover:bg-fill-3">Clear</button>
@@ -1453,8 +1461,8 @@ export default function TripVerificationPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -1474,8 +1482,8 @@ export default function TripVerificationPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

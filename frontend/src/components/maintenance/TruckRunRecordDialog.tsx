@@ -6,6 +6,7 @@ import { useTruckTripRuns } from "@/hooks/useTruckTripRuns";
 import type { Truck } from "@/types/truck";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type TruckRunRecordDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -43,8 +44,8 @@ export function TruckRunRecordDialog({ open, onClose, truck }: TruckRunRecordDia
                 <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">Total Distance</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {rows.map(({ trip, totalKm }) => (
+            <PagedTbody className="divide-y divide-separator-border" items={rows}>
+              {({ trip, totalKm }) => (
                 <tr key={trip.id} className="hover:bg-fill-2">
                   <td className="px-4 py-2.5 font-medium text-text-primary">{trip.tripId}</td>
                   <td className="px-4 py-2.5 text-text-secondary">{trip.origin || "—"}</td>
@@ -53,8 +54,8 @@ export function TruckRunRecordDialog({ open, onClose, truck }: TruckRunRecordDia
                     {totalKm ? `${Number(totalKm).toLocaleString("en-IN")} km` : "—"}
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}

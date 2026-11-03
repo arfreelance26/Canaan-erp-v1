@@ -10,6 +10,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -431,8 +432,8 @@ export default function TripExpensesPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => (
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2">
                           <span className="inline-flex items-center gap-1 rounded-full bg-warning-surface-strong px-2 py-0.5 text-caption-2-semibold text-warning-text">
@@ -445,8 +446,8 @@ export default function TripExpensesPage() {
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
-                    ))}
-                  </tbody>
+                    )}
+                  </PagedTbody>
                 </table>
               </div>
             );

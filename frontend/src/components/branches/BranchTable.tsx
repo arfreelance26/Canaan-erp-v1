@@ -5,6 +5,7 @@ import type { Branch } from "@/types/branch";
 import { HALT_CONTAINER_TYPES } from "@/lib/halt-pay";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type BranchTableProps = {
   branches: Branch[];
   onEdit: (branch: Branch) => void;
@@ -41,8 +42,8 @@ function HaltFeeGrid({ branch }: { branch: Branch }) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {rows.map((r) => (
+        <PagedTbody className="divide-y divide-separator-border" items={rows}>
+          {(r) => (
             <tr key={r.key}>
               <td className="px-3 py-1.5">
                 <span className="inline-flex items-center gap-1.5 text-caption-2-semibold text-text-secondary">
@@ -56,8 +57,8 @@ function HaltFeeGrid({ branch }: { branch: Branch }) {
                 </td>
               ))}
             </tr>
-          ))}
-        </tbody>
+          )}
+        </PagedTbody>
       </table>
     </div>
   );
@@ -113,8 +114,8 @@ export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {branches.map((branch) => (
+        <PagedTbody className="divide-y divide-separator-border" items={branches}>
+          {(branch) => (
             <tr key={branch.id} className="align-middle transition-colors hover:bg-fill-2">
               <td className="px-5 py-5 font-semibold text-text-primary">{branch.name}</td>
               <td className="px-5 py-4">
@@ -146,8 +147,8 @@ export function BranchTable({ branches, onEdit, onDelete }: BranchTableProps) {
                 </div>
               </td>
             </tr>
-          ))}
-        </tbody>
+          )}
+        </PagedTbody>
       </table>
     </div>
   );

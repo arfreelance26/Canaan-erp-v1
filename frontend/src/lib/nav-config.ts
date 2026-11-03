@@ -155,6 +155,12 @@ export const sidebarSections: NavSection[] = [
   },
 ];
 
+/** Pages reached from somewhere other than the Sidebar (e.g. the profile
+ *  menu), with the title the Topbar breadcrumb shows for them. */
+export const EXTRA_PAGE_LABELS: Record<string, string> = {
+  "/personal/profile": "My profile",
+};
+
 export type TopNavItem = {
   label: string;
   href: string;
@@ -169,3 +175,161 @@ export const topNavItems: TopNavItem[] = [
   { label: "Tyre Management", href: "/maintenance/tyre-management", hasDropdown: false },
   { label: "Driver Attendance", href: "/attendance/drivers", hasDropdown: false },
 ];
+
+// ── Who sees what (used by the Sidebar and the universal search) ──
+
+// Allowed hrefs per software designation (Admin gets everything)
+export const ROLE_HREFS: Record<string, string[] | "all"> = {
+  Admin: "all",
+  "Commercial Manager": [
+    "/",
+    "/connect/chat",
+    "/trips/assign-drivers",
+    "/trips/assign",
+    "/trips/current",
+    "/trips/completed",
+    "/trips/history",
+    "/insights/trip-planner",
+    "/resources/customers",
+    "/resources/drivers",
+    "/resources/fleet",
+    "/attendance/mark",
+    "/attendance/drivers",
+    "/attendance/leave-requests",
+    "/attendance/edit-approvals",
+    "/attendance/report",
+    "/admin/repairs",
+    "/admin/default-batta",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+  // Assistant Commercial Manager has EQUAL access to Commercial Manager.
+  "Assistant Commercial Manager": [
+    "/",
+    "/connect/chat",
+    "/trips/assign-drivers",
+    "/trips/assign",
+    "/trips/current",
+    "/trips/completed",
+    "/trips/history",
+    "/insights/trip-planner",
+    "/resources/customers",
+    "/resources/drivers",
+    "/resources/fleet",
+    "/attendance/mark",
+    "/attendance/drivers",
+    "/attendance/leave-requests",
+    "/attendance/edit-approvals",
+    "/attendance/report",
+    "/admin/repairs",
+    "/admin/default-batta",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+  Accounts: [
+    "/",
+    "/finance/documents",
+    "/finance/customer-detention",
+    "/connect/chat",
+    "/trips/verification",
+    "/trips/history",
+    "/trips/flagged",
+    "/trips/audit-verified",
+    "/resources/customers",
+    "/finance/driver-compensation",
+    "/finance/emi-tracking",
+    "/maintenance/compliance",
+    "/attendance/mark",
+    "/attendance/leave-requests",
+    "/attendance/payment-requests",
+    "/attendance/maintenance-approvals",
+    "/admin/sac-codes",
+    "/trips/pending-audit",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+  Maintenance: [
+    "/",
+    "/connect/chat",
+    "/maintenance/tyre-management",
+    "/maintenance/tyre-inventory",
+    "/maintenance/tyre-archive",
+    "/maintenance/retread-queue",
+    "/maintenance/discarded-tyres",
+    "/maintenance/trucks",
+    "/maintenance/fuel-history",
+    "/admin/adblue",
+    "/admin/maintenance",
+    "/resources/vendors",
+    "/attendance/mark",
+    "/attendance/leave-requests",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+  "Yard Supervisor": [
+    "/",
+    "/connect/chat",
+    "/trips/sheet-collection",
+    "/attendance/mark",
+    "/attendance/leave-requests",
+    "/admin/repairs",
+    "/trips/pending-audit",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+  "Trip Sheet Register": [
+    "/",
+    "/connect/chat",
+    "/trips/reconciliation",
+    "/trips/flagged",
+    "/trips/audit-verified",
+    "/maintenance/fuel-history",
+    "/attendance/mark",
+    "/attendance/leave-requests",
+    "/admin/repairs",
+    "/trips/pending-audit",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+  // Auditor gets a bare dashboard + chat + their own Driver / Vehicle Record.
+  Auditor: [
+    "/",
+    "/connect/chat",
+    "/resources/driver-record",
+    "/resources/vehicle-record",
+    "/personal/edit-delete-requests",
+    "/personal/notifications",
+  ],
+};
+
+export function getFilteredSections(role: string): NavSection[] {
+  const allowed = ROLE_HREFS[role] ?? ["/"];
+  if (allowed === "all") return sidebarSections;
+
+  return sidebarSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => allowed.includes(item.href)),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+
+// Strips one trailing slash, but never reduces "/" itself to "" — used to
+// compare a route href against usePathname() under next.config.ts's
+// trailingSlash: true (see isActive below).
+
+export const ATTENDANCE_LOCK_HREFS = ["/attendance/mark", "/connect/chat"];
+
+/**
+ * The pages this person can open, grouped as in the Sidebar. While the
+ * attendance lock is on, only Mark Attendance and Chat.
+ */
+export function visibleSections(role: string | undefined, locked = false): NavSection[] {
+  if (locked) {
+    return sidebarSections
+      .map((section) => ({ ...section, items: section.items.filter((item) => ATTENDANCE_LOCK_HREFS.includes(item.href)) }))
+      .filter((section) => section.items.length > 0);
+  }
+  return getFilteredSections(role ?? "Trip Sheet Register");
+}

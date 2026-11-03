@@ -5,11 +5,14 @@ import { RiEyeLine as Eye, RiLoader4Line as Loader2, RiAttachment2 as Paperclip,
 import { tyreApi } from "@/lib/api";
 import type { TyreData, TyreMovementEvent } from "@/types/tyre-inventory";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 import { confirmDelete, showError, showSuccess } from "@/lib/feedback";
 import { PROOF_MAX_BYTES, proofAccepted, fileSize } from "@/components/tyre-inventory/TyreInventoryFormDialog";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 const EVENT_LABEL: Record<TyreMovementEvent["event"], string> = {
   "Flagged for Retreading": "Moved for retreading",

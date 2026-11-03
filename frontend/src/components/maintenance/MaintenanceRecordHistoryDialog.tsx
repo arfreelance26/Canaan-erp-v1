@@ -18,6 +18,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError, confirm } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type MaintenanceRecordHistoryDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -358,8 +359,8 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filteredRecords.map((record) => (
+              <PagedTbody className="divide-y divide-separator-border" items={filteredRecords}>
+                {(record) => (
                   <tr
                     key={record.id}
                     className="bg-background-primary-default transition-colors hover:bg-fill-2"
@@ -439,8 +440,8 @@ export function MaintenanceRecordHistoryDialog({ open, onClose, truck, records, 
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         )}

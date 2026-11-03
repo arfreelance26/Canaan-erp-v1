@@ -18,6 +18,8 @@ import type { Trip } from "@/types/trip";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { plural } from "@/lib/plural";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 // IST-day inclusive range check for a stored (naive-UTC) timestamp.
 function inDateRange(iso: string | null | undefined, from: string, to: string): boolean {
   if (!iso) return false;
@@ -198,9 +200,18 @@ export function StaffDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DashboardHero illustration="documents" title="Trip Sheet Register" description="Sheets awaiting receipt and entry" />
-      </div>
+      <DashboardHero
+        role="Trip Sheet Register"
+        description={
+          loading
+            ? "Loading trip sheets…"
+            : [
+                plural(pendingReceive.length, "sheet") + " to receive",
+                `${pendingEntry.length} to enter`,
+                flaggedNeedingFix.length > 0 ? plural(flaggedNeedingFix.length, "flagged trip") + " to correct" : null,
+              ].filter(Boolean).join(" · ")
+        }
+      />
 
       {/* Current Trips */}
       <CurrentTripsCard />
@@ -356,8 +367,8 @@ export function StaffDashboard() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-separator-border">
-                      {modalConfig.rows.map((t, i) => (
+                    <PagedTbody className="divide-y divide-separator-border" items={modalConfig.rows}>
+                      {(t, i) => (
                         <tr key={t.id} className="hover:bg-fill-2">
                           <td className="px-3 py-2 text-text-tertiary text-xs">{i + 1}</td>
                           <td className="px-3 py-2 font-medium text-text-primary whitespace-nowrap">{t.tripId}</td>
@@ -367,8 +378,8 @@ export function StaffDashboard() {
                           <td className="px-3 py-2 text-text-secondary whitespace-nowrap max-w-[180px] truncate">{[t.origin, t.destination].filter(Boolean).join(" → ") || "—"}</td>
                           <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{fmtDate(modalConfig.dateOf(t))}</td>
                         </tr>
-                      ))}
-                    </tbody>
+                      )}
+                    </PagedTbody>
                   </table>
                 )}
               </div>

@@ -11,7 +11,9 @@ import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { TripSheetCoordinatorDashboard } from "@/components/dashboard/TripSheetCoordinatorDashboard";
 import { AuditorDashboard } from "@/components/dashboard/AuditorDashboard";
 import { CurrentTripsCard } from "@/components/dashboard/CurrentTripsCard";
-import { CelebrationCard } from "@/components/dashboard/CelebrationCard";
+import { BirthdayCard } from "@/components/dashboard/BirthdayCard";
+import { SeasonCard } from "@/components/dashboard/SeasonCard";
+import { FoundingCard } from "@/components/dashboard/FoundingCard";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { Button } from "@/components/base/buttons/button";
 import { SheetTrackingCard } from "@/components/dashboard/SheetTrackingCard";
@@ -92,18 +94,15 @@ const COMPLIANCE_DOCS: Array<{ key: string; label: string; field: keyof TruckTyp
   { key: "pollution", label: "Pollution",    field: "pollutionCertificateDate" },
 ];
 
-/** Time-of-day greeting in India time. */
-function greetingFor(d: Date): string {
-  const h = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(d));
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-}
 
 export default function DashboardPage() {
   // The birthday person's greeting (and the Christmas / New Year one) sits
   // above whichever dashboard their role gets.
   return (
     <>
-      <CelebrationCard />
+      <BirthdayCard />
+      <SeasonCard />
+      <FoundingCard />
       <RoleDashboard />
     </>
   );
@@ -496,9 +495,7 @@ function AdminDashboard() {
       {/* relative z-30: keeps the open Backup menu above the cards below. */}
       <DashboardHero
         className="relative z-30 overflow-visible"
-        image={{ src: "/images/hero-truck.png", alt: "Canaan Global truck" }}
-        eyebrow={`${today_.weekday}, ${today_.day} ${today_.monthLong} ${today_.year}`}
-        title={`${greetingFor(new Date())}, ${(user?.name ?? "").split(" ")[0] || "there"}`}
+        role="Admin overview"
         description={
           loading
             ? "Loading today's fleet…"

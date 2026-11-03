@@ -19,6 +19,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EDIT_EVENT_ICON: Record<LeaveRequestEditEventRow["event"], typeof Send> = {
   "Leave Requested": Send,
   "Leave Approved": Check,
@@ -291,8 +292,8 @@ export default function LeaveApprovalsPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={`${ev.id}-${ev.event}`}>
@@ -308,8 +309,8 @@ export default function LeaveApprovalsPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

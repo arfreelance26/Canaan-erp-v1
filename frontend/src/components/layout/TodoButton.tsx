@@ -10,6 +10,7 @@ import { todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { WorkspaceTile } from "./WorkspaceTile";
 const TITLE_MAX = 300;
 
 type Filter = "active" | "done";
@@ -56,7 +57,8 @@ function dueChip(t: Todo, today: string): { text: string; tone: "red" | "amber" 
  * The button shows how many open tasks are due today or overdue. Limits are
  * enforced by the server — see routers/todos.py.
  */
-export function TodoButton() {
+/** `variant="tile"` draws the My profile card instead of the round icon; the panel is the same. */
+export function TodoButton({ variant = "icon" }: { variant?: "icon" | "tile" } = {}) {
   const [open, setOpen] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [usage, setUsage] = useState<TodoUsage | null>(null);
@@ -207,6 +209,17 @@ export function TodoButton() {
 
   return (
     <>
+      {variant === "tile" ? (
+        <WorkspaceTile
+          icon={ListTodo}
+          title="To-do"
+          summary={openCount === 0 ? "All clear" : `${openCount} open${dueCount ? ` · ${dueCount} due today or overdue` : ""}`}
+          count={dueCount}
+          countTone="attention"
+          aria-label={dueCount ? `To-do — ${dueCount} due` : "To-do"}
+          onClick={() => (open ? closePanel() : openPanel())}
+        />
+      ) : (
       <button
         type="button"
         aria-label={dueCount ? `To-do — ${dueCount} due` : "To-do"}
@@ -227,6 +240,7 @@ export function TodoButton() {
           </span>
         )}
       </button>
+      )}
 
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-[95] flex justify-end p-0 sm:p-3">

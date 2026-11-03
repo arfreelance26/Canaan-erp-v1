@@ -258,7 +258,7 @@ export function AlertsButton() {
                     disabled={sendingId !== null}
                     className="flex items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-fill-2 disabled:opacity-60"
                   >
-                    <Avatar name={g.title ?? "Group"} photoUrl={g.hasPhoto ? chatApi.groupPhotoUrl(g.id) : null} size={36} group />
+                    <Avatar name={g.title ?? "Group"} photoUrl={g.hasPhoto ? chatApi.groupPhotoUrl(g.id) : null} size={36} group seed={`group-${g.id}`} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-body-medium text-text-primary">{g.title}</p>
                       <p className="truncate text-xs text-text-tertiary flex items-center gap-1">

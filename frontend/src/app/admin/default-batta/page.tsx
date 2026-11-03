@@ -13,6 +13,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const TRIP_TYPES = ["LOCAL", "LOCAL CFS", "OUTSTATION", "SHIFTING", "RETURN TRIP"] as const;
 type TripType = (typeof TRIP_TYPES)[number];
 
@@ -285,8 +286,8 @@ export default function DefaultBattaManagementPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => (
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2 font-semibold text-text-primary">{ev.branchName}</td>
                         <td className="px-3 py-2 text-text-secondary">{ev.tripType}</td>
@@ -300,8 +301,8 @@ export default function DefaultBattaManagementPage() {
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
-                    ))}
-                  </tbody>
+                    )}
+                  </PagedTbody>
                 </table>
               </div>
             );

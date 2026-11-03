@@ -19,6 +19,8 @@ import type { MaintenanceRecord } from "@/types/truck-maintenance";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { plural } from "@/lib/plural";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const QUICK_LINKS = [
   { label: "Tyre Management",   href: "/maintenance/tyre-management",  icon: CircleDot, color: "bg-accent-surface text-accent-text border-accent-border" },
   { label: "Tyre Inventory",    href: "/maintenance/tyre-inventory",   icon: Boxes,     color: "bg-purple-surface text-purple-text border-purple-border" },
@@ -202,17 +204,22 @@ export function TyreManagerDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DashboardHero illustration="maintenance" title="Maintenance" description="Tyre health, fitment and maintenance across the fleet" />
-        <div className="flex flex-wrap items-center gap-3">
-          {!loading && criticalTyres > 0 && (
+      <DashboardHero
+        role="Maintenance"
+        description={
+          loading
+            ? "Loading tyres and maintenance…"
+            : `${plural(totalTyres, "tyre")} · ${fittedCount} fitted · ${availableCount} in stock across ${plural(trucks.length, "truck")}`
+        }
+        actions={
+          !loading && criticalTyres > 0 && (
             <div className="flex items-center gap-2 rounded-xl border border-danger-border bg-danger-surface px-3 py-2">
               <AlertTriangle className="h-4 w-4 text-danger-text" />
               <span className="text-caption-1-semibold text-danger-text">{criticalTyres} tyre{criticalTyres > 1 ? "s" : ""} need immediate replacement</span>
             </div>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {/* Current Trips */}
       <CurrentTripsCard />
@@ -340,11 +347,10 @@ export function TyreManagerDashboard() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-separator-border">
-                      {visibleLifeRows.length === 0 ? (
+                    <PagedTbody className="divide-y divide-separator-border" items={visibleLifeRows} head={<>{visibleLifeRows.length === 0 ? (
                         <tr><td colSpan={7} className="p-0"><EmptyState size="compact" illustration="not-found" title="No tyres match this filter" /></td></tr>
-                      ) : (
-                        visibleLifeRows.map(({ f, tyre, truck, kmDriven, remaining, lifePct }) => {
+                      ) : null}</>}>
+                      {({ f, tyre, truck, kmDriven, remaining, lifePct }) => {
                           const h = healthOf(lifePct);
                           return (
                             <tr key={f.id} className="transition-colors hover:bg-fill-2">
@@ -382,9 +388,8 @@ export function TyreManagerDashboard() {
                               </td>
                             </tr>
                           );
-                        })
-                      )}
-                    </tbody>
+                        }}
+                    </PagedTbody>
                   </table>
                 </div>
               </div>

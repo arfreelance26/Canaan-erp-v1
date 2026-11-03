@@ -8,6 +8,7 @@ import { notesApi, type NoteSummary, type NoteUsage } from "@/lib/api";
 import { confirmDelete, showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { WorkspaceTile } from "./WorkspaceTile";
 const AUTOSAVE_MS = 800;
 const RETRY_MS = 15_000;
 const NOTE_MAX_CHARS = 50_000;
@@ -57,7 +58,8 @@ function kb(bytes: number): string {
  * Limits (20 notes, 100 KB each, a daily save allowance) are enforced by the
  * server — see routers/notes.py — and surfaced here.
  */
-export function NotesButton() {
+/** `variant="tile"` draws the My profile card instead of the round icon; the panel is the same. */
+export function NotesButton({ variant = "icon" }: { variant?: "icon" | "tile" } = {}) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState<Item[]>([]);
   const [usage, setUsage] = useState<NoteUsage | null>(null);
@@ -304,6 +306,14 @@ export function NotesButton() {
 
   return (
     <>
+      {variant === "tile" ? (
+        <WorkspaceTile
+          icon={NotebookPen}
+          title="Notes"
+          summary="Your private notepad, saved as you type"
+          onClick={() => (open ? void closePanel() : void openPanel())}
+        />
+      ) : (
       <button
         type="button"
         aria-label="Notes"
@@ -319,6 +329,7 @@ export function NotesButton() {
       >
         <NotebookPen className="h-5 w-5 transition-transform duration-300" />
       </button>
+      )}
 
       {open && mounted && createPortal(
         <div className="fixed inset-0 z-[95] flex justify-end p-0 sm:p-3">

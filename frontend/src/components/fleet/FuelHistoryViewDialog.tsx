@@ -12,6 +12,8 @@ import { showSuccess, showError } from "@/lib/feedback";
 
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 // ---------------------------------------------------------------------------
 // Edit fuel log dialog
 // Admin  → saves directly via PUT; changes apply immediately
@@ -212,7 +214,7 @@ function StatCard({ title, value, icon: Icon, trend, subtitle }: any) {
         {title}
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-title-1-semibold text-text-primary">{value}</span>
+        <span className="text-title-1-semibold text-text-primary"><AnimatedNumber value={value} /></span>
         {trend !== undefined && (
           <span className={`text-caption-1-medium flex items-center ${trend >= 0 ? "text-success-text" : "text-danger-text"}`}>
             {trend >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
@@ -482,13 +484,12 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                       <th className="px-6 py-3 font-medium">Edit</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border text-sm">
-                    {logs.length === 0 ? (
+                  <PagedTbody className="divide-y divide-separator-border text-sm" items={logs} head={<>{logs.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="p-0"><EmptyState size="compact" illustration="logistics" title="No fuel logs found for this truck" /></td>
                       </tr>
-                    ) : (
-                      logs.map((log) => {
+                    ) : null}</>}>
+                    {(log) => {
                         const sourceLabel = log.source ?? (log.loggedBy?.startsWith("trip:") ? "Trip Sheet" : "Manual Log");
                         const isTripSheet = sourceLabel.startsWith("Trip Sheet");
                         return (
@@ -542,9 +543,8 @@ export function FuelHistoryViewDialog({ open, onClose, truck }: FuelHistoryViewD
                             </td>
                           </tr>
                         );
-                      })
-                    )}
-                  </tbody>
+                      }}
+                  </PagedTbody>
                 </table>
               </div>
             </div>

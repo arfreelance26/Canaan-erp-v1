@@ -8,9 +8,13 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { confirmAction, showSuccess, showError } from "@/lib/feedback";
-import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const TyreDataDialog = dynamic(() => import("@/components/tyre-inventory/TyreDataDialog").then((m) => m.TyreDataDialog));
 const columns = [
   "Brand",
   "Tyre Type",
@@ -91,8 +95,8 @@ export default function DiscardedTyresPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {tyres.map((tyre) => (
+            <PagedTbody className="divide-y divide-separator-border" items={tyres}>
+              {(tyre) => (
                 <tr key={tyre.id} className="hover:bg-fill-2">
                   <td className="px-4 py-3 font-medium text-text-primary">{tyre.brand}</td>
                   <td className="px-4 py-3 text-text-secondary">{tyre.tyreType}</td>
@@ -134,8 +138,8 @@ export default function DiscardedTyresPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}

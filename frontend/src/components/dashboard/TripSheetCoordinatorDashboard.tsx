@@ -15,6 +15,7 @@ import type { Trip } from "@/types/trip";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { plural } from "@/lib/plural";
 const QUICK_LINKS = [
   { label: "Sheet Collection", href: "/trips/sheet-collection", icon: ClipboardList, color: "bg-accent-surface text-accent-text border-accent-border" },
 ];
@@ -101,17 +102,22 @@ export function TripSheetCoordinatorDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <DashboardHero illustration="yard" title="Yard Supervisor" description="Sheet collection status across all closed trips" />
-        <div className="flex flex-wrap items-center gap-3">
-          {!loading && pending.length > 0 && (
+      <DashboardHero
+        role="Yard Supervisor"
+        description={
+          loading
+            ? "Loading trip sheets…"
+            : `${plural(delivered.length, "sheet")} collected of ${closedTrips.length} closed trips · ${deliveredToday.length} today`
+        }
+        actions={
+          !loading && pending.length > 0 && (
             <div className="flex items-center gap-2 rounded-xl border border-warning-border bg-warning-surface px-3 py-2">
               <AlertCircle className="h-4 w-4 text-warning-text" />
               <span className="text-caption-1-semibold text-warning-text">{pending.length} trip{pending.length > 1 ? "s" : ""} awaiting collection</span>
             </div>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {/* Current Trips */}
       <CurrentTripsCard />

@@ -14,7 +14,21 @@ import nextTs from "eslint-config-next/typescript";
 // Everything we own is token-only. shadcn files are vendored (kept as the
 // registry ships them) and map onto BoardUI tokens through src/styles/shadcn.css.
 const TOKEN_ONLY_ZONES = ["src/**/*.{ts,tsx}"];
-const TOKEN_ONLY_IGNORES = ["src/components/shadcn/**"];
+// Celebration decor and its management page are kept exactly as they were
+// before the redesign (commit 9440742), at the owner's request: they paint
+// fixed festive colours (gold bunting, red Christmas, navy Founding Day) on
+// purpose, so the token-only rule does not apply to them.
+const CELEBRATION_FILES = [
+  "src/app/admin/celebrations/page.tsx",
+  "src/components/layout/BirthdayDecor.tsx",
+  "src/components/layout/SeasonDecor.tsx",
+  "src/components/layout/FoundingDecor.tsx",
+  "src/components/layout/CelebrationPreviewBar.tsx",
+  "src/components/dashboard/BirthdayCard.tsx",
+  "src/components/dashboard/SeasonCard.tsx",
+  "src/components/dashboard/FoundingCard.tsx",
+];
+const TOKEN_ONLY_IGNORES = ["src/components/shadcn/**", ...CELEBRATION_FILES];
 
 const RAW_PALETTE =
   "(^|[\\s:!])(bg|text|border|ring|from|to|via|divide|fill|stroke|outline|shadow|decoration|placeholder|caret)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|brand-navy|brand-gold)(-[0-9]{2,3})?(\\/[0-9]+)?(\\s|$)|(^|[\\s:!])(bg|text|border)-(white|black)(\\/[0-9]+)?(\\s|$)";

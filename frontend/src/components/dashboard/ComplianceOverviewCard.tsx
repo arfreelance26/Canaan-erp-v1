@@ -9,6 +9,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type Status = "valid" | "soon" | "expired" | "none";
 type Filter = "all" | "expired" | "soon";
 
@@ -150,13 +151,12 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {visible.length === 0 ? (
+              <PagedTbody className="divide-y divide-separator-border" items={visible} head={<>{visible.length === 0 ? (
                   <tr>
                     <td colSpan={DOCS.length + 1} className="p-0"><EmptyState size="compact" illustration={rows.length === 0 ? "logistics" : "not-found"} title={rows.length === 0 ? "No trucks in the fleet yet" : "No trucks match this filter"} /></td>
                   </tr>
-                ) : (
-                  visible.map((r) => (
+                ) : null}</>}>
+                {(r) => (
                     <tr key={r.truck.id} className="transition-colors hover:bg-fill-2">
                       <td className="relative px-5 py-2.5">
                         {r.worst !== "valid" && (
@@ -185,9 +185,8 @@ export function ComplianceOverviewCard({ trucks }: { trucks: Truck[] }) {
                         </td>
                       ))}
                     </tr>
-                  ))
-                )}
-              </tbody>
+                  )}
+              </PagedTbody>
             </table>
           </div>
         </div>

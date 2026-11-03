@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format-date";
 import { paidInstallments } from "@/lib/emi-schedule";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type EmiTrackingTableProps = {
   records: EmiRecord[];
   onView?: (record: EmiRecord) => void;
@@ -64,8 +65,8 @@ export function EmiTrackingTable({ records, onView, onViewInsights, onEdit, onDe
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {records.map((record) => {
+        <PagedTbody className="divide-y divide-separator-border" items={records}>
+          {(record) => {
             const tenure = Number(record.tenureMonths) || 0;
             const emiAmt = Number(record.emiAmount) || 0;
             const paidMonths = paidInstallments(record, tenure);
@@ -127,8 +128,8 @@ export function EmiTrackingTable({ records, onView, onViewInsights, onEdit, onDe
               )}
             </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
     </div>

@@ -14,6 +14,8 @@ type Props = {
   totalItems: number;
   onPageChange: (page: number) => void;
   itemLabel?: string;      // e.g. "customers", "destinations"
+  /** No box of its own: a hairline row at the bottom of a table card (PagedTbody). */
+  bare?: boolean;
 };
 
 export function TablePagination({
@@ -23,12 +25,19 @@ export function TablePagination({
   totalItems,
   onPageChange,
   itemLabel = "items",
+  bare = false,
 }: Props) {
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-separator-border bg-background-primary-default px-4 py-3">
-      <p className="text-sm text-text-secondary">
+    <div
+      className={
+        bare
+          ? "flex flex-wrap items-center justify-between gap-3 border-t border-separator-border px-4 py-3"
+          : "flex flex-wrap items-center justify-between gap-3 rounded-xl border border-separator-border bg-background-primary-default px-4 py-3"
+      }
+    >
+      <p className="text-body-regular tabular-nums text-text-secondary">
         Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalItems)} of {totalItems} {itemLabel}
       </p>
       <div className="flex items-center gap-1">

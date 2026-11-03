@@ -19,6 +19,7 @@ import { formatDateTime } from "@/lib/format-date";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EDIT_EVENT_ICON: Record<RepairTypeEditEventRow["event"], typeof Plus> = {
   "Repair Type Created": Plus,
   "Repair Type Edited": Pencil,
@@ -169,13 +170,12 @@ export default function RepairsManagementPage() {
               <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-separator-border">
-            {filteredRepairs.length === 0 && (
+          <PagedTbody className="divide-y divide-separator-border" items={filteredRepairs} head={<>{filteredRepairs.length === 0 && (
               <tr>
                 <td colSpan={3} className="p-0"><EmptyState size="compact" illustration="no-data" title="No repair types configured yet" description="Add one to get started" /></td>
               </tr>
-            )}
-            {filteredRepairs.map((rt) => (
+            )}</>}>
+            {(rt) => (
               <tr key={rt.id} className="hover:bg-fill-2 transition-colors">
                 <td className="px-4 py-3 font-medium text-text-primary">{rt.name}</td>
                 <td className="px-4 py-3 text-right text-text-secondary">
@@ -202,8 +202,8 @@ export default function RepairsManagementPage() {
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
+            )}
+          </PagedTbody>
         </table>
       </div>
 
@@ -286,8 +286,8 @@ export default function RepairsManagementPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -304,8 +304,8 @@ export default function RepairsManagementPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

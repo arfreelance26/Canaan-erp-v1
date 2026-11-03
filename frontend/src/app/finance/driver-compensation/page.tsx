@@ -3,12 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
-import { AdvanceRecordDialog } from "@/components/compensation/AdvanceRecordDialog";
-import { SalaryRecordDialog } from "@/components/compensation/SalaryRecordDialog";
-import { SalaryStatementDialog } from "@/components/compensation/SalaryStatementDialog";
 import { CompensationGuideDialog, type GuideTab } from "@/components/compensation/CompensationGuideDialog";
-import { HaltPayRecordDialog } from "@/components/compensation/HaltPayRecordDialog";
-import { BattaRecordDialog } from "@/components/compensation/BattaRecordDialog";
 import { RiWallet3Line as Wallet, RiHistoryLine as History, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiInformationLine as Info } from "@remixicon/react";
 import { driversApi, tripsApi, financeApi, trucksApi, type CompensationEditEventRow } from "@/lib/api";
 import type { Driver } from "@/types/driver";
@@ -25,6 +20,15 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const AdvanceRecordDialog = dynamic(() => import("@/components/compensation/AdvanceRecordDialog").then((m) => m.AdvanceRecordDialog));
+const SalaryRecordDialog = dynamic(() => import("@/components/compensation/SalaryRecordDialog").then((m) => m.SalaryRecordDialog));
+const SalaryStatementDialog = dynamic(() => import("@/components/compensation/SalaryStatementDialog").then((m) => m.SalaryStatementDialog));
+const HaltPayRecordDialog = dynamic(() => import("@/components/compensation/HaltPayRecordDialog").then((m) => m.HaltPayRecordDialog));
+const BattaRecordDialog = dynamic(() => import("@/components/compensation/BattaRecordDialog").then((m) => m.BattaRecordDialog));
 const EDIT_EVENT_ICON: Record<CompensationEditEventRow["event"], typeof Plus> = {
   "Transaction Added": Plus,
   "Transaction Deleted": Trash2,
@@ -282,8 +286,8 @@ export default function DriverCompensationPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -298,8 +302,8 @@ export default function DriverCompensationPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

@@ -9,6 +9,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EVENT_LABELS: Record<string, string> = {
   "login.success": "Login — Success",
   "login.failure": "Login — Failed",
@@ -522,8 +524,8 @@ export default function SecurityLogPage() {
                     <th className="pb-2 font-semibold text-text-secondary">Action</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {lockouts.map((row, i) => (
+                <PagedTbody items={lockouts}>
+                  {(row, i) => (
                     <tr key={i} className="border-b border-separator-border last:border-0">
                       <td className="py-2.5 pr-4">
                         <span className="flex items-center gap-1.5 font-medium text-text-primary">
@@ -563,8 +565,8 @@ export default function SecurityLogPage() {
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
+                  )}
+                </PagedTbody>
               </table>
             </div>
           )}
@@ -716,17 +718,14 @@ export default function SecurityLogPage() {
             </div>
 
             {/* Event type */}
-            <select
+            <GlassSelect
+              size="sm"
+              aria-label="Event type"
               value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
-              className="rounded-lg border border-separator-border bg-background-primary-default px-3 py-1.5 text-xs text-text-primary"
-            >
-              {EVENT_FILTERS.map((f) => (
-                <option key={f.value} value={f.value}>
-                  {f.label}
-                </option>
-              ))}
-            </select>
+              onChange={setEventFilter}
+              options={EVENT_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+              className="w-48"
+            />
           </div>
         </div>
 

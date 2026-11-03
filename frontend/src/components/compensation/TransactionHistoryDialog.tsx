@@ -5,6 +5,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 import type { CompensationTransaction, CompensationTransactionType } from "@/types/compensation";
 import { formatDate } from "@/lib/format-date";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 
 type TransactionHistoryDialogProps = {
   open: boolean;
@@ -91,8 +92,8 @@ export function TransactionHistoryDialog({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filteredTransactions.map((transaction) => (
+              <PagedTbody className="divide-y divide-separator-border" items={filteredTransactions}>
+                {(transaction) => (
                   <tr key={transaction.id} className="hover:bg-fill-2">
                     <td className="px-4 py-3 text-text-secondary">{formatDate(transaction.date)}</td>
                     <td className="px-4 py-3">
@@ -115,8 +116,8 @@ export function TransactionHistoryDialog({
                     )}
                     <td className="px-4 py-3 text-text-secondary">{transaction.note || "—"}</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         )}

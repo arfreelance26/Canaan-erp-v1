@@ -11,6 +11,7 @@ import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -423,8 +424,8 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
                   <th className={thRClass}>Total Advance</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {rows.map((row, i) => (
+              <PagedTbody className="divide-y divide-separator-border" items={rows}>
+                {(row, i) => (
                   <tr key={`${row.tripId}-${i}`} className="hover:bg-fill-2">
                     <td className="px-3 py-2.5 font-medium text-purple-text">{row.tripId}</td>
                     <td className="px-3 py-2.5 text-text-primary">{row.driverName}</td>
@@ -447,8 +448,8 @@ export function AdvanceRecordDialog({ open, onClose, driver, trips, trucks, onSh
                       {row.hasClosure ? fmtCur(row.totalAdvance) : <span className="text-text-tertiary">—</span>}
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { RiLockLine as Lock, RiDownloadLine as Download, RiLoader4Line as Loader2, RiInformationLine as Info, RiCloseLine as X, RiEyeLine as Eye, RiProfileLine as IdCard, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -630,7 +631,6 @@ export default function DriverAttendancePage() {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
                     {(() => {
                       const dates: string[] = [];
                       const [fy, fm, fd] = fromDate.split("-").map(Number);
@@ -641,10 +641,12 @@ export default function DriverAttendancePage() {
                         dates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
                         cur.setDate(cur.getDate() + 1);
                       }
-                      let rowIdx = 0;
-                      return dates.flatMap((d) =>
-                        drivers.map((driver) => {
-                          rowIdx++;
+                      // One row per day per person; only the current page of rows is drawn.
+                      const cells = dates.flatMap((d) => drivers.map((driver) => ({ d, driver })));
+                      return (
+                        <PagedTbody className="divide-y divide-separator-border" items={cells}>
+                          {({ d, driver }, i) => {
+                          const rowIdx = i + 1;
                           const record = reportRecords.find((r) => r.driverId === driver.driverId && r.date === d);
                           const status = record?.status ?? "Not Marked";
                           const driverRemarks = reportRemarks.filter((r) => r.driverId === driver.driverId && r.date === d);
@@ -672,10 +674,10 @@ export default function DriverAttendancePage() {
                               <td className="px-3 py-2 text-text-secondary text-xs max-w-[200px] truncate">{remarkText}</td>
                             </tr>
                           );
-                        })
+                          }}
+                        </PagedTbody>
                       );
                     })()}
-                  </tbody>
                 </table>
               )}
             </div>
@@ -734,8 +736,8 @@ export default function DriverAttendancePage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -753,8 +755,8 @@ export default function DriverAttendancePage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

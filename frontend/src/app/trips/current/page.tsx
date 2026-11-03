@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { TripTable } from "@/components/trips/TripTable";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, deletionApprovalsApi } from "@/lib/api";
 import { RiRouteLine as Route } from "@remixicon/react";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
@@ -18,6 +17,10 @@ import { useAuth } from "@/context/AuthContext";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 
 import { PillSearch } from "@/components/ui/PillSearch";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 const CURRENT_STATUSES: Trip["status"][] = ["Started", "Loaded", "On-Transit", "Reached", "Unloaded"];
 
 export default function CurrentTripsPage() {

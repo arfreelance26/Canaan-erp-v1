@@ -1,6 +1,7 @@
 "use client";
 
 import { CelebrationPreviewBar } from "./CelebrationPreviewBar";
+import { JoshinePet } from "@/components/joshine/JoshinePet";
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
@@ -150,6 +151,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* <ERPChatWidget /> */}{/* Next phase */}
       <RoomSummonListener />
       <EventReminderListener />
+      {/* Joshine, the assistant, in the bottom-right corner (AI to come). */}
+      <JoshinePet />
     </div>
   );
 }

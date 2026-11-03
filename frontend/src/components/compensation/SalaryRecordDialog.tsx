@@ -11,6 +11,7 @@ import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -679,8 +680,8 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                   <th className={thRClass}>Net Payable</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {rows.map((row, i) => {
+              <PagedTbody className="divide-y divide-separator-border" items={rows}>
+                {(row, i) => {
                   const isReturnTrip = row.tripCategory === "RETURN TRIP";
                   return (
                   <tr key={`${row.tripId}-${i}`} className={`hover:bg-fill-2 ${row.excludedFromTotal ? "bg-purple-surface/40" : ""}`}>
@@ -752,8 +753,8 @@ export function SalaryRecordDialog({ open, onClose, driver, trips, trucks, onSho
                     </td>
                   </tr>
                   );
-                })}
-              </tbody>
+                }}
+              </PagedTbody>
             </table>
           </div>
 

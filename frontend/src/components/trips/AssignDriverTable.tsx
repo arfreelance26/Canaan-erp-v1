@@ -6,6 +6,7 @@ import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type AssignDriverTableProps = {
   drivers: Driver[];
   trucks: Truck[];
@@ -34,8 +35,8 @@ export function AssignDriverTable({ drivers, trucks, vehicleByDriverId, onAssign
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {drivers.map((driver) => {
+        <PagedTbody className="divide-y divide-separator-border" items={drivers}>
+          {(driver) => {
             const vehicleId = vehicleByDriverId[driver.driverId] ?? "";
             const truck = vehicleId ? truckById.get(vehicleId) : undefined;
 
@@ -73,8 +74,8 @@ export function AssignDriverTable({ drivers, trucks, vehicleByDriverId, onAssign
                 </td>
               </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
   );

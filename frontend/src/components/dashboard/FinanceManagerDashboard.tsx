@@ -24,6 +24,8 @@ import type { Truck } from "@/types/truck";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { plural } from "@/lib/plural";
+import { fmtInrCompact } from "@/lib/format-inr";
 const QUICK_LINKS = [
   { label: "Trip Finalization",   href: "/trips/finalization",         icon: CalendarCheck, color: "bg-accent-surface text-accent-text border-accent-border" },
   { label: "Trip History",        href: "/trips/history",              icon: History,       color: "bg-purple-surface text-purple-text border-purple-border" },
@@ -159,11 +161,19 @@ export function FinanceManagerDashboard() {
   return (
     <div className="animate-stagger flex flex-col gap-6">
       {/* Header */}
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <DashboardHero illustration="finance" title="Accounts" description="EMI obligations, trip finalization and compliance" />
-        </div>
-      </div>
+      <DashboardHero
+        role="Accounts"
+        description={
+          loading
+            ? "Loading accounts…"
+            : [
+                plural(pendingFinalization.length, "trip") + " to finalize",
+                `${fmtInrCompact(monthlyEmiTotal)} monthly EMI on ${plural(activeEmis.length, "loan")}`,
+                flaggedNeedingFix > 0 ? plural(flaggedNeedingFix, "flagged trip") + " to correct" : null,
+                dueSoonRecurring.length > 0 ? plural(dueSoonRecurring.length, "payment") + " due this week" : null,
+              ].filter(Boolean).join(" · ")
+        }
+      />
 
       {/* Current Trips */}
       <CurrentTripsCard />

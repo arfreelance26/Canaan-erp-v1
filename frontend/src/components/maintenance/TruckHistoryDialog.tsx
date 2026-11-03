@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type TruckHistoryDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -162,14 +163,14 @@ export function TruckHistoryDialog({ open, onClose, truck }: TruckHistoryDialogP
                 <th className="px-4 py-2.5 text-caption-1-semibold text-text-secondary">User</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filteredEvents.length === 0 ? (
+            <PagedTbody className="divide-y divide-separator-border" items={filteredEvents} head={<>{filteredEvents.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-sm text-text-tertiary">
                     No {typeFilter} events for this truck.
                   </td>
                 </tr>
-              ) : filteredEvents.map((event) => {
+              ) : null}</>}>
+              {(event) => {
                 const Icon = TYPE_ICONS[event.type];
                 return (
                   <tr key={event.key} className="hover:bg-fill-2">
@@ -193,8 +194,8 @@ export function TruckHistoryDialog({ open, onClose, truck }: TruckHistoryDialogP
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
+              }}
+            </PagedTbody>
           </table>
         </div>
         </div>

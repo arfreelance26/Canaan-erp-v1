@@ -4,15 +4,8 @@ import { useEffect, useState } from "react";
 import { RiAddLine as Plus, RiCloseLine as X, RiDownloadLine as Download, RiFileTextLine as FileText, RiLoader4Line as Loader2, RiTruckLine as TruckLucideIcon, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2, RiHandCoinLine as HandCoins } from "@remixicon/react";
 import { TruckTable } from "@/components/fleet/TruckTable";
 import { VEHICLE_IMAGES, bustTruckImages, truckImageUrl } from "@/components/fleet/VehicleImages";
-import { FileViewer } from "@/components/ui/FileViewer";
-import { ComplianceHistoryDialog } from "@/components/fleet/ComplianceHistoryDialog";
-import { OdometerCorrectionDialog } from "@/components/fleet/OdometerCorrectionDialog";
 import { TruckFormDialog, DRAFT_KEY as TRUCK_DRAFT_KEY } from "@/components/fleet/TruckFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
-import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
-import { BranchHistoryDialog } from "@/components/fleet/BranchHistoryDialog";
-import { RemoveTruckDialog } from "@/components/fleet/RemoveTruckDialog";
 import { TruckTyreStepDialog, type TruckTyrePlan, type TyrePlanRow, type TruckStepDetails } from "@/components/fleet/TruckTyreStepDialog";
 import { trucksApi, branchesApi, uploadFile, deleteFile, fileUrl, editApprovalsApi, deletionApprovalsApi, type TruckEditEventRow } from "@/lib/api";
 import { cacheInvalidate } from "@/lib/api-cache";
@@ -35,6 +28,17 @@ import { useAuth } from "@/context/AuthContext";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
+const ComplianceHistoryDialog = dynamic(() => import("@/components/fleet/ComplianceHistoryDialog").then((m) => m.ComplianceHistoryDialog));
+const OdometerCorrectionDialog = dynamic(() => import("@/components/fleet/OdometerCorrectionDialog").then((m) => m.OdometerCorrectionDialog));
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
+const BranchChangeNoteDialog = dynamic(() => import("@/components/fleet/BranchChangeNoteDialog").then((m) => m.BranchChangeNoteDialog));
+const BranchHistoryDialog = dynamic(() => import("@/components/fleet/BranchHistoryDialog").then((m) => m.BranchHistoryDialog));
+const RemoveTruckDialog = dynamic(() => import("@/components/fleet/RemoveTruckDialog").then((m) => m.RemoveTruckDialog));
 const EDIT_EVENT_ICON: Record<TruckEditEventRow["event"], typeof Plus> = {
   "Truck Created": Plus,
   "Truck Edited": Pencil,
@@ -584,8 +588,8 @@ export default function FleetPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filteredSoldTrucks.map((t) => (
+              <PagedTbody className="divide-y divide-separator-border" items={filteredSoldTrucks}>
+                {(t) => (
                   <tr key={t.id} className="hover:bg-fill-2">
                     <td className="px-4 py-3">
                       <span className="block font-semibold text-text-primary">{t.registrationNumber}</span>
@@ -600,8 +604,8 @@ export default function FleetPage() {
                     <td className="max-w-[240px] truncate px-4 py-3 text-text-secondary" title={t.soldNote ?? ""}>{t.soldNote || "—"}</td>
                     <td className="px-4 py-3 text-text-secondary">{t.soldByName || "—"}</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         )}
@@ -883,8 +887,8 @@ export default function FleetPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -904,8 +908,8 @@ export default function FleetPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

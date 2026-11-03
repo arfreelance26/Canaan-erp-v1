@@ -9,8 +9,6 @@ import { showSuccess, showError } from "@/lib/feedback";
 import { FuelHistoryTable } from "@/components/maintenance/FuelHistoryTable";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { FuelLogFormDialog } from "@/components/fleet/FuelLogFormDialog";
-import { FuelHistoryViewDialog } from "@/components/fleet/FuelHistoryViewDialog";
 import { RiGasStationLine as Fuel, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -21,6 +19,12 @@ import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FuelLogFormDialog = dynamic(() => import("@/components/fleet/FuelLogFormDialog").then((m) => m.FuelLogFormDialog));
+const FuelHistoryViewDialog = dynamic(() => import("@/components/fleet/FuelHistoryViewDialog").then((m) => m.FuelHistoryViewDialog));
 const EDIT_EVENT_ICON: Record<FuelLogEditEventRow["event"], typeof Plus> = {
   "Log Created": Plus,
   "Log Edited": Pencil,
@@ -230,8 +234,8 @@ export default function FuelHistoryPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -252,8 +256,8 @@ export default function FuelHistoryPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

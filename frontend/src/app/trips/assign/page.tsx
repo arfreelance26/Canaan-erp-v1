@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { RiAddLine as Plus, RiSendPlaneLine as Send, RiHistoryLine as History, RiPencilLine as Pencil, RiFileList3Line as ClipboardList, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiDeleteBinLine as Trash2, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { TripTable } from "@/components/trips/TripTable";
 import { TripFormDialog, clearTripDraft } from "@/components/trips/TripFormDialog";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { tripsApi, driversApi, trucksApi, customersApi, assignmentsApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { tripMatchesSearch, useGlobalSearchQuery } from "@/lib/trip-search";
 import { useAuth } from "@/context/AuthContext";
@@ -25,6 +24,11 @@ import { formatDateTime } from "@/lib/format-date";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
   "Booking Edited": Pencil,
@@ -341,8 +345,8 @@ export default function AssignTripsPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -362,8 +366,8 @@ export default function AssignTripsPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

@@ -10,6 +10,7 @@ import { todayIst } from "@/lib/format-date";
 import { showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Avatar as PersonAvatar } from "@/components/ui/Avatar";
 const APPRECIATION = [
   "Thank you for your hard work today. We truly appreciate you.",
   "Thank you for showing up and giving your best today. It means a lot.",
@@ -614,9 +615,7 @@ export default function MarkAttendancePage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={user.photoUrl} alt={user.name} className="h-11 w-11 rounded-full object-cover ring-2 ring-background-primary-default" />
             ) : (
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-surface-strong text-body-medium text-accent-text ring-2 ring-background-primary-default">
-                {getInitials(user?.name ?? "U")}
-              </div>
+              <PersonAvatar label={user?.name ?? "You"} size={44} className="ring-2 ring-background-primary-default" />
             )}
             <div className="min-w-0">
               <p className="truncate text-body-semibold text-text-primary">{user?.name ?? "—"}</p>

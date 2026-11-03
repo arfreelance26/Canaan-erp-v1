@@ -13,7 +13,12 @@ import { showError } from "@/lib/feedback";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
-import { TripBreakdownDialog } from "@/components/insights/TripBreakdownDialog";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const TripBreakdownDialog = dynamic(() => import("@/components/insights/TripBreakdownDialog").then((m) => m.TripBreakdownDialog));
 
 // ── Date helpers ───────────────────────────────────────────────────────────────
 // Local calendar date — toISOString() is UTC and shifted IST midnights back a day.
@@ -85,7 +90,7 @@ function StatCard({ label, value, sub, icon, color, onClick, active }: {
         {icon}
         <span className="text-caption-1-semibold opacity-70">{label}</span>
       </div>
-      <p className={`text-title-2-semibold ${txt[color]}`}>{value}</p>
+      <p className={`text-title-2-semibold ${txt[color]}`}><AnimatedNumber value={value} /></p>
       {sub && <p className={`mt-0.5 text-xs ${txt[color]} opacity-60`}>{sub}</p>}
     </div>
   );
@@ -566,8 +571,8 @@ function TripProfitabilityTab({
                   <HintTh label="Final Profit" hint="Gross Profit − Truck Expenses" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {sorted.map((t, i) => (
+              <PagedTbody className="divide-y divide-separator-border" items={sorted}>
+                {(t, i) => (
                   <tr
                     key={i}
                     onClick={() => t.tripId != null && setBreakdownTripId(t.tripId)}
@@ -653,8 +658,8 @@ function TripProfitabilityTab({
                       )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
               <tfoot>
                 <tr className="border-t-2 border-separator-border bg-fill-1">
                   <td colSpan={6} className="px-4 py-3 text-caption-1-semibold text-text-secondary">
@@ -940,8 +945,8 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {tripRows.map((t, i) => {
+              <PagedTbody className="divide-y divide-separator-border" items={tripRows}>
+                {(t, i) => {
                   const tPl = t.tripProfit ?? 0;
                   return (
                     <tr key={i} className={cn("hover:bg-fill-2", t.excludedFromTotals && "bg-warning-surface/60 hover:bg-warning-surface-strong")}>
@@ -969,8 +974,8 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
+                }}
+              </PagedTbody>
             </table>
           </div>
           {entry.flaggedTripCount > 0 && (
@@ -996,16 +1001,16 @@ function TruckDetailPanel({ entry, money, mode }: { entry: TruckPLEntry; money: 
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {maintRows.map((m, i) => (
+              <PagedTbody className="divide-y divide-separator-border" items={maintRows}>
+                {(m, i) => (
                   <tr key={i} className="hover:bg-fill-2">
                     <td className="px-3 py-2 text-text-secondary whitespace-nowrap">{fmtDate(m.date)}</td>
                     <td className="px-3 py-2 font-medium text-text-primary">{m.maintenanceType || "—"}</td>
                     <td className="px-3 py-2 text-text-secondary">{m.description || "—"}</td>
                     <td className="px-3 py-2 font-semibold text-orange-text">{fmt(m.cost)}</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         </div>
@@ -1149,8 +1154,8 @@ function TruckProfitabilityTab({
                   <HintTh label="Net Profit" hint="Gross Profit − Running Costs − Fixed Costs" />
                 </tr>
               </thead>
-              <tbody>
-                {filtered.map(({ entry, money }) => {
+              <PagedTbody items={filtered}>
+                {({ entry, money }) => {
                   const isOpen = expandedTruck === entry.truckId;
                   return (
                   <Fragment key={entry.truckId}>
@@ -1210,8 +1215,8 @@ function TruckProfitabilityTab({
                   )}
                   </Fragment>
                   );
-                })}
-              </tbody>
+                }}
+              </PagedTbody>
               <tfoot>
                 <tr className="border-t-2 border-separator-border bg-fill-1 font-semibold">
                   <td className="px-2 py-3"></td>

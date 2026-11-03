@@ -5,16 +5,24 @@
  * full-screen viewers). Feedback must always win over all of them, so it lives
  * far above. New UI uses these named utilities instead of z-[n] literals:
  *
+ *   z-pet       Joshine and its panel: over the sidebar and    60
+ *               topbar (50), under popovers (110) and overlays
  *   z-overlay   page overlays: drawers, modals              1000
+ *   z-popover   popovers that open from inside any modal   20000
+ *               (date picker calendar), above legacy modals
  *   z-confirm   confirm / prompt dialogs (ConfirmHost)    100000
  *   z-toast     toasts (Toaster), above confirms          100100
  * --------------------------------------------------------------------------- */
 :root {
+  --z-pet: 60;
   --z-overlay: 1000;
+  --z-popover: 20000;
   --z-confirm: 100000;
   --z-toast: 100100;
 }
 
+@utility z-pet { z-index: var(--z-pet); }
 @utility z-overlay { z-index: var(--z-overlay); }
+@utility z-popover { z-index: var(--z-popover); }
 @utility z-confirm { z-index: var(--z-confirm); }
 @utility z-toast { z-index: var(--z-toast); }

@@ -17,6 +17,7 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EDIT_EVENT_ICON: Record<PaymentRequestEditEventRow["event"], typeof Check> = {
   "Approved for Payment": Check,
   "Rejected by Accounts": X,
@@ -338,8 +339,8 @@ export default function PaymentRequestsPage() {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filteredRequests.map((r) => {
+            <PagedTbody className="divide-y divide-separator-border" items={filteredRequests}>
+              {(r) => {
                 const status = statusOf(r);
                 return (
                   <tr key={r.id} className="hover:bg-fill-2">
@@ -421,8 +422,8 @@ export default function PaymentRequestsPage() {
                     </td>
                   </tr>
                 );
-              })}
-            </tbody>
+              }}
+            </PagedTbody>
           </table>
         </div>
       )}
@@ -548,8 +549,8 @@ export default function PaymentRequestsPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -564,8 +565,8 @@ export default function PaymentRequestsPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

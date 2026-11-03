@@ -39,7 +39,10 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { onRevalidated } from "@/lib/api-cache";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { cn } from "@/lib/utils";
-import { BranchChangeNoteDialog } from "@/components/fleet/BranchChangeNoteDialog";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const BranchChangeNoteDialog = dynamic(() => import("@/components/fleet/BranchChangeNoteDialog").then((m) => m.BranchChangeNoteDialog));
 
 export const TRIP_DRAFT_KEY = "erp_trip_form_draft";
 const TRIP_VEHICLE_DRAFT_KEY = "erp_trip_form_draft_vehicle";

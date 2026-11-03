@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { RiEyeLine as Eye, RiFileTextLine as FileText, RiImageLine as ImageIcon, RiLoader4Line as Loader2, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { maintenanceApi, maintenanceRequestsApi } from "@/lib/api";
 import { confirmDelete, showError } from "@/lib/feedback";
 import type { MaintenanceProof } from "@/types/truck-maintenance";
 import { proofTypeLabel } from "./MaintenanceRecordFormDialog";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 type Props = {
   open: boolean;
   recordId: string | null;

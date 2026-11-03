@@ -14,6 +14,7 @@ import { COST_INPUT_RESOURCES, onRevalidated } from "@/lib/api-cache";
 import { usePollWhenOffline } from "@/hooks/usePollWhenOffline";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -392,15 +393,14 @@ function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {filtered.length === 0 && (
+            <PagedTbody items={filtered} head={<>{filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-10 text-center text-sm text-text-tertiary">
                     No customers match &quot;{search}&quot;.
                   </td>
                 </tr>
-              )}
-              {filtered.map((c) => {
+              )}</>}>
+              {(c) => {
                 const isOpen = expanded.has(c.customer_id);
                 return (
                   <React.Fragment key={c.customer_id}>
@@ -464,8 +464,8 @@ function BasicView({ data, search, level, mode }: { data: ViewCustomer[]; search
                     )}
                   </React.Fragment>
                 );
-              })}
-            </tbody>
+              }}
+            </PagedTbody>
           </table>
         </div>
       </div>
@@ -763,8 +763,8 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {selected.routes.map((r: RouteBreakdown) => (
+              <PagedTbody className="divide-y divide-separator-border" items={selected.routes}>
+                {(r: RouteBreakdown) => (
                   <tr key={r.route} className="hover:bg-fill-2 transition-colors">
                     <td className="px-4 py-2.5 text-caption-1-semibold text-text-primary max-w-[200px] truncate">{r.route}</td>
                     <td className="px-4 py-2.5 text-right text-xs text-text-secondary">{r.trip_count}</td>
@@ -781,8 +781,8 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
                     </td>
                     <td className="px-4 py-2.5 text-right text-xs text-text-tertiary tabular-nums">{r.avg_km.toFixed(0)} km</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         </div>
@@ -803,8 +803,8 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-separator-border">
-                  {selected.recent_trips.map((t: RecentTrip) => (
+                <PagedTbody className="divide-y divide-separator-border" items={selected.recent_trips}>
+                  {(t: RecentTrip) => (
                     <tr key={t.trip_id} className={cn("hover:bg-fill-2 transition-colors", t.excluded_from_totals && "bg-warning-surface/60 hover:bg-warning-surface-strong")}>
                       <td className="px-4 py-2 text-caption-1-semibold font-mono text-accent-text">
                         {t.trip_id}
@@ -836,8 +836,8 @@ function AdvancedView({ data, search, level, mode }: { data: ViewCustomer[]; sea
                         </>
                       )}
                     </tr>
-                  ))}
-                </tbody>
+                  )}
+                </PagedTbody>
               </table>
             </div>
             {selected.flagged_trip_count > 0 && (

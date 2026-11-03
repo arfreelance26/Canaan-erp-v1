@@ -18,6 +18,7 @@ import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const emptyForm = { description: "", code: "", gstRate: "" };
 
 const EDIT_EVENT_ICON: Record<SacCodeEditEventRow["event"], typeof Plus> = {
@@ -241,13 +242,12 @@ export default function SacCodeManagementPage() {
               {canEdit && <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Actions</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-separator-border">
-            {filteredSacCodes.length === 0 && (
+          <PagedTbody className="divide-y divide-separator-border" items={filteredSacCodes} head={<>{filteredSacCodes.length === 0 && (
               <tr>
                 <td colSpan={canEdit ? 6 : 5} className="p-0"><EmptyState size="compact" illustration="no-data" title="No SAC codes configured yet" description="Add one to get started" /></td>
               </tr>
-            )}
-            {filteredSacCodes.map((sc) => (
+            )}</>}>
+            {(sc) => (
               <tr key={sc.id} className="hover:bg-fill-2 transition-colors">
                 <td className="px-4 py-3 text-text-primary">{sc.description}</td>
                 <td className="px-4 py-3 font-mono font-semibold text-text-primary">{sc.code}</td>
@@ -313,8 +313,8 @@ export default function SacCodeManagementPage() {
                   </td>
                 )}
               </tr>
-            ))}
-          </tbody>
+            )}
+          </PagedTbody>
         </table>
       </div>
 
@@ -510,8 +510,8 @@ export default function SacCodeManagementPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -529,8 +529,8 @@ export default function SacCodeManagementPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

@@ -8,10 +8,8 @@ import { CustomerPricingTable } from "@/components/customers/CustomerPricingTabl
 import { CustomerPricingFormDialog, DRAFT_KEY as PRICING_DRAFT_KEY } from "@/components/customers/CustomerPricingFormDialog";
 import { CustomerDestinationTable } from "@/components/customers/CustomerDestinationTable";
 import { CustomerDestinationFormDialog, DRAFT_KEY as DESTINATION_DRAFT_KEY } from "@/components/customers/CustomerDestinationFormDialog";
-import { FinalCustomerPricingFormDialog } from "@/components/customers/FinalCustomerPricingFormDialog";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { customersApi, editApprovalsApi, type CustomerEditEventRow } from "@/lib/api";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatDateTime } from "@/lib/format-date";
@@ -30,6 +28,12 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { useAuth } from "@/context/AuthContext";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FinalCustomerPricingFormDialog = dynamic(() => import("@/components/customers/FinalCustomerPricingFormDialog").then((m) => m.FinalCustomerPricingFormDialog));
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 const TABS = [
   { id: "list", label: "Customer List" },
   { id: "destinations", label: "Our Customer Destinations" },
@@ -778,8 +782,8 @@ export default function CustomersPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -796,8 +800,8 @@ export default function CustomersPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

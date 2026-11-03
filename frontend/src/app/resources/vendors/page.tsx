@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 import { RiAddLine as Plus, RiCloseLine as X, RiShakeHandsLine as Handshake, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2 } from "@remixicon/react";
 import { VendorTable } from "@/components/vendors/VendorTable";
 import { VendorFormDialog, DRAFT_KEY as VENDOR_DRAFT_KEY } from "@/components/vendors/VendorFormDialog";
-import { VendorCategoryDialog } from "@/components/vendors/VendorCategoryDialog";
-import { VendorRecordsDialog } from "@/components/vendors/VendorRecordsDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import { vendorsApi, editApprovalsApi, type VendorEditEventRow } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import type { Vendor } from "@/types/vendor";
@@ -24,6 +21,13 @@ import { useAuth } from "@/context/AuthContext";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const VendorCategoryDialog = dynamic(() => import("@/components/vendors/VendorCategoryDialog").then((m) => m.VendorCategoryDialog));
+const VendorRecordsDialog = dynamic(() => import("@/components/vendors/VendorRecordsDialog").then((m) => m.VendorRecordsDialog));
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 const EDIT_EVENT_ICON: Record<VendorEditEventRow["event"], typeof Plus> = {
   "Vendor Created": Plus,
   "Vendor Edited": Pencil,
@@ -338,8 +342,8 @@ export default function VendorsPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -356,8 +360,8 @@ export default function VendorsPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

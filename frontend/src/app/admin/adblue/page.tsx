@@ -8,8 +8,6 @@ import type { Truck } from "@/types/truck";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import { showError, showSuccess } from "@/lib/feedback";
 import { Dialog } from "@/components/ui/Dialog";
-import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
-import { AdBlueHistoryViewDialog } from "@/components/fleet/AdBlueHistoryViewDialog";
 import { TruckManufacturersDialog, manufacturerRate } from "@/components/fleet/TruckManufacturersDialog";
 import type { AdBlueLog } from "@/types/adblue-log";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -20,6 +18,12 @@ import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const AdBlueLogFormDialog = dynamic(() => import("@/components/fleet/AdBlueLogFormDialog").then((m) => m.AdBlueLogFormDialog));
+const AdBlueHistoryViewDialog = dynamic(() => import("@/components/fleet/AdBlueHistoryViewDialog").then((m) => m.AdBlueHistoryViewDialog));
 const EDIT_EVENT_ICON: Record<AdBlueLogEditEventRow["event"], typeof Plus> = {
   "Log Created": Plus,
   "Log Edited": Pencil,
@@ -308,8 +312,8 @@ export default function AdblueManagementPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -326,8 +330,8 @@ export default function AdblueManagementPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

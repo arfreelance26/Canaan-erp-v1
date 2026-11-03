@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { RiFileTextLine as FileText, RiFileCloseLine as FileX2, RiLoader4Line as Loader2, RiEditLine as PencilLine, RiRestartLine as RotateCw, RiStarLine as Sparkles, RiUserLine as User } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { complianceRecordsApi, type ComplianceDocType, type ComplianceRecord } from "@/lib/api";
 import { COMPLIANCE_DOCS, formatRupees } from "@/lib/compliance-docs";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 /** Our Fleet → a truck's Compliance History: every RC / FC / Road Tax /
  *  Insurance / permit / PUC document it has held, with its cost and file. */
@@ -192,7 +196,7 @@ function Stat({ label, value, strong, className }: { label: string; value: strin
   return (
     <div className={cn("flex flex-col rounded-xl border border-separator-border bg-fill-1 px-3.5 py-2.5", className)}>
       <span className="text-caption-2-semibold text-text-tertiary">{label}</span>
-      <span className={cn("mt-0.5 tabular-nums", strong ? "text-title-3-semibold text-accent-text-strong" :"text-headline-semibold text-text-primary")}>{value}</span>
+      <span className={cn("mt-0.5 tabular-nums", strong ? "text-title-3-semibold text-accent-text-strong" :"text-headline-semibold text-text-primary")}><AnimatedNumber value={value} /></span>
     </div>
   );
 }

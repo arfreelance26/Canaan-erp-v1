@@ -10,10 +10,13 @@ import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Dialog } from "@/components/ui/Dialog";
-import { MaintenanceProofsDialog } from "@/components/maintenance/MaintenanceProofsDialog";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const MaintenanceProofsDialog = dynamic(() => import("@/components/maintenance/MaintenanceProofsDialog").then((m) => m.MaintenanceProofsDialog));
 type Filter = "Pending" | "Approved" | "Rejected" | "all";
 const TABS: Filter[] = ["Pending", "Approved", "Rejected", "all"];
 const TAB_LABEL: Record<Filter, string> = { Pending: "Pending", Approved: "Approved", Rejected: "Rejected", all: "All" };

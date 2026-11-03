@@ -9,12 +9,17 @@ import { useAuth } from "@/context/AuthContext";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { formatDate } from "@/lib/format-date";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const size = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
 
@@ -131,15 +136,13 @@ export default function ProofAndDocumentsPage() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search invoice no., vendor, truck, tyre, file…" value={search} onChange={setSearch} />
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+        <GlassSelect
+          variant="pill"
           aria-label="Type"
-          className="h-10 rounded-full border border-border-button-default bg-background-primary-default px-4 text-body-semibold text-text-primary shadow-sm outline-none"
-        >
-          <option value="">All types</option>
-          {typeOptions.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-        </select>
+          value={category}
+          onChange={setCategory}
+          options={[{ value: "", label: "All types" }, ...typeOptions.map((c) => ({ value: c.key, label: c.label }))]}
+        />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <DateRangePill from={fromDate} to={toDate} onFromChange={setFromDate} onToChange={setToDate} />
           <DownloadExcelButton
@@ -184,8 +187,8 @@ export default function ProofAndDocumentsPage() {
                   ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {rows.map((r) => (
+            <PagedTbody className="divide-y divide-separator-border" items={rows}>
+              {(r) => (
                 <tr key={r.key} className="transition-colors hover:bg-fill-2">
                   <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-text-secondary">{r.date ? formatDate(r.date.slice(0, 10)) : "—"}</td>
                   <td className="px-4 py-2.5">
@@ -243,8 +246,8 @@ export default function ProofAndDocumentsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}

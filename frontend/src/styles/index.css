@@ -9,6 +9,7 @@
  *   layers.css     named z-index layers (z-overlay, z-confirm, z-toast)
  *   motion.css     overlay mount animations (modal, scrim, pop)
  *   components.css shared hand-drawn surfaces (seg-track, seg-thumb)
+ *   celebrations.css birthday / season / founding decor (restored as-is)
  *   legacy.css     pre-redesign overrides; shrinks as modules migrate
  * --------------------------------------------------------------------------- */
 @import "./globals.css";
@@ -18,4 +19,5 @@
 @import "./layers.css";
 @import "./motion.css";
 @import "./components.css";
+@import "./celebrations.css";
 @import "./legacy.css";

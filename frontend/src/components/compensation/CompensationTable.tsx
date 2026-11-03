@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Avatar } from "@/components/ui/Avatar";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 export type CompensationPerson = {
   id: string;
   driverId?: string;
@@ -77,8 +78,8 @@ export function CompensationTable({
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {people.map((person) => (
+        <PagedTbody className="divide-y divide-separator-border" items={people}>
+          {(person) => (
             <tr key={person.id} className="hover:bg-fill-2">
               <td className="px-4 py-3">
                 <Avatar photoUrl={person.photoUrl} label={person.name} size={44} />
@@ -162,8 +163,8 @@ export function CompensationTable({
                 </div>
               </td>
             </tr>
-          ))}
-        </tbody>
+          )}
+        </PagedTbody>
       </table>
     </div>
   );

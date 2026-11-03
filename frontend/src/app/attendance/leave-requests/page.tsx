@@ -4,7 +4,6 @@ import { inDateRange } from "@/lib/format-date";
 import { RiAddLine as Plus, RiCalendarScheduleLine as CalendarClock } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { LeaveApprovalTable } from "@/components/attendance/LeaveApprovalTable";
-import { LeaveRequestFormDialog } from "@/components/attendance/LeaveRequestFormDialog";
 import { attendanceApi } from "@/lib/api";
 import { showSuccess, showError } from "@/lib/feedback";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -15,6 +14,10 @@ import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { Segmented } from "@/components/ui/Segmented";
 import { DateRangePill } from "@/components/ui/DateRangePill";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const LeaveRequestFormDialog = dynamic(() => import("@/components/attendance/LeaveRequestFormDialog").then((m) => m.LeaveRequestFormDialog));
 export default function LeaveRequestsPage() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);

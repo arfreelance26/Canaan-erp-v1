@@ -4,6 +4,7 @@ import { RiCheckLine as Check, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import type { LeaveRequest } from "@/types/leave-request";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 
 type LeaveApprovalTableProps = {
   requests: LeaveRequest[];
@@ -49,8 +50,8 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {requests.map((request) => (
+        <PagedTbody className="divide-y divide-separator-border" items={requests}>
+          {(request) => (
             <tr key={request.id} className="hover:bg-fill-2">
               <td className="px-4 py-3">
                 <div className="font-medium text-text-primary">{request.applicantName}</div>
@@ -105,8 +106,8 @@ export function LeaveApprovalTable({ requests, onApprove, onReject }: LeaveAppro
                 </td>
               )}
             </tr>
-          ))}
-        </tbody>
+          )}
+        </PagedTbody>
       </table>
     </div>
   );

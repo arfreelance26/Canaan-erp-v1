@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import type { CompensationPerson } from "./CompensationTable";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 export type BattaKind = "cleaner" | "workshop" | "workshopAdvance";
 
 /** What differs between the daily records. */
@@ -264,8 +265,8 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
                     <th className={thRClass}>{cfg.amountLabel}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-separator-border">
-                  {visible.map((r) => (
+                <PagedTbody className="divide-y divide-separator-border" items={visible}>
+                  {(r) => (
                     <tr key={r.date} className={cn("hover:bg-fill-2", r.note && "bg-warning-surface/40")}>
                       <td className="px-3 py-2.5 tabular-nums text-text-primary">{fmtDate(r.date)}</td>
                       <td className="px-3 py-2.5">
@@ -291,8 +292,8 @@ export function BattaRecordDialog({ kind, open, onClose, driver, onShowGuide }: 
                       {cfg.showFee && <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(r.rate)}</td>}
                       <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-accent-text-strong">{fmtCur(r.amount)}</td>
                     </tr>
-                  ))}
-                </tbody>
+                  )}
+                </PagedTbody>
               </table>
             </div>
 

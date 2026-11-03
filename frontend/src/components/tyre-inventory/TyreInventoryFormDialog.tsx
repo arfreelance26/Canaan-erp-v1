@@ -3,7 +3,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { RiEyeLine as Eye, RiFileTextLine as FileText, RiAttachment2 as Paperclip, RiCloseLine as X } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { Field, inputClass } from "@/components/ui/Field";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
@@ -14,6 +13,10 @@ import type { Vendor } from "@/types/vendor";
 import { todayIst } from "@/lib/format-date";
 import { useFormDraft, clearFormDraft } from "@/hooks/useFormDraft";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 export const DRAFT_KEY = "erp_tyre_inventory_form_draft";
 

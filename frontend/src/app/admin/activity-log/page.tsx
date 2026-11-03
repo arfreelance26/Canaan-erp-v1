@@ -18,7 +18,6 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { ExportPreviewDialog, type PreviewSheet } from "@/components/ui/ExportPreviewDialog";
-import { WorkReportDialog } from "@/components/activity/WorkReportDialog";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { todayIst, formatDateTime } from "@/lib/format-date";
 import { areaName, screenName } from "@/lib/screen-names";
@@ -29,6 +28,12 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { TAB_CLOSED_LABEL } from "@/hooks/useActivityTracking";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const WorkReportDialog = dynamic(() => import("@/components/activity/WorkReportDialog").then((m) => m.WorkReportDialog));
 const PAGE_SIZE = 50;
 const EXPORT_LIMIT = 500; // the most GET /activity/events returns in one call
 const FALLBACK_POLL_MS = 30_000;
@@ -687,13 +692,12 @@ export default function ActivityLogPage() {
                   <th className="px-3 py-2 text-right">Reads</th>
                 </tr>
               </thead>
-              <tbody>
-                {summary.length === 0 && (
+              <PagedTbody items={summary} head={<>{summary.length === 0 && (
                   <tr>
                     <td colSpan={12} className="p-0"><EmptyState size="compact" illustration="no-data" title="No activity on this day" /></td>
                   </tr>
-                )}
-                {summary.map((r) => (
+                )}</>}>
+                {(r) => (
                   <tr key={r.userName} className={cn("border-b border-separator-border hover:bg-fill-2", drawerUser === r.userName && "bg-accent-surface/60")}>
                     <td className="px-3 py-2">
                       <button type="button" onClick={() => openDrawer(r.userName)} className="text-left">
@@ -713,8 +717,8 @@ export default function ActivityLogPage() {
                     <td className="px-3 py-2 text-right tabular-nums">{r.clicks}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-text-tertiary">{r.reads}</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         </section>
@@ -761,8 +765,8 @@ export default function ActivityLogPage() {
                   <th className="px-3 py-2 text-right">Limit hits today</th>
                 </tr>
               </thead>
-              <tbody>
-                {notesUsage.map((r) => (
+              <PagedTbody items={notesUsage}>
+                {(r) => (
                   <tr key={r.staffId} className="border-b border-separator-border">
                     <td className="px-3 py-2 font-medium text-text-primary">{r.name}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.count}</td>
@@ -773,8 +777,8 @@ export default function ActivityLogPage() {
                       {r.blockedToday}
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         </section>
@@ -791,14 +795,13 @@ export default function ActivityLogPage() {
           </h2>
           <PillSearch placeholder="Filter by employee…" value={search} onChange={setSearch} />
           <PillSearch placeholder="Filter by screen…" value={screen} onChange={setScreen} />
-          <select
+          <GlassSelect
+            variant="pill"
+            aria-label="Role"
             value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="rounded-full border border-separator-border bg-background-primary-default px-3 py-2 text-sm"
-          >
-            <option value="">All roles</option>
-            {roles.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
+            onChange={setRole}
+            options={[{ value: "", label: "All roles" }, ...roles.map((r) => ({ value: r, label: r }))]}
+          />
           <div className="flex items-center gap-1.5 text-xs text-text-secondary">
             <div className="w-36"><DatePickerInput value={rangeFrom} onChange={setRangeFrom} placeholder="From" /></div>
             <span>to</span>

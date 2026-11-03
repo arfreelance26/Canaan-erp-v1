@@ -5,9 +5,12 @@ import { RiCameraLine as Camera, RiEyeLine as Eye, RiImageAddLine as ImagePlus, 
 import { fileUrl } from "@/lib/api";
 import { showError } from "@/lib/feedback";
 import { validateFileSize, MAX_FILE_SIZE_MB } from "@/lib/file-limits";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 /** Upload field (routers/files.py FIELD_MAP["trucks"]) → the Truck's filename key. */
 export const VEHICLE_IMAGES = [

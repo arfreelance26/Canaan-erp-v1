@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EDIT_EVENT_ICON: Record<TyreRangeConfigEditEventRow["event"], typeof Save> = {
   "Tyre Range Config Saved": Save,
   "Tyre Type Deleted": Trash2,
@@ -440,8 +441,8 @@ export default function TyreRangeConfigPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -458,8 +459,8 @@ export default function TyreRangeConfigPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

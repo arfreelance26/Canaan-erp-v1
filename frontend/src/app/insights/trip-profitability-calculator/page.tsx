@@ -14,6 +14,7 @@ import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 const inputClass =
   "w-full rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-body-semibold text-text-primary outline-none focus:border-success-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-success-border transition";
 
@@ -1248,17 +1249,13 @@ export default function TripProfitabilityCalculatorPage() {
                 </div>
               ))}
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="trip-vehicle-type" className="text-caption-2-semibold text-text-tertiary">Vehicle Type</label>
-                <select
-                  id="trip-vehicle-type"
+                <span className="text-caption-2-semibold text-text-tertiary">Vehicle Type</span>
+                <GlassSelect
+                  aria-label="Vehicle Type"
                   value={vehicleType.spec}
-                  onChange={(e) => setTripDetails((p) => ({ ...p, vehicleType: e.target.value }))}
-                  className={inputClass}
-                >
-                  {HALT_CONTAINER_TYPES.map((t) => (
-                    <option key={t.spec} value={t.spec}>{t.label}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setTripDetails((p) => ({ ...p, vehicleType: v }))}
+                  options={HALT_CONTAINER_TYPES.map((t) => ({ value: t.spec, label: t.label }))}
+                />
               </div>
             </div>
           </div>

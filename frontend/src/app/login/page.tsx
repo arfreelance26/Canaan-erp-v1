@@ -14,7 +14,7 @@ import { LOGOUT_REASON_KEY } from "@/lib/api";
 import { Button } from "@/components/base/buttons/button";
 import { InputBase, TextField } from "@/components/base/input/input";
 import { Label } from "@/components/base/input/label";
-import { Illustration } from "@/components/illustrations/Illustration";
+import { TruckScene } from "@/components/illustrations/TruckScene";
 
 function useDeviceOS(): string {
   const [os, setOS] = useState("");
@@ -106,7 +106,8 @@ export default function LoginPage() {
           <img src="/companylogo-dark.png" alt="Canaan Global" className="h-14 w-auto self-start object-contain xl:h-16" />
 
           <div className="flex flex-col gap-8 pr-8">
-            <Illustration name="logistics" className="h-60 xl:h-72" />
+            {/* The fleet truck between its plants, as on the dashboard. */}
+            <TruckScene className="h-56 max-w-[34rem] xl:h-64" />
             <div className="flex max-w-md flex-col gap-2">
               <h1 className="text-title-1-medium text-on-solid">
                 Moving together. <span className="text-gold-400">Growing together</span>
@@ -124,8 +125,8 @@ export default function LoginPage() {
       {/* Sign-in */}
       <main className="flex flex-1 flex-col items-center justify-center px-6 py-10">
         <div className="flex w-full max-w-sm flex-col gap-8">
-          <img src="/companylogo.png" alt="Canaan Global" className="h-12 w-auto self-start object-contain lg:hidden dark:hidden" />
-          <img src="/companylogo-dark.png" alt="Canaan Global" className="hidden h-12 w-auto self-start object-contain dark:block dark:lg:hidden" />
+          {/* The login page is always light (ThemeContext), so one logo. */}
+          <img src="/companylogo.png" alt="Canaan Global" className="h-12 w-auto self-start object-contain lg:hidden" />
 
           <div className="flex flex-col gap-1">
             <h2 className="text-title-1-medium text-text-primary">Sign in</h2>

@@ -1,5 +1,7 @@
 "use client";
 
+import { Avatar as PersonAvatar } from "@/components/ui/Avatar";
+
 import { RiGroupLine as Users } from "@remixicon/react";
 
 /** Shared between the real Canaan Chat UI (app/connect/chat/page.tsx) and the
@@ -44,33 +46,23 @@ export function senderColor(id: number | null): (typeof SENDER_PALETTE)[number] 
   return SENDER_PALETTE[Math.abs(key) % SENDER_PALETTE.length];
 }
 
+/**
+ * Chat avatar: the uploaded photo, otherwise a generated face for a person or
+ * abstract shapes for a group (see `@/components/ui/Avatar`). Pass `seed`
+ * (e.g. the group id) to keep a group's picture when it's renamed.
+ */
 export function Avatar({
   name,
   photoUrl,
   size = 44,
   group = false,
+  seed,
 }: {
   name: string;
   photoUrl?: string | null;
   size?: number;
   group?: boolean;
+  seed?: string;
 }) {
-  if (photoUrl) {
-    return (
-      <img
-        src={photoUrl}
-        alt={name}
-        style={{ width: size, height: size }}
-        className="shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <div
-      style={{ width: size, height: size }}
-      className="flex shrink-0 items-center justify-center rounded-full bg-accent-solid text-body-semibold text-on-solid"
-    >
-      {group ? <Users className="h-1/2 w-1/2 text-gold-text" /> : getInitials(name || "?")}
-    </div>
-  );
+  return <PersonAvatar photoUrl={photoUrl} label={name || "Unknown"} seed={seed} kind={group ? "group" : "person"} size={size} />;
 }

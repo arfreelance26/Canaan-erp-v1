@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
-import { RiCalendarCloseLine as CalendarOff, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiCalendar2Line as CalendarDays, RiArrowLeftSLine as ChevronLeft, RiArrowRightSLine as ChevronRight, RiArrowDownSLine as ChevronDown, RiLoader4Line as Loader2, RiHistoryLine as History, RiPencilLine as Pencil } from "@remixicon/react";
+import { RiCalendarCloseLine as CalendarOff, RiAddLine as Plus, RiDeleteBinLine as Trash2, RiCalendar2Line as CalendarDays, RiArrowLeftSLine as ChevronLeft, RiArrowRightSLine as ChevronRight, RiLoader4Line as Loader2, RiHistoryLine as History, RiPencilLine as Pencil } from "@remixicon/react";
 import { attendanceApi, type HolidayEditEventRow } from "@/lib/api";
 import type { Holiday } from "@/types/attendance";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EDIT_EVENT_ICON: Record<HolidayEditEventRow["event"], typeof Plus> = {
   "Holiday Created": Plus,
   "Holiday Updated": Pencil,
@@ -182,17 +184,16 @@ export default function HolidaysPage() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="pl-3 text-caption-1-medium text-text-secondary">Type</label>
-            <div className="relative">
-              <select
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as "Government" | "Company")}
-                className={`${FIELD} w-[150px] cursor-pointer appearance-none pr-10 text-sm text-text-primary outline-none`}
-              >
-                <option value="Government">Government</option>
-                <option value="Company">Company</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
-            </div>
+            <GlassSelect
+              variant="pill"
+              aria-label="Type"
+              value={newType}
+              onChange={(v) => setNewType(v as "Government" | "Company")}
+              options={[
+                { value: "Government", label: "Government" },
+                { value: "Company", label: "Company" },
+              ]}
+            />
           </div>
           <button
             type="button"
@@ -281,8 +282,8 @@ export default function HolidaysPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -301,8 +302,8 @@ export default function HolidaysPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

@@ -33,17 +33,17 @@ export function getStageLabel(trip: Trip): string {
 }
 
 /**
- * The five steps of the trip route line (components/trips/RouteLine.tsx).
+ * The trip lifecycle as the office talks about it, shown by the route line
+ * (components/trips/RouteLine.tsx) and the trip status badge:
+ * booked → current (on the road) → completed → closed (booking sheet closed).
  * Presentation only — derived from the same fields getStageLabel reads.
  */
-export const ROUTE_STEPS = ["Assigned", "On the road", "Completed", "Trip sheet", "Ready to invoice"] as const;
+export const ROUTE_STEPS = ["Booked", "Current", "Completed", "Closed"] as const;
 
 /** Index into ROUTE_STEPS for a trip, or null when the trip is cancelled. */
-export function getRouteStep(trip: Pick<Trip, "status" | "hasClosure" | "hasSheet" | "verificationStatus" | "tripSheetReceived">): number | null {
+export function getRouteStep(trip: Pick<Trip, "status" | "hasClosure">): number | null {
   if (trip.status === "Cancelled") return null;
   if (trip.status === "Assigned") return 0;
   if (trip.status !== "Completed") return 1;
-  if (!trip.hasClosure) return 2;
-  if (trip.hasSheet && trip.verificationStatus === "verified") return 4;
-  return 3;
+  return trip.hasClosure ? 3 : 2;
 }

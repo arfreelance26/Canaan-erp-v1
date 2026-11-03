@@ -20,17 +20,21 @@ import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
 import { n } from "@/types/trip-sheet";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
-import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
-import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
-import { InvoicePreviewDialog } from "@/components/trips/InvoicePreviewDialog";
-import { CombinedInvoicePreviewDialog } from "@/components/trips/CombinedInvoicePreviewDialog";
 import type { InvoiceType } from "@/components/trips/GenerateInvoiceDialog";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showSuccess, showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
+const BookingSheetDialog = dynamic(() => import("@/components/trips/BookingSheetDialog").then((m) => m.BookingSheetDialog));
+const TripSheetDialog = dynamic(() => import("@/components/trips/TripSheetDialog").then((m) => m.TripSheetDialog));
+const InvoicePreviewDialog = dynamic(() => import("@/components/trips/InvoicePreviewDialog").then((m) => m.InvoicePreviewDialog));
+const CombinedInvoicePreviewDialog = dynamic(() => import("@/components/trips/CombinedInvoicePreviewDialog").then((m) => m.CombinedInvoicePreviewDialog));
 type InvoicePreviewState = {
   trip: Trip;
   closure: TripClosureData;
@@ -915,8 +919,8 @@ export default function TripHistoryPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -936,8 +940,8 @@ export default function TripHistoryPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

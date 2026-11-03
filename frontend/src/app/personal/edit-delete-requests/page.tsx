@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { RiFileShieldLine as FileCheck, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiTimeLine as Clock, RiArrowDownSLine as ChevronDown } from "@remixicon/react";
+import { useEffect, useMemo, useState } from "react";
+import { RiFileShieldLine as FileCheck, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, RiCheckboxCircleLine as CheckCircle2, RiCloseCircleLine as XCircle, RiTimeLine as Clock } from "@remixicon/react";
 import { editApprovalsApi, deletionApprovalsApi, type DeletionApprovalRequest } from "@/lib/api";
 import type { EditApprovalRequest } from "@/types/edit-approval";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -11,6 +10,8 @@ import { formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type Tab = "edit" | "delete";
 type StatusFilter = "All" | "Pending" | "Approved" | "Rejected";
 
@@ -47,92 +48,6 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "Approved", label: "Approved" },
   { value: "Rejected", label: "Rejected" },
 ];
-
-// A plain <select>'s open dropdown is rendered by the OS/browser, not by us —
-// looked noticeably cheaper than everything else on this page, and its native
-// arrow box threw off the pill's padding balance. This is a lightweight
-// custom version matching the app's dropdown language (e.g. GlassSelect)
-// scoped to this page, so neither the trigger's nor the menu's size moves.
-// The menu is portaled to document.body (same as GlassSelect) rather than
-// simply absolutely-positioned under the trigger — the table card right
-// below this toolbar turned out to share a stacking context with it and
-// painted on top, burying the menu behind a blank white corner instead of
-// showing it. Portaling escapes that regardless of which ancestor caused it.
-function StatusFilterPill({ value, onChange }: { value: StatusFilter; onChange: (v: StatusFilter) => void }) {
-  const [open, setOpen] = useState(false);
-  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const selected = STATUS_FILTER_OPTIONS.find((o) => o.value === value) ?? STATUS_FILTER_OPTIONS[0];
-
-  const updatePosition = () => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    setMenuStyle({ position: "fixed", top: rect.bottom + 8, right: window.innerWidth - rect.right, minWidth: rect.width });
-  };
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
-        menuRef.current && !menuRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [open]);
-
-  return (
-    <div ref={triggerRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          "flex h-10 min-w-[150px] items-center justify-between gap-2 rounded-full border bg-background-primary-default px-4 text-body-medium text-text-primary shadow-sm transition duration-200",
-          open ? "border-accent-border-strong ring-4 ring-accent-solid/10" : "border-separator-border hover:border-border-button-default hover:shadow-md"
-        )}
-      >
-        <span className="truncate">{selected.label}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-text-tertiary transition-transform duration-200", open && "rotate-180 text-accent-text")} />
-      </button>
-      {open && typeof document !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          style={menuStyle}
-          className="z-[9999] w-44 overflow-hidden rounded-xl border border-separator-border bg-background-primary-default p-1 shadow-[0_10px_40px_rgba(0,0,0,0.12)]"
-        >
-          {STATUS_FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={cn(
-                "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                opt.value === value ? "bg-accent-surface font-semibold text-accent-text" : "text-text-primary hover:bg-fill-2"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
 
 export default function EditDeleteRequestsPage() {
   const [tab, setTab] = useState<Tab>("edit");
@@ -212,7 +127,7 @@ export default function EditDeleteRequestsPage() {
               </button>
             ))}
           </div>
-          <StatusFilterPill value={status} onChange={setStatus} />
+          <GlassSelect variant="pill" aria-label="Status" value={status} onChange={(v) => setStatus(v as StatusFilter)} options={STATUS_FILTER_OPTIONS} />
         </div>
       </div>
 
@@ -236,8 +151,8 @@ export default function EditDeleteRequestsPage() {
                   <th className={th}>Admin Note</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filteredEdit.map((r) => (
+              <PagedTbody className="divide-y divide-separator-border" items={filteredEdit}>
+                {(r) => (
                   <tr key={r.id} className="hover:bg-fill-2">
                     <td className={cn(td, "font-medium text-text-primary")}>{r.resourceName}</td>
                     <td className={td}>{r.resourceType}</td>
@@ -250,8 +165,8 @@ export default function EditDeleteRequestsPage() {
                     <td className={td}>{formatDateTime(r.approvedAt)}</td>
                     <td className={cn(td, "max-w-[220px] whitespace-normal")}>{r.adminNote ?? "—"}</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           )
         ) : filteredDelete.length === 0 ? (
@@ -271,8 +186,8 @@ export default function EditDeleteRequestsPage() {
                 <th className={th}>Admin Note</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filteredDelete.map((r) => (
+            <PagedTbody className="divide-y divide-separator-border" items={filteredDelete}>
+              {(r) => (
                 <tr key={r.id} className="hover:bg-fill-2">
                   <td className={cn(td, "font-medium text-text-primary")}>{r.resourceName}</td>
                   <td className={td}>{r.resourceType}</td>
@@ -284,8 +199,8 @@ export default function EditDeleteRequestsPage() {
                   <td className={td}>{formatDateTime(r.approvedAt)}</td>
                   <td className={cn(td, "max-w-[220px] whitespace-normal")}>{r.adminNote ?? "—"}</td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         )}
       </div>

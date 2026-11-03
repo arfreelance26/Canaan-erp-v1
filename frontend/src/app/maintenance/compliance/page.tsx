@@ -19,6 +19,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { useNotifications } from "@/context/NotificationContext";
 import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 export default function CompliancePage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.softwareDesignation === "Admin";
@@ -179,8 +180,8 @@ export default function CompliancePage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => (
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2">
                           <p className="font-semibold text-text-primary">{ev.registrationNumber}</p>
@@ -202,8 +203,8 @@ export default function CompliancePage() {
                         <td className="px-3 py-2 text-text-secondary">{ev.actorName}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
-                    ))}
-                  </tbody>
+                    )}
+                  </PagedTbody>
                 </table>
               </div>
             );

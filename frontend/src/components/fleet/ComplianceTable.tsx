@@ -9,15 +9,19 @@ import { trucksApi, complianceRecordsApi } from "@/lib/api";
 
 // Calendar days in an average month (365.25 ÷ 12) — see backend cost_units.py.
 const DAYS_PER_MONTH = 365.25 / 12;
-import { RenewDocumentsDialog } from "@/components/fleet/RenewDocumentsDialog";
 import { TruckComplianceView } from "@/components/fleet/TruckComplianceView";
-import { UpdationHistoryDialog } from "@/components/fleet/UpdationHistoryDialog";
 import type { Truck } from "@/types/truck";
 import { useTruckRunStats, missingSheetsNote } from "@/hooks/useTruckTripRuns";
 import { RiCloseLine as X, RiHistoryLine as History, RiProfileLine as IdCard, RiClipboardLine as ClipboardCheck, RiReceiptLine as Receipt, RiGlobalLine as Globe, RiMapPin2Line as MapPin, RiWindyLine as Wind, RiShieldCheckLine as ShieldCheck, RiLoader4Line as Loader2, RiMoneyRupeeCircleLine as IndianRupee, RiInformationLine as Info, RiCalendar2Line as CalendarDays, RiTimeLine as Clock3, RiDashboard3Line as Gauge, RiStarLine as Sparkles } from "@remixicon/react";
 import { type RemixiconComponentType as LucideIcon } from "@remixicon/react";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const RenewDocumentsDialog = dynamic(() => import("@/components/fleet/RenewDocumentsDialog").then((m) => m.RenewDocumentsDialog));
+const UpdationHistoryDialog = dynamic(() => import("@/components/fleet/UpdationHistoryDialog").then((m) => m.UpdationHistoryDialog));
 const STAT_CELL_ACCENTS: Record<"emerald" | "indigo" | "muted", { icon: string; label: string; value: string; border: string; bg: string }> = {
   // Calm, neutral cells — the Cost Breakdown keeps colour for status only.
   emerald: {
@@ -626,8 +630,8 @@ export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-separator-border">
-            {trucks.map((truck) => (
+          <PagedTbody className="divide-y divide-separator-border" items={trucks}>
+            {(truck) => (
               <tr key={truck.truckId} className="hover:bg-fill-2">
                 <td className="whitespace-nowrap px-4 py-3 font-medium text-text-primary">{truck.truckId}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{truck.registrationNumber}</td>
@@ -671,8 +675,8 @@ export function ComplianceTable({ trucks, onChanged }: ComplianceTableProps) {
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
+            )}
+          </PagedTbody>
         </table>
       </div>
 

@@ -3,9 +3,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { TruckMaintenanceTable } from "@/components/maintenance/TruckMaintenanceTable";
-import { MaintenanceRecordFormDialog } from "@/components/maintenance/MaintenanceRecordFormDialog";
-import { MaintenanceRecordHistoryDialog } from "@/components/maintenance/MaintenanceRecordHistoryDialog";
-import { TruckStatusDialog } from "@/components/maintenance/TruckStatusDialog";
 import { trucksApi, maintenanceApi, maintenanceRequestsApi, type MaintenanceRecordEditEventRow } from "@/lib/api";
 import { RiToolsLine as Wrench, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import type { Truck } from "@/types/truck";
@@ -22,6 +19,13 @@ import { formatDateTime, inDateRange } from "@/lib/format-date";
 import { showSuccess, showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const MaintenanceRecordFormDialog = dynamic(() => import("@/components/maintenance/MaintenanceRecordFormDialog").then((m) => m.MaintenanceRecordFormDialog));
+const MaintenanceRecordHistoryDialog = dynamic(() => import("@/components/maintenance/MaintenanceRecordHistoryDialog").then((m) => m.MaintenanceRecordHistoryDialog));
+const TruckStatusDialog = dynamic(() => import("@/components/maintenance/TruckStatusDialog").then((m) => m.TruckStatusDialog));
 const EDIT_EVENT_ICON: Record<MaintenanceRecordEditEventRow["event"], typeof Plus> = {
   "Record Created": Plus,
   "Record Edited": Pencil,
@@ -260,8 +264,8 @@ export default function TruckMaintenancePage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -282,8 +286,8 @@ export default function TruckMaintenancePage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

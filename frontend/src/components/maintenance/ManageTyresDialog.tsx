@@ -18,12 +18,15 @@ import type { TyreRemarkPreset, TyreRemarkScenario } from "@/types/tyre-inventor
 import { RiArrowLeftRightLine as ArrowLeftRight, RiArrowUpDownLine as ArrowUpDown, RiArrowDownSLine as ChevronDown, RiArrowRightSLine as ChevronRight } from "@remixicon/react";
 import { formatDate, todayIst } from "@/lib/format-date";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
 import { showSuccess, showError } from "@/lib/feedback";
 import type { Truck } from "@/types/truck";
 import { RiSearchLine as Search, RiAddLine as Plus } from "@remixicon/react";
 
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const TyreDataDialog = dynamic(() => import("@/components/tyre-inventory/TyreDataDialog").then((m) => m.TyreDataDialog));
 
 // ── Swap helpers ───────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
 import { type RemixiconComponentType } from "@remixicon/react";
 import { RiArrowRightDownLine, RiArrowRightUpLine } from "@remixicon/react";
 import { cx } from "@/utils/cx";
-import { useCountUp } from "@/lib/motion";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 type StatCardVariant = "default" | "blue" | "emerald" | "amber" | "red" | "purple" | "indigo";
 
@@ -18,13 +18,6 @@ type StatCardProps = {
   onClick?: () => void;
   trend?: { delta: number; label: string };
 };
-
-/** A numeric figure tweens to new values; formatted strings render as given. */
-function Figure({ value }: { value: string | number }) {
-  const n = useCountUp(typeof value === "number" ? value : 0);
-  if (typeof value !== "number") return <>{value}</>;
-  return <>{Math.round(n).toLocaleString("en-IN")}</>;
-}
 
 /**
  * Dashboard KPI: label, figure, change with what it compares to. Neutral
@@ -49,7 +42,7 @@ export function StatCard({ label, value, caption, variant = "default", onClick, 
     >
       <p className={cx("text-body-regular", alert ? "text-danger-text" : "text-text-secondary")}>{label}</p>
       <p className={cx("text-title-1-medium tabular-nums", alert ? "text-danger-text-strong" : "text-text-primary")}>
-        <Figure value={value} />
+        <AnimatedNumber value={value} />
       </p>
       {trend && (
         <p className={cx("flex items-center gap-1 text-caption-1-regular", trend.delta >= 0 ? "text-success-text" : "text-danger-text")}>

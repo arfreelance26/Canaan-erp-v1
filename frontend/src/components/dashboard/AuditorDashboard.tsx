@@ -9,7 +9,7 @@ export function AuditorDashboard() {
 
   return (
     <div className="animate-stagger flex flex-col gap-6">
-      <DashboardHero illustration="documents" title={`Welcome, ${user?.name ?? "Auditor"}`} description="Audit dashboard" />
+      <DashboardHero role="Auditor" description="Review trips and flag anything that needs a recheck" />
     </div>
   );
 }

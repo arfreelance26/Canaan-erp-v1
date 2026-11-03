@@ -14,6 +14,7 @@ import type { AttendanceSummaryRow, DriverAttendanceRemark } from "@/types/atten
 import { formatDate } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type Category = "driver" | "staff";
 type ViewMode = "summary" | "datewise";
 
@@ -611,13 +612,12 @@ export default function AttendanceReportPage() {
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filteredRows.length === 0 ? (
+              <PagedTbody className="divide-y divide-separator-border" items={filteredRows} head={<>{filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={dates.length + 1} className="p-0"><EmptyState size="compact" illustration="not-found" title={search ? "No results match your search" : `No ${isDriver ? "drivers" : "staff"} found`} /></td>
                   </tr>
-                ) : (
-                  filteredRows.map((r) => (
+                ) : null}</>}>
+                {(r) => (
                     <tr key={r.id} className="hover:bg-fill-2">
                       <td className="sticky left-0 z-10 border-r border-separator-border bg-background-primary-default px-4 py-2">
                         <div className="whitespace-nowrap font-medium text-text-primary">{r.name}</div>
@@ -647,9 +647,8 @@ export default function AttendanceReportPage() {
                         );
                       })}
                     </tr>
-                  ))
-                )}
-              </tbody>
+                  )}
+              </PagedTbody>
             </table>
           </div>
         </>
@@ -710,13 +709,12 @@ export default function AttendanceReportPage() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filteredRows.length === 0 ? (
+              <PagedTbody className="divide-y divide-separator-border" items={filteredRows} head={filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={isDriver ? 9 : 7} className="p-0"><EmptyState size="compact" illustration="not-found" title={search ? "No results match your search" : `No ${isDriver ? "drivers" : "staff"} found`} /></td>
                   </tr>
-                ) : isDriver ? (
-                  filteredRows.map((r) => {
+                ) : null}>
+                {(r) => isDriver ? (() => {
                     const active = r.onTrip + r.onHalt + r.onWorkshop;
                     const pct = r.totalDays > 0 ? Math.round((active / r.totalDays) * 100) : 0;
                     const driverRemarks = remarksByDriver[r.code] ?? [];
@@ -742,9 +740,7 @@ export default function AttendanceReportPage() {
                         </td>
                       </tr>
                     );
-                  })
-                ) : (
-                  filteredRows.map((r) => {
+                })() : (() => {
                     const pct = r.totalDays > 0 ? Math.round((r.present / r.totalDays) * 100) : 0;
                     return (
                       <tr key={r.id} className="hover:bg-fill-2">
@@ -764,9 +760,8 @@ export default function AttendanceReportPage() {
                         </td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
+                })()}
+              </PagedTbody>
             </table>
           </div>
         </>

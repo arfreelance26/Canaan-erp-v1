@@ -6,6 +6,7 @@ import type { CustomerDestination } from "@/types/customer-destination";
 import { ALL_STAGE_COLORS, stageBadgeClass } from "@/lib/stage-colors";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type CustomerDestinationTableProps = {
   destinations: CustomerDestination[];
   customers: Customer[];
@@ -63,8 +64,8 @@ export function CustomerDestinationTable({ destinations, customers, onEdit, onDe
             <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {destinations.map((entry) => {
+        <PagedTbody className="divide-y divide-separator-border" items={destinations}>
+          {(entry) => {
             const customer = customers.find((c) => c.id === entry.customerId);
             return (
               <tr key={entry.id} className="hover:bg-fill-2">
@@ -109,8 +110,8 @@ export function CustomerDestinationTable({ destinations, customers, onEdit, onDe
                 </td>
               </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
   );

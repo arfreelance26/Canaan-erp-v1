@@ -11,6 +11,7 @@ import { Avatar, getInitials, formatTime, senderColor } from "@/components/chat/
 import type { ChatOwnerConversation, ChatMessage, ChatOwnerHistoryEntry } from "@/types/chat";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Avatar as PersonAvatar } from "@/components/ui/Avatar";
 /** Title + avatar name for a direct or group owner-view thread — no "me" to
  * exclude from the label, since the owner isn't a participant in these. */
 function threadTitle(c: Pick<ChatOwnerConversation, "kind" | "title" | "members">): string {
@@ -423,7 +424,7 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                       activeId === c.id ? "bg-background-primary-default shadow-md" : "hover:bg-fill-2"
                     )}
                   >
-                    <Avatar name={title} size={40} group={c.kind === "group"} />
+                    <Avatar name={title} size={40} group={c.kind === "group"} seed={c.kind === "group" ? `group-${c.id}` : undefined} />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-center justify-between gap-2">
                         <span className="truncate text-body-semibold text-text-primary">{title}</span>
@@ -452,7 +453,7 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
             ) : (
               <>
                 <div className="flex shrink-0 items-center gap-3 border-b border-separator-border px-4 py-2.5">
-                  <Avatar name={threadTitle(active)} size={36} group={active.kind === "group"} />
+                  <Avatar name={threadTitle(active)} size={36} group={active.kind === "group"} seed={active.kind === "group" ? `group-${active.id}` : undefined} />
                   <div className="min-w-0">
                     <p className="truncate text-body-semibold text-text-primary">{threadTitle(active)}</p>
                     <p className="truncate text-xs text-text-tertiary">{active.members.map((m) => m.name).join(", ")}</p>
@@ -471,14 +472,7 @@ export function OwnerViewDialog({ open, onClose, ownerToken, onUnlocked, initial
                         const color = senderColor(m.senderId);
                         return (
                           <div key={m.id} className="flex items-start gap-2">
-                            <div
-                              className={cn(
-                                "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-caption-2-semibold text-on-solid",
-                                color.bg
-                              )}
-                            >
-                              {getInitials(m.senderName || "?")}
-                            </div>
+                            <PersonAvatar label={m.senderName || "Unknown"} size={28} className="mt-0.5" />
                             <div className="flex min-w-0 max-w-lg flex-col gap-0.5">
                               <div className="flex items-baseline gap-2">
                                 <span className={cn("text-caption-1-semibold", color.text)}>{m.senderName ?? "—"}</span>

@@ -5,8 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { RiAddLine as Plus, RiCheckboxCircleLine as CheckCircle2, RiAlertLine as AlertTriangle, RiBankLine as Landmark, RiHistoryLine as History, RiPencilLine as Pencil, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { EmiTrackingTable } from "@/components/finance/EmiTrackingTable";
 import { EmiFormDialog, DRAFT_KEY as EMI_DRAFT_KEY } from "@/components/finance/EmiFormDialog";
-import { ViewEmiRecordDialog } from "@/components/finance/ViewEmiRecordDialog";
-import { EmiInsightsDialog } from "@/components/finance/EmiInsightsDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { financeApi, type EmiRecordEditEventRow } from "@/lib/api";
 import type { EmiRecord } from "@/types/finance";
@@ -26,6 +24,12 @@ import { useNotifications } from "@/context/NotificationContext";
 import { ReminderAlertBanner } from "@/components/ui/ReminderAlertBanner";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const ViewEmiRecordDialog = dynamic(() => import("@/components/finance/ViewEmiRecordDialog").then((m) => m.ViewEmiRecordDialog));
+const EmiInsightsDialog = dynamic(() => import("@/components/finance/EmiInsightsDialog").then((m) => m.EmiInsightsDialog));
 const EDIT_EVENT_ICON: Record<EmiRecordEditEventRow["event"], typeof Plus> = {
   "EMI Created": Plus,
   "EMI Edited": Pencil,
@@ -360,8 +364,8 @@ export default function EmiTrackingPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -381,8 +385,8 @@ export default function EmiTrackingPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

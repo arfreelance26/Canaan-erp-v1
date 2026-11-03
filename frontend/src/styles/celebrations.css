@@ -1,0 +1,121 @@
+/* ---------------------------------------------------------------------------
+ * Celebration decor: staff birthdays, Christmas / New Year, Founding Day.
+ * Restored as-is from the pre-redesign stylesheet (commit 9440742) at the
+ * owner's request, so the decor and the /admin/celebrations previews look
+ * exactly as they did. Used by components/layout/{Birthday,Season,Founding}Decor
+ * and components/dashboard/{Birthday,Season,Founding}Card.
+ * --------------------------------------------------------------------------- */
+/* ── Staff birthday decorations (components/layout/BirthdayDecor.tsx) ───────── */
+/* A gust passing through: each flag lifts, settles, then rests — staggered by
+   page x so the wave travels left to right across the whole garland. */
+@keyframes bday-wave {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  12% { transform: rotate(9deg); }
+  24% { transform: rotate(-6deg); }
+  36% { transform: rotate(3deg); }
+  46% { transform: rotate(-1deg); }
+}
+@keyframes bday-glow {
+  0%, 100% { opacity: .35; }
+  50%      { opacity: 1; }
+}
+@keyframes bday-shine {
+  0%   { background-position: 200% 50%; }
+  100% { background-position: -200% 50%; }
+}
+@keyframes bday-card-shine {
+  0%   { left: -15%; }
+  100% { left: 115%; }
+}
+.bday-flag { transform-box: fill-box; transform-origin: 50% 0; animation: bday-wave 6s ease-in-out infinite; }
+.bday-glow { animation: bday-glow 3.6s ease-in-out infinite; }
+/* String lights: a gust lifts each loop (wire scales toward its pins, bulbs
+   ride up by their depth), swings the bulbs, then everything settles. */
+@keyframes bday-wire {
+  0%, 55%, 100% { transform: scaleY(1); }
+  12% { transform: scaleY(.72); }
+  24% { transform: scaleY(1.07); }
+  36% { transform: scaleY(.97); }
+}
+@keyframes bday-bulb-lift {
+  0%, 55%, 100% { transform: translateY(0); }
+  12% { transform: translateY(calc(var(--lift) * -0.28)); }
+  24% { transform: translateY(calc(var(--lift) * 0.07)); }
+  36% { transform: translateY(calc(var(--lift) * -0.03)); }
+}
+@keyframes bday-swing {
+  0%, 55%, 100% { transform: rotate(var(--tilt)); }
+  12% { transform: rotate(calc(var(--tilt) + 11deg)); }
+  24% { transform: rotate(calc(var(--tilt) - 8deg)); }
+  36% { transform: rotate(calc(var(--tilt) + 4deg)); }
+  46% { transform: rotate(calc(var(--tilt) - 1.5deg)); }
+}
+@keyframes bday-flicker {
+  0%, 100% { opacity: 1; }
+  12% { opacity: .15; } 22% { opacity: .9; } 34% { opacity: .25; } 48% { opacity: 1; }
+}
+@keyframes bday-pool {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(.9); }
+}
+.bday-wire { transform-box: view-box; animation: bday-wire 6s ease-in-out infinite; }
+.bday-bulb-lift { animation: bday-bulb-lift 6s ease-in-out infinite; }
+.bday-swing { transform-box: view-box; transform: rotate(var(--tilt)); animation: bday-swing 6s ease-in-out infinite; }
+.bday-flicker { animation: bday-flicker .7s steps(1, end) 1; }
+.bday-pool { transform-box: fill-box; transform-origin: center; animation: bday-pool 7s ease-in-out infinite; }
+.bday-gold-text {
+  background: linear-gradient(100deg, #f7e3a1 0%, #d9b24a 30%, #fff1c4 50%, #c9a227 70%, #f3d98b 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: bday-shine 6s linear infinite;
+}
+.bday-card-shine { animation: bday-card-shine 2.2s ease-out 0.3s 1 both; }
+/* Christmas Day: the lights twinkle faster and brighter. */
+@keyframes bday-glow-strong {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+.bday-lights-intense .bday-glow { animation: bday-glow-strong 1.4s ease-in-out infinite; }
+/* Christmas Day: Santa's sleigh crosses the topbar once. */
+@keyframes santa-flight {
+  from { left: -170px; }
+  to   { left: calc(100% + 20px); }
+}
+@keyframes santa-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-4px) rotate(1deg); }
+}
+@keyframes santa-trail {
+  0%, 100% { opacity: .3; }
+  50%      { opacity: 1; }
+}
+.santa-flight { animation: santa-flight 10s linear 0.6s 1 both; }
+.santa-bob { animation: santa-bob 1.3s ease-in-out infinite; }
+.santa-trail { animation: santa-trail .5s ease-in-out infinite; }
+/* Founding Day (components/layout/FoundingDecor.tsx) */
+@keyframes founding-sweep {
+  0%   { left: -12%; opacity: 0; }
+  8%   { opacity: 1; }
+  45%  { left: 105%; opacity: 1; }
+  46%, 100% { left: 105%; opacity: 0; }
+}
+@keyframes founding-shine {
+  0%, 55%, 100% { background-position: 160% 0; }
+  30% { background-position: -60% 0; }
+}
+.founding-sweep { animation: founding-sweep 9s ease-in-out infinite; }
+.founding-shine {
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.85) 50%, transparent 62%);
+  background-size: 250% 100%;
+  animation: founding-shine 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bday-flag, .bday-glow, .bday-gold-text, .bday-card-shine,
+  .bday-wire, .bday-bulb-lift, .bday-swing, .bday-flicker, .bday-pool,
+  .bday-lights-intense .bday-glow, .santa-flight, .santa-bob, .santa-trail,
+  .founding-sweep, .founding-shine { animation: none; }
+  .founding-sweep { display: none; }
+}
+

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { RiDropLine as Droplets, RiMapPin2Line as MapPin, RiMoneyRupeeCircleLine as IndianRupee, RiDashboard3Line as Gauge, RiArrowRightUpLine as TrendingUp, RiArrowRightLine as ArrowRight, RiPencilLine as Pencil, RiDeleteBinLine as Trash2, type RemixiconComponentType as LucideIcon } from "@remixicon/react";
-import { AdBlueLogFormDialog } from "@/components/fleet/AdBlueLogFormDialog";
 import type { Truck } from "@/types/truck";
 import type { AdBlueLog } from "@/types/adblue-log";
 import { adblueApi, adblueLogsApi, deletionApprovalsApi, editApprovalsApi, type AdBlueStats } from "@/lib/api";
@@ -11,6 +10,12 @@ import { showSuccess, showError, confirmDelete } from "@/lib/feedback";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const AdBlueLogFormDialog = dynamic(() => import("@/components/fleet/AdBlueLogFormDialog").then((m) => m.AdBlueLogFormDialog));
 // Modified Z-score outlier filter (MAD-based) — mirrors FuelHistoryViewDialog's
 // _iqrFilter. Robust for small datasets where standard IQR fences are
 // distorted by a single bad odometer entry. Threshold 3.5 = Iglewicz-Hoaglin
@@ -45,7 +50,7 @@ function StatCard({ title, value, icon: Icon, subtitle }: { title: string; value
         <Icon className="h-4 w-4 text-accent-text" />
         {title}
       </div>
-      <span className="text-title-1-semibold text-text-primary">{value}</span>
+      <span className="text-title-1-semibold text-text-primary"><AnimatedNumber value={value} /></span>
       {subtitle && <span className="text-xs text-text-tertiary">{subtitle}</span>}
     </div>
   );
@@ -342,13 +347,12 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
                       <th className="sticky right-0 bg-fill-1 px-4 py-3 font-medium">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border text-sm">
-                    {logs.length === 0 ? (
+                  <PagedTbody className="divide-y divide-separator-border text-sm" items={logs} head={<>{logs.length === 0 ? (
                       <tr>
                         <td colSpan={10} className="p-0"><EmptyState size="compact" illustration="logistics" title="No AdBlue logs found for this truck" /></td>
                       </tr>
-                    ) : (
-                      logs.map((log) => {
+                    ) : null}</>}>
+                    {(log) => {
                         const rowStats = rowStatsById.get(log.id);
                         return (
                         <tr key={log.id} className="transition-colors hover:bg-fill-2">
@@ -419,9 +423,8 @@ export function AdBlueHistoryViewDialog({ open, onClose, truck }: AdBlueHistoryV
                           </td>
                         </tr>
                         );
-                      })
-                    )}
-                  </tbody>
+                      }}
+                  </PagedTbody>
                 </table>
               </div>
             </div>

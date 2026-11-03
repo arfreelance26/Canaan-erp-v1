@@ -5,7 +5,6 @@ import { RiEyeLine as Eye, RiFileTextLine as FileText, RiAttachment2 as Papercli
 import { tyreApi, vendorsApi } from "@/lib/api";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { DatePickerInput } from "@/components/ui/DatePickerInput";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { PROOF_MAX_BYTES, proofAccepted, fileSize } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { Vendor } from "@/types/vendor";
@@ -13,12 +12,17 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { Dialog } from "@/components/ui/Dialog";
-import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
-import { DiscardReasonDialog } from "@/components/tyre-inventory/DiscardReasonDialog";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { showSuccess, showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
+const TyreDataDialog = dynamic(() => import("@/components/tyre-inventory/TyreDataDialog").then((m) => m.TyreDataDialog));
+const DiscardReasonDialog = dynamic(() => import("@/components/tyre-inventory/DiscardReasonDialog").then((m) => m.DiscardReasonDialog));
 const columns = [
   "Brand",
   "Tyre Type",
@@ -163,8 +167,8 @@ export default function RetreadQueuePage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {tyres.map((tyre) => (
+            <PagedTbody className="divide-y divide-separator-border" items={tyres}>
+              {(tyre) => (
                 <tr key={tyre.id} className="hover:bg-fill-2">
                   <td className="px-4 py-3 font-medium text-text-primary">{tyre.brand}</td>
                   <td className="px-4 py-3 text-text-secondary">{tyre.tyreType}</td>
@@ -202,8 +206,8 @@ export default function RetreadQueuePage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}

@@ -3,10 +3,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { TyreManagementTable } from "@/components/maintenance/TyreManagementTable";
-import { ManageTyresDialog } from "@/components/maintenance/ManageTyresDialog";
-import { ManageRemarksDialog } from "@/components/maintenance/ManageRemarksDialog";
-import { ViewTyreDataDialog } from "@/components/maintenance/ViewTyreDataDialog";
-import { TruckHistoryDialog } from "@/components/maintenance/TruckHistoryDialog";
 import { trucksApi, tyreApi, tyreRangeConfigApi, type TyreFitmentEventRow } from "@/lib/api";
 import { RiRecordCircleLine as CircleDot, RiHistoryLine as History, RiDownload2Line as ArrowDownToLine, RiUpload2Line as ArrowUpFromLine, RiMessage2Line as MessageSquareText } from "@remixicon/react";
 import { useTyreInventory } from "@/context/TyreInventoryContext";
@@ -23,6 +19,14 @@ import { cn } from "@/lib/utils";
 import { formatDate, inDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const ManageTyresDialog = dynamic(() => import("@/components/maintenance/ManageTyresDialog").then((m) => m.ManageTyresDialog));
+const ManageRemarksDialog = dynamic(() => import("@/components/maintenance/ManageRemarksDialog").then((m) => m.ManageRemarksDialog));
+const ViewTyreDataDialog = dynamic(() => import("@/components/maintenance/ViewTyreDataDialog").then((m) => m.ViewTyreDataDialog));
+const TruckHistoryDialog = dynamic(() => import("@/components/maintenance/TruckHistoryDialog").then((m) => m.TruckHistoryDialog));
 const EDIT_EVENT_ICON: Record<TyreFitmentEventRow["event"], typeof ArrowDownToLine> = {
   "Tyre Fitted": ArrowDownToLine,
   "Tyre Removed": ArrowUpFromLine,
@@ -214,8 +218,8 @@ export default function TyreManagementPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -233,8 +237,8 @@ export default function TyreManagementPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDate(ev.eventDate)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

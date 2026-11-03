@@ -15,6 +15,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { RiTruckLine as TruckIcon, RiHistoryLine as History, RiFileSearchLine as FileSearch, RiCloseLine as X, RiLoader4Line as Loader2, RiShieldCheckLine as ShieldCheck, RiDashboard3Line as Gauge, RiToolsLine as Wrench, RiDownloadLine as Download, RiArrowDownSLine as ChevronDown, RiArrowRightLine as ArrowRight } from "@remixicon/react";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 function Pill({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 ${color}`}>
@@ -233,8 +234,8 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {trips.map((trip, idx) => {
+              <PagedTbody className="divide-y divide-separator-border" items={trips}>
+                {(trip, idx) => {
                   const sheet = sheets.get(trip.id);
                   const km   = sheet?.totalKm   ? Number(sheet.totalKm)   : null;
                   const hire = sheet?.hireAmount ? Number(sheet.hireAmount) : null;
@@ -275,8 +276,8 @@ function TripHistoryDialog({ truck, onClose }: TripHistoryDialogProps) {
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
+                }}
+              </PagedTbody>
               {(totalKmSum > 0 || totalHireSum > 0) && (
                 <tfoot>
                   <tr className="border-t border-separator-border bg-fill-1">

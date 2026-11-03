@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const ALLOWED_ROLES = ["Admin"];
 
 type ArchivedResource = "Driver" | "Truck" | "Staff" | "Customer" | "Vendor" | "CfsYardEntry";
@@ -328,8 +329,8 @@ export default function ArchivePage() {
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {filtered.map((row) => (
+              <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                {(row) => (
                   <tr key={`${row.kind}-${row.id}`} className="transition-colors hover:bg-fill-2">
                     <td className="px-4 py-3">
                       <span
@@ -395,8 +396,8 @@ export default function ArchivePage() {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
         )}
@@ -506,8 +507,8 @@ export default function ArchivePage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = iconForEvent(ev.event);
                       const KindIcon = KIND_CONFIG[ev.kind].icon;
                       return (
@@ -530,8 +531,8 @@ export default function ArchivePage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

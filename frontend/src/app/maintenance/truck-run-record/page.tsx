@@ -10,10 +10,13 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { TruckRunRecordDialog } from "@/components/maintenance/TruckRunRecordDialog";
-import { TruckBreakdownDialog } from "@/components/maintenance/TruckBreakdownDialog";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const TruckRunRecordDialog = dynamic(() => import("@/components/maintenance/TruckRunRecordDialog").then((m) => m.TruckRunRecordDialog));
+const TruckBreakdownDialog = dynamic(() => import("@/components/maintenance/TruckBreakdownDialog").then((m) => m.TruckBreakdownDialog));
 function DetailChip({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">

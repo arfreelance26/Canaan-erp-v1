@@ -15,6 +15,7 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 
 const n = (v: string | number | undefined | null) => {
@@ -70,7 +71,7 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon
       </span>
       <div className="min-w-0">
         <p className="text-caption-2-semibold text-text-tertiary">{label}</p>
-        <p className="truncate text-title-3-semibold leading-tight text-text-primary">{value}</p>
+        <p className="truncate text-title-3-semibold leading-tight text-text-primary"><AnimatedNumber value={value} /></p>
       </div>
     </div>
   );

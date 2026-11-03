@@ -15,6 +15,7 @@ import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { showError, confirmAction } from "@/lib/feedback";
 
 
+import { Avatar as PersonAvatar } from "@/components/ui/Avatar";
 type MediaIcon = typeof Mic;
 /** Line icon shown before a media message's one-line preview (instead of emoji). */
 const MEDIA_ICON: Partial<Record<string, MediaIcon>> = { voice: Mic, image: Camera, file: Paperclip, payment: IndianRupee };
@@ -2183,6 +2184,7 @@ export default function CanaanChatPage() {
                         photoUrl={row.photoUrl}
                         size={48}
                         group={row.isGroup}
+                        seed={row.isGroup && row.conversation ? `group-${row.conversation.id}` : undefined}
                       />
                       {row.peerId != null && onlineUsers.has(row.peerId) && (
                         <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background-primary-default bg-success-solid" />
@@ -2242,6 +2244,7 @@ export default function CanaanChatPage() {
                       photoUrl={selected.kind === "group" ? (selected.hasPhoto ? chatApi.groupPhotoUrl(selected.id) : null) : selected.peer?.photoUrl}
                       size={40}
                       group={selected.kind === "group"}
+                      seed={selected.kind === "group" ? `group-${selected.id}` : undefined}
                     />
                     {selected.kind === "direct" &&
                       selected.peer &&
@@ -2449,12 +2452,9 @@ export default function CanaanChatPage() {
                                     className="mb-0.5 h-6 w-6 shrink-0 rounded-full object-cover"
                                   />
                                 ) : (
-                                <div
-                                  className={`mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption-2-semibold text-on-solid ${senderColor(m.senderId).bg}`}
-                                  title={m.senderName ?? "Unknown"}
-                                >
-                                  {getInitials(m.senderName || "?")}
-                                </div>
+                                <span title={m.senderName ?? "Unknown"} className="mb-0.5 shrink-0">
+                                  <PersonAvatar label={m.senderName || "Unknown"} size={24} />
+                                </span>
                                 )
                               ) : (
                                 <div className="w-6 shrink-0" />
@@ -2820,6 +2820,7 @@ export default function CanaanChatPage() {
                       photoUrl={groupDetail.hasPhoto ? chatApi.groupPhotoUrl(groupDetail.id) : null}
                       size={88}
                       group
+                      seed={`group-${groupDetail.id}`}
                     />
                     {groupDetail.myRole === "admin" && (
                       <>

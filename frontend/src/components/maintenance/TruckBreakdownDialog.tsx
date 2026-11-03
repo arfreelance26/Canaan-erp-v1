@@ -8,6 +8,8 @@ import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type TruckBreakdownDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -24,7 +26,7 @@ function StatTile({ icon: Icon, label, value }: { icon: typeof Gauge; label: str
       <p className="flex items-center gap-1.5 text-caption-2-semibold text-text-tertiary">
         <Icon className="h-3 w-3" /> {label}
       </p>
-      <p className="mt-1 text-title-3-semibold text-text-primary">{value}</p>
+      <p className="mt-1 text-title-3-semibold text-text-primary"><AnimatedNumber value={value} /></p>
     </div>
   );
 }
@@ -86,8 +88,8 @@ export function TruckBreakdownDialog({ open, onClose, truck }: TruckBreakdownDia
                   <th className="px-4 py-2.5 text-right text-caption-1-semibold text-text-secondary">Share of Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {rows.map(({ trip, totalKm }) => {
+              <PagedTbody className="divide-y divide-separator-border" items={rows}>
+                {({ trip, totalKm }) => {
                   const km = Number(totalKm) || 0;
                   const share = stats.totalDistance > 0 ? (km / stats.totalDistance) * 100 : 0;
                   return (
@@ -99,8 +101,8 @@ export function TruckBreakdownDialog({ open, onClose, truck }: TruckBreakdownDia
                       <td className="px-4 py-2.5 text-right tabular-nums text-text-secondary">{km > 0 ? `${share.toFixed(1)}%` : "—"}</td>
                     </tr>
                   );
-                })}
-              </tbody>
+                }}
+              </PagedTbody>
             </table>
           </div>
         </div>

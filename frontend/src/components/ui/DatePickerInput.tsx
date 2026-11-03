@@ -1,13 +1,20 @@
 "use client";
-import ReactDatePicker from "react-datepicker";
-import { forwardRef } from "react";
-import { RiCalendar2Line as CalendarDays, RiCloseLine as X } from "@remixicon/react";
+
+import { useRef, useState } from "react";
+import { format } from "date-fns";
+import { parseDate, type CalendarDate } from "@internationalized/date";
+import { RiCalendarLine, RiCloseLine } from "@remixicon/react";
+import { DatePicker } from "@/components/base/date-picker/date-picker";
+import { cx } from "@/utils/cx";
 
 type Props = {
+  /** ISO "YYYY-MM-DD", or "" for no date. */
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
   disabled?: boolean;
+  /** Accepted for older call sites, which pass plain-input styling here; the
+   *  field draws its own frame, so this is not applied (as before). */
   className?: string;
   /** Overrides the default "DD-MM-YYYY" placeholder. */
   placeholder?: string;
@@ -17,77 +24,116 @@ type Props = {
    *  (not required, not disabled); pass false where a date must stay set
    *  (e.g. a page's "day being shown" picker). */
   clearable?: boolean;
+  /** Earliest / latest day that can be picked (ISO). */
+  minDate?: string;
+  maxDate?: string;
+  /** "field" — a full-width form field; "bare" — no frame, for use inside
+   *  another control (DateRangePill). */
+  variant?: "field" | "bare";
+  "aria-label"?: string;
 };
 
-function toDate(iso: string): Date | null {
+function toCalendarDate(iso: string | undefined): CalendarDate | null {
   if (!iso || iso.length < 10) return null;
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(y as number, (m as number) - 1, d as number);
-  return isNaN(dt.getTime()) ? null : dt;
+  try {
+    return parseDate(iso.slice(0, 10));
+  } catch {
+    return null;
+  }
 }
 
-function toISO(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
+/**
+ * The app's date field: a trigger that shows the date as DD-MM-YYYY and opens
+ * BoardUI's date picker (one month, editable date chip, Cancel / Apply). The
+ * value in and out stays an ISO "YYYY-MM-DD" string, so every form keeps
+ * working unchanged. Far-off dates (birthdays, expiry years ahead) are quickest
+ * typed into the date chip at the bottom of the calendar.
+ */
+export function DatePickerInput({
+  value,
+  onChange,
+  required,
+  disabled,
+  placeholder,
+  dateFormat = "dd-MM-yyyy",
+  clearable,
+  minDate,
+  maxDate,
+  variant = "field",
+  "aria-label": ariaLabel,
+}: Props) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const date = toCalendarDate(value);
+  const canClear = (clearable ?? (!required && !disabled)) && Boolean(date);
+  const shown = date ? format(new Date(date.year, date.month - 1, date.day), dateFormat) : "";
+  const bare = variant === "bare";
 
-type TriggerProps = React.InputHTMLAttributes<HTMLInputElement> & { onClear?: () => void };
-
-const TriggerInput = forwardRef<HTMLInputElement, TriggerProps>(
-  ({ value, onClick, onChange, placeholder, required, disabled, onClear }, ref) => (
-    <div
-      onClick={disabled ? undefined : onClick}
-      className={`relative flex w-full items-center rounded-lg border-2 border-gold-solid bg-background-primary-default px-3 py-2 transition duration-200 ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer focus-within:bg-background-primary-default shadow-md hover:bg-fill-2"}`}
-    >
-      <input
-        ref={ref}
-        type="text"
-        value={value ?? ""}
-        onChange={onChange}
-        readOnly
-        placeholder={placeholder}
-        required={required}
+  return (
+    <div className="relative flex w-full min-w-0 items-center">
+      <button
+        ref={triggerRef}
+        type="button"
         disabled={disabled}
-        className={`w-full bg-transparent text-sm uppercase text-text-primary outline-none placeholder:normal-case placeholder:text-text-placeholder ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-      />
-      {onClear && value && !disabled && (
+        aria-label={ariaLabel ?? placeholder ?? "Date"}
+        aria-required={required || undefined}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cx(
+          "flex w-full min-w-0 items-center gap-2 text-start outline-none transition-colors duration-150",
+          "focus-visible:ring-2 focus-visible:ring-border-focus-ring disabled:cursor-not-allowed disabled:opacity-60",
+          bare
+            ? "h-8 rounded-md px-1 hover:text-text-primary"
+            : cx(
+                "h-10 rounded-xl border bg-background-primary-default px-3 shadow-xs hover:border-border-button-hover",
+                open ? "border-accent-border-strong" : "border-border-button-default",
+              ),
+          canClear && "pe-8",
+        )}
+      >
+        {!bare && <RiCalendarLine className="size-4 shrink-0 text-foreground-icon-secondary" aria-hidden />}
+        <span className={cx("min-w-0 flex-1 truncate text-body-regular tabular-nums", shown ? "text-text-primary" : "text-text-placeholder")}>
+          {shown || (placeholder ?? "DD-MM-YYYY")}
+        </span>
+        {bare && <RiCalendarLine className="size-4 shrink-0 text-foreground-icon-tertiary" aria-hidden />}
+      </button>
+
+      {canClear && !disabled && (
         <button
           type="button"
           aria-label="Clear date"
           title="Clear date"
-          // Don't let the click reach the wrapper (it would open the calendar).
-          onClick={(e) => { e.stopPropagation(); onClear(); }}
-          className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-danger-surface-strong hover:text-danger-text"
+          onClick={() => onChange("")}
+          className="absolute end-2 flex size-6 items-center justify-center rounded-full text-foreground-icon-tertiary outline-none transition-colors hover:bg-danger-surface-strong hover:text-danger-text focus-visible:ring-2 focus-visible:ring-border-focus-ring"
         >
-          <X className="h-3.5 w-3.5" />
+          <RiCloseLine className="size-4" />
         </button>
       )}
-      <CalendarDays className="ml-2 h-4 w-4 shrink-0 text-gold-text" />
-    </div>
-  )
-);
-TriggerInput.displayName = "TriggerInput";
 
-export function DatePickerInput({ value, onChange, required, disabled, placeholder, dateFormat = "dd-MM-yyyy", clearable }: Props) {
-  const canClear = clearable ?? (!required && !disabled);
-  return (
-    <ReactDatePicker
-      selected={toDate(value)}
-      onChange={(date: Date | null) => onChange(date ? toISO(date) : "")}
-      dateFormat={dateFormat}
-      placeholderText={placeholder ?? "DD-MM-YYYY"}
-      disabled={disabled}
-      showMonthDropdown
-      showYearDropdown
-      dropdownMode="select"
-      popperPlacement="bottom-start"
-      portalId="datepicker-portal"
-      calendarClassName="canaan-calendar"
-      wrapperClassName="w-full"
-      customInput={<TriggerInput required={required} disabled={disabled} onClear={canClear ? () => onChange("") : undefined} />}
-    />
+      {/* Keeps native form validation for required dates: an empty required
+          field still blocks submit, as the old input did. */}
+      {required && (
+        <input
+          tabIndex={-1}
+          aria-hidden
+          required
+          value={value}
+          onChange={() => {}}
+          className="pointer-events-none absolute inset-0 opacity-0"
+        />
+      )}
+
+      <DatePicker
+        triggerRef={triggerRef}
+        isOpen={open}
+        onOpenChange={setOpen}
+        value={date}
+        onChange={(next) => onChange(next ? next.toString() : "")}
+        minValue={toCalendarDate(minDate)}
+        maxValue={toCalendarDate(maxDate)}
+        aria-label={ariaLabel ?? placeholder ?? "Date"}
+      />
+    </div>
   );
 }

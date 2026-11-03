@@ -3,16 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { RiRecordCircleLine as CircleDot, RiEyeLine as Eye, RiLoader4Line as Loader2, RiAttachment2 as Paperclip, RiToolsLine as Wrench } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { MaintenanceProofsDialog } from "@/components/maintenance/MaintenanceProofsDialog";
 import { tyreApi, vendorsApi } from "@/lib/api";
 import { formatDate } from "@/lib/format-date";
 import { useAuth } from "@/context/AuthContext";
 import type { Vendor } from "@/types/vendor";
 import type { MaintenanceRecord } from "@/types/truck-maintenance";
 import type { VendorRetread } from "@/types/tyre-inventory";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
+const MaintenanceProofsDialog = dynamic(() => import("@/components/maintenance/MaintenanceProofsDialog").then((m) => m.MaintenanceProofsDialog));
 
 type Props = {
   open: boolean;
@@ -160,8 +164,8 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {retreads.map((r) => (
+                  <PagedTbody className="divide-y divide-separator-border" items={retreads}>
+                    {(r) => (
                       <tr key={r.id} className="bg-background-primary-default transition-colors hover:bg-fill-2">
                         <td className="px-4 py-2.5 tabular-nums text-text-secondary">{formatDate(r.date.slice(0, 10))}</td>
                         <td className="px-4 py-2.5">
@@ -189,8 +193,8 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                           )}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
+                    )}
+                  </PagedTbody>
                 </table>
               </div>
             )
@@ -216,8 +220,8 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-separator-border">
-                  {records.map((r) => (
+                <PagedTbody className="divide-y divide-separator-border" items={records}>
+                  {(r) => (
                     <tr key={r.id} className="bg-background-primary-default transition-colors hover:bg-fill-2">
                       <td className="px-4 py-2.5 tabular-nums text-text-secondary">{formatDate(r.date)}</td>
                       <td className="px-4 py-2.5">
@@ -248,8 +252,8 @@ export function VendorRecordsDialog({ open, vendor, onClose }: Props) {
                         )}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
+                  )}
+                </PagedTbody>
               </table>
             </div>
           )}

@@ -9,8 +9,6 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripSheetData } from "@/types/trip-sheet";
 import type { TripClosureData } from "@/types/trip-closure";
-import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
-import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { Avatar } from "@/components/ui/Avatar";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
@@ -23,6 +21,12 @@ import { TripAuditActions, TripAuditBadge } from "@/components/audit/TripAuditAc
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const BookingSheetDialog = dynamic(() => import("@/components/trips/BookingSheetDialog").then((m) => m.BookingSheetDialog));
+const TripSheetDialog = dynamic(() => import("@/components/trips/TripSheetDialog").then((m) => m.TripSheetDialog));
 type SalaryBreakdown = {
   regularPay: number;
   totalAdvance: number;
@@ -403,8 +407,8 @@ export default function DriverRecordPage() {
                               <th className="px-3 py-2 font-semibold text-text-tertiary">Documents</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-separator-border">
-                            {driverTrips.map((trip) => {
+                          <PagedTbody className="divide-y divide-separator-border" items={driverTrips}>
+                            {(trip) => {
                               const sheet = sheets.get(trip.id);
                               const hasSalary = trip.hasSheet && sheet;
                               return (
@@ -460,8 +464,8 @@ export default function DriverRecordPage() {
                                   </td>
                                 </tr>
                               );
-                            })}
-                          </tbody>
+                            }}
+                          </PagedTbody>
                           <tfoot>
                             <tr className="border-t border-separator-border bg-fill-1">
                               <td colSpan={3} className="px-3 py-2 text-right font-semibold text-text-secondary">Total Salary</td>

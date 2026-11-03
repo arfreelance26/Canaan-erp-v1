@@ -4,8 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { RiVerifiedBadgeLine as BadgeCheck, RiBriefcaseLine as Briefcase, RiBuilding2Line as Building2, RiCalendar2Line as CalendarDays, RiCake2Line as Cake, RiDownloadLine as Download, RiEyeLine as Eye, RiEyeOffLine as EyeOff, RiFileTextLine as FileText, RiProfileLine as IdCard, RiImageLine as ImageIcon, RiMacbookLine as Laptop, RiLoader4Line as Loader2, RiLockLine as Lock, RiLockUnlockLine as LockOpen, RiMailLine as Mail, RiMapPin2Line as MapPin, RiPhoneLine as Phone, RiSmartphoneLine as Smartphone, RiCloseLine as X, RiZoomInLine as ZoomIn } from "@remixicon/react";
 import { fileUrl, staffApi, type StaffFreezeEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 type Props = {
   staff: Staff | null;

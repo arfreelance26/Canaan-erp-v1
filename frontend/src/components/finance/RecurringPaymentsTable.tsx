@@ -5,6 +5,7 @@ import type { RecurringPayment } from "@/types/finance";
 import { formatDate } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type RecurringPaymentsTableProps = {
   payments: RecurringPayment[];
 };
@@ -47,8 +48,8 @@ export function RecurringPaymentsTable({ payments }: RecurringPaymentsTableProps
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {payments.map((payment) => (
+        <PagedTbody className="divide-y divide-separator-border" items={payments}>
+          {(payment) => (
             <tr key={payment.id} className="hover:bg-fill-2">
               <td className="px-4 py-3 font-medium text-text-primary">{payment.title}</td>
               <td className="px-4 py-3 text-text-secondary">{payment.category}</td>
@@ -66,8 +67,8 @@ export function RecurringPaymentsTable({ payments }: RecurringPaymentsTableProps
                 </span>
               </td>
             </tr>
-          ))}
-        </tbody>
+          )}
+        </PagedTbody>
       </table>
     </div>
   );

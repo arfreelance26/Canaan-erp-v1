@@ -9,8 +9,6 @@ import type { Truck } from "@/types/truck";
 import type { Customer } from "@/types/customer";
 import type { TripClosureData } from "@/types/trip-closure";
 import type { TripSheetData } from "@/types/trip-sheet";
-import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
-import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
 import { PillSearch } from "@/components/ui/PillSearch";
@@ -24,6 +22,12 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const BookingSheetDialog = dynamic(() => import("@/components/trips/BookingSheetDialog").then((m) => m.BookingSheetDialog));
+const TripSheetDialog = dynamic(() => import("@/components/trips/TripSheetDialog").then((m) => m.TripSheetDialog));
 type BookingDialogState = { trip: Trip; readOnly: boolean };
 type SheetDialogState = { trip: Trip; readOnly: boolean };
 
@@ -217,8 +221,8 @@ export default function FlaggedTripsPage() {
                 <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {flaggedTrips.map((trip) => (
+            <PagedTbody className="divide-y divide-separator-border" items={flaggedTrips}>
+              {(trip) => (
                 <tr key={trip.id}>
                   <td className="px-4 py-2.5 font-semibold text-text-primary">{trip.tripId}</td>
                   <td className="px-4 py-2.5 text-text-secondary">{trip.driverName ?? "—"}</td>
@@ -298,8 +302,8 @@ export default function FlaggedTripsPage() {
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}
@@ -388,8 +392,8 @@ export default function FlaggedTripsPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -410,8 +414,8 @@ export default function FlaggedTripsPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

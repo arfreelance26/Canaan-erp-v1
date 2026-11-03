@@ -16,6 +16,7 @@ import type { Truck } from "@/types/truck";
 import type { CompensationPerson } from "./CompensationTable";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -289,8 +290,8 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
                   <th className={thRClass}>Amount Owed</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-separator-border">
-                {rows.map((r) => (
+              <PagedTbody className="divide-y divide-separator-border" items={rows}>
+                {(r) => (
                   <tr key={r.key} className="hover:bg-fill-2" title={r.remarks ? `Halt remarks: ${r.remarks}` : undefined}>
                     <td className="px-3 py-2.5 font-medium text-accent-text-strong">{r.tripId}</td>
                     <td className="px-3 py-2.5 text-text-secondary">{fmtDate(r.completedDate)}</td>
@@ -313,8 +314,8 @@ export function HaltPayRecordDialog({ open, onClose, driver, trips, trucks, onSh
                     <td className="px-3 py-2.5 text-right tabular-nums text-text-secondary">{fmtCur(r.ratePerDay)}</td>
                     <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-accent-text-strong">{fmtCur(r.amount)}</td>
                   </tr>
-                ))}
-              </tbody>
+                )}
+              </PagedTbody>
             </table>
           </div>
 

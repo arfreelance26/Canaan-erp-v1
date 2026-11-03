@@ -3,9 +3,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { tripsApi, driversApi, trucksApi, customersApi, editApprovalsApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
-import { TripSheetDialog } from "@/components/trips/TripSheetDialog";
-import { BookingSheetDialog } from "@/components/trips/BookingSheetDialog";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { Trip } from "@/types/trip";
 import type { Driver } from "@/types/driver";
 import type { Truck } from "@/types/truck";
@@ -56,6 +53,14 @@ import { stageRowClass, stageBadgeClass, type StageColor } from "@/lib/stage-col
 import { todayIst } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const TripSheetDialog = dynamic(() => import("@/components/trips/TripSheetDialog").then((m) => m.TripSheetDialog));
+const BookingSheetDialog = dynamic(() => import("@/components/trips/BookingSheetDialog").then((m) => m.BookingSheetDialog));
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 type DialogMode = "add" | "view" | "edit";
 
 // Reconciliation stage → color/label, matching the status filter cards.
@@ -1347,16 +1352,19 @@ export default function TripReconciliationPage() {
               <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-fill-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-caption-1-medium text-text-secondary whitespace-nowrap">Status:</span>
-                  <select
+                  <GlassSelect
+                    size="sm"
+                    aria-label="Status"
                     value={modalStatusFilter}
-                    onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
-                    className="rounded-lg border border-separator-border bg-background-primary-default py-1.5 px-2 text-sm outline-none focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/10"
-                  >
-                    <option value="All">All</option>
-                    <option value="Sheet Entered">Sheet Entered</option>
-                    <option value="Pending Sheet Entry">Pending Sheet Entry</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
+                    onChange={(v) => setModalStatusFilter(v as typeof modalStatusFilter)}
+                    options={[
+                      { value: "All", label: "All" },
+                      { value: "Sheet Entered", label: "Sheet Entered" },
+                      { value: "Pending Sheet Entry", label: "Pending Sheet Entry" },
+                      { value: "Rejected", label: "Rejected" },
+                    ]}
+                    className="w-44"
+                  />
                 </div>
                 {modalStatusFilter !== "All" && (
                   <button
@@ -1469,8 +1477,8 @@ export default function TripReconciliationPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -1490,8 +1498,8 @@ export default function TripReconciliationPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

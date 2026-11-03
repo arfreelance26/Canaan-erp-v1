@@ -5,13 +5,9 @@ import { RiAddLine as Plus, RiStackLine as Boxes, RiHistoryLine as History, RiPe
 import { TyreInventoryTable } from "@/components/tyre-inventory/TyreInventoryTable";
 import { TyreInventoryFormDialog, DRAFT_KEY as TYRE_DRAFT_KEY, type TyreProofChange } from "@/components/tyre-inventory/TyreInventoryFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
-import { TyreHistoryDialog } from "@/components/tyre-inventory/TyreHistoryDialog";
-import { TyreDataDialog } from "@/components/tyre-inventory/TyreDataDialog";
-import { DiscardReasonDialog } from "@/components/tyre-inventory/DiscardReasonDialog";
 import { tyreApi, deletionApprovalsApi, type TyreInventoryEditEventRow } from "@/lib/api";
 import { confirmAction, showSuccess, showError } from "@/lib/feedback";
 import { useAuth } from "@/context/AuthContext";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { TyreInventoryItem } from "@/types/tyre-inventory";
 import type { TyreFitmentRecord } from "@/types/tyre-fitment";
 import type { Truck } from "@/types/truck";
@@ -27,6 +23,14 @@ import { cn } from "@/lib/utils";
 import { formatDateTime, inDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const TyreHistoryDialog = dynamic(() => import("@/components/tyre-inventory/TyreHistoryDialog").then((m) => m.TyreHistoryDialog));
+const TyreDataDialog = dynamic(() => import("@/components/tyre-inventory/TyreDataDialog").then((m) => m.TyreDataDialog));
+const DiscardReasonDialog = dynamic(() => import("@/components/tyre-inventory/DiscardReasonDialog").then((m) => m.DiscardReasonDialog));
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 const EDIT_EVENT_ICON: Record<TyreInventoryEditEventRow["event"], typeof Plus> = {
   "Tyre Created": Plus,
   "Tyre Edited": Pencil,
@@ -364,8 +368,8 @@ export default function TyreInventoryPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -385,8 +389,8 @@ export default function TyreInventoryPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

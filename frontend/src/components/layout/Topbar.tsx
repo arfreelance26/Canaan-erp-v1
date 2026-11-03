@@ -4,17 +4,14 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { RiHome5Line as Home, RiArrowRightSLine as ChevronRight, RiNotification3Line as Bell, RiArrowDownSLine as ChevronDown, RiCalendarScheduleLine as CalendarClock, RiUserLine as User, RiAlertLine as AlertTriangle, RiMessage3Line as MessageSquare, RiMenuLine as Menu, RiToolsLine as Wrench, RiArrowGoBackLine as RotateCcw, RiSunFoggyLine as Sunrise } from "@remixicon/react";
-import { sidebarSections } from "@/lib/nav-config";
+import { EXTRA_PAGE_LABELS, sidebarSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
-import { ProfileModal } from "./ProfileModal";
 import { DisplaySettings } from "./DisplaySettings";
 import { NetworkStatus } from "./NetworkStatus";
 import { CalculatorButton } from "./CalculatorButton";
 import { AlertsButton } from "./AlertsButton";
-import { EventsButton } from "./EventsButton";
-import { NotesButton } from "./NotesButton";
-import { TodoButton } from "./TodoButton";
+import { UniversalSearch } from "./UniversalSearch";
 import { PrivacyNoticeButton } from "./PrivacyNoticeButton";
 import { attendanceApi, editApprovalsApi, deletionApprovalsApi, maintenanceRequestsApi } from "@/lib/api";
 import type { LeaveRequest } from "@/types/leave-request";
@@ -28,6 +25,24 @@ import { showToast } from "@/lib/feedback";
 
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Avatar as PersonAvatar } from "@/components/ui/Avatar";
+import { useBirthday } from "@/context/BirthdayContext";
+import { useSeason } from "@/context/SeasonContext";
+import { useFounding } from "@/context/FoundingContext";
+import dynamic from "next/dynamic";
+
+// Celebration decor only draws on festive days, so it loads on demand.
+const GoldWave = dynamic(() => import("./FoundingDecor").then((m) => m.GoldWave));
+const EstMark = dynamic(() => import("./FoundingDecor").then((m) => m.EstMark));
+const FitMark = dynamic(() => import("./FoundingDecor").then((m) => m.FitMark));
+const PineGarland = dynamic(() => import("./SeasonDecor").then((m) => m.PineGarland));
+const Snowfall = dynamic(() => import("./SeasonDecor").then((m) => m.Snowfall));
+const Streamers = dynamic(() => import("./SeasonDecor").then((m) => m.Streamers));
+const NewYearMark = dynamic(() => import("./SeasonDecor").then((m) => m.NewYearMark));
+const SantaOnDashboard = dynamic(() => import("./SeasonDecor").then((m) => m.SantaOnDashboard));
+const Bunting = dynamic(() => import("./BirthdayDecor").then((m) => m.Bunting));
+const BirthdayBadge = dynamic(() => import("./BirthdayDecor").then((m) => m.BirthdayBadge));
+const Balloons = dynamic(() => import("./BirthdayDecor").then((m) => m.Balloons));
 // Trip pages whose local search is driven by the Topbar global search
 const SEARCHABLE_TRIP_PATHS = new Set([
   "/trips/assign",
@@ -61,6 +76,7 @@ function getPageLabel(pathname: string): string {
       if (norm(item.href) === here) return item.label;
     }
   }
+  if (here in EXTRA_PAGE_LABELS) return EXTRA_PAGE_LABELS[here];
   return "Dashboard";
 }
 
@@ -174,6 +190,11 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   const router   = useRouter();
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: getPageLabel(pathname) }];
   const { user, logout } = useAuth();
+  // Celebrations (managed in /admin/celebrations): decor, the centre mark and
+  // the "Hide decorations" menu items.
+  const birthday = useBirthday();
+  const season = useSeason();
+  const founding = useFounding();
 
   // Logout is gated on closing an open self-checked-in shift first — same
   // rule as Sidebar.tsx's logout icon, duplicated here since this profile
@@ -198,7 +219,6 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   // const { isOpen: isChatOpen, toggle: toggleChat } = useChat(); // Next phase
 
   const [isProfileOpen, setIsProfileOpen]         = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen]             = useState(false);
   const [leaveRequests, setLeaveRequests]         = useState<LeaveRequest[]>([]);
   const [editRequestNotifs, setEditRequestNotifs] = useState<EditRequestNotif[]>([]);       // Admin
@@ -568,9 +588,32 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
   // Maintenance alerts aren't age-limited: each person's stays in the bell
   // until they open it (read state is per person), however old it is.
 
+  // Founding Day / New Year mark, between the breadcrumb and the buttons.
+  const centerMark = birthday.decorated ? null
+    : founding.decorated ? <EstMark years={founding.years} />
+    : season.decorated && season.day === "newyearday" ? <NewYearMark year={season.newYear} />
+    : null;
+
   return (
     <>
     <header className="relative z-50 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-separator-border bg-background-primary-default px-4 md:px-6">
+      {/* Negative z inside the header's stacking context: painted over the
+          header background but under the breadcrumb, buttons and profile. */}
+      {birthday.decorated ? (
+        <>
+          <Balloons count={9} className="-z-10" />
+          <Bunting className="-z-10" />
+        </>
+      ) : founding.decorated ? (
+        <GoldWave />
+      ) : season.decorated ? (
+        <>
+          <Snowfall className="-z-10" glitter={season.day === "newyearday"} />
+          {season.day === "newyearday" ? <Streamers className="-z-10" /> : <PineGarland className="-z-10" />}
+          {season.day === "christmas" && <SantaOnDashboard uid={String(user?.id ?? user?.name ?? "")} className="-z-10" />}
+        </>
+      ) : null}
+
       {/* Hamburger — mobile only */}
       <button
         type="button"
@@ -581,7 +624,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
         <Menu className="size-5" />
       </button>
 
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1">
+      <nav aria-label="Breadcrumb" className={cn("flex min-w-0 items-center gap-1", !centerMark && "flex-1")}>
         {attendanceLocked ? (
           // Every other way out of this page is blocked by the gate in AppShell;
           // the Home crumb must not link straight to "/" while it's on.
@@ -621,7 +664,12 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
         })}
       </nav>
 
+      {centerMark && <FitMark>{centerMark}</FitMark>}
+
       <div className="flex items-center gap-4">
+
+        {/* Universal search — pages and records, ⌘K / "/" */}
+        <UniversalSearch locked={attendanceLocked} />
 
         {/* {backendOnline === false && (
           <span className="hidden items-center gap-1.5 rounded-full bg-danger-surface px-2.5 py-1 text-caption-1-medium text-danger-text ring-1 ring-danger-border sm:flex">
@@ -639,14 +687,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
         {/* Invite — Admin only */}
         {isAdmin && <AlertsButton />}
 
-        {/* Events — everyone sees upcoming meetings, only Admin schedules one */}
-        <EventsButton />
-
-        {/* Notes — private per-user notepad */}
-        <NotesButton />
-
-        {/* To-do — private per-user task list */}
-        <TodoButton />
+        {/* Meetings, Notes and To-do live on My profile (/personal/profile). */}
 
         {/* Calculator */}
         <CalculatorButton />
@@ -1342,13 +1383,10 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
             aria-expanded={isProfileOpen}
             className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 outline-none transition-colors hover:bg-fill-2 focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
-            {user?.photoUrl ? (
-              <img src={user.photoUrl} alt={user.name} className="size-8 rounded-full object-cover" />
-            ) : (
-              <div className="flex size-8 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text-strong">
-                {getInitials(user?.name ?? "U")}
-              </div>
-            )}
+            <span className="relative shrink-0">
+              <PersonAvatar photoUrl={user?.photoUrl} label={user?.name ?? "You"} size={32} />
+              {birthday.decorated && birthday.mine && <BirthdayBadge />}
+            </span>
             <span className="hidden text-body-medium text-text-primary sm:inline">{user?.name ?? "—"}</span>
             <ChevronDown className={cn("size-4 text-foreground-icon-tertiary transition-transform duration-150", isProfileOpen && "rotate-180")} />
           </button>
@@ -1356,13 +1394,7 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
           {isProfileOpen && (
             <div className="absolute right-0 z-[100] mt-2 w-56 origin-top-right rounded-xl border border-separator-border bg-background-primary-default p-1 shadow-lg">
               <div className="flex items-center gap-2.5 border-b border-separator-border px-2.5 pb-2.5 pt-1.5">
-                {user?.photoUrl ? (
-                  <img src={user.photoUrl} alt={user.name} className="size-9 shrink-0 rounded-full object-cover" />
-                ) : (
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text-strong">
-                    {getInitials(user?.name ?? "U")}
-                  </div>
-                )}
+                <PersonAvatar photoUrl={user?.photoUrl} label={user?.name ?? "You"} size={36} />
                 <div className="min-w-0">
                   <p className="truncate text-body-medium text-text-primary">{user?.name}</p>
                   <p className="truncate text-caption-1-regular text-text-tertiary">{user?.softwareDesignation}</p>
@@ -1371,10 +1403,26 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
               <div className="flex flex-col gap-0.5 pt-1">
                 <button
                   className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-body-regular text-text-primary outline-none transition-colors hover:bg-fill-2 focus-visible:bg-fill-2"
-                  onClick={() => { setIsProfileOpen(false); setIsProfileModalOpen(true); }}
+                  onClick={() => { setIsProfileOpen(false); router.push("/personal/profile"); }}
                 >
                   Profile
                 </button>
+                {(birthday.festive || season.festive || founding.festive) && (
+                  <button
+                    className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-body-regular text-text-primary outline-none transition-colors hover:bg-fill-2 focus-visible:bg-fill-2"
+                    onClick={() => { setIsProfileOpen(false); birthday.hideForToday(); season.hideForToday(); founding.hideForToday(); }}
+                  >
+                    Hide decorations today
+                  </button>
+                )}
+                {season.festive && (
+                  <button
+                    className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-body-regular text-text-primary outline-none transition-colors hover:bg-fill-2 focus-visible:bg-fill-2"
+                    onClick={() => { setIsProfileOpen(false); season.hideForSeason(); }}
+                  >
+                    Hide for the season
+                  </button>
+                )}
                 <button
                   className="flex h-9 w-full items-center rounded-lg px-2.5 text-left text-body-regular text-danger-text outline-none transition-colors hover:bg-danger-surface focus-visible:bg-danger-surface"
                   onClick={handleLogoutClick}
@@ -1388,10 +1436,6 @@ export function Topbar({ onMenuOpen, attendanceLocked }: { onMenuOpen?: () => vo
       </div>
     </header>
 
-    <ProfileModal
-      open={isProfileModalOpen}
-      onClose={() => setIsProfileModalOpen(false)}
-    />
     {openShift && (
       <CloseShiftBeforeLogoutDialog
         open={showCloseShiftPrompt}

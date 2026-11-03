@@ -15,6 +15,8 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, todayIst, overlapsDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 const OTHER_ASSETS_KEY = "__other__";
 
@@ -43,7 +45,7 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon
       </span>
       <div className="min-w-0">
         <p className="text-caption-2-semibold text-text-tertiary">{label}</p>
-        <p className="truncate text-title-3-semibold leading-tight text-text-primary">{value}</p>
+        <p className="truncate text-title-3-semibold leading-tight text-text-primary"><AnimatedNumber value={value} /></p>
       </div>
     </div>
   );
@@ -317,8 +319,8 @@ export default function TruckEmiRecordPage() {
                               <th className="px-3 py-2">Status</th>
                             </tr>
                           </thead>
-                          <tbody>
-                            {groupRecords.map((r, i) => {
+                          <PagedTbody items={groupRecords}>
+                            {(r, i) => {
                               const active = r.emiEndDate >= today;
                               return (
                                 <tr
@@ -343,8 +345,8 @@ export default function TruckEmiRecordPage() {
                                   </td>
                                 </tr>
                               );
-                            })}
-                          </tbody>
+                            }}
+                          </PagedTbody>
                         </table>
                       </div>
                     )}

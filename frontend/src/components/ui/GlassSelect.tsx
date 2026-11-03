@@ -15,6 +15,14 @@ interface GlassSelectProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** "field" (default): full-width form field. "pill": a rounded toolbar
+   *  filter the height of PillSearch / DateRangePill, sized to its label. */
+  variant?: "field" | "pill";
+  /** "sm": compact, for table cells and small filters inside dialogs. */
+  size?: "md" | "sm";
+  /** Extra classes on the trigger button (e.g. a highlight when a value is set). */
+  triggerClassName?: string;
+  "aria-label"?: string;
 }
 
 export function GlassSelect({
@@ -24,7 +32,12 @@ export function GlassSelect({
   placeholder = "Select an option",
   disabled = false,
   className,
+  variant = "field",
+  size = "md",
+  triggerClassName,
+  "aria-label": ariaLabel,
 }: GlassSelectProps) {
+  const pill = variant === "pill";
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,7 +59,8 @@ export function GlassSelect({
       setDropdownStyle({
         position: 'fixed',
         left: rect.left,
-        width: rect.width,
+        // A pill can be narrower than its longest option; the list never is.
+        width: pill || size === "sm" ? Math.max(rect.width, 208) : rect.width,
         ...(openUpwards 
              ? { bottom: window.innerHeight - rect.top + 8, maxHeight: Math.min(spaceAbove - 20, 300) }
              : { top: rect.bottom + 8, maxHeight: Math.min(spaceBelow - 20, 300) })
@@ -83,16 +97,22 @@ export function GlassSelect({
   }, [isOpen]);
 
   return (
-    <div className={cn("relative w-full text-[14px]", className)} ref={containerRef}>
+    <div className={cn("relative text-[14px]", pill ? "w-auto shrink-0" : "w-full", className)} ref={containerRef}>
       <button
         type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          "flex w-full items-center justify-between gap-2 rounded-lg border bg-background-primary-default px-3 py-2 text-left shadow-[0_2px_10px_rgba(0,0,0,0.04)] transition duration-300 focus:outline-none focus:ring-4 focus:ring-accent-solid/10",
+          "flex w-full items-center justify-between gap-2 border bg-background-primary-default text-left",
+          pill ? "h-10 min-w-[9.5rem] rounded-full pl-4 pr-3.5" : size === "sm" ? "rounded-lg px-2 py-1.5 text-caption-1-semibold" : "rounded-lg px-3 py-2",
+          " shadow-[0_2px_10px_rgba(0,0,0,0.04)] transition duration-300 focus:outline-none focus:ring-4 focus:ring-accent-solid/10",
           disabled ? "cursor-not-allowed opacity-60 bg-fill-1" : "cursor-pointer hover:bg-fill-2 hover:shadow-md hover:border-accent-border/80",
           isOpen ? "border-accent-border-strong bg-background-primary-default shadow-md ring-4 ring-accent-solid/10" : "border-separator-border",
-          !selectedOption ? "text-text-secondary" : "text-text-primary font-medium"
+          !selectedOption ? "text-text-secondary" : "text-text-primary font-medium",
+          triggerClassName
         )}
       >
         <span className="block truncate">
@@ -124,8 +144,10 @@ export function GlassSelect({
                     ? "bg-accent-surface/80 font-semibold text-accent-text shadow-md"
                     : "text-text-primary hover:bg-fill-3 hover:text-text-primary"
                 )}
-                onMouseDown={(e) => {
-                  e.preventDefault();
+                // Mousedown only keeps focus on the trigger; the pick happens on
+                // click, so the app-wide activity log (useActivityTracking) sees it.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
                   onChange(option.value);
                   setIsOpen(false);
                 }}

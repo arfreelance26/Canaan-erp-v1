@@ -9,6 +9,7 @@ import type { Truck } from "@/types/truck";
 import { formatDate } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type TyreInventoryTableProps = {
   tyres: TyreInventoryItem[];
   fitments: TyreFitmentRecord[];
@@ -68,8 +69,8 @@ export function TyreInventoryTable({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {tyres.map((tyre) => {
+        <PagedTbody className="divide-y divide-separator-border" items={tyres}>
+          {(tyre) => {
             const isAttached = fitments.some((f) => f.tyreId === tyre.id && !f.removedDate);
             const status = isAttached ? "Attached" : "Available";
 
@@ -167,8 +168,8 @@ export function TyreInventoryTable({
                 </td>
               </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
   );

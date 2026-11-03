@@ -3,7 +3,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { AssignDriverTable } from "@/components/trips/AssignDriverTable";
-import { AssignDriverDialog } from "@/components/trips/AssignDriverDialog";
 import { driversApi, trucksApi, assignmentsApi, type DriverAssignmentEditEventRow } from "@/lib/api";
 import { RiProfileLine as IdCard, RiHistoryLine as History, RiAddLine as Plus, RiCloseLine as X } from "@remixicon/react";
 import type { Driver } from "@/types/driver";
@@ -21,6 +20,11 @@ import { formatDateTime } from "@/lib/format-date";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const AssignDriverDialog = dynamic(() => import("@/components/trips/AssignDriverDialog").then((m) => m.AssignDriverDialog));
 const EDIT_EVENT_ICON: Record<DriverAssignmentEditEventRow["event"], typeof Plus> = {
   "Driver Assigned": Plus,
   "Assignment Removed": X,
@@ -196,8 +200,8 @@ export default function AssignDriversPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -215,8 +219,8 @@ export default function AssignDriversPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

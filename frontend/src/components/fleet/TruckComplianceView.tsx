@@ -8,10 +8,13 @@ import { COMPLIANCE_DOCS, formatRupees, type ComplianceDocMeta } from "@/lib/com
 import { getComplianceStatus } from "@/lib/compliance";
 import { getTyreLayout } from "@/lib/tyre-layouts";
 import { formatDate } from "@/lib/format-date";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { truckImageUrl } from "@/components/fleet/VehicleImages";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 type State = "Expired" | "Expiring Soon" | "Valid" | "Missing";
 

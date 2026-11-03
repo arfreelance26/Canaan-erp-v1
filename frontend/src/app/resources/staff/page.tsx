@@ -7,7 +7,6 @@ import { StaffTable } from "@/components/staff/StaffTable";
 import { StaffFormDialog, DRAFT_KEY as STAFF_DRAFT_KEY } from "@/components/staff/StaffFormDialog";
 import { clearFormDraft } from "@/hooks/useFormDraft";
 import { staffApi, uploadFile, fileUrl, type StaffEditEventRow, type StaffFreezeEventRow } from "@/lib/api";
-import { FreezeAccountDialog } from "@/components/staff/FreezeAccountDialog";
 import { confirmAction, confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import type { Staff } from "@/types/staff";
 import type { StaffFiles } from "@/components/staff/StaffFormDialog";
@@ -20,9 +19,14 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format-date";
 
 import { PillSearch } from "@/components/ui/PillSearch";
-import { StaffDetailDialog } from "@/components/staff/StaffDetailDialog";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FreezeAccountDialog = dynamic(() => import("@/components/staff/FreezeAccountDialog").then((m) => m.FreezeAccountDialog));
+const StaffDetailDialog = dynamic(() => import("@/components/staff/StaffDetailDialog").then((m) => m.StaffDetailDialog));
 const EDIT_EVENT_ICON: Record<StaffEditEventRow["event"], typeof Plus> = {
   "Staff Created": Plus,
   "Staff Edited": Pencil,
@@ -403,8 +407,8 @@ export default function StaffPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => (
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => (
                       <tr key={ev.id}>
                         <td className="px-3 py-2">
                           <p className="font-semibold text-text-primary">{ev.staffName}</p>
@@ -423,8 +427,8 @@ export default function StaffPage() {
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                       </tr>
-                    ))}
-                  </tbody>
+                    )}
+                  </PagedTbody>
                 </table>
               </div>
             );
@@ -467,8 +471,8 @@ export default function StaffPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -488,8 +492,8 @@ export default function StaffPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { RiLogoutBoxRLine as LogOut, RiArrowLeftSLine as ChevronLeft } from "@remixicon/react";
-import { sidebarSections, type NavSection } from "@/lib/nav-config";
+import { visibleSections } from "@/lib/nav-config";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { editApprovalsApi, deletionApprovalsApi, chatApi, paymentRequestsApi, maintenanceRequestsApi } from "@/lib/api";
@@ -12,146 +12,22 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useOpenShift } from "@/hooks/useOpenShift";
 import { CloseShiftBeforeLogoutDialog } from "./CloseShiftBeforeLogoutDialog";
 
-// Allowed hrefs per software designation (Admin gets everything)
-const ROLE_HREFS: Record<string, string[] | "all"> = {
-  Admin: "all",
-  "Commercial Manager": [
-    "/",
-    "/connect/chat",
-    "/trips/assign-drivers",
-    "/trips/assign",
-    "/trips/current",
-    "/trips/completed",
-    "/trips/history",
-    "/insights/trip-planner",
-    "/resources/customers",
-    "/resources/drivers",
-    "/resources/fleet",
-    "/attendance/mark",
-    "/attendance/drivers",
-    "/attendance/leave-requests",
-    "/attendance/edit-approvals",
-    "/attendance/report",
-    "/admin/repairs",
-    "/admin/default-batta",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-  // Assistant Commercial Manager has EQUAL access to Commercial Manager.
-  "Assistant Commercial Manager": [
-    "/",
-    "/connect/chat",
-    "/trips/assign-drivers",
-    "/trips/assign",
-    "/trips/current",
-    "/trips/completed",
-    "/trips/history",
-    "/insights/trip-planner",
-    "/resources/customers",
-    "/resources/drivers",
-    "/resources/fleet",
-    "/attendance/mark",
-    "/attendance/drivers",
-    "/attendance/leave-requests",
-    "/attendance/edit-approvals",
-    "/attendance/report",
-    "/admin/repairs",
-    "/admin/default-batta",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-  Accounts: [
-    "/",
-    "/finance/documents",
-    "/finance/customer-detention",
-    "/connect/chat",
-    "/trips/verification",
-    "/trips/history",
-    "/trips/flagged",
-    "/trips/audit-verified",
-    "/resources/customers",
-    "/finance/driver-compensation",
-    "/finance/emi-tracking",
-    "/maintenance/compliance",
-    "/attendance/mark",
-    "/attendance/leave-requests",
-    "/attendance/payment-requests",
-    "/attendance/maintenance-approvals",
-    "/admin/sac-codes",
-    "/trips/pending-audit",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-  Maintenance: [
-    "/",
-    "/connect/chat",
-    "/maintenance/tyre-management",
-    "/maintenance/tyre-inventory",
-    "/maintenance/tyre-archive",
-    "/maintenance/retread-queue",
-    "/maintenance/discarded-tyres",
-    "/maintenance/trucks",
-    "/maintenance/fuel-history",
-    "/admin/adblue",
-    "/admin/maintenance",
-    "/resources/vendors",
-    "/attendance/mark",
-    "/attendance/leave-requests",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-  "Yard Supervisor": [
-    "/",
-    "/connect/chat",
-    "/trips/sheet-collection",
-    "/attendance/mark",
-    "/attendance/leave-requests",
-    "/admin/repairs",
-    "/trips/pending-audit",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-  "Trip Sheet Register": [
-    "/",
-    "/connect/chat",
-    "/trips/reconciliation",
-    "/trips/flagged",
-    "/trips/audit-verified",
-    "/maintenance/fuel-history",
-    "/attendance/mark",
-    "/attendance/leave-requests",
-    "/admin/repairs",
-    "/trips/pending-audit",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-  // Auditor gets a bare dashboard + chat + their own Driver / Vehicle Record.
-  Auditor: [
-    "/",
-    "/connect/chat",
-    "/resources/driver-record",
-    "/resources/vehicle-record",
-    "/personal/edit-delete-requests",
-    "/personal/notifications",
-  ],
-};
+import { Avatar as PersonAvatar } from "@/components/ui/Avatar";
+import { useBirthday } from "@/context/BirthdayContext";
+import { useSeason } from "@/context/SeasonContext";
+import { useFounding } from "@/context/FoundingContext";
+import dynamic from "next/dynamic";
 
-function getFilteredSections(role: string): NavSection[] {
-  const allowed = ROLE_HREFS[role] ?? ["/"];
-  if (allowed === "all") return sidebarSections;
-
-  return sidebarSections
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => allowed.includes(item.href)),
-    }))
-    .filter((section) => section.items.length > 0);
-}
-
-
-// Strips one trailing slash, but never reduces "/" itself to "" — used to
-// compare a route href against usePathname() under next.config.ts's
-// trailingSlash: true (see isActive below).
+// Celebration decor only draws on festive days, so it loads on demand.
+const LogoShine = dynamic(() => import("./FoundingDecor").then((m) => m.LogoShine));
+const YearsBadge = dynamic(() => import("./FoundingDecor").then((m) => m.YearsBadge));
+const PineGarland = dynamic(() => import("./SeasonDecor").then((m) => m.PineGarland));
+const Snowfall = dynamic(() => import("./SeasonDecor").then((m) => m.Snowfall));
+const Streamers = dynamic(() => import("./SeasonDecor").then((m) => m.Streamers));
+const Bunting = dynamic(() => import("./BirthdayDecor").then((m) => m.Bunting));
+const StringLights = dynamic(() => import("./BirthdayDecor").then((m) => m.StringLights));
+const BirthdayBadge = dynamic(() => import("./BirthdayDecor").then((m) => m.BirthdayBadge));
+const Balloons = dynamic(() => import("./BirthdayDecor").then((m) => m.Balloons));
 function stripTrailingSlash(path: string): string {
   return path.length > 1 ? path.replace(/\/$/, "") : path;
 }
@@ -177,7 +53,6 @@ type SidebarProps = {
   locked?: boolean;
 };
 
-const ATTENDANCE_LOCK_HREFS = ["/attendance/mark", "/connect/chat"];
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHoverChange, locked }: SidebarProps) {
   const pathname = usePathname();
@@ -317,11 +192,16 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
     return 0;
   };
 
-  const sections = locked
-    ? sidebarSections
-        .map((section) => ({ ...section, items: section.items.filter((item) => ATTENDANCE_LOCK_HREFS.includes(item.href)) }))
-        .filter((section) => section.items.length > 0)
-    : getFilteredSections(user?.softwareDesignation ?? "Trip Sheet Register");
+  const sections = visibleSections(user?.softwareDesignation, locked);
+
+  // Celebrations (managed in /admin/celebrations). On the Dashboard a birthday
+  // outranks Founding Day, which outranks the Christmas decorations.
+  const birthday = useBirthday();
+  const season = useSeason();
+  const founding = useFounding();
+  const dashDecor = birthday.decorated ? "birthday" : founding.decorated ? "founding" : season.decorated ? "christmas" : null;
+  // The active menu icon follows the celebration on every page, same order.
+  const menuTheme = birthday.festive ? "birthday" : founding.festive ? "founding" : season.festive ? "christmas" : null;
 
   return (
     <>
@@ -355,8 +235,16 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         collapsed ? "md:w-16" : "md:w-64"
       )}
     >
+      {/* Christmas snow drifting down / birthday balloons rising up the sidebar
+          (Dashboard only): negative z inside the aside's stacking context, so
+          over its background and under the logo, menu and profile card. */}
+      {dashDecor === "christmas" && <Snowfall count={collapsed ? 30 : 46} className="-z-10" glitter={season.day === "newyearday"} />}
+      {dashDecor === "birthday" && <Balloons count={collapsed ? 5 : 11} className="-z-10" />}
+
       {/* Header — logo + collapse toggle */}
       <div className="relative flex h-16 shrink-0 items-center border-b border-separator-border">
+        {dashDecor === "birthday" && <Bunting />}
+        {dashDecor === "christmas" && (season.day === "newyearday" ? <Streamers /> : <PineGarland />)}
         {collapsed ? (
           <button
             type="button"
@@ -370,8 +258,17 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         ) : (
           <div className="flex w-full items-center justify-between gap-2 pl-4 pr-3">
             {/* Dark mode has its own logo (navy parts in off-white). */}
-            <img src="/companylogo.png" alt="Canaan Global" className="h-11 w-auto object-contain dark:hidden" />
-            <img src="/companylogo-dark.png" alt="Canaan Global" className="hidden h-11 w-auto object-contain dark:block" />
+            <div className="relative flex items-center gap-2">
+              <span className="relative block dark:hidden">
+                <img src="/companylogo.png" alt="Canaan Global" className="h-11 w-auto object-contain" />
+                {dashDecor === "founding" && <LogoShine src="/companylogo.png" />}
+              </span>
+              <span className="relative hidden dark:block">
+                <img src="/companylogo-dark.png" alt="Canaan Global" className="h-11 w-auto object-contain" />
+                {dashDecor === "founding" && <LogoShine src="/companylogo-dark.png" />}
+              </span>
+              {dashDecor === "founding" && <YearsBadge years={founding.years} />}
+            </div>
             <button
               type="button"
               onClick={onToggle}
@@ -384,17 +281,24 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
         )}
       </div>
 
+      {!collapsed && (
+        season.festive ? <StringLights variant="christmas" intense={season.day === "christmas"} />
+          : founding.festive ? <StringLights variant="brand" />
+          : birthday.festive ? <StringLights />
+          : null
+      )}
+
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
         {sections.map((section, i) => (
-          <div key={section.title} className={cn(i > 0 && (collapsed ? "mt-3" : "mt-5"))}>
-            {collapsed ? (
-              i > 0 && <div className="mx-auto mb-3 h-px w-6 bg-separator-border" />
-            ) : (
+          <div key={section.title} className={cn(i > 0 && (collapsed ? "mt-3" : "mt-4"))}>
+            {/* Groups are split by a hairline in both states: short and centred when collapsed, full width when open. */}
+            {i > 0 && <div className={cn("mb-4 h-px bg-separator-border", collapsed ? "mx-auto mb-3 w-6" : "mx-3")} />}
+            {collapsed ? null : (
               <p className="px-3 pb-1.5 text-caption-1-medium text-text-tertiary">{section.title}</p>
             )}
 
-            <ul className="flex flex-col gap-0.5">
+            <ul className={cn("flex flex-col", collapsed ? "gap-0.5" : "gap-1")}>
               {section.items.map((item) => {
                 // trailingSlash: true makes every pathname except "/" end in "/";
                 // hrefs don't, so normalise both sides before comparing.
@@ -418,7 +322,10 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
                       <Icon
                         className={cn(
                           "size-[18px] shrink-0",
-                          isActive ? "text-accent-text" : "text-foreground-icon-tertiary"
+                          !isActive ? "text-foreground-icon-tertiary"
+                            : menuTheme === "christmas" ? "text-danger-text"
+                            : menuTheme ? "text-gold-text"
+                            : "text-accent-text"
                         )}
                       />
                       {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
@@ -442,13 +349,10 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, onHove
       {/* User */}
       <div className="shrink-0 border-t border-separator-border p-2">
         <div className={cn("flex items-center rounded-lg", collapsed ? "justify-center py-1" : "gap-2.5 py-1.5 pl-1.5 pr-1")}>
-          {user?.photoUrl ? (
-            <img src={user.photoUrl} alt={user.name} className="size-8 shrink-0 rounded-full object-cover" />
-          ) : (
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-surface-strong text-caption-1-semibold text-accent-text-strong">
-              {getInitials(user?.name ?? "U")}
-            </div>
-          )}
+          <span className="relative shrink-0">
+            <PersonAvatar photoUrl={user?.photoUrl} label={user?.name ?? "You"} size={32} />
+            {birthday.decorated && birthday.mine && <BirthdayBadge />}
+          </span>
           {!collapsed && (
             <>
               <div className="flex min-w-0 flex-1 flex-col">

@@ -15,14 +15,15 @@ import { RouteLine } from "@/components/trips/RouteLine";
 import { getRouteStep } from "@/lib/trip-stage";
 const PAGE_SIZE = 10;
 
-// Trip lifecycle status → color/label, reused for the row tint + status badge.
-function tripStage(status: string): { color: StageColor; label: string } {
-  switch (status) {
-    case "Assigned":  return { color: "blue", label: "Assigned" };
-    case "Started":   return { color: "amber", label: "In Transit" };
-    case "Completed": return { color: "emerald", label: "Completed" };
+// Trip lifecycle → color/label for the row tint + status badge, in the
+// office's words (see ROUTE_STEPS): Booked → Current → Completed → Closed.
+function tripStage(trip: Trip): { color: StageColor; label: string } {
+  switch (trip.status) {
+    case "Assigned":  return { color: "blue", label: "Booked" };
+    case "Started":   return { color: "amber", label: "Current" };
+    case "Completed": return trip.hasClosure ? { color: "gray", label: "Closed" } : { color: "emerald", label: "Completed" };
     case "Cancelled": return { color: "rose", label: "Cancelled" };
-    default:          return { color: "gray", label: status || "—" };
+    default:          return { color: "gray", label: trip.status || "—" };
   }
 }
 
@@ -95,7 +96,7 @@ export function TripTable({ trips, drivers, trucks, customers, onEdit, onMarkSta
               const truck = truckById.get(trip.vehicleId);
               const customer = customerById.get(trip.customerId);
 
-              const stage = tripStage(trip.status);
+              const stage = tripStage(trip);
               const routeStep = getRouteStep(trip);
               return (
                 <tr key={trip.id} className={stageRowClass(stage.color)}>

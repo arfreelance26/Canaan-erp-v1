@@ -3,8 +3,6 @@
 import { useAuth } from "@/context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { CompensationTable, type CompensationPerson } from "@/components/compensation/CompensationTable";
-import { PaymentDialog } from "@/components/compensation/PaymentDialog";
-import { TransactionHistoryDialog } from "@/components/compensation/TransactionHistoryDialog";
 import { RiMoneyRupeeCircleLine as Banknote, RiHistoryLine as History, RiAddLine as Plus, RiDeleteBinLine as Trash2 } from "@remixicon/react";
 import { staffApi, financeApi, type CompensationEditEventRow } from "@/lib/api";
 import type { Staff } from "@/types/staff";
@@ -22,6 +20,12 @@ import { PillSearch } from "@/components/ui/PillSearch";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const PaymentDialog = dynamic(() => import("@/components/compensation/PaymentDialog").then((m) => m.PaymentDialog));
+const TransactionHistoryDialog = dynamic(() => import("@/components/compensation/TransactionHistoryDialog").then((m) => m.TransactionHistoryDialog));
 const EDIT_EVENT_ICON: Record<CompensationEditEventRow["event"], typeof Plus> = {
   "Transaction Added": Plus,
   "Transaction Deleted": Trash2,
@@ -210,8 +214,8 @@ export default function StaffCompensationPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -226,8 +230,8 @@ export default function StaffCompensationPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

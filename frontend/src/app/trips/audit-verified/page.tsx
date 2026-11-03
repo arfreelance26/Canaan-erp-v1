@@ -16,6 +16,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { showError, showSuccess } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EVENT_ICON: Record<TripRecheckEvent["event"], typeof Flag> = {
   Flagged: Flag,
   "Returned for Review": Undo2,
@@ -161,8 +162,8 @@ export default function AuditVerifiedTripsPage() {
                 <th className="px-4 py-2.5 text-caption-2-semibold text-text-tertiary" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filtered.map((trip) => {
+            <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+              {(trip) => {
                 const isExpanded = expandedId === trip.tripDbId;
                 const events = history.get(trip.tripDbId) ?? [];
                 return (
@@ -246,8 +247,8 @@ export default function AuditVerifiedTripsPage() {
                     )}
                   </Fragment>
                 );
-              })}
-            </tbody>
+              }}
+            </PagedTbody>
           </table>
         </div>
       )}

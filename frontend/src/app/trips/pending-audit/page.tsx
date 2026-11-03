@@ -15,6 +15,7 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const COLUMNS = ["Trip ID", "Driver", "Truck", "Route", "Date"];
 const ALLOWED_ROLES = ["Admin", "Accounts", "Yard Supervisor", "Trip Sheet Register"];
 
@@ -111,8 +112,8 @@ export default function PendingAuditPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filtered.map((trip) => (
+            <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+              {(trip) => (
                 <tr key={trip.tripDbId} className="hover:bg-fill-2">
                   <td className="px-4 py-2.5 font-semibold text-text-primary">{trip.tripId}</td>
                   <td className="px-4 py-2.5 text-text-secondary">{trip.driverName ?? "—"}</td>
@@ -122,8 +123,8 @@ export default function PendingAuditPage() {
                   </td>
                   <td className="px-4 py-2.5 text-text-secondary">{formatDate(trip.scheduledDate)}</td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}

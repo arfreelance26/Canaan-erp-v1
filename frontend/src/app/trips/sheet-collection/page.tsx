@@ -4,12 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { tripsApi, customersApi, deletionApprovalsApi, type TripEditEventRow } from "@/lib/api";
 import { useGlobalSearchQuery, containerRef } from "@/lib/trip-search";
 import { mapLimit } from "@/lib/async-pool";
-import { EditRequestDialog } from "@/components/attendance/EditRequestDialog";
 import type { Trip } from "@/types/trip";
 import type { Customer } from "@/types/customer";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
-import { RiEyeLine as Eye, RiArrowDownSLine as ChevronDown, RiCheckboxCircleLine as CheckCircle2, RiCheckboxBlankCircleLine as Circle, RiDownloadLine as Download, RiThumbUpLine as ThumbsUp, RiThumbDownLine as ThumbsDown, RiAlertLine as AlertTriangle, RiArrowRightCircleLine as ArrowRightCircle, RiInboxLine as Inbox, RiFileList3Line as ClipboardList, RiCloseLine as X, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
+import { RiEyeLine as Eye, RiCheckboxCircleLine as CheckCircle2, RiCheckboxBlankCircleLine as Circle, RiDownloadLine as Download, RiThumbUpLine as ThumbsUp, RiThumbDownLine as ThumbsDown, RiAlertLine as AlertTriangle, RiArrowRightCircleLine as ArrowRightCircle, RiInboxLine as Inbox, RiFileList3Line as ClipboardList, RiCloseLine as X, RiDeleteBinLine as Trash2, RiHistoryLine as History, RiAddLine as Plus, RiPencilLine as Pencil, RiCloseCircleLine as XCircle, RiArrowGoBackLine as RotateCcw } from "@remixicon/react";
 import { formatDate, formatDateTime, todayIst } from "@/lib/format-date";
 import { stageRowClass, type StageColor } from "@/lib/stage-colors";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
@@ -21,6 +20,12 @@ import { Dialog } from "@/components/ui/Dialog";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { GlassSelect } from "@/components/ui/GlassSelect";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const EditRequestDialog = dynamic(() => import("@/components/attendance/EditRequestDialog").then((m) => m.EditRequestDialog));
 const EDIT_EVENT_ICON: Record<TripEditEventRow["event"], typeof Plus> = {
   "Booking Created": Plus,
   "Booking Edited": Pencil,
@@ -532,17 +537,18 @@ export default function SheetCollectionPage() {
       <div className="flex flex-wrap items-center gap-3">
         <PillSearch placeholder="Search by truck no., driver, trip ID…" value={searchQuery} onChange={setSearchQuery} />
         <div className="relative shrink-0 transition-transform duration-300">
-          <select
+          <GlassSelect
+            variant="pill"
+            aria-label="Sheet status"
             value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}
-            className="h-10 min-w-[9.5rem] cursor-pointer appearance-none rounded-full border border-separator-border bg-background-primary-default pl-4 pr-10 text-body-medium text-text-primary shadow-sm outline-none transition-shadow duration-300 hover:shadow-md focus:border-accent-border-strong"
-          >
-            <option value="All">All Sheets</option>
-            <option value="Pending">Pending</option>
-            <option value="Delivered">Delivered</option>
-            <option value="Overdue">Entry Overdue</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+            onChange={(v) => { setStatusFilter(v as typeof statusFilter); setPage(1); }}
+            options={[
+              { value: "All", label: "All Sheets" },
+              { value: "Pending", label: "Pending" },
+              { value: "Delivered", label: "Delivered" },
+              { value: "Overdue", label: "Entry Overdue" },
+            ]}
+          />
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
@@ -1081,16 +1087,19 @@ export default function SheetCollectionPage() {
               <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3 shrink-0 bg-fill-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-caption-1-medium text-text-secondary whitespace-nowrap">Status:</span>
-                  <select
+                  <GlassSelect
+                    size="sm"
+                    aria-label="Status"
                     value={modalStatusFilter}
-                    onChange={(e) => setModalStatusFilter(e.target.value as typeof modalStatusFilter)}
-                    className="rounded-lg border border-separator-border bg-background-primary-default py-1.5 px-2 text-sm outline-none focus:border-accent-solid focus:ring-2 focus:ring-accent-solid/10"
-                  >
-                    <option value="All">All</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Delivered">Delivered</option>
-                    <option value="Overdue">Entry Overdue</option>
-                  </select>
+                    onChange={(v) => setModalStatusFilter(v as typeof modalStatusFilter)}
+                    options={[
+                      { value: "All", label: "All" },
+                      { value: "Pending", label: "Pending" },
+                      { value: "Delivered", label: "Delivered" },
+                      { value: "Overdue", label: "Entry Overdue" },
+                    ]}
+                    className="w-44"
+                  />
                 </div>
                 {modalStatusFilter !== "All" && (
                   <button type="button" onClick={() => setModalStatusFilter("All")} className="rounded-full border border-border-button-default bg-background-primary-default px-2.5 py-1 text-xs text-text-secondary hover:bg-fill-3">Clear</button>
@@ -1175,8 +1184,8 @@ export default function SheetCollectionPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -1196,8 +1205,8 @@ export default function SheetCollectionPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

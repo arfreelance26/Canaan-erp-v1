@@ -5,6 +5,7 @@ import ReactDatePicker from "react-datepicker";
 import { RiCalendarScheduleLine as CalendarClock, RiCalendar2Line as CalendarDays, RiCheckLine as Check, RiCheckboxCircleLine as CheckCircle2, RiTimeLine as Clock, RiHistoryLine as History, RiLoader4Line as Loader2, RiAddLine as Plus, RiSearchLine as Search, RiDeleteBinLine as Trash2, RiGroupLine as Users, RiCloseLine as X } from "@remixicon/react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/ui/Dialog";
+import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { Avatar } from "@/components/chat/shared";
 import { chatApi, eventsApi, type CanaanEvent } from "@/lib/api";
 import type { ChatMember, ChatConversation } from "@/types/chat";
@@ -13,6 +14,7 @@ import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { showError, showToast, confirmDelete, confirmAction } from "@/lib/feedback";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { WorkspaceTile } from "./WorkspaceTile";
 type Tab = "user" | "group";
 type View = "list" | "create" | "history";
 
@@ -30,15 +32,9 @@ const pickerTriggerClass = cn(
   "focus:border-orange-border-strong focus:bg-background-primary-default focus:ring-2 focus:ring-orange-solid/20"
 );
 
-const EventDateTrigger = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-  ({ value, onClick }, ref) => (
-    <button ref={ref} type="button" onClick={onClick} className={cn(pickerTriggerClass, value ? "text-text-primary" : "text-text-tertiary")}>
-      <CalendarDays className="h-4 w-4 shrink-0 text-orange-text" />
-      <span className="truncate">{value || "Date"}</span>
-    </button>
-  )
-);
-EventDateTrigger.displayName = "EventDateTrigger";
+/** Local calendar day as ISO "YYYY-MM-DD" (for DatePickerInput). */
+const isoDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const EventTimeTrigger = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ value, onClick }, ref) => (
@@ -58,7 +54,8 @@ EventTimeTrigger.displayName = "EventTimeTrigger";
  * EventReminderListener (mounted in AppShell) for the live "starting now"
  * push this feeds into.
  */
-export function EventsButton() {
+/** `variant="tile"` draws the My profile card instead of the round icon; the dialog is the same. */
+export function EventsButton({ variant = "icon" }: { variant?: "icon" | "tile" } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.softwareDesignation === "Admin";
 
@@ -249,6 +246,15 @@ export function EventsButton() {
 
   return (
     <>
+      {variant === "tile" ? (
+        <WorkspaceTile
+          icon={CalendarClock}
+          title="Meetings"
+          summary={events.length > 0 ? `${events.length} upcoming · next ${formatWhen(events[0]?.startsAt ?? null)}` : isAdmin ? "Nothing scheduled · schedule a meeting" : "Nothing scheduled"}
+          count={events.length}
+          onClick={() => setOpen(true)}
+        />
+      ) : (
       <button
         type="button"
         aria-label="Events"
@@ -267,6 +273,7 @@ export function EventsButton() {
           </span>
         )}
       </button>
+      )}
 
       <Dialog
         open={open}
@@ -291,17 +298,17 @@ export function EventsButton() {
               className="w-full resize-none rounded-lg border border-separator-border bg-fill-1 px-3 py-2 text-sm outline-none focus:border-gold-solid focus:bg-background-primary-default focus:ring-2 focus:ring-gold-solid/20"
             />
             <div className="flex gap-2">
-              <ReactDatePicker
-                selected={startsAt}
-                onChange={handleDateChange}
-                dateFormat="dd MMM yyyy"
-                minDate={new Date()}
-                popperPlacement="bottom-start"
-                portalId="event-date-picker-portal"
-                calendarClassName="canaan-calendar"
-                wrapperClassName="flex-1"
-                customInput={<EventDateTrigger />}
-              />
+              <div className="flex-1">
+                <DatePickerInput
+                  value={startsAt ? isoDay(startsAt) : ""}
+                  onChange={(iso) => handleDateChange(iso ? new Date(`${iso}T00:00:00`) : null)}
+                  dateFormat="dd MMM yyyy"
+                  minDate={isoDay(new Date())}
+                  placeholder="Date"
+                  clearable={false}
+                  aria-label="Event date"
+                />
+              </div>
               <ReactDatePicker
                 selected={startsAt}
                 onChange={handleTimeChange}
@@ -392,7 +399,7 @@ export function EventsButton() {
                         selected ? "border-orange-border bg-orange-surface" : "border-transparent hover:bg-fill-2"
                       )}
                     >
-                      <Avatar name={g.title ?? "Group"} photoUrl={g.hasPhoto ? chatApi.groupPhotoUrl(g.id) : null} size={32} group />
+                      <Avatar name={g.title ?? "Group"} photoUrl={g.hasPhoto ? chatApi.groupPhotoUrl(g.id) : null} size={32} group seed={`group-${g.id}`} />
                       <p className="min-w-0 flex-1 truncate text-body-medium text-text-primary">{g.title}</p>
                       {selected && <Check className="h-4 w-4 shrink-0 text-orange-text" />}
                     </button>

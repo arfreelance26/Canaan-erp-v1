@@ -10,6 +10,7 @@ import type { Staff } from "@/types/staff";
 import type { StaffAttendanceRecord } from "@/types/attendance";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type StaffAttendanceTableProps = {
   staff: Staff[];
   records: StaffAttendanceRecord[];
@@ -174,8 +175,8 @@ export function StaffAttendanceTable({ staff, records, date, onMark, onCloseShif
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {staff.map((member) => {
+        <PagedTbody className="divide-y divide-separator-border" items={staff}>
+          {(member) => {
             const record = getStaffAttendanceForDate(records, member.id, date);
             return (
               <tr key={member.id} className="hover:bg-fill-2">
@@ -209,8 +210,8 @@ export function StaffAttendanceTable({ staff, records, date, onMark, onCloseShif
                 </td>
               </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
   );

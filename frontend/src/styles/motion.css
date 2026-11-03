@@ -39,3 +39,14 @@
     animation: none;
   }
 }
+
+/* Joshine (components/joshine/JoshinePet.tsx) breathes slowly while lively:
+   a soft rise and settle from its base, the one looping motion in the app. */
+@keyframes joshine-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.025, 0.975); }
+}
+.joshine-breathe { animation: joshine-breathe 3.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .joshine-breathe { animation: none; }
+}

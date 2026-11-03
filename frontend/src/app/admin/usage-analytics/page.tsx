@@ -13,6 +13,7 @@ import { todayIst, formatDateTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 function formatDuration(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -143,8 +144,8 @@ export default function UsageAnalyticsPage() {
                 <th className="px-4 py-3 text-right text-caption-1-semibold text-text-secondary">Last Seen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filtered.map((r) => (
+            <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+              {(r) => (
                 <tr
                   key={r.staffId}
                   onClick={() => openDetail(r)}
@@ -163,8 +164,8 @@ export default function UsageAnalyticsPage() {
                   <td className="px-4 py-3 text-right tabular-nums text-text-primary">{r.actionCount}</td>
                   <td className="px-4 py-3 text-right text-text-secondary">{r.lastSeenAt ? formatDateTime(r.lastSeenAt) : "—"}</td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         )}
       </div>
@@ -240,15 +241,15 @@ export default function UsageAnalyticsPage() {
                         <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-separator-border">
-                      {detail.recentActions.map((a, i) => (
+                    <PagedTbody className="divide-y divide-separator-border" items={detail.recentActions}>
+                      {(a, i) => (
                         <tr key={i}>
                           <td className="px-3 py-2 text-text-secondary">{sourceLabel(a.source)}</td>
                           <td className="px-3 py-2 font-medium text-text-primary">{a.event}</td>
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(a.createdAt)}</td>
                         </tr>
-                      ))}
-                    </tbody>
+                      )}
+                    </PagedTbody>
                   </table>
                 </div>
               )}

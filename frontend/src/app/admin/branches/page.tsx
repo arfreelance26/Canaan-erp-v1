@@ -5,7 +5,6 @@ import { RiAddLine as Plus, RiGitBranchLine as GitBranch, RiHistoryLine as Histo
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { BranchTable } from "@/components/branches/BranchTable";
-import { BranchFormDialog } from "@/components/branches/BranchFormDialog";
 import { branchesApi, type BranchEditEventRow } from "@/lib/api";
 import { confirmDelete, showSuccess, showError } from "@/lib/feedback";
 import type { Branch } from "@/types/branch";
@@ -19,6 +18,11 @@ import { formatDateTime } from "@/lib/format-date";
 import { PillSearch } from "@/components/ui/PillSearch";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const BranchFormDialog = dynamic(() => import("@/components/branches/BranchFormDialog").then((m) => m.BranchFormDialog));
 const EDIT_EVENT_ICON: Record<BranchEditEventRow["event"], typeof Plus> = {
   "Branch Created": Plus,
   "Branch Edited": Pencil,
@@ -200,8 +204,8 @@ export default function BranchesPage() {
                       <th className="px-3 py-2 text-caption-2-semibold text-text-tertiary">When</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event];
                       return (
                         <tr key={ev.id}>
@@ -218,8 +222,8 @@ export default function BranchesPage() {
                           <td className="px-3 py-2 whitespace-nowrap text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

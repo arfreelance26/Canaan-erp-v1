@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { RiArrowLeftLine as ArrowLeft, RiFileTextLine as FileText, RiFileCloseLine as FileX2, RiRestartLine as RotateCw } from "@remixicon/react";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { ComplianceDocForm } from "@/components/fleet/ComplianceDocForm";
 import { complianceRecordsApi, fileUrl, type ComplianceDocInput } from "@/lib/api";
 import { COMPLIANCE_DOCS, formatRupees, type ComplianceDocMeta } from "@/lib/compliance-docs";
@@ -12,6 +11,10 @@ import { formatDate } from "@/lib/format-date";
 import { showError, showSuccess } from "@/lib/feedback";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 const STATUS_PILL: Record<ComplianceStatus, string> = {
   Valid:           "bg-success-surface text-success-text ring-success-border",

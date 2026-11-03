@@ -6,6 +6,7 @@ import { dashboardApi, type TripsOverview, type TripOverviewRow } from "@/lib/ap
 import { useWebSocketEvent } from "@/hooks/useWebSocketEvent";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 /* ── Status badges — same pill pattern used across the app ─────────────────── */
 const STATUS_PILL: Record<string, string> = {
@@ -98,7 +99,7 @@ function StatTile({
         <p className={cn("text-caption-1-semibold", titleCls)}>{label}</p>
         <Icon className={cn("h-5 w-5", iconCls)} />
       </div>
-      <p className={cn("mt-2 text-display-4-semibold", valueCls)}>{value}</p>
+      <p className={cn("mt-2 text-display-4-semibold", valueCls)}><AnimatedNumber value={value} /></p>
       <p className={cn("mt-1 text-sm", capCls)}>{sublabel}</p>
     </div>
   );

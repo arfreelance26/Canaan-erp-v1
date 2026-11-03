@@ -11,7 +11,6 @@ import { DatePickerInput } from "@/components/ui/DatePickerInput";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { DateRangePill } from "@/components/ui/DateRangePill";
 import { DownloadExcelButton } from "@/components/ui/DownloadExcelButton";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { PillSearch } from "@/components/ui/PillSearch";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate, formatDateTime, inDateRange, todayIst } from "@/lib/format-date";
@@ -20,6 +19,11 @@ import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import dynamic from "next/dynamic";
+import { PagedTbody } from "@/components/ui/PagedTbody";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 /** Who can open the page (backend: routers/party_halt.py ROLES, plus Admin). */
 const ALLOWED_ROLES = ["Admin", "Accounts"];
 const MAX_PROOF_BYTES = 15 * 1024 * 1024;
@@ -219,8 +223,8 @@ export default function CustomerDetentionPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-separator-border">
-              {filtered.map((r) => (
+            <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+              {(r) => (
                 <tr key={r.tripDbId} className="align-top hover:bg-fill-2">
                   <td className="px-4 py-3 font-semibold text-text-primary">{r.tripId}</td>
                   <td className="max-w-[220px] px-4 py-3 text-text-primary">{r.customer}</td>
@@ -270,8 +274,8 @@ export default function CustomerDetentionPage() {
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
+              )}
+            </PagedTbody>
           </table>
         </div>
       )}

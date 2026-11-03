@@ -676,7 +676,7 @@ function fromDriver(f: Driver, password?: string) {
   };
 }
 
-function toStaff(b: B): Staff {
+export function toStaff(b: B): Staff {
   return {
     id: String(b.id),
     photoUrl: b.photo_url ? fileUrl("staff", String(b.id), "photo") : null,

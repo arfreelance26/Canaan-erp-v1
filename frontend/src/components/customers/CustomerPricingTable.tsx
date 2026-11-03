@@ -6,6 +6,7 @@ import type { Customer } from "@/types/customer";
 import type { CustomerPricing } from "@/types/customer-pricing";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 type CustomerPricingTableProps = {
   pricing: CustomerPricing[];
   customers: Customer[];
@@ -47,8 +48,8 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
             <th className="px-4 py-3 text-caption-1-semibold text-text-secondary">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-separator-border">
-          {pricing.map((entry) => {
+        <PagedTbody className="divide-y divide-separator-border" items={pricing}>
+          {(entry) => {
             const customer = customers.find((c) => c.id === entry.customerId);
             return (
               <tr key={entry.id} className="hover:bg-fill-2">
@@ -90,8 +91,8 @@ export function CustomerPricingTable({ pricing, customers, onEdit, onDelete }: C
                 </td>
               </tr>
             );
-          })}
-        </tbody>
+          }}
+        </PagedTbody>
       </table>
     </div>
   );

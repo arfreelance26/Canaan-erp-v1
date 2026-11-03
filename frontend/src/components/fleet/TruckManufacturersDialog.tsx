@@ -12,6 +12,7 @@ import { formatDateTime } from "@/lib/format-date";
 import type { Truck } from "@/types/truck";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const EDIT_EVENT_ICON: Record<AdBlueEditEventRow["event"], typeof Plus> = {
   "Manufacturer Created": Plus,
   "Manufacturer Edited": Pencil,
@@ -323,8 +324,8 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-separator-border">
-                    {filtered.map((ev) => {
+                  <PagedTbody className="divide-y divide-separator-border" items={filtered}>
+                    {(ev) => {
                       const Icon = EDIT_EVENT_ICON[ev.event] ?? Pencil;
                       return (
                         <tr key={ev.id}>
@@ -341,8 +342,8 @@ export function TruckManufacturersDialog({ open, onClose, trucks, onChanged }: P
                           <td className="whitespace-nowrap px-3 py-2 text-text-secondary">{formatDateTime(ev.createdAt)}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
+                    }}
+                  </PagedTbody>
                 </table>
               </div>
             );

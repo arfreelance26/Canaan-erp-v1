@@ -18,6 +18,7 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { GlassCombobox } from "@/components/ui/GlassCombobox";
 import { RiDeleteBinLine as Trash2, RiAddCircleLine as PlusCircle, RiErrorWarningLine as WarnIcon } from "@remixicon/react";
 import { haltPayFromClosure } from "@/lib/halt-pay";
+import { GlassSelect } from "@/components/ui/GlassSelect";
 
 const sh = "text-caption-1-semibold text-accent-text-strong bg-accent-surface px-3 py-2 rounded-lg";
 const subsh = "text-caption-1-medium text-text-tertiary mt-3 mb-1";
@@ -550,24 +551,26 @@ export function TripSheetDialog({ open, trip, closure, existingSheet, readOnly, 
           </Field>
           <Field label="Assigned Vehicle">
             {auto ? (
-              <select className={inputClass} value={form.vehicleId} onChange={(e) => set("vehicleId", e.target.value)}>
-                <option value="">Select truck</option>
-                {trucks.map((t) => (
-                  <option key={t.truckId} value={t.truckId}>{t.registrationNumber} ({t.truckId})</option>
-                ))}
-              </select>
+              <GlassSelect
+                aria-label="Assigned Vehicle"
+                placeholder="Select truck"
+                value={form.vehicleId}
+                onChange={(v) => set("vehicleId", v)}
+                options={trucks.map((t) => ({ value: t.truckId, label: `${t.registrationNumber} (${t.truckId})` }))}
+              />
             ) : (
               <input className={roClass} value={displayVehicle} readOnly disabled />
             )}
           </Field>
           <Field label="Assigned Driver">
             {auto ? (
-              <select className={inputClass} value={form.driverId} onChange={(e) => set("driverId", e.target.value)}>
-                <option value="">Select driver</option>
-                {drivers.map((d) => (
-                  <option key={d.driverId} value={d.driverId}>{d.name} ({d.driverId})</option>
-                ))}
-              </select>
+              <GlassSelect
+                aria-label="Assigned Driver"
+                placeholder="Select driver"
+                value={form.driverId}
+                onChange={(v) => set("driverId", v)}
+                options={drivers.map((d) => ({ value: d.driverId, label: `${d.name} (${d.driverId})` }))}
+              />
             ) : (
               <input className={roClass} value={displayDriver} readOnly disabled />
             )}

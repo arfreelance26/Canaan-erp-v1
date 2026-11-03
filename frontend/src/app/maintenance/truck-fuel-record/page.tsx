@@ -15,6 +15,8 @@ import { DateRangePill } from "@/components/ui/DateRangePill";
 import { formatDate, inDateRange } from "@/lib/format-date";
 
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { PagedTbody } from "@/components/ui/PagedTbody";
 const ALLOWED_ROLES = ["Auditor", "Admin"];
 
 const n = (v: string | number | undefined | null) => {
@@ -42,7 +44,7 @@ function StatCard({ icon: Icon, label, value, accent }: { icon: typeof TruckIcon
       </span>
       <div className="min-w-0">
         <p className="text-caption-2-semibold text-text-tertiary">{label}</p>
-        <p className="truncate text-title-3-semibold leading-tight text-text-primary">{value}</p>
+        <p className="truncate text-title-3-semibold leading-tight text-text-primary"><AnimatedNumber value={value} /></p>
       </div>
     </div>
   );
@@ -284,8 +286,8 @@ export default function TruckFuelRecordPage() {
                               <th className="px-3 py-2">Source</th>
                             </tr>
                           </thead>
-                          <tbody>
-                            {truckLogs.map((l, i) => (
+                          <PagedTbody items={truckLogs}>
+                            {(l, i) => (
                               <tr
                                 key={l.id}
                                 className={`rounded-lg transition-colors hover:bg-warning-surface-strong/50 ${i % 2 === 1 ? "bg-background-primary-default " : "bg-background-primary-default "}`}
@@ -301,8 +303,8 @@ export default function TruckFuelRecordPage() {
                                 <td className="px-3 py-2.5 text-text-secondary">{l.enteredByName ?? "—"}</td>
                                 <td className="rounded-r-lg px-3 py-2.5 text-text-secondary">{l.source ?? "—"}</td>
                               </tr>
-                            ))}
-                          </tbody>
+                            )}
+                          </PagedTbody>
                         </table>
                       </div>
                     )}

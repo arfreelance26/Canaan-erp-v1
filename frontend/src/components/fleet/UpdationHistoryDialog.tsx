@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RiArrowLeftLine as ArrowLeft, RiFileAddLine as FilePlus2, RiFileTextLine as FileText, RiFileCloseLine as FileX2, RiLoader4Line as Loader2, RiEditLine as PencilLine, RiRestartLine as RotateCw, RiDeleteBinLine as Trash2, RiArrowGoBackLine as Undo2, RiUserLine as User } from "@remixicon/react";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog } from "@/components/ui/Dialog";
-import { FileViewer } from "@/components/ui/FileViewer";
 import { ComplianceDocForm } from "@/components/fleet/ComplianceDocForm";
 import {
   complianceRecordsApi,
@@ -19,6 +18,10 @@ import { confirmAction, showError, showSuccess } from "@/lib/feedback";
 import { Field, inputClassLower } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
 import type { Truck } from "@/types/truck";
+import dynamic from "next/dynamic";
+
+// Dialogs load on demand, after the page has drawn (next/dynamic).
+const FileViewer = dynamic(() => import("@/components/ui/FileViewer").then((m) => m.FileViewer));
 
 type View = "list" | "correct" | "undo";
 
